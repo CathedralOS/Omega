@@ -110,6 +110,7 @@ pub(crate) fn bind_call_evidence_arguments(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    evidence::bind_contract_expression_evidence_arguments(program, facts, &mut diagnostics);
     evidence::bind_call_evidence_arguments(program, facts, &mut diagnostics);
     if diagnostics.is_empty() {
         Ok(())

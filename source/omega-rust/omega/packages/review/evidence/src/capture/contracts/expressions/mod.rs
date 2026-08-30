@@ -2,6 +2,7 @@ pub(in crate::capture) mod atomic_loads;
 pub(in crate::capture) mod calls;
 pub(in crate::capture) mod casts;
 pub(in crate::capture) mod constructors;
+pub(in crate::capture) mod evidence;
 pub(in crate::capture) mod members;
 pub(in crate::capture) mod names;
 pub(in crate::capture) mod operators;

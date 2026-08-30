@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 95 and row schema version 53. This file
+The canonical review schema is version 96 and row schema version 54. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -140,3 +140,13 @@ custody. Unselected leaves remain disclosed without implying selection;
 compiler-intrinsic execution remains fenced pending its closed catalog. The
 new requirement tag is schema v95 / row v53; canonical-row recovery remains
 v14.
+
+Evidence-bearing calls accepted inside public callable contract expressions
+retain each erased lane as an exact source-to-callee-parameter binding. The
+checked producer keys custody by semantic proof-fact owner, exact proof fact,
+and expression-call occurrence, then substitutes ordinary call arguments into
+the callee proposition before accepting the source term. Package projection
+rejoins that occurrence and emits only package-qualified term owners, contract
+kinds, and lane ordinals; local evidence aliases, symbols, and arena handles
+are excluded. Missing, duplicate, redirected, rebound, or lane-drifted custody
+rejects. This is schema v96 / row v54; canonical-row recovery remains v14.

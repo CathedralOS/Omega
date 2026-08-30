@@ -2,8 +2,9 @@ use psi_arena::Arena;
 
 use crate::{
     CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
-    ContractOperatorUseFact, ContractProofFact, ContractProofFactRef, EvidenceForwardingFact,
-    OutcomeSpecificArmFact, OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
+    ContractExpressionEvidenceCallFact, ContractOperatorUseFact, ContractProofFact,
+    ContractProofFactRef, EvidenceForwardingFact, OutcomeSpecificArmFact,
+    OutcomeSpecificGuaranteeFact, ProofObligationFact, ProofOutputCallFact,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -18,6 +19,7 @@ pub struct ProofFacts {
     pub proof_output_calls: Arena<ProofOutputCallFact>,
     pub contract_fact_refs: Arena<ContractProofFactRef>,
     pub contract_calls: Arena<ContractCallFact>,
+    pub contract_expression_evidence_calls: Vec<ContractExpressionEvidenceCallFact>,
     pub contract_exits: Arena<ContractExitFact>,
     pub contract_operator_uses: Arena<ContractOperatorUseFact>,
     /// Proof-only float projections bound to actual validated source calls.
@@ -59,6 +61,7 @@ impl ProofFacts {
             proof_output_calls,
             contract_fact_refs,
             contract_calls,
+            contract_expression_evidence_calls: Vec::new(),
             contract_exits,
             contract_operator_uses,
             float_meaning_projections,
@@ -130,6 +133,7 @@ mod tests {
         assert_eq!(facts.proof_output_calls, proof_output_calls);
         assert_eq!(facts.contract_fact_refs, contract_fact_refs);
         assert_eq!(facts.contract_calls, contract_calls);
+        assert!(facts.contract_expression_evidence_calls.is_empty());
         assert_eq!(facts.contract_exits, contract_exits);
         assert_eq!(facts.contract_operator_uses, contract_operator_uses);
         assert_eq!(facts.float_meaning_projections, float_meaning_projections);

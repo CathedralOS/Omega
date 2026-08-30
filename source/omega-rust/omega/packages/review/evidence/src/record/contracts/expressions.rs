@@ -140,6 +140,52 @@ pub enum PackageReviewContractCallTarget {
     CollectionView(PackageReviewCollectionViewOperation),
 }
 
+/// Stable identity of one named evidence term participating in a public
+/// proof-expression call. Local aliases are excluded; declaration ownership,
+/// contract lane kind, and ordinal are semantic identity.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewContractEvidenceTerm {
+    pub(crate) owner: PackageReviewNominalIdentity,
+    pub(crate) kind: PackageReviewContractKind,
+    pub(crate) lane_position: u32,
+}
+
+impl PackageReviewContractEvidenceTerm {
+    pub const fn owner(&self) -> &PackageReviewNominalIdentity {
+        &self.owner
+    }
+
+    pub const fn kind(&self) -> PackageReviewContractKind {
+        self.kind
+    }
+
+    pub const fn lane_position(&self) -> u32 {
+        self.lane_position
+    }
+}
+
+/// One exact source-to-parameter binding in an erased evidence call lane.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewContractEvidenceArgument {
+    pub(crate) lane_position: u32,
+    pub(crate) source: PackageReviewContractEvidenceTerm,
+    pub(crate) parameter: PackageReviewContractEvidenceTerm,
+}
+
+impl PackageReviewContractEvidenceArgument {
+    pub const fn lane_position(&self) -> u32 {
+        self.lane_position
+    }
+
+    pub const fn source(&self) -> &PackageReviewContractEvidenceTerm {
+        &self.source
+    }
+
+    pub const fn parameter(&self) -> &PackageReviewContractEvidenceTerm {
+        &self.parameter
+    }
+}
+
 /// Stable identity of one ordinary operator overload. The nominal path names
 /// the declaration family; the compiler's canonical parameter and
 /// result-dispatch identities distinguish overloads by the same rules used by
@@ -305,6 +351,7 @@ pub enum PackageReviewContractExpression {
         receiver: Option<Box<PackageReviewContractExpression>>,
         target: PackageReviewContractCallTarget,
         static_arguments: Vec<PackageReviewContractStaticArgument>,
+        evidence_arguments: Vec<PackageReviewContractEvidenceArgument>,
         arguments: Vec<PackageReviewContractExpression>,
     },
     Binary {

@@ -7,6 +7,355 @@ use psi_diagnostics::Diagnostic;
 
 use crate::{call_site_evidence_arguments, call_target_parameters, find_call_site};
 
+pub(super) fn bind_contract_expression_evidence_arguments(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut calls = Vec::new();
+    let mut owners = Vec::new();
+    for (_, contract) in facts.proof.contract_facts.iter() {
+        if owners
+            .iter()
+            .any(|(owner, fact)| *owner == contract.owner && *fact == contract.fact)
+        {
+            continue;
+        }
+        owners.push((contract.owner, contract.fact));
+    }
+
+    for (owner, fact) in owners {
+        let mut expressions = Vec::new();
+        proof_fact_expression_roots(program, fact, &mut expressions);
+        let mut visited = std::collections::HashSet::new();
+        while let Some(expression) = expressions.pop() {
+            if !expression.is_valid() || !visited.insert(expression.arena_index()) {
+                continue;
+            }
+            let node = program.expression_table.expression(expression);
+            append_expression_children(program, node, &mut expressions);
+            let psi_typed_trees::expression::ExpressionNode::Call(call) = node else {
+                continue;
+            };
+            if call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
+                continue;
+            }
+            let Some(target_state_symbol) =
+                call.target_symbol.is_valid().then_some(call.target_symbol)
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "proof-expression evidence call has no exact nominal target",
+                ));
+                continue;
+            };
+            if call.static_requirement_dispatch.is_some() {
+                // This representation does not yet cover generic/static
+                // requirement dispatch. Preserve the checked language surface;
+                // public package projection remains fail-closed without a row.
+                continue;
+            }
+            let Some((target_machine_symbol, target_state_symbol)) =
+                crate::contract_target_from_state_symbol(program, target_state_symbol)
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "proof-expression evidence call has no exact checked target owner",
+                ));
+                continue;
+            };
+            let Some(target_parameters) = call_target_parameters(program, target_state_symbol)
+            else {
+                diagnostics.push(Diagnostic::error(
+                    "proof-expression evidence call has no exact target parameter telescope",
+                ));
+                continue;
+            };
+            let parameters =
+                exact_target_evidence_parameters(facts, target_machine_symbol, target_state_symbol);
+            if call.evidence_arguments.len() != parameters.len() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "proof-expression call supplies {} erased evidence argument{} but its named requires lane has {}",
+                    call.evidence_arguments.len(),
+                    if call.evidence_arguments.len() == 1 { "" } else { "s" },
+                    parameters.len(),
+                )));
+                continue;
+            }
+
+            let call_site = crate::CallSite::Expression { expression, call };
+            let mut bindings = Vec::with_capacity(parameters.len());
+            let mut invalid = false;
+            for (lane_position, (authored, parameter)) in
+                call.evidence_arguments.iter().zip(parameters).enumerate()
+            {
+                let sources = exact_visible_evidence_sources(facts, owner, authored.as_str());
+                let [source] = sources.as_slice() else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "proof-expression call resolves incoming evidence term `{authored}` to {} exact contract rows; expected one",
+                        sources.len(),
+                    )));
+                    invalid = true;
+                    continue;
+                };
+                let source = *source;
+                let Some(instantiated_proposition) = instantiate_proof_expression_parameter(
+                    program,
+                    facts,
+                    &call_site,
+                    target_parameters,
+                    parameter,
+                ) else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "proof-expression call cannot instantiate erased requires position {lane_position}",
+                    )));
+                    invalid = true;
+                    continue;
+                };
+                if facts.proof.evidence_terms.get(source).proposition != instantiated_proposition {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "evidence term `{authored}` does not inhabit erased requires position {lane_position} of proof-expression call",
+                    )));
+                    invalid = true;
+                    continue;
+                }
+                bindings.push(psi_checked_trees::ContractExpressionEvidenceArgumentFact {
+                    source,
+                    parameter,
+                    lane_position,
+                    instantiated_proposition,
+                });
+            }
+            if !invalid {
+                calls.push(psi_checked_trees::ContractExpressionEvidenceCallFact {
+                    owner,
+                    fact,
+                    expression,
+                    target_machine_symbol,
+                    target_state_symbol,
+                    evidence_arguments: bindings,
+                });
+            }
+        }
+    }
+
+    facts.proof.contract_expression_evidence_calls = calls;
+}
+
+fn proof_fact_expression_roots(
+    program: &psi_typed_trees::TypedTrees,
+    fact: Handle<psi_typed_trees::domain::ProofFact>,
+    expressions: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
+) {
+    match program.proof_facts.get(fact) {
+        psi_typed_trees::domain::ProofFact::Expression(expression) => expressions.push(*expression),
+        psi_typed_trees::domain::ProofFact::Membership(membership) => {
+            expressions.push(membership.value)
+        }
+        psi_typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
+            program
+                .expression_table
+                .expression_handles(application.arguments)
+                .iter()
+                .copied(),
+        ),
+    }
+}
+
+fn append_expression_children(
+    program: &psi_typed_trees::TypedTrees,
+    expression: &psi_typed_trees::expression::ExpressionNode,
+    children: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
+) {
+    use psi_typed_trees::expression::ExpressionNode;
+    match expression {
+        ExpressionNode::ArrayLiteral(values) => children.extend(
+            program
+                .expression_table
+                .expression_handles(*values)
+                .iter()
+                .copied(),
+        ),
+        ExpressionNode::Atomic(atomic) => {
+            children.push(atomic.value);
+            children.push(atomic.result);
+        }
+        ExpressionNode::Binary(binary) => {
+            children.push(binary.left);
+            children.push(binary.right);
+        }
+        ExpressionNode::Call(call) => {
+            children.push(call.receiver);
+            children.extend(
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        }
+        ExpressionNode::Cast(cast) => children.push(cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            children.push(indexed.collection);
+            children.push(indexed.index);
+        }
+        ExpressionNode::Member(member) => children.push(member.receiver),
+        ExpressionNode::Borrow(reference) => children.push(reference.target),
+        ExpressionNode::Range(range) => {
+            children.push(range.start);
+            children.push(range.end);
+        }
+        ExpressionNode::StructLiteral(literal) => children.extend(
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .map(|field| field.value),
+        ),
+        ExpressionNode::Unary(unary) => children.push(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+fn evidence_term_belongs_to_target(
+    owner: ContractProofFactOwner,
+    target_machine_symbol: psi_symbols::SymbolHandle,
+    target_state_symbol: psi_symbols::SymbolHandle,
+) -> bool {
+    matches!(
+        owner,
+        ContractProofFactOwner::Machine { machine_symbol }
+            if machine_symbol == target_machine_symbol
+    ) || matches!(
+        owner,
+        ContractProofFactOwner::MachineState {
+            machine_symbol,
+            state_symbol,
+        } if machine_symbol == target_machine_symbol && state_symbol == target_state_symbol
+    ) || matches!(
+        owner,
+        ContractProofFactOwner::StateSignature {
+            owner_symbol,
+            state_symbol,
+        } if owner_symbol == target_machine_symbol && state_symbol == target_state_symbol
+    )
+}
+
+fn exact_target_evidence_parameters(
+    facts: &CheckFacts,
+    target_machine_symbol: psi_symbols::SymbolHandle,
+    target_state_symbol: psi_symbols::SymbolHandle,
+) -> Vec<Handle<CheckedEvidenceTerm>> {
+    // Contract-fact arena order is the declaration contract lane used by the
+    // ordinary call-fact builder. Walking those exact facts prevents an
+    // unrelated or orphaned global evidence term with a lookalike owner from
+    // entering this proof-expression call lane.
+    facts
+        .proof
+        .contract_facts
+        .iter()
+        .filter_map(|(_, contract)| {
+            let parameter = contract.evidence_term?;
+            let checked = facts.proof.evidence_terms.get(parameter);
+            (contract.kind == ContractProofFactKind::Requires
+                && evidence_term_belongs_to_target(
+                    contract.owner,
+                    target_machine_symbol,
+                    target_state_symbol,
+                )
+                && checked.owner == contract.owner
+                && checked.kind == contract.kind)
+                .then_some(parameter)
+        })
+        .collect()
+}
+
+fn exact_visible_evidence_sources(
+    facts: &CheckFacts,
+    owner: ContractProofFactOwner,
+    name: &str,
+) -> Vec<Handle<CheckedEvidenceTerm>> {
+    facts
+        .proof
+        .contract_facts
+        .iter()
+        .filter_map(|(_, contract)| {
+            let term = contract.evidence_term?;
+            let checked = facts.proof.evidence_terms.get(term);
+            (contract.kind == ContractProofFactKind::Requires
+                && evidence_term_visible_from_owner(contract.owner, owner)
+                && checked.owner == contract.owner
+                && checked.kind == contract.kind
+                && checked.name == name)
+                .then_some(term)
+        })
+        .collect()
+}
+
+fn evidence_term_visible_from_owner(
+    term_owner: ContractProofFactOwner,
+    fact_owner: ContractProofFactOwner,
+) -> bool {
+    term_owner == fact_owner
+        || matches!(
+            (term_owner, fact_owner),
+            (
+                ContractProofFactOwner::Machine { machine_symbol: term_machine },
+                ContractProofFactOwner::MachineState { machine_symbol: fact_machine, .. },
+            ) if term_machine == fact_machine
+        )
+}
+
+fn instantiate_proof_expression_parameter(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    call_site: &crate::CallSite<'_>,
+    target_parameters: &[psi_typed_trees::signature::StateParameter],
+    parameter: Handle<CheckedEvidenceTerm>,
+) -> Option<CheckedPropositionApplication> {
+    let contract = facts
+        .proof
+        .contract_facts
+        .iter()
+        .map(|(_, contract)| contract)
+        .find(|contract| contract.evidence_term == Some(parameter))?;
+    let psi_typed_trees::domain::ProofFact::Proposition(application) =
+        program.proof_facts.get(contract.fact)
+    else {
+        return None;
+    };
+    let binder_labels = application
+        .binder_arguments
+        .iter()
+        .map(|argument| argument.display_name())
+        .collect::<Vec<_>>();
+    let argument_labels = program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .map(|argument| {
+            super::labels::instantiate_call_contract_expression_label(
+                program,
+                psi_symbols::SymbolHandle::invalid(),
+                0,
+                call_site,
+                target_parameters,
+                *argument,
+            )
+        })
+        .collect::<Vec<_>>();
+    program
+        .normalize_nominal_proposition_application_with_labels(
+            application,
+            &binder_labels,
+            &argument_labels,
+        )
+        .map(crate::proof::lower_checked_proposition_application)
+}
+
 pub(super) fn bind_call_evidence_arguments(
     program: &psi_typed_trees::TypedTrees,
     facts: &mut CheckFacts,

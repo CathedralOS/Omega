@@ -108,12 +108,14 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
                 receiver,
                 target,
                 static_arguments,
+                evidence_arguments,
                 arguments,
             }) = fact
             else {
                 panic!("one exact nominal call per domain predicate")
             };
             assert!(static_arguments.is_empty());
+            assert!(evidence_arguments.is_empty());
             (
                 target.nominal().expect("ordinary nominal target").path(),
                 receiver.as_deref(),

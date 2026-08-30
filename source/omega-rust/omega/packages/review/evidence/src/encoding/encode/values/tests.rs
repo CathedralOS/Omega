@@ -81,6 +81,7 @@ fn collection_view_encoding_has_one_closed_tag_per_operation() {
             receiver: Some(Box::new(PackageReviewContractExpression::Boolean(false))),
             target: PackageReviewContractCallTarget::CollectionView(operation),
             static_arguments: Vec::new(),
+            evidence_arguments: Vec::new(),
             arguments: Vec::new(),
         };
         let mut encoder = Encoder::bounded(64);

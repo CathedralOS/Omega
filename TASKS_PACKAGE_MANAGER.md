@@ -38,8 +38,8 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - evidence-bearing calls, proposition/evidence static arguments, forwarded
-    or symbolic const arguments, and non-data nested static applications whose
+  - proposition/evidence static arguments, forwarded or symbolic const
+    arguments, and non-data nested static applications whose
     structural witness is not retained by its owning typed or checked
     representation;
   - generic or lifetime-parameterized external/top-level realizations,
