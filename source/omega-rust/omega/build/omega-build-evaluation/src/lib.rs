@@ -303,7 +303,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 46;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 47;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2570,7 +2570,12 @@ fn source_input_replay_prefix_end(
         cursor += 1;
         event_count += 1;
     }
-    (event_count != 0).then_some(cursor)
+    (event_count != 0
+        || (cursor == 0
+            && attempts
+                .first()
+                .is_some_and(|attempt| matches!(attempt.operation_tag(), 1 | 11 | 19 | 20 | 27))))
+    .then_some(cursor)
 }
 
 fn source_read_link_is_exact(

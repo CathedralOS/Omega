@@ -145,6 +145,32 @@ reaches FilesystemHost
             .expect("write hard-link Output-tree main source");
     }
 
+    fn write_constant_output_sources(&self, target: &str) {
+        std::fs::write(
+            self.source.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+{{
+    builder.package("constant-output-tree");
+    let artifact: &[u8] in Path = builder.output.resolve("constant.bin");
+    let output_descriptor: i32 = builder.filesystem.create(artifact, 438);
+    let output_count: i64 = builder.filesystem.write(output_descriptor, "constant output");
+    let output_close: i32 = builder.filesystem.close(output_descriptor);
+    builder.freestanding = false;
+}}
+"#,
+            ),
+        )
+        .expect("write constant Output-tree build source");
+        std::fs::write(self.source.join("main.omg"), "data Main { value: u8; }\n")
+            .expect("write constant Output-tree main source");
+    }
+
     fn sponsored_output(&self) -> (PathBuf, FilesystemSponsor) {
         let session = std::fs::canonicalize(&self.session).expect("canonicalize session");
         let sponsor = FilesystemSponsor::new(&session).expect("create sponsor");
@@ -239,6 +265,77 @@ fn assert_normalized_hard_link_output(tree: &BuildStagedOutputTree, destination:
 }
 
 #[test]
+fn constant_output_tree_replays_without_an_artificial_source_event() {
+    let profile = omega_target::TargetProfile::host();
+    let project = TestProject::new();
+    project.write_constant_output_sources(profile.target_name());
+    let (output, sponsor) = project.sponsored_output();
+    set_tree_permissions(&project.source, true);
+    let inputs = package_inputs(&project.source, "constant-output-tree");
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.source.join("main.omg"),
+        &output,
+        Some(profile.target_name()),
+        inputs.clone(),
+        sponsor,
+    )
+    .expect("constant Output tree should receipt without reading Source");
+
+    let summary = checked
+        .build_observation_summary()
+        .expect("constant Output tree retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![1, 5, 8]
+    );
+    let staged = summary
+        .staged_output_tree()
+        .expect("constant Output tree has staged custody");
+    assert_eq!(staged.entry_count(), 1);
+    assert_eq!(staged.file_bytes(), 15);
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("constant Output receipt encodes")
+        .expect("constant Output receipt retains custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("constant Output receipt recovers");
+
+    std::fs::write(output.join("constant.bin"), "spoofed host output")
+        .expect("drift physical constant Output after capture");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.source.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        recovered,
+    )
+    .expect("constant Output replay must not consult drifted host Output");
+    set_tree_permissions(&project.source, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed constant Output retains observations");
+    assert!(replayed_summary.operation_replay_verified());
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+    assert_eq!(
+        replayed_summary
+            .staged_output_tree()
+            .expect("replayed constant Output staged custody"),
+        staged
+    );
+}
+
+#[test]
 fn empty_output_directory_tree_replays_without_host_output() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
@@ -258,7 +355,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 46);
+    assert_eq!(summary.schema_version(), 47);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

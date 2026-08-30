@@ -162,3 +162,18 @@ still requires a new checked resolution through a compiler-issued root.
 Failures, Output-rooted reads, malformed carriers, changed tails, inconsistent
 counts or completeness, alternate path-result kinds, and hidden authority
 remain non-receipted.
+
+## Output-only tree (summary v47, replay record v28)
+
+The ordered replay grammar now accepts a nonempty exact Output tree beginning
+at filesystem attempt zero. A build that generates constant output therefore
+does not need a fabricated Source filesystem event: its empty Source-event
+prefix is replayed vacuously. Canonical package Source metadata and compiler
+custody remain mandatory and are revalidated independently of that event
+prefix.
+
+Provider-free execution begins with the first Output attempt. Generated-source
+handoffs retain their exact ordinals from zero, and the existing complete
+directory, file, symbolic-link, and hard-link tree grammar remains unchanged.
+An empty attempt stream, malformed pre-Output attempt, unexplained physical
+Output, or changed canonical Source identity remains non-receipted.
