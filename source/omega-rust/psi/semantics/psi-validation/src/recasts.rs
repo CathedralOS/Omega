@@ -106,11 +106,12 @@ impl ValidatedLiteralIndexedRecastFootprint {
 /// Replay the canonical recast judgment and retain one exact literal-index
 /// byte footprint for borrow overlap.
 ///
-/// This deliberately excludes runtime or singleton-range offsets, slices,
-/// whole-array sources, and aggregate targets other than one closed,
-/// recursively fact-free fixed record. Those shapes remain under their
-/// existing conservative loan fence even when the broader recast judgment can
-/// validate their representation.
+/// This deliberately excludes runtime or singleton-range offsets, slices, and
+/// whole-array sources. Aggregate targets are limited to one closed,
+/// recursively fact-free fixed record or recursively nonzero literal fixed
+/// arrays ending in either an exact primitive or that same closed-record
+/// subset. Other shapes remain under their existing conservative loan fence
+/// even when the broader recast judgment can validate their representation.
 pub fn validate_literal_indexed_recast_footprint(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
@@ -180,15 +181,23 @@ fn literal_indexed_recast_target_size(
     program: &TypedTrees,
     target_type: TypeReferenceHandle,
 ) -> Option<usize> {
-    if let Some(primitive) = program.primitive_type_reference(target_type) {
+    if let Some(primitive) = exact_primitive_type(program, target_type)
+        .filter(|primitive| *primitive != PrimitiveType::Bool)
+    {
         return primitive.scalar_byte_size();
     }
 
-    if nested_literal_fixed_primitive_array_target_is_eligible(program, target_type) {
+    if let Some(terminal) = literal_fixed_array_target_terminal(program, target_type) {
         return shared_projection_type_representation(program, target_type).and_then(
             |representation| {
-                (representation.size > 0 && representation_is_exactly_tiled(&representation))
-                    .then_some(representation.size)
+                let eligible = representation.size > 0
+                    && match terminal {
+                        LiteralFixedArrayTerminal::ExactPrimitive => {
+                            representation_is_exactly_tiled(&representation)
+                        }
+                        LiteralFixedArrayTerminal::ClosedRecord => true,
+                    };
+                eligible.then_some(representation.size)
             },
         );
     }
@@ -207,30 +216,41 @@ fn literal_indexed_recast_target_size(
         .filter(|size| *size > 0)
 }
 
-fn nested_literal_fixed_primitive_array_target_is_eligible(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LiteralFixedArrayTerminal {
+    ExactPrimitive,
+    ClosedRecord,
+}
+
+fn literal_fixed_array_target_terminal(
     program: &TypedTrees,
     target_type: TypeReferenceHandle,
-) -> bool {
+) -> Option<LiteralFixedArrayTerminal> {
     let TypeReferenceNode::FixedArray {
         element_type,
         length: psi_typed_trees::types::FixedArrayLength::Literal(length),
     } = program.type_reference_table.type_reference(target_type)
     else {
-        return false;
+        return None;
     };
     if *length == 0 {
-        return false;
+        return None;
     }
 
     match program.type_reference_table.type_reference(*element_type) {
-        TypeReferenceNode::Named { .. } => exact_primitive_type(program, *element_type)
-            .is_some_and(|primitive| {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if exact_primitive_type(program, *element_type).is_some_and(|primitive| {
                 primitive != PrimitiveType::Bool && primitive.scalar_byte_size().is_some()
-            }),
-        TypeReferenceNode::FixedArray { .. } => {
-            nested_literal_fixed_primitive_array_target_is_eligible(program, *element_type)
+            }) {
+                return Some(LiteralFixedArrayTerminal::ExactPrimitive);
+            }
+            closed_fact_free_record_symbol_is_eligible(program, *symbol, &mut Vec::new())
+                .then_some(LiteralFixedArrayTerminal::ClosedRecord)
         }
-        _ => false,
+        TypeReferenceNode::FixedArray { .. } => {
+            literal_fixed_array_target_terminal(program, *element_type)
+        }
+        _ => None,
     }
 }
 
@@ -251,7 +271,7 @@ fn closed_fact_free_record_symbol_is_eligible(
     symbol: psi_symbols::SymbolHandle,
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> bool {
-    if visiting.contains(&symbol) {
+    if !symbol.is_valid() || visiting.contains(&symbol) {
         return false;
     }
     visiting.push(symbol);
@@ -291,16 +311,19 @@ fn closed_fact_free_record_field_is_eligible(
     type_reference: TypeReferenceHandle,
     visiting: &mut Vec<psi_symbols::SymbolHandle>,
 ) -> bool {
-    if let Some(primitive) = program.primitive_type_reference(type_reference) {
-        return primitive != psi_typed_trees::types::PrimitiveType::Bool
-            && primitive.scalar_byte_size().is_some();
+    if let Some(primitive) = exact_primitive_type(program, type_reference) {
+        return primitive != PrimitiveType::Bool && primitive.scalar_byte_size().is_some();
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(type_reference)
-    else {
-        return false;
-    };
-    closed_fact_free_record_symbol_is_eligible(program, *symbol, visiting)
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            closed_fact_free_record_symbol_is_eligible(program, *symbol, visiting)
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: psi_typed_trees::types::FixedArrayLength::Literal(_),
+        } => closed_fact_free_record_field_is_eligible(program, *element_type, visiting),
+        _ => false,
+    }
 }
 
 pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {

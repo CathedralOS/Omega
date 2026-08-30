@@ -1,10 +1,12 @@
 use super::scalar_representation::{
-    MutableScalarRepresentationFacts, mutable_scalar_representation_facts,
-    mutable_scalar_representation_facts_equivalent, scalar_representation_facts_imply,
+    mutable_scalar_representation_facts, mutable_scalar_representation_facts_equivalent,
+    scalar_representation_facts_imply, MutableScalarRepresentationFacts,
 };
-use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::TypedTrees;
 use std::collections::HashSet;
+
+type SymbolIdentity = (u32, u32);
 
 #[derive(Debug, Clone)]
 pub(super) struct MutableRecordRepresentation {
@@ -59,19 +61,23 @@ fn type_representation(
 /// exact `{0,1}` set), because both alias directions are checked below.
 fn mutable_record_representation_inner(
     program: &TypedTrees,
-    name: &str,
-    visiting: &mut HashSet<String>,
+    symbol: psi_symbols::SymbolHandle,
+    visiting: &mut HashSet<SymbolIdentity>,
     allow_stored_integer_projection: bool,
 ) -> Option<MutableRecordRepresentation> {
-    if !visiting.insert(name.to_owned()) {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let symbol_identity = (symbol.arena_index(), symbol.generation());
+    if !visiting.insert(symbol_identity) {
         return None;
     }
     let data = program
         .data_definitions()
         .iter()
-        .find(|data| data.name.as_str() == name)?;
+        .find(|data| data.symbol == symbol)?;
     if !data.where_facts.is_empty() || data.zero_gated {
-        visiting.remove(name);
+        visiting.remove(&symbol_identity);
         return None;
     }
 
@@ -80,7 +86,7 @@ fn mutable_record_representation_inner(
     let mut field_symbols = Vec::new();
     for member in program.data_members(data) {
         let psi_typed_trees::data::DataMember::Field(field) = member else {
-            visiting.remove(name);
+            visiting.remove(&symbol_identity);
             return None;
         };
         if field.relevance.is_erased() {
@@ -92,7 +98,7 @@ fn mutable_record_representation_inner(
             visiting,
             allow_stored_integer_projection,
         ) else {
-            visiting.remove(name);
+            visiting.remove(&symbol_identity);
             return None;
         };
         fields.push(representation);
@@ -112,7 +118,7 @@ fn mutable_record_representation_inner(
             || (!allow_stored_integer_projection && !plan.integer_fields.is_empty())
             || plan.offsets.len() != fields.len()
         {
-            visiting.remove(name);
+            visiting.remove(&symbol_identity);
             return None;
         }
         for integer_field in &plan.integer_fields {
@@ -121,7 +127,7 @@ fn mutable_record_representation_inner(
                 || integer_field.stored_width_bits == 0
                 || integer_field.stored_width_bits % 8 != 0
             {
-                visiting.remove(name);
+                visiting.remove(&symbol_identity);
                 return None;
             }
             let stored_size = usize::from(integer_field.stored_width_bits / 8);
@@ -137,7 +143,7 @@ fn mutable_record_representation_inner(
                 length: FixedArrayLength::Literal(element_count),
             } = program.type_reference_table.type_reference(field_type)
             else {
-                visiting.remove(name);
+                visiting.remove(&symbol_identity);
                 return None;
             };
             let element = mutable_record_type_representation(
@@ -158,7 +164,7 @@ fn mutable_record_representation_inner(
                 .checked_add(field.size)
                 .is_none_or(|end| end > plan.size)
         }) {
-            visiting.remove(name);
+            visiting.remove(&symbol_identity);
             return None;
         }
         (plan.size, plan.align, plan.offsets.clone())
@@ -167,12 +173,12 @@ fn mutable_record_representation_inner(
         let mut offset = 0usize;
         let mut max_align = 1usize;
         for field in &fields {
-            offset = offset.div_ceil(field.align) * field.align;
+            offset = checked_align_up(offset, field.align)?;
             offsets.push(offset);
             offset = offset.checked_add(field.size)?;
             max_align = max_align.max(field.align);
         }
-        (offset.div_ceil(max_align) * max_align, max_align, offsets)
+        (checked_align_up(offset, max_align)?, max_align, offsets)
     };
 
     let mut leaves = Vec::new();
@@ -182,7 +188,7 @@ fn mutable_record_representation_inner(
             leaves.push(leaf);
         }
     }
-    visiting.remove(name);
+    visiting.remove(&symbol_identity);
     Some(MutableRecordRepresentation {
         size,
         align,
@@ -194,7 +200,7 @@ fn mutable_record_representation_inner(
 fn mutable_record_type_representation(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    visiting: &mut HashSet<String>,
+    visiting: &mut HashSet<SymbolIdentity>,
     allow_stored_integer_projection: bool,
 ) -> Option<MutableRecordRepresentation> {
     if let Some(primitive) = program.primitive_type_reference(type_reference) {
@@ -222,7 +228,9 @@ fn mutable_record_type_representation(
                 allow_stored_integer_projection,
             )?;
             let size = element.size.checked_mul(*length)?;
-            let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(*length)?);
+            let leaf_count = element.leaves.len().checked_mul(*length)?;
+            let mut leaves = Vec::new();
+            leaves.try_reserve_exact(leaf_count).ok()?;
             for index in 0..*length {
                 let element_offset = element.size.checked_mul(index)?;
                 for leaf in &element.leaves {
@@ -240,9 +248,9 @@ fn mutable_record_type_representation(
                 has_stored_integer_projection: element.has_stored_integer_projection,
             })
         }
-        TypeReferenceNode::Named { name, .. } => mutable_record_representation_inner(
+        TypeReferenceNode::Named { symbol, .. } => mutable_record_representation_inner(
             program,
-            name.as_str(),
+            *symbol,
             visiting,
             allow_stored_integer_projection,
         ),
@@ -250,6 +258,18 @@ fn mutable_record_type_representation(
         // leaf representation fact. It cannot be preserved by this rung.
         TypeReferenceNode::Constrained { .. } | TypeReferenceNode::Reference { .. } => None,
         _ => None,
+    }
+}
+
+fn checked_align_up(value: usize, alignment: usize) -> Option<usize> {
+    if alignment == 0 {
+        return None;
+    }
+    let remainder = value % alignment;
+    if remainder == 0 {
+        Some(value)
+    } else {
+        value.checked_add(alignment.checked_sub(remainder)?)
     }
 }
 
@@ -281,7 +301,9 @@ pub(super) fn repeat_representation(
     count: usize,
 ) -> Option<MutableRecordRepresentation> {
     let size = element.size.checked_mul(count)?;
-    let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
+    let leaf_count = element.leaves.len().checked_mul(count)?;
+    let mut leaves = Vec::new();
+    leaves.try_reserve_exact(leaf_count).ok()?;
     for index in 0..count {
         let base = element.size.checked_mul(index)?;
         for leaf in &element.leaves {
@@ -315,7 +337,9 @@ fn repeat_representation_with_stride(
             .checked_mul(count.checked_sub(1)?)?
             .checked_add(element.size)?
     };
-    let mut leaves = Vec::with_capacity(element.leaves.len().checked_mul(count)?);
+    let leaf_count = element.leaves.len().checked_mul(count)?;
+    let mut leaves = Vec::new();
+    leaves.try_reserve_exact(leaf_count).ok()?;
     for index in 0..count {
         let base = stride.checked_mul(index)?;
         for leaf in &element.leaves {
@@ -367,4 +391,81 @@ pub(super) fn record_representation_implies(
                     && source.size == target.size
                     && scalar_representation_facts_imply(program, &source.facts, &target.facts)
             })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_typed_trees::data::{DataDefinition, DataField, DataMember};
+    use psi_typed_trees::name::Identifier;
+
+    fn named_type(
+        program: &mut TypedTrees,
+        symbol: psi_symbols::SymbolHandle,
+        name: &str,
+    ) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::generated(name),
+            })
+    }
+
+    fn push_single_field_record(
+        program: &mut TypedTrees,
+        symbol: psi_symbols::SymbolHandle,
+        field_type: TypeReferenceHandle,
+    ) {
+        let mut definition = DataDefinition {
+            symbol,
+            name: Identifier::generated("Cell"),
+            ..DataDefinition::default()
+        };
+        program.push_data_member(
+            &mut definition,
+            DataMember::Field(DataField {
+                type_reference: field_type,
+                ..DataField::default()
+            }),
+        );
+        program.push_data_definition(definition);
+    }
+
+    #[test]
+    fn representation_resolves_same_spelling_by_exact_symbol() {
+        let mut program = TypedTrees::default();
+        let first_symbol = psi_symbols::SymbolHandle::from_arena_index(11);
+        let selected_symbol = psi_symbols::SymbolHandle::from_arena_index(12);
+        let u64_type = named_type(&mut program, psi_symbols::SymbolHandle::invalid(), "u64");
+        let u8_type = named_type(&mut program, psi_symbols::SymbolHandle::invalid(), "u8");
+        push_single_field_record(&mut program, first_symbol, u64_type);
+        push_single_field_record(&mut program, selected_symbol, u8_type);
+        let selected_type = named_type(&mut program, selected_symbol, "Cell");
+
+        let representation = mutable_type_representation(&program, selected_type)
+            .expect("the selected record has an exact scalar representation");
+
+        assert_eq!(representation.size, 1);
+        assert_eq!(representation.align, 1);
+        assert_eq!(representation.leaves.len(), 1);
+    }
+
+    #[test]
+    fn repeated_leaf_capacity_overflow_fails_closed() {
+        let mut program = TypedTrees::default();
+        let u8_type = named_type(&mut program, psi_symbols::SymbolHandle::invalid(), "u8");
+        let element = mutable_type_representation(&program, u8_type)
+            .expect("u8 has a one-byte representation");
+        let fixed_array = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: u8_type,
+                length: FixedArrayLength::Literal(usize::MAX),
+            });
+
+        assert!(mutable_type_representation(&program, fixed_array).is_none());
+        assert!(repeat_representation(&element, usize::MAX).is_none());
+        assert!(repeat_representation_with_stride(&element, usize::MAX, 1).is_none());
+    }
 }
