@@ -428,3 +428,55 @@ canonical edge.
 - Tempting but wrong: hardwire the first self-build closure or recognize `C` by
   file/hash/AST allowlist instead of accepting the same compositional Omega
   request shape required for ordinary compilation.
+## Q8 — Define the device-operation source contract
+
+### Context
+
+The memory and concurrency designs already distinguish DMA publication,
+device acquisition, cache maintenance, MMIO notification, and posted-write
+completion. The non-authorizing access-plan carrier retains each demand's full
+mapped-subrange context, admitted schema/device correspondence, and nominal
+ordering-scope identity, and it closes provider coverage exactly.
+
+No source/core declaration or typed/checked operation currently emits any of
+those demands. The design briefs describe their semantic effects, but do not
+fix concrete operation signatures, argument/result custody, or how the
+compiler constructs the nominal ordering scope. Inventing downstream checked
+rows would therefore create producer-authored evidence with no language
+operation to justify it.
+
+### Problem statement
+
+Define the source-visible or compiler-known operations that generate each of
+the five requirement families. For every operation, settle:
+
+1. the exact range, mapping, device/correspondence, request, and scope inputs;
+2. which inputs are borrowed, consumed, or returned for retry;
+3. the evidence or custody returned on success, including publication
+   invalidation and completion-bound acquisition; and
+4. whether ordering-scope identities are named by source, selected by an
+   admitted provider, or issued by the compiler from a closed composition.
+
+### Proposed direction
+
+Expose sealed compiler-known operations with typed capability inputs rather
+than user-constructible requirement rows. Derive the mapped-range and device
+correspondence contexts from checked arguments, and issue the ordering-scope
+identity during provider selection for the closed composition. Publication
+returns range/write-state-bound evidence; acquisition consumes exact
+request/device/range completion evidence and returns Stable custody only when
+that completion returned device custody. Failed admission returns every
+consumed candidate unchanged for retry.
+
+### Alternates
+
+- Acceptable: expose only complete DMA submission initially and keep the lower
+  level five-operation vocabulary provider-private, provided checked drivers
+  cannot claim to compose those operations independently.
+- Acceptable: make the scope an explicit sealed capability argument, provided
+  ordinary source cannot forge or compare its identity and provider admission
+  still binds it to one closed composition.
+- Tempting but wrong: emit synthetic requirements from tests or downstream
+  access plans without a checked source operation, use compact range/device
+  identifiers in place of retained contexts, or let erased proof values stand
+  in for Terminal ordering events.

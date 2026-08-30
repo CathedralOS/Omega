@@ -10817,8 +10817,16 @@ checked-result arithmetic decision listed below.
   model and x86-64/AArch64 refinement before enabling general protocol
   verification or global-order fences. Placed atomic accessors, checked ISA
   barriers, and installed-root same-context evidence do not wait for it.
-- Add sealed provider requirements for DMA publication/acquisition, cache
-  maintenance, MMIO notification, and posted-write completion. Every emitted
+- **DEVICE-OPERATION-SOURCE-CONTRACT — design blocked.** Settle the source
+  operations for DMA publication/acquisition, cache maintenance, MMIO
+  notification, and posted-write completion, including their exact arguments,
+  result/evidence custody, and compiler-issued ordering-scope construction.
+  The five semantic families and retained structural contexts are already
+  settled; do not synthesize checked rows until a real source operation can
+  emit them. See `OWNER_QUESTIONS.md` Q8.
+- After that source contract lands, add sealed provider requirements for DMA
+  publication/acquisition, cache maintenance, MMIO notification, and
+  posted-write completion. Every emitted
   requirement must be discharged or reject. The first non-authorizing
   foundation carrier now keeps all five operation families distinct and binds
   each demand to one opaque exact mapped-subrange context, one complete
