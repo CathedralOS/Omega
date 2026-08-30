@@ -188,6 +188,62 @@ data OmegaUseSyntax {
     end: i32;
 }
 
+data OmegaRootKind {
+    case Use;
+    case Data;
+}
+
+data OmegaRootSyntax {
+    kind: OmegaRootKind;
+    item_index: i32;
+}
+
+data OmegaDataMultiplicity {
+    case Affine;
+    case Unrestricted;
+}
+
+data OmegaDataMemberKind {
+    case Field;
+    case Case;
+}
+
+data OmegaNamedTypeSyntax {
+    name: OmegaRelativeSpan;
+}
+
+data OmegaDataFieldSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaDataCaseSyntax {
+    name: OmegaRelativeSpan;
+    start: i32;
+    end: i32;
+}
+
+data OmegaDataMemberSyntax {
+    kind: OmegaDataMemberKind;
+    item_index: i32;
+}
+
+data OmegaDataSyntax {
+    name: OmegaRelativeSpan;
+    first_member: i32;
+    member_count: i32;
+    first_field: i32;
+    field_count: i32;
+    first_case: i32;
+    case_count: i32;
+    multiplicity: OmegaDataMultiplicity;
+    is_public: i32;
+    start: i32;
+    end: i32;
+}
+
 data OmegaParserStatus {
     case Parsing;
     case Complete;
@@ -204,25 +260,65 @@ data OmegaParseDiagnosticCode {
     case None;
     case ExpectedPathMember;
     case ExpectedPathSeparatorOrSemicolon;
+    case ExpectedDataName;
+    case ExpectedDataBody;
+    case ExpectedDataProperty;
+    case ExpectedDataPropertyEnd;
+    case ExpectedDataMemberOrEnd;
+    case ExpectedDataCaseName;
+    case ExpectedDataCaseEnd;
+    case ExpectedDataFieldColon;
+    case ExpectedDataFieldType;
+    case ExpectedDataFieldEnd;
 }
 
 data OmegaParserResource {
     case None;
-    case UseItems;
+    case Roots;
     case PathMembers;
+    case DataMembers;
 }
 
 data OmegaParser {
     scan: OmegaLexScan;
-    // Only rows in [0, member_count) and [0, use_count) are live. Resetting a
-    // parse invalidates prior rows by zeroing the counts rather than the arrays.
+    // Only Complete authorizes consumers to inspect rows below the matching
+    // count. Failure/incomplete may leave unowned prefixes; reset invalidates
+    // prior rows by zeroing counts rather than clearing arrays.
+    roots: [OmegaRootSyntax; 4096];
     members: [OmegaRelativeSpan; 16384];
     uses: [OmegaUseSyntax; 4096];
+    data_items: [OmegaDataSyntax; 4096];
+    data_members: [OmegaDataMemberSyntax; 16384];
+    data_fields: [OmegaDataFieldSyntax; 16384];
+    data_cases: [OmegaDataCaseSyntax; 16384];
+    type_references: [OmegaNamedTypeSyntax; 16384];
+    root_count: i32;
     member_count: i32;
     use_count: i32;
+    data_count: i32;
+    data_member_count: i32;
+    data_field_count: i32;
+    data_case_count: i32;
+    type_reference_count: i32;
     cursor: i32;
     item_start: i32;
     first_member: i32;
+    data_name_start: i32;
+    data_name_end: i32;
+    data_first_member: i32;
+    data_first_field: i32;
+    data_first_case: i32;
+    data_is_public: i32;
+    data_multiplicity: OmegaDataMultiplicity;
+    field_start: i32;
+    field_name_start: i32;
+    field_name_end: i32;
+    type_name_start: i32;
+    type_name_end: i32;
+    case_start: i32;
+    case_keyword_end: i32;
+    case_name_start: i32;
+    case_name_end: i32;
     status: OmegaParserStatus;
     diagnostic_code: OmegaParseDiagnosticCode;
     diagnostic_start: i32;
@@ -2273,22 +2369,43 @@ machine OmegaLexScan::validate_lexical(
 
 // Canonical parser invocation for one immutable source view. The invocation
 // performs the whole-view lexical judgment once, then streams that exact view
-// through bounded scanner stages. State purpose 0 selects a root token, 1 a
-// use-path member, and 2 the punctuation after a member. No purpose or
-// preflight fact escapes this invocation.
+// through bounded scanner stages. State purposes select parser-local grammar
+// positions; no purpose or preflight fact escapes this invocation.
 //
-// This first retained syntax slice owns ordinary `use path::member;` roots.
-// Any other lexically valid root stops as Incomplete rather than becoming a
-// false Omega rejection. Later grammar slices extend this same machine.
+// The retained syntax currently owns ordinary `use path::member;` and basic
+// `[pub] data` roots. Rich valid data syntax stops as Incomplete rather than
+// becoming a false Omega rejection. Later grammar slices extend this machine.
 machine OmegaParser::parse_view(
     &mut self,
     source: &[u8]
 ) {
+    self.root_count = 0;
     self.member_count = 0;
     self.use_count = 0;
+    self.data_count = 0;
+    self.data_member_count = 0;
+    self.data_field_count = 0;
+    self.data_case_count = 0;
+    self.type_reference_count = 0;
     self.cursor = 0;
     self.item_start = 0;
     self.first_member = 0;
+    self.data_name_start = 0;
+    self.data_name_end = 0;
+    self.data_first_member = 0;
+    self.data_first_field = 0;
+    self.data_first_case = 0;
+    self.data_is_public = 0;
+    self.data_multiplicity = OmegaDataMultiplicity::Affine;
+    self.field_start = 0;
+    self.field_name_start = 0;
+    self.field_name_end = 0;
+    self.type_name_start = 0;
+    self.type_name_end = 0;
+    self.case_start = 0;
+    self.case_keyword_end = 0;
+    self.case_name_start = 0;
+    self.case_name_end = 0;
     self.status = OmegaParserStatus::Parsing;
     self.diagnostic_code = OmegaParseDiagnosticCode::None;
     self.diagnostic_start = 0;
@@ -2403,6 +2520,18 @@ machine OmegaParser::parse_view(
             0 -> root_token()
             1 -> member_token()
             2 -> path_tail_token()
+            3 -> public_data_token()
+            4 -> data_name_token()
+            5 -> data_body_token()
+            6 -> data_property_token()
+            7 -> data_property_end_token()
+            8 -> data_body_after_property_token()
+            9 -> data_member_token()
+            10 -> case_marker_tail_token()
+            11 -> case_end_token()
+            12 -> field_colon_token()
+            13 -> field_type_token()
+            14 -> field_end_token()
             _ -> internal_failure()
         }
     }
@@ -2410,8 +2539,72 @@ machine OmegaParser::parse_view(
     state end_of_view(purpose: i32) {
         transition purpose {
             0 -> complete()
-            1 -> expected_member(source.len, source.len)
-            2 -> expected_separator(source.len, source.len)
+            1 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathMember,
+                source.len,
+                source.len
+            )
+            2 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
+                source.len,
+                source.len
+            )
+            3 -> incomplete_at_end()
+            4 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataName,
+                source.len,
+                source.len
+            )
+            5 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataBody,
+                source.len,
+                source.len
+            )
+            6 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataProperty,
+                source.len,
+                source.len
+            )
+            7 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataPropertyEnd,
+                source.len,
+                source.len
+            )
+            8 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataBody,
+                source.len,
+                source.len
+            )
+            9 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataMemberOrEnd,
+                source.len,
+                source.len
+            )
+            10 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseName,
+                source.len,
+                source.len
+            )
+            11 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseEnd,
+                source.len,
+                source.len
+            )
+            12 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldColon,
+                source.len,
+                source.len
+            )
+            13 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldType,
+                source.len,
+                source.len
+            )
+            14 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -2426,6 +2619,8 @@ machine OmegaParser::parse_view(
     state root_keyword() {
         transition self.scan.keyword {
             OmegaKeywordKind::Use -> begin_use()
+            OmegaKeywordKind::Data -> begin_data_root()
+            OmegaKeywordKind::Pub -> begin_public_root()
             _ -> incomplete_root()
         }
     }
@@ -2436,10 +2631,20 @@ machine OmegaParser::parse_view(
         self.incomplete_end = self.scan.token_end;
     }
 
+    state incomplete_at_end() {
+        self.status = OmegaParserStatus::Incomplete;
+        self.incomplete_start = source.len;
+        self.incomplete_end = source.len;
+    }
+
     state begin_use() {
-        transition self.use_count < 4096 {
+        transition self.root_count < 4096 {
             true -> begin_use_bounded()
-            _ -> use_resource()
+            _ -> resource_failure(
+                OmegaParserResource::Roots,
+                4096,
+                self.root_count + 1
+            )
         }
     }
 
@@ -2454,7 +2659,11 @@ machine OmegaParser::parse_view(
         transition self.scan.token_kind {
             OmegaTokenKind::Identifier -> retain_member()
             OmegaTokenKind::Keyword -> keyword_member()
-            _ -> expected_member(self.scan.token_start, self.scan.token_end)
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathMember,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -2463,11 +2672,13 @@ machine OmegaParser::parse_view(
     // than import-path members.
     state keyword_member() {
         transition self.scan.keyword {
-            OmegaKeywordKind::SelfType -> expected_member(
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathMember,
                 self.scan.token_start,
                 self.scan.token_end
             )
-            OmegaKeywordKind::SelfValue -> expected_member(
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathMember,
                 self.scan.token_start,
                 self.scan.token_end
             )
@@ -2478,7 +2689,11 @@ machine OmegaParser::parse_view(
     state retain_member() {
         transition self.member_count < 16384 {
             true -> retain_member_bounded()
-            _ -> member_resource()
+            _ -> resource_failure(
+                OmegaParserResource::PathMembers,
+                16384,
+                self.member_count + 1
+            )
         }
     }
 
@@ -2493,7 +2708,11 @@ machine OmegaParser::parse_view(
     state path_tail_token() {
         transition self.scan.token_kind {
             OmegaTokenKind::Punctuation -> path_tail_punctuation()
-            _ -> expected_separator(self.scan.token_start, self.scan.token_end)
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -2501,7 +2720,11 @@ machine OmegaParser::parse_view(
         transition self.scan.punctuation {
             OmegaPunctuationKind::ColonColon -> next_member()
             OmegaPunctuationKind::Semicolon -> retain_use()
-            _ -> expected_separator(self.scan.token_start, self.scan.token_end)
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
         }
     }
 
@@ -2516,40 +2739,576 @@ machine OmegaParser::parse_view(
             self.member_count - self.first_member;
         self.uses[self.use_count].start = self.item_start;
         self.uses[self.use_count].end = self.scan.token_end;
+        self.roots[self.root_count].kind = OmegaRootKind::Use;
+        self.roots[self.root_count].item_index = self.use_count;
         self.use_count = self.use_count + 1;
+        self.root_count = self.root_count + 1;
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(0) }
     }
 
-    state expected_member(start: i32, end: i32) {
+    state begin_public_root() {
+        self.item_start = self.scan.token_start;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(3) }
+    }
+
+    state public_data_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> public_data_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state public_data_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Data -> begin_data(1)
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_data_root() {
+        self.item_start = self.scan.token_start;
+        transition true { true -> begin_data(0) }
+    }
+
+    state begin_data(is_public: i32) {
+        transition self.root_count < 4096 {
+            true -> begin_data_bounded(is_public)
+            _ -> resource_failure(
+                OmegaParserResource::Roots,
+                4096,
+                self.root_count + 1
+            )
+        }
+    }
+
+    state begin_data_bounded(is_public: i32) {
+        self.data_first_member = self.data_member_count;
+        self.data_first_field = self.data_field_count;
+        self.data_first_case = self.data_case_count;
+        self.data_is_public = is_public;
+        self.data_multiplicity = OmegaDataMultiplicity::Affine;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(4) }
+    }
+
+    state data_name_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> data_identifier_name()
+            OmegaTokenKind::Keyword -> data_name_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    // `Slice` has governed built-in meaning. Until the richer named-data path
+    // is retained, do not misclassify it as an ordinary declaration name.
+    state data_identifier_name() {
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "Slice"
+        ) {
+            1 -> incomplete_root()
+            _ -> retain_data_name()
+        }
+    }
+
+    state data_name_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_data_name()
+        }
+    }
+
+    state retain_data_name() {
+        self.data_name_start = self.scan.token_start;
+        self.data_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(5) }
+    }
+
+    state data_body_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> data_body_punctuation()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataBody,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state data_body_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> enter_data_body()
+            OmegaPunctuationKind::LeftBracket -> begin_data_property()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::Equal -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataBody,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state begin_data_property() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(6) }
+    }
+
+    state data_property_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Keyword -> data_property_keyword()
+            _ -> incomplete_root()
+        }
+    }
+
+    state data_property_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Copy -> retain_copy_property()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_copy_property() {
+        self.data_multiplicity = OmegaDataMultiplicity::Unrestricted;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(7) }
+    }
+
+    state data_property_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> data_property_end_punctuation()
+            _ -> incomplete_root()
+        }
+    }
+
+    state data_property_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBracket -> after_data_property()
+            _ -> incomplete_root()
+        }
+    }
+
+    state after_data_property() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(8) }
+    }
+
+    state data_body_after_property_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> data_body_after_property_punctuation()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataBody,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state data_body_after_property_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBrace -> enter_data_body()
+            OmegaPunctuationKind::Equal -> incomplete_root()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataBody,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state enter_data_body() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(9) }
+    }
+
+    state data_member_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> data_member_punctuation()
+            OmegaTokenKind::Identifier -> begin_field()
+            OmegaTokenKind::Keyword -> data_member_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataMemberOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state data_member_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::RightBrace -> retain_data()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataMemberOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state data_member_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::Case -> begin_case_marker()
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataMemberOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataMemberOrEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> begin_field()
+        }
+    }
+
+    state begin_case_marker() {
+        self.case_start = self.scan.token_start;
+        self.case_keyword_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(10) }
+    }
+
+    state case_marker_tail_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> case_marker_tail_punctuation()
+            OmegaTokenKind::Identifier -> retain_case_name()
+            OmegaTokenKind::Keyword -> case_name_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state case_marker_tail_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Colon -> contextual_case_field()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state case_name_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_case_name()
+        }
+    }
+
+    state retain_case_name() {
+        self.case_name_start = self.scan.token_start;
+        self.case_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(11) }
+    }
+
+    state case_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> case_end_punctuation()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state case_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> retain_case(
+                self.scan.token_end,
+                self.scan.next_cursor
+            )
+            OmegaPunctuationKind::RightBrace -> retain_case(
+                self.case_name_end,
+                self.scan.token_start
+            )
+            OmegaPunctuationKind::LeftParen -> incomplete_root()
+            OmegaPunctuationKind::LeftBrace -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::Colon -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::ColonColon -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataCaseEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_case(member_end: i32, next_cursor: i32) {
+        transition self.data_member_count < 16384 {
+            true -> retain_case_bounded(member_end, next_cursor)
+            _ -> resource_failure(
+                OmegaParserResource::DataMembers,
+                16384,
+                self.data_member_count + 1
+            )
+        }
+    }
+
+    state retain_case_bounded(member_end: i32, next_cursor: i32) {
+        self.data_cases[self.data_case_count].name.start = self.case_name_start;
+        self.data_cases[self.data_case_count].name.end = self.case_name_end;
+        self.data_cases[self.data_case_count].start = self.case_start;
+        self.data_cases[self.data_case_count].end = member_end;
+        self.data_members[self.data_member_count].kind =
+            OmegaDataMemberKind::Case;
+        self.data_members[self.data_member_count].item_index =
+            self.data_case_count;
+        self.data_case_count = self.data_case_count + 1;
+        self.data_member_count = self.data_member_count + 1;
+        self.cursor = next_cursor;
+        transition true { true -> scan_semantic(9) }
+    }
+
+    state begin_field() {
+        self.field_start = self.scan.token_start;
+        self.field_name_start = self.scan.token_start;
+        self.field_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(12) }
+    }
+
+    state contextual_case_field() {
+        self.field_start = self.case_start;
+        self.field_name_start = self.case_start;
+        self.field_name_end = self.case_keyword_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(13) }
+    }
+
+    state field_colon_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> field_colon_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldColon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state field_colon_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Colon -> after_field_colon()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldColon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state after_field_colon() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(13) }
+    }
+
+    state field_type_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_type_name()
+            OmegaTokenKind::Keyword -> field_type_keyword()
+            OmegaTokenKind::Punctuation -> field_type_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldType,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state field_type_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            OmegaKeywordKind::SelfValue -> incomplete_root()
+            _ -> retain_type_name()
+        }
+    }
+
+    state field_type_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            OmegaPunctuationKind::LeftParen -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldType,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_type_name() {
+        self.type_name_start = self.scan.token_start;
+        self.type_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(14) }
+    }
+
+    state field_end_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> field_end_punctuation()
+            OmegaTokenKind::Identifier -> incomplete_root()
+            OmegaTokenKind::Keyword -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state field_end_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Semicolon -> retain_field(
+                self.scan.token_end,
+                self.scan.next_cursor
+            )
+            OmegaPunctuationKind::RightBrace -> retain_field(
+                self.type_name_end,
+                self.scan.token_start
+            )
+            OmegaPunctuationKind::ColonColon -> incomplete_root()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_field(member_end: i32, next_cursor: i32) {
+        transition self.data_member_count < 16384 {
+            true -> retain_field_bounded(member_end, next_cursor)
+            _ -> resource_failure(
+                OmegaParserResource::DataMembers,
+                16384,
+                self.data_member_count + 1
+            )
+        }
+    }
+
+    state retain_field_bounded(member_end: i32, next_cursor: i32) {
+        self.type_references[self.type_reference_count].name.start =
+            self.type_name_start;
+        self.type_references[self.type_reference_count].name.end =
+            self.type_name_end;
+        self.data_fields[self.data_field_count].name.start =
+            self.field_name_start;
+        self.data_fields[self.data_field_count].name.end = self.field_name_end;
+        self.data_fields[self.data_field_count].type_reference =
+            self.type_reference_count;
+        self.data_fields[self.data_field_count].start = self.field_start;
+        self.data_fields[self.data_field_count].end = member_end;
+        self.data_members[self.data_member_count].kind =
+            OmegaDataMemberKind::Field;
+        self.data_members[self.data_member_count].item_index =
+            self.data_field_count;
+        self.type_reference_count = self.type_reference_count + 1;
+        self.data_field_count = self.data_field_count + 1;
+        self.data_member_count = self.data_member_count + 1;
+        self.cursor = next_cursor;
+        transition true { true -> scan_semantic(9) }
+    }
+
+    state retain_data() {
+        self.data_items[self.data_count].name.start = self.data_name_start;
+        self.data_items[self.data_count].name.end = self.data_name_end;
+        self.data_items[self.data_count].first_member = self.data_first_member;
+        self.data_items[self.data_count].member_count =
+            self.data_member_count - self.data_first_member;
+        self.data_items[self.data_count].first_field = self.data_first_field;
+        self.data_items[self.data_count].field_count =
+            self.data_field_count - self.data_first_field;
+        self.data_items[self.data_count].first_case = self.data_first_case;
+        self.data_items[self.data_count].case_count =
+            self.data_case_count - self.data_first_case;
+        self.data_items[self.data_count].multiplicity = self.data_multiplicity;
+        self.data_items[self.data_count].is_public = self.data_is_public;
+        self.data_items[self.data_count].start = self.item_start;
+        self.data_items[self.data_count].end = self.scan.token_end;
+        self.roots[self.root_count].kind = OmegaRootKind::Data;
+        self.roots[self.root_count].item_index = self.data_count;
+        self.data_count = self.data_count + 1;
+        self.root_count = self.root_count + 1;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(0) }
+    }
+
+    state syntax_failure(
+        code: OmegaParseDiagnosticCode,
+        start: i32,
+        end: i32
+    ) {
         self.status = OmegaParserStatus::SyntaxFailure;
-        self.diagnostic_code = OmegaParseDiagnosticCode::ExpectedPathMember;
+        self.diagnostic_code = code;
         self.diagnostic_start = start;
         self.diagnostic_end = end;
     }
 
-    state expected_separator(start: i32, end: i32) {
-        self.status = OmegaParserStatus::SyntaxFailure;
-        self.diagnostic_code =
-            OmegaParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon;
-        self.diagnostic_start = start;
-        self.diagnostic_end = end;
-    }
-
-    state use_resource() {
+    state resource_failure(
+        kind: OmegaParserResource,
+        limit: i32,
+        requested: i32
+    ) {
         self.status = OmegaParserStatus::ResourceFailure;
-        self.resource = OmegaParserResource::UseItems;
-        self.resource_limit = 4096;
-        self.resource_requested = self.use_count + 1;
-        self.diagnostic_start = self.scan.token_start;
-        self.diagnostic_end = self.scan.token_end;
-    }
-
-    state member_resource() {
-        self.status = OmegaParserStatus::ResourceFailure;
-        self.resource = OmegaParserResource::PathMembers;
-        self.resource_limit = 16384;
-        self.resource_requested = self.member_count + 1;
+        self.resource = kind;
+        self.resource_limit = limit;
+        self.resource_requested = requested;
         self.diagnostic_start = self.scan.token_start;
         self.diagnostic_end = self.scan.token_end;
     }
