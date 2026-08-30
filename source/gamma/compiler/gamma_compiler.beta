@@ -26,6 +26,8 @@
 ;          2097056 FAIL_OFF 2097048 NODE_OFF 2097040 PAYLOAD_LEN
 ;          2097032 LABEL_COUNT 2097024 FIXUP_COUNT 2097016 EMIT_FAILURE
 ;          2097008 EMIT_FAILURE_COORDINATE
+;          2097000 STACK_HELPER_LABEL 2096992 ADD_LABEL 2096984 SUB_LABEL
+;          2096976 MUL_LABEL 2096968 DIV_LABEL 2096960 MOD_LABEL
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -1753,6 +1755,79 @@ proc emit_checked_mod(entry_label, failure_label) {
     emit_rr(7, 0, 3)
     emit_ret()
     return 0
+}
+
+; This is the first retained lowering slice, not an accepted subset compiler.
+; It consumes already checked closed Int trees containing literals and the
+; seven primitive operators. Later lowering dispatch absorbs it unchanged for
+; general expressions. Runtime intermediate values use the explicit stack so
+; compile-time expression depth does not become a generated register limit.
+
+proc lower_closed_int_expr(expr) {
+    let tag = word[expr] % 256
+    state literal_check { to literal when (tag == 0)  to primitive_check }
+    state literal {
+        emit_imm(0, 0)
+        return emit_imm(1, word[expr + 8])
+    }
+    state primitive_check { to primitive when (tag == 2)  return 0 }
+    state primitive {
+        to left_done when (lower_closed_int_expr(word[expr + 16]) == 1)
+        return 0
+    }
+    state left_done {
+        emit_imm(2, 8)
+        emit_jump(19, word[2097000])
+        emit_rr(11, 0, 1)
+        to right_done when (lower_closed_int_expr(word[expr + 24]) == 1)
+        return 0
+    }
+    state right_done {
+        emit_rr(2, 3, 1)
+        emit_rr(2, 2, 252)
+        emit_rr(10, 2, 2)
+        emit_imm(4, 8)
+        emit_rr(3, 252, 4)
+        let op = word[expr + 8]
+        to add when (op == '+')
+        to sub when (op == '-')
+        to mul when (op == '*')
+        to div when (op == '/')
+        to mod when (op == '%')
+        to equal when (op == 'e')
+        to less
+    }
+    state add { emit_jump(19, word[2096992])  to scalar_result }
+    state sub { emit_jump(19, word[2096984])  to scalar_result }
+    state mul { emit_jump(19, word[2096976])  to scalar_result }
+    state div { emit_jump(19, word[2096968])  to scalar_result }
+    state mod { emit_jump(19, word[2096960])  to scalar_result }
+    state equal {
+        let equal_true = new_label()
+        let equal_done = new_label()
+        emit_imm(0, 0)
+        emit_rrx(16, 2, 3, equal_true)
+        emit_jump(12, equal_done)
+        define_label(equal_true)
+        emit_imm(0, 1)
+        define_label(equal_done)
+        to scalar_result
+    }
+    state less {
+        let less_true = new_label()
+        let less_done = new_label()
+        emit_imm(0, 0)
+        emit_rrx(15, 2, 3, less_true)
+        emit_jump(12, less_done)
+        define_label(less_true)
+        emit_imm(0, 1)
+        define_label(less_done)
+        to scalar_result
+    }
+    state scalar_result {
+        emit_rr(2, 1, 0)
+        return emit_imm(0, 0)
+    }
 }
 
 proc validate_payload() {
