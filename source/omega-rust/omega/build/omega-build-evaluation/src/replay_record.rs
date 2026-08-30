@@ -23,6 +23,8 @@ mod output_only_tests;
 #[cfg(test)]
 mod read_link_tests;
 mod read_links;
+#[cfg(test)]
+mod source_directory_tests;
 mod symlinks;
 
 use directories::validate_output_directory_shape;
@@ -36,7 +38,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 28;
+const VERSION: u16 = 29;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -228,6 +230,20 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             );
             continue;
         }
+        if shapes[cursor].operation == 23 {
+            let reads_start = cursor;
+            while shapes[cursor].operation == 23 {
+                cursor += 1;
+            }
+            let close = &shapes[cursor];
+            events.push(
+                psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::DirectoryReadChain(
+                    rehydrate_source_directory_shape(open, &shapes[reads_start..cursor], close)?,
+                ),
+            );
+            cursor += 1;
+            continue;
+        }
         let reads_start = cursor;
         while matches!(shapes.get(cursor), Some(read) if matches!(read.operation, 4 | 6)) {
             cursor += 1;
@@ -395,6 +411,77 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         },
     )
+}
+
+fn rehydrate_source_directory_shape(
+    open: &AttemptShape<'_>,
+    reads: &[AttemptShape<'_>],
+    close: &AttemptShape<'_>,
+) -> Result<
+    psi_checked_interpreter::FilesystemSourceDirectoryReadChainReplayRecord,
+    BuildFilesystemReplayRecordError,
+> {
+    let ShapeResult::Handle(identity) = open.result else {
+        unreachable!("validated directory replay open returns one handle")
+    };
+    let [source_path] = open.rooted_paths.as_slice() else {
+        unreachable!("validated directory replay open has one rooted path")
+    };
+    let mut records = Vec::new();
+    records.try_reserve_exact(reads.len()).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("filesystem directory replay allocation failed")
+    })?;
+    for read in reads {
+        let ShapeResult::Scalar(result) = read.result else {
+            unreachable!("validated directory replay read returns one scalar")
+        };
+        let [(2, ShapeScalar::U64(requested))] = read.scalars.as_slice() else {
+            unreachable!("validated directory replay read has one count")
+        };
+        let [(1, resolution)] = read.mutable_byte_resolutions.as_slice() else {
+            unreachable!("validated directory replay read has one byte resolution")
+        };
+        let [carrier] = read.mutable_bytes.as_slice() else {
+            unreachable!("validated directory replay read has one byte carrier")
+        };
+        let [(3, position_resolution)] = read.mutable_i64_resolutions.as_slice() else {
+            unreachable!("validated directory replay read has one cursor resolution")
+        };
+        let [position] = read.mutable_i64s.as_slice() else {
+            unreachable!("validated directory replay read has one cursor carrier")
+        };
+        records.push(
+            psi_checked_interpreter::FilesystemSourceDirectoryReadReplayRecord::new(
+                *requested,
+                result,
+                read.post_error,
+                clone_bytes(resolution)?,
+                clone_bytes(carrier.pre)?,
+                clone_bytes(carrier.post)?,
+                *position_resolution,
+                position.pre,
+                position.post,
+            )
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem directory replay read could not be rehydrated",
+                )
+            })?,
+        );
+    }
+    psi_checked_interpreter::FilesystemSourceDirectoryReadChainReplayRecord::new(
+        crate::BUILD_SOURCE_ROOT_IDENTITY,
+        clone_bytes(source_path.bytes)?,
+        identity,
+        open.post_error,
+        records,
+        close.post_error,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem directory replay chain could not be rehydrated",
+        )
+    })
 }
 
 fn rehydrate_output_file_shape(
@@ -1075,6 +1162,13 @@ struct ShapeMutableBytes<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShapeMutableI64 {
+    ordinal: u8,
+    pre: i64,
+    post: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ShapeAuthorizedPath<'a> {
     ordinal: u8,
     access: u8,
@@ -1097,9 +1191,9 @@ struct AttemptShape<'a> {
     observed_regions: Vec<ShapeObservedRegion>,
     metadata: Vec<ShapeMetadata>,
     mutable_byte_resolutions: Vec<(u8, &'a [u8])>,
-    mutable_i64_resolution_count: usize,
+    mutable_i64_resolutions: Vec<(u8, i64)>,
     mutable_bytes: Vec<ShapeMutableBytes<'a>>,
-    mutable_i64_count: usize,
+    mutable_i64s: Vec<ShapeMutableI64>,
     authorized_paths: Vec<ShapeAuthorizedPath<'a>>,
     inputs: Vec<ShapeLogicalInput>,
     output: Option<ShapeLogicalOutput>,
@@ -1225,10 +1319,15 @@ fn decode_attempt<'a>(
     for _ in 0..count {
         mutable_byte_resolutions.push((decoder.byte()?, decoder.bytes()?));
     }
-    let mutable_i64_resolution_count = decoder.count()?;
-    for _ in 0..mutable_i64_resolution_count {
-        let _ = decoder.byte()?;
-        let _ = decoder.i64()?;
+    let count = decoder.count()?;
+    let mut mutable_i64_resolutions = Vec::new();
+    mutable_i64_resolutions
+        .try_reserve_exact(count)
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new("replay mutable-i64-resolution allocation failed")
+        })?;
+    for _ in 0..count {
+        mutable_i64_resolutions.push((decoder.byte()?, decoder.i64()?));
     }
     let mut mutable_bytes = Vec::new();
     let count = decoder.count()?;
@@ -1242,11 +1341,17 @@ fn decode_attempt<'a>(
             post: decoder.bytes()?,
         });
     }
-    let mutable_i64_count = decoder.count()?;
-    for _ in 0..mutable_i64_count {
-        let _ = decoder.byte()?;
-        let _ = decoder.i64()?;
-        let _ = decoder.i64()?;
+    let count = decoder.count()?;
+    let mut mutable_i64s = Vec::new();
+    mutable_i64s.try_reserve_exact(count).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("replay mutable-i64 allocation failed")
+    })?;
+    for _ in 0..count {
+        mutable_i64s.push(ShapeMutableI64 {
+            ordinal: decoder.byte()?,
+            pre: decoder.i64()?,
+            post: decoder.i64()?,
+        });
     }
     let mut authorized_paths = Vec::new();
     let count = decoder.count()?;
@@ -1325,9 +1430,9 @@ fn decode_attempt<'a>(
         observed_regions,
         metadata,
         mutable_byte_resolutions,
-        mutable_i64_resolution_count,
+        mutable_i64_resolutions,
         mutable_bytes,
-        mutable_i64_count,
+        mutable_i64s,
         authorized_paths,
         inputs,
         output,
@@ -1387,6 +1492,23 @@ fn validate_first_rung(
             if cursor == shapes.len() {
                 return Err(BuildFilesystemReplayRecordError::new(
                     "filesystem replay descriptor metadata chain is incomplete",
+                ));
+            }
+            validate_close_shape(&shapes[cursor], identity)?;
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+
+        if cursor < shapes.len() && shapes[cursor].operation == 23 {
+            let reads_start = cursor;
+            while cursor < shapes.len() && shapes[cursor].operation == 23 {
+                validate_directory_read_shape(&shapes[cursor], identity)?;
+                cursor += 1;
+            }
+            if cursor == reads_start || cursor == shapes.len() {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay Source directory chain is incomplete",
                 ));
             }
             validate_close_shape(&shapes[cursor], identity)?;
@@ -2404,6 +2526,86 @@ fn validate_read_shape(
     Ok(())
 }
 
+fn validate_directory_read_shape(
+    read: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let ShapeResult::Scalar(result) = read.result else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has a non-scalar result",
+        ));
+    };
+    let Ok(result_length) = u64::try_from(result) else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay did not succeed",
+        ));
+    };
+    let [(2, ShapeScalar::U64(requested))] = read.scalars.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has no exact transfer count",
+        ));
+    };
+    let [region] = read.observed_regions.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has no unique observed region",
+        ));
+    };
+    let [(resolution_ordinal, resolution)] = read.mutable_byte_resolutions.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has no unique byte resolution",
+        ));
+    };
+    let [carrier] = read.mutable_bytes.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has no unique byte carrier",
+        ));
+    };
+    let [(position_resolution_ordinal, _)] = read.mutable_i64_resolutions.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has no unique cursor resolution",
+        ));
+    };
+    let [position] = read.mutable_i64s.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay has no unique cursor carrier",
+        ));
+    };
+    let Ok(result_end) = usize::try_from(result_length) else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded directory replay length exceeds this host",
+        ));
+    };
+    if read.operation != 23
+        || read.provider != 2
+        || read.inputs.as_slice()
+            != [ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(identity),
+            }]
+        || region.ordinal != 1
+        || region.kind != 2
+        || region.offset != 0
+        || region.length != result_length
+        || *resolution_ordinal != 1
+        || carrier.ordinal != 1
+        || resolution.len() != carrier.pre.len()
+        || carrier.pre.len() != carrier.post.len()
+        || result_end > carrier.post.len()
+        || result_length > *requested
+        || u64::try_from(carrier.post.len()).is_ok_and(|capacity| *requested > capacity)
+        || carrier.pre[result_end..] != carrier.post[result_end..]
+        || *position_resolution_ordinal != 3
+        || position.ordinal != 3
+        || !only_directory_read_lanes(read)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay directory carrier is internally inconsistent",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_descriptor_metadata_shape(
     metadata_attempt: &AttemptShape<'_>,
     identity: u64,
@@ -2454,8 +2656,8 @@ fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.metadata.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
         && attempt.refusal_count == 0
 }
 
@@ -2464,8 +2666,8 @@ fn only_path_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
         && attempt.scalars.is_empty()
         && attempt.inputs.is_empty()
         && attempt.output.is_none()
@@ -2478,8 +2680,8 @@ fn only_descriptor_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
         && attempt.scalars.is_empty()
         && attempt.rooted_paths.is_empty()
         && attempt.authorized_paths.is_empty()
@@ -2503,6 +2705,18 @@ fn only_read_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
+}
+
+fn only_directory_read_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.byte_operands.is_empty()
+        && attempt.path_like_operands.is_empty()
+        && attempt.returned_path_count == 0
+        && attempt.metadata.is_empty()
+        && attempt.rooted_paths.is_empty()
+        && attempt.authorized_paths.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
 }
 
 fn only_close_lanes(attempt: &AttemptShape<'_>) -> bool {
@@ -2529,8 +2743,8 @@ fn only_output_write_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.path_like_operands.is_empty()
         && attempt.returned_path_count == 0
         && attempt.metadata.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
         && attempt.refusal_count == 0
         && attempt.rooted_paths.is_empty()
         && attempt.observed_regions.is_empty()
@@ -2550,9 +2764,9 @@ fn only_output_sync_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
         && attempt.mutable_byte_resolutions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64s.is_empty()
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
@@ -2567,9 +2781,9 @@ fn only_output_set_length_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
         && attempt.mutable_byte_resolutions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64s.is_empty()
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
@@ -2584,9 +2798,9 @@ fn only_output_set_file_permissions_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
         && attempt.mutable_byte_resolutions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64s.is_empty()
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
@@ -2601,8 +2815,8 @@ fn only_output_set_file_times_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.returned_path_count == 0
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
+        && attempt.mutable_i64s.is_empty()
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
@@ -2617,9 +2831,9 @@ fn only_output_seek_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.observed_regions.is_empty()
         && attempt.metadata.is_empty()
         && attempt.mutable_byte_resolutions.is_empty()
-        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_resolutions.is_empty()
         && attempt.mutable_bytes.is_empty()
-        && attempt.mutable_i64_count == 0
+        && attempt.mutable_i64s.is_empty()
         && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
@@ -2669,9 +2883,9 @@ mod first_rung_validation_tests {
             observed_regions: Vec::new(),
             metadata: Vec::new(),
             mutable_byte_resolutions: Vec::new(),
-            mutable_i64_resolution_count: 0,
+            mutable_i64_resolutions: Vec::new(),
             mutable_bytes: Vec::new(),
-            mutable_i64_count: 0,
+            mutable_i64s: Vec::new(),
             authorized_paths: Vec::new(),
             inputs: Vec::new(),
             output: None,

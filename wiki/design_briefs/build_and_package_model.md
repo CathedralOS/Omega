@@ -1455,6 +1455,17 @@ file, symbolic-link, and hard-link grammar still governs every Output attempt.
 Empty streams, malformed prefixes, unexplained physical Output, and changed
 canonical Source identity remain non-receipted.
 
+Summary v48 and replay-record v29 add exact Source directory-enumeration
+chains: a flags-zero Source open, one or more successful tag-23 `read_dir`
+calls, and exact descriptor retirement. Each call binds its count, result,
+post-error state, exact directory-record region, complete byte-carrier
+resolution/pre/post states, and complete mutable cursor resolution/pre/post
+states. Provider-free replay restores both carriers in authored order. Packed
+records remain target-specific inert bytes; no entry name, unseen suffix, path
+authority, or exhaustive-listing claim is inferred. Failed calls, leaked
+descriptors, malformed tails, changed counts, and reordered chains remain
+non-receipted.
+
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
 allocation. Raw transfer counts use one checked conversion and

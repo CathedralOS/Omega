@@ -171,6 +171,38 @@ reaches FilesystemHost
             .expect("write constant Output-tree main source");
     }
 
+    fn write_source_directory_sources(&self, target: &str) {
+        let buffer = std::iter::repeat_n("0", 512).collect::<Vec<_>>().join(", ");
+        std::fs::write(
+            self.source.join("build.omg"),
+            format!(
+                r#"use omega::language::std::filesystem_host;
+
+target {target} {{}}
+
+machine build(builder: &mut Build)
+reaches FilesystemHost
+{{
+    builder.package("source-directory-read");
+    let directory: &[u8] in Path = builder.source.resolve("entries");
+    let descriptor: i32 = builder.filesystem.open(directory, 0);
+    let buffer: [u8; 512] = [{buffer}];
+    let position: i64 = 0;
+    let count: i64 = builder.filesystem.read_dir(descriptor, &mut buffer, 512, &mut position);
+    let close_result: i32 = builder.filesystem.close(descriptor);
+    builder.freestanding = false;
+}}
+"#,
+            ),
+        )
+        .expect("write Source directory build source");
+        std::fs::write(self.source.join("main.omg"), "data Main { value: u8; }\n")
+            .expect("write Source directory main source");
+        std::fs::create_dir(self.source.join("entries")).expect("create Source directory fixture");
+        std::fs::write(self.source.join("entries/item.txt"), "item")
+            .expect("write Source directory fixture entry");
+    }
+
     fn sponsored_output(&self) -> (PathBuf, FilesystemSponsor) {
         let session = std::fs::canonicalize(&self.session).expect("canonicalize session");
         let sponsor = FilesystemSponsor::new(&session).expect("create sponsor");
@@ -336,6 +368,68 @@ fn constant_output_tree_replays_without_an_artificial_source_event() {
 }
 
 #[test]
+fn source_directory_records_restart_with_exact_byte_and_cursor_evidence() {
+    let profile = omega_target::TargetProfile::host();
+    let project = TestProject::new();
+    project.write_source_directory_sources(profile.target_name());
+    let (output, sponsor) = project.sponsored_output();
+    set_tree_permissions(&project.source, true);
+    let inputs = package_inputs(&project.source, "source-directory-read");
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &project.source.join("main.omg"),
+        &output,
+        Some(profile.target_name()),
+        inputs.clone(),
+        sponsor,
+    )
+    .expect("Source directory enumeration should receipt");
+    let summary = checked
+        .build_observation_summary()
+        .expect("directory enumeration retains observations");
+    assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert!(summary.source_inputs_replay_verified());
+    assert!(summary.operation_replay_verified());
+    assert_eq!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .map(|attempt| attempt.operation_tag())
+            .collect::<Vec<_>>(),
+        vec![2, 23, 8]
+    );
+    let read = &summary.filesystem_operation_attempts()[1];
+    assert_eq!(read.mutable_i64_operand_resolutions().len(), 1);
+    assert_eq!(read.mutable_i64_operands().len(), 1);
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("directory receipt encodes")
+        .expect("directory receipt retains replay custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("directory receipt recovers");
+    let replayed = compile_to_checked_with_packages_and_replay_record(
+        &project.source.join("main.omg"),
+        Some(profile.target_name()),
+        inputs,
+        recovered,
+    )
+    .expect("directory receipt restarts without live enumeration");
+    set_tree_permissions(&project.source, false);
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed directory build retains observations");
+    assert_eq!(
+        replayed_summary.filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
+    assert_eq!(
+        replayed_summary.realized(),
+        BuildObservationClass::Receipted
+    );
+}
+
+#[test]
 fn empty_output_directory_tree_replays_without_host_output() {
     let profile = omega_target::TargetProfile::host();
     let project = TestProject::new();
@@ -355,7 +449,7 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 47);
+    assert_eq!(summary.schema_version(), 48);
     assert!(summary.operation_replay_verified());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

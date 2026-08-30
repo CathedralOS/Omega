@@ -177,3 +177,21 @@ handoffs retain their exact ordinals from zero, and the existing complete
 directory, file, symbolic-link, and hard-link tree grammar remains unchanged.
 An empty attempt stream, malformed pre-Output attempt, unexplained physical
 Output, or changed canonical Source identity remains non-receipted.
+
+## Source directory enumeration (summary v48, replay record v29)
+
+The ordered Source grammar now accepts one closed directory-enumeration chain:
+an exact flags-zero Source open, one or more successful `read_dir` calls at tag
+23, and exact successful descriptor retirement. Every read retains its transfer
+count and result, post-error state, exact directory-record region, complete
+byte-carrier resolution/pre/post states, and complete mutable cursor
+resolution/pre/post states. Multiple calls retain authored order; a caller that
+observes end-of-directory retains that zero-length call rather than an inferred
+completion claim.
+
+Provider-free replay restores both mutable carriers without consulting a live
+directory. Packed directory records remain target-specific inert bytes: replay
+does not parse names, infer unseen entries, or grant authority to use a returned
+name. Any later relative open or mutation requires its own exact checked replay
+lane. Failed reads, leaked descriptors, malformed carrier tails, changed
+counts, reordered calls, or incomplete chains remain non-receipted.

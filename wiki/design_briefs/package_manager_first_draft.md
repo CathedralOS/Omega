@@ -1585,6 +1585,17 @@ hard-link grammar remains unchanged. Empty streams, malformed prefixes,
 unexplained physical Output, and changed canonical Source identity remain
 non-receipted.
 
+Observation summary v48 and replay-record v29 additionally admit exact Source
+directory-enumeration chains: one flags-zero Source open, one or more successful
+tag-23 `read_dir` calls, and exact descriptor retirement. Every call binds its
+count, result, post-error state, exact record-byte region, complete byte-carrier
+resolution/pre/post states, and complete mutable cursor resolution/pre/post
+states. Provider-free replay restores both carriers in authored order. Packed
+records are target-specific inert bytes; they confer no name/path authority and
+make no claim about entries the build did not observe. Failed calls, incomplete
+chains, malformed tails, changed counts, and reordered calls remain
+non-receipted.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
