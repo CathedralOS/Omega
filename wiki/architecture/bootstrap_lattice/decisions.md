@@ -521,6 +521,39 @@ checked language; an in-source application declaration would let source choose
 an external boundary; and hardwiring the immediate Delta customer would prevent
 the language's own general conformance use.
 
+## D20 — Gamma names resolve through four namespaces without active shadowing
+
+Gamma has four semantic namespaces selected by grammar position: types,
+constructors, functions, and local values. Type declarations are unique among
+types, constructor declarations are globally unique among constructors because
+their uses are unqualified, and function declarations are unique among
+functions. Global declarations are collected before their type spellings are
+resolved, preserving D16's forward and mutual visibility. A duplicate rejects
+at the exact later declaration; lookup never acquires first-wins or last-wins
+meaning from table traversal.
+
+Grammar-distinguished namespaces may reuse a spelling. A type and constructor
+may both be named `Token`, and a global function and local binder may both be
+named `f`: type, constructor, call-head, and value-atom positions already choose
+the relevant namespace. Gamma has no function values. These permissions do not
+make declarations structurally interchangeable or merge their retained rows.
+
+Parameters, `let` binders, constructor-pattern binders, and catch-all patterns
+share the local-value namespace. A new binder may not duplicate any binding in
+its active lexical environment. Function parameters are mutually unique. A
+`let` initializer sees only the outer environment and its binder is active only
+in the body. Pattern binders are mutually unique, cannot duplicate an active
+outer local, and are active only in their arm. Duplicate pattern names reject
+rather than assert equality. Disjoint arms, branches, and sibling scopes may
+reuse names because the bindings are never active together.
+
+The canonical resolver therefore performs global collection and within-
+namespace duplicate rejection, resolves mutually visible declaration types,
+then checks bodies with explicit lexical-environment push/pop and exact source
+coordinates for the later conflicting binder. D20 replaces the temporary
+checker's accidental first-global and last-local lookup behavior and unblocks
+the source-to-resolved-identity joins in the Beta-written Gamma compiler.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

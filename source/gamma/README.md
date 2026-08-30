@@ -18,6 +18,10 @@ language conformance; `DeltaCompilerV1` selects the Gamma-written Delta
 compiler's source-owned `main : Bytes -> DeltaCompileOutcome` and its checked
 `DCOUT` schema. A generated Alpha adapter alone reads sealed input, writes the
 selected profile's exact success output, and owns private resource failures.
+D20 fixes deterministic source identity: grammar position selects separate
+type, constructor, function, and local-value namespaces; globals are unique
+within their namespace; and an active local binding may not be shadowed.
+Disjoint scopes may reuse names.
 
 ## Current implementation state
 
@@ -28,8 +32,9 @@ compact immutable-`Bytes` helpers and direct `Int`, conditional, and `Bytes`
 slices of the general expression dispatcher, now also includes the executed
 arbitrary-arity/proper-tail-call frame and algebraic-value ABIs plus a dormant,
 profile-parameterized sealed-input reader. D19 now fixes its two possible
-application contracts, but their adapter emission and publication remain
-implementation work. Complete fixed-up payloads are structurally
+application contracts and D20 fixes its resolver contract, but resolver and
+adapter completion and publication remain implementation work. Complete
+fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an
 accepted compiler artifact.

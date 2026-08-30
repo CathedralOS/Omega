@@ -61,6 +61,33 @@ is immutable and nominal.
 constructor is declared in source. Functions and constructors support arbitrary
 arity; Beta's register count is not a Gamma language limit.
 
+Gamma has four grammar-distinguished namespaces: type names, constructor names,
+function names, and local value names. Global declarations are unique within
+their namespace: type declarations are unique among types, constructors are
+globally unique among constructors because constructor uses are unqualified,
+and functions are unique among functions. The same spelling may name a type and a
+constructor, or a function and a local value, because the grammar determines
+which namespace each occurrence consults. For example, `(data Token (Token
+Int))` is well formed, and in `(f f)` the list head denotes the global function
+while the argument atom may denote a local `f`. Gamma has no function values.
+
+Parameters, `let` binders, constructor-pattern binders, and catch-all pattern
+binders inhabit the local-value namespace. No new binder may duplicate a name
+in its active lexical environment. Parameters of one function are mutually
+unique. A `let` initializer is checked in the outer environment; its binder is
+active only in the body and may not duplicate an active parameter, `let`, or
+pattern binder. Pattern binders are mutually unique, may not duplicate an
+active outer local, and are active only in their match arm. A catch-all name is
+an ordinary arm-local binder. Disjoint arms, branches, and sibling scopes may
+reuse a spelling because their environments are never active together.
+Duplicate pattern names reject; they never express an equality constraint.
+
+Compilation first collects every global declaration and rejects the exact later
+declaration of a duplicate in that namespace. It then resolves mutually visible
+declaration types and checks bodies with scope-aware local-environment push/pop.
+A local conflict is reported at the exact later binder. Lookup never chooses a
+first or last row among competing declarations.
+
 ## Static semantics
 
 The checker resolves every type, function, constructor, variable, and pattern
