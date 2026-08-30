@@ -11153,37 +11153,38 @@ checked-result arithmetic decision listed below.
   model and x86-64/AArch64 refinement before enabling general protocol
   verification or global-order fences. Placed atomic accessors, checked ISA
   barriers, and installed-root same-context evidence do not wait for it.
-- **DEVICE-OPERATION-SOURCE-CONTRACT — design blocked.** Settle the source
-  operations for DMA publication/acquisition, cache maintenance, MMIO
-  notification, and posted-write completion, including their exact arguments,
-  result/evidence custody, and compiler-issued ordering-scope construction.
-  The five semantic families and retained structural contexts are already
-  settled; do not synthesize checked rows until a real source operation can
-  emit them. See `OWNER_QUESTIONS.md` Q2.
-- After that source contract lands, add sealed provider requirements for DMA
-  publication/acquisition, cache maintenance, MMIO notification, and
-  posted-write completion. Every emitted
-  requirement must be discharged or reject. The first non-authorizing
-  foundation carrier now keeps all five operation families distinct and binds
-  each demand to one opaque exact mapped-subrange context, one complete
-  admitted schema/device-correspondence context, and one nominal ordering-scope
-  identity. The range context retains the complete private mapping/grant,
-  source/destination authority-account facts, lineage roots, rights, origin,
-  and mapping-era structure rather than trusting compact mapping IDs or public
-  geometry. The
-  correspondence context likewise retains provider/source/profile, full
-  placement structure, stable device, and optional revision evidence. Batch
-  structural closure requires exact one-to-one provider-asserted plan rows;
-  missing, extra, duplicate, or structurally drifted rows reject before
-  consumption and return every input in original order for corrected retry.
-  This establishes structural closure only: source/checker emission,
-  provider-selection admission binding, semantic validation of the opaque
-  ordering-scope identity, Terminal ordering events, execution, and lowering
-  remain.
-- Bind publication evidence to exact range/write state so intersecting writes
-  invalidate it. Acquisition consumes request- and instance-bound completion
-  evidence. Terminal Psi retains the actual ordering event; erased proof values
-  and generic call effects are not lowering barriers.
+- **DEVICE-OPERATION-COMPLETE-DMA-SLICE — client gated.** Under D27, retain the
+  existing five-role access-plan carrier as non-authorizing test scaffolding;
+  no source/checker row may be synthesized from it. The first source-admitted
+  implementation is one complete DMA service boundary for a named driver,
+  firmware service, or hosted/native compatibility customer. Its selected
+  provider keeps publication, cache maintenance, MMIO notification,
+  posted-write completion, and acquisition private; checked source gains no
+  authority to compose their proofs independently. `build.omg` admits the
+  exact opaque provider and contract rather than pretending its internal
+  protocol is checked Omega.
+- That vertical slice derives an exact external loan from the typed mapped
+  extent and schema/device correspondence. The installed provider, not build
+  selection or source spelling, issues each sealed runtime device/queue/session
+  scope occurrence; source cannot construct, inspect, or compare it. A
+  pre-commit rejection returns every consumed candidate unchanged. Accepted
+  submission yields one linear pending value bound to the per-transfer
+  `ExternalLoanId`. Acquisition returns Stable CPU custody plus device status
+  only with exact release evidence; otherwise it returns the still-live
+  pending loan and completion candidate. Missing coverage rejects compilation
+  or installation and has no runtime outcome.
+- When a concrete checked driver needs to compose the five protocol roles,
+  design their typed source operations from that client and replace the
+  provisional uniform row with role-specific payloads. Preserve exact private
+  mapping/grant context, schema/device correspondence, runtime scope occurrence,
+  and the role discriminant as a canonical-identity input. A role may require
+  distinct data, descriptor, doorbell, read-back, request, and completion
+  coordinates. Do not infer that eventual ABI from the current fixtures.
+- For that future checked-driver surface, bind publication evidence to exact
+  range/write state so intersecting writes invalidate it. Acquisition consumes
+  request-, loan-, scope-, and instance-bound completion evidence. Terminal Psi
+  retains the actual ordering event; erased proof values and generic call
+  effects are not lowering barriers.
 
 ### Wire runtime and executable installation
 

@@ -381,14 +381,16 @@ and asynchronous same-context ordering remain distinct facilities with their
 actual participants and contracts. Ordinary portable atomics range over
 coherent atomic memory rather than a target-selected semantic scope.
 
-Cross-device ordering is expressed by sealed semantic provider operations, not
-by strengthening `reaches` or adding a universal fence. A provider may expose a
-complete operation such as DMA submission, or lower-level publication,
-acquisition, cache-maintenance, MMIO-notification, and completion operations
-from which a checked driver derives it. Each operation emits normalized
-requirements naming its exact range, mapping, observer/device instance, and
-ordering scope. Every requirement must be discharged by derived or
-policy-permitted admitted evidence; an open requirement rejects.
+Cross-device ordering is expressed by typed device-protocol roles, not by
+strengthening `reaches` or adding a universal fence. The first source-admitted
+rung is a complete DMA service supplied by an opaque provider through the
+ordinary `build.omg` trust weld. Its publication, acquisition, cache,
+notification, and completion steps remain provider-private. That compatibility
+boundary does not authorize checked source to compose their intermediate
+proofs. A lower-level checked-driver surface waits for a concrete driver whose
+protocol fixes role-specific typed operations. Each eventual operation names
+its exact range, mapping, observer/device instance, and provider-issued runtime
+queue/session scope; open coverage rejects compilation or installation.
 
 Publication evidence is tied to the published range and current write state.
 Any later write whose frame intersects that range invalidates the evidence, so
@@ -400,16 +402,20 @@ instruction; on a non-coherent target it may require cache maintenance and a
 barrier.
 
 Device acquisition is not a freely mintable persistent fact. It consumes
-completion evidence tied to the same request, device instance, mapping, and
-range. When completion also returns custody, the resulting CPU view may be
-Stable. If the device may continue writing, acquisition only orders subsequent
-observations and the placement remains External.
+completion evidence tied to the same request, per-transfer external loan,
+device instance, mapping, range, and runtime scope occurrence. Device status
+and release are independent. Proven release may restore a Stable CPU view even
+when the device reports failure; an unproven release returns the pending loan
+and completion candidate for protocol recovery and leaves the placement
+External.
 
-The current non-authorizing foundation represents the five sealed operation
-families as distinct provider-coverage demands. Each demand retains an opaque
+The current non-authorizing foundation represents the five roles as distinct
+provider-coverage scaffolds. No checked source operation emits them and test
+construction does not establish a source contract. Each row retains an opaque
 exact-subrange context over the complete active mapping structure, an opaque
 context over the complete admitted schema/device correspondence, and a nominal
-ordering-scope identity. Exact structural closure rejects missing, extra,
+ordering-scope coordinate. Its uniform one-range payload is not public ABI.
+Exact structural closure rejects missing, extra,
 duplicate, and structurally drifted provider assertions while preserving every
 input for retry. This carrier retains only closed structural coverage; it does
 not prove provider admission or create an ordering event,
@@ -427,11 +433,11 @@ Still required:
 - proof-scoped AArch64 weaker-acquire selection after target measurements
   justify specialization machinery;
 - cross-activation ownership/borrow/access enforcement independent of `[copy]`;
-- source-emitted device/DMA requirements, admitted provider-selection binding,
-  scoped ordering events, completion-bound acquisition, and publication
-  invalidation through ordinary write frames;
-- and the deferred compiler-issued composition model when a concrete protocol
-  or deployment profile requires whole-system proof.
+- one client-driven complete DMA service vertical slice, provider-issued
+  runtime scope occurrences, scoped ordering events, completion-bound
+  acquisition, and publication invalidation through ordinary write frames;
+- and role-specific source operations when a concrete checked driver requires
+  composition below that opaque boundary.
 
 ## Proof model
 

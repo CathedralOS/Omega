@@ -1,10 +1,16 @@
-//! Exact provider-coverage demands for device/DMA ordering operations.
+//! Provisional provider-coverage scaffolding for device/DMA ordering roles.
 //!
 //! This module closes only the non-authorizing requirement/discharge shape.
 //! A structurally closed row retains one provider assertion for the exact
 //! emitted demand. It does not prove provider selection/admission, that the
 //! operation ran, mint publication or completion evidence, establish
 //! synchronization, or authorize lowering.
+//!
+//! No checked source operation emits these rows. Current constructions are
+//! structural tests, not evidence for a source contract, and the uniform
+//! one-range row is not public ABI. A complete admitted DMA boundary may keep
+//! these roles provider-private; a future checked-driver surface must derive
+//! role-specific payloads from its actual typed operations.
 
 use super::{AccessPlanDiagnostic, SchemaDeviceCorrespondenceReceiptContext};
 use psi_extents::MappedRangeReceiptContext;
@@ -42,8 +48,10 @@ normalized_identity!(
     "device-operation provider-plan identity"
 );
 
-/// Closed device-operation families. Portable atomic and checked-ISA fences
-/// are intentionally absent: they have different participants and contracts.
+/// Provisional closed device-operation roles. Portable atomic and checked-ISA
+/// fences are intentionally absent: they have different participants and
+/// contracts. The role discriminant must enter any future canonical identity;
+/// it is never merely a payload-decoding selector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceOperation {
     DmaPublication,
@@ -53,7 +61,7 @@ pub enum DeviceOperation {
     PostedWriteCompletion,
 }
 
-/// One exact emitted demand for admitted provider coverage.
+/// One provisional candidate demand for structural provider coverage.
 ///
 /// Mapping and schema/device fields are full opaque structural contexts, not
 /// compact IDs. The ordering-scope ID remains an inert nominal coordinate in
@@ -165,7 +173,7 @@ impl StructurallyClosedDeviceOperationRequirement {
     }
 }
 
-/// Exact closed set of emitted device-operation demands.
+/// Exact closed set of supplied candidate device-operation demands.
 #[derive(Debug)]
 #[must_use = "structurally closed device-operation requirements retain exact provider assertions"]
 pub struct StructurallyClosedDeviceOperationRequirements {

@@ -877,16 +877,40 @@ Fences, read-back-to-flush, and device completion are separate checked
 operations because a CPU barrier alone cannot make every fabric or device
 complete a transfer.
 
-These device operations are sealed semantic provider requirements, not new
-clauses on every boundary signature and not additions to `reaches`. A hosted
-boundary may conform directly to a complete DMA-submission requirement; a
-checked driver may compose publication, cache-maintenance, MMIO-notification,
-and completion primitives. The selected provider plan records each conformance
-and its exact range, mapping, observer/device instance, and ordering scope.
-Every emitted requirement must receive derived or policy-permitted admitted
-evidence; an open requirement rejects.
+These device operations are semantic protocol roles, not new clauses on every
+boundary signature and not additions to `reaches`. The desired checked-driver
+model makes publication, cache maintenance, MMIO notification, completion, and
+acquisition explicit typed custody transitions. No current checked source
+operation implements that model, so fixtures and downstream access plans may
+not synthesize authoritative rows for it.
 
-The current first carrier closes only the provider-coverage shape. It retains
+The first source-admitted rung is a complete DMA service boundary. A hosted,
+firmware, native, or otherwise opaque implementation may satisfy that boundary
+through the ordinary `build.omg` trust weld while keeping its lower-level
+steps provider-private. This is a bootstrap and compatibility surface, not the
+eventual checked-driver abstraction: it records that the selected provider is
+trusted to implement the declared contract and does not describe its internal
+register, cache, queue, or firmware protocol as compiler-proved. Checked source
+cannot claim to compose the five roles until a concrete checked driver fixes
+their exact role-specific signatures and the compiler admits them.
+
+Build selection admits the provider and the schema of a sealed ordering-scope
+capability. It cannot issue a runtime scope occurrence: one selected provider
+may establish many devices, queues, and sessions. The installed provider issues
+each occurrence. Source may carry and pass it but cannot construct, inspect, or
+compare its identity. An emitted role binds the exact range, mapping,
+observer/device instance, and runtime scope occurrence, and every role must
+receive exact admitted coverage or the compilation/install rejects. In any
+role-keyed row or certificate, the role discriminant itself enters canonical
+identity; structurally similar payloads under different roles are not equal.
+
+The current first carrier is provisional, non-authorizing scaffolding that
+closes only the provider-coverage shape. No checked source operation emits its
+rows; current constructors in tests validate structural closure and do not
+justify a source surface. Its uniform one-range schema is not public ABI:
+notification, posted-write completion, acquisition, and a real DMA submission
+may relate distinct data, descriptor, doorbell, read-back, request, or
+completion coordinates. It retains
 the complete private mapping evidence plus exact subrange and the complete
 admitted schema/device correspondence behind opaque contexts; compact mapping,
 placement, and device IDs cannot substitute for either structure. All five
@@ -902,9 +926,14 @@ The erased evidence does not itself constrain emitted code: publication adds a
 scoped ordering event to terminal Psi, and target lowering must preserve that
 event through the required cache maintenance, barrier, OS operation, or
 instruction-free coherent realization. Acquisition consumes completion
-evidence tied to the same request and stable device instance. It restores a
-Stable CPU view only when completion also returns custody; otherwise subsequent
-device writes keep the placement External.
+evidence tied to the same request, external-loan occurrence, stable device
+instance, and runtime queue/session scope. It restores a Stable CPU view only
+when completion proves that the external borrower released custody. Device
+status is orthogonal: an operation may report failure after releasing the
+range, while a success-looking report without release proof leaves the
+placement External. A failed acquisition returns the still-live pending loan
+and supplied completion candidate for protocol recovery; it never fabricates a
+Stable view.
 
 Stable ordinary mutation requires plan permission, an exclusive current
 borrow, and an exclusive source borrow. Reborrowing a shared-source view as
@@ -994,12 +1023,15 @@ the invisible device:
 - device-read is a shared loan: CPU mutation is excluded;
 - device-write is an exclusive loan: CPU reads and writes are excluded;
 - bidirectional sharing requires an explicit atomic/coherence protocol; and
-- completion consumes the token, performs the required cache/fence contract,
-  and returns the loan.
+- release-proving completion consumes the token, performs the required
+  cache/fence contract, and returns the CPU loan; and
+- a completion that does not prove release returns the pending token and
+  completion candidate for explicit protocol recovery.
 
 The token may remain live across suspension; waiting for completion is normal.
-The provider receipt is the accepted claim that completion really means the
-device has stopped using the range.
+The provider receipt is the accepted claim that the device stopped using the
+range. A device-level success or failure status is a separate result: either
+may accompany proven release, and neither substitutes for it.
 
 This conservation model is live in `psi-extents`. A reusable admitted grant
 pins the borrower, direction, space, provenance, required open-set rights, and
@@ -1019,8 +1051,10 @@ direction, address space, provenance, mapping era, authority lineage,
 attenuated rights, and lent range. Reusing a loan identity after any of those
 facts drift therefore cannot replay an old completion. Failed starts and
 completions return their borrow-carrying inputs.
-Omega `[linear]` integration, permission-context events, provider execution,
-and the DMA vertical slice remain.
+Omega `[linear]` integration follows the ordinary generic-sum rule: the result
+container remains affine while its active pending-loan payload carries the
+substituted linear debt. Permission-context events, provider execution, and a
+client-driven DMA vertical slice remain.
 
 ## Checked assembly is the low-level operation surface
 

@@ -614,21 +614,24 @@ Device protocol meaning does not become an access-plan case. W1C,
 read-back-to-flush, FIFO, doorbell, lock, and coherent-snapshot behavior belong
 to authored package machines over the permitted primitives.
 
-DMA publication, device acquisition, MMIO notification, and posted-write
-completion are sealed semantic provider operations rather than fields added to
-every boundary signature or one universal fence. A hosted OS boundary may
-satisfy the complete submission operation; a checked driver may compose
-provider cache-maintenance, ordering, and doorbell primitives. Each operation
-emits requirements naming its exact range, mapping, device instance, and
-observer scope. Provider selection must discharge all of them or reject.
+DMA publication, device acquisition, cache maintenance, MMIO notification,
+and posted-write completion are device-protocol roles rather than fields added
+to every boundary signature or one universal fence. A hosted, firmware, or
+native provider may initially satisfy one complete DMA service boundary while
+keeping those roles private. Checked source cannot compose their intermediate
+proofs until a concrete driver fixes role-specific typed operations. Each
+eventual operation binds its exact range, mapping, device instance, and sealed
+runtime queue/session scope. Build selection admits the provider and capability
+schema; the installed provider issues each scope occurrence.
 
 Publication evidence is bound to the published place and invalidated by any
 intersecting write frame. Its erased value proves source composition but cannot
 order emitted code; the publication operation itself contributes the scoped IR
 ordering event. Device acquisition consumes completion evidence tied to the
-same request and instance. It restores Stable CPU observation only when that
-protocol also returns custody; otherwise later device writes keep the placement
-External.
+same request, external-loan occurrence, instance, and runtime scope. Device
+status and custody release remain separate. It restores Stable CPU observation
+only when exact completion evidence proves release; otherwise it returns the
+pending loan and completion candidate and keeps the placement External.
 
 ### Admission and placement
 
