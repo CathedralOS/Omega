@@ -68,18 +68,20 @@ trivia-only, ordinary `use path::member;`, and basic `[pub] data` roots.
 One mixed root table preserves authored use/data order. Data syntax retains an
 optional `[copy]` property, bare named fields, payload-free cases, contextual
 `case: Type` fields, structured case payloads over the same bare named type
-leaf, one unqualified `Base in Domain` constraint, optional final member/case
+leaf, one unqualified `Base in Domain` constraint, one inclusive unsuffixed
+decimal-literal range `Base [minimum..=maximum]`, optional final member/case
 semicolons, mixed field/case order, and relative spans in separate live-prefix
 tables. A case reaches its contiguous payload-field span in a separate arena;
 direct and payload fields share one binding control path. Type references are
 postorder tagged nodes: a constrained root points to its named base and to one
-source-shaped domain constraint whose path member shares the general path
-arena. Compact kind/index ledgers reach the use/data or field/case child spans
-instead of duplicating coordinates. Qualified, indexed, intersected, or range
-constraints; recursive and generic types; governed built-ins such as `Slice`;
-numbered identities; field relevance; other public roots; and every other
-unimplemented valid form stop as implementation-incomplete rather than
-becoming false Omega rejections.
+source-shaped constraint. Domain constraints point into the general path arena;
+literal ranges retain exact bound spans without interpreting their values.
+Compact kind/index ledgers reach the use/data or field/case child spans instead
+of duplicating coordinates. Qualified, indexed, intersected, combined,
+exclusive, expression-bound, or multiple constraints; recursive and generic
+types; governed built-ins such as `Slice`; numbered identities; field
+relevance; other public roots; and every other unimplemented valid form stop
+as implementation-incomplete rather than becoming false Omega rejections.
 
 The provisional backing tables hold 4,096 root/use/data rows and 16,384
 path-member/data-member/direct-field/payload-field/case/type-node/constraint

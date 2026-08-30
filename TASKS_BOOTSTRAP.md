@@ -1057,6 +1057,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       invocation-local view custody, relative spans, reset behavior,
       `Complete`-only publication, and Q7 neutrality. Executed and exact-edge
       resource vectors wait for the real Delta-compiler gate.
+    - [x] Retain the first range-refined field type on the same constrained
+      node path: `Base [minimum..=maximum]` with nonnegative integer-literal
+      bounds in the unsuffixed decimal spelling needed by the current compiler
+      closure. Other bases and suffixes remain incomplete until literal parsing
+      owns their validity. The constraint row keeps the exact authored bound
+      spans and kind; it does not evaluate, normalize, or choose a numeric
+      carrier during parsing. Direct and payload fields reuse one range control
+      path and the same constrained-node finalizer as domains. Empty, named,
+      exclusive, expression-bound, multiple, combined-domain, and otherwise
+      richer valid constraint forms remain implementation-incomplete; a
+      missing bound or close at source end is a syntax failure. Generalize the
+      constraint row into kind-selected payload words without allocating
+      parallel full-size variant arenas, and preserve the existing TypeNodes
+      dominance and atomic field publication. Exact semantic and capacity
+      vectors still belong to the unavailable Delta-compiler gate, not a host
+      parser.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
