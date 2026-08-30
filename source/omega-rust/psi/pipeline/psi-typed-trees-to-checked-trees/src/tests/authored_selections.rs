@@ -68,6 +68,155 @@ fn successful_checking_finalizes_authored_call_occurrences() {
 }
 
 #[test]
+fn successful_checking_finalizes_nominal_calls_in_proof_owned_expressions() {
+    let source = r#"
+        data Packet [copy] { value: u32; }
+
+        machine Packet::attached_ready(&self) -> bool { true }
+        machine Packet::qualified_ready(value: Packet) -> bool { true }
+
+        proposition attached(packet: Packet) = packet.attached_ready();
+        proposition qualified(packet: Packet) = Packet::qualified_ready(packet);
+
+        domain Packet::Ready
+        requires
+            self.attached_ready(),
+            Packet::qualified_ready(self);
+
+        machine Packet::accept(&self)
+        requires
+            self.attached_ready(),
+            Packet::qualified_ready(self)
+        { }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selected = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| match selection.target() {
+            AuthoredDeclarationSelectionTarget::Resolved(target)
+                if selection.kind() == AuthoredDeclarationSelectionKind::Call =>
+            {
+                Some(target.selected_symbol())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    for state_name in ["attached_ready", "qualified_ready"] {
+        let state = checked
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.machine_states(machine))
+            .find(|state| state.name.as_str() == state_name)
+            .expect("declared nominal call target");
+        assert_eq!(
+            selected
+                .iter()
+                .filter(|selected| **selected == state.symbol)
+                .count(),
+            3,
+            "domain, proposition, and contract calls must select {state_name} exactly"
+        );
+    }
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn path_qualified_call_custody_rejects_a_same_named_target_from_another_owner() {
+    let source = r#"
+        data Packet [copy] { value: u32; }
+        data Decoy [copy] { value: u32; }
+
+        machine Decoy::is_ready(value: Packet) -> bool { true }
+
+        domain Packet::Ready requires Packet::is_ready(self);
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostic = lower_typed_trees(typed)
+        .expect_err("a same-named state under another nominal owner must not be selected");
+
+    assert!(
+        diagnostic.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("authored Call declaration selection")
+                && diagnostic.message.contains("remained unresolved")
+        }),
+        "diagnostics={diagnostic:#?}"
+    );
+}
+
+#[test]
+fn nominal_call_custody_rejects_ambiguous_targets_under_the_exact_owner() {
+    let source = r#"
+        data Packet [copy] { value: u32; }
+
+        machine Packet::is_ready(&self) -> bool { true }
+        machine Packet::looks_ready(&self) -> bool { true }
+
+        domain Packet::Ready requires self.is_ready();
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let packet_machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.attached_data_symbol.is_valid()
+                && typed.symbols.name(machine.attached_data_symbol) == "Packet"
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let ready_name = packet_machines
+        .iter()
+        .flat_map(|machine| typed.machine_states(machine))
+        .find(|state| state.name.as_str() == "is_ready")
+        .expect("is_ready state")
+        .name
+        .clone();
+    let looks_ready_machine = packet_machines
+        .iter()
+        .find(|machine| {
+            typed
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.name.as_str() == "looks_ready")
+        })
+        .expect("looks_ready machine")
+        .clone();
+    typed
+        .machine_states_mut(&looks_ready_machine)
+        .iter_mut()
+        .find(|state| state.name.as_str() == "looks_ready")
+        .expect("looks_ready state")
+        .name = ready_name;
+
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &psi_checked_trees::CheckFacts::default(),
+    )
+    .expect_err("same-named states under the exact owner must remain ambiguous");
+
+    assert!(
+        diagnostic
+            .message
+            .contains("authored Call declaration selection")
+            && diagnostic.message.contains("remained unresolved"),
+        "diagnostic={diagnostic:#?}"
+    );
+}
+
+#[test]
 fn successful_checking_finalizes_declared_operator_occurrences() {
     let source = r#"
         data Quantity { value: i32; }

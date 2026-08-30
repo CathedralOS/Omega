@@ -108,7 +108,7 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                     .and_then(|operator| declaration_target(operator.symbol))
                     .or_else(|| {
                         contexts::checked_machine_call_target_from_exact_owner(
-                            program, expression, call,
+                            program, &facts, expression, call,
                         )
                         .and_then(declaration_target)
                     }),
@@ -996,7 +996,7 @@ fn checked_call_target(
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
         && let Some(target) =
-            contexts::checked_machine_call_target_from_exact_owner(program, expression, call)
+            contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call)
     {
         return target;
     }
