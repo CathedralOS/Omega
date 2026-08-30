@@ -2,10 +2,10 @@
 //
 // This source intentionally has no Main yet. The canonical sealed Omega
 // compilation request and publication boundary are fixed by D18. This
-// incomplete unit currently owns exact Alpha tape construction, strict source
-// UTF-8 framing, complete source-neutral lexical scanning, and the first
-// source-shaped slice of the one-invocation parser. It owns no invented
-// source-unit or package boundary.
+// incomplete unit currently owns exact Alpha tape construction, the settled
+// outer OCREQ envelope, strict source UTF-8 framing, complete source-neutral
+// lexical scanning, and source-shaped slices of the one-invocation parser. It
+// owns no invented inner request, source-unit, or package boundary.
 //
 // status is sticky: 0 open, 1 construction capacity, 2 internal misuse.
 // failure_offset is a payload-relative byte offset. failure_requested is the
@@ -32,6 +32,18 @@ data AlphaTapeBuffer {
 data OmegaUtf8Validation {
     valid: i32;
     error_offset: i32;
+}
+
+// D25's settled outer OCREQ envelope only. A complete result retains two
+// nonoverlapping exact spans inside the same immutable request view. It does
+// not claim that either section has the still-unfixed canonical inner wire,
+// bind a package/source identity, or authorize source parsing.
+data OmegaRequestEnvelope {
+    complete: i32;
+    subject_start: i32;
+    subject_end: i32;
+    invocation_start: i32;
+    invocation_end: i32;
 }
 
 data OmegaNumericBase {
@@ -1028,6 +1040,103 @@ data OmegaParser {
     resource: OmegaParserResource;
     resource_limit: i32;
     resource_requested: i32;
+}
+
+// Validate the byte-exact D25 outer frame without inventing the subject or
+// invocation section encodings. All raw u32 lengths reject when their high bit
+// is set before signed conversion. Subtraction-dominated extent checks keep
+// hostile lengths from reaching trapping i32 addition.
+machine OmegaRequestEnvelope::frame_ocreq(
+    &mut self,
+    request: &[u8]
+) {
+    self.complete = 0;
+    self.subject_start = 0;
+    self.subject_end = 0;
+    self.invocation_start = 0;
+    self.invocation_end = 0;
+
+    transition request.len >= 16 {
+        true -> check_identity()
+        _ -> reject()
+    }
+
+    state check_identity() {
+        transition
+            (request[0] == 79) &&
+            (request[1] == 67) &&
+            (request[2] == 82) &&
+            (request[3] == 69) &&
+            (request[4] == 81) &&
+            (request[5] == 1) &&
+            (request[6] == 0) &&
+            (request[7] == 0)
+        {
+            true -> check_subject_high_bit()
+            _ -> reject()
+        }
+    }
+
+    state check_subject_high_bit() {
+        transition request[11] < 128 {
+            true -> check_invocation_high_bit()
+            _ -> reject()
+        }
+    }
+
+    state check_invocation_high_bit() {
+        transition request[15] < 128 {
+            true -> decode_lengths()
+            _ -> reject()
+        }
+    }
+
+    state decode_lengths() {
+        let subject_length: i32 =
+            request[8] +
+            (request[9] * 256) +
+            (request[10] * 65536) +
+            (request[11] * 16777216);
+        let invocation_length: i32 =
+            request[12] +
+            (request[13] * 256) +
+            (request[14] * 65536) +
+            (request[15] * 16777216);
+        transition subject_length <= request.len - 16 {
+            true -> retain_subject(subject_length, invocation_length)
+            _ -> reject()
+        }
+    }
+
+    state retain_subject(subject_length: i32, invocation_length: i32) {
+        self.subject_start = 16;
+        self.subject_end = 16 + subject_length;
+        transition invocation_length <= request.len - self.subject_end {
+            true -> retain_invocation(invocation_length)
+            _ -> reject()
+        }
+    }
+
+    state retain_invocation(invocation_length: i32) {
+        self.invocation_start = self.subject_end;
+        self.invocation_end = self.invocation_start + invocation_length;
+        transition self.invocation_end == request.len {
+            true -> accept()
+            _ -> reject()
+        }
+    }
+
+    state accept() {
+        self.complete = 1;
+    }
+
+    state reject() {
+        self.complete = 0;
+        self.subject_start = 0;
+        self.subject_end = 0;
+        self.invocation_start = 0;
+        self.invocation_end = 0;
+    }
 }
 
 // Validate one exact source byte view. On failure error_offset is the lead byte

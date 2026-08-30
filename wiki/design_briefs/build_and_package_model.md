@@ -339,7 +339,8 @@ sealed frame carries both. The explicit bootstrap Alpha-tape product is a
 normal product identity; it is never inferred from a filename, the host, or the
 first program entry found.
 
-D25 fixes the V1 realization. The `OCREQ` identity
+D25 fixes the V1 outer realization and canonical-content requirements. The
+`OCREQ` identity
 `[4F 43 52 45 51 01 00 00]` precedes little-endian `u32` subject and invocation
 lengths, the two canonical sections, and exact end. Counts, lengths, and indices
 are bounded by `INT32_MAX`; a Delta decoder rejects the raw high bit before any
@@ -350,6 +351,11 @@ validated indices, and dependency links are ordered by requester and local
 alias. The stable package lineage and exact selected immutable resolution are
 separate facts. V1 retains both but carries no preaccepted compiled
 `PackageInstance`; that later carrier requires a new request version.
+
+Q4 owns the still-missing inner row order/width/tag tables, exact commitment
+domain/preimage, closed `OCOUT` failure/resource tables and phase order, and
+named scalar provisions. Until those are fixed, the outer frame can be
+validated but neither standalone compiler has a complete interoperable V1 wire.
 
 Each package snapshot is a deterministic virtual filesystem rather than a
 filesystem replay transcript. It contains every file, directory, absence,
