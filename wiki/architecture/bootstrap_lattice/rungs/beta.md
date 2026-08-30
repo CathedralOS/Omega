@@ -51,6 +51,15 @@ Alpha-written Beta compiler source
 
 The tape is platform-independent. Native seeds merely execute it.
 
+The compiler boundary is a closed `Complete` / `Reject` / `Incomplete` /
+`InternalFailure` result. Alpha halt values 0/1/2/3 carry only that case tag.
+Successful stdout remains the exact runnable payload; failures carry the
+versioned diagnostic frame defined by the compiler owner and can never publish
+an artifact. `Reject` means a Beta rule was observed to fail. `Incomplete`
+means only that this compiler's private profile was insufficient. Generated
+program statuses 250 and 251 remain runtime containment outcomes and are not
+compiler failures.
+
 ## Implementation frontiers
 
 - complete the Alpha-written compiler for the Beta surface required by the

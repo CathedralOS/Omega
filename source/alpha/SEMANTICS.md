@@ -101,7 +101,8 @@ denote register-indexed slots; `k`/`a` are 8-byte immediate/address operands;
 | 0x12 | `write`| `s` | append `R[s] mod 2⁸` to `out` | `pc+2` |
 | 0x13 | `call` | `a` | `sp -= 8`; `M[sp..sp+8] = (pc+8)` (the offset just past `a`, LE); | `a` |
 | 0x14 | `ret`  | — | `r = M[sp..sp+8]` (LE); `sp += 8`; | `r` |
-| other | — | — | **Trap** (unknown opcode) | — |
+| 0x15..0xFE | — | — | **Trap** (unknown opcode) | — |
+| 0xFF | — | — | **Trap**; permanently reserved as the first byte of an out-of-band producer-diagnostic frame and never assignable as an opcode | — |
 
 Notes:
 - `÷ₛ` / `−ₛ` are signed truncating division / the matching remainder.
@@ -124,7 +125,8 @@ A trap is an abnormal, non-resumable halt (the implementations raise an illegal
 instruction; a shell observes exit `132 = 128 + SIGILL`). The defined trap
 conditions are:
 
-1. an unknown opcode (`> 0x14`),
+1. an unknown opcode (`0x15..0xFE`) or the permanently reserved diagnostic
+   marker (`0xFF`),
 2. `div`/`mod` with divisor `0`,
 3. `div`/`mod` signed overflow (`INT64_MIN / -1`).
 
