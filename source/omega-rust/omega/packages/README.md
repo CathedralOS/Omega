@@ -8,7 +8,7 @@ boundaries used by those operations:
 packages/
 ├── README.md             this subsystem map
 ├── manager/              complete compiler and user package workflows
-├── sources/              hostile source acquisition and confined resolvers
+├── sources/              hostile source acquisition and bounded resolvers
 └── review/               compiler-issued facts and optional audit advice
 ```
 

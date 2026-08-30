@@ -1,4 +1,4 @@
-//! Host backend selection and preparation of confined resolver launches.
+//! Host backend selection and preparation of bounded resolver launches.
 
 mod host;
 mod observation;

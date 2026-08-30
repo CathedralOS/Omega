@@ -1,12 +1,13 @@
 # Tasks: Package Manager
 
-Status: remaining work only, 2026-08-29.
+Status: remaining work only, 2026-08-30.
 
 This file is the forward queue for the Cargo-like source/package service under
 `omega`. Completed milestones live in Git history and in the subsystem notes;
 they are deliberately not repeated here.
 
-Governing documents:
+Reference documents (the first-draft brief is non-normative where it conflicts
+with the current build/package model or subsystem contracts):
 
 - `wiki/design_briefs/package_manager_first_draft.md`
 - `wiki/design_briefs/build_and_package_model.md`
@@ -16,9 +17,11 @@ Governing documents:
 - `source/omega-rust/omega/packages/sources/acquisition/SOURCE_RESOLVER_SECURITY.md`
 - `OWNER_QUESTIONS.md`
 
-Do not wire mutating `omega install` or `omega update` until recheckable
-evidence, accepted lock, and transaction gates below are closed. Compiler-issued
-package review remains non-admitting.
+Do not enable a mutating `omega install` or `omega update` path until its exact
+candidate closure can produce recheckable evidence, accepted-lock rows, root
+decisions, and one atomic transaction. Unsupported language/build forms reject
+that candidate; they do not globally block commands for unrelated closures.
+Compiler-issued package review remains non-admitting.
 
 Security work must name a concrete invariant Omega can enforce inside compiler,
 package, or artifact custody. Do not expand this subsystem into operating-system
@@ -26,7 +29,7 @@ policy, operator custody, unverifiable review ceremony, or proxy metrics
 presented as containment. If that authority boundary is genuinely ambiguous,
 stop the item on one precise owner question before adding machinery.
 
-## P2 — Total compiler admission projection
+## P2 — Compiler admission projection
 
 - [ ] **PACKAGE-ADMISSION-COMPILATION.** Make the compiler-owned ordinary
   package projection total for the supported language surface after successful
@@ -40,14 +43,12 @@ stop the item on one precise owner question before adding machinery.
     outside the closed structural expression vocabulary; and
     structural witness arguments not retained by their owning typed or checked
     representation;
-  - remaining semantic-role, operator, permission-frontier,
-    compiler-intrinsic ownership, and
-    installation joins beyond the landed selected-provider upper-bound and
-    realized-reach evidence;
-  - **OWNER-BLOCKED — Q4:** generic boundary-realization coverage;
-  - **OWNER-BLOCKED — Q5:** exact boundary-realization specialization and
-    tagged static-application demand and coverage evidence; production remains
-    fail-closed rather than publishing a provisional use-side carrier;
+  - exact nongeneric fixed-token operator dispatch and admission, then other
+    demonstrated missing semantic-role, permission-frontier,
+    compiler-intrinsic ownership, and installation joins;
+  - **OWNER-BLOCKED — generic boundary-realization coverage** and
+    **exact boundary-realization application evidence**; production remains
+    fail-closed for those forms rather than publishing provisional carriers;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -55,40 +56,25 @@ stop the item on one precise owner question before adding machinery.
   missing fact. Do not reconstruct identity from diagnostics and do not add a
   nominal Chi stage merely to collect private compiler state.
 
-- [ ] **BUILD-OBSERVATION-EVIDENCE.** Generalize the landed exact replay lanes
-  into a complete receipted build-operation and output grammar. The detailed
-  implemented floor, version history, ceilings, and deliberately non-receipted
-  neighbors live in
+- [ ] **BUILD-OBSERVATION-EVIDENCE.** Extend the closed exact replay lanes for
+  candidates that require receipted builds. The implemented grammar, versions,
+  ceilings, and deliberately non-receipted neighbors live in
   `source/omega-rust/omega/build/omega-build-evaluation/BUILD_OBSERVATION_REPLAY.md`.
 
   Remaining work:
 
-  - replay every still-admitted build service and staged-output lifecycle that
-    falls outside the closed landed grammar, without inferring operations from
-    an equivalent final tree;
+  - replay each still-admitted build service and staged-output lifecycle needed
+    by a receipted candidate, without inferring operations from an equivalent
+    final tree;
   - retain exact failed and denied outcomes, including their rooted/refused
     operands, without turning host-specific path spellings into portable
     coordinates or treating provider error text as identity;
-  - add exact peak-live byte accounts only where the compiler owns a complete
-    allocation lifetime. Evaluator `Text` backing payloads are landed.
-    Complete synchronous directory enumeration truncates retained components
-    to Omega std's existing 255-byte `DirEntry` carrier and caps packed dirent
-    bytes at 16 MiB per operation before retaining each snapshot name and
-    before allocating the packed buffer. That extent strictly dominates the
-    complete retained source-name payload. It needs no duplicate name account
-    or peak receipt. Synchronous file-read transfer buffers likewise already
-    have one exact pre-provider 16-MiB per-operation bound; do not add a peak
-    receipt that merely restates it. The unrooted Windows find-cursor trio is
-    now rejected outright in
-    rooted package-build mode; its ambient/differential interpreter model has
-    a 16-MiB per-snapshot retained-name bound, but it must not grow package
-    sponsor, usage, or manifest fields before a root-aware Build-facet protocol
-    is actually admitted. Do not add a generic filesystem-scratch,
-    “temporary logical payload,” or memory ceiling: partial participation would
-    misstate allocator/RSS containment. BuildLog bytes, canonical filesystem
-    operation attempts, concurrently live filesystem handles and interpreter
-    cells, live interpreter `Text` bytes, and successful result cells/Text
-    bytes now have closure-wide compiler-owned accounts.
+  - add peak-live accounts only where the compiler owns the complete allocation
+    lifetime. Do not duplicate existing per-operation bounds or present partial
+    allocator/RSS participation as containment;
+  - classify every exercised operation as exactly `Receipted` or `Volatile`.
+    Replay-required policy rejects a volatile candidate; lack of replay support
+    for an unrelated operation does not disable install/update globally.
 
   Host CPU/RSS limits are deployment availability policy, not package evidence
   and not a precondition that turns review into authority. Projects that need
@@ -98,14 +84,10 @@ stop the item on one precise owner question before adding machinery.
   A summary or observation digest alone is not a receipt.
 
   The Windows `find_first`/`find_next`/`find_close` companion remains ordered
-  after **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS**. Its current
-  plain-byte pattern records an unrooted, working-directory-dependent
-  `directory/*` spelling rather than a compiler-rooted coordinate, so accepting
-  it now would make a receipt source-location-dependent. Rooted package-build
-  evaluation rejects the trio before operand evaluation or provider service.
-  Replace that operand with the root-aware Build facet before admitting it or
-  adding replay; do not add a same-path-only receipt or ignore the pattern
-  during replay matching.
+  after **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS**. Its unrooted,
+  working-directory-dependent pattern cannot become a portable receipt.
+  Replace it with the root-aware Build facet before admission; do not add a
+  same-path-only receipt or ignore the pattern during replay matching.
 
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Locally recheck every proof or retained
   certificate required by an ordinary package claim. Reject open/deferred
@@ -165,9 +147,10 @@ stop the item on one precise owner question before adding machinery.
 
 - [ ] **LOCK-BASELINE-RECOVERY.** Persist and recover accepted baselines with
   strict canonical framing and immediate local reconstruction. Missing lock
-  evidence means fresh graph admission; unavailable old source requires a
-  standalone candidate audit but does not erase a valid accepted baseline.
-  No review-only capsule may be promoted by renaming it.
+  evidence means fresh graph admission. Unavailable old source produces a
+  standalone-candidate review packet and audit recommendation; it neither
+  proves an audit occurred nor erases a valid accepted baseline. No review-only
+  capsule may be promoted by renaming it.
 
 - [ ] **LOCK-CLOSURE-VALIDATION.** Revalidate exact source lineage,
   resolutions, aliases, dependency reachability, obligation schemas,
@@ -199,31 +182,35 @@ stop the item on one precise owner question before adding machinery.
 ## P5 — Commands
 
 - [ ] **OMEGA-INSTALL.** Implement
-  `omega install <source> [--rev <revision>] [--as <alias>]` only after P0–P4.
+  `omega install <source> [--rev <revision>] [--as <alias>]` once the selected
+  candidate can complete the required P2–P4 gates.
   Fetch, declaration extraction, closure resolution, compiler review,
   recheckable evidence, conflict handling, triage, and root-policy decisions
-  must complete before an atomic `build.omg`/`omega.lock` mutation. Failure or
-  unresolved review performs no mutation.
+  must complete before an atomic `build.omg`/`omega.lock` mutation. Failure, a
+  blocking conflict, or a missing required root decision performs no mutation.
+  An audit recommendation is non-blocking unless external project policy makes
+  it blocking.
 
 - [ ] **OMEGA-UPDATE.** Implement
-  `omega update [package-or-alias...] [--to <revision>]` only after P0–P4.
-  Resolve from the accepted lock, block capability/API or provenance changes
-  pending exact root decisions, recommend audit for retained dangerous
-  authority, and publish atomically after final revalidation.
+  `omega update [package-or-alias...] [--to <revision>]` once the selected
+  candidate can complete the required P2–P4 gates. Resolve from the accepted
+  lock, block exact blocking-row changes and declared-name/source-lineage
+  replacement pending root decisions, render other typed provenance drift as
+  review evidence, recommend audit for retained dangerous authority, and
+  publish atomically after final revalidation.
 
 - [ ] **OMEGA-AUDIT-PACKAGES.** Render the accepted graph and current source
   state: immutable lineage/pins, dependency paths, declared and realized reach,
   authority flow, provider/trust/proof state, dangerous slack, build
   observations, review state, and the first failed provenance edge.
 
-## P6 — Integration fixtures
+## P6 — Source integration and fixtures
 
-- [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
-  accepted-lock absence and recovery, sealed representation mechanism/ABI,
-  canonical requested source-endpoint identity without route or peer custody,
-  broader receipted build operations and outputs, final native transaction
-  publication, and authenticated remote mirrors.
-  Synthetic end-to-end security artifacts are not permitted.
+- [ ] **PRIMARY-GIT-SELECTION-BOUNDARY — OWNER-BLOCKED.** Settle whether Omega
+  should use host `PATH`, an explicit operator setting, or the current
+  hard-coded executable candidates and custody checks. Retain no new trust
+  claim while **primary Git selection and consistency custody** remains open in
+  `OWNER_QUESTIONS.md`.
 
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
   controls and negative cases on a native Windows worker and retain the results
@@ -241,24 +228,11 @@ compiler, and runtime owners. A task that still needs an owner decision says so
 explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
-  `omega-representation-planning` now owns exact build
-  selection and named-conformance closure. The compiler recognizes only the
-  toolchain `core/representation.omg` trait, rejects duplicate, mismatched,
-  lookalike, non-opaque, and non-closed-carrier selections, and derives a
-  by-value calling shape recursively from the concrete carrier. Calling-policy
-  evaluation now occurs after build evaluation, uses selected target pointer
-  geometry, rejects a missing by-value selection, leaves reference-only
-  pointees unbound, and commits the target, complete shape graph, and selected
-  conformance application into the calling-plan application identity.
-
-  Remaining work only:
-
   - carry the same application into general type layout and physical
     move/finalization planning, including cleanup and multiplicity checks;
-  - **OWNER-BLOCKED — representation application attribution:** publish
+  - **OWNER-BLOCKED — selected opaque representation attribution:** publish
     demanded/bound representation rows and enforce producer/consumer agreement
-    only after the owner settles whether source review records consumer demand,
-    a producer-fixed ABI, or distinct demand/availability rows;
+    only after the owner settles the model in `OWNER_QUESTIONS.md`;
   - bind the application into artifacts, replacement compatibility, stable-
     handle era rules, and independently replaceable provider contracts;
   - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,
@@ -266,42 +240,14 @@ explicitly.
     canaries.
 
 - [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES — consume the projected profile
-  columns downstream.** The syntax projector now closes unconditional and exact
-  `transition builder.target` paths by fixpoint, retains each request once with
-  indexed common/profile membership, validates stable referenced profile
-  identities, and rejects wildcard, runtime-subject, mixed, unreachable, and
-  profile-less-resolution cases.
-
-  Canonical source-closure v5 now binds the selected profile, condition schema,
-  referenced profile identities, complete authored occurrence roster, and every
-  common/profile membership column. Candidate-closure commitment v5 binds that
-  complete source question before review evidence, so inactive projected rows
-  cannot disappear from review identity.
-
-  Remaining work:
-
+  columns downstream.**
   - add independently populated per-profile accepted-lock/review sections,
     fail-closed missing-column behavior, and explicit all-column population;
   - add accepted-lock catalog-growth, stale-profile-identity, replay/tamper, and
     missing-locked-column canaries when those lock sections land.
 
-- [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role after resolution.**
-  Source projection no longer coerces `ApplicationDeclaration` into a package.
-  Source custody and reconciliation retain the exact root role, reject an
-  application behind every dependency edge, and bind the role into canonical
-  source-closure v5 and review-baseline v4 recovery. Explicit project-root
-  entry points cover external-local, Git, named Git member, and workspace
-  sources. Compiler handoff retains the same `BuildDeclarationKind` in
-  `PackageCompilationInputs`, its source-path-free dependency closure, and
-  ordinary obligation-ledger v2 recovery. Source-consumption v3 and production
-  manifest v2 identities bind it; candidate-closure commitment v5 binds it too.
-  Baseline-to-candidate review compares package-to-application as lost
-  dependency compatibility and application-to-package as lost activation
-  compatibility; deterministic triage v2 carries that fixed reason and blocks
-  the update. Package-only callers use the explicit `new_package` constructor.
-
-  Remaining work:
-
+- [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
+  authority-bearing outputs.**
   - retain `{ PackageKey, BuildDeclarationKind }` through accepted lock rows,
     command diagnostics, and audit output;
   - add package/application replay, tampering, and role-change fixtures as each
@@ -328,13 +274,8 @@ explicitly.
   `Build.filesystem: FilesystemHost`, replace the std-owned `Path` in the
   `BuildSource`/`BuildOutput` surface with a compiler-owned relative-path
   carrier or direct rooted operations, move sponsored reads and writes onto
-  those existing facets. The explicit compiler-owned `BuildLog` facet and exact
-  `write_line` dispatch have landed: log bytes are retained separately from
-  runtime Console output and bound into build-observation identity without
-  granting a boundary-service reach. Initial evaluation and replay debit one
-  compiler-owned closure-wide BuildLog byte account. Build evaluation must
-  admit no ordinary runtime boundary service merely because it is filesystem-
-  or console-shaped. Retain exact build-effect and observation rows, while
+  those existing facets. Build evaluation must admit no ordinary runtime
+  boundary service merely because it is filesystem- or console-shaped.
   `FilesystemSponsor` remains the enforcement boundary for source/output
   roots, symlinks, limits, descriptors, and staging custody.
 
@@ -350,18 +291,15 @@ explicitly.
   facets, not through a std authority exception.
 
 - [ ] Complete generic/exact-application coverage for
-  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. The carrier, selected-closure
-  commitment, package projection, canonical encoding, and blocking update
-  comparison have landed. Derive concrete static applications from checked
-  provider realizations, retain normalized type/lifetime bindings, attach the
-  canonical rows to production selected-plan facts, and add compiler-to-update
-  end-to-end tests. Keep compatibility failure when a public family gains an
-  uncovered coordinate. **OWNER-BLOCKED —
-  generic realization coverage:** do not add a `Generic` evidence variant until
-  the owner settles what compiler-recheckable fact establishes universal
-  coverage for checked and bodyless/external realizations. Package evidence
-  must never use declaration order, display signatures, ordinals, authored
-  assertions, or reach-selected subsets.
+  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. First admit nongeneric fixed-token
+  checked-adapter dispatch. Then derive
+  concrete static applications from checked provider realizations, retain
+  normalized tagged telescope bindings, attach rows to production selected
+  plans, and add compiler-to-update tests. Keep compatibility failure when a
+  public family gains an uncovered coordinate. Generic and exact-application
+  coverage remain owner-blocked; package evidence must never substitute
+  declaration order, display signatures, ordinals, authored assertions, or
+  reach-selected subsets.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external
@@ -375,7 +313,7 @@ explicitly.
 
 - [ ] **PACKAGE-MANAGER-RELEASE-AUDIT.** Before enabling mutation, rerun the
   complete package, package-evidence, package-compilation, resolver, compiler
-  handoff, platform-native, fixture, recovery, and architecture suites. Require
-  zero unexpected ignores, no legacy manifest/receipt/plan surface, no physical
-  std special-casing, no unresolved canonical evidence rows, and a clean atomic
-  failure path for every install/update stage.
+  handoff, platform-native, fixture, recovery, and architecture suites. Define
+  the exact expected-ignore allowlist and retired surfaces, require no physical
+  std special-casing or unresolved canonical evidence rows, and verify a clean
+  atomic failure path for every install/update stage.

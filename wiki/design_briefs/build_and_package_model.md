@@ -439,14 +439,12 @@ or aggregate network-byte count. Uniform command lifetime, captured-output,
 process-tree cleanup, and honest native resource controls remain valid because
 they apply without interpreting the host's helper graph.
 
-The universal `GitSourceReceipt` binds the requested endpoint, primary Git
-invocation and outcome, authenticated commit/tree, validated materialization,
-and immutable snapshot. A deliberately hermetic deployment may attach a
-separately typed confinement-evidence carrier to that receipt, but package
-source cannot select it and stronger deployment evidence never forks package
-or source identity. Local-only repository initialization and inspection may
-retain tighter execution/write confinement because they have no ambient
-transport-helper requirement.
+The universal `GitSourceReceipt` binds the validated requested locator, primary
+Git invocation and outcome, authenticated commit/tree, validated
+materialization, and immutable snapshot. It does not claim the actual route,
+peer, credential custody, or enclosing host isolation. Local-only repository
+initialization and inspection may retain tighter execution/write confinement
+because they have no ambient transport-helper requirement.
 
 The source resolver owns one syntax-neutral authenticated tree session. It
 opens the exact root declaration, accepts bounded member paths from the

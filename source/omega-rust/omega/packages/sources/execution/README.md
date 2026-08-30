@@ -67,9 +67,8 @@ Native hardening is defense in depth:
   and CPU ceilings.
 
 Network phases deliberately do not use executable or write allowlists that
-would block host-selected Git helpers. Optional hermetic host or CI policy may
-provide stronger, separately typed evidence; it does not alter package
-semantics or the universal source receipt.
+would block host-selected Git helpers. Stronger host or CI isolation is an
+operator concern; Omega does not convert it into package evidence.
 
 The full source-resolution contract is maintained in
 [`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).

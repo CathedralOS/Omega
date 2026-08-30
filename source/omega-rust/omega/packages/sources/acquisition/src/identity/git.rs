@@ -20,12 +20,10 @@ pub enum SourceLineage {
 impl SourceLineage {
     /// Parses a locator already selected by the Git source adapter.
     pub fn git(locator: &str) -> Result<Self, IdentityError> {
-        Self::git_with_transport(locator).map(|(lineage, _, _)| lineage)
+        Self::git_with_transport(locator).map(|(lineage, _)| lineage)
     }
 
-    pub(crate) fn git_with_transport(
-        locator: &str,
-    ) -> Result<(Self, GitTransport, GitRequestedNetworkEndpoint), IdentityError> {
+    pub(crate) fn git_with_transport(locator: &str) -> Result<(Self, GitTransport), IdentityError> {
         let parsed = ParsedGitLocator::parse(locator)?;
         let transport = parsed.transport;
         let lineage = if parsed.host == "github.com" {
@@ -35,9 +33,7 @@ impl SourceLineage {
         } else {
             GenericGitLineage::from_parsed(parsed).map(Self::Git)
         }?;
-        let requested_endpoint =
-            GitRequestedNetworkEndpoint::from_accepted_lineage(&lineage, transport);
-        Ok((lineage, transport, requested_endpoint))
+        Ok((lineage, transport))
     }
 
     pub(super) fn family(&self) -> SourceLineageFamily {
@@ -220,50 +216,6 @@ pub enum GitTransport {
     Https,
     SshUrl,
     ScpLike,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct GitRequestedNetworkEndpoint {
-    host: String,
-    port: u16,
-}
-
-impl GitRequestedNetworkEndpoint {
-    fn from_accepted_lineage(lineage: &SourceLineage, transport: GitTransport) -> Self {
-        let default_port = match transport {
-            GitTransport::Https => 443,
-            GitTransport::SshUrl | GitTransport::ScpLike => 22,
-        };
-        let (host, port) = match lineage {
-            SourceLineage::GitHub(_) => ("github.com".to_owned(), default_port),
-            SourceLineage::GitLab(_) => ("gitlab.com".to_owned(), default_port),
-            SourceLineage::Git(lineage) => {
-                debug_assert_eq!(lineage.transport, transport);
-                (
-                    lineage.host.clone(),
-                    lineage
-                        .port
-                        .as_ref()
-                        .map_or(default_port, CanonicalPort::get),
-                )
-            }
-            SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
-                unreachable!("a Git locator can only produce Git source lineage")
-            }
-        };
-        Self { host, port }
-    }
-
-    // Retained for the later broker integration; endpoint construction stays private.
-    #[allow(dead_code)]
-    pub(crate) fn host(&self) -> &str {
-        &self.host
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn port(&self) -> u16 {
-        self.port
-    }
 }
 
 impl GitTransport {

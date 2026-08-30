@@ -7,10 +7,10 @@ identity, fetch, authentication, snapshots, and retained custody. Follow
 ```text
 sources/
 ├── acquisition/   hostile local and Git input -> immutable source custody
-└── execution/     confined execution of compiler-selected resolver tools
+└── execution/     bounded execution of compiler-selected resolver tools
 ```
 
-Dependency direction is one way: acquisition may request confined execution;
+Dependency direction is one way: acquisition may request resolver execution;
 execution knows nothing about dependency graphs, package review, or admission.
 Neither crate accepts a package.
 

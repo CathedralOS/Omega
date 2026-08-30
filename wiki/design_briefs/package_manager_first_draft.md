@@ -1,16 +1,18 @@
 # Design Brief: Package Manager First Draft
 
-Status: corrected first design, 2026-08-26. This brief is temporary until the
-implementation vocabulary is established and the settled model is folded into
-`build_and_package_model.md`.
+Status: working design record, 2026-08-30. This brief preserves design context
+while implementation vocabulary settles. Where it conflicts with
+`build_and_package_model.md` or a current subsystem contract, those current
+documents govern.
 
 ## Intent
 
 Omega needs a Cargo-like source workflow without a hosted registry and without
-ambient trust. It resolves user-named Git, URL, or local sources to immutable
-content, discovers package identity from the fetched package, derives security
-evidence with the compiler, reconciles the complete closure, and admits the
-result before changing project or lock state.
+trusting package-authored identity or capability claims. It resolves user-named
+Git, URL, or local sources to immutable content, discovers package identity
+from the fetched package, derives security evidence with the compiler,
+reconciles the complete closure, and admits the result before changing project
+or lock state.
 
 The package manager does not accept package-authored capability manifests or
 caller-authored package identities as evidence.
@@ -92,8 +94,8 @@ adapter can establish that they designate the same repository namespace. A
 matching host/path is not universal proof that HTTPS and SSH serve the same
 repository. Unknown equivalence remains distinct. Exact commit, tree, and
 content identities remain instance evidence. A different lineage or declared
-name is package replacement, not an ordinary update. Mirrors require explicit
-relocation/delegation evidence; a matching declared name is never sufficient.
+name is package replacement, not an ordinary update; a matching declared name
+never converts one lineage into another.
 
 Workspace path packages use the workspace source lineage plus normalized
 member-relative path. Paths outside the workspace are explicitly non-portable
@@ -2134,9 +2136,9 @@ obligation schema. It is neither native code nor a renamed compiler review.
 Review may carry candidate bytes in the same canonical vocabulary, but a
 consumer gives them force only by independently reconstructing the total set
 from exact source and comparing bytes exactly. Source, proof route, compiler
-observations, and local decisions remain separately bound. Current incomplete
-review-v72/canonical-row-v30 bytes cannot be promoted merely because the future
-artifact reuses their row vocabulary.
+observations, and local decisions remain separately bound. No review schema,
+including the current one, can be promoted merely because the future artifact
+reuses its row vocabulary.
 
 That local reconstruction may read the earliest coherent compiler-owned IR in
 which an obligation is semantically complete, including private pre-Psi or
