@@ -13,6 +13,7 @@ mod type_refinement;
 
 use callable_shape::validate_selected_callable_shape;
 pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
+pub(crate) use contract_facts::validate_callable_contract_refinement;
 use nominal_admission::validate_nominal_machine_selection;
 
 use psi_diagnostics::Diagnostic;

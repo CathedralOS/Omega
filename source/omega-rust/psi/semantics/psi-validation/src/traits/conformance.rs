@@ -389,6 +389,20 @@ pub(crate) fn validate_machine_trait_conformances(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for conformance in program.machine_trait_conformances(machine) {
+        if let Some(requirement) = program.machines().iter().find(|requirement| {
+            requirement.symbol == conformance.symbol
+                && requirement.supply_mode
+                    == psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+        }) {
+            validate_machine_top_level_requirement_conformance(
+                program,
+                machine,
+                requirement,
+                conformance,
+                diagnostics,
+            );
+            continue;
+        }
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
             if validate_machine_operator_conformance(program, machine, conformance, diagnostics) {
                 continue;
@@ -442,6 +456,267 @@ pub(crate) fn validate_machine_trait_conformances(
             explicit_type_arguments,
             diagnostics,
         );
+    }
+}
+
+fn validate_machine_top_level_requirement_conformance(
+    program: &TypedTrees,
+    machine: &Machine,
+    requirement: &Machine,
+    conformance: &psi_typed_trees::machine::TraitConformance,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let requirement_identity = requirement.name.as_str();
+    let label = format!(
+        "provider machine `{}` for top-level boundary requirement `{requirement_identity}`",
+        machine.name
+    );
+    if conformance.requirement_symbol != requirement.symbol {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not retain the exact selected requirement symbol"
+        )));
+        return;
+    }
+    if !program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+        .is_empty()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} supplies trait-style arguments; a top-level requirement owns its own static telescope"
+        )));
+        return;
+    }
+    let Some(requirement_entry) = program.machine_states(requirement).first() else {
+        diagnostics.push(Diagnostic::error(format!(
+            "top-level boundary requirement `{requirement_identity}` has no entry signature"
+        )));
+        return;
+    };
+    let Some(provider_entry) = program.machine_states(machine).first() else {
+        diagnostics.push(Diagnostic::error(format!("{label} has no entry signature")));
+        return;
+    };
+
+    if requirement.lifetime_parameters.len() != machine.lifetime_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} has {} lifetime parameter(s); the requirement declares {}",
+            machine.lifetime_parameters.len(),
+            requirement.lifetime_parameters.len(),
+        )));
+    }
+
+    let required_type_parameters = program.machine_type_parameters(requirement);
+    let actual_type_parameters = program.machine_type_parameters(machine);
+    if required_type_parameters.len() != actual_type_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} has {} static parameter(s); the requirement declares {}",
+            actual_type_parameters.len(),
+            required_type_parameters.len(),
+        )));
+        return;
+    }
+    let generic_types = required_type_parameters.iter().collect::<Vec<_>>();
+    crate::machine_parameters::validate_trait_callable_parameter_refinement(
+        program,
+        &label,
+        required_type_parameters,
+        actual_type_parameters,
+        &generic_types,
+        diagnostics,
+    );
+    let mut type_bindings = required_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .filter_map(|(required, actual)| {
+            matches!(required.kind, TypeParameterKind::Type).then(|| TraitTypeBinding {
+                parameter_symbol: required.symbol,
+                parameter_name: required.name.as_str().to_owned(),
+                target: TraitTypeBindingTarget::Parameter(actual.symbol),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let required_parameters = program.state_parameters(requirement_entry);
+    let actual_parameters = program.state_parameters(provider_entry);
+    if required_parameters.len() != actual_parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} has {} value parameter(s); the requirement declares {}",
+            actual_parameters.len(),
+            required_parameters.len(),
+        )));
+        return;
+    }
+    for (index, (required, actual)) in required_parameters
+        .iter()
+        .zip(actual_parameters)
+        .enumerate()
+    {
+        if required.is_const != actual.is_const || required.is_mutable != actual.is_mutable {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} parameter {} has shape `{}`, but the requirement declares `{}`",
+                index,
+                parameter_shape_label(program, actual),
+                parameter_shape_label(program, required),
+            )));
+            continue;
+        }
+        if required.is_self {
+            let carrier_matches = requirement.attached_data_symbol.is_valid()
+                && nominal_type_symbol(program, actual.type_reference)
+                    == Some(requirement.attached_data_symbol);
+            let shape_matches = !actual.is_self
+                && type_references_match_with_trait_bindings(
+                    program,
+                    actual.type_reference,
+                    required.type_reference,
+                    required_type_parameters,
+                    &mut type_bindings,
+                );
+            if !carrier_matches || !shape_matches {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{label} parameter {} must realize the requirement receiver as exact carrier `{}` with the same reference shape; got `{}`",
+                    index,
+                    requirement
+                        .attached_data
+                        .as_ref()
+                        .map_or("<missing carrier>", |name| name.as_str()),
+                    parameter_shape_label(program, actual),
+                )));
+            }
+            continue;
+        }
+        if actual.is_self
+            || !type_references_match_with_trait_bindings(
+                program,
+                actual.type_reference,
+                required.type_reference,
+                required_type_parameters,
+                &mut type_bindings,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} parameter {} expects `{}`, got `{}`",
+                index,
+                parameter_shape_label(program, required),
+                parameter_shape_label(program, actual),
+            )));
+        }
+    }
+
+    let return_matches = type_references_match_with_trait_bindings(
+        program,
+        provider_entry.return_type,
+        requirement_entry.return_type,
+        required_type_parameters,
+        &mut type_bindings,
+    );
+    let dispatch_matches = program.normalized_result_dispatch_set(provider_entry.return_type)
+        == program.normalized_result_dispatch_set(requirement_entry.return_type);
+    if !return_matches || !dispatch_matches {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} returns `{}`, but the requirement returns `{}` with its exact result dispatch",
+            type_reference_label(program, provider_entry.return_type),
+            type_reference_label(program, requirement_entry.return_type),
+        )));
+    }
+
+    validate_top_level_requirement_effect_ceiling(
+        program,
+        machine,
+        requirement,
+        &label,
+        diagnostics,
+    );
+    crate::machine_parameters::validate_callable_contract_refinement(
+        program,
+        &label,
+        requirement_identity,
+        program.machine_contracts(requirement),
+        program.machine_contracts(machine),
+        required_parameters,
+        actual_parameters,
+        diagnostics,
+    );
+}
+
+fn nominal_type_symbol(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => nominal_type_symbol(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            nominal_type_symbol(program, *base_type)
+        }
+        TypeReferenceNode::Named { symbol, .. } => symbol.is_valid().then_some(*symbol),
+        TypeReferenceNode::Generic { base_symbol, .. } => {
+            base_symbol.is_valid().then_some(*base_symbol)
+        }
+        _ => None,
+    }
+}
+
+fn validate_top_level_requirement_effect_ceiling(
+    program: &TypedTrees,
+    machine: &Machine,
+    requirement: &Machine,
+    label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let allowed_services = program
+        .service_reach_rows
+        .services(requirement.service_reach_row);
+    for service in program
+        .service_reach_rows
+        .services(machine.service_reach_row)
+    {
+        if !allowed_services.contains(service) {
+            let service_name = program
+                .service_reaches
+                .definition(*service)
+                .map(|definition| definition.name.as_str())
+                .unwrap_or("<unknown canonical service>");
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} reaches service `{service_name}` outside the requirement ceiling"
+            )));
+        }
+    }
+    if machine.suspends && !requirement.suspends {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} declares `suspends;` beyond the requirement ceiling"
+        )));
+    }
+    if machine.blocks && !requirement.blocks {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} declares `blocks;` beyond the requirement ceiling"
+        )));
+    }
+
+    let allowed_invocations = program.machine_invokes(requirement);
+    for invocation in program.machine_invokes(machine) {
+        if !allowed_invocations
+            .iter()
+            .any(|allowed| allowed.target == invocation.target)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} invokes `{}` outside the requirement ceiling",
+                invocation.name,
+            )));
+        }
+    }
+
+    let required_termination = requirement
+        .termination_plan
+        .interface
+        .published()
+        .unwrap_or(&requirement.termination_plan.checked_summary);
+    let actual_termination = machine
+        .termination_plan
+        .interface
+        .published()
+        .unwrap_or(&machine.termination_plan.checked_summary);
+    if required_termination.promises_termination() && !actual_termination.promises_termination() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} does not provide the requirement's termination guarantee"
+        )));
     }
 }
 
