@@ -11020,8 +11020,20 @@ checked-result arithmetic decision listed below.
   exact-one wrappers and reject a plural outer or middle cohort. Shallower,
   deeper, recursive, array-mediated, or direct-sum-coexisting paths reject, as
   does target-dependent placement at any layer.
+  One further singular fixed-depth rung now admits exactly one
+  `Outer -> First -> Middle -> Leaf -> direct sums` chain and no other sum-
+  reachable field anywhere in the outer schema. Its compact report retains the
+  new outer whole-record layout and exact field occurrence beside the unchanged
+  singular depth-two report. The distinct non-clone carrier likewise retains
+  the complete depth-two carrier, rebuilds the inner and outer zero-padded
+  images, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Shallow, deeper, plural, recursive, array-mediated, or
+  direct-sum-coexisting paths reject, as does target-dependent placement at any
+  of the four record layers. Existing direct, one-level, singular depth-two,
+  and plural depth-two APIs remain unchanged.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  two records, mixed common-field/case shapes,
+  three records, plural paths deeper than two records, mixed common-field/case
+  shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
   Text, dynamic values, atomics, non-copy data, and malformed shapes remain

@@ -206,6 +206,19 @@ pub struct ConventionalDepthTwoRecordSumPathsLayoutReport {
     pub paths: Vec<ConventionalDepthTwoRecordSumOccurrenceLayoutReport>,
 }
 
+/// One exact fixed-depth chain through three enclosing records to one leaf
+/// record containing the complete direct conventional-sum set.
+///
+/// The inner portion reuses the existing singular depth-two report whole. No
+/// child placement or selected value is flattened into the new outer record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthThreeRecordSumPathLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub depth_two_path: ConventionalDepthTwoRecordSumPathLayoutReport,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns
