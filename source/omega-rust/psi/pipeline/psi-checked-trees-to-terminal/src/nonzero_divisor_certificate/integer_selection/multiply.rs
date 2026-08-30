@@ -226,6 +226,68 @@ fn prove_correlated_multiply_relation(
         ) else {
             continue;
         };
+        for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+            let quotient = match fact {
+                Proposition::LessOrEqual(quotient, actual_left)
+                    if lower == positive && actual_left == left =>
+                {
+                    quotient
+                }
+                Proposition::LessOrEqual(actual_left, quotient)
+                    if lower != positive && actual_left == left =>
+                {
+                    quotient
+                }
+                _ => continue,
+            };
+            let ScalarTerm::ExactIntegerDivide {
+                scalar_type,
+                left: endpoint,
+                right: divide_right,
+            } = quotient
+            else {
+                continue;
+            };
+            if *scalar_type != integer_type
+                || divide_right.as_ref() != right
+                || endpoint.integer_value() != Some((integer_type, expected_endpoint))
+            {
+                continue;
+            }
+            let evidence = ProofNode {
+                conclusion: Proposition::Conjunction(vec![
+                    sign_proof.conclusion.clone(),
+                    fact.clone(),
+                ]),
+                rule: ProofRule::ConjunctionIntroduction(vec![
+                    sign_proof.clone(),
+                    citation.proof(fact),
+                ]),
+            };
+            let witness = IntegerAffineWitness {
+                root: quotient.clone(),
+                target: target.clone(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            };
+            let Some(form) = check_integer_affine_witness(context, semantic_axioms, &witness).ok()
+            else {
+                continue;
+            };
+            let Some(mapped) = map_integer_affine_bound(&form, &evidence.conclusion).ok() else {
+                continue;
+            };
+            if &mapped != goal {
+                continue;
+            }
+            return Some(ProofNode {
+                conclusion: mapped,
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(evidence),
+                    witness,
+                },
+            });
+        }
         for (index, axiom) in semantic_axioms.iter().enumerate() {
             let Proposition::Equal(equal_left, equal_right) = axiom else {
                 continue;
