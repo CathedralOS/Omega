@@ -12,7 +12,7 @@ own the exact D17 rejection/outcome sums, complete lexical phase, native syntax
 representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
-census, whole-program named-type validation, and pure final symbolic-Alpha
+census, complete D31 structural type formation, and pure final symbolic-Alpha
 encoder. It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
@@ -38,11 +38,12 @@ through the current Gamma frontend gate.
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
-Remaining type/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. D31 now fixes the complete
-type-formation cases and candidate ordering; implementing that judgment remains
-the next compiler step. The existing source is therefore not yet a compiler
-edge and no validation may describe it as one.
+Remaining entry/body/control checking, AST-to-symbolic-Alpha lowering, `main`, and
+final publication remain implementation gaps. D31's profile-independent
+structural type-formation judgment is now implemented; its physical storage
+realization remains later than complete checking and is additionally blocked
+on Q5's over-`Int` demand representation. The existing source is therefore not
+yet a compiler edge and no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
 completes the collector contract for transition-arm binders and exact
@@ -57,16 +58,19 @@ inferred boundary kind and suppresses `InvalidBoundary` until repaired. The
 current source type-checks through the Gamma frontend; no census behavior is
 claimed as executed while the canonical Gamma compiler edge is incomplete.
 
-The first type-formation slice walks every authored declaration type after that
-census and records a candidate when a named type's exact spelling is absent
-from the complete owner table. It covers boundary signatures, fields, case
-payloads, machine/state parameters, returns, and local declarations,
-accumulating the earliest potential `UnknownType` coordinate independent of
-traversal order. It preserves the collected native syntax rather than
-serializing a resolved tree. The candidate is not yet promoted to a rejection:
-data-shape, recursive-value, placement, entry, and body judgments remain
-separate, and D31 now supplies their exact within-phase composition for
-implementation.
+Type formation walks every authored type after that census with an explicit
+stored/parameter/local/return/nested placement. It derives array-length,
+mixed-data, misplaced-`never`, forbidden-view, sealed-`Console`, unknown-name,
+and recursive-value candidates independently, suppressing the complete child
+subtree of a forbidden view. One candidate merge chooses only by packed source
+coordinate and treats a distinct same-anchor reason as an internal
+contradiction. Accepted programs retain explicit source-ordered record/sum rows
+so `data X {}` is concretely a zero-field record, plus all direct data-
+containment edges. Recursion checks each edge with a visited-owner graph walk,
+marking every edge in a value cycle at its named-reference coordinate without
+expanding every path through a shared acyclic graph. The winning candidate is
+now promoted after successful census. Entry/body/control checking remains the
+next semantic phase.
 
 ## Contract-derived conformance plan
 

@@ -10,7 +10,7 @@ gamma_compiler.beta → gamma_compiler_bytecode.tape
 The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
-The adjacent 204-case gate compiles this one source with temporary fixed test
+The adjacent gate compiles this one source with temporary fixed test
 entries, retains all 97 frontend discriminators, and executes the emitter,
 runtime containment, frame/value ABI, checked `Int`, compact `Bytes`, sealed
 input, resolved-expression, selected-match, and whole-function paths. One
