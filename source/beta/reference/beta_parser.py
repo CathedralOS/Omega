@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Shared untrusted lexer/parser for Beta reference and refinement tools.
 
-This module owns source recognition only. It deliberately contains no compiler,
-interpreter, symbolic evaluator, or trust claim; those consumers assign meaning
-or produce diagnostics in their own responsibility-specific modules. Its
-recursive `state` parser still admits arbitrary statement/state interleaving;
-BETA-FLATTENED-CFG-INITIALIZATION requires the reference migration to enforce
-one ordinary prefix followed by child states in every block.
+This module owns source recognition and the written, finite Beta formation
+judgments. It deliberately contains no compiler, interpreter, symbolic
+evaluator, or trust claim; those consumers assign runtime meaning or produce
+diagnostics in their own responsibility-specific modules.
 """
 
 # Beta tokens: identifiers/keywords, decimal integers, and single/double-char
@@ -115,6 +113,7 @@ class Parser:
         procs = []
         while self.peek()[0] != 'eof':
             procs.append(self.proc())
+        validate_program(procs)
         return procs
 
     def proc(self):
@@ -127,12 +126,39 @@ class Parser:
             if self.peek() == ('op', ','):
                 self.nxt()
         self.expect('op', ')')
+        body = self.block()
+        return ('proc', name, params, body)
+
+    def block(self):
         self.expect('op', '{')
         body = []
+        states_started = False
+        terminated = False
         while self.peek() != ('op', '}'):
-            body.append(self.stmt())
+            if self.peek() == ('word', 'state'):
+                states_started = True
+                body.append(self.state())
+                continue
+            if states_started:
+                raise SyntaxError(
+                    'beta parser: ordinary statement after child state'
+                )
+            if terminated:
+                raise SyntaxError(
+                    'beta parser: ordinary statement after block terminator'
+                )
+            statement = self.stmt()
+            body.append(statement)
+            terminated = statement[0] == 'return' or (
+                statement[0] == 'goto' and statement[2] is None
+            )
         self.expect('op', '}')
-        return ('proc', name, params, body)
+        return body
+
+    def state(self):
+        self.expect('word', 'state')
+        name = self.expect('word')[1]
+        return ('state', name, self.block())
 
     def stmt(self):
         token = self.peek()
@@ -144,15 +170,6 @@ class Parser:
         if token == ('word', 'return'):
             self.nxt()
             return ('return', self.expr())
-        if token == ('word', 'state'):
-            self.nxt()
-            name = self.expect('word')[1]
-            self.expect('op', '{')
-            body = []
-            while self.peek() != ('op', '}'):
-                body.append(self.stmt())
-            self.expect('op', '}')
-            return ('state', name, body)
         if token == ('word', 'to'):
             self.nxt()
             target = self.expect('word')[1]
@@ -242,3 +259,191 @@ class Parser:
             self.expect('op', ')')
             return expression
         raise SyntaxError(f'beta parser: bad factor at {token}')
+
+
+RESERVED = {
+    'proc', 'return', 'let', 'state', 'to', 'when', 'byte', 'word',
+    'emit', 'read_byte', 'write_byte',
+}
+
+
+def split_block(body):
+    """Return one block's ordinary prefix and child-state suffix."""
+    first_state = next(
+        (index for index, statement in enumerate(body) if statement[0] == 'state'),
+        len(body),
+    )
+    return body[:first_state], body[first_state:]
+
+
+def flatten_blocks(body):
+    """Flatten an authored block into entry/state blocks in DFS lexical order."""
+    ordinary, states = split_block(body)
+    flattened = [(None, ordinary)]
+
+    def visit(children):
+        for state in children:
+            state_ordinary, state_children = split_block(state[2])
+            flattened.append((state[1], state_ordinary))
+            visit(state_children)
+
+    visit(states)
+    return flattened
+
+
+def walk_expression(expression, visible, generated, required, calls):
+    kind = expression[0]
+    if kind == 'num':
+        return
+    if kind == 'var':
+        name = expression[1]
+        if name not in visible:
+            raise SyntaxError(f'beta formation: unresolved local {name!r}')
+        if name not in generated:
+            required.add(name)
+        return
+    if kind == 'mem':
+        walk_expression(expression[2], visible, generated, required, calls)
+        return
+    if kind == 'call':
+        for argument in expression[2]:
+            walk_expression(argument, visible, generated, required, calls)
+        calls.append((expression[1], len(expression[2])))
+        return
+    if kind == 'bin':
+        walk_expression(expression[2], visible, generated, required, calls)
+        walk_expression(expression[3], visible, generated, required, calls)
+        return
+    raise SyntaxError(f'beta formation: unknown expression {kind!r}')
+
+
+def validate_procedure(proc, procedure_arities, calls):
+    _, proc_name, params, body = proc
+    if proc_name in RESERVED:
+        raise SyntaxError(f'beta formation: reserved procedure {proc_name!r}')
+    if len(params) > 4 or len(set(params)) != len(params):
+        raise SyntaxError(f'beta formation: invalid parameters for {proc_name!r}')
+    if any(param in RESERVED for param in params):
+        raise SyntaxError(f'beta formation: reserved parameter in {proc_name!r}')
+
+    blocks = flatten_blocks(body)
+    labels = {}
+    for index, (label, _) in enumerate(blocks[1:], 1):
+        if label in RESERVED or label in labels:
+            raise SyntaxError(f'beta formation: invalid state {label!r}')
+        labels[label] = index
+
+    visible = set(params)
+    declarations = set(params)
+    summaries = []
+    for block_index, (_, statements) in enumerate(blocks):
+        generated = set()
+        required = set()
+        edges = []
+        terminal = False
+        for statement in statements:
+            kind = statement[0]
+            if kind == 'let':
+                walk_expression(statement[2], visible, generated, required, calls)
+                name = statement[1]
+                if name in RESERVED or name in declarations:
+                    raise SyntaxError(f'beta formation: invalid local {name!r}')
+                declarations.add(name)
+                visible.add(name)
+                generated.add(name)
+            elif kind == 'assign':
+                name = statement[1]
+                if name not in visible:
+                    raise SyntaxError(f'beta formation: unresolved assignment {name!r}')
+                walk_expression(statement[2], visible, generated, required, calls)
+                generated.add(name)
+            elif kind == 'return':
+                walk_expression(statement[1], visible, generated, required, calls)
+                terminal = True
+            elif kind == 'callstmt':
+                walk_expression(statement[1], visible, generated, required, calls)
+            elif kind == 'memset':
+                walk_expression(statement[2], visible, generated, required, calls)
+                walk_expression(statement[3], visible, generated, required, calls)
+            elif kind == 'emit':
+                pass
+            elif kind == 'goto':
+                target = statement[1]
+                if statement[2] is not None:
+                    walk_expression(statement[2], visible, generated, required, calls)
+                edges.append((target, set(generated)))
+                terminal = statement[2] is None
+            else:
+                raise SyntaxError(f'beta formation: unknown statement {kind!r}')
+        summaries.append({
+            'required': required,
+            'generated': generated,
+            'edges': edges,
+            'terminal': terminal,
+        })
+
+    successors = [[] for _ in blocks]
+    for index, summary in enumerate(summaries):
+        for target, generated in summary['edges']:
+            if target not in labels:
+                raise SyntaxError(f'beta formation: unresolved state {target!r}')
+            successors[index].append((labels[target], generated))
+        if not summary['terminal'] and index + 1 < len(blocks):
+            successors[index].append((index + 1, set(summary['generated'])))
+
+    reachable = {0}
+    changed = True
+    while changed:
+        changed = False
+        for source in tuple(reachable):
+            for target, _ in successors[source]:
+                if target not in reachable:
+                    reachable.add(target)
+                    changed = True
+
+    top = set(declarations)
+    incoming = [set(top) for _ in blocks]
+    incoming[0] = set(params)
+    changed = True
+    while changed:
+        changed = False
+        for source in reachable:
+            for target, generated in successors[source]:
+                if target not in reachable:
+                    continue
+                candidate = incoming[source] | generated
+                merged = incoming[target] & candidate
+                if merged != incoming[target]:
+                    incoming[target] = merged
+                    changed = True
+
+    for index in reachable:
+        missing = summaries[index]['required'] - incoming[index]
+        if missing:
+            raise SyntaxError(
+                f'beta formation: possibly uninitialized local {min(missing)!r}'
+            )
+
+
+def validate_program(procs):
+    procedure_arities = {}
+    for proc in procs:
+        name = proc[1]
+        if name in procedure_arities:
+            raise SyntaxError(f'beta formation: duplicate procedure {name!r}')
+        procedure_arities[name] = len(proc[2])
+    if procedure_arities.get('main') != 0:
+        raise SyntaxError('beta formation: expected one zero-parameter main')
+
+    calls = []
+    for proc in procs:
+        validate_procedure(proc, procedure_arities, calls)
+    for name, arity in calls:
+        if name == 'read_byte':
+            expected = 0
+        elif name == 'write_byte':
+            expected = 1
+        else:
+            expected = procedure_arities.get(name)
+        if expected is None or expected != arity:
+            raise SyntaxError(f'beta formation: unresolved call {name!r}/{arity}')

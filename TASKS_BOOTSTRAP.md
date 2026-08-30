@@ -170,7 +170,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 140 cases in under four seconds on the development host.
+  surface gate runs 165 cases in about four seconds on the development host.
   The largest current retained Beta output, the 236,076-byte checker tape,
   leaves 26,064 bytes in the Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
@@ -185,7 +185,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
     reserved intrinsic names, and disjoint callable procedure regions. The
-    focused suite now passes 140 cases, including signed division/remainder,
+    focused suite now passes 165 cases, including signed division/remainder,
     trap-prefix, sealed EOF/write, and left-to-right side-effect discriminators;
     the canonical tape passes the generic structural checker.
   - [x] Replace emitted Alpha text plus an external assembler invocation with
@@ -198,7 +198,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     corrected that assembler's signed-division bug for high-bit `u64` immediate
     bytes. The canonical tape passes the generic structural gate. Every
     production consumer now uses its direct tape output.
-  - [ ] **BETA-FLATTENED-CFG-INITIALIZATION:** enforce the settled recursive
+  - [x] **BETA-FLATTENED-CFG-INITIALIZATION:** enforce the settled recursive
     authoring surface and every-path initialization judgment. Each procedure or
     state body is an ordinary-statement prefix followed by child states; reject
     loose ordinary statements after the first child and ordinary statements
@@ -215,8 +215,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     initialization, invalid interleaving, post-terminator statements, and
     traversal-order-sensitive loop handling. Update the reference parser and
     interpreter atomically so they no longer hoist loose statements or reject
-    nested states.
-  - [ ] Extend the compiler's one checked syntax-recursion budget across nested
+    nested states. The Alpha compiler and independent reference now share the
+    recursive block formation, depth-first flattening, exact transition-prefix
+    facts, reachability, and fixed-point must-initialization judgment. The
+    focused compiler surface passes 165 cases, including subtree fallthrough,
+    alternate-path establishment, unreachable-block handling, loop-carried
+    joins, invalid block shapes, skipped initialization, and traversal-order
+    controls; the reference differential and exhaustive-I/O gates agree over
+    60 generated programs and 10,240 bounded input cases.
+  - [x] Extend the compiler's one checked syntax-recursion budget across nested
     state parsing as well as parentheses, calls, and loads. The current selected
     compiler profile admits combined depth 64; that number is private resource
     policy, not Beta language meaning. Exhaustion must join the settled
@@ -224,7 +231,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     an Alpha return-stack accident. Reuse initialization work storage per
     procedure (one entry plus at most 128 states) or account for all procedure
     entries explicitly;
-    the global 1,024-state ceiling does not include the 128 entry blocks.
+    the global 1,024-state ceiling does not include the 128 entry blocks. State
+    bodies now use the same checked depth counter as parentheses, calls, and
+    loads; exact depth 64 is accepted and the adjacent state-only and mixed
+    depth-65 cases return canonical `Incomplete(syntax_depth, 64, 65)`.
   - [x] Separate source-visible raw Beta memory from generated frame/expression
     stacks and bind the call/stack profile that proves non-aliasing. Raw memory
     is a checked, zeroed 32 MiB logical region biased above the data stack. Every
@@ -259,8 +269,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     The Alpha compiler now records the first decisive typed outcome, emits the
     exact 40-byte `BCOUT` frame only after all fields are fixed, and leaves
     successful tape bytes unwrapped. `outcomes-v1.tsv` owns the closed tables;
-    the focused gate consumes them and passes 150 language, ceiling, framing,
-    partial-output/trap, and runtime-separation cases. The rebuilt 22,552-byte
+    the focused gate consumes them and passes 165 language, ceiling, framing,
+    partial-output/trap, and runtime-separation cases. The rebuilt 26,810-byte
     compiler artifact passes exact reconstruction and structural validation.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
@@ -315,8 +325,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
     spoof either constant, and the rebuilt 236,076-byte checker tape retains
-    26,064 bytes of Alpha payload headroom. The exact 84,909-byte compiler
-    source plus 22,552-byte tape carrier remains within the same bounded
+    26,064 bytes of Alpha payload headroom. The exact 103,457-byte compiler
+    source plus 26,810-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
     path and make subject structure available to ordinary bounded certificate
@@ -351,7 +361,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and a folded 3,240-leaf carrier in 0.465 seconds, but adding local parsing
       exhausts the same arena. Even a content-free structural visit of all
       78,109 bytes in the then-current subject failed inside one equality; the
-      present 84,909-byte source is no smaller. Sequential remainder folds
+      present 103,457-byte source is no smaller. Sequential remainder folds
       instead hit contained semantic-stack status 250. The checker reclaims
       conversion scratch only after a complete equality decision, so one
       compiler-scale reflexive equality retains every branch temporary.

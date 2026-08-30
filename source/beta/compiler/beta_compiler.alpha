@@ -1,7 +1,6 @@
 ; beta_compiler.alpha — canonical Alpha-written compiler for Beta.
 ;
-; Normative source (BETA-FLATTENED-CFG-INITIALIZATION; enforcement migration
-; remains open below):
+; Normative source (BETA-FLATTENED-CFG-INITIALIZATION):
 ;   proc IDENT(PARAMS) BLOCK
 ;   BLOCK := '{' ORDINARY* STATE* '}'
 ;   STATE := 'state' IDENT BLOCK
@@ -18,9 +17,9 @@
 ; Whitespace and `;` line comments are accepted between tokens. Decimal
 ; literals are checked across the complete unsigned 64-bit Word range. Character
 ; literals accept printable bytes plus \n \t \r \0 \\ \'. The whole source is
-; validated before any output is published. Nested STATE rows already emit in
-; normative depth-first lexical order. The remaining formation, combined-depth,
-; and fixed-point initialization checks are tracked in TASKS_BOOTSTRAP.md.
+; validated before any output is published. Nested STATE rows emit in normative
+; depth-first lexical order; formation, combined-depth, reachability, and
+; fixed-point initialization checks complete before replay.
 ;
 ; Globals (i64):
 ;   524288 LEN       524296 CUR       524304 ERROR     524312 EMIT
@@ -43,6 +42,11 @@
 ;   524720 MEM_SITE_LABEL 524728 STACK_FAULT_LABEL 524736 STACK_BYTES
 ;   524744 OUTCOME_CODE 524752 OUTCOME_SPACE 524760 OUTCOME_COORD
 ;   524768 OUTCOME_LIMIT 524776 OUTCOME_REQUESTED
+;   524784 INIT_BLOCK_ID 524792 STMT_TERMINATOR
+;   524800 INIT_CHANGED 524808 INIT_PROC 524816 INIT_FIRST_STATE
+;   524824 INIT_STATE_TOTAL 524832 INIT_BLOCK_COUNT 524840 INIT_LOCAL
+;   524848 INIT_EDGE 524856 INIT_SLOT 524864 INIT_SOURCE_LOCAL
+;   524872 INIT_TARGET_LOCAL 524880 INIT_FIRST_EDGE 524888 INIT_EDGE_TOTAL
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 TAPE_BUFFER (262140-byte checked Alpha payload extent)
@@ -58,6 +62,18 @@
 ;   655360 STATE_PC (1024 x 8)
 ;   680000 EDGE_TABLE (1024 x 24: start, len, proc index)
 ;   705000 EDGE_TARGET_STATE (1024 x 8)
+;   714000 INIT_BLOCK_REQUIRED (1152 x 64 bytes)
+;   788000 INIT_BLOCK_GENERATED (1152 x 64 bytes)
+;   862000 INIT_EDGE_GENERATED (1024 x 64 bytes)
+;   928000 INIT_EDGE_SOURCE_BLOCK (1024 x 8)
+;   939000 INIT_BLOCK_TERMINATOR (1152 bytes: 0 fallthrough, 1 to, 2 return)
+;   941000 INIT_PROC_FIRST_STATE (128 x 8)
+;   943000 INIT_PROC_STATE_TOTAL (128 x 8)
+;   945000 INIT_PROC_PARAM_COUNT (128 x 8)
+;   946024 INIT_IN_WORK (129 x 64 bytes)
+;   954280 INIT_REACH_WORK (129 bytes)
+;   956000 INIT_PROC_FIRST_EDGE (128 x 8)
+;   958000 INIT_PROC_EDGE_TOTAL (128 x 8)
 ;   2621440 INTERNAL_PC (65536 x 8)
 ;   3145728 FIXUP_TABLE (32768 x 24: operand offset, kind, identity)
 
@@ -272,6 +288,7 @@ ppr_known_proc:
 ppr_proc_ready:
         call  error_value
         jnz   r0, ppr_return
+        call  begin_init_proc
         imm   r0, 123
         call  expect_char
         call  error_value
@@ -281,16 +298,7 @@ ppr_proc_ready:
         jz    r0, ppr_body
         call  emit_proc_header
 ppr_body:
-        call  peek_token_char
-        imm   r1, 125
-        jeq   r0, r1, ppr_body_done
-        call  parse_statement
-        call  error_value
-        jnz   r0, ppr_return
-        jmp   ppr_body
-ppr_body_done:
-        imm   r0, 125
-        call  expect_char
+        call  parse_block_body
         call  error_value
         jnz   r0, ppr_return
         imm   r0, 524312
@@ -320,10 +328,112 @@ ppr_error:
         call  set_error
         ret
 
+; Parse one recursive Beta block after its opening brace. The call frame itself
+; remembers whether this block has entered its child-state suffix, so nested
+; blocks need no parallel parser stack.
+parse_block_body:
+pbb_ordinary:
+        call  peek_token_char
+        imm   r1, 125
+        jeq   r0, r1, pbb_close
+        imm   r0, kw_state
+        imm   r1, 5
+        call  match_literal
+        jnz   r0, pbb_state
+        call  parse_statement
+        call  error_value
+        jnz   r0, pbb_return
+        imm   r0, 524792
+        load  r0, r0
+        jz    r0, pbb_ordinary
+        call  record_block_terminator
+        jmp   pbb_state_suffix
+pbb_state:
+        call  parse_state_after_keyword
+        call  error_value
+        jnz   r0, pbb_return
+pbb_state_suffix:
+        call  peek_token_char
+        imm   r1, 125
+        jeq   r0, r1, pbb_close
+        imm   r0, kw_state
+        imm   r1, 5
+        call  match_literal
+        jz    r0, pbb_error
+        call  parse_state_after_keyword
+        call  error_value
+        jnz   r0, pbb_return
+        jmp   pbb_state_suffix
+pbb_close:
+        imm   r0, 125
+        call  expect_char
+pbb_return:
+        ret
+pbb_error:
+        call  set_error
+        ret
+
+enter_syntax_depth:
+        imm   r0, 524392
+        load  r6, r0
+        imm   r1, 64
+        jeq   r6, r1, esd_incomplete
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        ret
+esd_incomplete:
+        imm   r0, 3
+        imm   r1, 64
+        imm   r2, 65
+        call  set_incomplete_at_source
+        ret
+
+leave_syntax_depth:
+        imm   r0, 524392
+        load  r6, r0
+        imm   r1, 1
+        sub   r6, r1
+        store r0, r6
+        ret
+
+; Parse a state declaration after its `state` keyword. State bodies consume the
+; same checked recursion counter as parentheses, calls, and nested loads.
+parse_state_after_keyword:
+        call  parse_identifier
+        call  error_value
+        jnz   r0, psak_return
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, psak_select
+        call  add_state
+        call  begin_init_state
+        jmp   psak_checked
+psak_select:
+        call  select_state
+psak_checked:
+        call  error_value
+        jnz   r0, psak_return
+        call  emit_state_label
+        imm   r0, 123
+        call  expect_char
+        call  error_value
+        jnz   r0, psak_return
+        call  enter_syntax_depth
+        call  error_value
+        jnz   r0, psak_return
+        call  parse_block_body
+        call  leave_syntax_depth
+psak_return:
+        ret
+
 ; ---------------- statements ----------------
 parse_statement:
         imm   r0, 524384
         imm   r1, 15
+        store r0, r1
+        imm   r0, 524792
+        imm   r1, 0
         store r0, r1
         imm   r0, kw_return
         imm   r1, 6
@@ -333,10 +443,6 @@ parse_statement:
         imm   r1, 3
         call  match_literal
         jnz   r0, ps_let
-        imm   r0, kw_state
-        imm   r1, 5
-        call  match_literal
-        jnz   r0, ps_state
         imm   r0, kw_to
         imm   r1, 2
         call  match_literal
@@ -418,39 +524,10 @@ ps_return_stmt:
         call  parse_expr
         call  error_value
         jnz   r0, ps_done
+        imm   r0, 524792
+        imm   r1, 2
+        store r0, r1
         call  emit_epilogue
-        ret
-ps_state:
-        call  parse_identifier
-        call  error_value
-        jnz   r0, ps_done
-        imm   r0, 524312
-        load  r0, r0
-        jnz   r0, ps_state_select
-        call  add_state
-        jmp   ps_state_checked
-ps_state_select:
-        call  select_state
-ps_state_checked:
-        call  error_value
-        jnz   r0, ps_done
-ps_state_emit:
-        call  emit_state_label
-        imm   r0, 123
-        call  expect_char
-        call  error_value
-        jnz   r0, ps_done
-ps_state_body:
-        call  peek_token_char
-        imm   r1, 125
-        jeq   r0, r1, ps_state_done
-        call  parse_statement
-        call  error_value
-        jnz   r0, ps_done
-        jmp   ps_state_body
-ps_state_done:
-        imm   r0, 125
-        call  expect_char
         ret
 ps_to:
         call  parse_identifier
@@ -480,6 +557,9 @@ ps_to_guard:
         call  match_literal
         jnz   r0, ps_to_when
         call  restore_tmp_name
+        imm   r0, 524792
+        imm   r1, 1
+        store r0, r1
         call  emit_jump_target
         ret
 ps_to_when:
@@ -813,6 +893,47 @@ parse_call_done:
 parse_call_return:
         ret
 
+; Record a source-local read against the current validation-pass block. A read
+; satisfied by an earlier write in the same block needs no incoming fact;
+; otherwise it contributes to that block's required set.
+record_slot_read:
+        imm   r1, 524312
+        load  r1, r1
+        jnz   r1, rsr_done
+        mov   r7, r0
+        imm   r0, 524784
+        load  r6, r0
+        imm   r0, 64
+        mul   r0, r6
+        add   r0, r7
+        imm   r1, 788000
+        add   r1, r0
+        loadb r2, r1
+        jnz   r2, rsr_done
+        imm   r1, 714000
+        add   r1, r0
+        imm   r2, 1
+        storeb r1, r2
+rsr_done:
+        ret
+
+record_slot_write:
+        imm   r1, 524312
+        load  r1, r1
+        jnz   r1, rsw_done
+        mov   r7, r0
+        imm   r0, 524784
+        load  r6, r0
+        imm   r0, 64
+        mul   r0, r6
+        add   r0, r7
+        imm   r1, 788000
+        add   r1, r0
+        imm   r2, 1
+        storeb r1, r2
+rsw_done:
+        ret
+
 emit_push:
         imm   r0, 8
         call  emit_stack_reserve
@@ -825,6 +946,7 @@ emit_push:
 ; Input r0=slot. Emit a frame-slot load into r0.
 emit_load_slot:
         mov   r10, r0
+        call  record_slot_read
         imm   r0, 2
         imm   r1, 0
         imm   r2, 14
@@ -848,6 +970,7 @@ emit_load_slot:
 ; Input r0=slot. The generated expression result remains in runtime r0.
 emit_store_slot:
         mov   r10, r0
+        call  record_slot_write
         imm   r0, 2
         imm   r1, 1
         imm   r2, 14
@@ -1484,6 +1607,67 @@ cac_have:
         ret
 
 ; ---------------- bounded procedure, call, and local tables ----------------
+begin_init_proc:
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, bip_done
+        imm   r0, 524448
+        load  r6, r0
+        imm   r0, 524784
+        store r0, r6
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 941000
+        add   r0, r1
+        imm   r1, 524568
+        load  r1, r1
+        store r0, r1
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 945000
+        add   r0, r1
+        imm   r1, 524424
+        load  r1, r1
+        store r0, r1
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 956000
+        add   r0, r1
+        imm   r1, 524576
+        load  r1, r1
+        store r0, r1
+bip_done:
+        ret
+
+begin_init_state:
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, bis_done
+        imm   r0, 524568
+        load  r6, r0
+        imm   r1, 1
+        sub   r6, r1
+        imm   r1, 128
+        add   r6, r1
+        imm   r0, 524784
+        store r0, r6
+bis_done:
+        ret
+
+record_block_terminator:
+        imm   r0, 524312
+        load  r0, r0
+        jnz   r0, rbt_done
+        imm   r0, 524784
+        load  r6, r0
+        imm   r0, 939000
+        add   r0, r6
+        imm   r1, 524792
+        load  r1, r1
+        storeb r0, r1
+rbt_done:
+        ret
+
 load_current_proc_name:
         imm   r0, 524432
         load  r1, r0
@@ -1734,6 +1918,32 @@ finish_proc:
         add   r0, r1
         imm   r1, 524424
         load  r1, r1
+        store r0, r1
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 941000
+        add   r0, r1
+        load  r2, r0
+        imm   r0, 524568
+        load  r1, r0
+        sub   r1, r2
+        imm   r0, 8
+        mul   r0, r6
+        imm   r2, 943000
+        add   r0, r2
+        store r0, r1
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 956000
+        add   r0, r1
+        load  r2, r0
+        imm   r0, 524576
+        load  r1, r0
+        sub   r1, r2
+        imm   r0, 8
+        mul   r0, r6
+        imm   r2, 958000
+        add   r0, r2
         store r0, r1
         ret
 
@@ -2155,6 +2365,8 @@ add_edge:
         load  r6, r0
         imm   r1, 1024
         jeq   r6, r1, ae_global_incomplete
+        mov   r0, r6
+        call  record_init_edge
         imm   r0, 24
         mul   r0, r6
         imm   r1, 680000
@@ -2195,6 +2407,42 @@ ae_global_incomplete:
         imm   r1, 1024
         imm   r2, 1025
         call  set_incomplete_at_source
+        ret
+
+; Input r0 is the new global edge index. Capture the exact generated-local set
+; at this transition coordinate and its source block.
+record_init_edge:
+        mov   r5, r0
+        imm   r0, 524784
+        load  r4, r0
+        mov   r0, r5
+        imm   r1, 8
+        mul   r0, r1
+        imm   r1, 928000
+        add   r0, r1
+        store r0, r4
+        imm   r3, 0
+rie_loop:
+        imm   r0, 64
+        jeq   r3, r0, rie_done
+        mov   r0, r4
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r3
+        imm   r1, 788000
+        add   r0, r1
+        loadb r2, r0
+        mov   r0, r5
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r3
+        imm   r1, 862000
+        add   r0, r1
+        storeb r0, r2
+        imm   r0, 1
+        add   r3, r0
+        jmp   rie_loop
+rie_done:
         ret
 
 select_state:
@@ -2543,6 +2791,7 @@ ve_loop:
         imm   r0, 524576
         load  r7, r0
         jlt   r6, r7, ve_check
+        call  validate_initialization
         ret
 ve_check:
         imm   r0, 24
@@ -2615,6 +2864,538 @@ ve_valid:
         jmp   ve_loop
 vp_error:
         call  set_error
+        ret
+
+; ---------------- flattened CFG definite initialization ----------------
+; All authored blocks and transition-coordinate generated sets were recorded
+; during validation parsing. Analyze one procedure at a time with 129 x 64
+; reusable bytes: entry is a root, reachability ignores expression values, and
+; incoming facts monotonically descend from top by predecessor intersection.
+validate_initialization:
+        imm   r0, 524808
+        imm   r1, 0
+        store r0, r1
+vi_proc_loop:
+        imm   r0, 524808
+        load  r6, r0
+        imm   r0, 524408
+        load  r7, r0
+        jlt   r6, r7, vi_proc
+        ret
+vi_proc:
+        imm   r0, 8
+        mul   r0, r6
+        mov   r5, r0
+        imm   r1, 941000
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524816
+        store r0, r1
+        mov   r0, r5
+        imm   r1, 943000
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524824
+        store r0, r1
+        imm   r2, 1
+        add   r1, r2
+        imm   r0, 524832
+        store r0, r1
+        mov   r0, r5
+        imm   r1, 956000
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524880
+        store r0, r1
+        mov   r0, r5
+        imm   r1, 958000
+        add   r0, r1
+        load  r1, r0
+        imm   r0, 524888
+        store r0, r1
+        call  initialize_init_work
+        call  compute_init_reachability
+        call  solve_init_intersection
+        call  validate_init_reads
+        call  error_value
+        jnz   r0, vi_return
+        imm   r0, 524808
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   vi_proc_loop
+vi_return:
+        ret
+
+initialize_init_work:
+        imm   r0, 524840
+        imm   r1, 0
+        store r0, r1
+iiw_block_loop:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r0, 524832
+        load  r7, r0
+        jlt   r6, r7, iiw_block
+        imm   r0, 954280
+        imm   r1, 1
+        storeb r0, r1
+        ret
+iiw_block:
+        imm   r0, 954280
+        add   r0, r6
+        imm   r1, 0
+        storeb r0, r1
+        imm   r0, 524856
+        store r0, r1
+iiw_slot_loop:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r0, 64
+        jeq   r7, r0, iiw_next_block
+        imm   r2, 1
+        imm   r0, 0
+        jeq   r6, r0, iiw_entry_slot
+        jmp   iiw_store_slot
+iiw_entry_slot:
+        imm   r0, 524808
+        load  r0, r0
+        imm   r1, 8
+        mul   r0, r1
+        imm   r1, 945000
+        add   r0, r1
+        load  r1, r0
+        jlt   r7, r1, iiw_store_slot
+        imm   r2, 0
+iiw_store_slot:
+        mov   r0, r6
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 946024
+        add   r0, r1
+        storeb r0, r2
+        imm   r0, 524856
+        load  r7, r0
+        imm   r1, 1
+        add   r7, r1
+        store r0, r7
+        jmp   iiw_slot_loop
+iiw_next_block:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   iiw_block_loop
+
+compute_init_reachability:
+cir_again:
+        imm   r0, 524800
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524848
+        imm   r1, 524880
+        load  r1, r1
+        store r0, r1
+cir_edge_loop:
+        imm   r0, 524848
+        load  r6, r0
+        imm   r0, 524880
+        load  r7, r0
+        imm   r0, 524888
+        load  r0, r0
+        add   r7, r0
+        jlt   r6, r7, cir_edge
+        imm   r0, 524840
+        imm   r1, 0
+        store r0, r1
+        jmp   cir_fall_loop
+cir_edge:
+        mov   r0, r6
+        imm   r1, 8
+        mul   r0, r1
+        imm   r1, 928000
+        add   r0, r1
+        load  r0, r0
+        call  init_source_local
+        imm   r1, 0
+        jlt   r0, r1, cir_edge_next
+        mov   r5, r0
+        imm   r0, 954280
+        add   r0, r5
+        loadb r0, r0
+        jz    r0, cir_edge_next
+        imm   r0, 524848
+        load  r6, r0
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 705000
+        add   r0, r1
+        load  r5, r0
+        imm   r0, 524816
+        load  r1, r0
+        sub   r5, r1
+        imm   r1, 1
+        add   r5, r1
+        imm   r0, 954280
+        add   r0, r5
+        loadb r2, r0
+        jnz   r2, cir_edge_next
+        storeb r0, r1
+        imm   r0, 524800
+        store r0, r1
+cir_edge_next:
+        imm   r0, 524848
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   cir_edge_loop
+cir_fall_loop:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r0, 524832
+        load  r7, r0
+        imm   r1, 1
+        sub   r7, r1
+        jlt   r6, r7, cir_fall
+        imm   r0, 524800
+        load  r0, r0
+        jnz   r0, cir_again
+        ret
+cir_fall:
+        imm   r0, 954280
+        add   r0, r6
+        loadb r0, r0
+        jz    r0, cir_fall_next
+        mov   r0, r6
+        call  init_local_to_global
+        imm   r1, 939000
+        add   r0, r1
+        loadb r0, r0
+        jnz   r0, cir_fall_next
+        imm   r0, 954281
+        add   r0, r6
+        loadb r2, r0
+        jnz   r2, cir_fall_next
+        imm   r2, 1
+        storeb r0, r2
+        imm   r0, 524800
+        store r0, r2
+cir_fall_next:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   cir_fall_loop
+
+solve_init_intersection:
+sii_again:
+        imm   r0, 524800
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524848
+        imm   r1, 524880
+        load  r1, r1
+        store r0, r1
+sii_edge_loop:
+        imm   r0, 524848
+        load  r6, r0
+        imm   r0, 524880
+        load  r7, r0
+        imm   r0, 524888
+        load  r0, r0
+        add   r7, r0
+        jlt   r6, r7, sii_edge
+        imm   r0, 524840
+        imm   r1, 0
+        store r0, r1
+        jmp   sii_fall_loop
+sii_edge:
+        mov   r0, r6
+        imm   r1, 8
+        mul   r0, r1
+        imm   r1, 928000
+        add   r0, r1
+        load  r0, r0
+        call  init_source_local
+        imm   r1, 0
+        jlt   r0, r1, sii_edge_next
+        imm   r1, 524864
+        store r1, r0
+        imm   r1, 954280
+        add   r1, r0
+        loadb r1, r1
+        jz    r1, sii_edge_next
+        imm   r0, 524848
+        load  r6, r0
+        imm   r0, 8
+        mul   r0, r6
+        imm   r1, 705000
+        add   r0, r1
+        load  r0, r0
+        imm   r1, 524816
+        load  r1, r1
+        sub   r0, r1
+        imm   r1, 1
+        add   r0, r1
+        imm   r1, 524872
+        store r1, r0
+        imm   r0, 524856
+        imm   r1, 0
+        store r0, r1
+sii_edge_slot_loop:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r0, 64
+        jeq   r7, r0, sii_edge_next
+        imm   r0, 524864
+        load  r5, r0
+        mov   r0, r5
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 946024
+        add   r0, r1
+        loadb r2, r0
+        jnz   r2, sii_edge_candidate_one
+        imm   r0, 524848
+        load  r6, r0
+        mov   r0, r6
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 862000
+        add   r0, r1
+        loadb r2, r0
+        jnz   r2, sii_edge_candidate_one
+        imm   r2, 0
+        jmp   sii_edge_merge
+sii_edge_candidate_one:
+        imm   r2, 1
+sii_edge_merge:
+        imm   r0, 524872
+        load  r5, r0
+        mov   r0, r5
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 946024
+        add   r0, r1
+        loadb r3, r0
+        jz    r3, sii_edge_slot_next
+        jnz   r2, sii_edge_slot_next
+        storeb r0, r2
+        imm   r0, 524800
+        imm   r1, 1
+        store r0, r1
+sii_edge_slot_next:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r1, 1
+        add   r7, r1
+        store r0, r7
+        jmp   sii_edge_slot_loop
+sii_edge_next:
+        imm   r0, 524848
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   sii_edge_loop
+sii_fall_loop:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r0, 524832
+        load  r7, r0
+        imm   r1, 1
+        sub   r7, r1
+        jlt   r6, r7, sii_fall
+        imm   r0, 524800
+        load  r0, r0
+        jnz   r0, sii_again
+        ret
+sii_fall:
+        imm   r0, 954280
+        add   r0, r6
+        loadb r0, r0
+        jz    r0, sii_fall_next
+        mov   r0, r6
+        call  init_local_to_global
+        mov   r5, r0
+        imm   r1, 939000
+        add   r0, r1
+        loadb r0, r0
+        jnz   r0, sii_fall_next
+        imm   r0, 524856
+        imm   r1, 0
+        store r0, r1
+sii_fall_slot_loop:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r0, 64
+        jeq   r7, r0, sii_fall_next
+        mov   r0, r6
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 946024
+        add   r0, r1
+        loadb r2, r0
+        jnz   r2, sii_fall_candidate_one
+        mov   r0, r5
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 788000
+        add   r0, r1
+        loadb r2, r0
+        jnz   r2, sii_fall_candidate_one
+        imm   r2, 0
+        jmp   sii_fall_merge
+sii_fall_candidate_one:
+        imm   r2, 1
+sii_fall_merge:
+        mov   r0, r6
+        imm   r1, 1
+        add   r0, r1
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 946024
+        add   r0, r1
+        loadb r3, r0
+        jz    r3, sii_fall_slot_next
+        jnz   r2, sii_fall_slot_next
+        storeb r0, r2
+        imm   r0, 524800
+        imm   r1, 1
+        store r0, r1
+sii_fall_slot_next:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r1, 1
+        add   r7, r1
+        store r0, r7
+        jmp   sii_fall_slot_loop
+sii_fall_next:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   sii_fall_loop
+
+validate_init_reads:
+        imm   r0, 524840
+        imm   r1, 0
+        store r0, r1
+vir_block_loop:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r0, 524832
+        load  r7, r0
+        jlt   r6, r7, vir_block
+        ret
+vir_block:
+        imm   r0, 954280
+        add   r0, r6
+        loadb r0, r0
+        jz    r0, vir_next_block
+        mov   r0, r6
+        call  init_local_to_global
+        mov   r5, r0
+        imm   r0, 524856
+        imm   r1, 0
+        store r0, r1
+vir_slot_loop:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r0, 64
+        jeq   r7, r0, vir_next_block
+        mov   r0, r5
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 714000
+        add   r0, r1
+        loadb r0, r0
+        jz    r0, vir_slot_next
+        mov   r0, r6
+        imm   r1, 64
+        mul   r0, r1
+        add   r0, r7
+        imm   r1, 946024
+        add   r0, r1
+        loadb r0, r0
+        jnz   r0, vir_slot_next
+        call  set_error
+        ret
+vir_slot_next:
+        imm   r0, 524856
+        load  r7, r0
+        imm   r1, 1
+        add   r7, r1
+        store r0, r7
+        jmp   vir_slot_loop
+vir_next_block:
+        imm   r0, 524840
+        load  r6, r0
+        imm   r1, 1
+        add   r6, r1
+        store r0, r6
+        jmp   vir_block_loop
+
+; Map a global entry/state block identity to the current procedure's local
+; 0..128 work row, or return -1 when it belongs to another procedure.
+init_source_local:
+        mov   r6, r0
+        imm   r0, 524808
+        load  r1, r0
+        jeq   r6, r1, isl_entry
+        imm   r0, 524816
+        load  r2, r0
+        imm   r3, 128
+        add   r2, r3
+        jlt   r6, r2, isl_other
+        imm   r0, 524824
+        load  r3, r0
+        mov   r4, r2
+        add   r4, r3
+        jlt   r6, r4, isl_state
+isl_other:
+        imm   r0, 0
+        imm   r1, 1
+        sub   r0, r1
+        ret
+isl_entry:
+        imm   r0, 0
+        ret
+isl_state:
+        sub   r6, r2
+        imm   r0, 1
+        add   r6, r0
+        mov   r0, r6
+        ret
+
+; Map a current-procedure local work row to its global entry/state block.
+init_local_to_global:
+        imm   r1, 0
+        jeq   r0, r1, iltg_entry
+        imm   r1, 1
+        sub   r0, r1
+        imm   r1, 524816
+        load  r1, r1
+        add   r0, r1
+        imm   r1, 128
+        add   r0, r1
+        ret
+iltg_entry:
+        imm   r0, 524808
+        load  r0, r0
         ret
 
 ; ---------------- identifiers and token expectations ----------------

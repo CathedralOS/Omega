@@ -17,7 +17,7 @@
 # the interpreter and the compiled-and-run program agree bit for bit.
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from beta_parser import lex, Parser
+from beta_parser import lex, Parser, flatten_blocks
 
 MASK = (1 << 64) - 1
 INT_MIN = -(1 << 63)
@@ -94,24 +94,18 @@ class Interp:
             if op == '!=': return 1 if a != b else 0
         raise Trap()
 
-    # Migration debt under BETA-FLATTENED-CFG-INITIALIZATION: this projection is
-    # top-level-only and hoists loose statements. It must recursively flatten
-    # ordinary-prefix/state-suffix blocks in depth-first lexical order before
-    # this reference can witness the settled Beta semantics.
     def run_proc(self, proc, argvals):
         _, name, params, body = proc
         env = {}
         for i, p in enumerate(params):
             env[p] = argvals[i] if i < len(argvals) else 0
-        # Current stale projection; see the migration note above.
-        blocks = [[]]
-        labels = {}
-        for s in body:
-            if s[0] == 'state':
-                labels[s[1]] = len(blocks)
-                blocks.append(s[2])
-            else:
-                blocks[0].append(s)
+        flattened = flatten_blocks(body)
+        blocks = [statements for _, statements in flattened]
+        labels = {
+            label: index
+            for index, (label, _) in enumerate(flattened)
+            if label is not None
+        }
         pc = 0
         while pc < len(blocks):
             jumped = False
