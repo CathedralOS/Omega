@@ -1,6 +1,7 @@
 use psi_checked_interpreter::{
     FilesystemAccess, FilesystemInputUnknownDescriptorOperationReplayKind as Kind,
-    FilesystemInputUnknownDescriptorOperationReplayRecord as Record, FilesystemReplay,
+    FilesystemInputUnknownDescriptorOperationReplayRecord as Record,
+    FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord as PairRecord, FilesystemReplay,
     InterpretOptions, interpret_entry_with_options,
 };
 use psi_source::{SourceMap, SourceOrigin};
@@ -27,10 +28,26 @@ reaches FilesystemHost
     self.result = self.filesystem.close(-1);
 }
 
+machine Main::close_unknown_errno(&mut self) -> i32
+reaches FilesystemHost
+{
+    self.result = self.filesystem.close(-1);
+    let error: i32 = self.filesystem.errno();
+    transition { _ -> (error) }
+}
+
 machine Main::sync_unknown(&mut self)
 reaches FilesystemHost
 {
     self.result = self.filesystem.sync(-1);
+}
+
+machine Main::sync_unknown_errno(&mut self) -> i32
+reaches FilesystemHost
+{
+    self.result = self.filesystem.sync(-1);
+    let error: i32 = self.filesystem.errno();
+    transition { _ -> (error) }
 }
 
 machine Main::sync_data_unknown(&mut self)
@@ -39,10 +56,26 @@ reaches FilesystemHost
     self.result = self.filesystem.sync_data(-1);
 }
 
+machine Main::sync_data_unknown_errno(&mut self) -> i32
+reaches FilesystemHost
+{
+    self.result = self.filesystem.sync_data(-1);
+    let error: i32 = self.filesystem.errno();
+    transition { _ -> (error) }
+}
+
 machine Main::duplicate_unknown(&mut self)
 reaches FilesystemHost
 {
     self.result = self.filesystem.duplicate(-1);
+}
+
+machine Main::duplicate_unknown_errno(&mut self) -> i32
+reaches FilesystemHost
+{
+    self.result = self.filesystem.duplicate(-1);
+    let error: i32 = self.filesystem.errno();
+    transition { _ -> (error) }
 }
 "#;
     let mut sources = SourceMap::default();
@@ -77,6 +110,47 @@ reaches FilesystemHost
         .expect("resolve replay fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type replay fixture");
     lower_typed_trees(typed).expect("check replay fixture")
+}
+
+#[test]
+fn operand_free_unknown_descriptor_errno_pairs_execute_without_a_provider() {
+    let checked = checked_unknown_descriptor_operations();
+    let cases = [
+        (Kind::Close, "Main::close_unknown_errno", 8),
+        (Kind::Sync, "Main::sync_unknown_errno", 43),
+        (Kind::SyncData, "Main::sync_data_unknown_errno", 44),
+        (Kind::Duplicate, "Main::duplicate_unknown_errno", 45),
+    ];
+
+    for (kind, entry, operation_tag) in cases {
+        let replay = FilesystemReplay::from_input_unknown_descriptor_operation_with_errno_record(
+            PairRecord::new(Record::new(None, kind)),
+        )
+        .unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(psi_checked_interpreter::FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![operation_tag, 50]
+        );
+
+        let outcome = interpret_entry_with_options(
+            &checked,
+            entry,
+            &[],
+            InterpretOptions {
+                filesystem: FilesystemAccess::ReplayFilesystem(replay),
+                ..InterpretOptions::default()
+            },
+        );
+
+        assert_eq!(outcome.error, None, "{entry}");
+        assert_eq!(outcome.exit_code, 9, "{entry}");
+        assert!(outcome.stdout.is_empty(), "{entry}");
+        assert!(outcome.stderr.is_empty(), "{entry}");
+    }
 }
 
 #[test]

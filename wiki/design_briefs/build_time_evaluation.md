@@ -936,6 +936,17 @@ the modeled error slot. Standalone, delayed, reordered, or altered error-state
 reads remain non-receipted. This is compiler evaluator sequencing, not custody
 of Windows error state, native handles, credentials, or host policy.
 
+Summary v69 and replay-record v49 admit one POSIX-shaped ordered error-state
+sequence after the optional Source prefix: an exact operand-free tag-8
+`close`, tag-43 `sync`, tag-44 `sync_data`, or tag-45 `duplicate` failure on
+`Descriptor/Unknown`, followed immediately by tag-50 `errno`. The second row
+is operand-free, scoped-real, scalar `9`, post-error `9`, and empty in every
+evidence and handoff lane. Standalone, delayed, reordered, or altered reads
+remain non-receipted. Other descriptor operand families are not implied, and
+tag-30 `get_osfhandle` is excluded because its modeled post-error is `0`.
+This is compiler evaluator sequencing, not custody of host thread-local state,
+descriptors, credentials, or operating-system policy.
+
 Summary v64 and replay-record v44 generalize the failure-only Output sequence
 to exact absent tag-9 `remove` and tag-12 `remove_dir` attempts. Every row binds
 the selected operation, canonical compiler-rooted Output path, matching write

@@ -266,6 +266,25 @@ native and find handles; repeated failures; alternate errors; and mixtures
 with successful Output mutation or another failure lane remain
 non-receipted.
 
+## Immediate operand-free bad-descriptor `errno` (summary v69, replay record v49)
+
+One ordered grammar admits the same optional exact Source prefix followed by
+exactly two rows: one exact operand-free tag-8 `close`, tag-43 `sync`, tag-44
+`sync_data`, or tag-45 `duplicate` failure on `Descriptor/Unknown`, then its
+immediate tag-50 `errno` read. The second row fixes scoped-real provider,
+scalar `9`, and unchanged post-error `9`; every operand, path, mutable-carrier,
+metadata, authorization, logical-handle, retirement, refusal, output, and
+generated-source handoff lane is empty.
+
+Provider-free replay first reproduces the modeled `EBADF` failure, then
+requires `errno` to observe that exact modeled slot. Standalone, delayed,
+reordered, altered, or repeated error-state reads remain non-receipted. This
+increment does not imply `errno` pairing for descriptor operations with other
+operand shapes, and tag-30 `get_osfhandle` is specifically excluded because
+its existing modeled failure leaves post-error at `0`. This receipts only
+Omega evaluator sequencing; it claims no custody of host thread-local state,
+descriptors, credentials, or operating-system policy.
+
 ## Closed replay verdict (summary v52, replay record v33)
 
 The observation summary replaces two independently representable replay flags

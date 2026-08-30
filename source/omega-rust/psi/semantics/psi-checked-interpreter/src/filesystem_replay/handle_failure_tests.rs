@@ -64,7 +64,7 @@ const FILESYSTEM_HOST: &str = include_str!(concat!(
     "/../../../../../source/library/std/filesystem_host.omg"
 ));
 
-const KINDS_AND_TAGS: [(Kind, u16); 4] = [
+pub(super) const KINDS_AND_TAGS: [(Kind, u16); 4] = [
     (Kind::Close, 8),
     (Kind::Sync, 43),
     (Kind::SyncData, 44),
@@ -78,7 +78,7 @@ const WRITE_KINDS_AND_TAGS: [(WriteKind, u16); 4] = [
     (WriteKind::ChangeFileOwner { uid: -1, gid: 501 }, 49),
 ];
 
-fn source_input() -> FilesystemSourceInputReplayRecord {
+pub(super) fn source_input() -> FilesystemSourceInputReplayRecord {
     let read = FilesystemReplayReadRecord::new(
         FilesystemReplayReadKind::Sequential,
         0,

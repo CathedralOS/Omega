@@ -14,6 +14,9 @@ use std::fmt;
 
 #[cfg(test)]
 mod absent_remove_tests;
+#[cfg(test)]
+mod descriptor_error_state_failure_tests;
+mod descriptor_error_state_failures;
 mod directories;
 #[cfg(test)]
 mod directory_tests;
@@ -43,6 +46,10 @@ mod read_links;
 mod source_directory_tests;
 mod symlinks;
 
+use descriptor_error_state_failures::{
+    descriptor_operation_with_errno_shapes_are_exact,
+    validate_descriptor_operation_with_errno_shapes,
+};
 use directories::validate_output_directory_shape;
 use duplicates::validate_output_duplicate_shapes;
 use handle_failures::{
@@ -93,7 +100,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 48;
+const VERSION: u16 = 49;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -288,6 +295,24 @@ fn rehydrate_unknown_native_handle_mutation_kind(
     }
 }
 
+fn rehydrate_operand_free_unknown_descriptor_kind(
+    operation: u16,
+) -> Result<
+    psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayKind,
+    BuildFilesystemReplayRecordError,
+> {
+    use psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayKind as Kind;
+    match operation {
+        8 => Ok(Kind::Close),
+        43 => Ok(Kind::Sync),
+        44 => Ok(Kind::SyncData),
+        45 => Ok(Kind::Duplicate),
+        _ => Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay operand-free descriptor operation is inconsistent",
+        )),
+    }
+}
+
 pub fn rehydrate_review_only_build_filesystem_replay_record(
     record: &ReviewOnlyBuildFilesystemReplayRecord,
     limits: BuildFilesystemReplayRecordLimits,
@@ -301,6 +326,11 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         .or_else(|| {
             shapes.len().checked_sub(2).filter(|suffix_start| {
                 native_mutation_with_last_error_shapes_are_exact(&shapes[*suffix_start..])
+            })
+        })
+        .or_else(|| {
+            shapes.len().checked_sub(2).filter(|suffix_start| {
+                descriptor_operation_with_errno_shapes_are_exact(&shapes[*suffix_start..])
             })
         })
         .or_else(|| {
@@ -440,17 +470,35 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
+    if shapes.len() - operation_suffix_start == 2
+        && descriptor_operation_with_errno_shapes_are_exact(&shapes[operation_suffix_start..])
+    {
+        let kind = rehydrate_operand_free_unknown_descriptor_kind(
+            shapes[operation_suffix_start].operation,
+        )?;
+        let operation =
+            psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayRecord::new(
+                typed_source_record,
+                kind,
+            );
+        let pair = psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord::new(
+            operation,
+        );
+        return psi_checked_interpreter::FilesystemReplay::from_input_unknown_descriptor_operation_with_errno_record(
+            pair,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay descriptor operation and errno sequence could not be rehydrated",
+            )
+        });
+    }
     if shapes.len() - operation_suffix_start == 1
         && operand_free_unknown_descriptor_operation(shapes[operation_suffix_start].operation)
     {
-        use psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayKind as Kind;
-        let kind = match shapes[operation_suffix_start].operation {
-            8 => Kind::Close,
-            43 => Kind::Sync,
-            44 => Kind::SyncData,
-            45 => Kind::Duplicate,
-            _ => unreachable!("operand-free descriptor operation was checked above"),
-        };
+        let kind = rehydrate_operand_free_unknown_descriptor_kind(
+            shapes[operation_suffix_start].operation,
+        )?;
         let typed_record =
             psi_checked_interpreter::FilesystemInputUnknownDescriptorOperationReplayRecord::new(
                 typed_source_record,
@@ -2197,6 +2245,13 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
+        if shapes.len() - cursor == 2
+            && operand_free_unknown_descriptor_operation(shapes[cursor].operation)
+            && shapes[cursor + 1].operation == 50
+        {
+            validate_descriptor_operation_with_errno_shapes(&shapes[cursor..])?;
+            return Ok(());
+        }
         if shapes.len() - cursor == 1
             && operand_free_unknown_descriptor_operation(shapes[cursor].operation)
         {

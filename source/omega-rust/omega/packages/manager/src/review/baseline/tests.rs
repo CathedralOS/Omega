@@ -12,6 +12,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
 
+#[path = "tests/descriptor_error_state_tests.rs"]
+mod descriptor_error_state_tests;
+
 #[path = "tests/native_error_state_tests.rs"]
 mod native_error_state_tests;
 

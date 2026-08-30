@@ -4,6 +4,9 @@
 //! now. New replay lanes belong behind named modules here instead of extending
 //! that legacy monolith.
 
+#[cfg(test)]
+mod descriptor_error_state_failure_tests;
+mod descriptor_error_state_failures;
 mod directories;
 #[cfg(test)]
 mod directory_tests;
@@ -36,6 +39,8 @@ mod source_read_links;
 mod symlinks;
 mod unlink_at_failures;
 
+pub use descriptor_error_state_failures::FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord;
+pub(crate) use descriptor_error_state_failures::ordered_descriptor_error_state_attempt_is_replayed;
 pub use directories::{
     FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_MODE, FilesystemInputOutputDirectoryReplayRecord,
     FilesystemOutputDirectoryReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,

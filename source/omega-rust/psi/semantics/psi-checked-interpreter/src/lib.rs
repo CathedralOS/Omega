@@ -101,6 +101,7 @@ pub use filesystem_replay::{
     FilesystemInputUnknownDescriptorOpenAtReplayRecord,
     FilesystemInputUnknownDescriptorOperationReplayKind,
     FilesystemInputUnknownDescriptorOperationReplayRecord,
+    FilesystemInputUnknownDescriptorOperationWithErrnoReplayRecord,
     FilesystemInputUnknownDescriptorReadDirReplayRecord,
     FilesystemInputUnknownDescriptorReadFileMetadataReplayRecord,
     FilesystemInputUnknownDescriptorReadReplayKind,
@@ -130,6 +131,7 @@ pub use filesystem_replay::{
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
 use filesystem_replay::{
+    ordered_descriptor_error_state_attempt_is_replayed,
     ordered_native_error_state_attempt_is_replayed, output_absent_remove_attempt,
     output_absent_remove_record_from_attempt, output_directory_attempt,
     output_directory_record_from_attempt, output_duplicate_attempts,
@@ -2559,6 +2561,7 @@ impl FilesystemReplay {
             .get(attempt_index)
             .is_some_and(unknown_input_handle_failure_attempt_is_exact)
             || ordered_native_error_state_attempt_is_replayed(&self.attempts, attempt_index)
+            || ordered_descriptor_error_state_attempt_is_replayed(&self.attempts, attempt_index)
         {
             return true;
         }
