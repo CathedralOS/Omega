@@ -1811,8 +1811,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the unavailable real Delta-compiler gate.
     - [x] Complete the canonical multiplicative tier by routing `/` and `%`
       through the same bounded reducer as `*`. Both retain source-ordered binary
-      rows at precedence five, so mixed multiplication/division/remainder is
-      left-associated and still binds above `+`/`-` in transition subjects,
+      rows at the canonical multiplicative tier, so mixed
+      multiplication/division/remainder is left-associated and still binds
+      above `+`/`-` in transition subjects,
       assignment values, local initializers, and ordinary call arguments.
       Division by a literal zero remains valid syntax for later semantic proof
       or policy checking; `/=` and `%=` remain distinct scanner tokens and do
@@ -1833,6 +1834,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Exact association, precedence, operator-span, malformed-operand, reset,
       and no-partial-publication vectors remain assigned to the real Delta-
       compiler gate.
+    - [x] Retain the complete `|`/`^`/`&` bitwise tiers in that same reducer.
+      They are source-ordered and left-associated within each tier, with
+      canonical precedence `|` below `^` below `&` below shifts; all three
+      remain tighter than the still-unimplemented contextual membership tier.
+      An infix `&` is selected only after a completed left operand; a leading
+      `&` remains outside this slice and is not reinterpreted. Path and cast
+      left operands use the same reducer rejoin seams. Carrier compatibility
+      and integer result types remain semantic work rather than parser guesses.
+      No arena, resource, consumer, or current `C` census changes. Exact association,
+      cross-tier precedence, operator-span, malformed-operand, reset, and
+      no-partial-publication vectors remain assigned to the real Delta-compiler
+      gate.
     - [x] Retain the first closed external-leaf declaration as one coherent
       source-shaped form: `satisfies Trait::requirement via
       Binding::CompilerIntrinsic;`. The satisfying clause owns explicit
