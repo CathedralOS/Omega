@@ -45,13 +45,19 @@ stop the item on one precise owner question before adding machinery.
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand, coverage-composition, and installation-issuance joins;
-  - implement D29's exact boundary-application evidence: retain checked
-    type/const demands, close symbolic demands during final specialization,
-    recheck the role-specific realization and physical plan, and replace the
-    provisional arity/string coverage identity. Lifetime, machine, and
-    proposition operator applications remain fail-closed. D28 authorizes no
-    generic-coverage implementation until a checked generic operator
-    realization supplies a producer; generic assertions remain
+  - finish D29's exact boundary-application evidence. Checked lowering now
+    retains the canonical empty application for monomorphic selected boundary
+    operators and exact owner/category/ordinal/structural-type custody for the
+    closed inferred spelled-operator cohort. Open or unresolved types remain
+    demand work rather than being mislabeled concrete. Remaining work is
+    checked named-operator telescope binding, evaluated const value plus
+    declared-carrier binding,
+    artifact-qualified symbolic demand and final substitution, role-specific
+    realization replay, Q6's owner-blocked physical publication boundary, and
+    replacement of the provisional arity/string coverage identity. Lifetime,
+    machine, and proposition operator applications remain fail-closed. D28
+    authorizes no generic-coverage implementation until a checked generic
+    operator realization supplies a producer; generic assertions remain
     non-authorizing;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.

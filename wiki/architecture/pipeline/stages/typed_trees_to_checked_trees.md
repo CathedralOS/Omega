@@ -206,14 +206,29 @@ Must own:
   become operator API identity.
 - D29 boundary-operator application demand. Each checked use retains the exact
   selected requirement telescope and an ordered typed application rather than
-  arity plus display strings. Type arguments use normalized checked type
-  identity; const arguments use the canonical evaluated value in the declared
-  carrier. A use inside generic code may retain exact references to its
+  arity plus display strings. Type arguments retain structural checked type
+  custody; a later owner-aware stage freshly derives exact normalized identity
+  rather than trusting a cached string. Const arguments use the canonical
+  evaluated value in the declared carrier. A use inside generic code may
+  retain exact references to its
   enclosing typed binders, but that row is symbolic demand only. Provider-plan
   selection, final substitution, role-specific realization checking, and
   physical-plan coverage occur in later owners and cannot be inferred here.
   Lifetime, static-machine, and proposition operator applications remain
   explicit fences.
+
+  The implemented first cohort is narrower than the completed D29 contract:
+  monomorphic selected boundary uses retain the canonical empty application,
+  and spelled operators retain complete closed inferred type bindings keyed by
+  requirement owner, `Type` category, and declaration ordinal. Open caller
+  binders, nested open arguments, unresolved nominal identity, and constraints
+  without a closed structural replay remain unavailable rather than being
+  mislabeled concrete. Named generic calls remain unavailable because their
+  retained static arguments are not yet bound to the operator telescope by
+  call validation. Const applications also remain unavailable until one
+  checked row pairs the evaluated value with its exact declared carrier.
+  Missing rows are not coverage and cannot be filled from the pre-D29 indexed-
+  provider scaffold.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked

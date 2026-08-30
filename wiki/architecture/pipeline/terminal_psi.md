@@ -179,6 +179,15 @@ fingerprints, or optional fields. Empty telescopes retain one canonical empty
 application. Open applications, unsupported binder categories, and zero-
 commitment bootstrap lowering reject authoritative publication.
 
+The physical half of that requirement is owner-blocked on Q6. In the current
+pipeline, call placement, assignment, relocation, and emitted execution are
+computed after Terminal, so Terminal cannot honestly replay those later facts.
+Until Q6 settles whether to split semantic Terminal custody from a realized-
+artifact physical receipt or reorder a reusable physical plan earlier, no
+implementation may fill this gap with provider-plan fingerprints, asserted
+application strings, selected-dispatch rewrites, or an emitted-byte digest
+without the complete operation/placement/relocation join.
+
 ## The cut
 
 `psi-checked-trees-to-terminal` is the sole executable semantic handoff.

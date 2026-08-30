@@ -9,6 +9,8 @@ use psi_typed_trees::operator::{
 };
 use psi_typed_trees::types::TypeReferenceHandle;
 
+mod applications;
+
 #[test]
 fn checked_software_may_satisfy_a_contracted_ordinary_operator() {
     let source = r#"

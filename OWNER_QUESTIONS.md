@@ -324,3 +324,68 @@ select the smallest measured power-of-two profile that is.
 - Tempting but wrong: raise the table silently, weaken total `Bytes` preflight,
   publish before validation, generate Beta source or Alpha bytes on the host,
   add an Alpha opcode, or treat the 1,024-row refusal as invalid Gamma source.
+
+## Q6 — Place D29 physical boundary-application coverage
+
+### Context
+
+D29 requires every closed boundary-operator application to rejoin its exact
+selected provider plan, role-specific realization, concrete representation,
+layout, calling plan, and emitted execution. Checked lowering can now retain
+the application demand, provider settlement binds a strong selected-plan
+commitment to the checked use, and selected dispatch can identify checked-body
+or compiler-intrinsic semantic realization.
+
+The current pipeline does not establish the remaining physical facts before
+Terminal Psi. Checked-to-Terminal owns the semantic operation/callee mapping;
+target lowering later computes call placement, assignment later fixes physical
+locations, and native realization later emits bytes and relocations. The
+current D29 wording nevertheless says complete physical coverage enters
+Terminal and that Terminal replay recomputes it.
+
+### Problem statement
+
+Choose the authority boundary for D29's physical half:
+
+1. reorder representation, calling, assignment, and emission planning so a
+   complete physical coverage row can enter Terminal; or
+2. split D29 evidence at the existing semantic/physical boundary, retaining
+   the closed application, selected plan, role payload, and operation join in
+   Terminal while publishing concrete placement/emission custody only in the
+   realized native artifact.
+
+This is not a choice about weakening coverage. It decides which artifact can
+truthfully own facts that the current compiler computes only after Terminal.
+
+### Proposed direction
+
+Use the split boundary. Terminal retains the exact checked-use to source-free
+operation join, closed typed application, strong selected-plan identity, and
+role-tagged semantic realization. Native realization carries that row through
+target lowering, assignment, relocation, and successful emission, then
+publishes a physical child receipt in `NativeArtifact`. Package review may
+publish semantic D29 evidence for checked/package claims; a native or external
+execution claim must additionally recheck the native receipt.
+
+This keeps Terminal source-independent and semantically complete without
+pretending it owns plans that do not yet exist. It also avoids creating a new
+nominal IR stage or moving the entire physical backend earlier solely to match
+evidence wording.
+
+### Alternates
+
+- Acceptable: move a genuinely reusable, target-owned calling/layout plan
+  before Terminal and let Terminal retain it, provided assignment, relocation,
+  and emitted-byte custody remain explicitly later rather than being claimed
+  by that earlier plan.
+- Acceptable: make one realized-artifact envelope contain Terminal plus its
+  physical receipt, provided the two evidence classes and their independent
+  replay rules remain distinguishable.
+- Tempting but wrong: hash emitted bytes without retaining the checked-use to
+  Terminal operation to target/assigned operation and relocation join.
+- Tempting but wrong: promote provider-plan fingerprints, selected-dispatch
+  rewrites, or provider-asserted indexed-application strings into physical
+  coverage.
+- Tempting but wrong: reorder the whole backend or add a nominal `Chi` stage
+  solely so existing prose can continue saying that Terminal owns facts which
+  are naturally produced later.

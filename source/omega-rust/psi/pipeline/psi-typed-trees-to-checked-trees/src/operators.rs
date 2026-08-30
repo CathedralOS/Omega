@@ -18,9 +18,11 @@ use psi_typed_trees::operator::{
 };
 use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
+mod applications;
 mod receiver;
 mod selection;
 
+pub(crate) use applications::bind_boundary_operator_application_demands;
 pub(crate) use receiver::expression_type_reference_for_origin;
 pub(crate) use selection::select_pending_domain_operator_meanings;
 
