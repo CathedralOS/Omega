@@ -278,6 +278,21 @@ const UNIT_AFFINE_DEEPEST_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_SEVEN_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 7];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -564,6 +579,7 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             5_usize,
             6_u64,
         ),
+        (UNIT_AFFINE_SEVEN_CONSTRUCTION_PREFIX_SOURCE, 6_usize, 7_u64),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -605,6 +621,7 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             psi_terminal::StructuralTypeShape::FixedArray { element, length }
                 if element == locals[0].2 && length == root_length
         ));
+        assert_eq!(machine.blocks[0].operations.len(), prefix_length);
         assert!(machine.blocks[0].operations.iter().enumerate().all(
             |(index, operation)| matches!(
                 operation.kind,
@@ -688,6 +705,19 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
         };
         *length = root_length - 1;
         assert!(psi_terminal_verifier::validate_module_representation(&wrong_root_length).is_err());
+
+        let mut wider_root_length = lowered.semantic_module.clone();
+        let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut wider_root_length
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.id == root)
+            .expect("construction root declaration")
+            .shape
+        else {
+            unreachable!()
+        };
+        *length = root_length + 1;
+        assert!(psi_terminal_verifier::validate_module_representation(&wider_root_length).is_err());
 
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("construction proof encodes");
         let mut execution =

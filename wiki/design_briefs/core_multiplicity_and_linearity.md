@@ -330,8 +330,17 @@ cleans the five zero-ABI element occurrences in order `[4, 3, 2, 1, 0]`;
 Terminal and every native artifact layer independently retain the common
 length-six root and five operation plus one return-edge fuel units. Missing or
 reordered establishments, root/index/length drift, cleanup-order drift, and
-length-seven or wider prefixes remain fail closed without runtime liveness
-state or a cleanup loop.
+wider prefixes at that rung remain fail closed without runtime liveness state
+or a cleanup loop.
+
+The following bounded successor admits `[T; 7]` under the same restrictions and
+establishes literal indices `0`, `1`, `2`, `3`, `4`, then `5`. Ordinary
+abandonment cleans the six zero-ABI element occurrences in order
+`[5, 4, 3, 2, 1, 0]`; Terminal and every native artifact layer independently
+retain the common length-seven root and six operation plus one return-edge fuel
+units. Missing or reordered establishments, root/index/length drift,
+cleanup-order drift, and length-eight or wider prefixes remain fail closed
+without runtime liveness state or a cleanup loop.
 
 Named record and case literals generalize the construction half without
 changing completed-value ownership. Field expressions establish exactly once in
