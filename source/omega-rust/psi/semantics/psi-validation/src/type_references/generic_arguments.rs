@@ -332,6 +332,16 @@ fn validate_const_integer_range(
     value: i128,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if !const_integer_value_fits_primitive(primitive, value) {
+        diagnostics.push(Diagnostic::error(format!(
+            "const argument `{value}` for `{base_name}::{}` does not fit `{}`",
+            parameter.name,
+            primitive.name()
+        )));
+    }
+}
+
+pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value: i128) -> bool {
     let (minimum, maximum) = match primitive {
         PrimitiveType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
         PrimitiveType::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
@@ -341,15 +351,9 @@ fn validate_const_integer_range(
         PrimitiveType::U16 => (0, i128::from(u16::MAX)),
         PrimitiveType::U32 => (0, i128::from(u32::MAX)),
         PrimitiveType::U64 | PrimitiveType::Addr => (0, i128::from(u64::MAX)),
-        _ => return,
+        _ => return false,
     };
-    if value < minimum || value > maximum {
-        diagnostics.push(Diagnostic::error(format!(
-            "const argument `{value}` for `{base_name}::{}` does not fit `{}`",
-            parameter.name,
-            primitive.name()
-        )));
-    }
+    value >= minimum && value <= maximum
 }
 
 /// Instantiation-time property-bound check (frozen decision 13): every type

@@ -345,15 +345,48 @@ fn closed_record_generic_origin_is_eligible(
         ) == psi_typed_trees::data::DataShapeKind::Record
         && !parameters.is_empty()
         && parameters.len() == arguments.len()
-        && parameters.iter().all(|parameter| {
-            matches!(
-                parameter.kind,
-                psi_typed_trees::data::TypeParameterKind::Type
-            )
-        })
-        && arguments
+        && parameters
             .iter()
-            .all(|argument| closed_raw_generic_type_argument_is_eligible(program, *argument))
+            .zip(arguments)
+            .all(|(parameter, argument)| match parameter.kind {
+                psi_typed_trees::data::TypeParameterKind::Type => {
+                    closed_raw_generic_type_argument_is_eligible(program, *argument)
+                }
+                psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                    closed_raw_generic_const_argument_is_eligible(
+                        program,
+                        type_reference,
+                        *argument,
+                    )
+                }
+                psi_typed_trees::data::TypeParameterKind::Machine { .. }
+                | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => false,
+            })
+}
+
+fn closed_raw_generic_const_argument_is_eligible(
+    program: &TypedTrees,
+    parameter_type: TypeReferenceHandle,
+    argument: TypeReferenceHandle,
+) -> bool {
+    let Some(primitive) = exact_primitive_type(program, parameter_type)
+        .filter(|primitive| primitive.accepts_integer_literal())
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return false;
+    };
+    if symbol.is_valid() {
+        return false;
+    }
+    let Ok(value) = name.as_str().parse::<i128>() else {
+        return false;
+    };
+    name.as_str() == value.to_string()
+        && crate::type_references::const_integer_value_fits_primitive(primitive, value)
 }
 
 fn closed_raw_generic_type_argument_is_eligible(

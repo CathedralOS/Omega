@@ -211,6 +211,154 @@ fn closed_literal_array_type_argument_retains_its_concrete_range() {
 }
 
 #[test]
+fn closed_type_and_const_block_recasts_retain_exact_padded_ranges() {
+    let source = r#"
+        data Block<T, const N: u64> {
+            tag: u8;
+            values: [T; N];
+        }
+        data Cell { bytes: [u8; 32]; }
+        machine observe(value: &Block<u16, 2>) {}
+        machine Cell::exercise(&mut self) {
+            let shared: &Block<u16, 2> =
+                &self.bytes[2] as &Block<u16, 2>;
+            observe(shared);
+            let mutable: &mut Block<u16, 2> =
+                &mut self.bytes[12] as &mut Block<u16, 2>;
+            mutable.values[1] = 7;
+        }
+    "#;
+
+    let checked = checked(source).expect("closed Type + integer Const recasts should check");
+    let loans = fixed_range_loans(&checked);
+    assert_eq!(loans.len(), 2, "one exact loan per const-generic recast");
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 8)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 12, 18)));
+}
+
+#[test]
+fn closed_type_and_const_block_protects_padding_but_not_siblings() {
+    rejected(
+        r#"
+            data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Block<u16, 2> =
+                    &mut self.bytes[3] as &mut Block<u16, 2>;
+                self.bytes[4] = 1;
+                view.values[0] = 2;
+            }
+        "#,
+        "mutates `self.bytes[4]` while local borrow `view` is still active",
+    );
+
+    checked(
+        r#"
+            data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+            data Cell { bytes: [u8; 16]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Block<u16, 2> =
+                    &mut self.bytes[3] as &mut Block<u16, 2>;
+                self.bytes[2] = 1;
+                self.bytes[9] = 1;
+                view.values[0] = 2;
+            }
+        "#,
+    )
+    .expect("the bytes immediately beside padded Block<u16, 2> stay disjoint");
+}
+
+#[test]
+fn closed_const_specializations_retain_distinct_symbols_and_composed_ranges() {
+    let source = r#"
+        data Block<T, const N: u64> {
+            tag: u8;
+            values: [T; N];
+        }
+        data Holder {
+            prefix: u8;
+            small: [Block<u16, 2>; 2];
+            large: Block<u16, 3>;
+            tail: u8;
+        }
+        data Cell { bytes: [u8; 80]; }
+        machine observe_holder(value: &Holder) {}
+        machine observe_small(value: &[Block<u16, 2>; 2]) {}
+        machine Cell::exercise(&mut self) {
+            let holder: &Holder = &self.bytes[2] as &Holder;
+            observe_holder(holder);
+            let small: &[Block<u16, 2>; 2] =
+                &self.bytes[32] as &[Block<u16, 2>; 2];
+            observe_small(small);
+            let large: &mut Block<u16, 3> =
+                &mut self.bytes[48] as &mut Block<u16, 3>;
+            large.tag = 7;
+        }
+    "#;
+
+    let checked = checked(source).expect("const-generic record composition should check");
+    let block_two = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Block<u16, 2>")
+        .expect("Block<u16, 2> instance");
+    let block_three = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Block<u16, 3>")
+        .expect("Block<u16, 3> instance");
+    assert_ne!(block_two.symbol, block_three.symbol);
+
+    let loans = fixed_range_loans(&checked);
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 2, 26)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Read, 32, 44)));
+    assert!(loans.contains(&(psi_checked_trees::BorrowAccessKind::Mutable, 48, 56)));
+}
+
+#[test]
+fn closed_zero_const_array_field_retains_nonzero_containing_record_range() {
+    let source = r#"
+        data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+        data Cell { bytes: [u8; 16]; }
+        machine Cell::exercise(&mut self) {
+            let view: &mut Block<u16, 0> =
+                &mut self.bytes[3] as &mut Block<u16, 0>;
+            view.tag = 1;
+        }
+    "#;
+
+    let checked = checked(source).expect("a nonzero record may contain a zero const array");
+    assert!(fixed_range_loans(&checked).contains(&(
+        psi_checked_trees::BorrowAccessKind::Mutable,
+        3,
+        5
+    )));
+}
+
+#[test]
+fn named_and_expression_const_arguments_share_the_canonical_instance() {
+    let source = r#"
+        const TWO: u64 = 2;
+        data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+        data Holder {
+            literal: Block<u16, 2>;
+            expression: Block<u16, 1 + 1>;
+            named: Block<u16, TWO>;
+        }
+    "#;
+
+    let checked = checked(source).expect("equivalent closed const arguments should normalize");
+    assert_eq!(
+        checked
+            .data_definitions()
+            .iter()
+            .filter(|data| data.name.as_str() == "Block<u16, 2>")
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() {
     rejected(
         r#"
@@ -237,19 +385,33 @@ fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() 
     )
     .expect("an atomic stored argument remains ordinary-valid but publishes no loan");
 
-    checked(
+    rejected(
         r#"
-            data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+            data Block<T, const N: u8> { tag: u8; values: [T; N]; }
             data Cell { bytes: [u8; 16]; }
             machine Cell::exercise(&mut self) {
-                let view: &mut Block<u16, 2> =
-                    &mut self.bytes[0] as &mut Block<u16, 2>;
+                let view: &mut Block<u16, 256> =
+                    &mut self.bytes[0] as &mut Block<u16, 256>;
+            }
+        "#,
+        "does not fit `u8`",
+    );
+
+    checked(
+        r#"
+            data UnitIndex { scale: u64; }
+            const INDEX: UnitIndex = UnitIndex { scale: 2 };
+            data Indexed<const U: UnitIndex> { marker: u8; }
+            data Cell { bytes: [u8; 8]; }
+            machine Cell::exercise(&mut self) {
+                let view: &mut Indexed<INDEX> =
+                    &mut self.bytes[0] as &mut Indexed<INDEX>;
                 self.bytes[0] = 1;
-                view.tag = 2;
+                view.marker = 2;
             }
         "#,
     )
-    .expect("const-parameter instances stay outside the first all-Type rung");
+    .expect("structured const instances remain ordinary-valid but publish no loan");
 
     assert!(
         checked(
@@ -265,6 +427,22 @@ fn unsupported_closed_generic_stored_arguments_and_open_forms_publish_no_loan() 
         )
         .is_err(),
         "an open generic application must remain outside precise recast admission"
+    );
+
+    assert!(
+        checked(
+            r#"
+                data Block<T, const N: u64> { tag: u8; values: [T; N]; }
+                data Cell { bytes: [u8; 16]; }
+                machine inspect<const N: u64>(cell: &mut Cell) {
+                    let view: &mut Block<u16, N> =
+                        &mut cell.bytes[0] as &mut Block<u16, N>;
+                    view.tag = 1;
+                }
+            "#,
+        )
+        .is_err(),
+        "an open const application must remain outside precise recast admission"
     );
 }
 

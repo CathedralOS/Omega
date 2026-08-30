@@ -1282,11 +1282,13 @@ record shapes. A zero-length field participates only when its terminal
 independently qualifies and the containing record remains nonzero; it adds no
 leaves but its element alignment can still induce protected padding. Total
 zero-size targets remain conservative on this indexed-loan path. A fully
-specialized type-parameter record instance uses its exact synthesized symbol
-and already-substituted fields as the schema; the retained generic base and
-argument tuple are validated provenance, never a layout reconstructed from its
-rendered name. Open or unresolved applications and const, lifetime, machine,
-or proposition generic instances remain conservative.
+specialized type plus scalar-integer `const` record instance uses its exact
+synthesized symbol and already-substituted fields as the schema. Its retained
+base and argument tuple are validated provenance, including canonical decimal
+const values within their exact integer carriers; layout comes only from the
+substituted literal field types, never the rendered name. Open or unresolved
+applications and structured-const, lifetime, machine, or proposition generic
+instances remain conservative.
 
 An interior slice recast starts at a proven index in a fixed byte array and
 consumes the complete remaining region. Its descriptor is
