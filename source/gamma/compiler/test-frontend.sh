@@ -142,6 +142,146 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
 }
 stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
 
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let heap_label = new_label()' \
+    '    let stack_label = new_label()' \
+    '    let failure_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let heap_mode = new_label()' \
+    '    let stack_mode = new_label()' \
+    '    let negative_heap_mode = new_label()' \
+    '    let negative_stack_mode = new_label()' \
+    '    let overflow_heap_mode = new_label()' \
+    '    let underflow_stack_mode = new_label()' \
+    '    let heap_base_ok = new_label()' \
+    '    let heap_first_ok = new_label()' \
+    '    let heap_cap_ok = new_label()' \
+    '    let stack_base_ok = new_label()' \
+    '    let stack_first_ok = new_label()' \
+    '    let stack_cap_ok = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_runtime_init()' \
+    '    emit_r(17, 11)' \
+    '    emit_imm(12, 104)' \
+    '    emit_rrx(16, 11, 12, heap_mode)' \
+    '    emit_imm(12, 115)' \
+    '    emit_rrx(16, 11, 12, stack_mode)' \
+    '    emit_imm(12, 72)' \
+    '    emit_rrx(16, 11, 12, negative_heap_mode)' \
+    '    emit_imm(12, 83)' \
+    '    emit_rrx(16, 11, 12, negative_stack_mode)' \
+    '    emit_imm(12, 111)' \
+    '    emit_rrx(16, 11, 12, overflow_heap_mode)' \
+    '    emit_imm(12, 117)' \
+    '    emit_rrx(16, 11, 12, underflow_stack_mode)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(heap_mode)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, heap_label)' \
+    '    emit_imm(6, 16777216)' \
+    '    emit_rrx(16, 0, 6, heap_base_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(heap_base_ok)' \
+    '    emit_imm(6, 16777232)' \
+    '    emit_rrx(16, 254, 6, heap_first_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(heap_first_ok)' \
+    '    emit_imm(2, 33554416)' \
+    '    emit_jump(19, heap_label)' \
+    '    emit_imm(6, 50331648)' \
+    '    emit_rrx(16, 254, 6, heap_cap_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(heap_cap_ok)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 1)' \
+    '    emit_jump(19, heap_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(stack_mode)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 16)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_imm(6, 16777200)' \
+    '    emit_rrx(16, 0, 6, stack_base_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(stack_base_ok)' \
+    '    emit_rrx(16, 252, 6, stack_first_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(stack_first_ok)' \
+    '    emit_imm(2, 16515056)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_imm(6, 262144)' \
+    '    emit_rrx(16, 252, 6, stack_cap_ok)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(stack_cap_ok)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 1)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(overflow_heap_mode)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775807)' \
+    '    emit_jump(19, heap_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(underflow_stack_mode)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775807)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(negative_heap_mode)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 0 - 1)' \
+    '    emit_jump(19, heap_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(negative_stack_mode)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 0 - 1)' \
+    '    emit_jump(19, stack_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(failure_label)' \
+    '    emit_rx(13, 10, unexpected_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_heap_allocator(heap_label, failure_label)' \
+    '    emit_stack_reserver(stack_label, failure_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/runtime-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + runtime containment probe) failed"
+  exit 1
+}
+stamp_seed "$T/runtime-emitter.tape" "$SEED" "$T/runtime-emitter.exe" >/dev/null 2>&1
+"$T/runtime-emitter.exe" > "$T/runtime-probe.tape"
+runtime_emitter_status=$?
+if [ "$runtime_emitter_status" != 1 ] || [ ! -s "$T/runtime-probe.tape" ]; then
+  echo "gamma runtime probe emission failed: status $runtime_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
 "$T/emitter.exe" > "$T/emitter.out"
 emitter_status=$?
@@ -151,6 +291,16 @@ else
   FAIL=$((FAIL+1))
   echo "  FAIL emitter probe: status $emitter_status, output $(wc -c < "$T/emitter.out" | tr -d ' ') bytes"
 fi
+for runtime_mode in h s H S o u; do
+  printf '%s' "$runtime_mode" | "$T/runtime-probe.exe" > "$T/runtime-$runtime_mode.out"
+  runtime_status=$?
+  if [ "$runtime_status" = 7 ] && [ ! -s "$T/runtime-$runtime_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL runtime $runtime_mode: status $runtime_status, output $(wc -c < "$T/runtime-$runtime_mode.out" | tr -d ' ') bytes"
+  fi
+done
 tc() { # program  expect(1 ok / 0 type-error)  desc
   printf '%s' "$1" | "$T/tc.exe"; got=$?
   if [ "$got" = "$2" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL want $2 got $got : $3"; fi

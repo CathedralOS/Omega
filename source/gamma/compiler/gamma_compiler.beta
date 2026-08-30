@@ -1020,7 +1020,7 @@ proc tenv_lookup(qoff) {
 }
 
 ; Resolve declaration type spellings only after the complete data* / def+
-; sequence has been parsed. This is independent of Q4's still-unsettled
+; sequence has been parsed. This is independent of Q3's still-unsettled
 ; duplicate-name policy and implements D16 forward/mutual nominal references.
 proc resolve_decl_types() {
     let ci = 0
@@ -1382,7 +1382,7 @@ proc tc_inner(expr) {
 ;
 ; The canonical compiler authors bytes only in its private final buffer. No
 ; byte is published until lowering, fixup resolution, payload validation, and
-; the Q3-selected adapter all complete. Failure is sticky and records one
+; the Q2-selected adapter all complete. Failure is sticky and records one
 ; private code/coordinate pair for the eventual compiler boundary.
 
 proc emit_fail_once(code, coordinate) {
@@ -1585,6 +1585,50 @@ proc emit_rrx(op, left, right, label) {
 
 proc emit_ret() {
     return put_byte(20)
+}
+
+; ---- emitted Gamma runtime containment --------------------------------
+;
+; Generated code reserves r252 as the downward explicit-stack pointer, r253
+; as the current frame base, r254 as the upward immutable-heap pointer, and
+; r255 as the heap limit. Allocation requests arrive in r2 and return their
+; base in r0. A failed request transfers to the caller-supplied terminal label;
+; it never falls into Alpha's undefined out-of-range memory behavior.
+
+proc emit_runtime_init() {
+    emit_imm(252, 16777216)
+    emit_imm(253, 16777216)
+    emit_imm(254, 16777216)
+    emit_imm(255, 50331648)
+    return 0
+}
+
+proc emit_heap_allocator(entry_label, failure_label) {
+    define_label(entry_label)
+    emit_imm(3, 0)
+    emit_rrx(15, 2, 3, failure_label)
+    emit_rr(2, 0, 254)
+    emit_rr(2, 4, 254)
+    emit_rr(3, 4, 2)
+    emit_rrx(15, 4, 254, failure_label)
+    emit_rrx(15, 255, 4, failure_label)
+    emit_rr(2, 254, 4)
+    emit_ret()
+    return 0
+}
+
+proc emit_stack_reserver(entry_label, failure_label) {
+    define_label(entry_label)
+    emit_imm(3, 0)
+    emit_rrx(15, 2, 3, failure_label)
+    emit_rr(2, 4, 252)
+    emit_rr(4, 4, 2)
+    emit_imm(5, 262144)
+    emit_rrx(15, 4, 5, failure_label)
+    emit_rr(2, 252, 4)
+    emit_rr(2, 0, 4)
+    emit_ret()
+    return 0
 }
 
 proc validate_payload() {

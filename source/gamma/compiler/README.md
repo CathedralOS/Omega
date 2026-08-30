@@ -11,12 +11,13 @@ The source now exists as an incomplete implementation; the tape does not. Its
 retained frontend is the former standalone checker, moved rather than copied,
 and its direct Alpha payload/label/fixup substrate is final compiler material.
 The adjacent gate compiles this one source with temporary fixed test entries,
-runs all 78 frontend discriminators, and checks exact emitter bytes plus sticky
-capacity/fixup failures. It publishes no compiler artifact.
+runs all 78 frontend discriminators, checks exact emitter bytes plus sticky
+capacity/fixup failures, and executes six generated runtime-containment
+programs. It publishes no compiler artifact.
 
-The retained compiler source declares 75 procedures. With the fixed frontend
-gate entry, the compiled gate uses 76 of Beta's 128
-procedure slots and compiles to 141,840 bytes. The remaining 120,300 bytes under
+The retained compiler source declares 78 procedures. With the fixed frontend
+gate entry, the compiled gate uses 79 of Beta's 128 procedure slots and compiles
+to 145,719 bytes. The remaining 116,421 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit.
 
@@ -63,7 +64,7 @@ Its first source failure is sticky across the outer byte envelope, parsing,
 literal checking, type-name resolution, and typed subexpression traversal.
 This is coordinate custody for later absorption, not an oracle-owned diagnostic
 format: the final compiler maps it through `GCOUT`'s fixed rejection table and
-publication boundary. The Q3-selected generated-program application profile is
+publication boundary. The Q2-selected generated-program application profile is
 a separate concern.
 
 An emitted Gamma program uses this Alpha-memory profile:
@@ -85,6 +86,16 @@ value uses its resolved constructor tag plus a pointer to two-word fields.
 Nullary constructors allocate no field vector. Functions return through
 `r0/r1`. Arbitrary-arity arguments occupy two-word slots in the explicit Gamma
 stack rather than Beta's four argument registers.
+
+Generated code reserves `r252` for the downward stack pointer, `r253` for the
+current frame base, `r254` for the upward heap pointer, and `r255` for the heap
+limit. The runtime initializer fixes their canonical endpoints. Directly
+emitted heap and stack reservation helpers reject negative, overflowed, and
+adjacent-out-of-range requests before mutation and transfer to one
+caller-supplied terminal failure label. The adjacent gate executes the emitted
+Alpha payload at both exact boundaries and one byte beyond each, and separately
+checks negative and arithmetic-wrap requests; no helper relies on Alpha's
+undefined out-of-range memory behavior.
 
 Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
 exactly once from left to right into temporary stack slots, relocates them
@@ -109,7 +120,7 @@ branches explicitly around overflow, division-by-zero, signed-division-overflow,
 and invalid byte/range operations so required diagnostic publication never
 depends on falling into an uncatchable Alpha trap.
 
-Q4 blocks the final declaration/binder resolver policy. Q3 blocks generated
+Q3 blocks the final declaration/binder resolver policy. Q2 blocks generated
 application-profile selection and therefore adapter publication/final tape.
 Neither question authorizes a subset compiler or blocks the strict parser,
 private target ABI, runtime helpers, direct emitter, or profile-independent
@@ -128,7 +139,7 @@ The implementation order is tracked in
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `gamma_compiler.beta` | Sole Beta-written Gamma compiler source; currently owns the strict frontend and direct Alpha payload/fixup substrate. | Replace only atomically with another implementation of the same ruled edge. |
-| `test-frontend.sh` | Adjacent bounded gate for the retained frontend, source/resource guards, and exact emitter substrate. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
+| `test-frontend.sh` | Adjacent bounded gate for the retained frontend, source/resource guards, exact emitter substrate, and executed runtime-containment payloads. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
 
 ## Deletion condition
 
