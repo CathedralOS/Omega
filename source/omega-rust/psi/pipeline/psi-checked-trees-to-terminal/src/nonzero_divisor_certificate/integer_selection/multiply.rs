@@ -430,12 +430,33 @@ pub(super) fn targeted_operand_endpoints(
             proofs.push(affine_proof);
         }
     }
+    let mut prefix_endpoint_proved = false;
+    for witness in &prefix_witnesses {
+        for proof in prove_targeted_cast_prefix_endpoints(
+            context,
+            operand,
+            witness,
+            lower,
+            assumptions,
+            semantic_axioms,
+        ) {
+            if !proofs
+                .iter()
+                .any(|existing| existing.conclusion == proof.conclusion)
+            {
+                proofs.push(proof);
+                prefix_endpoint_proved = true;
+            }
+        }
+    }
     if let Some(proof) = prefix_witnesses.iter().find_map(|witness| {
         prove_targeted_remainder_prefix_endpoint(context, operand, witness, lower, semantic_axioms)
     }) {
         proofs.push(proof);
+        prefix_endpoint_proved = true;
     }
     if !prefix_witnesses.is_empty()
+        && !prefix_endpoint_proved
         && let Some(proof) = candidates.iter().copied().find_map(|bound_value| {
             prove_targeted_affine_prefix_endpoint(
                 context,
@@ -455,6 +476,103 @@ pub(super) fn targeted_operand_endpoints(
     proofs
 }
 
+fn prove_targeted_cast_prefix_endpoints(
+    context: &PropositionContext,
+    operand: &ScalarTerm,
+    witness: &IntegerAffineWitness,
+    lower: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let first_definition = witness
+        .definition_axioms
+        .first()
+        .copied()
+        .unwrap_or(semantic_axioms.len());
+    if !matches!(
+        targeted_prefix_boundary(semantic_axioms, &witness.root, first_definition),
+        Some(TargetedPrefixBoundary::Cast)
+    ) {
+        return Vec::new();
+    }
+    let Ok(checked) = check_integer_affine_witness(context, semantic_axioms, witness) else {
+        return Vec::new();
+    };
+    let Some((source, _)) = cast_custody::source_root(&witness.root, semantic_axioms) else {
+        return Vec::new();
+    };
+    let (ScalarType::Integer(source_type), ScalarType::Integer(cast_type)) =
+        (source.scalar_type(), witness.root.scalar_type())
+    else {
+        return Vec::new();
+    };
+    let mut proofs = Vec::new();
+    for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+        let endpoint = match fact {
+            Proposition::LessOrEqual(endpoint, actual_source)
+                if lower && actual_source == &source =>
+            {
+                endpoint
+            }
+            Proposition::LessOrEqual(actual_source, endpoint)
+                if !lower && actual_source == &source =>
+            {
+                endpoint
+            }
+            _ => continue,
+        };
+        let Some((actual_type, value)) = endpoint.integer_value() else {
+            continue;
+        };
+        if actual_type != source_type {
+            continue;
+        }
+        let Some(value) = source_type.exact_cast_value_to(cast_type, value) else {
+            continue;
+        };
+        let Ok(endpoint) = ScalarTerm::integer(cast_type, value) else {
+            continue;
+        };
+        let cast_goal = if lower {
+            Proposition::LessOrEqual(endpoint, witness.root.clone())
+        } else {
+            Proposition::LessOrEqual(witness.root.clone(), endpoint)
+        };
+        let Some(cast_proof) = cast_custody::prove_from_root(
+            context,
+            &cast_goal,
+            assumptions,
+            semantic_axioms,
+            &source,
+            citation.proof(fact),
+        ) else {
+            continue;
+        };
+        let Ok(mapped) = map_integer_affine_bound(&checked, &cast_proof.conclusion) else {
+            continue;
+        };
+        let same_oriented_operand = match &mapped {
+            Proposition::LessOrEqual(_, actual_operand) if lower => actual_operand == operand,
+            Proposition::LessOrEqual(actual_operand, _) if !lower => actual_operand == operand,
+            _ => false,
+        };
+        if same_oriented_operand
+            && !proofs
+                .iter()
+                .any(|proof: &ProofNode| proof.conclusion == mapped)
+        {
+            proofs.push(ProofNode {
+                conclusion: mapped,
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(cast_proof),
+                    witness: witness.clone(),
+                },
+            });
+        }
+    }
+    proofs
+}
+
 fn direct_cast_operand_endpoints(
     context: &PropositionContext,
     integer_type: IntegerType,
@@ -466,7 +584,10 @@ fn direct_cast_operand_endpoints(
     if !semantic_axioms.iter().any(|axiom| {
         matches!(
             axiom,
-            Proposition::Equal(output, ScalarTerm::IntegerExactCast { .. }) if output == operand
+            Proposition::Equal(
+                output,
+                ScalarTerm::IntegerExactCast { .. } | ScalarTerm::IntegerWiden { .. },
+            ) if output == operand
         )
     }) {
         return Vec::new();
