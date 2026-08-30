@@ -60,13 +60,13 @@ Gamma-written compiler and its selected D19 adapter.
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
 | Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
 | Type and body checking | forward owners/machines/states; finite records/sums/arrays; views only in admitted positions; complete scalar and sum transitions | every reason from `UnknownType` through `NonexhaustiveSum`, at the first offending type, expression, statement, pattern, or control target; exact `Console`, `Main`, and entry shapes |
-| Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 262,140-byte cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
+| Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
-The payload row describes the current executable V1 profile. D23 requires its
-exact cap and adjacent rejection to move to the 1,048,572-byte
-`AlphaBootstrapV2` maximum only as part of the coherent seed, compiler,
-generated-memory, checker, outcome-table, and gate migration. The symbolic
-encoding and replay rules do not otherwise change.
+The payload row describes the current `AlphaBootstrapV2` profile selected by
+D23. Its exact cap, depth-20 target trie, replay bounds, oversize candidate, and
+adjacent rejection move with the seeds, compilers, generated-memory maps,
+checker, outcome tables, and gates. The symbolic encoding and replay rules do
+not otherwise change.
 
 D22 rows already settled by the third line include these discriminator pairs:
 

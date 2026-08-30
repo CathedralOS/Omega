@@ -62,24 +62,24 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        to failed when (payload_ok != 1)' \
     '        to failed when (word[2097040] != 46)' \
     '        to failed when (word[2097024] != 3)' \
-    '        to failed when (byte[33292288] != 1)' \
-    '        to failed when (byte[33292289] != 2)' \
-    '        to failed when (word[33292290] != 72623859790382856)' \
-    '        to failed when (byte[33292298] != 12)' \
-    '        to failed when (word[33292299] != 29)' \
-    '        to failed when (byte[33292307] != 13)' \
-    '        to failed when (byte[33292308] != 3)' \
-	    '        to failed when (word[33292309] != 0)' \
-	    '        to failed when (byte[33292317] != 3)' \
-	    '        to failed when (byte[33292318] != 2)' \
-	    '        to failed when (byte[33292319] != 3)' \
-	    '        to failed when (byte[33292320] != 16)' \
-	    '        to failed when (byte[33292321] != 2)' \
-	    '        to failed when (byte[33292322] != 3)' \
-	    '        to failed when (word[33292323] != 29)' \
-	    '        to failed when (byte[33292331] != 0)' \
-	    '        to failed when (byte[33292332] != 0)' \
-	    '        to failed when (byte[33292333] != 20)' \
+    '        to failed when (byte[133169152] != 1)' \
+    '        to failed when (byte[133169153] != 2)' \
+    '        to failed when (word[133169154] != 72623859790382856)' \
+    '        to failed when (byte[133169162] != 12)' \
+    '        to failed when (word[133169163] != 29)' \
+    '        to failed when (byte[133169171] != 13)' \
+    '        to failed when (byte[133169172] != 3)' \
+	    '        to failed when (word[133169173] != 0)' \
+	    '        to failed when (byte[133169181] != 3)' \
+	    '        to failed when (byte[133169182] != 2)' \
+	    '        to failed when (byte[133169183] != 3)' \
+	    '        to failed when (byte[133169184] != 16)' \
+	    '        to failed when (byte[133169185] != 2)' \
+	    '        to failed when (byte[133169186] != 3)' \
+	    '        to failed when (word[133169187] != 29)' \
+	    '        to failed when (byte[133169195] != 0)' \
+	    '        to failed when (byte[133169196] != 0)' \
+	    '        to failed when (byte[133169197] != 20)' \
     '        to unknown_structure_setup' \
     '    }' \
     '    state unknown_structure_setup {' \
@@ -157,7 +157,7 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '    }' \
     '    state capacity_setup {' \
     '        emit_reset()' \
-    '        word[2097040] = 262139' \
+    '        word[2097040] = 1048571' \
     '        let adjacent = put_byte(7)' \
     '        let overflow = put_byte(8)' \
     '        to capacity_check' \
@@ -165,7 +165,7 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '    state capacity_check {' \
     '        to failed when (adjacent != 1)' \
     '        to failed when (overflow != 0)' \
-    '        to failed when (word[2097040] != 262140)' \
+    '        to failed when (word[2097040] != 1048572)' \
     '        to failed when (word[2097016] != 1)' \
     '        to fixup_capacity_setup' \
     '    }' \
@@ -173,7 +173,7 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        emit_reset()' \
     '        let fixup_label = new_label()' \
     '        put_u64(0)' \
-    '        word[2097024] = 32768' \
+    '        word[2097024] = 116508' \
     '        let fixup_result = add_fixup(0, fixup_label)' \
     '        to fixup_capacity_check' \
     '    }' \
@@ -268,7 +268,7 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '    }' \
     '    state parameter_extent_setup {' \
     '        emit_reset()' \
-    '        let parameter_extent_result = lower_resolved_parameter(16515056, 2, 0)' \
+    '        let parameter_extent_result = lower_resolved_parameter(15728624, 2, 0)' \
     '        to parameter_extent_check' \
     '    }' \
     '    state parameter_extent_check {' \
@@ -368,9 +368,9 @@ stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
     '    emit_rrx(16, 254, 6, heap_first_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(heap_first_ok)' \
-    '    emit_imm(2, 33554384)' \
+    '    emit_imm(2, 117440464)' \
     '    emit_jump(19, heap_label)' \
-    '    emit_imm(6, 50331648)' \
+    '    emit_imm(6, 134217728)' \
     '    emit_rrx(16, 254, 6, heap_cap_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(heap_cap_ok)' \
@@ -389,9 +389,9 @@ stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
     '    emit_rrx(16, 252, 6, stack_first_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(stack_first_ok)' \
-    '    emit_imm(2, 16515056)' \
+    '    emit_imm(2, 15728624)' \
     '    emit_jump(19, stack_label)' \
-    '    emit_imm(6, 262144)' \
+    '    emit_imm(6, 1048576)' \
     '    emit_rrx(16, 252, 6, stack_cap_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(stack_cap_ok)' \
@@ -439,7 +439,7 @@ stamp_seed "$T/emitter.tape" "$SEED" "$T/emitter.exe" >/dev/null 2>&1
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -734,13 +734,13 @@ stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&
     '    emit_rrx(16, 11, 12, boundary_adjacent)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(boundary_exact)' \
-    '    emit_gamma_tail_frame(16515056, 1, boundary_target, resource_label)' \
+    '    emit_gamma_tail_frame(15728624, 1, boundary_target, resource_label)' \
     '    define_label(boundary_adjacent)' \
     '    emit_imm(30, 1)' \
-    '    emit_gamma_tail_frame(16515072, 1, boundary_target, resource_label)' \
+    '    emit_gamma_tail_frame(15728640, 1, boundary_target, resource_label)' \
     '    define_label(boundary_target)' \
     '    emit_rx(14, 30, unexpected_label)' \
-    '    emit_imm(22, 262144)' \
+    '    emit_imm(22, 1048576)' \
     '    emit_frame_eq(252, 22, boundary_stack_ok, unexpected_label)' \
     '    emit_frame_eq(253, 22, boundary_base_ok, unexpected_label)' \
     '    emit_imm(24, 16777200)' \
@@ -784,7 +784,7 @@ stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -934,12 +934,12 @@ stamp_seed "$T/frame-probe.tape" "$SEED" "$T/frame-probe.exe" >/dev/null 2>&1
     '    emit_gamma_field_load(1, 0, internal_label)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(resource_mode)' \
-    '    emit_imm(254, 50331616)' \
+    '    emit_imm(254, 134217696)' \
     '    emit_imm(23, 1)' \
     '    emit_imm(24, 7)' \
     '    emit_constructor_push(stack_label, 23, 24)' \
     '    emit_gamma_constructor_value(heap_label, 42, 1)' \
-    '    emit_imm(22, 50331616)' \
+    '    emit_imm(22, 134217696)' \
     '    emit_constructor_eq(1, 22, exact_resource_base_ok, unexpected_label)' \
     '    emit_constructor_eq(254, 255, exact_resource_cap_ok, unexpected_label)' \
     '    emit_imm(30, 3)' \
@@ -977,7 +977,7 @@ stamp_seed "$T/frame-probe.tape" "$SEED" "$T/frame-probe.exe" >/dev/null 2>&1
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -1206,7 +1206,7 @@ stamp_seed "$T/constructor-probe.tape" "$SEED" "$T/constructor-probe.exe" >/dev/
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -1385,10 +1385,10 @@ stamp_seed "$T/bytes-valid-probe.tape" "$SEED" "$T/bytes-valid-probe.exe" >/dev/
     '    emit_jump(19, get_label)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(exact_resource)' \
-    '    emit_imm(254, 50331616)' \
+    '    emit_imm(254, 134217696)' \
     '    emit_imm(2, 7)' \
     '    emit_jump(19, single_label)' \
-    '    emit_imm(12, 50331616)' \
+    '    emit_imm(12, 134217696)' \
     '    emit_rrx(16, 0, 12, exact_base_ok)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(exact_base_ok)' \
@@ -1435,7 +1435,7 @@ stamp_seed "$T/bytes-valid-probe.tape" "$SEED" "$T/bytes-valid-probe.exe" >/dev/
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -1527,7 +1527,7 @@ stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/
     '    emit_jump(19, concat_label)' \
     '    emit_jump(12, unexpected_label)' \
     '    define_label(resource_case)' \
-    '    emit_imm(254, 50331648)' \
+    '    emit_imm(254, 134217728)' \
     '    emit_rr(2, 2, 20)' \
     '    emit_rr(2, 3, 20)' \
     '    emit_jump(19, concat_label)' \
@@ -1543,7 +1543,7 @@ stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/
     '    emit_imm(0, 7)' \
     '    emit_r(0, 0)' \
     '    define_label(resource_label)' \
-    '    emit_imm(22, 50331648)' \
+    '    emit_imm(22, 134217728)' \
     '    emit_d21_eq(254, 22, resource_heap_ok, unexpected_label)' \
     '    emit_imm(0, 7)' \
     '    emit_r(0, 0)' \
@@ -1566,7 +1566,7 @@ stamp_seed "$T/bytes-invalid-probe.tape" "$SEED" "$T/bytes-invalid-probe.exe" >/
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -1721,7 +1721,7 @@ stamp_seed "$T/bytes-d21-probe.tape" "$SEED" "$T/bytes-d21-probe.exe" >/dev/null
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -1938,7 +1938,7 @@ stamp_seed "$T/sealed-input-probe.tape" "$SEED" "$T/sealed-input-probe.exe" >/de
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -2042,7 +2042,7 @@ stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -2197,7 +2197,7 @@ for call_mode in ordinary tail; do
       '        return 1' \
       '    }' \
       '    state publish {' \
-      '        write_byte(byte[33292288 + i])' \
+      '        write_byte(byte[133169152 + i])' \
       '        i = i + 1' \
       '        to publish_loop' \
       '    }' \
@@ -2287,7 +2287,7 @@ unset call_mode
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -2386,7 +2386,7 @@ stamp_seed "$T/constructor-lowering-emitter.tape" "$SEED" "$T/constructor-loweri
     '        return 1' \
     '    }' \
     '    state publish {' \
-    '        write_byte(byte[33292288 + i])' \
+    '        write_byte(byte[133169152 + i])' \
     '        i = i + 1' \
     '        to publish_loop' \
     '    }' \
@@ -2442,7 +2442,7 @@ stamp_seed "$T/local-let-lowering-emitter.tape" "$SEED" "$T/local-let-lowering-e
     '        let second_pattern = word[second_arm + 8]' \
     '        to failed when (word[second_pattern + 24] != 2)' \
     '        let arena_end = word[2097128]' \
-    '        to failed when (arena_end > 33292224)' \
+    '        to failed when (arena_end > 133169088)' \
     '        word[arena_end] = 255' \
     '        word[arena_end + 32] = 6' \
     '        word[arena_end + 40] = arena_end' \

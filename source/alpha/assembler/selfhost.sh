@@ -25,7 +25,7 @@ mkdir -p build
 
 "./$BETA_SEED" < assembler.alpha > build/assembler.tape
 L=$(wc -c < build/assembler.tape)
-[ $((L + 4)) -le "$HOLE_SIZE" ] || { echo "FAIL: assembler tape is $L B, exceeds the seed's tape hole ($HOLE_SIZE B)" >&2; exit 1; }
+[ "$L" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: assembler tape is $L B, exceeds the AlphaBootstrapV2 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
 
 # the canonical bytecode embedded in the committed beta seed, as [4-byte len][tape]
 tape_in_seed "$BETA_SEED" > build/embedded.tape

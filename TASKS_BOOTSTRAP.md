@@ -171,7 +171,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Enforce the envelope and exact rejection coordinates in the
     Alpha-written Beta compiler and temporary Python reference; replace the
     extent control with space padding, clean every retained Beta implementation
-    source, and refresh the 104,459-byte source / 27,087-byte tape observations.
+    source, and refresh the current 104,572-byte source / 27,087-byte tape observations.
   - [x] Enforce the envelope, explicit ASCII identifier classes, and CR/LF
     comments in both bounded Gamma oracle surfaces and the temporary Python
     evaluator. The existing gates now retain matching positive and negative
@@ -188,7 +188,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   conformance tests synchronized. The canonical `.tape` is the raw Alpha
   payload; transparent seed stamping prepends its exact four-byte length inside
   the native container. The seed then exposes the exact Alpha observation
-  model. `source/alpha/verify.sh --edge` currently passes all 25 conformance
+  model. `source/alpha/verify.sh --edge` currently passes all 26 conformance
   cases and exact assembler reconstruction.
 - [x] Treat tape stamping as transparent packaging. No Mach-O, PE, ELF, code
   signature, linker receipt, or installation inventory becomes compiler
@@ -202,9 +202,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
   measurement triggers escalation: the complete Alpha-written Beta compiler
-  surface gate runs 197 cases in about six seconds on the development host.
+  surface gate runs 197 cases in about nine seconds on the development host.
   The largest current retained Beta output, the 238,926-byte checker tape,
-  leaves 23,214 bytes in the Alpha payload after replacing repeated inline
+  leaves 809,646 bytes in the V2 Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
 ## 2. Alpha-written Beta compiler
@@ -264,26 +264,27 @@ code, discover a closure, manufacture proof premises, or decide admission.
     an Alpha return-stack accident. Reuse initialization work storage per
     procedure (one entry plus at most 128 states) or account for all procedure
     entries explicitly;
-    the global 1,024-state ceiling does not include the 128 entry blocks. State
+    the global 1,024-state ceiling does not include the 256 entry blocks. State
     bodies now use the same checked depth counter as parentheses, calls, and
     loads; exact depth 64 is accepted and the adjacent state-only and mixed
     depth-65 cases return canonical `Incomplete(syntax_depth, 64, 65)`.
   - [x] Separate source-visible raw Beta memory from generated frame/expression
-    stacks and bind the call/stack profile that proves non-aliasing. Raw memory
-    is a checked, zeroed 32 MiB logical region biased above the data stack. Every
-    generated frame/expression reservation is guarded at 262144; the mandatory
-    frame word bounds semantic depth and leaves the hidden Alpha return stack
-    above 66,322,424 even at the failing edge. A 64-slot recursive stress case
-    reaches fail-closed status 250 without output or aliasing.
+    stacks and bind the call/stack profile that proves non-aliasing. The D23
+    compiler source uses a checked, zeroed 128 MiB logical region biased at
+    physical byte 4 MiB. Every generated frame/expression reservation is
+    guarded at 1 MiB below a 2 MiB stack top; the mandatory frame word bounds
+    semantic depth and leaves the hidden Alpha return stack above 267,386,872
+    even at the failing edge. A 64-slot recursive stress case reaches
+    fail-closed status 250 without output or aliasing.
   - [x] Bind the compiler's practical fixed resource profile and exercise exact
     admitted/adjacent-refused boundaries for the 1 MiB source, 64-byte names,
     shared 64-level syntax-recursion depth (state blocks, expressions, calls,
-    and loads), 64 slots, 128 procedures,
+    and loads), 64 slots, 256 procedures,
     1,024 non-builtin procedure call references, per/global state and transition
-    tables, 262,140-byte Alpha
-    payload, 32 MiB raw memory, and generated-stack containment. Every refused
-    compile publishes no partial tape. The 32,768 fixup and 65,536 internal-PC
-    guards are necessarily dominated by the smaller tape extent and are
+    tables, 1,048,572-byte Alpha
+    payload, 128 MiB raw memory, and generated-stack containment. Every refused
+    compile publishes no partial tape. The 116,508 fixup and 262,144 internal-PC
+    guards are necessarily dominated by the tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
   - [x] **BETA-COMPILER-OUTCOME:** Implement the settled four-case boundary.
@@ -382,7 +383,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
     spoof either constant, and the rebuilt 238,926-byte checker tape retains
-    23,214 bytes of Alpha payload headroom. The exact 104,459-byte compiler
+    809,646 bytes of AlphaBootstrapV2 payload headroom. The exact 104,572-byte compiler
     source plus 27,087-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
@@ -429,7 +430,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and a folded 3,240-leaf carrier in 0.465 seconds, but adding local parsing
       exhausts the same arena. Even a content-free structural visit of all
       78,109 bytes in the then-current subject failed inside one equality; the
-      present 104,459-byte source is no smaller. Sequential remainder folds
+      present 104,572-byte source is no smaller. Sequential remainder folds
       instead hit contained semantic-stack status 250. The checker reclaims
       conversion scratch only after a complete equality decision, so one
       compiler-scale reflexive equality retains every branch temporary.
@@ -446,8 +447,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the exact current Beta source/tape checks both named chunk equalities and
       the second nested `eqelim`; this validates the selected composition shape,
       but no skeleton proof is retained and assembly-row semantics remain open.
-      The current framed subjects allocate 395,164 of the 1,048,576 arena
-      nodes, leaving 653,412 nodes (15,681,888 bytes) for declarations,
+      The current framed subjects allocate 395,493 of the 4,893,354-node V2
+      arena, leaving 4,497,861 nodes (107,948,664 bytes) for declarations,
       retained lemmas, and one equality's scratch. A real raw-tree selector plus
       the exact textual-ASCII/comment DFA checks the first 1,024 source bytes in
       the authoritative checker with a 3,134-byte temporary certificate in
@@ -457,14 +458,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
       100,000-reduction and semantic-stack ceilings. The useful first adjacent
       pair is `[4096,4352)` / `[4352,4608)`: it crosses `read_source`, advances
       PC `10 -> 83 -> 164`, and records `source_done = 92`. The terminal
-      `[104448,104704)` selector has 11 real leaves plus checker `EMPTY`
-      padding and must close the final `db "main"` at source byte 104,459 and
+      `[104448,104704)` selector has 124 real leaves plus checker `EMPTY`
+      padding and must close the final `db "main"` at source byte 104,572 and
       PC 27,087.
     - Implement the eventual proof in place only when pass one is vertically
       complete: exact D15/token/comment/`db` streaming states, fixed-width
       decimal/register/PC checks, every source subtree equality, balanced
       boundary and unique-label joins, the 457-record frozen map, and the
-      104,459-byte / 27,087-byte root. A temporary producer may choose paths,
+      104,572-byte / 27,087-byte root. A temporary producer may choose paths,
       boundary states, and compact label IDs, but none survives as a parser,
       ledger, receipt, or authority. Use a compact label-record dispatch rather
       than repeating the full map in every proposition. Do not retain a
@@ -556,21 +557,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     preflight output, and never publish partial bytes.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
-    for 65,536 exact labels, `[11 MiB,11.5 MiB)` for 32,768 fixups,
-    `[16 MiB,31.75 MiB)` for the bounded frontend arena, and
-    `[31.75 MiB,32 MiB)` for the private 262,144-byte reserved emitter region.
+    for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
+    `[16 MiB,125 MiB)` for the bounded frontend arena, and
+    `[126 MiB,128 MiB)` for emitter scratch and its downward start table.
     The direct
     emitter owns sticky failure, exact byte/word append, every Alpha operand
     shape, labels at PC zero, forward/backward fixups, duplicate/missing-label
-    rejection, and the runnable 262,140-byte ceiling. The adjacent gate uses
+    rejection, and the runnable 1,048,572-byte ceiling. The adjacent gate uses
     fixed temporary entries, pins exact payload bytes and capacity failures,
     and retains no alternate compiler or tape. Generated fixed-offset word
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
     tape budget. The retained source declares 104 procedures; with the frontend
-    gate entry, the gate uses 105 of Beta's 128 procedure slots and compiles to
-    251,142 bytes, leaving 10,998 bytes below Alpha's runnable payload ceiling.
+    gate entry, the gate uses 105 of the persisted V2 artifact's 256 procedure
+    slots. At that milestone it compiled to 251,142 bytes, leaving 797,430 bytes below the V2
+    runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -588,14 +590,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     previous-frame and caller-cursor words, fixed local slots, and reverse-
     positioned source-order parameters in one downward explicit frame. Ordinary
     calls use Alpha `call`/`ret`, but every live return owns at least a 16-byte
-    explicit frame: the guarded `[256 KiB,16 MiB)` stack therefore exhausts
-    after at most 1,032,192 live calls while their 8,257,536 hidden-return bytes
-    still lie above the 48 MiB heap ceiling. Tail calls preflight their complete
+    explicit frame: the guarded `[1 MiB,16 MiB)` stack therefore exhausts
+    after at most 983,040 live calls while their 7,864,320 hidden-return bytes
+    remain within AlphaBootstrapV2's separate hidden-return allowance. Tail calls preflight their complete
     replacement extent, copy already-evaluated two-word arguments high-to-low,
     inherit the original caller cursor, and jump without growing either stack.
     Execute 4,096 mutual grow/shrink tail transfers between 48- and 80-byte
     frames, preserve a pending caller spill across non-tail return, carry 600
-    nonzero-kind arguments, and distinguish an exact 256 KiB tail landing from
+    nonzero-kind arguments, and distinguish an exact 1 MiB tail landing from
     the adjacent aligned resource failure before relocation. Reject malformed
     compiler-owned frame profiles before emitting bytes. D20 now governs
     assigning calls and binder slots from source, not this ABI.
@@ -746,21 +748,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
     merge the checked divide/remainder emitters without changing emitted Alpha.
     This reduces the live source-join compiler with a trivial entry from
     254,109 to 250,761 bytes; the complete adjacent gate remains 193/193.
-  - [ ] **PROFILE-REVISION — D23: ALPHA-BOOTSTRAP-V2.** Implement the coherent
-    one-MiB Alpha runnable-tape profile before completing selected-match
-    lowering, whole-function label/entry emission, or either D19 adapter. The
-    seed hole is exactly 1,048,576 bytes including its four-byte stamped length;
-    the maximum raw tape is therefore 1,048,572 bytes. Revise both seeds and
-    stamping paths, Beta compiler payload storage and generated memory maps,
-    the Beta procedure table, Gamma/Delta/Omega emitter ceilings, Gamma
-    stack/heap boundaries, checker framing and arena capacity, compiler outcome
-    resource tables, and every exact/adjacent capacity gate as one versioned
-    profile migration. The authoritative checker must admit a representative
-    maximum-size framed subject with realistic
-    source, certificate, lemma, normalization, and scratch demand; a tape-only
-    allocation test is insufficient. Keep the fixed 193-case Gamma gate while
-    completing the closure. Ordinary density work remains welcome but is not a
-    condition for retaining the old 262,140-byte ceiling.
+  - [x] **PROFILE-REVISION — D23: ALPHA-BOOTSTRAP-V2.** Migrate the complete
+    lattice profile atomically to a one-MiB stamped seed hole and 1,048,572-byte
+    raw-tape maximum without changing Alpha instructions. Both native seeds,
+    stamping and assembler containers now carry 256 MiB of semantic memory and
+    the exact hole. Beta-generated programs use a one-MiB stack, two-MiB
+    separation, 128 MiB biased raw region, 256 procedure rows, and
+    payload-dominated 262,144-PC/116,508-fixup tables. Gamma-generated programs
+    use `[1 MiB,16 MiB)` stack and `[16 MiB,128 MiB)` heap regions; the Gamma,
+    Delta, and Omega encoders share the new cap, with Delta's depth-20 target
+    trie and Omega's 116,508 fixups derived from it. The authoritative checker
+    admits a 2,810,748-byte frame and 4,893,354-node nonpaged arena; its executed
+    gate retains a real exact-maximum compiler tape with representative source,
+    named lemmas, normalization, scratch, simultaneous outer maxima, balanced
+    arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
+    tapes reproduce exactly; the fixed Gamma gate remains 193/193. Ordinary
+    density work remains useful but is no longer a condition for the retired
+    V1 ceiling.
   - [x] Establish the dormant profile-parameterized sealed-input reader before
     selecting D19's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
@@ -777,8 +781,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adapter emission remain implementation work above.
   - [x] Replay the complete fixed-up Alpha payload before publication without
     trusting the emitter call sequence. Clear and rebuild a private one-byte
-    instruction-start map in the otherwise unused `[11.5 MiB,11.75 MiB)`
-    compiler region; partition every payload byte under Alpha's closed opcode/
+    instruction-start map in the reserved `[126 MiB,127 MiB)` compiler region;
+    partition every payload byte under Alpha's closed opcode/
     width table; reject unknown or truncated instructions; and require every
     encoded jump, conditional, or call target to land on a reconstructed start.
     This fixes an instruction-only generated-tape invariant rather than
@@ -815,9 +819,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Remove the reusable front end's compiler-sized-input alias: the 4 MiB
     source buffer no longer overlaps its type, constructor, function,
     environment, or match-coverage tables. Reserve one readable error node and
-    bound the AST arena below the compiler's reserved 31.75 MiB payload edge
-    before writes; physical memory above Beta's 32 MiB logical edge is Alpha
-    hidden-return-stack allowance. A 2 MiB-boundary canary places a later
+    bound the AST arena below the compiler's reserved 125 MiB edge before
+    writes; Beta exposes 128 MiB of biased logical raw memory while Alpha keeps
+    its hidden-return-stack allowance disjoint. A 2 MiB-boundary canary places a later
     declaration exactly where the former function table corrupted source.
   - [x] Remove recursive list parsing from the reusable front end's argument,
     constructor-field, parameter, pattern-binder, and match-arm paths. Iterative
@@ -963,7 +967,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     lowering. Its closed, nonempty compiler IR covers all 21 Alpha instructions
     plus dense symbolic labels and admits forward/backward references and
     aliases. Successful encoding requires every allocated label to bind exactly
-    once and emits the exact raw at-most-262140-byte Alpha payload. It is
+    once and emits the exact raw at-most-1,048,572-byte AlphaBootstrapV2
+    payload. It is
     intentionally not a general Alpha
     assembler: empty instruction streams are outside the compiler relation and
     a referenced label must resolve to an instruction start, not the payload
@@ -980,9 +985,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Alpha's payload cap. Profile the real `D` closure; terrible performance,
     unacceptable heap pressure, or pressure to extend Alpha instructions is an
     owner-escalation trigger, not permission for a hidden alternate backend.
-    D23 requires this encoder's exact payload preflight and adjacent vectors to
-    migrate with `AlphaBootstrapV2`; the current 262,140-byte implementation
-    remains a truthful V1 component until that coherent profile migration.
+    Its exact preflight, depth-20 target trie, oversize sentinel, and adjacent
+    vectors now share the common V2 profile.
   - [ ] **IMPLEMENTATION — D24: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
     D22 and D24's exact Delta identity census before type formation.
     Collect grammar-selected owner, machine, member, state, parameter, binder,
@@ -1063,7 +1067,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
     complete closed opcode-shape table, paired-`i32` representation of arbitrary
     64-bit immediates, instruction-atomic capacity checks, bounded address
-    fixups, and the exact raw 262,140-byte payload ceiling. Sealing clears and
+    fixups, and the exact raw 1,048,572-byte AlphaBootstrapV2 payload ceiling.
+    Its 116,508-fixup bound is dominated by the shortest nine-byte direct
+    reference. Sealing clears and
     reconstructs the complete instruction-start partition, rejects unknown or
     truncated instructions, and requires every direct target to land on a
     reconstructed start. Native seed stamping alone owns the descriptive
@@ -1072,16 +1078,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     open state, byte range, and whole-write capacity rather than relying on a
     prose-only caller precondition. `D` deliberately has no `Main`, source
     protocol, package lookup, publication, or placeholder compiler result while
-    `OMEGA-COMPILER-REQUEST-V1` is unimplemented. D23 requires its exact payload
-    ceiling, replay vectors, request/output profile rows, and adjacent failure
-    to migrate with `AlphaBootstrapV2`; it may not issue a larger tape ahead of
-    the seeds and authoritative checker.
+    `OMEGA-COMPILER-REQUEST-V1` is unimplemented. Its ceiling, replay bounds,
+    request/output resource row, and adjacent failure now share the common V2
+    seed/checker profile.
   - [x] Give `D` explicit symbolic control-flow ownership before lowering.
     Monotonic typed label IDs bind once; each label-bearing emitter records the
     exact most-recent instruction and its single address operand; operand
     offsets are strictly increasing; and sealing resolves every recorded fixup
     through its bind-once label between an unpatched partition reconstruction
-    and the final target replay. The 29,126-fixup ceiling is dominated by the
+    and the final target replay. The 116,508-fixup ceiling is dominated by the
     exact Alpha payload extent; the independent fixed label storage is a
     private compiler ceiling and maps to outer `Incomplete` through D18's
     resource framing. There is no arbitrary public patch operation or

@@ -24,8 +24,8 @@ runtime paths plus one sealed-input reconstruction comparison. It publishes no
 compiler artifact.
 
 The retained compiler source declares 104 procedures. With the fixed frontend
-gate entry, the compiled gate uses 105 of Beta's 128 procedure slots and
-compiles to 251,142 bytes. The remaining 10,998 bytes under
+gate entry, the compiled gate uses 105 of Beta's 256 procedure slots and
+compiles to 251,142 bytes. The remaining 797,430 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
 
@@ -70,23 +70,21 @@ The compile-time AST/IR is never serialized into the emitted program. No Gamma
 evaluator loop, syntax-tag dispatcher, textual Alpha stream, or host-side
 assembler participates in the edge.
 
-The Beta executable has exactly 32 MiB of source-visible logical raw memory;
-physical memory above it is Alpha's hidden-return-stack allowance. The frontend
+Under `AlphaBootstrapV2`, the Beta executable has exactly 128 MiB of
+source-visible logical raw memory. The frontend
 keeps sealed source in `[2 MiB,6 MiB)`, declaration and environment tables in
-`[6 MiB,10.5 MiB)`, labels/fixups in `[10.5 MiB,11.5 MiB)`, payload instruction
-starts in `[11.5 MiB,11.75 MiB)`, and AST storage in `[16 MiB,31.75 MiB)`. The
-final `[31.75 MiB,32 MiB)` is the private 262,144-byte
-payload buffer; the runnable Alpha payload limit is 262,140 bytes. Source,
+`[6 MiB,10.5 MiB)`, labels/fixups below 13 MiB, payload instruction starts in
+`[126 MiB,127 MiB)`, and AST storage in `[16 MiB,125 MiB)`. The final
+`[127 MiB,128 MiB)` is the private one-MiB payload buffer; the runnable Alpha
+payload limit is 1,048,572 bytes. Source,
 table, arena, fixup, and payload writes are checked before mutation. No output
 byte is published until every fixup and the complete payload extent validate.
 
-Those extents describe the current executable profile. D23 selects the pending
-`AlphaBootstrapV2` migration: a one-MiB stamped hole and 1,048,572-byte raw-tape
-maximum, with this compiler's payload buffer and emitted-program stack/heap map
-moving only as part of the same seed, Beta compiler, checker, outcome-table, and
-limit-gate revision. The measured 251,142-byte fixed frontend no longer has to
-fit the old ceiling once V2 lands. Its fixed 193-case gate remains mandatory,
-and ordinary density improvements remain useful rather than a release gate.
+Those extents describe the `AlphaBootstrapV2` profile selected by D23 and
+migrated with the seeds, Beta compiler, checker, outcome tables, and exact-limit
+gates. The measured 251,142-byte fixed frontend no longer has to fit the retired
+V1 ceiling. Its fixed 193-case gate remains mandatory, and ordinary density
+improvements remain useful rather than a release gate.
 
 The retained front end's four-word syntax nodes retain the exact
 zero-based source start in the high bits of their tag word; the 4 MiB source
@@ -132,10 +130,10 @@ frame profile, and selected-match lowering remain open.
 An emitted Gamma program uses this Alpha-memory profile:
 
 ```text
-[0, 256 KiB)       canonical Alpha tape
-[256 KiB, 16 MiB)  downward Gamma activation/argument stack
-[16 MiB, 48 MiB)   upward immutable value/Bytes heap
-[48 MiB, 64 MiB)   Alpha hidden-return-stack allowance
+[0, 1 MiB)         canonical stamped Alpha tape region
+[1 MiB, 16 MiB)    downward Gamma activation/argument stack
+[16 MiB, 128 MiB)  upward immutable value/Bytes heap
+[128 MiB, 256 MiB) Alpha hidden-return-stack allowance
 ```
 
 Every private limit is an outer resource profile, not a Gamma validity rule.

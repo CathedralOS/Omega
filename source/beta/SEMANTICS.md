@@ -99,8 +99,8 @@ specified safe return and cleanup suffix; the pending provenance is projected
 to the typed `Exhaust` terminal when the compiler returns its resource status.
 Those cleanup steps may extend stdout but may not perform the refused admission,
 clear the first-failure provenance, or turn exhaustion back into success.
-Out-of-range raw memory is a stuck Beta configuration. The canonical compiler's
-32 MiB profile checks that edge before biasing the address and projects it to a
+Out-of-range raw memory is a stuck Beta configuration. The D23 compiler's
+128 MiB profile checks that edge before biasing the address and projects it to a
 contained generated-program halt without a physical memory access. Its guarded
 data stack and mandatory frame word separately prove that source-visible
 memory, generated frames, tape, and Alpha's hidden return stack do not alias.

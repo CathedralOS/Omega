@@ -11,10 +11,10 @@
 # diagnostic; agreement does not replace the written semantics or audit.
 #
 # Encoding (opcode 1 byte; register operand 1 byte; immediate/address 8 bytes LE; address = absolute M
-# offset). Loader: M[0..L-1] = tape, pc = 0, R[i] = 0, sp = 0x04000000 (grows down).
+# offset). Loader: M[0..L-1] = tape, pc = 0, R[i] = 0, sp = 0x10000000 (grows down).
 import sys
 
-MEMSIZE = 0x04000000 + 16          # sp starts at 0x04000000 and grows down; a little headroom above
+MEMSIZE = 0x10000000 + 16          # sp starts at 0x10000000 and grows down; a little headroom above
 MASK = (1 << 64) - 1
 INT_MIN = -(1 << 63)
 
@@ -29,7 +29,7 @@ def run(tape, stdin_bytes):
     M = bytearray(MEMSIZE)
     M[0:len(tape)] = tape
     R = [0] * 256
-    sp = 0x04000000
+    sp = 0x10000000
     pc = 0
     inp = memoryview(stdin_bytes)
     ipos = 0

@@ -37,7 +37,7 @@ receipt ceremony without a semantic edge has negative maintenance value.
 | --- | --- | --- | --- |
 | Alpha VM seed | native assembly | audited realization of `source/alpha/SEMANTICS.md` | Darwin arm64 and Windows x64 seeds exist; human binary/listing and physical-platform admissions remain irreducible |
 | Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | canonical source and direct artifact exist; full refinement and resource outcomes remain open |
-| Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | D16 fixes the language, D19 its sealed application profiles, D20 its resolver identity/scope, D21 its `Bytes` length invariant, and D23 the coherent one-MiB Alpha profile required by the completed closure; incomplete source exists, while the V2 profile migration, resolver implementation, adapter emission, lowering, tape, and refinement remain open |
+| Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | D16 fixes the language, D19 its sealed application profiles, D20 its resolver identity/scope, D21 its `Bytes` length invariant, and D23 its coherent one-MiB Alpha profile; the profile is migrated and incomplete source exists, while selected-match lowering, whole-function emission, adapter emission, tape, and refinement remain open |
 | Delta compiler | Gamma | exact Gamma source under `DeltaCompilerV1` refines the exact Delta-compiler tape | D17 fixes Delta v1 and its `DCOUT` boundary, D22 fixes declaration identity/scope, and D24 completes transition-binder and collection-failure rules; incomplete source owns syntax and symbolic encoding, while collection/checking, lowering, tape, suite, and refinement remain open |
 | `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | incomplete `D` owns lexical, parser, and Alpha-encoder slices; the full compiler and edge remain open |
 | `omega` | Omega closure `C` | exact `C`, compiled by `omega₀`, refines a full Omega compiler represented as Alpha tape | product source is incomplete; edge is open |
@@ -57,8 +57,8 @@ Current committed native seeds:
 
 | target | artifact | SHA-256 |
 | --- | --- | --- |
-| Darwin arm64 | `source/alpha/alpha_arm64_macos` | `e3bb2be7c9e40b3c7a0e66c98568194a743d6d6e354d467386e222ef35dde927` |
-| Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
+| Darwin arm64 | `source/alpha/alpha_arm64_macos` | `5844f295e3ab843e1819aae0ca47d41ad99cef5e2193a5abee64e630b41c304c` |
+| Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `ccce78bbef7cb5a538d4fb0e350a1c646233d179074e65b4ac7cca98c4a4a6f7` |
 
 The accepted compiler artifact above this floor is always the raw Alpha tape.
 Transparent seed stamping prepends the tape length inside the disposable host

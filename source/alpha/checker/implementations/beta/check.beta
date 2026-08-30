@@ -45,18 +45,20 @@
 ;                | ( disj term ) | ( sinj term ) | ( use N )
 ; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
 ;
-; Memory:  2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
+; AlphaBootstrapV2 logical raw-memory layout:
+;          2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
 ;          2097120 CTXN  2097112 IDEP  2097104 FRAMED
 ;          2097096 SOURCE_LIST  2097088 TAPE_LIST  2097080 INPUT_OVERFLOW
 ;          2097072 PARSE_ERROR  2097064 THEORY_FROZEN
 ;          2097056 RAW_BEGIN    2097048 RAW_END
-;          4194304 CTX (type stack)  6422528 DATA_DECLARED
-;          6553600 BYTE_TERM_CACHE  6555648 NIBBLE_TERM_CACHE
-;          6555776 RAW_CON_CACHE  8388608 ARENA (bump)
-; The input buffer is bounded at 2,024,316 bytes, the exact largest framed
+;          8388608 CTX (type stack)  10616832 DATA_DECLARED
+;          10747904 BYTE_TERM_CACHE  10749952 NIBBLE_TERM_CACHE
+;          10750080 RAW_CON_CACHE  16777216 ARENA (bump)
+; The input buffer is bounded at 2,810,748 bytes, the exact largest V2 framed
 ; source+tape+certificate carrier. CTX/IDEP each own 65,536 entries. ARENA owns
-; 1,048,576 24-byte nodes through logical byte 33,554,431. Every exhaustion
-; marks the candidate invalid before acceptance; 0 is the reject/none sentinel.
+; 4,893,354 complete 24-byte nodes through logical byte 134,217,711; the final
+; 16 logical raw-memory bytes are unused. Every exhaustion marks the candidate
+; invalid before acceptance; 0 is the reject/none sentinel.
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
 ;             6 ALL(body)  7 PRED(id,term)  8 EXISTS(body)  9 REL(id,(99 t1 t2))
@@ -80,7 +82,7 @@ proc slurp() {
         to done
     }
     state body {
-        to overflow when (n >= 2024316)
+        to overflow when (n >= 2810748)
         byte[2097152 + n] = c
         n = n + 1
         c = read_byte()
@@ -93,7 +95,7 @@ proc slurp() {
     state done {
         word[2097136] = n            ; LEN
         word[2097144] = 0            ; CUR
-        word[2097128] = 8388608      ; APTR = ARENA base (8 MiB; grows up through the 64 MiB image)
+        word[2097128] = 16777216     ; APTR = ARENA base (16 MiB; grows through 128 MiB logical raw memory)
         word[2097120] = 0            ; CTXN
         word[2097112] = 0            ; IDEP - individual-binder depth (forall /exists  binders entered)
         word[2097104] = 0            ; FRAMED
@@ -134,7 +136,7 @@ proc has_frame_magic() {
 }
 
 proc raw_con(cid) {
-    let slot = 6555776 + (cid - 60) * 8
+    let slot = 10750080 + (cid - 60) * 8
     let t = word[slot]
     state cached { to make when (t == 0)  return t }
     state make {
@@ -145,11 +147,11 @@ proc raw_con(cid) {
 }
 
 proc raw_nibble_term(n) {
-    let t = word[6555648 + n * 8]
+    let t = word[10749952 + n * 8]
     state cached { to make when (t == 0)  return t }
     state make {
         t = alloc(50, n, 0)
-        word[6555648 + n * 8] = t
+        word[10749952 + n * 8] = t
         return t
     }
 }
@@ -157,13 +159,13 @@ proc raw_nibble_term(n) {
 ; Byte values are interned as BYTE(high-nibble, low-nibble), using only the
 ; existing bounded constructor vocabulary available to certificate functions.
 proc raw_byte_term(b) {
-    let t = word[6553600 + b * 8]
+    let t = word[10747904 + b * 8]
     state cached { to make when (t == 0)  return t }
     state make {
         let hi = b / 16
         let lo = b - hi * 16
         t = alloc(51, alloc(51, raw_con(60), raw_nibble_term(hi)), raw_nibble_term(lo))
-        word[6553600 + b * 8] = t
+        word[10747904 + b * 8] = t
         return t
     }
 }
@@ -199,10 +201,10 @@ proc raw_tree(start, n, span) {
 }
 
 proc bind_raw_ctor(cid, arity, rec0, rec1) {
-    word[5505024 + cid * 8] = arity
-    word[5636096 + cid * 8] = rec0
-    word[5767168 + cid * 8] = rec1
-    word[6422528 + cid * 8] = 1
+    word[9699328 + cid * 8] = arity
+    word[9830400 + cid * 8] = rec0
+    word[9961472 + cid * 8] = rec1
+    word[10616832 + cid * 8] = 1
 }
 
 proc bind_raw_theory() {
@@ -257,7 +259,7 @@ proc prepare_input() {
     state tape_header { to bad when (p + 8 > total)  tape_len = frame_len(p)  to tape_bound }
     state tape_bound {
         to bad when (tape_len < 0)
-        to bad when (tape_len > 262140)
+        to bad when (tape_len > 1048572)
         p = p + 8
         tape_start = p
         to bad when (tape_len > total - p)
@@ -583,7 +585,7 @@ proc normalize(t, fuel) {
 ; one rewrite step of (f fid arg): if arg normalizes to a constructor head with a rule,
 ; instantiate that rule's body; else 0 (STUCK - open arg, or no rule). Fuel-bounded via
 ; normalize, so a divergent definition simply never reduces (totality is preserved).
-; FRULE table at 5898240, indexed by (fid*64 + cid).  Supports arity 0 and 1 constructors.
+; FRULE table at 10092544, indexed by (fid*64 + cid).  Supports arity 0 and 1 constructors.
 ; arg is the application's argument bundle: a single term (unary function) or
 ; FBUNDLE(53, scrutinee, extra) for a BINARY function (extra = the 2nd argument). The
 ; rule fires on the scrutinee's constructor; the constructor's own arity (0/1/2) gives
@@ -609,7 +611,7 @@ proc reduce_fun(fid, arg, fuel) {
     state nullary { to do_null when (word[a] == 50)  to applied }    ; CON(cid) - arity 0
     state do_null {
         cid = word[a + 8]
-        body = word[5898240 + (fid * 64 + cid) * 8]
+        body = word[10092544 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
         return instantiate(body, fid, alloc(53, 0, 0), extra)
     }
@@ -621,7 +623,7 @@ proc reduce_fun(fid, arg, fuel) {
     }
     state unary {
         cid = word[word[a + 8] + 8]
-        body = word[5898240 + (fid * 64 + cid) * 8]
+        body = word[10092544 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
         return instantiate(body, fid, alloc(53, word[a + 16], 0), extra)
     }
@@ -631,7 +633,7 @@ proc reduce_fun(fid, arg, fuel) {
     }
     state bin_ok {
         cid = word[word[word[a + 8] + 8] + 8]
-        body = word[5898240 + (fid * 64 + cid) * 8]
+        body = word[10092544 + (fid * 64 + cid) * 8]
         to stuck when (body == 0)
         return instantiate(body, fid, alloc(53, word[word[a + 8] + 16], word[a + 16]), extra)
     }
@@ -1024,7 +1026,7 @@ proc expect(ch) {
 ; ---- node arena: 3 words per node, bump-allocated ----
 proc alloc(tag, f0, f1) {
     let p = word[2097128]
-    state bound { to exhausted when (p > 33554408)  to store }
+    state bound { to exhausted when (p > 134217688)  to store }
     state store {
         word[p] = tag
         word[p + 8] = f0
@@ -1269,8 +1271,8 @@ proc ctx_push(ty) {
     let n = word[2097120]
     state bound { to exhausted when (n >= 65536)  to store }
     state store {
-        word[4194304 + n * 8] = ty
-        word[4718592 + n * 8] = word[2097112]   ; remember the IDEP at which this hyp was pushed
+        word[8388608 + n * 8] = ty
+        word[8912896 + n * 8] = word[2097112]   ; remember the IDEP at which this hyp was pushed
         word[2097120] = n + 1
         return 1
     }
@@ -1282,11 +1284,11 @@ proc ctx_pop() {
 }
 
 ; build the expected CASE type for constructor `cid` under motive P (var = Ivar 0).
-; Tables: ARITY 5505024, REC0 5636096, REC1 5767168, PRODUCTS 6291456 (indexed by cid).
+; Tables: ARITY 9699328, REC0 9830400, REC1 9961472, PRODUCTS 10485760 (indexed by cid).
 proc con_case(cid, motive) {
-    let arity = word[5505024 + cid * 8]
-    let r0 = word[5636096 + cid * 8]
-    let r1 = word[5767168 + cid * 8]
+    let arity = word[9699328 + cid * 8]
+    let r0 = word[9830400 + cid * 8]
+    let r1 = word[9961472 + cid * 8]
     let body = 0
     state a0 { to do_a0 when (arity == 0)  to a1 }
     state do_a0 { return subst_prop(motive, alloc(50, cid, 0), 0) }     ; P(CON cid)
@@ -1329,7 +1331,7 @@ proc infer(term) {
         t3 = t2 - 1 - t1                                      ; CTX slot for this hyp
         ; lift the stored prop from its push-time IDEP to the current IDEP: every forall/exists
         ; binder entered since makes its free individual vars one deeper.
-        return shift_prop(word[4194304 + t3 * 8], word[2097112] - word[4718592 + t3 * 8], 0)
+        return shift_prop(word[8388608 + t3 * 8], word[2097112] - word[8912896 + t3 * 8], 0)
     }
     state reject { return 0 }
     state d11 { to lam when (tag == 11)  to d12 }
@@ -1459,7 +1461,7 @@ proc infer(term) {
         ; type's SOLE constructor. Unlike REC (locked to two cases, hence used only on 2-constructor types),
         ; one case aimed at a SUM constructor would prove a bogus universal. So cid must be explicitly
         ; declared a product via (prod cid) - PRODUCTS[cid] == 1 - an auditable, opt-in assertion.
-        to reject when (word[6291456 + word[t1 + 8] * 8] != 1)
+        to reject when (word[10485760 + word[t1 + 8] * 8] != 1)
         t3 = infer(word[term + 16])                      ; typeof case
         to reject when (t3 == 0)
         to prodrec1
@@ -1469,7 +1471,7 @@ proc infer(term) {
         return alloc(6, word[t1 + 16], 0)                ; forall x. motive(x)
     }
     state d40 { to use when (tag == 40)  to d21 }
-    state use { return word[5242880 + word[term + 8] * 8] }   ; USE N : the lemma's type
+    state use { return word[9437184 + word[term + 8] * 8] }   ; USE N : the lemma's type
     state d21 { to gen when (tag == 21)  to d22 }
     state gen {                  ; GEN pf : forall -intro -> All (typeof pf)
         ; Enter one individual binder. Hypotheses already in scope are now one binder
@@ -1812,7 +1814,7 @@ proc main() {
         let fcid = parse_number()  ; CID (which constructor this rule fires on)
         to reject when (fcid < 0)
         to reject when (fcid >= 64)
-        let fslot = 5898240 + (n * 64 + fcid) * 8
+        let fslot = 10092544 + (n * 64 + fcid) * 8
         to reject when (word[fslot] != 0)
         let fbody = parse_nat()    ; rule body (over pattern var (v 0) and (rec 0))
         expect(')')
@@ -1824,7 +1826,7 @@ proc main() {
         to reject when (word[2097064] != 0)
         to reject when (n < 0)
         to reject when (n >= 64)
-        to reject when (word[6422528 + n * 8] != 0)
+        to reject when (word[10616832 + n * 8] != 0)
         skip_ws()
         let arity = parse_number()
         to reject when (arity < 0)
@@ -1853,10 +1855,10 @@ proc main() {
     state kdata_finish {
         expect(')')
         to reject when (word[2097072] != 0)
-        word[5505024 + n * 8] = arity       ; ARITY
-        word[5636096 + n * 8] = rec0        ; REC0
-        word[5767168 + n * 8] = rec1        ; REC1
-        word[6422528 + n * 8] = 1           ; declared exactly once
+        word[9699328 + n * 8] = arity       ; ARITY
+        word[9830400 + n * 8] = rec0        ; REC0
+        word[9961472 + n * 8] = rec1        ; REC1
+        word[10616832 + n * 8] = 1          ; declared exactly once
         to defloop
     }
     state kprod {                ; (prod CID) - assert CID is its type's SOLE constructor, licensing prodrec
@@ -1866,17 +1868,17 @@ proc main() {
         n = parse_number()       ; CID
         to reject when (n < 0)
         to reject when (n >= 64)
-        to reject when (word[6291456 + n * 8] != 0)
+        to reject when (word[10485760 + n * 8] != 0)
         expect(')')
         to reject when (word[2097072] != 0)
-        word[6291456 + n * 8] = 1                     ; PRODUCTS[CID] = 1
+        word[10485760 + n * 8] = 1                    ; PRODUCTS[CID] = 1
         to defloop
     }
     state kdef {
         to reject when (kind != 'e')
         to reject when (n < 0)
         to reject when (n >= 32768)
-        to reject when (word[5242880 + n * 8] != 0)
+        to reject when (word[9437184 + n * 8] != 0)
         word[2097064] = 1
         to do_def
     }
@@ -1890,7 +1892,7 @@ proc main() {
     }
     state do_def2 {
         to reject when (type_eq(lp, lt) == 0)
-        word[5242880 + n * 8] = lt
+        word[9437184 + n * 8] = lt
         to defloop
     }
     state reject { emit("reject\n")  return 0 }

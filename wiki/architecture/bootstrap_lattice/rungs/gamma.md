@@ -63,10 +63,10 @@ bound before adapter emission.
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
 direct Alpha payload/fixup substrate, and executed heap/stack and checked-`Int`
 helpers plus the first retained slice of the general expression dispatcher. It
-is incomplete and has no published tape. Its current 251,142-byte fixed gate is
-already close to the V1 Alpha ceiling before selected-match lowering, complete
-function emission, and the D19 adapters. D23 therefore requires the coherent
-`AlphaBootstrapV2` migration—a one-MiB stamped hole and 1,048,572-byte raw-tape
+is incomplete and has no published tape. Its 251,142-byte fixed gate exhausted
+the former V1 Alpha ceiling before selected-match lowering, complete function
+emission, and the D19 adapters. D23 therefore selects the coherent
+`AlphaBootstrapV2` profile—a one-MiB stamped hole and 1,048,572-byte raw-tape
 maximum across seeds, compilers, checker, and exact gates—rather than another
 Gamma-specific density gate or private execution path.
 `source/gamma/interp.beta` remains a bounded semantic oracle; it does not define

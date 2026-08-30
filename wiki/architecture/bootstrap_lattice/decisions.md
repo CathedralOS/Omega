@@ -618,7 +618,7 @@ D22's transition-arm binder and collection-failure gaps are completed by D24.
 
 ## D23 — AlphaBootstrapV2 admits a one-MiB tape through a coherent checker profile
 
-The canonical bootstrap execution profile advances from the current 256-KiB
+The canonical bootstrap execution profile advanced from the former 256-KiB
 seed hole to `AlphaBootstrapV2`. Its seed hole is exactly 1,048,576 bytes,
 including the four-byte stamped tape length, so its maximum raw Alpha tape is
 1,048,572 bytes. This is one global lattice profile, not a Gamma-only exception.
@@ -630,9 +630,9 @@ platform seeds and their stamping paths, the Beta compiler's payload storage
 and generated-program memory maps, adjacent compiler-profile ceilings including
 the procedure table, Gamma's emitted-program stack and heap boundaries, the
 authoritative checker's input frame and subject arena, compiler outcome resource
-tables, and all exact/adjacent limit gates move together. Until that migration
-lands, the committed seeds and tools honestly remain the 256-KiB profile; no
-component may advertise V2 while retaining a V1 consumer or checker bound.
+tables, and all exact/adjacent limit gates moved together. The migration is now
+landed: no current component may advertise V2 while retaining a V1 consumer or
+checker bound.
 
 V2 is admitted only when the authoritative checker can check a realistically
 framed maximum-size subject. A seed accepting a maximum tape is insufficient if

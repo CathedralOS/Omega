@@ -86,6 +86,26 @@ printf '%s\n' \
 "$ASM" < "$T/well-nested.alpha" > "$T/well-nested.tape"
 case_run "well-nested recursive call regions" 0 "$T/well-nested.tape"
 
+# Region ids occupy one byte. The V2 Beta procedure profile admits exactly the
+# root plus 255 distinct callees; the next region must fail closed.
+awk 'BEGIN {
+  for (i = 1; i <= 255; i++) printf "call p%d\n", i
+  print "imm r0, 0"
+  print "halt r0"
+  for (i = 1; i <= 255; i++) printf "p%d:\nret\n", i
+}' > "$T/regions-256.alpha"
+"$ASM" < "$T/regions-256.alpha" > "$T/regions-256.tape"
+case_run "exact 256 procedure regions" 0 "$T/regions-256.tape"
+
+awk 'BEGIN {
+  for (i = 1; i <= 256; i++) printf "call p%d\n", i
+  print "imm r0, 0"
+  print "halt r0"
+  for (i = 1; i <= 256; i++) printf "p%d:\nret\n", i
+}' > "$T/regions-257.alpha"
+"$ASM" < "$T/regions-257.alpha" > "$T/regions-257.tape"
+case_run "adjacent 257th procedure region" 1 "$T/regions-257.tape"
+
 printf '\024' > "$T/root-ret.tape"
 case_run "root return without caller" 1 "$T/root-ret.tape"
 
@@ -118,8 +138,8 @@ printf '%s\n' \
 "$ASM" < "$T/cross-region.alpha" > "$T/cross-region.tape"
 case_run "non-call cross-region edge" 1 "$T/cross-region.tape"
 
-# Pin the exact payload capacity inherited from the committed 256 KiB tape hole.
-dd if=/dev/zero of="$T/exact" bs=262140 count=1 2>/dev/null
+# Pin the exact AlphaBootstrapV2 payload capacity.
+dd if=/dev/zero of="$T/exact" bs=1048572 count=1 2>/dev/null
 case_run "exact tape-hole payload" 0 "$T/exact"
 cp "$T/exact" "$T/oversized"
 printf '\000' >> "$T/oversized"

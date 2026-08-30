@@ -13,9 +13,9 @@
 //
 // VM model (observable semantics identical to the x64 seed):
 //   vregs[]  64-bit register file, byte-indexed            (bss, x19)
-//   mem[]    flat ~64 MB zeroed byte memory; tape at [0]    (bss, x20)
+//   mem[]    flat ~256 MB zeroed byte memory; tape at [0]   (bss, x20)
 //   pc       absolute pointer into mem                      (x21)
-//   sp       call-stack byte offset, grows down from 64 MB  (x22)
+//   sp       call-stack byte offset, grows down from 256 MB (x22)
 // A program tape [4-byte LE length][bytecode] is stamped into the __tape hole;
 // the loader copies it to mem[0], pc=0, dispatches.  Byte I/O via read(0)/
 // write(1) (libSystem — the analog of the x64 seed's kernel32 ReadFile/
@@ -58,7 +58,7 @@ Lcopy:
     b    Lcopy
 Lcopied:
     mov  x21, x20
-    movz x22, #0x0400, lsl #16
+    movz x22, #0x1000, lsl #16
     b    next
 h_imm:
     // Decode the adjacent destination byte and unaligned immediate without a
@@ -313,10 +313,10 @@ h_halt:
     ldp  x29, x30, [sp], #16
     ret
 .zerofill __DATA,__bss,vregs,0x800,3
-.zerofill __DATA,__bss,mem,0x04010000,4
+.zerofill __DATA,__bss,mem,0x10010000,4
 .zerofill __DATA,__bss,io_byte,8,3
 .section __DATA,__tape
 .global _tape
 _tape:
 .long 0
-.space 0x40000
+.space 0xffffc

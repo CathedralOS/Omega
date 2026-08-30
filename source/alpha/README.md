@@ -36,8 +36,9 @@ alpha_ref.py             untrusted executable reference realization of Alpha mea
 
 - **provenance** — re-derives the committed binary from its source and confirms a match
   (arm64: `clang -arch arm64 -Wl,-no_uuid …`, reproducible modulo the OS signature; x64:
-  audit the `.exe` against its `.hex` by hand; the historical resize migration changed
-  only three documented PE capacity fields and extended the zero-only tape section);
+  audit the `.exe` against its `.hex` by hand; the AlphaBootstrapV2 migration changes
+  the documented memory/stack constants, PE extents and tape address, then extends
+  the zero-only tape section);
 - **behavior** — `conformance.sh` (every opcode + edge realizes `SEMANTICS.md`);
 - **reproduction** — `assembler/selfhost.sh` (the VM reproduces the canonical assembler bytecode).
 
@@ -83,18 +84,21 @@ by `seed_env.sh`. The signature blob is OS-imposed and non-reproducible; the boo
 byte-identical guarantee therefore lives in the program bytes (the tape), not the
 signature — which is exactly what `selfhost.sh` compares.
 
-Both committed seeds reserve a 256 KiB tape hole; `stamp_seed` rejects the tape
-before copying when its four-byte length prefix would exceed that extent. The
-completed x64 32 KiB-to-256 KiB extent migration and its one-purpose script are
-recoverable from Git history; retaining a completed mutation tool in the live
-seed owner would add another apparent construction route.
+Both committed seeds implement `AlphaBootstrapV2`: 256 MiB of semantic memory
+with the hidden return stack initialized at its upper bound, plus an exact
+one-MiB seed hole including the four-byte length. The maximum raw tape is
+therefore 1,048,572 bytes. `stamp_seed` validates both the raw extent and the
+physical container before copying; `tape_in_seed` rejects a stale container or
+an invalid embedded length. The conformance gate executes the exact maximum,
+round-trips its complete framed hole, and requires adjacent refusal without
+destination mutation.
 
-D23 selects `AlphaBootstrapV2`: a one-MiB seed hole including the four-byte
-length and therefore a 1,048,572-byte maximum raw tape. That is a pending
-coherent profile migration, not permission to patch one seed locally. Both
-seeds, stamping, compiler memory maps and resource outcomes, the authoritative
-checker, and exact/adjacent capacity gates must move together before this README
-may call V2 current.
+The completed x64 extent migrations and their one-purpose transforms are
+recoverable from Git history; retaining a completed mutation tool in the live
+seed owner would add another apparent construction route. AlphaBootstrapV2 is a
+global lattice profile: compiler memory maps and resource outcomes, the
+authoritative checker, and their exact/adjacent capacity gates migrate with the
+seeds rather than inventing a seed-only or Gamma-only exception.
 
 ## Retention inventory
 

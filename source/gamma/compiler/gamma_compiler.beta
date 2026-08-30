@@ -38,10 +38,10 @@
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
 ;          11010048 LABELS [10.5 MiB,11 MiB)
-;          11534336 FIXUPS [11 MiB,11.5 MiB)
-;          12058624 PAYLOAD_STARTS [11.5 MiB,11.75 MiB)
-;          16777216 ERROR_NODE + ARENA [16 MiB,31.75 MiB)
-;          33292288 PAYLOAD [31.75 MiB,32 MiB)
+;          11534336 FIXUPS [11 MiB,13 MiB); 116508 x 16-byte rows
+;          16777216 ERROR_NODE + ARENA [16 MiB,125 MiB)
+;          132120576 PAYLOAD_STARTS [126 MiB,127 MiB)
+;          133169152 PAYLOAD [127 MiB,128 MiB)
 ; "type" = small id: Int = 0, Bytes = 1, nominal types start at 2.
 ; AST nodes 4 words: [source_off * 256 + tag, f0, f1, f2]. Func entry 4 words
 ; [name_off, params, packed profile, body]; PARAM [50, name_off, tyid, index+1].
@@ -84,9 +84,10 @@ proc slurp() {
         word[2097136] = n
         word[2097144] = 0
         ; Keep one readable zero node as the return value of a failed allocation.
-        ; The real arena begins after it and ends at the reserved 31.75 MiB
-        ; payload boundary. Physical memory above Beta's 32 MiB logical edge
-        ; belongs to Alpha's hidden return stack under the canonical Beta ABI.
+        ; The real arena begins after it and ends at the reserved 125 MiB
+        ; compiler boundary. AlphaBootstrapV2 gives Beta programs 128 MiB of
+        ; biased logical raw memory; final replay scratch and payload own its
+        ; last two MiB with a one-MiB guard between arena and scratch.
         word[16777216] = 255      ; reserved immutable error-node tag
         word[16777224] = 0
         word[16777232] = 0
@@ -282,7 +283,7 @@ proc parse_integer() {
 
 proc alloc(tag, f0, f1, f2) {
     let p = word[2097128]
-    state capacity { to write when (p <= 33292256)  to exhausted }
+    state capacity { to write when (p <= 131071968)  to exhausted }
     state write {
     word[p] = word[2097048] * 256 + tag
     word[p + 8] = f0
@@ -1442,7 +1443,7 @@ proc payload_reserve(count) {
     state sticky { to failed when (word[2097016] != 0)  to nonnegative }
     state nonnegative { to invalid when (count < 0)  to capacity }
     state capacity {
-        to available when (count <= 262140 - word[2097040])
+        to available when (count <= 1048572 - word[2097040])
         emit_fail_once(1, word[2097040])
         return 0
     }
@@ -1456,7 +1457,7 @@ proc put_byte(value) {
     state range_high { to invalid when (value > 255)  to reserve }
     state reserve { to write when (payload_reserve(1) == 1)  return 0 }
     state write {
-        byte[33292288 + word[2097040]] = value
+        byte[133169152 + word[2097040]] = value
         word[2097040] = word[2097040] + 1
         return 1
     }
@@ -1466,7 +1467,7 @@ proc put_byte(value) {
 proc put_u64(value) {
     state reserve { to write when (payload_reserve(8) == 1)  return 0 }
     state write {
-        word[33292288 + word[2097040]] = value
+        word[133169152 + word[2097040]] = value
         word[2097040] = word[2097040] + 8
         return 1
     }
@@ -1509,7 +1510,7 @@ proc add_fixup(payload_offset, label) {
         to invalid when (payload_offset > word[2097040] - 8)
         to capacity
     }
-    state capacity { to write when (row < 32768)  to exhausted }
+    state capacity { to write when (row < 116508)  to exhausted }
     state write {
         word[11534336 + row * 16] = payload_offset
         word[11534336 + row * 16 + 8] = label
@@ -1538,7 +1539,7 @@ proc resolve_fixups() {
         to missing when (encoded == 0)
         let target = encoded - 1
         to invalid_target when (target >= word[2097040])
-        word[33292288 + payload_offset] = target
+        word[133169152 + payload_offset] = target
         row = row + 1
         to loop
     }
@@ -1653,7 +1654,7 @@ proc emit_runtime_init() {
     emit_imm(252, 16777216)
     emit_imm(253, 16777216)
     emit_imm(254, 16777248)
-    emit_imm(255, 50331648)
+    emit_imm(255, 134217728)
     return 0
 }
 
@@ -1677,7 +1678,7 @@ proc emit_stack_reserver(entry_label, failure_label) {
     emit_rrx(15, 2, 3, failure_label)
     emit_rr(2, 4, 252)
     emit_rr(4, 4, 2)
-    emit_imm(5, 262144)
+    emit_imm(5, 1048576)
     emit_rrx(15, 4, 5, failure_label)
     emit_rr(2, 252, 4)
     emit_rr(2, 0, 4)
@@ -1691,19 +1692,19 @@ proc emit_stack_reserver(entry_label, failure_label) {
 ; order (parameter zero is `caller_cursor - 16`). Expression temporaries and
 ; evaluated arguments grow below r253 through r252. Every non-tail call reserves
 ; at least the 16-byte header before using Alpha call/ret. The explicit stack
-; therefore reaches its 256 KiB guard while Alpha's hidden return stack remains
-; above the 48 MiB heap ceiling, making hidden-stack overlap unreachable. Tail
+; therefore reaches its one-MiB guard while Alpha's hidden return stack remains
+; above the 128 MiB heap ceiling, making hidden-stack overlap unreachable. Tail
 ; calls copy their already-evaluated arguments upward, inherit the caller
 ; cursor, replace the frame in place, and jump directly to the resolved callee.
-; Compiler-owned prefix and field profiles are capped by the 16,515,072-byte
+; Compiler-owned prefix and field profiles are capped by the 15,728,640-byte
 ; explicit-stack extent before their 16-byte count arithmetic is evaluated.
 
 proc emit_gamma_call_frame(stack_label, callee_label, prefix_bytes, parameter_count) {
     state prefix_low { to invalid when (prefix_bytes < 16)  to prefix_aligned }
     state prefix_aligned { to invalid when (prefix_bytes % 16 != 0)  to prefix_high }
-    state prefix_high { to invalid when (prefix_bytes > 16515072)  to count_low }
+    state prefix_high { to invalid when (prefix_bytes > 15728640)  to count_low }
     state count_low { to invalid_count when (parameter_count < 0)  to count_high }
-    state count_high { to invalid_count when (parameter_count > 1032192)  to valid }
+    state count_high { to invalid_count when (parameter_count > 983040)  to valid }
     state valid {
         emit_rr(2, 6, 253)
         emit_rr(2, 7, 252)
@@ -1740,7 +1741,7 @@ proc emit_gamma_return_frame() {
 proc validate_gamma_frame_local(frame_prefix_bytes, local_index) {
     state prefix_low { to invalid_prefix when (frame_prefix_bytes < 16)  to prefix_aligned }
     state prefix_aligned { to invalid_prefix when (frame_prefix_bytes % 16 != 0)  to prefix_high }
-    state prefix_high { to invalid_prefix when (frame_prefix_bytes > 16515072)  to index_low }
+    state prefix_high { to invalid_prefix when (frame_prefix_bytes > 15728640)  to index_low }
     state index_low { to invalid_index when (local_index < 0)  to index_high }
     state index_high {
         to invalid_index when (local_index >= (frame_prefix_bytes - 16) / 16)
@@ -1778,11 +1779,11 @@ proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
 proc lower_resolved_parameter(frame_prefix_bytes, parameter_count, parameter_index) {
     state prefix_low { to invalid_prefix when (frame_prefix_bytes < 16)  to prefix_aligned }
     state prefix_aligned { to invalid_prefix when (frame_prefix_bytes % 16 != 0)  to prefix_high }
-    state prefix_high { to invalid_prefix when (frame_prefix_bytes > 16515072)  to count_low }
+    state prefix_high { to invalid_prefix when (frame_prefix_bytes > 15728640)  to count_low }
     state count_low { to invalid_count when (parameter_count < 0)  to count_high }
-    state count_high { to invalid_count when (parameter_count > 1032192)  to combined_extent }
+    state count_high { to invalid_count when (parameter_count > 983040)  to combined_extent }
     state combined_extent {
-        to invalid_count when (parameter_count > (16515072 - frame_prefix_bytes) / 16)
+        to invalid_count when (parameter_count > (15728640 - frame_prefix_bytes) / 16)
         to index_low
     }
     state index_low { to invalid_index when (parameter_index < 0)  to index_high }
@@ -1802,9 +1803,9 @@ proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
                            failure_label) {
     state target_low { to invalid_target when (target_prefix_bytes < 16)  to target_aligned }
     state target_aligned { to invalid_target when (target_prefix_bytes % 16 != 0)  to target_high }
-    state target_high { to invalid_target when (target_prefix_bytes > 16515072)  to count_low }
+    state target_high { to invalid_target when (target_prefix_bytes > 15728640)  to count_low }
     state count_low { to invalid_count when (parameter_count < 0)  to count_high }
-    state count_high { to invalid_count when (parameter_count > 1032192)  to setup }
+    state count_high { to invalid_count when (parameter_count > 983040)  to setup }
     state setup {
         emit_rr(2, 6, 253)
         emit_word_load(7, 6, 0)
@@ -1813,7 +1814,7 @@ proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
         emit_rrx(15, 8, 10, failure_label)
         emit_rr(2, 9, 8)
         emit_rr(4, 9, 10)
-        emit_imm(10, 262144)
+        emit_imm(10, 1048576)
         emit_rrx(15, 9, 10, failure_label)
         let parameter_index = 0
         to copy_loop
@@ -1855,7 +1856,7 @@ proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
 proc emit_gamma_constructor_value(heap_label, constructor_tag, field_count) {
     state tag_low { to invalid_tag when (constructor_tag < 2)  to count_low }
     state count_low { to invalid_count when (field_count < 0)  to count_high }
-    state count_high { to invalid_count when (field_count > 1032192)  to empty_check }
+    state count_high { to invalid_count when (field_count > 983040)  to empty_check }
     state empty_check { to empty when (field_count == 0)  to allocate }
     state empty {
         emit_imm(0, constructor_tag)
@@ -1898,7 +1899,7 @@ proc emit_gamma_constructor_value(heap_label, constructor_tag, field_count) {
 proc emit_gamma_field_load(field_count, field_index, internal_label) {
     let below_heap = new_label()
     state count_low { to invalid when (field_count <= 0)  to count_high }
-    state count_high { to invalid when (field_count > 1032192)  to index_low }
+    state count_high { to invalid when (field_count > 983040)  to index_low }
     state index_low { to invalid when (field_index < 0)  to index_high }
     state index_high { to invalid when (field_index >= field_count)  to valid }
     state valid {
@@ -2370,14 +2371,14 @@ proc validate_payload_structure() {
     let pc = 0
     state clear_loop { to clear_byte when (pc < word[2097040])  to first_setup }
     state clear_byte {
-        byte[12058624 + pc] = 0
+        byte[132120576 + pc] = 0
         pc = pc + 1
         to clear_loop
     }
     state first_setup { pc = 0  to first_loop }
     state first_loop { to first_body when (pc < word[2097040])  to second_setup }
     state first_body {
-        let shape = alpha_instruction_shape(byte[33292288 + pc])
+        let shape = alpha_instruction_shape(byte[133169152 + pc])
         let width = shape % 16
         to invalid when (shape == 0)
         to first_extent
@@ -2385,14 +2386,14 @@ proc validate_payload_structure() {
     state first_extent {
         let instruction_end = pc + width
         to invalid when (instruction_end > word[2097040])
-        byte[12058624 + pc] = 1
+        byte[132120576 + pc] = 1
         pc = instruction_end
         to first_loop
     }
     state second_setup { pc = 0  to second_loop }
     state second_loop { to second_body when (pc < word[2097040])  return 1 }
     state second_body {
-        let shape2 = alpha_instruction_shape(byte[33292288 + pc])
+        let shape2 = alpha_instruction_shape(byte[133169152 + pc])
         let width2 = shape2 % 16
         let target_delta = shape2 / 16
         to invalid when (shape2 == 0)
@@ -2400,10 +2401,10 @@ proc validate_payload_structure() {
         to advance
     }
     state target {
-        let target = word[33292288 + pc + target_delta]
+        let target = word[133169152 + pc + target_delta]
         to invalid when (target < 0)
         to invalid when (target >= word[2097040])
-        to invalid when (byte[12058624 + target] != 1)
+        to invalid when (byte[132120576 + target] != 1)
         to advance
     }
     state advance { pc = pc + width2  to second_loop }
@@ -2563,7 +2564,7 @@ proc lower_resolved_arguments(args, failure_code) {
     state failure_call { to arena_low when (failure_code == 13)  to failure_constructor }
     state failure_constructor { to arena_low when (failure_code == 14)  to invalid_failure_code }
     state arena_low { to invalid_list when (arena_end < 16777248)  to arena_high }
-    state arena_high { to invalid_list when (arena_end > 33292288)  to arena_aligned }
+    state arena_high { to invalid_list when (arena_end > 131072000)  to arena_aligned }
     state arena_aligned { to invalid_list when ((arena_end - 16777248) % 32 != 0)  to validate_loop }
     state validate_loop { to validate_node when (cursor != 0)  to validate_extent }
     state validate_node {
@@ -2581,7 +2582,7 @@ proc lower_resolved_arguments(args, failure_code) {
         to validate_advance
     }
     state validate_advance {
-        to invalid_list when (argument_count == 1032192)
+        to invalid_list when (argument_count == 983040)
         argument_count = argument_count + 1
         cursor = next_cursor
         to validate_loop
@@ -2617,7 +2618,7 @@ proc lower_resolved_arguments(args, failure_code) {
 proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes) {
     state prefix_low { to invalid_profile when (callee_prefix_bytes < 16)  to prefix_aligned }
     state prefix_aligned { to invalid_profile when (callee_prefix_bytes % 16 != 0)  to prefix_high }
-    state prefix_high { to invalid_profile when (callee_prefix_bytes > 16515072)  to arguments }
+    state prefix_high { to invalid_profile when (callee_prefix_bytes > 15728640)  to arguments }
     state arguments {
         let parameter_count = lower_resolved_arguments(args, 13)
         to failed when (parameter_count < 0)

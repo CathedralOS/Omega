@@ -29,8 +29,9 @@ A configuration is `σ = (pc, M, R, sp)` plus the two I/O byte streams:
 | `in` | input stream: a sequence of bytes (process stdin); `read` consumes its head |
 | `out`| output stream: bytes appended by `write` (process stdout) |
 
-`MEMSIZE` is an implementation parameter; the committed seeds use 64 MiB
-(`0x04000000`). `sp` is initialized to `0x04000000` and the stack grows **down**.
+`MEMSIZE` is an implementation parameter; the committed AlphaBootstrapV2 seeds
+use 256 MiB (`0x10000000`). `sp` is initialized to `0x10000000` and the stack
+grows **down**.
 
 ## 2. Values and arithmetic
 
@@ -66,7 +67,7 @@ host container are not part of the `.tape` or compiler identity. The loader:
 
 1. zero-fills `M` (memory starts clean),
 2. copies the `L` bytecode bytes into `M[0 .. L-1]`,
-3. sets `pc = 0`, all `R[i] = 0`, `sp = 0x04000000`,
+3. sets `pc = 0`, all `R[i] = 0`, `sp = 0x10000000`,
 4. begins fetch/dispatch.
 
 The same tape runs on every platform's seed — only the surrounding executable
@@ -141,12 +142,11 @@ rung doc; they are **not** yet specified behavior:
   or fault. A trust root *should* trap; until it does, programs must stay in
   bounds and this document does not assign a meaning to violations.
 - **Memory size is fixed** (`MEMSIZE`, and the tape hole) rather than an
-  execution parameter with a defined out-of-memory result. The tape hole is
-  currently 256 KiB on both committed seeds. D23 requires the next coherent
-  bootstrap profile to use a one-MiB hole with a 1,048,572-byte raw-tape
-  maximum, but that profile does not become current until its seeds, compilers,
-  checker, and exact limit gates move together. Capacity is not part of Alpha's
-  language semantics; the same tape runs identically on both platform realizations.
+  execution parameter with a defined out-of-memory result. AlphaBootstrapV2
+  selects 256 MiB of semantic memory and an exact one-MiB stamped hole,
+  including the four-byte length, for a 1,048,572-byte raw-tape maximum.
+  Capacity is not part of Alpha's opcode semantics; the same admitted tape runs
+  identically on both platform realizations.
 
 Everything in §5–§7 is pinned by `conformance.sh`; §8 is deliberately out of
 scope until the hardening lands.

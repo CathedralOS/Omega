@@ -49,9 +49,6 @@
 ;   524872 INIT_TARGET_LOCAL 524880 INIT_FIRST_EDGE 524888 INIT_EDGE_TOTAL
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
-;   2097152 TAPE_BUFFER (262140-byte checked Alpha payload extent)
-;   540000 PROC_TABLE (128 x 32: start, len, params, slots)
-;   545000 PROC_PC (128 x 8)
 ;   550000 CALL_TABLE (1024 x 24: start, len, argc)
 ;   575000 CALL_TARGET_PROC (1024 x 8)
 ;   600000 SLOT_TABLE (64 x 16: start, len)
@@ -62,20 +59,23 @@
 ;   655360 STATE_PC (1024 x 8)
 ;   680000 EDGE_TABLE (1024 x 24: start, len, proc index)
 ;   705000 EDGE_TARGET_STATE (1024 x 8)
-;   714000 INIT_BLOCK_REQUIRED (1152 x 64 bytes)
-;   788000 INIT_BLOCK_GENERATED (1152 x 64 bytes)
-;   862000 INIT_EDGE_GENERATED (1024 x 64 bytes)
-;   928000 INIT_EDGE_SOURCE_BLOCK (1024 x 8)
-;   939000 INIT_BLOCK_TERMINATOR (1152 bytes: 0 fallthrough, 1 to, 2 return)
-;   941000 INIT_PROC_FIRST_STATE (128 x 8)
-;   943000 INIT_PROC_STATE_TOTAL (128 x 8)
-;   945000 INIT_PROC_PARAM_COUNT (128 x 8)
-;   946024 INIT_IN_WORK (129 x 64 bytes)
-;   954280 INIT_REACH_WORK (129 bytes)
-;   956000 INIT_PROC_FIRST_EDGE (128 x 8)
-;   958000 INIT_PROC_EDGE_TOTAL (128 x 8)
-;   2621440 INTERNAL_PC (65536 x 8)
-;   3145728 FIXUP_TABLE (32768 x 24: operand offset, kind, identity)
+;   5242880 PROC_TABLE (256 x 32: start, len, params, slots)
+;   5251072 PROC_PC (256 x 8)
+;   5253120 INIT_PROC_FIRST_STATE (256 x 8)
+;   5255168 INIT_PROC_STATE_TOTAL (256 x 8)
+;   5257216 INIT_PROC_PARAM_COUNT (256 x 8)
+;   5259264 INIT_PROC_FIRST_EDGE (256 x 8)
+;   5261312 INIT_PROC_EDGE_TOTAL (256 x 8)
+;   5308416 INIT_BLOCK_REQUIRED (1280 x 64 bytes)
+;   5390336 INIT_BLOCK_GENERATED (1280 x 64 bytes)
+;   5472256 INIT_EDGE_GENERATED (1024 x 64 bytes)
+;   5537792 INIT_EDGE_SOURCE_BLOCK (1024 x 8)
+;   5545984 INIT_BLOCK_TERMINATOR (1280 bytes: 0 fallthrough, 1 to, 2 return)
+;   5548032 INIT_IN_WORK (129 x 64 reusable bytes)
+;   5556288 INIT_REACH_WORK (129 reusable bytes)
+;   16777216 TAPE_BUFFER (1048572-byte checked Alpha payload extent)
+;   20971520 INTERNAL_PC (262144 x 8)
+;   25165824 FIXUP_TABLE (116508 x 24: operand offset, kind, identity)
 
 ; ---------------- entry and checked slurp ----------------
         imm   r6, 0
@@ -900,11 +900,11 @@ record_slot_read:
         imm   r0, 64
         mul   r0, r6
         add   r0, r7
-        imm   r1, 788000
+        imm   r1, 5390336
         add   r1, r0
         loadb r2, r1
         jnz   r2, rsr_done
-        imm   r1, 714000
+        imm   r1, 5308416
         add   r1, r0
         imm   r2, 1
         storeb r1, r2
@@ -921,7 +921,7 @@ record_slot_write:
         imm   r0, 64
         mul   r0, r6
         add   r0, r7
-        imm   r1, 788000
+        imm   r1, 5390336
         add   r1, r0
         imm   r2, 1
         storeb r1, r2
@@ -1024,7 +1024,7 @@ finish_memory_load:
         imm   r0, 1
         jeq   r6, r0, fml_byte
         imm   r0, 0
-        imm   r1, 33554425
+        imm   r1, 134217721
         call  emit_memory_guard
         imm   r0, 10
         imm   r1, 0
@@ -1033,7 +1033,7 @@ finish_memory_load:
         ret
 fml_byte:
         imm   r0, 0
-        imm   r1, 33554432
+        imm   r1, 134217728
         call  emit_memory_guard
         imm   r0, 8
         imm   r1, 0
@@ -1049,7 +1049,7 @@ emit_memory_store:
         imm   r1, 1
         jeq   r6, r1, ems_guard_byte
         imm   r0, 1
-        imm   r1, 33554425
+        imm   r1, 134217721
         call  emit_memory_guard
         imm   r0, 11
         imm   r1, 1
@@ -1058,7 +1058,7 @@ emit_memory_store:
         ret
 ems_guard_byte:
         imm   r0, 1
-        imm   r1, 33554432
+        imm   r1, 134217728
         call  emit_memory_guard
         imm   r0, 9
         imm   r1, 1
@@ -1078,7 +1078,7 @@ emit_memory_guard:
         jnz   r6, emg_known
         imm   r0, 524536
         load  r6, r0
-        imm   r1, 65536
+        imm   r1, 262144
         jeq   r6, r1, emg_error
         imm   r0, 524704
         store r0, r6
@@ -1091,7 +1091,7 @@ emit_memory_guard:
 emg_known:
         imm   r0, 524536
         load  r6, r0
-        imm   r1, 65536
+        imm   r1, 262144
         jeq   r6, r1, emg_error
         imm   r0, 524720
         store r0, r6
@@ -1158,7 +1158,7 @@ emit_memory_guard_runtime:
         call  record_internal_pc
         imm   r0, 524536
         load  r6, r0
-        imm   r1, 65534
+        imm   r1, 262142
         jlt   r6, r1, emgr_labels
         imm   r0, 5
         imm   r1, 3
@@ -1205,7 +1205,7 @@ emgr_labels:
         load  r0, r0
         call  record_internal_pc
         imm   r0, 2
-        imm   r1, 2097152
+        imm   r1, 4194304
         call  emit_imm
         imm   r0, 3
         imm   r1, 4
@@ -1615,21 +1615,21 @@ begin_init_proc:
         store r0, r6
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 941000
+        imm   r1, 5253120
         add   r0, r1
         imm   r1, 524568
         load  r1, r1
         store r0, r1
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 945000
+        imm   r1, 5257216
         add   r0, r1
         imm   r1, 524424
         load  r1, r1
         store r0, r1
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 956000
+        imm   r1, 5259264
         add   r0, r1
         imm   r1, 524576
         load  r1, r1
@@ -1645,7 +1645,7 @@ begin_init_state:
         load  r6, r0
         imm   r1, 1
         sub   r6, r1
-        imm   r1, 128
+        imm   r1, 256
         add   r6, r1
         imm   r0, 524784
         store r0, r6
@@ -1658,7 +1658,7 @@ record_block_terminator:
         jnz   r0, rbt_done
         imm   r0, 524784
         load  r6, r0
-        imm   r0, 939000
+        imm   r0, 5545984
         add   r0, r6
         imm   r1, 524792
         load  r1, r1
@@ -1813,7 +1813,7 @@ add_proc:
         jnz   r0, ap_error
         imm   r0, 524408
         load  r7, r0
-        imm   r1, 128
+        imm   r1, 256
         jeq   r7, r1, ap_incomplete
         imm   r0, 524496
         imm   r1, 0
@@ -1826,7 +1826,7 @@ ap_scan:
 ap_compare:
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540000
+        imm   r1, 5242880
         add   r0, r1
         call  name_equals_record
         jnz   r0, ap_error
@@ -1839,7 +1839,7 @@ ap_compare:
 ap_add:
         imm   r0, 32
         mul   r0, r7
-        imm   r1, 540000
+        imm   r1, 5242880
         add   r0, r1
         imm   r1, 524432
         load  r2, r1
@@ -1870,8 +1870,8 @@ ap_error:
         ret
 ap_incomplete:
         imm   r0, 4
-        imm   r1, 128
-        imm   r2, 129
+        imm   r1, 256
+        imm   r2, 257
         call  set_incomplete_at_source
         ret
 
@@ -1886,7 +1886,7 @@ select_proc:
 sp_have:
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540000
+        imm   r1, 5242880
         add   r0, r1
         call  name_equals_record
         jz    r0, sp_error
@@ -1896,7 +1896,7 @@ sp_have:
         store r0, r6
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540016
+        imm   r1, 5242896
         add   r0, r1
         load  r1, r0
         imm   r0, 524424
@@ -1912,14 +1912,14 @@ finish_proc:
         load  r6, r0
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540024
+        imm   r1, 5242904
         add   r0, r1
         imm   r1, 524424
         load  r1, r1
         store r0, r1
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 941000
+        imm   r1, 5253120
         add   r0, r1
         load  r2, r0
         imm   r0, 524568
@@ -1927,12 +1927,12 @@ finish_proc:
         sub   r1, r2
         imm   r0, 8
         mul   r0, r6
-        imm   r2, 943000
+        imm   r2, 5255168
         add   r0, r2
         store r0, r1
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 956000
+        imm   r1, 5259264
         add   r0, r1
         load  r2, r0
         imm   r0, 524576
@@ -1940,7 +1940,7 @@ finish_proc:
         sub   r1, r2
         imm   r0, 8
         mul   r0, r6
-        imm   r2, 958000
+        imm   r2, 5261312
         add   r0, r2
         store r0, r1
         ret
@@ -1948,7 +1948,7 @@ finish_proc:
 emit_proc_header:
         imm   r0, 524536
         load  r6, r0
-        imm   r1, 65536
+        imm   r1, 262144
         jeq   r6, r1, eph_error
         imm   r0, 524728
         store r0, r6
@@ -1973,7 +1973,7 @@ emit_proc_header:
         load  r6, r0
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540000
+        imm   r1, 5242880
         mov   r7, r0
         add   r7, r1
         imm   r0, 24
@@ -1991,7 +1991,7 @@ eph_params:
         load  r6, r0
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540016
+        imm   r1, 5242896
         add   r0, r1
         load  r6, r0
         imm   r0, 524456
@@ -2049,7 +2049,7 @@ check_proc_slots:
         load  r6, r0
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540024
+        imm   r1, 5242904
         add   r0, r1
         load  r1, r0
         imm   r0, 524424
@@ -2413,7 +2413,7 @@ record_init_edge:
         mov   r0, r5
         imm   r1, 8
         mul   r0, r1
-        imm   r1, 928000
+        imm   r1, 5537792
         add   r0, r1
         store r0, r4
         imm   r3, 0
@@ -2424,14 +2424,14 @@ rie_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r3
-        imm   r1, 788000
+        imm   r1, 5390336
         add   r0, r1
         loadb r2, r0
         mov   r0, r5
         imm   r1, 64
         mul   r0, r1
         add   r0, r3
-        imm   r1, 862000
+        imm   r1, 5472256
         add   r0, r1
         storeb r0, r2
         imm   r0, 1
@@ -2658,7 +2658,7 @@ vp_main_loop:
 vp_main_check:
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540000
+        imm   r1, 5242880
         add   r0, r1
         mov   r5, r0
         load  r1, r5
@@ -2677,7 +2677,7 @@ vp_main_check:
         load  r6, r0
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540000
+        imm   r1, 5242880
         mov   r5, r0
         add   r5, r1
         imm   r0, 16
@@ -2741,7 +2741,7 @@ vp_target_loop:
 vp_target_check:
         imm   r0, 32
         mul   r0, r6
-        imm   r1, 540000
+        imm   r1, 5242880
         add   r0, r1
         mov   r5, r0
         call  name_equals_record
@@ -2881,13 +2881,13 @@ vi_proc:
         imm   r0, 8
         mul   r0, r6
         mov   r5, r0
-        imm   r1, 941000
+        imm   r1, 5253120
         add   r0, r1
         load  r1, r0
         imm   r0, 524816
         store r0, r1
         mov   r0, r5
-        imm   r1, 943000
+        imm   r1, 5255168
         add   r0, r1
         load  r1, r0
         imm   r0, 524824
@@ -2897,13 +2897,13 @@ vi_proc:
         imm   r0, 524832
         store r0, r1
         mov   r0, r5
-        imm   r1, 956000
+        imm   r1, 5259264
         add   r0, r1
         load  r1, r0
         imm   r0, 524880
         store r0, r1
         mov   r0, r5
-        imm   r1, 958000
+        imm   r1, 5261312
         add   r0, r1
         load  r1, r0
         imm   r0, 524888
@@ -2933,12 +2933,12 @@ iiw_block_loop:
         imm   r0, 524832
         load  r7, r0
         jlt   r6, r7, iiw_block
-        imm   r0, 954280
+        imm   r0, 5556288
         imm   r1, 1
         storeb r0, r1
         ret
 iiw_block:
-        imm   r0, 954280
+        imm   r0, 5556288
         add   r0, r6
         imm   r1, 0
         storeb r0, r1
@@ -2958,7 +2958,7 @@ iiw_entry_slot:
         load  r0, r0
         imm   r1, 8
         mul   r0, r1
-        imm   r1, 945000
+        imm   r1, 5257216
         add   r0, r1
         load  r1, r0
         jlt   r7, r1, iiw_store_slot
@@ -2968,7 +2968,7 @@ iiw_store_slot:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 946024
+        imm   r1, 5548032
         add   r0, r1
         storeb r0, r2
         imm   r0, 524856
@@ -3011,14 +3011,14 @@ cir_edge:
         mov   r0, r6
         imm   r1, 8
         mul   r0, r1
-        imm   r1, 928000
+        imm   r1, 5537792
         add   r0, r1
         load  r0, r0
         call  init_source_local
         imm   r1, 0
         jlt   r0, r1, cir_edge_next
         mov   r5, r0
-        imm   r0, 954280
+        imm   r0, 5556288
         add   r0, r5
         loadb r0, r0
         jz    r0, cir_edge_next
@@ -3034,7 +3034,7 @@ cir_edge:
         sub   r5, r1
         imm   r1, 1
         add   r5, r1
-        imm   r0, 954280
+        imm   r0, 5556288
         add   r0, r5
         loadb r2, r0
         jnz   r2, cir_edge_next
@@ -3061,13 +3061,13 @@ cir_fall_loop:
         jnz   r0, cir_again
         ret
 cir_fall:
-        imm   r0, 954280
+        imm   r0, 5556288
         add   r0, r6
         loadb r0, r0
         jz    r0, cir_fall_next
         mov   r0, r6
         call  init_local_to_global
-        imm   r1, 939000
+        imm   r1, 5545984
         add   r0, r1
         loadb r0, r0
         jnz   r0, cir_fall_next
@@ -3113,7 +3113,7 @@ sii_edge:
         mov   r0, r6
         imm   r1, 8
         mul   r0, r1
-        imm   r1, 928000
+        imm   r1, 5537792
         add   r0, r1
         load  r0, r0
         call  init_source_local
@@ -3121,7 +3121,7 @@ sii_edge:
         jlt   r0, r1, sii_edge_next
         imm   r1, 524864
         store r1, r0
-        imm   r1, 954280
+        imm   r1, 5556288
         add   r1, r0
         loadb r1, r1
         jz    r1, sii_edge_next
@@ -3153,7 +3153,7 @@ sii_edge_slot_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 946024
+        imm   r1, 5548032
         add   r0, r1
         loadb r2, r0
         jnz   r2, sii_edge_candidate_one
@@ -3163,7 +3163,7 @@ sii_edge_slot_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 862000
+        imm   r1, 5472256
         add   r0, r1
         loadb r2, r0
         jnz   r2, sii_edge_candidate_one
@@ -3178,7 +3178,7 @@ sii_edge_merge:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 946024
+        imm   r1, 5548032
         add   r0, r1
         loadb r3, r0
         jz    r3, sii_edge_slot_next
@@ -3214,14 +3214,14 @@ sii_fall_loop:
         jnz   r0, sii_again
         ret
 sii_fall:
-        imm   r0, 954280
+        imm   r0, 5556288
         add   r0, r6
         loadb r0, r0
         jz    r0, sii_fall_next
         mov   r0, r6
         call  init_local_to_global
         mov   r5, r0
-        imm   r1, 939000
+        imm   r1, 5545984
         add   r0, r1
         loadb r0, r0
         jnz   r0, sii_fall_next
@@ -3237,7 +3237,7 @@ sii_fall_slot_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 946024
+        imm   r1, 5548032
         add   r0, r1
         loadb r2, r0
         jnz   r2, sii_fall_candidate_one
@@ -3245,7 +3245,7 @@ sii_fall_slot_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 788000
+        imm   r1, 5390336
         add   r0, r1
         loadb r2, r0
         jnz   r2, sii_fall_candidate_one
@@ -3260,7 +3260,7 @@ sii_fall_merge:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 946024
+        imm   r1, 5548032
         add   r0, r1
         loadb r3, r0
         jz    r3, sii_fall_slot_next
@@ -3296,7 +3296,7 @@ vir_block_loop:
         jlt   r6, r7, vir_block
         ret
 vir_block:
-        imm   r0, 954280
+        imm   r0, 5556288
         add   r0, r6
         loadb r0, r0
         jz    r0, vir_next_block
@@ -3315,7 +3315,7 @@ vir_slot_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 714000
+        imm   r1, 5308416
         add   r0, r1
         loadb r0, r0
         jz    r0, vir_slot_next
@@ -3323,7 +3323,7 @@ vir_slot_loop:
         imm   r1, 64
         mul   r0, r1
         add   r0, r7
-        imm   r1, 946024
+        imm   r1, 5548032
         add   r0, r1
         loadb r0, r0
         jnz   r0, vir_slot_next
@@ -3353,7 +3353,7 @@ init_source_local:
         jeq   r6, r1, isl_entry
         imm   r0, 524816
         load  r2, r0
-        imm   r3, 128
+        imm   r3, 256
         add   r2, r3
         jlt   r6, r2, isl_other
         imm   r0, 524824
@@ -3385,7 +3385,7 @@ init_local_to_global:
         imm   r1, 524816
         load  r1, r1
         add   r0, r1
-        imm   r1, 128
+        imm   r1, 256
         add   r0, r1
         ret
 iltg_entry:
@@ -3806,10 +3806,10 @@ iic_yes:
 ; patches them after EOF, and only then writes stdout.
 emit_program_prelude:
         imm   r0, 15
-        imm   r1, 1048576
+        imm   r1, 2097152
         call  emit_imm
         imm   r0, 14
-        imm   r1, 1048576
+        imm   r1, 2097152
         call  emit_imm
         imm   r0, 13
         imm   r1, 8
@@ -3826,7 +3826,7 @@ emit_program_prelude:
 
 ; Input r0 is a positive fixed byte count. Subtract it, then branch to the
 ; current procedure's terminal fault block if the positive aligned stack drops
-; below 262144. No generated load/store occurs between subtraction and check.
+; below 1048576. No generated load/store occurs between subtraction and check.
 emit_stack_reserve:
         imm   r1, 524736
         store r1, r0
@@ -3839,7 +3839,7 @@ emit_stack_reserve:
         imm   r2, 5
         call  emit_rr
         imm   r0, 4
-        imm   r1, 262144
+        imm   r1, 1048576
         call  emit_imm
         imm   r0, 15
         imm   r1, 15
@@ -4046,9 +4046,9 @@ emit_byte:
 eb_store:
         imm   r0, 524400
         load  r1, r0
-        imm   r2, 262140
+        imm   r2, 1048572
         jeq   r1, r2, eb_error
-        imm   r2, 2097152
+        imm   r2, 16777216
         add   r2, r1
         storeb r2, r4
         imm   r2, 1
@@ -4075,11 +4075,11 @@ add_fixup:
         mov   r6, r2
         imm   r0, 524656
         load  r7, r0
-        imm   r1, 32768
+        imm   r1, 116508
         jeq   r7, r1, af_error
         imm   r1, 24
         mul   r1, r7
-        imm   r2, 3145728
+        imm   r2, 25165824
         add   r1, r2
         store r1, r4
         imm   r2, 8
@@ -4113,7 +4113,7 @@ record_proc_pc:
 rpc_store:
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 545000
+        imm   r1, 5251072
         add   r0, r1
         imm   r1, 524400
         load  r1, r1
@@ -4160,13 +4160,13 @@ record_internal_pc:
         load  r1, r1
         jz    r1, rip_done
         mov   r6, r0
-        imm   r1, 65536
+        imm   r1, 262144
         jlt   r6, r1, rip_store
         jmp   rip_error
 rip_store:
         imm   r0, 8
         mul   r0, r6
-        imm   r1, 2621440
+        imm   r1, 20971520
         add   r0, r1
         imm   r1, 524400
         load  r1, r1
@@ -4226,7 +4226,7 @@ pfu_loop:
 pfu_row:
         imm   r0, 24
         mul   r0, r6
-        imm   r1, 3145728
+        imm   r1, 25165824
         add   r0, r1
         mov   r5, r0
         load  r4, r5
@@ -4250,7 +4250,7 @@ pfu_proc:
 pfu_proc_load:
         imm   r0, 8
         mul   r0, r10
-        imm   r1, 545000
+        imm   r1, 5251072
         add   r0, r1
         load  r10, r0
         jmp   pfu_patch
@@ -4274,7 +4274,7 @@ pfu_internal:
 pfu_internal_load:
         imm   r0, 8
         mul   r0, r10
-        imm   r1, 2621440
+        imm   r1, 20971520
         add   r0, r1
         load  r10, r0
 pfu_patch:
@@ -4284,7 +4284,7 @@ pfu_patch:
         imm   r3, 8
         add   r2, r3
         jlt   r1, r2, pfu_error
-        imm   r0, 2097152
+        imm   r0, 16777216
         add   r0, r4
         store r0, r10
         imm   r0, 1
@@ -4305,7 +4305,7 @@ ptape_loop:
         jlt   r6, r7, ptape_byte
         ret
 ptape_byte:
-        imm   r0, 2097152
+        imm   r0, 16777216
         add   r0, r6
         loadb r0, r0
         write r0
@@ -4316,7 +4316,7 @@ ptape_byte:
 ; Input r1=prospective byte count. Both passes enforce Alpha's actual maximum
 ; runnable payload before any output is published.
 reserve_output:
-        imm   r2, 262140
+        imm   r2, 1048572
         sub   r2, r1
         imm   r3, 524400
         load  r4, r3
@@ -4329,7 +4329,7 @@ ro_error:
         mov   r2, r4
         add   r2, r1
         imm   r0, 11
-        imm   r1, 262140
+        imm   r1, 1048572
         imm   r3, 2
         mov   r4, r5
         call  set_incomplete
