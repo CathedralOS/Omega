@@ -148,6 +148,93 @@ fn literal_indexed_recast_keeps_immediate_sibling_bytes_writable() {
 }
 
 #[test]
+fn literal_indexed_record_recast_retains_its_exact_padded_range() {
+    let source = r#"
+        data Header {
+            code: u8;
+        }
+
+        data Desc {
+            head: Header;
+            tail: u32;
+        }
+
+        data Cell {
+            bytes: [u8; 24];
+        }
+
+        machine observe(value: &Desc) {
+        }
+
+        machine Cell::exercise(&mut self) {
+            let shared: &Desc = &self.bytes[2] as &Desc;
+            observe(shared);
+            let mutable: &mut Desc = &mut self.bytes[12] as &mut Desc;
+            mutable.head.code = 1;
+        }
+    "#;
+
+    let typed = typed_program(source);
+    psi_validation::validate_program(&typed).expect("both record recasts should validate");
+    let facts = build_borrow_facts(&typed);
+    let loans = facts.loans.iter().map(|(_, loan)| loan).collect::<Vec<_>>();
+
+    assert_eq!(loans.len(), 2, "one loan per validated record recast");
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Read
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 2, end: 10 }]
+    }));
+    assert!(loans.iter().any(|loan| {
+        loan.kind == psi_checked_trees::BorrowAccessKind::Mutable
+            && facts.loan_segments(loan)
+                == [psi_facts::PlaceSegment::FixedRange { start: 12, end: 20 }]
+    }));
+}
+
+#[test]
+fn literal_indexed_record_recast_rejects_mutation_of_its_first_footprint_byte() {
+    let diagnostics = check_program(&indexed_mutable_record_recast_source(
+        "self.bytes[2] = 1;",
+        "view.head.code = 2;",
+    ))
+    .expect_err("the first byte is inside the retained record footprint");
+
+    assert_conflict(&diagnostics, "self.bytes[2]", "view");
+}
+
+#[test]
+fn literal_indexed_record_recast_rejects_mutation_of_its_last_footprint_byte() {
+    let diagnostics = check_program(&indexed_mutable_record_recast_source(
+        "self.bytes[9] = 1;",
+        "view.head.code = 2;",
+    ))
+    .expect_err("the last byte is inside the retained record footprint");
+
+    assert_conflict(&diagnostics, "self.bytes[9]", "view");
+}
+
+#[test]
+fn literal_indexed_record_recast_rejects_mutation_of_interior_padding() {
+    let diagnostics = check_program(&indexed_mutable_record_recast_source(
+        "self.bytes[3] = 1;",
+        "view.head.code = 2;",
+    ))
+    .expect_err("canonical record padding remains part of the retained footprint");
+
+    assert_conflict(&diagnostics, "self.bytes[3]", "view");
+}
+
+#[test]
+fn literal_indexed_record_recast_keeps_immediate_sibling_bytes_writable() {
+    check_program(&indexed_mutable_record_recast_source(
+        "self.bytes[1] = 1; self.bytes[10] = 1;",
+        "view.head.code = 2;",
+    ))
+    .expect("the bytes immediately before and after [2, 10) are disjoint");
+}
+
+#[test]
 fn bounded_runtime_indexed_recast_remains_outside_precise_loan_publication() {
     let source = r#"
         data Cell {
@@ -201,6 +288,30 @@ fn fact_establishing_literal_recast_gains_no_loan_and_keeps_its_validation_error
     assert_invalid_recast_has_no_loan(source, "cannot establish the target's representation facts");
 }
 
+#[test]
+fn constrained_record_literal_recast_gains_no_loan_and_keeps_its_validation_error() {
+    let source = r#"
+        domain u16::Small
+        requires
+            self <= 10;
+
+        data Facted {
+            value: u16 in Small;
+        }
+
+        data Cell {
+            bytes: [u8; 4];
+        }
+
+        machine Cell::exercise(&mut self) {
+            let view: &mut Facted = &mut self.bytes[1] as &mut Facted;
+            view.value = 1;
+        }
+    "#;
+
+    assert_invalid_recast_has_no_loan(source, "must be recursively fact-free");
+}
+
 fn indexed_mutable_recast_source(mutation: &str, final_use: &str) -> String {
     format!(
         r#"
@@ -210,6 +321,31 @@ fn indexed_mutable_recast_source(mutation: &str, final_use: &str) -> String {
 
             machine Cell::exercise(&mut self) {{
                 let view: &mut u32 = &mut self.bytes[2] as &mut u32;
+                {mutation}
+                {final_use}
+            }}
+        "#
+    )
+}
+
+fn indexed_mutable_record_recast_source(mutation: &str, final_use: &str) -> String {
+    format!(
+        r#"
+            data Header {{
+                code: u8;
+            }}
+
+            data Desc {{
+                head: Header;
+                tail: u32;
+            }}
+
+            data Cell {{
+                bytes: [u8; 12];
+            }}
+
+            machine Cell::exercise(&mut self) {{
+                let view: &mut Desc = &mut self.bytes[2] as &mut Desc;
                 {mutation}
                 {final_use}
             }}
