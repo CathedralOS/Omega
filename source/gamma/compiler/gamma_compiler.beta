@@ -3,7 +3,7 @@
 ; The strict parser, declaration tables, coordinate custody, and static checks
 ; below are retained compiler frontend material. The current gate supplies a
 ; temporary frontend-only entry; no compiler tape or emitted-program adapter is
-; published until the remaining resolver, lowering, and application-profile
+; published until the remaining resolver, lowering, and D19 application-adapter
 ; work is complete.
 ;
 ; Builtin Int/Bytes + top-level functions with typed params and a declared return
@@ -397,7 +397,7 @@ proc valid_value_name(off) {
 }
 
 ; Declared nominal types and constructors share D16's capitalization and
-; builtin-name exclusion even though Q3 may keep their namespaces separate.
+; builtin-name exclusion even though Q2 may keep their namespaces separate.
 proc valid_nominal_name(off) {
     state first { to int_check when (is_upper(byte[2097152 + off]) == 1)  return 0 }
     state int_check { to bytes_check when (name_is_packed(off, 7630409, 0, 3) == 0)  return 0 }
@@ -969,7 +969,7 @@ proc tenv_lookup(qoff) {
 }
 
 ; Resolve declaration type spellings only after the complete data* / def+
-; sequence has been parsed. This is independent of Q3's still-unsettled
+; sequence has been parsed. This is independent of Q2's still-unsettled
 ; duplicate-name policy and implements D16 forward/mutual nominal references.
 proc resolve_decl_types() {
     let ci = 0
@@ -1331,7 +1331,7 @@ proc tc_inner(expr) {
 ;
 ; The canonical compiler authors bytes only in its private final buffer. No
 ; byte is published until lowering, fixup resolution, payload validation, and
-; the Q2-selected adapter all complete. Failure is sticky and records one
+; the D19-selected adapter all complete. Failure is sticky and records one
 ; private code/coordinate pair for the eventual compiler boundary.
 
 proc emit_fail_once(code, coordinate) {
@@ -1686,7 +1686,7 @@ proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
 
 ; Load one compiler-resolved parameter from the current Gamma frame. Parameters
 ; occupy complete two-word values above the fixed prefix in reverse physical
-; order, so source parameter zero is the pair nearest the caller cursor. Q3
+; order, so source parameter zero is the pair nearest the caller cursor. Q2
 ; later maps a source spelling to the opaque index; this seam owns only the
 ; already-fixed frame layout and rejects malformed metadata before emission.
 
@@ -1977,7 +1977,7 @@ proc emit_checked_mod(entry_label, failure_label) {
 ; inputs and scalar/pointer outputs use r2..r4 and r0 respectively; general
 ; lowering reconstructs the public `(kind,payload)` pair.
 
-; A selected application profile supplies `maximum_bytes`; this helper does
+; A D19-selected application profile supplies `maximum_bytes`; this helper does
 ; not select that profile or interpret the returned program value. It consumes
 ; sealed stdin once, stores the exact bytes in the private heap, and returns a
 ; canonical Bytes descriptor in r0. EOF at the exact maximum is accepted; the
@@ -2349,7 +2349,7 @@ proc validate_payload() {
 ; trees containing literals, the seven primitive operators,
 ; conditionals, and the six closed Bytes builtins. Conditionals preserve the
 ; tail-position bit for both arms; the resolved-call seam below consumes it,
-; while connecting tag-5 source calls to resolved metadata waits for Q3.
+; while connecting tag-5 source calls to resolved metadata waits for Q2.
 ; Runtime intermediate values use the explicit stack so compile-time expression
 ; depth does not become a generated register limit.
 
@@ -2534,7 +2534,7 @@ proc lower_resolved_arguments(args, failure_code) {
 
 ; Lower an ordinary or tail call after the resolver has supplied its opaque
 ; target label and complete fixed frame prefix. This seam deliberately does not
-; inspect or resolve the call spelling. Q3 alone owns the later tag-5 source
+; inspect or resolve the call spelling. Q2 alone owns the later tag-5 source
 ; connection.
 
 proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes) {
@@ -2561,7 +2561,7 @@ proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes)
 
 ; Lower one constructor application after the resolver supplies only its
 ; opaque runtime kind. Constructor arguments are always non-tail. Spelling,
-; declaration identity, and the eventual tag-7 source connection remain Q3's
+; declaration identity, and the eventual tag-7 source connection remain Q2's
 ; responsibility.
 
 proc lower_resolved_constructor(args, constructor_tag) {

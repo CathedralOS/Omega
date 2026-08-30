@@ -12,10 +12,12 @@ Gamma source --gamma_compiler_bytecode.tape--> Alpha tape
 ```
 
 The compiler accepting Gamma is implemented in Beta and owned by `compiler/`.
-The program that consumes that compiler is the Gamma-written Delta compiler.
-It exposes a pure `main : Bytes -> DeltaCompileOutcome`; a generated Alpha
-adapter alone reads sealed input, writes either exact tape or one failure frame,
-and owns private resource failures.
+Every canonical invocation supplies one D19 sealed application-profile ID.
+`ConformanceBytesV1` selects pure `main : Bytes -> Bytes` for general
+language conformance; `DeltaCompilerV1` selects the Gamma-written Delta
+compiler's source-owned `main : Bytes -> DeltaCompileOutcome` and its checked
+`DCOUT` schema. A generated Alpha adapter alone reads sealed input, writes the
+selected profile's exact success output, and owns private resource failures.
 
 ## Current implementation state
 
@@ -25,8 +27,9 @@ emitter/runtime-containment substrate, including executed checked-`Int` and
 compact immutable-`Bytes` helpers and direct `Int`, conditional, and `Bytes`
 slices of the general expression dispatcher, now also includes the executed
 arbitrary-arity/proper-tail-call frame and algebraic-value ABIs plus a dormant,
-profile-parameterized sealed-input reader. That reader chooses no application
-profile or publication boundary. Complete fixed-up payloads are structurally
+profile-parameterized sealed-input reader. D19 now fixes its two possible
+application contracts, but their adapter emission and publication remain
+implementation work. Complete fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an
 accepted compiler artifact.

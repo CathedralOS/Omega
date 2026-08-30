@@ -114,26 +114,52 @@ profile's `Incomplete` result and proves neither rejection nor divergence.
 
 ## Compiler-application profile
 
-Gamma itself has no byte-I/O operation. A Gamma program used as a canonical
-compiler publishes one exact entry declaration selected by its accepted-source
-profile. The Gamma-written Delta compiler has the shape:
+Gamma itself has no byte-I/O operation. Its source semantics ends at a pure
+returned value; a compiler-generated Alpha adapter may join that value to
+sealed input and an external observation contract. D19 fixes that adapter
+choice as one closed, sealed application-profile ID supplied alongside the
+exact Gamma source. The ID is part of compilation identity and reconstruction
+evidence. It is not Gamma syntax, an ambient host flag, a filename convention,
+or a property inferred from source names.
+
+Version 1 has exactly two profiles:
+
+- `ConformanceBytesV1` requires `main : Bytes -> Bytes`. Its adapter reads
+  one sealed input, invokes `main`, preflights the complete returned value, and
+  publishes exactly those bytes on success. Its runtime-containment outcomes
+  are profile-owned generated-program observations, not `GCOUT` or `DCOUT`.
+- `DeltaCompilerV1` requires the Gamma-written Delta compiler's exact entry and
+  result schema:
 
 ```text
-main : Bytes -> DeltaCompileOutcome
+(data DeltaCompileOutcome
+  (Complete Bytes)
+  (Reject DeltaRejectReason Int))
 
-DeltaCompileOutcome =
-    Complete(Bytes)
-  | Reject(DeltaRejectReason, Int)
+(def main ((source Bytes)) DeltaCompileOutcome ...)
 ```
 
 The `Int` in `Reject` is the source byte offset. D17 and
-`source/delta/LANGUAGE.md` own the closed `DeltaRejectReason` constructors and
-the explicit `DCOUT` constructor-to-wire-code table; codes never derive from
-declaration order. A different accepted language owns a different reason sum
-and table.
+`source/delta/LANGUAGE.md` own the source-declared closed
+`DeltaRejectReason` and `DeltaCompileOutcome` sums. `Int` and `Bytes` remain
+Gamma's only built-in types; the profile injects no hidden nominal declaration.
+The selected `DeltaCompilerV1` profile owns the explicit `DCOUT`
+constructor-to-wire-code table and its version. That deliberate coupling keeps
+the published wire boundary stable; codes never derive from declaration order.
 
-Only the generated Alpha adapter performs I/O. It reads sealed stdin, constructs
-the input `Bytes`, invokes `main`, and maps a returned value as follows:
+Before emission, the compiler resolves and retains the exact `main`, outcome
+type, outcome constructors, and reason constructors. It requires exactly the
+two displayed outcome cases and payloads. The `DCOUT` table must be a total
+checked bijection over the complete reason sum: every exact constructor has one
+unique in-range code, and every table entry identifies one exact constructor.
+Matching names or shapes never select the profile and do not make nominal types
+interchangeable. A schema, entry, or table mismatch is a `GCOUT` compilation
+rejection; adding or removing a reason requires an explicit D17/profile-version
+decision.
+
+Only the generated `DeltaCompilerV1` Alpha adapter performs I/O. It reads sealed
+stdin, constructs the input `Bytes`, invokes `main`, and maps a returned value
+as follows:
 
 - `Complete(bytes)` validates and writes the exact raw artifact, then halts 0.
 - `Reject(reason, offset)` validates the exact reason and

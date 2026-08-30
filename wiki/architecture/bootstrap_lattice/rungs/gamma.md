@@ -35,11 +35,16 @@ Gamma-written Delta compiler source
 Gamma implements the Delta compiler. It does not merely provide an evaluator
 for a Beta-written translator that already parsed Delta.
 
-The compiler application exposes pure `main : Bytes -> DeltaCompileOutcome`.
-The returned sum contains only `Complete(Bytes)` and a structured Delta
-rejection. A generated Alpha adapter owns sealed byte I/O, private exhaustion,
-internal failure, and the `DCOUT` frame. Gamma source receives no general I/O
-primitive merely because one application is a compiler.
+D19 makes the generated application adapter a sealed compilation input rather
+than Gamma syntax. `ConformanceBytesV1` selects pure
+`main : Bytes -> Bytes`; `DeltaCompilerV1` selects the source-owned pure
+`main : Bytes -> DeltaCompileOutcome`. The latter sum contains only
+`Complete(Bytes)` and a structured Delta rejection, and its profile-owned
+reason-code table is checked as a complete bijection over the exact resolved
+constructors before emission. A generated Alpha adapter owns sealed byte I/O,
+private exhaustion, internal failure, and the selected external observation
+contract. Gamma source receives no general I/O primitive and matching names do
+not select `DCOUT`.
 
 ## Current migration
 
@@ -62,7 +67,7 @@ the universal checker remains Alpha-owned and outside the language rung.
 
 ## Implementation frontiers
 
-- complete lowering and the Q2-selected adapter in the exact Gamma compiler
+- complete lowering and the two D19-selected adapters in the exact Gamma compiler
   source, then publish its artifact closure;
 - reuse the interpreter only as a specification or isolated algorithm source
   without turning runtime interpretation into a permanent dependency;

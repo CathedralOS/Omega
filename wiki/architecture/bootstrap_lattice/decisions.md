@@ -335,13 +335,14 @@ heap, stack, and output ceilings are implementation-profile bounds. Their
 exhaustion yields `Incomplete`, never a Gamma result, rejection, divergence
 verdict, or partial artifact.
 
-A Gamma compiler application publishes a typed, profile-selected `main`. The
-Delta compiler returns only `Complete(Bytes)` or
-`Reject(DeltaRejectReason, source_offset)`. The accepted Delta contract owns the
-closed reason sum and an explicit constructor-to-code table; declaration order
-is not a wire code. The generated Alpha adapter alone reads sealed input,
-invokes pure `main`, writes raw success bytes, and maps private exhaustion or a
-trap to outer `Incomplete` or `InternalFailure` cases.
+A Gamma compiler application publishes a typed `main` under D19's sealed
+application-profile selection. The Delta compiler returns only
+`Complete(Bytes)` or `Reject(DeltaRejectReason, source_offset)`. The accepted
+Delta contract owns the source-declared closed reason sum, while the selected
+profile owns its explicit constructor-to-code table; declaration order is not
+a wire code. The generated Alpha adapter alone reads sealed input, invokes pure
+`main`, writes raw success bytes, and maps private exhaustion or a trap to outer
+`Incomplete` or `InternalFailure` cases.
 
 Compiler boundaries share D13's four halt tags and canonical failure-frame
 shape, not its Beta-specific identity. `BCOUT`, `GCOUT`, and `DCOUT` have
@@ -390,12 +391,14 @@ parser, arena, declaration, parameter, or output ceilings inside an
 implementation remain private budgets whose exhaustion is outer `Incomplete`,
 not a language rejection or limit.
 
-The Gamma-written compiler exposes pure
-`main : Bytes -> Complete(Bytes) | Reject(DeltaRejectReason, Int)`. Its adapter
-alone owns sealed input, the four compiler halt tags, `DCOUT` framing, and outer
-resource/internal failures. The compiler emits an unwrapped Alpha tape and is
-accepted only by direct checked Delta-source-to-Alpha-tape refinement. Deleted
-translator behavior and historical samples grant no compatibility claim.
+The Gamma-written compiler exposes a source-owned pure
+`main : Bytes -> Complete(Bytes) | Reject(DeltaRejectReason, Int)`. D19's sealed
+`DeltaCompilerV1` selection validates that exact nominal schema and the complete
+reason-code bijection before its adapter alone owns sealed input, the four
+compiler halt tags, `DCOUT` framing, and outer resource/internal failures. The
+compiler emits an unwrapped Alpha tape and is accepted only by direct checked
+Delta-source-to-Alpha-tape refinement. Deleted translator behavior and
+historical samples grant no compatibility claim.
 
 ## D18 — Omega compilation crosses one sealed graph request and one admitted build checkpoint
 
@@ -459,6 +462,64 @@ Diagnostics are ordered first by fixed phase. Request-framing diagnostics then
 use request-byte offset; source diagnostics use canonical package order,
 source-unit order, and byte offset. Timing observations never enter semantic
 identity.
+
+## D19 — Gamma application adapters are selected by one sealed two-profile input
+
+Gamma source semantics ends at a pure returned value. A runnable Alpha tape may
+join that value to sealed input, stdout, halt, and diagnostic framing through a
+compiler-generated adapter, but Gamma source does not select that environmental
+contract. The canonical Gamma compilation question therefore contains the
+exact source together with one closed application-profile ID. The ID is sealed
+invocation input and participates in compilation identity, reconstruction
+evidence, and the emitted adapter's custody. It is neither Gamma syntax nor an
+ambient host flag, filename inference, or post-emission rewrite.
+
+Version 1 has exactly two profiles. `ConformanceBytesV1` requires the
+resolved entry `main : Bytes -> Bytes`; its adapter supplies sealed input,
+preflights the complete returned `Bytes`, publishes exactly those bytes on
+success, and uses its own closed runtime-containment profile without claiming a
+compiler boundary. `DeltaCompilerV1` requires source declarations with the
+exact Gamma schema:
+
+```text
+(data DeltaCompileOutcome
+  (Complete Bytes)
+  (Reject DeltaRejectReason Int))
+
+(def main ((source Bytes)) DeltaCompileOutcome ...)
+```
+
+The `Int` is the exact source byte offset. `DeltaCompilerV1` generates D17's
+`DCOUT` adapter: `Complete` publishes the unwrapped Alpha tape, `Reject`
+publishes the versioned rejection frame, and adapter-owned exhaustion or
+contradiction publishes outer `Incomplete` or `InternalFailure`. Every failure
+publishes no artifact prefix. Each profile owns its exact sealed-input maximum,
+entry contract, result validation, external observation profile, and private
+resource/status table.
+
+`Int` and `Bytes` remain Gamma's only built-in types. `DeltaRejectReason` and
+`DeltaCompileOutcome` remain ordinary source-owned nominal declarations; the
+profile does not inject hidden builtins or make structurally similar nominal
+types interchangeable. The sealed profile grants the external boundary. Names
+such as `main`, `Complete`, `Reject`, or `DeltaCompileOutcome` grant nothing and
+never select a profile.
+
+Before emitting any adapter, the compiler resolves and retains the exact entry,
+result type, outcome constructors, and rejection-reason constructors, then
+checks them against the already selected profile. The outcome sum has exactly
+the required two constructors and payloads. The profile-owned `DCOUT` table is
+a checked bijection over the complete source-declared reason sum: every exact
+constructor has one unique in-range code and every table row identifies one
+exact constructor. Codes never derive from spelling or declaration order. A
+schema, table, or entry mismatch is a `GCOUT` compilation rejection and can
+never survive as an unhandled emitted-program case. Changing the reason sum or
+wire table requires an explicit D17/profile-version decision.
+
+One general Gamma compiler implements both profiles. Separately admitted
+compiler artifacts per adapter would duplicate custody and refinement for one
+checked language; an in-source application declaration would let source choose
+an external boundary; and hardwiring the immediate Delta customer would prevent
+the language's own general conformance use.
 
 ## Dependency order
 

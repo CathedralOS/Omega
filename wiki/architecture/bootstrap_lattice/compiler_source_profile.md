@@ -33,7 +33,7 @@ requirement are fixed by [D15](decisions.md#d15--bootstrap-implementation-source
 
 ```text
 Gamma-written Delta compiler source
-  └─ Gamma compiler ───────────────▶ delta_compiler.tape
+  └─ Gamma compiler + sealed DeltaCompilerV1 ─▶ delta_compiler.tape
 
 Delta-written Omega source D
   └─ delta_compiler.tape ──────────▶ omega₀.tape
@@ -44,6 +44,9 @@ Omega-written Omega source C
 
 Every output above is canonical Alpha tape. A host-specific VM seed may execute
 or package it, but native container bytes do not replace the tape identity.
+The first edge includes D19's sealed profile ID in its exact compilation
+question and checks the source-owned outcome/reason schema before emitting the
+`DCOUT` adapter; source names do not select that boundary.
 
 ## Delta v1
 

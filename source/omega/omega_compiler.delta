@@ -1,7 +1,7 @@
 // Delta-written Omega compiler D: final boundary-independent foundations.
 //
 // This source intentionally has no Main yet. The canonical sealed Omega
-// compilation request and publication boundary are owner-blocked by Q7. This
+// compilation request and publication boundary are fixed by D18. This
 // incomplete unit currently owns exact Alpha tape construction, strict source
 // UTF-8 framing, complete source-neutral lexical scanning, and the first
 // source-shaped slice of the one-invocation parser. It owns no invented
@@ -173,7 +173,7 @@ data OmegaLexScan {
 }
 
 // Parser results remain relative to the one immutable source view supplied to
-// parse_view. Q7 will eventually bind that view to a package-owned source
+// parse_view. D18 binds that view to a package-owned source
 // identity and an outer outcome; neither identity nor wire tags are guessed
 // here. These fixed tables are private compiler budgets, not Omega limits.
 data OmegaRelativeSpan {
@@ -620,7 +620,7 @@ data OmegaParserStatus {
     case InternalFailure;
 }
 
-// Internal parser distinctions have no Q7 outcome-code identity. The scanner
+// Internal parser distinctions have no D18 outcome-code identity. The scanner
 // retains the exact lexical diagnostic when status is LexicalFailure.
 data OmegaParseDiagnosticCode {
     case None;
