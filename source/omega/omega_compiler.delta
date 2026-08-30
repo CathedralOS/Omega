@@ -549,6 +549,9 @@ data OmegaBinaryOperatorKind {
     case Modulo;
     case ShiftLeft;
     case ShiftRight;
+    case BitwiseAnd;
+    case BitwiseOr;
+    case BitwiseXor;
 }
 
 data OmegaBinaryExpressionSyntax {
@@ -6150,6 +6153,9 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Percent -> select_expression_modulo()
             OmegaPunctuationKind::LessLess -> select_expression_shift_left()
             OmegaPunctuationKind::GreaterGreater -> select_expression_shift_right()
+            OmegaPunctuationKind::Ampersand -> select_expression_bitwise_and()
+            OmegaPunctuationKind::Pipe -> select_expression_bitwise_or()
+            OmegaPunctuationKind::Caret -> select_expression_bitwise_xor()
             OmegaPunctuationKind::Semicolon -> finish_semicolon_expression()
             OmegaPunctuationKind::Comma -> finish_comma_expression()
             OmegaPunctuationKind::RightParen -> expression_right_parenthesis()
@@ -6226,8 +6232,7 @@ machine OmegaParser::parse_view(
         }
     }
 
-    // Four canonical tiers remain reserved between comparison and shifts:
-    // membership, bitwise OR, bitwise XOR, and bitwise AND.
+    // Membership remains reserved between comparison and bitwise OR.
     state select_expression_add() {
         transition true {
             true -> select_expression_operator(OmegaBinaryOperatorKind::Add, 9)
@@ -6284,6 +6289,33 @@ machine OmegaParser::parse_view(
             true -> select_expression_operator(
                 OmegaBinaryOperatorKind::ShiftRight,
                 8
+            )
+        }
+    }
+
+    state select_expression_bitwise_and() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::BitwiseAnd,
+                7
+            )
+        }
+    }
+
+    state select_expression_bitwise_xor() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::BitwiseXor,
+                6
+            )
+        }
+    }
+
+    state select_expression_bitwise_or() {
+        transition true {
+            true -> select_expression_operator(
+                OmegaBinaryOperatorKind::BitwiseOr,
+                5
             )
         }
     }
@@ -8103,6 +8135,9 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::Percent -> retain_framed_operator_path()
             OmegaPunctuationKind::LessLess -> retain_framed_operator_path()
             OmegaPunctuationKind::GreaterGreater -> retain_framed_operator_path()
+            OmegaPunctuationKind::Ampersand -> retain_framed_operator_path()
+            OmegaPunctuationKind::Pipe -> retain_framed_operator_path()
+            OmegaPunctuationKind::Caret -> retain_framed_operator_path()
             OmegaPunctuationKind::EqualEqual -> retain_framed_operator_path()
             OmegaPunctuationKind::ExclamationEqual ->
                 retain_framed_operator_path()
@@ -11015,6 +11050,10 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::LessLess -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::GreaterGreater ->
                 retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Ampersand ->
+                retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Pipe -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Caret -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::RightParen -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
@@ -11032,6 +11071,10 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::LessLess -> retain_cast_after_end(after_domain)
             OmegaPunctuationKind::GreaterGreater ->
                 retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Ampersand ->
+                retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Pipe -> retain_cast_after_end(after_domain)
+            OmegaPunctuationKind::Caret -> retain_cast_after_end(after_domain)
             _ -> incomplete_root()
         }
     }
