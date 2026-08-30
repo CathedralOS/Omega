@@ -519,16 +519,20 @@ generic machine + concrete type arguments -> concrete machine instance
 This gives the compiler concrete layouts, concrete drop obligations, concrete
 reach, and concrete machine targets during later pipeline stages.
 
-For closed record instances with type parameters and scalar-integer `const`
-parameters, normalization also rewrites concrete-machine cast targets to the
-synthesized nominal and retains the exact generic base and argument tuple as
-provenance. Recursively nonzero literal fixed arrays are supported as closed
-type arguments. Integer const origins are canonical decimal values checked
-against their declared carriers; substituted literal lengths, not the rendered
-origin, supply layout. Later representation and borrow judgments consume the
-synthesized symbol and substituted fields and never reconstruct authority from
-the rendered generic spelling. Structured const carriers remain a separate
-provenance rung.
+For closed record instances with type parameters and scalar-integer or acyclic
+structured-record `const` parameters, normalization also rewrites concrete-
+machine cast targets to the synthesized nominal and retains the exact generic
+base and argument tuple as provenance. Recursively nonzero literal fixed arrays
+are supported as closed type arguments. Integer const origins are canonical
+decimal values checked against their declared carriers. The first structured
+origin cohort completely decodes its compiler-only atom under fixed resource
+bounds and replays declaration-ordered nested record/array and integer/Boolean
+nodes against the exact resolved monomorphic record carrier. Substituted
+instance fields, not the rendered or encoded origin, supply layout. Later
+representation and borrow judgments consume the synthesized symbol and
+substituted fields and never reconstruct authority from the rendered generic
+spelling. Cased, recursive, and custom-canonical structured origins remain a
+separate provenance rung.
 
 The language may later support shared generic code generation where profitable,
 but that should be an optimization. It should not change generic semantics.

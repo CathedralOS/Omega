@@ -1,16 +1,16 @@
 use super::{
-    TopLevelSymbols, TypeParameterScope, TypeReferenceOwner, type_reference_label,
-    type_references_match,
+    type_reference_label, type_references_match, TopLevelSymbols, TypeParameterScope,
+    TypeReferenceOwner,
 };
 use psi_diagnostics::Diagnostic;
-use psi_language_semantics::const_value::CanonicalConstValue;
-use psi_typed_trees::TypedTrees;
+use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use psi_typed_trees::data::{
     DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
 };
 use psi_typed_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
+use psi_typed_trees::TypedTrees;
 use std::collections::HashSet;
 
 pub(super) fn validate_machine_data_argument(
@@ -166,6 +166,17 @@ pub(super) fn validate_const_data_argument(
     };
 
     if let Some(value) = CanonicalConstValue::from_atom(name.as_str()) {
+        if exact_structured_const_record_carrier_is_eligible(program, parameter_type) {
+            if let Err(reason) =
+                validate_exact_typed_structured_const_argument(program, parameter_type, &value)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "const parameter `{}` of `{base_name}` has an invalid canonical value: {reason}",
+                    parameter.name
+                )));
+            }
+            return;
+        }
         if let Err(reason) =
             validate_typed_const_index_type(program, parameter_type, &mut HashSet::new())
         {
@@ -242,6 +253,255 @@ pub(super) fn validate_const_data_argument(
             type_reference_label(program, forwarded_type),
         )));
     }
+}
+
+/// Replay one compiler-generated structured const atom against its exact typed
+/// carrier. Encoded type and field names are canonical-format consistency
+/// checks only; record selection always follows the resolved symbol carried by
+/// `expected_type`.
+///
+/// This first exact cohort is intentionally narrower than the ordinary const
+/// index surface: acyclic, monomorphic checked records composed only of exact
+/// integer/Boolean primitives, literal fixed arrays, and records of the same
+/// shape. Cases and types with separate canonical-representative rules remain
+/// with the broader producer judgment until their typed replay is shared too.
+pub(crate) fn validate_exact_typed_structured_const_argument(
+    program: &TypedTrees,
+    expected_type: TypeReferenceHandle,
+    value: &CanonicalConstValue,
+) -> Result<(), String> {
+    if !exact_structured_const_record_carrier_is_eligible(program, expected_type) {
+        return Err(format!(
+            "`{}` is outside the exact acyclic structured-record const cohort",
+            type_reference_label(program, expected_type)
+        ));
+    }
+    let expected_name = type_reference_label(program, expected_type);
+    if value.type_name != expected_name {
+        return Err(format!(
+            "expected carrier `{expected_name}`, but the canonical atom names `{}`",
+            value.type_name
+        ));
+    }
+    let decoded = value
+        .decode_encoding()
+        .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
+    validate_decoded_structured_const(program, expected_type, &decoded, &mut Vec::new())
+}
+
+fn exact_structured_const_record_carrier_is_eligible(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    symbol.is_valid()
+        && program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.symbol == *symbol)
+        && exact_structured_const_carrier_is_eligible(program, type_reference, &mut Vec::new())
+}
+
+fn exact_structured_const_carrier_is_eligible(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> bool {
+    if let Some(primitive) = exact_const_primitive(program, type_reference) {
+        return primitive == PrimitiveType::Bool || primitive.accepts_integer_literal();
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(_),
+        } => exact_structured_const_carrier_is_eligible(program, *element_type, visiting),
+        TypeReferenceNode::Named { symbol, .. } => {
+            if !symbol.is_valid() || visiting.contains(symbol) {
+                return false;
+            }
+            visiting.push(*symbol);
+            let eligible = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+                .is_some_and(|definition| {
+                    let members = program.data_members(definition);
+                    definition.supply_mode == psi_language_semantics::DataSupplyMode::CheckedShape
+                        && definition.lifetime_parameters.is_empty()
+                        && program.data_type_parameters(definition).is_empty()
+                        && definition.generic_instance.is_none()
+                        && definition.quotient.is_none()
+                        && definition.where_facts.is_empty()
+                        && !definition.zero_gated
+                        && psi_typed_trees::data::DataDefinition::shape_kind_from_members(members)
+                            == psi_typed_trees::data::DataShapeKind::Record
+                        && members.iter().all(|member| {
+                            let DataMember::Field(field) = member else {
+                                return false;
+                            };
+                            !field.relevance.is_erased()
+                                && exact_structured_const_carrier_is_eligible(
+                                    program,
+                                    field.type_reference,
+                                    visiting,
+                                )
+                        })
+                });
+            visiting.pop();
+            eligible
+        }
+        _ => false,
+    }
+}
+
+fn validate_decoded_structured_const(
+    program: &TypedTrees,
+    expected_type: TypeReferenceHandle,
+    value: &DecodedCanonicalConstValue,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> Result<(), String> {
+    if let Some(primitive) = exact_const_primitive(program, expected_type) {
+        return match (primitive, value) {
+            (PrimitiveType::Bool, DecodedCanonicalConstValue::Boolean(_)) => Ok(()),
+            (primitive, DecodedCanonicalConstValue::Integer { type_name, value })
+                if primitive.accepts_integer_literal()
+                    && type_name == primitive.name()
+                    && const_integer_value_fits_primitive(primitive, *value) =>
+            {
+                Ok(())
+            }
+            (PrimitiveType::Bool, _) => Err("expected a canonical Boolean node".to_owned()),
+            (primitive, DecodedCanonicalConstValue::Integer { type_name, value })
+                if primitive.accepts_integer_literal() =>
+            {
+                Err(format!(
+                    "integer node `{type_name}({value})` does not fit exact carrier `{}`",
+                    primitive.name()
+                ))
+            }
+            (primitive, _) => Err(format!(
+                "expected a canonical integer node for `{}`",
+                primitive.name()
+            )),
+        };
+    }
+
+    match (
+        program.type_reference_table.type_reference(expected_type),
+        value,
+    ) {
+        (
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: FixedArrayLength::Literal(length),
+            },
+            DecodedCanonicalConstValue::Array { type_name, values },
+        ) => {
+            let expected_name = type_reference_label(program, expected_type);
+            if type_name != &expected_name {
+                return Err(format!(
+                    "array node names `{type_name}`, expected `{expected_name}`"
+                ));
+            }
+            if values.len() != *length {
+                return Err(format!(
+                    "array node has {} elements, expected {length}",
+                    values.len()
+                ));
+            }
+            for value in values {
+                validate_decoded_structured_const(program, *element_type, value, visiting)?;
+            }
+            Ok(())
+        }
+        (
+            TypeReferenceNode::Named { symbol, .. },
+            DecodedCanonicalConstValue::Record { type_name, fields },
+        ) => {
+            if !symbol.is_valid() || visiting.contains(symbol) {
+                return Err("structured const carrier is unresolved or recursive".to_owned());
+            }
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+                .ok_or_else(|| {
+                    "structured const carrier symbol has no data definition".to_owned()
+                })?;
+            if type_name.as_str() != definition.name.as_str() {
+                return Err(format!(
+                    "record node names `{type_name}`, expected `{}`",
+                    definition.name
+                ));
+            }
+            let members = program.data_members(definition);
+            if fields.len() != members.len() {
+                return Err(format!(
+                    "record node has {} fields, expected {}",
+                    fields.len(),
+                    members.len()
+                ));
+            }
+            visiting.push(*symbol);
+            let result = members.iter().zip(fields).try_for_each(
+                |(member, (encoded_name, encoded_value))| {
+                    let DataMember::Field(field) = member else {
+                        return Err("structured const carrier contains a case".to_owned());
+                    };
+                    if encoded_name.as_str() != field.name.as_str() {
+                        return Err(format!(
+                            "record field `{encoded_name}` appears where `{}` is required",
+                            field.name
+                        ));
+                    }
+                    validate_decoded_structured_const(
+                        program,
+                        field.type_reference,
+                        encoded_value,
+                        visiting,
+                    )
+                },
+            );
+            visiting.pop();
+            result
+        }
+        (_, DecodedCanonicalConstValue::Variant { .. }) => {
+            Err("canonical variants are outside the exact record cohort".to_owned())
+        }
+        _ => Err(format!(
+            "canonical node does not match exact carrier `{}`",
+            type_reference_label(program, expected_type)
+        )),
+    }
+}
+
+fn exact_const_primitive(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    let TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let primitive = match program.symbols.builtin_type_atom(*symbol)? {
+        psi_symbols::BuiltinTypeAtom::Bool => PrimitiveType::Bool,
+        psi_symbols::BuiltinTypeAtom::I8 => PrimitiveType::I8,
+        psi_symbols::BuiltinTypeAtom::I16 => PrimitiveType::I16,
+        psi_symbols::BuiltinTypeAtom::I32 => PrimitiveType::I32,
+        psi_symbols::BuiltinTypeAtom::I64 => PrimitiveType::I64,
+        psi_symbols::BuiltinTypeAtom::U8 => PrimitiveType::U8,
+        psi_symbols::BuiltinTypeAtom::U16 => PrimitiveType::U16,
+        psi_symbols::BuiltinTypeAtom::U32 => PrimitiveType::U32,
+        psi_symbols::BuiltinTypeAtom::U64 => PrimitiveType::U64,
+        psi_symbols::BuiltinTypeAtom::Address => PrimitiveType::Addr,
+        _ => return None,
+    };
+    (name.as_str() == primitive.name()).then_some(primitive)
 }
 
 fn validate_typed_const_index_type(
