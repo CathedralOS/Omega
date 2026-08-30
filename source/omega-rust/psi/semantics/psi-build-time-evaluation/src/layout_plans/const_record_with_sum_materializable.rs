@@ -1,11 +1,12 @@
-//! Value-sensitive materialization of one record with one conventional sum field.
+//! Value-sensitive materialization of one record with direct conventional sum fields.
 
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
-    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConventionalSumLayoutReport,
-    LayoutPlacementReport, LayoutPlanReport, MaterializationDiagnostic,
-    conventional_sum_layout_reports_match_for_replay, layout_plan_reports_match_for_replay,
-    materialize_aggregate_layout_into, normalized_conventional_sum_layout_report_fingerprint,
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConventionalSumFieldLayoutReport,
+    ConventionalSumLayoutReport, LayoutPlacementReport, LayoutPlanReport,
+    MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
+    layout_plan_reports_match_for_replay, materialize_aggregate_layout_into,
+    normalized_conventional_sum_layout_report_fingerprint,
     normalized_layout_plan_report_fingerprint,
 };
 use psi_typed_trees::TypedTrees;
@@ -22,8 +23,33 @@ use super::{
     validate_const_materializable_conventional_sum,
 };
 
-/// Exact materialization custody for one closed record containing exactly one
-/// direct, runtime-relevant conventional pure-sum field.
+/// Exact materialization custody for one direct runtime-relevant conventional
+/// pure-sum field of a closed record.
+#[derive(Debug)]
+pub struct ValidatedConstRecordSumFieldMaterialization {
+    field: String,
+    field_identity: Option<u64>,
+    nested_sum: ValidatedConstSumMaterialization,
+}
+
+impl ValidatedConstRecordSumFieldMaterialization {
+    pub fn field(&self) -> &str {
+        &self.field
+    }
+
+    pub const fn field_identity(&self) -> Option<u64> {
+        self.field_identity
+    }
+
+    /// Complete retained conventional layout, selected case, value, byte, and
+    /// report custody for this direct sum field.
+    pub const fn nested_sum(&self) -> &ValidatedConstSumMaterialization {
+        &self.nested_sum
+    }
+}
+
+/// Exact materialization custody for one closed record containing one or more
+/// direct, runtime-relevant conventional pure-sum fields.
 ///
 /// This deliberately distinct carrier keeps arrays of sums, recursively nested
 /// sums, mixed data shapes, and target-dependent sum geometry outside the first
@@ -36,9 +62,7 @@ pub struct ValidatedConstRecordWithSumMaterialization {
     value: BuildTimeValue,
     layout: LayoutPlanReport,
     non_authoritative_layout_report_fingerprint: u64,
-    nested_sum_field: String,
-    nested_sum_field_identity: Option<u64>,
-    nested_sum: ValidatedConstSumMaterialization,
+    nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     byte_order: ByteOrder,
     bytes: Vec<u8>,
     non_authoritative_materialization_report_fingerprint: u64,
@@ -65,18 +89,25 @@ impl ValidatedConstRecordWithSumMaterialization {
         self.non_authoritative_layout_report_fingerprint
     }
 
+    /// Complete authored-order custody for every direct sum field.
+    pub fn nested_sums(&self) -> &[ValidatedConstRecordSumFieldMaterialization] {
+        &self.nested_sums
+    }
+
+    /// Compatibility accessor for the singular API. Generalized consumers
+    /// should use [`Self::nested_sums`].
     pub fn nested_sum_field(&self) -> &str {
-        &self.nested_sum_field
+        self.nested_sums[0].field()
     }
 
-    pub const fn nested_sum_field_identity(&self) -> Option<u64> {
-        self.nested_sum_field_identity
+    /// Compatibility accessor for the singular API.
+    pub fn nested_sum_field_identity(&self) -> Option<u64> {
+        self.nested_sums[0].field_identity()
     }
 
-    /// Complete retained conventional layout, selected case, value, byte, and
-    /// report custody for the one nested sum.
-    pub const fn nested_sum(&self) -> &ValidatedConstSumMaterialization {
-        &self.nested_sum
+    /// Compatibility accessor for the singular API.
+    pub fn nested_sum(&self) -> &ValidatedConstSumMaterialization {
+        self.nested_sums[0].nested_sum()
     }
 
     pub const fn byte_order(&self) -> ByteOrder {
@@ -94,12 +125,12 @@ impl ValidatedConstRecordWithSumMaterialization {
     /// Independently replay the outer layout and the complete caller-supplied
     /// conventional nested-sum layout. Compact report fingerprints are checked
     /// only after exact hash-free layout comparisons.
-    pub fn replay_against(
+    pub fn replay_against_sum_fields(
         &self,
         typed: &TypedTrees,
         schema_name: &str,
         layout: &LayoutPlanReport,
-        nested_sum_layout: &ConventionalSumLayoutReport,
+        nested_sum_layouts: &[ConventionalSumFieldLayoutReport],
         value: &BuildTimeValue,
         byte_order: ByteOrder,
     ) -> Result<(), MaterializationDiagnostic> {
@@ -128,27 +159,10 @@ impl ValidatedConstRecordWithSumMaterialization {
                 "ConstMaterializable nested-sum outer layout drifted from retained custody".into(),
             ));
         }
-        let nested_layout_report_fingerprint =
-            normalized_conventional_sum_layout_report_fingerprint(nested_sum_layout);
-        if nested_layout_report_fingerprint
-            != self
-                .nested_sum
-                .non_authoritative_layout_report_fingerprint()
-            || !conventional_sum_layout_reports_match_for_replay(
-                nested_sum_layout,
-                self.nested_sum.layout(),
-            )
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested conventional sum layout drifted from retained custody"
-                    .into(),
-            ));
-        }
-        self.nested_sum.replay_against(
+        validate_supplied_nested_rows_against_retained(
             typed,
-            self.nested_sum.schema_name(),
-            nested_sum_layout,
-            self.nested_sum.value(),
+            nested_sum_layouts,
+            &self.nested_sums,
             byte_order,
         )?;
 
@@ -156,42 +170,15 @@ impl ValidatedConstRecordWithSumMaterialization {
             typed,
             schema_name,
             layout,
-            nested_sum_layout,
+            nested_sum_layouts,
             value,
             byte_order,
         )?;
         if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
-            || replayed.nested_sum_field != self.nested_sum_field
-            || replayed.nested_sum_field_identity != self.nested_sum_field_identity
+            || !nested_sum_fields_match(&replayed.nested_sums, &self.nested_sums)
         {
             return Err(MaterializationDiagnostic(
                 "ConstMaterializable nested-sum field identity drifted from retained custody"
-                    .into(),
-            ));
-        }
-        replayed.nested_sum.replay_against(
-            typed,
-            self.nested_sum.schema_name(),
-            nested_sum_layout,
-            self.nested_sum.value(),
-            byte_order,
-        )?;
-        if replayed.nested_sum.schema_name() != self.nested_sum.schema_name()
-            || replayed.nested_sum.value() != self.nested_sum.value()
-            || replayed.nested_sum.selected_case_identity()
-                != self.nested_sum.selected_case_identity()
-            || replayed.nested_sum.selected_case_ordinal()
-                != self.nested_sum.selected_case_ordinal()
-            || replayed.nested_sum.bytes() != self.nested_sum.bytes()
-            || replayed
-                .nested_sum
-                .non_authoritative_materialization_report_fingerprint()
-                != self
-                    .nested_sum
-                    .non_authoritative_materialization_report_fingerprint()
-        {
-            return Err(MaterializationDiagnostic(
-                "ConstMaterializable nested selected sum evidence drifted from retained custody"
                     .into(),
             ));
         }
@@ -206,11 +193,7 @@ impl ValidatedConstRecordWithSumMaterialization {
                 schema_name,
                 replayed.schema_report_fingerprint,
                 layout_report_fingerprint,
-                &replayed.nested_sum_field,
-                replayed.nested_sum_field_identity,
-                nested_layout_report_fingerprint,
-                replayed.nested_sum.selected_case_identity(),
-                replayed.nested_sum.selected_case_ordinal(),
+                &replayed.nested_sums,
                 byte_order,
                 value,
                 &replayed.bytes,
@@ -226,6 +209,36 @@ impl ValidatedConstRecordWithSumMaterialization {
         Ok(())
     }
 
+    /// Replay the original singular-row surface without weakening plural
+    /// custody. Records with more than one direct sum reject this wrapper.
+    pub fn replay_against(
+        &self,
+        typed: &TypedTrees,
+        schema_name: &str,
+        layout: &LayoutPlanReport,
+        nested_sum_layout: &ConventionalSumLayoutReport,
+        value: &BuildTimeValue,
+        byte_order: ByteOrder,
+    ) -> Result<(), MaterializationDiagnostic> {
+        let [nested] = self.nested_sums.as_slice() else {
+            return Err(MaterializationDiagnostic(
+                "singular nested-sum replay cannot discard multiple retained field rows".into(),
+            ));
+        };
+        self.replay_against_sum_fields(
+            typed,
+            schema_name,
+            layout,
+            &[ConventionalSumFieldLayoutReport {
+                field: nested.field.clone(),
+                member_identity: nested.field_identity,
+                layout: nested_sum_layout.clone(),
+            }],
+            value,
+            byte_order,
+        )
+    }
+
     /// Replay both retained layouts before atomically copying the exact outer
     /// bytes. Rejection and a short destination leave `destination` unchanged.
     pub fn apply(
@@ -233,11 +246,19 @@ impl ValidatedConstRecordWithSumMaterialization {
         typed: &TypedTrees,
         destination: &mut [u8],
     ) -> Result<(), MaterializationDiagnostic> {
-        self.replay_against(
+        self.replay_against_sum_fields(
             typed,
             &self.schema_name,
             &self.layout,
-            self.nested_sum.layout(),
+            &self
+                .nested_sums
+                .iter()
+                .map(|row| ConventionalSumFieldLayoutReport {
+                    field: row.field.clone(),
+                    member_identity: row.field_identity,
+                    layout: row.nested_sum.layout().clone(),
+                })
+                .collect::<Vec<_>>(),
             &self.value,
             self.byte_order,
         )?;
@@ -253,15 +274,16 @@ impl ValidatedConstRecordWithSumMaterialization {
     }
 }
 
-/// Validate exactly one direct conventional pure-sum field inside one closed
+/// Validate every direct conventional pure-sum field inside one closed
 /// non-generic `[copy]` record. The outer record uses its exact validated
-/// `LayoutPlanReport`; the nested sum uses the compiler-owned conventional
-/// runtime layout and cannot acquire programmable tag/case placement.
-pub fn validate_const_materializable_record_with_conventional_sum(
+/// `LayoutPlanReport`; each nested sum uses the compiler-owned conventional
+/// runtime layout and cannot acquire programmable tag/case placement. The
+/// supplied rows must be the complete authored-order direct-sum field set.
+pub fn validate_const_materializable_record_with_conventional_sums(
     typed: &TypedTrees,
     schema_name: &str,
     layout: &LayoutPlanReport,
-    nested_sum_layout: &ConventionalSumLayoutReport,
+    nested_sum_layouts: &[ConventionalSumFieldLayoutReport],
     value: &BuildTimeValue,
     byte_order: ByteOrder,
 ) -> Result<ValidatedConstRecordWithSumMaterialization, MaterializationDiagnostic> {
@@ -269,23 +291,17 @@ pub fn validate_const_materializable_record_with_conventional_sum(
         typed,
         schema_name,
         layout,
-        nested_sum_layout,
+        nested_sum_layouts,
         value,
         byte_order,
     )?;
     let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
-    let nested_layout_report_fingerprint =
-        normalized_conventional_sum_layout_report_fingerprint(nested_sum_layout);
     let materialization_report_fingerprint =
         non_authoritative_record_with_sum_materialization_report_fingerprint(
             schema_name,
             derived.schema_report_fingerprint,
             layout_report_fingerprint,
-            &derived.nested_sum_field,
-            derived.nested_sum_field_identity,
-            nested_layout_report_fingerprint,
-            derived.nested_sum.selected_case_identity(),
-            derived.nested_sum.selected_case_ordinal(),
+            &derived.nested_sums,
             byte_order,
             value,
             &derived.bytes,
@@ -296,20 +312,78 @@ pub fn validate_const_materializable_record_with_conventional_sum(
         value: value.clone(),
         layout: layout.clone(),
         non_authoritative_layout_report_fingerprint: layout_report_fingerprint,
-        nested_sum_field: derived.nested_sum_field,
-        nested_sum_field_identity: derived.nested_sum_field_identity,
-        nested_sum: derived.nested_sum,
+        nested_sums: derived.nested_sums,
         byte_order,
         bytes: derived.bytes,
         non_authoritative_materialization_report_fingerprint: materialization_report_fingerprint,
     })
 }
 
+/// Preserve the original singular projection surface. It remains fail-closed
+/// when the record now requires more than one direct sum-field row.
+pub fn validate_const_materializable_record_with_conventional_sum(
+    typed: &TypedTrees,
+    schema_name: &str,
+    layout: &LayoutPlanReport,
+    nested_sum_layout: &ConventionalSumLayoutReport,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+) -> Result<ValidatedConstRecordWithSumMaterialization, MaterializationDiagnostic> {
+    let data = unique_data_by_name(typed, schema_name)?;
+    validate_outer_record_owner(typed, data)?;
+    let direct_sums = typed
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if !field.relevance.is_erased() => Some(field),
+            DataMember::Field(_) | DataMember::Variant(_) => None,
+        })
+        .filter_map(
+            |field| match exact_named_data(typed, field.type_reference) {
+                Ok(Some(named))
+                    if DataDefinition::shape_kind_from_members(typed.data_members(named))
+                        == DataShapeKind::Enum =>
+                {
+                    Some(Ok(field))
+                }
+                Ok(_) => None,
+                Err(error) => Some(Err(error)),
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
+    if direct_sums.is_empty() {
+        return validate_const_materializable_record_with_conventional_sums(
+            typed,
+            schema_name,
+            layout,
+            &[],
+            value,
+            byte_order,
+        );
+    }
+    let [field] = direct_sums.as_slice() else {
+        return Err(MaterializationDiagnostic(format!(
+            "singular nested-sum validation requires exactly one direct runtime-relevant pure-sum field; `{schema_name}` has {}",
+            direct_sums.len()
+        )));
+    };
+    validate_const_materializable_record_with_conventional_sums(
+        typed,
+        schema_name,
+        layout,
+        &[ConventionalSumFieldLayoutReport {
+            field: field.name.to_string(),
+            member_identity: field.identity,
+            layout: nested_sum_layout.clone(),
+        }],
+        value,
+        byte_order,
+    )
+}
+
 struct DerivedRecordWithSumMaterialization {
     schema_report_fingerprint: u64,
-    nested_sum_field: String,
-    nested_sum_field_identity: Option<u64>,
-    nested_sum: ValidatedConstSumMaterialization,
+    nested_sums: Vec<ValidatedConstRecordSumFieldMaterialization>,
     bytes: Vec<u8>,
 }
 
@@ -326,7 +400,7 @@ fn derive_record_with_sum_bytes(
     typed: &TypedTrees,
     schema_name: &str,
     layout: &LayoutPlanReport,
-    nested_sum_layout: &ConventionalSumLayoutReport,
+    nested_sum_layouts: &[ConventionalSumFieldLayoutReport],
     value: &BuildTimeValue,
     byte_order: ByteOrder,
 ) -> Result<DerivedRecordWithSumMaterialization, MaterializationDiagnostic> {
@@ -361,7 +435,7 @@ fn derive_record_with_sum_bytes(
         )));
     }
 
-    let mut direct_sum = None;
+    let mut direct_sums = Vec::new();
     for member in members {
         let DataMember::Field(field) = member else {
             unreachable!("outer record shape was validated above")
@@ -377,19 +451,10 @@ fn derive_record_with_sum_bytes(
         };
         match DataDefinition::shape_kind_from_members(typed.data_members(named)) {
             DataShapeKind::Enum => {
-                if direct_sum.is_some() {
-                    return Err(MaterializationDiagnostic(
-                        "the first nested-sum ConstMaterializable rung requires exactly one direct pure-sum field"
-                            .into(),
-                    ));
-                }
                 if field.relevance.is_erased() {
-                    return Err(MaterializationDiagnostic(format!(
-                        "nested pure-sum field `{}` is erased rather than one runtime materialization field",
-                        field.name
-                    )));
+                    continue;
                 }
-                direct_sum = Some((field, named));
+                direct_sums.push((field, named));
             }
             DataShapeKind::Mixed => {
                 return Err(MaterializationDiagnostic(format!(
@@ -400,22 +465,49 @@ fn derive_record_with_sum_bytes(
             DataShapeKind::Empty | DataShapeKind::Record => {}
         }
     }
-    let (sum_field, sum_data) = direct_sum.ok_or_else(|| {
+    if direct_sums.is_empty() {
+        return Err(
         MaterializationDiagnostic(
-            "the first nested-sum ConstMaterializable rung requires exactly one direct pure-sum field"
+            "nested-sum ConstMaterializable requires at least one direct runtime-relevant pure-sum field"
                 .into(),
-        )
-    })?;
-    let sum_value = supplied
-        .get(sum_field.name.as_str())
-        .expect("complete record value checked above");
-    let nested_sum = validate_const_materializable_conventional_sum(
-        typed,
-        sum_data.name.as_str(),
-        nested_sum_layout,
-        sum_value,
-        byte_order,
-    )?;
+        ));
+    }
+    if nested_sum_layouts.len() != direct_sums.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable nested-sum rows contain {} field(s), expected the complete authored-order set of {}",
+            nested_sum_layouts.len(),
+            direct_sums.len()
+        )));
+    }
+    let mut nested_sums = Vec::with_capacity(direct_sums.len());
+    for ((field, sum_data), row) in direct_sums.iter().zip(nested_sum_layouts) {
+        if !field_occurrence_matches(
+            &row.field,
+            row.member_identity,
+            field.name.as_str(),
+            field.identity,
+        ) {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable nested-sum row for `{}` is missing, duplicated, or out of authored field order",
+                field.name
+            )));
+        }
+        let sum_value = supplied
+            .get(field.name.as_str())
+            .expect("complete record value checked above");
+        let nested_sum = validate_const_materializable_conventional_sum(
+            typed,
+            sum_data.name.as_str(),
+            &row.layout,
+            sum_value,
+            byte_order,
+        )?;
+        nested_sums.push(ValidatedConstRecordSumFieldMaterialization {
+            field: field.name.to_string(),
+            field_identity: field.identity,
+            nested_sum,
+        });
+    }
 
     let mut encoded_fields = Vec::new();
     let mut active = vec![data.symbol];
@@ -426,14 +518,21 @@ fn derive_record_with_sum_bytes(
         let field_value = supplied
             .get(field.name.as_str())
             .expect("complete record value checked above");
-        if field.symbol == sum_field.symbol {
+        if let Some(nested_row) = nested_sums.iter().find(|row| {
+            field_occurrence_matches(
+                &row.field,
+                row.field_identity,
+                field.name.as_str(),
+                field.identity,
+            )
+        }) {
             encoded_fields.push(EncodedOuterField {
                 name: field.name.to_string(),
                 identity: field.identity,
-                size: nested_sum.layout().size,
-                align: nested_sum.layout().align,
+                size: nested_row.nested_sum.layout().size,
+                align: nested_row.nested_sum.layout().align,
                 repeated: None,
-                bytes: nested_sum.bytes().to_vec(),
+                bytes: nested_row.nested_sum.bytes().to_vec(),
             });
             continue;
         }
@@ -513,9 +612,7 @@ fn derive_record_with_sum_bytes(
 
     Ok(DerivedRecordWithSumMaterialization {
         schema_report_fingerprint,
-        nested_sum_field: sum_field.name.to_string(),
-        nested_sum_field_identity: sum_field.identity,
-        nested_sum,
+        nested_sums,
         bytes,
     })
 }
@@ -645,42 +742,140 @@ fn validate_outer_layout(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+fn validate_supplied_nested_rows_against_retained(
+    typed: &TypedTrees,
+    supplied: &[ConventionalSumFieldLayoutReport],
+    retained: &[ValidatedConstRecordSumFieldMaterialization],
+    byte_order: ByteOrder,
+) -> Result<(), MaterializationDiagnostic> {
+    if supplied.len() != retained.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable nested-sum rows contain {} field(s), retained custody requires {}",
+            supplied.len(),
+            retained.len()
+        )));
+    }
+    for (row, retained) in supplied.iter().zip(retained) {
+        if !field_occurrence_matches(
+            &row.field,
+            row.member_identity,
+            retained.field(),
+            retained.field_identity(),
+        ) {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable nested-sum row `{}` is duplicated or out of retained authored field order",
+                row.field
+            )));
+        }
+        let nested = retained.nested_sum();
+        let layout_fingerprint = normalized_conventional_sum_layout_report_fingerprint(&row.layout);
+        if layout_fingerprint != nested.non_authoritative_layout_report_fingerprint()
+            || !conventional_sum_layout_reports_match_for_replay(&row.layout, nested.layout())
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable nested conventional sum layout for field `{}` drifted from retained custody",
+                row.field
+            )));
+        }
+        nested.replay_against(
+            typed,
+            nested.schema_name(),
+            &row.layout,
+            nested.value(),
+            byte_order,
+        )?;
+    }
+    Ok(())
+}
+
+fn nested_sum_fields_match(
+    left: &[ValidatedConstRecordSumFieldMaterialization],
+    right: &[ValidatedConstRecordSumFieldMaterialization],
+) -> bool {
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            field_occurrence_matches(
+                &left.field,
+                left.field_identity,
+                &right.field,
+                right.field_identity,
+            ) && left.nested_sum.schema_name() == right.nested_sum.schema_name()
+                && left.nested_sum.value() == right.nested_sum.value()
+                && left.nested_sum.selected_case_identity()
+                    == right.nested_sum.selected_case_identity()
+                && left.nested_sum.selected_case_ordinal()
+                    == right.nested_sum.selected_case_ordinal()
+                && left.nested_sum.bytes() == right.nested_sum.bytes()
+                && conventional_sum_layout_reports_match_for_replay(
+                    left.nested_sum.layout(),
+                    right.nested_sum.layout(),
+                )
+                && left
+                    .nested_sum
+                    .non_authoritative_materialization_report_fingerprint()
+                    == right
+                        .nested_sum
+                        .non_authoritative_materialization_report_fingerprint()
+        })
+}
+
+fn field_occurrence_matches(
+    left_name: &str,
+    left_identity: Option<u64>,
+    right_name: &str,
+    right_identity: Option<u64>,
+) -> bool {
+    match (left_identity, right_identity) {
+        (Some(left), Some(right)) => left == right,
+        (None, None) => left_name == right_name,
+        (Some(_), None) | (None, Some(_)) => false,
+    }
+}
+
 fn non_authoritative_record_with_sum_materialization_report_fingerprint(
     schema_name: &str,
     schema_report_fingerprint: u64,
     layout_report_fingerprint: u64,
-    nested_sum_field: &str,
-    nested_sum_field_identity: Option<u64>,
-    nested_layout_report_fingerprint: u64,
-    selected_case_identity: Option<u64>,
-    selected_case_ordinal: u32,
+    nested_sums: &[ValidatedConstRecordSumFieldMaterialization],
     byte_order: ByteOrder,
     value: &BuildTimeValue,
     bytes: &[u8],
 ) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
-    hash_bytes(&mut hash, b"omega.const-materializable-record-with-sum.v1");
+    hash_bytes(&mut hash, b"omega.const-materializable-record-with-sum.v2");
     hash_text(&mut hash, schema_name);
     hash_u64(&mut hash, schema_report_fingerprint);
     hash_u64(&mut hash, layout_report_fingerprint);
-    hash_text(&mut hash, nested_sum_field);
-    match nested_sum_field_identity {
-        Some(identity) => {
-            hash_byte(&mut hash, 1);
-            hash_u64(&mut hash, identity);
+    hash_u64(&mut hash, nested_sums.len() as u64);
+    for nested in nested_sums {
+        match nested.field_identity {
+            Some(identity) => {
+                hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, identity);
+            }
+            None => {
+                hash_byte(&mut hash, 0);
+                hash_text(&mut hash, &nested.field);
+            }
         }
-        None => hash_byte(&mut hash, 0),
-    }
-    hash_u64(&mut hash, nested_layout_report_fingerprint);
-    match selected_case_identity {
-        Some(identity) => {
-            hash_byte(&mut hash, 1);
-            hash_u64(&mut hash, identity);
+        hash_u64(
+            &mut hash,
+            nested
+                .nested_sum
+                .non_authoritative_layout_report_fingerprint(),
+        );
+        match nested.nested_sum.selected_case_identity() {
+            Some(identity) => {
+                hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, identity);
+            }
+            None => hash_byte(&mut hash, 0),
         }
-        None => hash_byte(&mut hash, 0),
+        hash_u64(
+            &mut hash,
+            u64::from(nested.nested_sum.selected_case_ordinal()),
+        );
     }
-    hash_u64(&mut hash, u64::from(selected_case_ordinal));
     hash_byte(
         &mut hash,
         match byte_order {
@@ -860,6 +1055,33 @@ mod tests {
                 ("flag".into(), BuildTimeValue::Int(9)),
             ],
         }
+    }
+
+    fn small_choice_value(value: i64) -> BuildTimeValue {
+        BuildTimeValue::Case {
+            variant: "Small".into(),
+            payload: vec![("value".into(), BuildTimeValue::Int(value))],
+        }
+    }
+
+    fn direct_sum_rows(
+        outer: &LayoutPlanReport,
+        rows: Vec<(&str, ConventionalSumLayoutReport)>,
+    ) -> Vec<ConventionalSumFieldLayoutReport> {
+        rows.into_iter()
+            .map(|(field, layout)| {
+                let entry = outer
+                    .entries
+                    .iter()
+                    .find(|entry| entry.field == field)
+                    .expect("direct sum field has one outer row");
+                ConventionalSumFieldLayoutReport {
+                    field: field.into(),
+                    member_identity: entry.member_identity,
+                    layout,
+                }
+            })
+            .collect()
     }
 
     fn envelope_value() -> BuildTimeValue {
@@ -1057,24 +1279,136 @@ mod tests {
     }
 
     #[test]
-    fn arrays_recursive_or_multiple_sums_and_mixed_shapes_remain_fenced() {
+    fn multiple_direct_sums_retain_complete_ordered_occurrences_and_reject_row_drift() {
+        let typed = typed();
+        let choice = conventional_sum_layout(&typed, "Choice");
+        let outer = outer_layout(&typed, "TwoChoices", &[0, 12], 24, 4);
+        let rows = direct_sum_rows(
+            &outer,
+            vec![("first", choice.clone()), ("second", choice.clone())],
+        );
+        let value = BuildTimeValue::Struct {
+            type_name: "TwoChoices".into(),
+            fields: vec![
+                ("first".into(), small_choice_value(0x1122)),
+                ("second".into(), choice_value()),
+            ],
+        };
+        let carrier = validate_const_materializable_record_with_conventional_sums(
+            &typed,
+            "TwoChoices",
+            &outer,
+            &rows,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("two occurrences of the same sum type should materialize independently");
+        assert_eq!(
+            carrier
+                .nested_sums()
+                .iter()
+                .map(|row| (row.field(), row.nested_sum().selected_case_ordinal()))
+                .collect::<Vec<_>>(),
+            [("first", 1), ("second", 2)]
+        );
+        assert_eq!(
+            carrier.bytes(),
+            &[
+                1, 0, 0, 0, 0x22, 0x11, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0x44, 0x33, 0x22, 0x11, 9, 0,
+                0, 0,
+            ]
+        );
+        carrier
+            .replay_against_sum_fields(
+                &typed,
+                "TwoChoices",
+                &outer,
+                &rows,
+                &value,
+                ByteOrder::LittleEndian,
+            )
+            .expect("the complete field occurrence set should replay");
+
+        let mut missing = rows.clone();
+        missing.pop();
+        let mut extra = rows.clone();
+        extra.push(rows[0].clone());
+        let mut reordered = rows.clone();
+        reordered.swap(0, 1);
+        let duplicate = vec![rows[0].clone(), rows[0].clone()];
+        let mut wrong_field_identity = rows.clone();
+        wrong_field_identity[1].member_identity = Some(99);
+        for (name, changed) in [
+            ("missing", missing),
+            ("extra", extra),
+            ("reordered", reordered),
+            ("duplicate", duplicate),
+            ("field identity", wrong_field_identity),
+        ] {
+            assert!(
+                carrier
+                    .replay_against_sum_fields(
+                        &typed,
+                        "TwoChoices",
+                        &outer,
+                        &changed,
+                        &value,
+                        ByteOrder::LittleEndian,
+                    )
+                    .is_err(),
+                "{name} field rows must reject"
+            );
+        }
+
+        let mut wrong_layout = rows.clone();
+        wrong_layout[1].layout.size += 4;
+        let mut wrong_case = rows.clone();
+        wrong_case[1].layout.cases[2].ordinal = 1;
+        let mut wrong_offset = rows.clone();
+        wrong_offset[1].layout.cases[2].payload_fields[0].offset += 1;
+        for (name, changed) in [
+            ("layout", wrong_layout),
+            ("case", wrong_case),
+            ("offset", wrong_offset),
+        ] {
+            assert!(
+                carrier
+                    .replay_against_sum_fields(
+                        &typed,
+                        "TwoChoices",
+                        &outer,
+                        &changed,
+                        &value,
+                        ByteOrder::LittleEndian,
+                    )
+                    .is_err(),
+                "per-field {name} drift must reject"
+            );
+        }
+        assert!(
+            carrier
+                .replay_against_sum_fields(
+                    &typed,
+                    "TwoChoices",
+                    &outer,
+                    &rows,
+                    &value,
+                    ByteOrder::BigEndian,
+                )
+                .is_err()
+        );
+
+        let mut short = [0xa5; 23];
+        assert!(carrier.apply(&typed, &mut short).is_err());
+        assert_eq!(short, [0xa5; 23]);
+    }
+
+    #[test]
+    fn arrays_recursive_sums_and_mixed_shapes_remain_fenced() {
         let typed = typed();
         let nested = conventional_sum_layout(&typed, "Choice");
 
         let cases = [
-            (
-                "TwoChoices",
-                BuildTimeValue::Struct {
-                    type_name: "TwoChoices".into(),
-                    fields: vec![
-                        ("first".into(), choice_value()),
-                        ("second".into(), choice_value()),
-                    ],
-                },
-                vec![0, 12],
-                24,
-                "exactly one direct pure-sum",
-            ),
             (
                 "ChoiceArray",
                 BuildTimeValue::Struct {

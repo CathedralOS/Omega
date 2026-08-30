@@ -8,7 +8,7 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
-    ConventionalSumCaseLayoutReport, ConventionalSumLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
 };
@@ -18,19 +18,21 @@ use psi_typed_trees::types::TypeReferenceNode;
 
 use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan};
 
-/// Project the first bounded nested-sum materialization pair from the exact
-/// target runtime layout: one closed `[copy]` record with exactly one direct,
-/// runtime-relevant conventional pure-sum field.
+/// Project the bounded nested-sum materialization set from the exact target
+/// runtime layout: one closed `[copy]` record with one or more direct,
+/// runtime-relevant conventional pure-sum fields.
 ///
 /// The outer report contains only whole-field `At` placements. The nested
-/// report remains the compiler-owned tag/payload overlay; this function does
-/// not expose programmable tag or case placement. Arrays of sums, recursively
-/// nested sums, mixed data shapes, and multiple direct sum fields reject.
+/// reports remain compiler-owned tag/payload overlays; this function does not
+/// expose programmable tag or case placement. Every nested report is paired
+/// with its outer field name and stable member identity in authored runtime
+/// field order, so repeated uses of the same sum type remain distinguishable.
+/// Arrays of sums, recursively nested sums, and mixed data shapes reject.
 pub fn project_conventional_record_with_sum_materialization_layout(
     program: &CheckedTrees,
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
-) -> Result<(LayoutPlanReport, ConventionalSumLayoutReport), Diagnostic> {
+) -> Result<(LayoutPlanReport, Vec<ConventionalSumFieldLayoutReport>), Diagnostic> {
     let definition = unique_data_definition(program, data_symbol, "nested-sum record")?;
     if definition.supply_mode != DataSupplyMode::CheckedShape
         || definition.properties.multiplicity != Multiplicity::Unrestricted
@@ -75,7 +77,7 @@ pub fn project_conventional_record_with_sum_materialization_layout(
         )));
     }
 
-    let mut nested_sum = None;
+    let mut nested_sums = Vec::new();
     let mut entries = Vec::with_capacity(declared_fields.len());
     let mut offsets = Vec::with_capacity(declared_fields.len());
     for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
@@ -88,18 +90,30 @@ pub fn project_conventional_record_with_sum_materialization_layout(
         if let Some(named) = exact_named_data(program, declared.type_reference)? {
             match DataDefinition::shape_kind_from_members(program.data_members(named)) {
                 DataShapeKind::Enum => {
-                    if nested_sum.is_some() {
-                        return Err(Diagnostic::error(
-                            "the first nested-sum layout projection requires exactly one direct pure-sum field",
-                        ));
-                    }
                     if laid.type_symbol != named.symbol {
                         return Err(Diagnostic::error(format!(
                             "target runtime layout field `{}` substitutes its nested sum type",
                             declared.name
                         )));
                     }
-                    nested_sum = Some((declared, named, laid));
+                    let nested_layout = project_conventional_sum_materialization_layout(
+                        program,
+                        plan,
+                        named.symbol,
+                    )?;
+                    if laid.layout.size as u64 != nested_layout.size
+                        || laid.layout.alignment as u64 != nested_layout.align
+                    {
+                        return Err(Diagnostic::error(format!(
+                            "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
+                            declared.name
+                        )));
+                    }
+                    nested_sums.push(ConventionalSumFieldLayoutReport {
+                        field: declared.name.to_string(),
+                        member_identity: declared.identity,
+                        layout: nested_layout,
+                    });
                 }
                 DataShapeKind::Mixed => {
                     return Err(Diagnostic::error(format!(
@@ -118,20 +132,10 @@ pub fn project_conventional_record_with_sum_materialization_layout(
         });
         offsets.push(offset);
     }
-    let (sum_field, sum_definition, sum_field_layout) = nested_sum.ok_or_else(|| {
-        Diagnostic::error(
-            "the first nested-sum layout projection requires exactly one direct pure-sum field",
-        )
-    })?;
-    let nested_layout =
-        project_conventional_sum_materialization_layout(program, plan, sum_definition.symbol)?;
-    if sum_field_layout.layout.size as u64 != nested_layout.size
-        || sum_field_layout.layout.alignment as u64 != nested_layout.align
-    {
-        return Err(Diagnostic::error(format!(
-            "target runtime layout field `{}` does not retain the exact conventional sum extent/alignment",
-            sum_field.name
-        )));
+    if nested_sums.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum layout projection requires at least one direct runtime-relevant pure-sum field",
+        ));
     }
 
     Ok((
@@ -143,7 +147,7 @@ pub fn project_conventional_record_with_sum_materialization_layout(
             size: Some(data_layout.layout.size as u64),
             align: data_layout.layout.alignment as u64,
         },
-        nested_layout,
+        nested_sums,
     ))
 }
 
@@ -512,7 +516,7 @@ mod tests {
             .find(|definition| definition.name.as_str() == "Envelope")
             .unwrap();
         let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
-        let (outer, nested) = project_conventional_record_with_sum_materialization_layout(
+        let (outer, nested_rows) = project_conventional_record_with_sum_materialization_layout(
             &checked,
             &plan,
             definition.symbol,
@@ -521,8 +525,10 @@ mod tests {
         assert_eq!(outer.offsets.as_deref(), Some(&[0, 4, 16][..]));
         assert_eq!(outer.size, Some(20));
         assert_eq!(outer.align, 4);
-        assert_eq!(nested.size, 12);
-        assert_eq!(nested.align, 4);
+        assert_eq!(nested_rows.len(), 1);
+        assert_eq!(nested_rows[0].field, "choice");
+        assert_eq!(nested_rows[0].layout.size, 12);
+        assert_eq!(nested_rows[0].layout.align, 4);
 
         let value = BuildTimeValue::Struct {
             type_name: "Envelope".into(),
@@ -545,7 +551,7 @@ mod tests {
             &checked,
             "Envelope",
             &outer,
-            &nested,
+            &nested_rows[0].layout,
             &value,
             ByteOrder::LittleEndian,
         )
@@ -559,11 +565,12 @@ mod tests {
     }
 
     #[test]
-    fn target_layout_keeps_multiple_array_recursive_and_mixed_sum_shapes_fenced() {
+    fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_fenced() {
         let checked = checked(
             r#"
             data Choice [copy] { case Empty; case Number(value: u8); }
             data Multiple [copy] { first: Choice; second: Choice; }
+            data ErasedAlso [copy] { live: Choice; proof [erased]: Choice; }
             data ArrayOwner [copy] { choices: [Choice; 2]; }
             data Inner [copy] { choice: Choice; }
             data RecursiveOwner [copy] { inner: Inner; }
@@ -572,7 +579,51 @@ mod tests {
             "#,
         );
         let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
-        for name in ["Multiple", "ArrayOwner", "RecursiveOwner", "MixedOwner"] {
+        let multiple = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Multiple")
+            .unwrap();
+        let (outer, nested_rows) = project_conventional_record_with_sum_materialization_layout(
+            &checked,
+            &plan,
+            multiple.symbol,
+        )
+        .expect("all direct runtime sum occurrences should project in authored order");
+        assert_eq!(outer.offsets.as_deref(), Some(&[0, 8][..]));
+        assert_eq!(
+            nested_rows
+                .iter()
+                .map(|row| row.field.as_str())
+                .collect::<Vec<_>>(),
+            ["first", "second"]
+        );
+        assert_eq!(nested_rows[0].member_identity, None);
+        assert_eq!(nested_rows[1].member_identity, None);
+        assert_eq!(nested_rows[0].layout, nested_rows[1].layout);
+
+        let erased_also = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "ErasedAlso")
+            .unwrap();
+        let (erased_outer, erased_rows) =
+            project_conventional_record_with_sum_materialization_layout(
+                &checked,
+                &plan,
+                erased_also.symbol,
+            )
+            .expect("erased sum fields are not runtime materialization occurrences");
+        assert_eq!(erased_outer.offsets.as_deref(), Some(&[0][..]));
+        assert_eq!(
+            erased_rows
+                .iter()
+                .map(|row| row.field.as_str())
+                .collect::<Vec<_>>(),
+            ["live"]
+        );
+
+        for name in ["ArrayOwner", "RecursiveOwner", "MixedOwner"] {
             let definition = checked
                 .data_definitions()
                 .iter()
@@ -585,7 +636,7 @@ mod tests {
                     definition.symbol,
                 )
                 .is_err(),
-                "{name} must remain outside the first direct nested-sum rung"
+                "{name} must remain outside the direct nested-sum rung"
             );
         }
     }

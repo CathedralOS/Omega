@@ -10632,21 +10632,26 @@ checked-result arithmetic decision listed below.
   stable-numbered case/payload renames are presentation-only while ordinals and
   geometry remain exact, and replay or short-copy failure is atomic. This does
   not extend programmable `Layout` with tagged case placement. The first
-  nested rung is now live for exactly one direct runtime-relevant conventional
-  pure-sum field in one closed non-generic `[copy]` record. `omega-layout`
-  projects the paired whole-field outer layout and exact conventional nested
-  layout from the same target runtime plan. A distinct non-clone carrier keeps
-  the outer typed value and layout beside the nested sum's complete layout,
-  selected case identity/ordinal, target byte order, and zero-initialized final
-  bytes; replay uses hash-free comparison for both layouts before atomic copy.
-  Multiple sum fields, arrays of sums, sums behind another record, mixed
+  direct nested rung is now live for the complete nonempty authored-order set
+  of direct runtime-relevant conventional pure-sum fields in one closed
+  non-generic `[copy]` record. `omega-layout` projects the whole-field outer
+  layout and one exact field-identity plus conventional nested-layout row per
+  occurrence from the same target runtime plan. Repeated occurrences of the
+  same sum type stay distinct and may select different cases. A distinct
+  non-clone carrier keeps the outer typed value and layout beside every ordered
+  nested sum's complete layout and selected case identity/ordinal, target byte
+  order, and zero-initialized final bytes; replay rejects missing, extra,
+  reordered, and duplicate occurrence rows, compares every layout hash-free,
+  stages every nested buffer, and performs one atomic outer copy. Erased sum
+  fields remain outside the runtime occurrence set. Arrays of sums, sums behind
+  another record, mixed
   common-field/case shapes, target-dependent inactive-case geometry,
   generic/opaque/quotient records, references, slices, Text, dynamic values,
   atomics, non-copy data, and malformed shapes remain rejected without
   narrowing the legacy materialization API. This custody is not evaluator
   admission, a target capsule, quotient canonicalization, an origin-chain
-  proof, or proof authority. Quotient snapshots/materialization, wider sums
-  nested in aggregates, mixed shapes, target capsules/observations,
+  proof, or proof authority. Quotient snapshots/materialization, sums nested
+  through arrays or deeper aggregates, mixed shapes, target capsules/observations,
   complete origin diagnostics, and broader representation bytes remain
   subsequent.
 
