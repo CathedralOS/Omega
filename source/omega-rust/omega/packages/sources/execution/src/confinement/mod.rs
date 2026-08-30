@@ -19,7 +19,7 @@ pub(crate) mod windows;
 pub(crate) fn guarantee_disposition(
     backend: &ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
-    network_transport: Option<ResolverExecutionNetworkTransport>,
+    _network_transport: Option<ResolverExecutionNetworkTransport>,
     has_endpoint_route: bool,
     guarantee: ResolverExecutionGuarantee,
 ) -> ResolverExecutionGuaranteeDisposition {
@@ -42,26 +42,15 @@ pub(crate) fn guarantee_disposition(
             Enforced
         }
         FilesystemWritesConfined | ExecutablePathsConfined => Unavailable,
-        FilesystemReadsConfined
-            if matches!(backend, MacosSeatbelt { .. })
-                && (matches!(
-                    phase,
-                    ResolverExecutionPhase::RepositoryInitialization
-                        | ResolverExecutionPhase::RepositoryInspection
-                ) || (phase == ResolverExecutionPhase::TransportDiscovery
-                    && network_transport == Some(ResolverExecutionNetworkTransport::Https))
-                    || (phase == ResolverExecutionPhase::Fetch
-                        && network_transport
-                            == Some(ResolverExecutionNetworkTransport::Https))) =>
-        {
-            Enforced
-        }
         ProcessCountConfined | AggregateResourcesConfined
             if matches!(backend, WindowsJobObject) =>
         {
             Enforced
         }
         ProcessCountConfined | AggregateResourcesConfined => Unavailable,
+        // Ambient Git/SSH configuration and authentication are ordinary host
+        // inputs, so resolver child reads are intentionally not confined to a
+        // compiler-owned path set on any backend.
         FilesystemReadsConfined => Unavailable,
         DescendantProcessesContained
             if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_descendant_processes() =>

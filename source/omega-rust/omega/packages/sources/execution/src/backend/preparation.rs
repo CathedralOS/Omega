@@ -98,7 +98,7 @@ impl ResolverExecutionBackend {
     }
 
     /// Construct one repository-inspection command bound to the exact retained
-    /// repository whose file contents may be read.
+    /// repository it inspects. Ambient host reads remain available to Git.
     pub fn prepare_inspection(
         &self,
         executable: &Path,
@@ -130,8 +130,8 @@ impl ResolverExecutionBackend {
             .map(ResolverPreparedExecution::into_parts)
     }
 
-    /// Construct one transport-discovery command bound to the exact working
-    /// root whose file contents may be read by a narrowed transport policy.
+    /// Construct one transport-discovery command bound to its exact working
+    /// root. Ambient host reads remain available to Git and its helpers.
     pub fn prepare_discovery(
         &self,
         executable: &Path,

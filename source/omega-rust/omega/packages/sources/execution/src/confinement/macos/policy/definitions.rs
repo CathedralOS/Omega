@@ -1,4 +1,3 @@
-use super::metadata::ConfinedMetadata;
 use crate::backend::ResolverExecutionAuthorityRoots;
 use crate::network::ResolverExecutionEndpointRoutePolicy;
 use std::ffi::OsString;
@@ -9,7 +8,6 @@ pub(super) fn encode(
     additional_executables: &[PathBuf],
     endpoint_route: Option<&ResolverExecutionEndpointRoutePolicy>,
     roots: ResolverExecutionAuthorityRoots<'_>,
-    confined_metadata: Option<&ConfinedMetadata>,
 ) -> Vec<OsString> {
     let mut definitions = vec![definition_argument("EXECUTABLE_0", executable)];
     for (index, helper) in additional_executables.iter().enumerate() {
@@ -20,23 +18,6 @@ pub(super) fn encode(
     }
     if let Some(root) = roots.mutable_root {
         definitions.push(definition_argument("MUTABLE_ROOT", root));
-    }
-    if let Some(root) = roots.inspection_read_root {
-        definitions.push(definition_argument("INSPECTION_READ_ROOT", root));
-    }
-    if let Some(root) = roots.discovery_read_root {
-        definitions.push(definition_argument("DISCOVERY_READ_ROOT", root));
-    }
-    if let Some(metadata) = confined_metadata {
-        for (index, path) in metadata.subpaths.iter().enumerate() {
-            definitions.push(definition_argument(
-                &format!("METADATA_SUBPATH_{index}"),
-                path,
-            ));
-        }
-        for (index, path) in metadata.paths.iter().enumerate() {
-            definitions.push(definition_argument(&format!("METADATA_PATH_{index}"), path));
-        }
     }
     if let Some(route) = endpoint_route {
         definitions.push(OsString::from(format!(

@@ -150,17 +150,6 @@ package review remains non-admitting.
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
 
-- [ ] **DESIGN-BLOCKED — OWNER Q1: DANGEROUS-AUTHORITY-CLASSIFICATION.** The
-  existing compiler-owned catalog exactly classifies every currently declared
-  authority surface. Select semantic loci for network, dynamic loading,
-  signing, secrets, executable installation, DMA/IOMMU, and future surfaces
-  before extending it. Names, aliases, paths, and same-spelled package
-  declarations must confer no authority. For an authority surface declared by
-  an ordinary package, bind the consumer-policy class to the exact accepted
-  declaration identity and normalized schema, never to a package-wide role.
-  Classification is review metadata; it grants no service or provider
-  authority.
-
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
   reviewer into command orchestration with the existing fixed instructions,
   bounded Omega-rendered evidence, closed response schema, and monotone
@@ -195,6 +184,12 @@ package review remains non-admitting.
   observations, review state, and the first failed provenance edge.
 
 ## P6 — Integration fixtures
+
+- [ ] **DESIGN-BLOCKED — OWNER Q5: HOST-ROUTED-SOURCE-TRANSPORT.** Decide
+  whether the resolver's CONNECT broker is optional host hardening or universal
+  package semantics. The current forced HTTPS proxy and SSH `ProxyCommand`
+  contradict the settled ambient-host contract; do not expand Omega into a
+  proxy, SSH, or credential provider to preserve them.
 
 - [ ] **SECURITY-FIXTURE-MATRIX.** Close the remaining real-custody cases:
   accepted-lock absence and recovery, sealed representation mechanism/ABI,

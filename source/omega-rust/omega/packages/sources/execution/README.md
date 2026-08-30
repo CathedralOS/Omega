@@ -68,15 +68,13 @@ universal prerequisites for successful source resolution.
 ## Current enforcement
 
 - macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
-  profile imports. SSH discovery and fetch admit broad reads. Repository
-  initialization, inspection, and HTTPS discovery/fetch confine metadata and
-  content reads to their phase root plus exact executable/runtime paths and
-  literal ancestors. HTTPS discovery/fetch additionally admit metadata-only
-  lookup within the compiler-selected Git helper directory and the fixed
-  `/etc/ssl` alias needed to reach the canonical TLS root. HTTPS discovery/fetch
-  additionally admit the fixed system TLS configuration root
-  `/private/etc/ssl`. Every phase admits the exact compiler-selected executable
-  set and write-data to the fixed `/dev/null` sink. Initialization
+  profile imports. Every resolver phase deliberately retains broad filesystem
+  reads. Ambient reads are required for ordinary user and system Git/SSH
+  configuration, recursive config includes, credential and transport helpers,
+  identity files, known-host data, and equivalent host-selected inputs. Broad
+  reads do not grant fetched source execution: every phase still admits only
+  the exact compiler-selected executable set and write-data to the fixed
+  `/dev/null` sink. Initialization
   and fetch additionally admit writes only beneath the exact mutable quarantine
   root. Discovery and fetch require one explicit closed HTTPS or SSH authority
   and admit outbound network. Only SSH receives the OpenDirectory libinfo
@@ -125,7 +123,7 @@ universal prerequisites for successful source resolution.
   the backend, phase, closed network transport when
   applicable, sealed endpoint route when applicable, generated policy hash,
   numeric resource ceilings, primary executable path, normalized bounded
-  descendant-executable path set, discovery/inspection content-read roots when
+  descendant-executable path set, discovery/inspection phase roots when
   applicable, mutable root, and every closed native guarantee as `Enforced`,
   `Unavailable`, or `NotRequired`. There is no public constructor
   or decoder. Spawning consumes the prepared value. A completion observation is
@@ -162,8 +160,7 @@ configuration and the inherited host environment remain available for ordinary
 credential helpers, agents, identity files, known-host policy, and proxies.
 
 This engineering enforcement is recorded in each successful package-source
-receipt. macOS initialization, inspection, and HTTPS discovery/fetch mark
-`FilesystemReadsConfined` enforced, while SSH discovery/fetch report broad
-reads. Other unavailable rows remain visible as platform-hardening facts and do
-not prevent resolution. See
+receipt. Every macOS phase marks `FilesystemReadsConfined` unavailable because
+ambient host reads are intentional. Other unavailable rows remain visible as
+platform-hardening facts and do not prevent resolution. See
 [`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).

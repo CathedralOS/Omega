@@ -41,14 +41,13 @@ fn seatbelt_inspection_allows_only_the_fixed_null_write_sink() {
 
 #[cfg(target_os = "macos")]
 #[test]
-fn seatbelt_inspection_confines_file_content_to_the_retained_repository() {
-    use std::os::unix::fs::symlink;
+fn seatbelt_inspection_keeps_ambient_external_reads_available() {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
     let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let parent = std::env::temp_dir().join(format!(
-        "omega-resolver-inspection-read-{}-{sequence}",
+        "omega-resolver-inspection-ambient-read-{}-{sequence}",
         std::process::id()
     ));
     let repository = parent.join("repository");
@@ -56,114 +55,39 @@ fn seatbelt_inspection_confines_file_content_to_the_retained_repository() {
     let repository = repository
         .canonicalize()
         .expect("canonicalize inspection repository");
-    let inside = repository.join("inside");
-    let sibling = parent.join("sibling");
-    let escaped_link = repository.join("escaped-link");
-    std::fs::write(&inside, b"inside").expect("write inside canary");
-    std::fs::write(&sibling, b"sibling").expect("write sibling canary");
-    symlink(&sibling, &escaped_link).expect("create escaping symlink");
+    let ambient_file = parent.join("ambient-config");
+    std::fs::write(&ambient_file, b"ambient").expect("write ambient read canary");
 
     let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    let mut allowed = backend
+    let mut read_content = backend
         .command_with_inspection_read_root(Path::new("/bin/cat"), &[], &repository)
-        .expect("build repository-content sandbox");
-    let output = allowed.arg(&inside).output().expect("read inside content");
+        .expect("build inspection ambient-content sandbox");
+    let output = read_content
+        .arg(&ambient_file)
+        .output()
+        .expect("read ambient file content");
     assert!(
         output.status.success(),
-        "inside read failed: {}",
+        "ambient content read failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(output.stdout, b"inside");
+    assert_eq!(output.stdout, b"ambient");
 
-    for denied_path in [&sibling, &escaped_link] {
-        let mut denied = backend
-            .command_with_inspection_read_root(Path::new("/bin/cat"), &[], &repository)
-            .expect("build repository-content sandbox");
-        let output = denied
-            .arg(denied_path)
-            .output()
-            .expect("attempt escaped content read");
-        assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
-    }
-
-    std::fs::remove_file(escaped_link).expect("remove escaping symlink");
-    std::fs::remove_file(inside).expect("remove inside canary");
-    std::fs::remove_file(sibling).expect("remove sibling canary");
-    std::fs::remove_dir(repository).expect("remove inspection repository");
-    std::fs::remove_dir(parent).expect("remove inspection parent");
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn seatbelt_inspection_confines_metadata_to_the_retained_repository() {
-    use std::os::unix::fs::symlink;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
-    let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let parent = std::env::temp_dir().join(format!(
-        "omega-resolver-inspection-metadata-{}-{sequence}",
-        std::process::id()
-    ));
-    let repository = parent.join("repository");
-    let raw_inside = repository.join("inside");
-    let raw_sibling = parent.join("sibling");
-    let raw_escaped_link = repository.join("escaped-link");
-    std::fs::create_dir_all(&raw_inside).expect("create inspection repository metadata");
-    std::fs::create_dir(&raw_sibling).expect("create sibling metadata canary");
-    symlink(&raw_sibling, &raw_escaped_link).expect("create escaping metadata symlink");
-    let repository = repository
-        .canonicalize()
-        .expect("canonicalize inspection repository");
-    let inside = repository.join("inside");
-    let sibling = raw_sibling
-        .canonicalize()
-        .expect("canonicalize sibling metadata canary");
-    let escaped_link = repository.join("escaped-link");
-
-    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    let run_stat = |arguments: &[&std::ffi::OsStr]| {
-        let mut command = backend
-            .command_with_inspection_read_root(Path::new("/usr/bin/stat"), &[], &repository)
-            .expect("build repository-metadata sandbox");
-        command
-            .args(arguments)
-            .output()
-            .expect("run metadata canary")
-    };
-
-    let inside_output = run_stat(&[
-        std::ffi::OsStr::new("-f"),
-        std::ffi::OsStr::new("%N"),
-        inside.as_os_str(),
-    ]);
+    let mut read_metadata = backend
+        .command_with_inspection_read_root(Path::new("/usr/bin/stat"), &[], &repository)
+        .expect("build inspection ambient-metadata sandbox");
+    let output = read_metadata
+        .args([std::ffi::OsStr::new("-f"), std::ffi::OsStr::new("%N")])
+        .arg(&ambient_file)
+        .output()
+        .expect("read ambient file metadata");
     assert!(
-        inside_output.status.success(),
-        "inside metadata failed: {}",
-        String::from_utf8_lossy(&inside_output.stderr)
+        output.status.success(),
+        "ambient metadata read failed: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    let link_output = run_stat(&[
-        std::ffi::OsStr::new("-f"),
-        std::ffi::OsStr::new("%N"),
-        escaped_link.as_os_str(),
-    ]);
-    assert!(
-        link_output.status.success(),
-        "reading the in-root symlink entry must remain allowed"
-    );
-    let sibling_output = run_stat(&[
-        std::ffi::OsStr::new("-f"),
-        std::ffi::OsStr::new("%N"),
-        sibling.as_os_str(),
-    ]);
-    assert!(!sibling_output.status.success());
-    let escaped_output = run_stat(&[std::ffi::OsStr::new("-L"), escaped_link.as_os_str()]);
-    assert!(!escaped_output.status.success());
 
-    std::fs::remove_file(escaped_link).expect("remove escaping metadata symlink");
-    std::fs::remove_dir(inside).expect("remove inside metadata canary");
-    std::fs::remove_dir(sibling).expect("remove sibling metadata canary");
+    std::fs::remove_file(ambient_file).expect("remove ambient read canary");
     std::fs::remove_dir(repository).expect("remove inspection repository");
     std::fs::remove_dir(parent).expect("remove inspection parent");
 }
