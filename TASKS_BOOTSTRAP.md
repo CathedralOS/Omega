@@ -1544,9 +1544,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
       `Lexer::decode_at` advances to a grouped/multiplicative RHS,
       `Lexer::lex_cooked_string` to a grouped/multiplicative cast argument, and
       `Lexer::lex_number` to a unary RHS.
-    - [ ] Generalize indexed expressions into the local-initializer lane for
-      `Parser::{parse_data,skip_trivia,parse_roots}` and to advance
-      `Lexer::span_equals`.
+    - [x] Generalize the existing destination-neutral indexed-expression
+      builder into the local-initializer lane without adding a local-only AST
+      row or index grammar. The base, path-valued index, and final indexed node
+      remain in postorder in the shared expression arena; statement place/
+      terminal destinations retain their existing behavior, while a local
+      value restores its outer consumer and re-enters the shared additive
+      continuation. This completes `Lexer::span_equals`, raising completed
+      current `C` roots from forty-seven to forty-eight while body-boundary
+      coverage remains 56 of 73. `Parser::{parse_data,skip_trivia,parse_roots}`
+      advance to qualified token-pattern guards. Numeric, range, additive,
+      nested, and chained indexes remain implementation-incomplete.
     - [ ] Retain qualified case/destructure guards for `Main::main` and
       `Lexer::digit_in_base`. Each remaining item is an ordinary syntax
       capability, not a closure-specific rewrite.

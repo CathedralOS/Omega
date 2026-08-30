@@ -137,8 +137,9 @@ Local-data statements retain canonical `let [mut] name: Type [= expression];`
 syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
 immutable local named `mut`. Locals share the borrow-capable type engine and the
 same left-associated path/Boolean/decimal-integer/string/shallow-struct `+`/`-`
-expression path as assignments; absent initializers are represented by an
-explicit presence bit rather than a valid-looking handle. Ordinary call
+expression path as assignments, including one path-indexed expression with a
+path index; absent initializers are represented by an explicit presence bit
+rather than a valid-looking handle. Ordinary call
 initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
@@ -147,7 +148,7 @@ Path-valued casts reuse the same expression and type engines in assignments,
 locals, ordinary call arguments, and transition-target arguments. They retain
 the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix; richer postfix values, recasts, domain arguments, unary,
-grouped, indexed, and other richer initializers remain implementation-
+grouped, nested/chained indexing, and other richer initializers remain implementation-
 incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
@@ -171,7 +172,7 @@ bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences and all 73 root parameter lists are
-representable, and 56 headers reach body parsing. Forty-seven are complete: four
+representable, and 56 headers reach body parsing. Forty-eight are complete: four
 initial call-only roots, seven roots using the retained assignment slice, four
 target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -195,9 +196,11 @@ through retained call-valued local initializers.
 through retained additive ordinary call arguments; `Lexer::lex_next` advances
 through the same syntax. Path-valued casts complete
 `Lexer::{consume_digits,lex_punctuation,lex_next}` and
-`Parser::load_current`. The nine other reached bodies stop at qualified payload
-guards, indexed local initializers, grouped/multiplicative expressions, or a
-unary expression.
+`Parser::load_current`. Reusing the indexed-expression builder for local
+initializers completes `Lexer::span_equals`; the three Parser roots that use the
+same form advance to qualified token-pattern guards. The eight other reached
+bodies stop at qualified payload/token guards, grouped/multiplicative
+expressions, or a unary expression.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
