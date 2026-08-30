@@ -452,13 +452,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
       arena, leaving 4,497,861 nodes (107,948,664 bytes) for declarations,
       retained lemmas, and one equality's scratch. A real raw-tree selector plus
       the exact textual-ASCII/comment DFA checks the first 1,024 source bytes in
-      the authoritative checker with a 3,134-byte temporary certificate in
-      under one second. That closes the traversal and byte-dispatch shape, not
-      pass one: parser-rich measurement starts at 256-byte power-of-two
-      subtrees and may coarsen cheap regions only after they remain below the
-      100,000-reduction and semantic-stack ceilings. The useful first adjacent
-      pair is `[4096,4352)` / `[4352,4608)`: it crosses `read_source`, advances
-      PC `10 -> 83 -> 164`, and records `source_done = 92`. The terminal
+      the authoritative checker with a 1,606-byte, 73-declaration temporary
+      certificate in 0.19 seconds. That closes the traversal and byte-dispatch
+      shape, not pass one. A current-source parser measurement over
+      `[4096,4352)` uses a 16,236-byte, 605-declaration certificate and 167 of
+      768 function IDs. Starting from a canonical base state and PC zero, it
+      recognizes the ten complete instructions and `read_source:` in that
+      slice, reaches PC 80 with one label, and checks in 0.19 seconds. Unknown
+      mnemonics and a mutated source envelope reject. The former documented
+      `10 -> 83 -> 164` adjacent-slice accounting is stale and must not seed the
+      final certificate. Parser-rich measurement may coarsen 256-byte
+      power-of-two subtrees only after they remain below the 100,000-reduction
+      and semantic-stack ceilings. The complete implementation still needs a
+      compact label-record map and uniqueness join, exact register and `u64`
+      bounds, continuation-preserving comments, `db` decoding, the remaining
+      mnemonics and operands, cross-cut parser state, and explicit total reject
+      results. The terminal
       `[104448,104704)` selector has 124 real leaves plus checker `EMPTY`
       padding and must close the final `db "main"` at source byte 104,572 and
       PC 27,087.
