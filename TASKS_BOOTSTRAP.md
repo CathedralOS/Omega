@@ -635,8 +635,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     the literal while the direct unary-minus operand remains admitted. Parser
     success wrappers retain only the native AST value and are reused across
     no-op postfix/binary stages; a trivial integer expression authors 112 heap
-    bytes rather than the rejected token-object design's roughly 528. Program,
-    declaration, and body parsing remain later implementation milestones.
+    bytes rather than the rejected token-object design's roughly 528. The
+    remaining syntax milestones are closed below; whole-closure semantics and
+    direct lowering remain later phases.
   - [x] Implement D17 transition syntax: integer, Boolean, wildcard, and
     qualified-case patterns; optional source-order binders; postfix and
     `return expression?` continuations; nonempty source-order arm lists; and
@@ -653,17 +654,26 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `assert`, and `return expression?;` nodes own exact spans through their
     semicolon. The parser does not guess whether a postfix form is an assignable
     place, ordinary call, or final `never` call; resolved body checking owns
-    those D17 classifications. Body and state assembly is closed below;
-    top-level declarations remain the final syntax milestone.
+    those D17 classifications. Body, state, and top-level assembly are closed
+    by the following milestones.
   - [x] Implement state declarations, state bodies, and machine bodies with
     exact brace spans and source-order tail-built statement/state lists.
     Machine parsing advances one way from statements to an optional explicit
     return/transition and then to states; after the first state only states or
     the body close are admitted. A state body must close immediately after its
     explicit terminal. Neutral postfix statements remain available for later
-    resolved `never` classification rather than becoming a parser guess.
-    Top-level declaration and whole-program parsing remain the final syntax
-    milestone.
+    resolved `never` classification rather than becoming a parser guess. The
+    following milestone closes top-level declaration and whole-program syntax.
+  - [x] Implement the complete top-level D17 grammar: boundary traits and their
+    machine signatures, record fields and sum cases with optional payloads,
+    qualified and unqualified machine declarations, exact `& mut self`
+    receiver forms, optional returns, and machine bodies. All member and
+    declaration lists are tail-built then restored to source order. The
+    whole-program entry preserves lexical-phase priority, rejects an empty
+    source at its extent, requires at least one declaration, and consumes the
+    exact source through trivia to EOF. `delta_parse_program_syntax` now parses
+    every D17 grammar form without claiming collection, type/control checking,
+    lowering, or a compiler artifact.
 - [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
