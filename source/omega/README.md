@@ -114,7 +114,8 @@ paths are retained exactly; const arguments, evidence projections, nested
 static applications, lifetime arguments, and empty or trailing-comma static
 lanes remain incomplete. Ordinary assignments retain
 separate target and value handles. Their current target grammar is a self/name
-place path or one path-indexed place with a path index; current values are
+place path or one path-indexed place with a path, decimal, or explicit-start
+open-range index; current values are
 self-member paths, qualified-name paths, booleans, unsuffixed nonnegative
 decimal integer literals, or strings. Integer
 spelling is retained by source span and is not evaluated during parsing;
@@ -146,7 +147,10 @@ distinction between `Type::Case` and `Type::Case {}` plus exact binding and
 field spelling for later resolution. Current named targets own a contiguous
 argument-expression span
 over self/name/member paths, booleans, unsuffixed nonnegative decimal integers,
-strings, and shallow struct literals, with an optional trailing comma. A
+strings, shallow struct literals, and path bases indexed by a path or decimal
+integer. An index may instead be an explicit-start open range (`start..`),
+represented by a separate range expression rather than folded into the indexed
+node. Target argument lists retain an optional trailing comma. A
 subjectless block retains absence explicitly and does not manufacture a unit
 expression. Computed or multiple subjects, record/tuple patterns, renamed or
 waived fields, non-path fixed values, proof selectors, richer guards, richer
@@ -158,8 +162,9 @@ Local-data statements retain canonical `let [mut] name: Type [= expression];`
 syntax in a dedicated row. `mut` is contextual, so `let mut: T;` still binds an
 immutable local named `mut`. Locals share the borrow-capable type engine and the
 same bounded expression reducer as assignments, including one path-indexed
-expression with a path index; absent initializers are represented by an explicit
-presence bit rather than a valid-looking handle. Ordinary call
+expression with a path or decimal index and the same explicit-start open range;
+absent initializers are represented by an explicit presence bit rather than a
+valid-looking handle. Ordinary call
 initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
@@ -169,14 +174,15 @@ locals, ordinary call arguments, and transition-target arguments. They retain
 the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix. Ordinary assignment, local, and call-argument casts may
 also wrap a completed grouped primary and then continue through the shared
-binary tail. Richer postfix values, recasts, domain arguments,
-nested/chained indexing, and other richer initializers remain
+binary tail. Richer postfix values, recasts, domain arguments, open-start,
+bounded, or inclusive ranges, nested/chained indexing, and other richer
+initializers remain
 implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
-integer, string, or one path-indexed expression with a path index. The statement
-points directly to the shared expression node; indexing has no assignment-only
-syntax representation.
+integer, string, or one path-indexed expression with a path, decimal, or
+explicit-start open-range index. The statement points directly to the shared
+expression node; indexing has no assignment-only syntax representation.
 
 Each completed machine owns zero or one implicit entry followed by its explicit
 states in source order, matching the canonical parser. Parameters, a return,
@@ -195,9 +201,9 @@ other bodyless declarations, and other body forms
 remain incomplete. The parser never skips a body as opaque
 syntax. In the current 73-root `C` closure, all 113
 machine-header parameter occurrences, all 73 root parameter lists, and all 73
-root headers are representable. Seventy-two roots are complete: 56 of the
-57 bodies that reach parsing, plus sixteen target-scoped bodyless external
-leaves. The bodyful set includes
+root headers are representable. All 73 roots are complete: all 57 bodies that
+reach parsing, plus sixteen target-scoped bodyless external leaves. The bodyful
+set includes
 four initial call-only roots, seven roots using the retained assignment slice,
 four target-provider roots using path-only static call arguments, the string-argument
 `psi` package build root, `Lexer::initialize`, the canonical Omega package build
@@ -230,9 +236,11 @@ shared grouping and multiplicative reducer then completes
 `Lexer::{decode_at,lex_cooked_string}`. Recursive logical-not retention completes
 `Lexer::lex_number`. The sixteen external leaves are the four
 `ConsoleNativeProvider::{read_line,read_byte,write_byte,exit_process}`
-realizations for each selected target. The sole remaining root,
-`console_write_bytes`, now passes its private termination-witness header and
-first stops in its body at the indexed transition-target argument `bytes[0]`.
+realizations for each selected target. `console_write_bytes` completes through
+shared indexed transition-target arguments: `bytes[0]` owns an integer index,
+while `bytes[1..]` owns an open-ended range index. Closing the current root
+census does not imply that the parser implements unexercised Omega syntax or
+that `D` has semantic, lowering, or emission closure.
 
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
@@ -307,6 +315,8 @@ Every unary row likewise owns its expression node, so `Expressions` dominates
 that equal table as well.
 Every indexed row likewise owns its expression node, so it introduces no new
 resource distinction.
+Every range row likewise owns its expression node, so `Expressions` dominates
+the equal range table.
 Every call-expression row likewise owns its expression node, and every retained
 receiver is another expression node, so `Expressions` dominates the equal call-
 expression table.

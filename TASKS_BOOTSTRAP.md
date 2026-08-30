@@ -1633,6 +1633,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       57 bodyful roots. Seventy-two roots complete; `console_write_bytes` is
       now the sole body-incomplete root and first stops at the indexed
       transition-target argument `bytes[0]`.
+    - [x] Generalize the shared indexed-expression builder into transition-
+      target arguments and retain canonical integer indices plus explicit-start
+      open ranges. `bytes[0]` is the ordinary composition of a path collection,
+      integer index, and indexed node. `bytes[1..]` adds a separate source-
+      shaped range node with an explicit start handle, absent end, exclusive
+      separator, and exact operator span before the same indexed wrapper is
+      built. Path-valued indices and range starts continue to use the same path
+      engine; assignment places, terminal values, and local initializers gain
+      the same numeric/open-range capability without a consumer-specific AST.
+      Open-start, bounded, and inclusive
+      ranges plus arbitrary, nested, or chained index expressions remain
+      implementation-incomplete. Every range and indexed row owns a tagged
+      expression node, so `Expressions` dominates both equal arenas. This
+      completes `console_write_bytes` and closes the current source census at
+      73 of 73 complete roots: 57 bodyful machines and sixteen bodyless external
+      leaves. This is parser coverage of the current `C` closure, not semantic,
+      lowering, emission, or full-spec parser closure for `D`.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
