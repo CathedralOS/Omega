@@ -866,6 +866,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     prose-only caller precondition. `D` deliberately has no `Main`, source
     protocol, package lookup, publication, or placeholder compiler result while
     Q7 is open.
+  - [x] Give `D` explicit symbolic control-flow ownership before lowering.
+    Monotonic typed label IDs bind once; each label-bearing emitter records the
+    exact most-recent instruction and its single address operand; operand
+    offsets are strictly increasing; and sealing resolves every recorded fixup
+    through its bind-once label between an unpatched partition reconstruction
+    and the final target replay. The 29,126-fixup ceiling is dominated by the
+    exact Alpha payload extent; the independent fixed label storage is a
+    private compiler ceiling and must map to outer `Incomplete` once Q7 freezes
+    its resource framing. There is no arbitrary public patch operation or
+    unresolved-zero convention. Exact forged-owner, stale-map, forward/
+    backward/alias, undefined/end-label, duplicate-bind, interior-target, and
+    capacity canaries join the real Delta-compiler gate when that executable
+    exists; do not create a host Delta executor to run this incomplete closure.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
