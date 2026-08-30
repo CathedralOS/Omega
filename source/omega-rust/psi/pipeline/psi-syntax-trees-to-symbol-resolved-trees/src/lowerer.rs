@@ -280,7 +280,7 @@ impl Lowerer {
             self.sources,
             self.source_scoped_top_level_bindings,
             &self.pending_const_declarations,
-        );
+        )?;
         crate::state::finalize_outcome_specific_contract_symbols(
             &mut self.symbol_resolved_trees,
             &self.pending_outcome_specific_contracts,

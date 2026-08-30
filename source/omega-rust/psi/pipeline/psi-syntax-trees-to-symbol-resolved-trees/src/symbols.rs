@@ -31,18 +31,23 @@ pub(crate) fn assign_symbols(
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::lowerer::PendingConstDeclaration],
-) {
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     let symbols = build_symbol_table(
         program,
         sources,
         source_scoped_top_level_bindings,
         const_declarations,
     );
-    assign_top_level_symbols(program, &symbols);
+    let diagnostics = assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     propositions::assign_proposition_expression_symbols(program, &symbols);
     assign_contract_reference_symbols(program, &symbols);
     assign_domain_fact_symbols(program, &symbols);
     assign_statement_reference_symbols(program, &symbols);
     program.symbols = symbols;
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
 }

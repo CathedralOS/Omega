@@ -573,6 +573,116 @@ fn settles_satisfied_operator_to_its_exact_overload_symbol() {
 }
 
 #[test]
+fn settles_satisfied_top_level_requirement_to_its_exact_machine_symbol() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let source = r#"
+        pub boundary requirement InterruptAcknowledgement::complete();
+
+        machine complete_provider()
+        satisfies InterruptAcknowledgement::complete
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let requirement_symbol = resolved
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")
+        .expect("top-level requirement")
+        .symbol;
+    let satisfier = resolved
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "complete_provider")
+        .expect("checked satisfier");
+    let [conformance] = resolved
+        .tables
+        .declarations
+        .machine_trait_conformances
+        .span_or_empty(satisfier.satisfies)
+    else {
+        panic!("one exact satisfies edge")
+    };
+    assert_eq!(conformance.symbol, requirement_symbol);
+
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let requirement = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == requirement_symbol)
+        .expect("typed top-level requirement");
+    assert_eq!(
+        requirement.supply_mode,
+        psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+    );
+    let satisfier = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "complete_provider")
+        .expect("typed checked satisfier");
+    let [conformance] = typed.machine_trait_conformances(satisfier) else {
+        panic!("one typed satisfies edge")
+    };
+    assert_eq!(conformance.symbol, requirement_symbol);
+    assert_eq!(conformance.requirement_symbol, requirement_symbol);
+    assert!(matches!(
+        psi_typed_trees::machine::resolve_satisfied_declaration(
+            &typed,
+            satisfier,
+            conformance,
+        ),
+        Some(psi_typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(selected))
+            if selected.symbol == requirement_symbol
+    ));
+    assert!(typed.authored_declaration_selections().iter().any(|selection| {
+        selection.kind() == Kind::StaticPathSegment
+            && matches!(selection.target(), Target::Resolved(target) if target.selected_symbol() == requirement_symbol)
+    }));
+}
+
+#[test]
+fn top_level_requirement_settlement_rejects_an_exact_wrong_supply_machine() {
+    let source = r#"
+        pub boundary requirement InterruptAcknowledgement::complete();
+
+        machine complete_provider()
+        satisfies InterruptAcknowledgement::complete
+        {
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let mut resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let requirement = resolved
+        .machines
+        .find_mut(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")
+        .expect("top-level requirement");
+    let ordinary_symbol = requirement.symbol;
+    requirement.supply_mode = psi_language_semantics::MachineSupplyMode::Boundary;
+
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let satisfier = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "complete_provider")
+        .expect("typed checked satisfier");
+    let [conformance] = typed.machine_trait_conformances(satisfier) else {
+        panic!("one typed satisfies edge")
+    };
+    assert_eq!(conformance.symbol, ordinary_symbol);
+    assert!(!conformance.requirement_symbol.is_valid());
+    assert!(
+        psi_typed_trees::machine::resolve_satisfied_declaration(&typed, satisfier, conformance,)
+            .is_none()
+    );
+}
+
+#[test]
 fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,

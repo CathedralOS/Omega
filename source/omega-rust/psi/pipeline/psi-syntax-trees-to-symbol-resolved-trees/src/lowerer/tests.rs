@@ -1,10 +1,144 @@
-use super::{lower_syntax_trees, lower_syntax_trees_with_sources};
+use super::{
+    lower_syntax_trees, lower_syntax_trees_with_sources,
+    lower_syntax_trees_with_sources_and_top_level_bindings,
+};
 use psi_source::SourceMap;
 use psi_source_files_to_tokens::Lexer;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees_with_id;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+#[test]
+fn explicit_top_level_boundary_requirement_satisfaction_resolves_exact_machine_symbol() {
+    let provider_source = r#"
+        machine Carrier::operation(value: u32) {}
+        machine checked_provider(value: u32)
+        satisfies Carrier::operation
+        {}
+    "#;
+    let requirement_source = "pub boundary requirement Carrier::operation(value: u32);";
+    let mut sources = SourceMap::default();
+    let provider_source_id = sources
+        .add(PathBuf::from("provider.omg"), provider_source.to_owned())
+        .source_id;
+    let requirement_source_id = sources
+        .add(
+            PathBuf::from("requirements.omg"),
+            requirement_source.to_owned(),
+        )
+        .source_id;
+    let provider_tokens = Lexer::new(provider_source)
+        .tokenize()
+        .expect("tokenize provider");
+    let mut syntax = parse_syntax_trees_with_id(provider_source_id, &provider_tokens)
+        .expect("parse provider source");
+    let requirement_tokens = Lexer::new(requirement_source)
+        .tokenize()
+        .expect("tokenize explicit requirement");
+    let requirement_syntax = parse_syntax_trees_with_id(requirement_source_id, &requirement_tokens)
+        .expect("parse explicit requirement");
+    syntax.extend_from(&requirement_syntax);
+    let program = lower_syntax_trees_with_sources_and_top_level_bindings(
+        &syntax,
+        Arc::new(sources),
+        vec![psi_symbols::SourceScopedTopLevelBinding::new(
+            provider_source_id,
+            requirement_source_id,
+            "Carrier::operation",
+        )],
+    )
+    .expect("resolve explicit requirement satisfaction");
+    let requirements = program
+        .machines
+        .iter()
+        .filter(|machine| {
+            machine.name.as_str() == "Carrier::operation"
+                && matches!(
+                    machine.supply_mode,
+                    psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+                )
+        })
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        panic!("one explicit requirement")
+    };
+    let provider = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "checked_provider")
+        .expect("checked provider");
+    let [satisfaction] = program.machine_trait_conformances(provider.satisfies) else {
+        panic!("one satisfaction row")
+    };
+
+    assert!(requirement.name.is_source_backed());
+    assert!(satisfaction.name.is_source_backed());
+    assert_eq!(satisfaction.symbol, requirement.symbol);
+    assert_eq!(
+        program.symbols.get(satisfaction.symbol).kind,
+        psi_symbols::SymbolKind::Machine
+    );
+}
+
+#[test]
+fn trait_requirement_satisfaction_retains_trait_symbol_resolution() {
+    let source = r#"
+        boundary trait Carrier { machine operation(value: u32); }
+        machine checked_provider(value: u32) satisfies Carrier::operation {}
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize trait provider");
+    let syntax = parse_syntax_trees(&tokens).expect("parse trait requirement");
+    let program = lower_syntax_trees(&syntax).expect("resolve trait requirement satisfaction");
+    let trait_definition = program.traits.first().expect("Carrier trait");
+    let provider = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "checked_provider")
+        .expect("checked provider");
+    let [satisfaction] = program.machine_trait_conformances(provider.satisfies) else {
+        panic!("one satisfaction row")
+    };
+
+    assert_eq!(satisfaction.symbol, trait_definition.symbol);
+    assert_eq!(
+        program.symbols.get(satisfaction.symbol).kind,
+        psi_symbols::SymbolKind::Trait
+    );
+}
+
+#[test]
+fn top_level_boundary_requirement_satisfaction_rejects_wrong_kind_and_missing_target() {
+    for (source, expected) in [
+        (
+            r#"
+                machine Carrier::operation(value: u32) {}
+                machine provider(value: u32) satisfies Carrier::operation {}
+            "#,
+            "is an ordinary machine, not an explicit top-level `boundary requirement`",
+        ),
+        (
+            "machine provider(value: u32) satisfies Missing::operation {}",
+            "does not resolve to an exact trait requirement or top-level `boundary requirement`",
+        ),
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize invalid target");
+        let syntax = parse_syntax_trees(&tokens).expect("parse invalid target");
+        let diagnostics = lower_syntax_trees(&syntax)
+            .expect_err("invalid satisfaction target must fail symbol assignment");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected `{expected}`, got {diagnostics:?}"
+        );
+    }
+}
 
 #[test]
 fn trait_machine_requirement_identity_reaches_resolved_trees() {

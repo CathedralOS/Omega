@@ -1,4 +1,5 @@
 use psi_arena::Arena;
+use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
@@ -18,7 +19,26 @@ pub(super) fn assign_machine_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
-) {
+) -> Vec<Diagnostic> {
+    let root_machine_symbols = symbols
+        .child_handles(symbols.root())
+        .into_iter()
+        .flatten()
+        .filter(|symbol| symbols.get(*symbol).kind == SymbolKind::Machine)
+        .collect::<Vec<_>>();
+    let top_level_requirement_symbols = program
+        .machines
+        .iter()
+        .zip(root_machine_symbols)
+        .filter_map(|(machine, symbol)| {
+            matches!(
+                machine.supply_mode,
+                psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+            )
+            .then_some(symbol)
+        })
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
     let trait_proposition_slots = program
         .roots
         .traits
@@ -209,8 +229,57 @@ pub(super) fn assign_machine_symbols(
         }
 
         for conformance in machine_trait_conformances.span_mut_or_empty(machine.satisfies) {
-            conformance.symbol =
-                top_level_symbol(symbols, SymbolKind::Trait, conformance.name.as_str());
+            let exact_requirement = conformance.requirement.as_ref().map(|requirement| {
+                let path = format!("{}::{}", conformance.name.as_str(), requirement.as_str());
+                let symbol = symbols
+                    .find_top_level_by_name_and_kinds_from_source(
+                        &path,
+                        &[SymbolKind::Machine],
+                        requirement.source_span(),
+                    )
+                    .unwrap_or_else(SymbolHandle::invalid);
+                (path, symbol, requirement.source_span())
+            });
+            let target_is_trait = match exact_requirement {
+                Some((path, symbol, source_span)) if symbol.is_valid() => {
+                    if top_level_requirement_symbols.contains(&symbol) {
+                        conformance.symbol = symbol;
+                    } else {
+                        conformance.symbol = SymbolHandle::invalid();
+                        diagnostics.push(
+                            Diagnostic::error(format!(
+                                "machine satisfaction target `{path}` is an ordinary machine, not an explicit top-level `boundary requirement`"
+                            ))
+                            .with_source_span(source_span),
+                        );
+                    }
+                    false
+                }
+                Some((path, _, source_span)) => {
+                    conformance.symbol =
+                        top_level_symbol(symbols, SymbolKind::Trait, conformance.name.as_str());
+                    let names_operator = symbols
+                        .find_top_level_by_name_and_kinds_from_source(
+                            &path,
+                            &[SymbolKind::Operator],
+                            source_span,
+                        )
+                        .is_some();
+                    if !conformance.symbol.is_valid() && !names_operator {
+                        diagnostics.push(
+                            Diagnostic::error(format!(
+                                "machine satisfaction target `{path}` does not resolve to an exact trait requirement or top-level `boundary requirement`"
+                            ))
+                            .with_source_span(source_span),
+                        );
+                    }
+                    conformance.symbol.is_valid()
+                }
+                None => {
+                    conformance.symbol = SymbolHandle::invalid();
+                    false
+                }
+            };
             assign_type_reference_argument_symbols_with_constraints(
                 symbols,
                 child_type_references,
@@ -219,7 +288,8 @@ pub(super) fn assign_machine_symbols(
                 machine_symbol,
                 conformance.arguments,
             );
-            if let Some((_, proposition_slots)) = trait_proposition_slots
+            if target_is_trait
+                && let Some((_, proposition_slots)) = trait_proposition_slots
                 .iter()
                 .find(|(name, _)| name == conformance.name.as_str())
             {
@@ -231,7 +301,8 @@ pub(super) fn assign_machine_symbols(
                     proposition_slots,
                 );
             }
-            if let Some((_, machine_slots)) = trait_machine_identity_slots
+            if target_is_trait
+                && let Some((_, machine_slots)) = trait_machine_identity_slots
                 .iter()
                 .find(|(name, _)| name == conformance.name.as_str())
             {
@@ -343,6 +414,8 @@ pub(super) fn assign_machine_symbols(
             }
         }
     });
+
+    diagnostics
 }
 
 fn inherited_field_count<'data>(
