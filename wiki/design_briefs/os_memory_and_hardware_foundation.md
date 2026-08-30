@@ -732,9 +732,12 @@ toolchain core trait and grants none of the establishment authority still
 missing here. Exactly one further represented acyclic, non-generic, case-free
 record with a nonzero canonical fixed representation may occur on that spine;
 both enclosing field identities remain in every direct erased-leaf path, and
-the root plan decision still diagnoses represented siblings. A third
-represented record level, zero-layout wrappers, arrays, generic,
-case-dependent, and planless agreement remain later work.
+the root plan decision still diagnoses represented siblings. One third
+represented record level is now admitted under the same restrictions, with all
+three enclosing identities retained and bounded complete-descendant replay so
+unsupported deeper custody cannot disappear. A fourth represented record
+level, zero-layout wrappers, arrays, generic, case-dependent, and planless
+agreement remain later work.
 
 Retirement is reconstructed from the successful disposition row. Borrowed
 initialization constructs and destroys `T` wholly inside the exclusive borrow,

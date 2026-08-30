@@ -2,16 +2,16 @@ use std::path::Path;
 
 use psi_diagnostics::Diagnostic;
 use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
-use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataField, DataMember};
 use psi_typed_trees::trait_definition::TraitDefinition;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::TypedTrees;
 
 /// Check the first closed `PlacementCustody` agreement slice. The agreement is
 /// ordinary conformance evidence: this pass only replays one exact concrete
 /// policy/schema plan, its direct erased fields, and one acyclic ordinary
-/// record paths from a represented outer field to erased leaves through at
-/// most one additional represented record.
+/// record path from a represented outer field to erased leaves through at
+/// most two additional represented records.
 pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
@@ -91,9 +91,23 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
                 let Some(layout_entry) = exact_layout_entry(plan, schema_field) else {
                     continue;
                 };
-                let Some(nested_schema) = direct_nested_custody_record(program, schema_field)
+                let Some(nested_schema) =
+                    direct_nested_custody_record(program, schema_field, schema.symbol)
                 else {
-                    if custody_field.is_some() {
+                    if type_contains_erased_descendant(
+                        program,
+                        schema_field.type_reference,
+                        &mut vec![schema.symbol],
+                    ) {
+                        diagnostics.push(unsupported_nested_custody_diagnostic(
+                            program,
+                            conformance,
+                            schema,
+                            schema_field,
+                            &plan_name,
+                            layout_entry,
+                        ));
+                    } else if custody_field.is_some() {
                         diagnostics.push(represented_field_diagnostic(
                             program,
                             conformance,
@@ -223,26 +237,19 @@ fn validate_nested_record(
                 continue;
             }
             if let Some(deep_schema) =
-                second_nested_custody_record(program, nested_field, nested_schema.symbol)
+                second_nested_custody_record(program, nested_field, &[nested_schema.symbol])
             {
                 let middle_path = nested_canonical_path(schema, outer_field, nested_field);
-                for deep_field in program
-                    .data_members(deep_schema)
-                    .iter()
-                    .filter_map(field)
-                    .filter(|field| field.relevance.is_erased())
-                {
-                    let path = format!("{middle_path}.{}", canonical_segment(deep_field));
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        deep_field,
-                        &path,
-                        diagnostics,
-                    );
-                }
+                push_missing_second_nested_paths(
+                    program,
+                    conformance,
+                    custody,
+                    deep_schema,
+                    nested_schema.symbol,
+                    &middle_path,
+                    plan_name,
+                    diagnostics,
+                );
             }
         }
         return;
@@ -279,7 +286,7 @@ fn validate_nested_record(
         let path = nested_canonical_path(schema, outer_field, nested_field);
         if !nested_field.relevance.is_erased() {
             if let Some(deep_schema) =
-                second_nested_custody_record(program, nested_field, nested_schema.symbol)
+                second_nested_custody_record(program, nested_field, &[nested_schema.symbol])
             {
                 validate_second_nested_record(
                     program,
@@ -381,38 +388,245 @@ fn push_missing_custody_path(
 fn direct_nested_custody_record<'program>(
     program: &'program TypedTrees,
     schema_field: &DataField,
+    owner_symbol: psi_symbols::SymbolHandle,
 ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
     let record = plain_record_for_type(program, schema_field.type_reference)?;
-    program
-        .data_members(record)
-        .iter()
-        .filter_map(field)
-        .any(|field| {
-            field.relevance.is_erased()
-                || (!field.relevance.is_erased()
-                    && second_nested_custody_record(program, field, record.symbol).is_some())
-        })
-        .then_some(record)
+    if record.symbol == owner_symbol {
+        return None;
+    }
+    let mut has_custody = false;
+    for field in program.data_members(record).iter().filter_map(field) {
+        if field.relevance.is_erased() {
+            has_custody = true;
+            continue;
+        }
+        if !type_contains_erased_descendant(program, field.type_reference, &mut vec![record.symbol])
+        {
+            continue;
+        }
+        second_nested_custody_record(program, field, &[record.symbol])?;
+        has_custody = true;
+    }
+    has_custody.then_some(record)
 }
 
 fn second_nested_custody_record<'program>(
     program: &'program TypedTrees,
     schema_field: &DataField,
-    parent_symbol: psi_symbols::SymbolHandle,
+    ancestors: &[psi_symbols::SymbolHandle],
 ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
     let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if record.symbol == parent_symbol
+    if ancestors.contains(&record.symbol)
         || !fixed_type_width_bytes(program, schema_field.type_reference)
             .is_some_and(|width| width > 0)
     {
         return None;
     }
-    program
-        .data_members(record)
-        .iter()
-        .filter_map(field)
-        .any(|field| field.relevance.is_erased())
-        .then_some(record)
+    let mut third_ancestors = ancestors.to_vec();
+    third_ancestors.push(record.symbol);
+    let mut has_custody = false;
+    for field in program.data_members(record).iter().filter_map(field) {
+        if field.relevance.is_erased() {
+            has_custody = true;
+            continue;
+        }
+        if !type_contains_erased_descendant(
+            program,
+            field.type_reference,
+            &mut third_ancestors.clone(),
+        ) {
+            continue;
+        }
+        third_nested_custody_record(program, field, &third_ancestors)?;
+        has_custody = true;
+    }
+    has_custody.then_some(record)
+}
+
+fn third_nested_custody_record<'program>(
+    program: &'program TypedTrees,
+    schema_field: &DataField,
+    ancestors: &[psi_symbols::SymbolHandle],
+) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+    let record = plain_record_for_type(program, schema_field.type_reference)?;
+    if ancestors.contains(&record.symbol)
+        || !fixed_type_width_bytes(program, schema_field.type_reference)
+            .is_some_and(|width| width > 0)
+    {
+        return None;
+    }
+    let mut has_custody = false;
+    let mut visiting = ancestors.to_vec();
+    visiting.push(record.symbol);
+    for field in program.data_members(record).iter().filter_map(field) {
+        if field.relevance.is_erased() {
+            has_custody = true;
+            continue;
+        }
+        if type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
+            return None;
+        }
+    }
+    has_custody.then_some(record)
+}
+
+fn type_contains_erased_descendant(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+) -> bool {
+    let mut memo = Vec::new();
+    let mut visited_records = 0usize;
+    type_contains_erased_descendant_bounded(
+        program,
+        type_reference,
+        visiting,
+        &mut memo,
+        &mut visited_records,
+        0,
+    )
+}
+
+const MAX_CUSTODY_DESCENDANT_TYPE_DEPTH: usize = 64;
+const MAX_CUSTODY_DESCENDANT_RECORDS: usize = 256;
+
+fn type_contains_erased_descendant_bounded(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<psi_symbols::SymbolHandle>,
+    memo: &mut Vec<(psi_symbols::SymbolHandle, bool)>,
+    visited_records: &mut usize,
+    depth: usize,
+) -> bool {
+    if !type_reference.is_valid() {
+        return true;
+    }
+    if depth > MAX_CUSTODY_DESCENDANT_TYPE_DEPTH {
+        return true;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            let Some(record) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+            else {
+                return false;
+            };
+            if visiting.contains(symbol) {
+                return true;
+            }
+            if let Some((_, result)) = memo.iter().find(|(candidate, _)| candidate == symbol) {
+                return *result;
+            }
+            *visited_records = match visited_records.checked_add(1) {
+                Some(count) if count <= MAX_CUSTODY_DESCENDANT_RECORDS => count,
+                _ => return true,
+            };
+            visiting.push(*symbol);
+            let mut result = false;
+            for member in program.data_members(record) {
+                let fields = match member {
+                    DataMember::Field(field) => std::slice::from_ref(field),
+                    DataMember::Variant(variant) => program.data_payload_fields(variant),
+                };
+                for field in fields {
+                    if field.relevance.is_erased()
+                        || type_contains_erased_descendant_bounded(
+                            program,
+                            field.type_reference,
+                            visiting,
+                            memo,
+                            visited_records,
+                            depth + 1,
+                        )
+                    {
+                        result = true;
+                        break;
+                    }
+                }
+                if result {
+                    break;
+                }
+            }
+            visiting.pop();
+            memo.push((*symbol, result));
+            result
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => type_contains_erased_descendant_bounded(
+            program,
+            *element_type,
+            visiting,
+            memo,
+            visited_records,
+            depth + 1,
+        ),
+        TypeReferenceNode::Constrained { base_type, .. }
+        | TypeReferenceNode::Reference {
+            referee: base_type, ..
+        } => type_contains_erased_descendant_bounded(
+            program,
+            *base_type,
+            visiting,
+            memo,
+            visited_records,
+            depth + 1,
+        ),
+        TypeReferenceNode::Generic { .. } => true,
+        TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Unit => false,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_missing_second_nested_paths(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    custody: &psi_typed_trees::data::DataDefinition,
+    deep_schema: &psi_typed_trees::data::DataDefinition,
+    parent_symbol: psi_symbols::SymbolHandle,
+    middle_path: &str,
+    plan_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for deep_field in program.data_members(deep_schema).iter().filter_map(field) {
+        let path = format!("{middle_path}.{}", canonical_segment(deep_field));
+        if deep_field.relevance.is_erased() {
+            push_missing_custody_path(
+                program,
+                conformance,
+                custody,
+                plan_name,
+                deep_field,
+                &path,
+                diagnostics,
+            );
+            continue;
+        }
+        let Some(third_schema) =
+            third_nested_custody_record(program, deep_field, &[parent_symbol, deep_schema.symbol])
+        else {
+            continue;
+        };
+        for third_field in program
+            .data_members(third_schema)
+            .iter()
+            .filter_map(field)
+            .filter(|field| field.relevance.is_erased())
+        {
+            let third_path = format!("{path}.{}", canonical_segment(third_field));
+            push_missing_custody_path(
+                program,
+                conformance,
+                custody,
+                plan_name,
+                third_field,
+                &third_path,
+                diagnostics,
+            );
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -436,19 +650,16 @@ fn validate_second_nested_record(
         .collect::<Vec<_>>();
     let middle_path = nested_canonical_path(schema, outer_field, middle_field);
     let Some(custody_field) = custody_field else {
-        for deep_field in deep_schema_fields
-            .iter()
-            .filter(|field| field.relevance.is_erased())
-        {
-            let path = format!("{middle_path}.{}", canonical_segment(deep_field));
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                program.normalized_type_identity(deep_field.type_reference),
-                program.type_multiplicity(deep_field.type_reference),
-                custody.name,
-            )));
-        }
+        push_missing_second_nested_paths(
+            program,
+            conformance,
+            custody,
+            deep_schema,
+            nested_record_symbol(program, outer_field),
+            &middle_path,
+            plan_name,
+            diagnostics,
+        );
         return;
     };
     let Some(deep_custody) = plain_record_for_type(program, custody_field.type_reference) else {
@@ -480,6 +691,29 @@ fn validate_second_nested_record(
             .find(|candidate| same_canonical_field(deep_field, candidate));
         let path = format!("{middle_path}.{}", canonical_segment(deep_field));
         if !deep_field.relevance.is_erased() {
+            if let Some(third_schema) = third_nested_custody_record(
+                program,
+                deep_field,
+                &[
+                    nested_record_symbol(program, outer_field),
+                    deep_schema.symbol,
+                ],
+            ) {
+                validate_third_nested_record(
+                    program,
+                    conformance,
+                    schema,
+                    custody,
+                    outer_field,
+                    third_schema,
+                    custody_leaf,
+                    &path,
+                    plan_name,
+                    outer_entry,
+                    diagnostics,
+                );
+                continue;
+            }
             if custody_leaf.is_some() {
                 diagnostics.push(nested_path_represented_field_diagnostic(
                     program,
@@ -538,6 +772,139 @@ fn validate_second_nested_record(
             )));
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_third_nested_record(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    schema: &psi_typed_trees::data::DataDefinition,
+    custody: &psi_typed_trees::data::DataDefinition,
+    outer_field: &DataField,
+    third_schema: &psi_typed_trees::data::DataDefinition,
+    custody_field: Option<&DataField>,
+    third_path: &str,
+    plan_name: &str,
+    outer_entry: &LayoutFieldEntryReport,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let third_schema_fields = program
+        .data_members(third_schema)
+        .iter()
+        .filter_map(field)
+        .collect::<Vec<_>>();
+    let Some(custody_field) = custody_field else {
+        for leaf in third_schema_fields
+            .iter()
+            .filter(|field| field.relevance.is_erased())
+        {
+            let path = format!("{third_path}.{}", canonical_segment(leaf));
+            push_missing_custody_path(
+                program,
+                conformance,
+                custody,
+                plan_name,
+                leaf,
+                &path,
+                diagnostics,
+            );
+        }
+        return;
+    };
+    let Some(third_custody) = plain_record_for_type(program, custody_field.type_reference) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{third_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
+            program.symbols.display_path(conformance.symbol, "::"),
+            canonical_path(custody, custody_field),
+            program.normalized_type_identity(custody_field.type_reference),
+        )));
+        return;
+    };
+    let third_custody_fields = program
+        .data_members(third_custody)
+        .iter()
+        .filter_map(field)
+        .collect::<Vec<_>>();
+    if third_custody_fields.len() != program.data_members(third_custody).len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{third_path}` must use an ordinary projection record without case members",
+            program.symbols.display_path(conformance.symbol, "::"),
+        )));
+        return;
+    }
+
+    for leaf in &third_schema_fields {
+        let custody_leaf = third_custody_fields
+            .iter()
+            .copied()
+            .find(|candidate| same_canonical_field(leaf, candidate));
+        let path = format!("{third_path}.{}", canonical_segment(leaf));
+        if !leaf.relevance.is_erased() {
+            if custody_leaf.is_some() {
+                diagnostics.push(nested_path_represented_field_diagnostic(
+                    program,
+                    conformance,
+                    &path,
+                    schema,
+                    outer_field,
+                    custody,
+                    plan_name,
+                    outer_entry,
+                ));
+            }
+            continue;
+        }
+        let Some(custody_leaf) = custody_leaf else {
+            push_missing_custody_path(
+                program,
+                conformance,
+                custody,
+                plan_name,
+                leaf,
+                &path,
+                diagnostics,
+            );
+            continue;
+        };
+        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
+        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
+        if actual_multiplicity != expected_multiplicity {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
+                program.symbols.display_path(conformance.symbol, "::"),
+                custody.name,
+            )));
+            continue;
+        }
+        let expected_type = program.normalized_type_identity(leaf.type_reference);
+        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
+        if actual_type != expected_type {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
+                program.symbols.display_path(conformance.symbol, "::"),
+                custody.name,
+            )));
+        }
+    }
+
+    for custody_leaf in third_custody_fields {
+        if !third_schema_fields
+            .iter()
+            .any(|candidate| same_canonical_field(candidate, custody_leaf))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{third_path}.{}` path, but `{}` declares that extra canonical field path",
+                program.symbols.display_path(conformance.symbol, "::"),
+                canonical_segment(custody_leaf),
+                custody.name,
+            )));
+        }
+    }
+}
+
+fn nested_record_symbol(program: &TypedTrees, field: &DataField) -> psi_symbols::SymbolHandle {
+    plain_record_for_type(program, field.type_reference)
+        .map_or(psi_symbols::SymbolHandle::invalid(), |record| record.symbol)
 }
 
 fn plain_record_for_type(
@@ -705,6 +1072,22 @@ fn nested_path_represented_field_diagnostic(
     ))
 }
 
+fn unsupported_nested_custody_diagnostic(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    schema: &psi_typed_trees::data::DataDefinition,
+    field: &DataField,
+    plan_name: &str,
+    entry: &LayoutFieldEntryReport,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is {}, but its represented type contains non-runtime custody outside the exact three-record acyclic, non-generic, case-free projection spine",
+        program.symbols.display_path(conformance.symbol, "::"),
+        canonical_path(schema, field),
+        represented_decision(program, field.type_reference, &entry.placement),
+    ))
+}
+
 fn represented_decision(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -789,4 +1172,88 @@ fn align_up(value: usize, align: usize) -> Option<usize> {
     value
         .checked_add(align.checked_sub(1)?)
         .map(|value| value / align * align)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_language_core::BindingRelevance;
+    use psi_typed_trees::data::{DataDefinition, DataField};
+    use psi_typed_trees::name::Identifier;
+
+    fn named_type(
+        program: &mut TypedTrees,
+        symbol: psi_symbols::SymbolHandle,
+        name: &str,
+    ) -> TypeReferenceHandle {
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::generated(name),
+            })
+    }
+
+    fn push_record(
+        program: &mut TypedTrees,
+        symbol: psi_symbols::SymbolHandle,
+        field_type: TypeReferenceHandle,
+        relevance: BindingRelevance,
+    ) {
+        let mut definition = DataDefinition {
+            symbol,
+            name: Identifier::generated("CustodyDepth"),
+            ..DataDefinition::default()
+        };
+        program.push_data_member(
+            &mut definition,
+            DataMember::Field(DataField {
+                relevance,
+                type_reference: field_type,
+                ..DataField::default()
+            }),
+        );
+        program.push_data_definition(definition);
+    }
+
+    #[test]
+    fn erased_descendant_walk_fails_closed_at_the_depth_cap_without_host_recursion() {
+        let mut program = TypedTrees::default();
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let terminal_symbol = psi_symbols::SymbolHandle::from_arena_index(1_000);
+        push_record(
+            &mut program,
+            terminal_symbol,
+            unit,
+            BindingRelevance::Erased,
+        );
+        let mut next = named_type(&mut program, terminal_symbol, "Terminal");
+        for index in (0..=MAX_CUSTODY_DESCENDANT_TYPE_DEPTH).rev() {
+            let symbol = psi_symbols::SymbolHandle::from_arena_index(
+                u32::try_from(1_100 + index).expect("bounded test symbol index fits u32"),
+            );
+            push_record(&mut program, symbol, next, BindingRelevance::Relevant);
+            next = named_type(&mut program, symbol, "Wrapper");
+        }
+
+        assert!(type_contains_erased_descendant(
+            &program,
+            next,
+            &mut Vec::new(),
+        ));
+    }
+
+    #[test]
+    fn erased_descendant_walk_fails_closed_on_an_exact_symbol_cycle() {
+        let mut program = TypedTrees::default();
+        let symbol = psi_symbols::SymbolHandle::from_arena_index(2_000);
+        let recursive = named_type(&mut program, symbol, "Recursive");
+        push_record(&mut program, symbol, recursive, BindingRelevance::Relevant);
+
+        assert!(type_contains_erased_descendant(
+            &program,
+            recursive,
+            &mut Vec::new(),
+        ));
+    }
 }

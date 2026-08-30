@@ -847,8 +847,11 @@ same-spelled user trait. One further represented acyclic, non-generic,
 case-free record with a nonzero canonical fixed representation may occur on
 that spine; the authored projection retains both enclosing field identities
 before each direct erased leaf, and represented siblings still cite the root
-plan entry. A third represented record level, structurally zero-layout wrappers,
-arrays, generic and case-dependent fields, planless agreements, and the generic
+plan entry. A third represented record level is now available under the same
+restrictions. All three enclosing identities remain in each erased-leaf path,
+and bounded complete-descendant replay rejects hidden unsupported custody. A
+fourth represented record level, structurally zero-layout wrappers, arrays,
+generic and case-dependent fields, planless agreements, and the generic
 establishment calls below remain unavailable.
 
 A generic placement operation carries both the custody type and the exact
