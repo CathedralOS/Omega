@@ -3706,9 +3706,13 @@ Remaining:
   before the same sole mixed occurrence. Every common-field, case-membership,
   and payload-leaf path retains all three field identities in order through
   `==`, `!=`, whole-root Unit-call rebasing, codec, verification, fixed fuel,
-  and interpretation; independent mutation of any prefix rejects. Four or more
-  enclosing fields, case-payload or mixed-under-mixed placement, two mixed
-  sibling fields, direct projected mixed comparisons, recursive cycles,
+  and interpretation; independent mutation of any prefix rejects. A fourth
+  bounded rung now admits exactly four enclosing acyclic relevant record fields
+  before that sole mixed occurrence. The same complete path, call-rebase,
+  codec, verifier, fuel, interpreter, and per-prefix mutation replay covers all
+  four ordered field identities. Five or more enclosing fields, case-payload
+  or mixed-under-mixed placement, two mixed sibling fields, direct projected
+  mixed comparisons, recursive cycles,
   address and erased payload equality, and runtime sum layout remain fenced.
   Semantic codec format 33 / vocabulary
   35, proof-bundle v19, and installation-record v40 retain the structural
