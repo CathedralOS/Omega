@@ -149,6 +149,13 @@ consume one combined checked recursion budget because they compose on the same
 Alpha parser call path; exhaustion reports `Incomplete` rather than rejecting
 otherwise valid Beta or exhausting the Alpha return stack.
 
+D23 replaces the emitted-payload row in the next coherent
+`AlphaBootstrapV2` migration: a one-MiB stamped hole permits exactly 1,048,572
+raw tape bytes. The procedure table, payload buffer, generated-program memory
+map, compiler resource table, authoritative checker, and every exact/adjacent
+gate must be revised with it. Until those changes land, the table above remains
+the current executable profile; no isolated larger payload may issue.
+
 The generated data stack is separately guarded in `[262144,1048576)` and every
 procedure reserves at least its caller-frame word, as specified in
 `../CALLING_CONVENTION.md`. Generated programs receive 33,554,432 zeroed bytes

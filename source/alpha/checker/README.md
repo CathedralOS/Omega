@@ -128,6 +128,17 @@ maximum fits the arena. A candidate accepts only if its exact framed subjects,
 declarations, proof, inference, and all retained normal forms fit every row.
 Anything other than status 1 with exact `accept\n` is non-acceptance.
 
+D23 requires the next authoritative profile to admit `AlphaBootstrapV2`'s
+1,048,572-byte maximum raw tape through a coherent larger frame and arena. The
+migration is not complete merely because a zero-filled or tape-only maximum
+fits: an executed exact-edge canary must retain a representative maximum-size
+subject together with realistic source, certificate, lemma, normalization, and
+scratch demand, and the adjacent case must fail closed with its exact resource
+outcome. The current table remains authoritative until that migration lands.
+D14's bounded chunk lemmas do not by themselves authorize paging the root
+subject; chunk-addressable subject custody is a separate future checker/input
+revision that may remove the current whole-subject arena scaling.
+
 ## Retention inventory
 
 Every retained owned file must strengthen the rooted checker service or one

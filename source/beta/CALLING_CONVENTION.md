@@ -38,6 +38,12 @@ The Alpha-written Beta compiler currently emits this physical layout:
 [35651584, 67108864)        hidden-return-stack allowance
 ```
 
+This is the current V1 layout. D23 requires `AlphaBootstrapV2` to replace the
+tape extent with a one-MiB stamped hole and a 1,048,572-byte raw-tape maximum,
+then derive a coherent replacement for every following boundary. The layout
+does not change piecemeal: generated stack, raw memory, hidden return stack,
+compiler resource rows, seeds, and checker gates move as one profile.
+
 Every emitted byte/word access now checks the logical 32 MiB bound, rejects a
 signed-negative Word address, and adds the raw base before touching Alpha
 memory. Thus logical address zero is initially zero rather than tape byte zero.

@@ -142,7 +142,10 @@ rung doc; they are **not** yet specified behavior:
   bounds and this document does not assign a meaning to violations.
 - **Memory size is fixed** (`MEMSIZE`, and the tape hole) rather than an
   execution parameter with a defined out-of-memory result. The tape hole is
-  currently 256 KiB on both committed seeds. This capacity is not part of Alpha's
+  currently 256 KiB on both committed seeds. D23 requires the next coherent
+  bootstrap profile to use a one-MiB hole with a 1,048,572-byte raw-tape
+  maximum, but that profile does not become current until its seeds, compilers,
+  checker, and exact limit gates move together. Capacity is not part of Alpha's
   language semantics; the same tape runs identically on both platform realizations.
 
 Everything in §5–§7 is pinned by `conformance.sh`; §8 is deliberately out of

@@ -25,6 +25,12 @@ frame documented in the parent README and constructs exact raw `source` and
 `tape` indexed byte-tree constants internally; the framing path leaves 23,214 bytes in
 the 262,140-byte Alpha payload extent.
 
+D23 requires this artifact and its construction gate to migrate with
+`AlphaBootstrapV2`, including a representative realistically framed
+maximum-tape checker admission rather than a tape-only extent test. The
+238,926-byte artifact and 23,214-byte V1 headroom remain the current facts until
+that coherent profile migration is committed.
+
 Regenerate deliberately with `rebuild.sh`. Commit a changed tape only with its
 source or canonical-compiler change and a green reconstruction plus checker suite.
 

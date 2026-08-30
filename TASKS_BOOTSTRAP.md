@@ -746,13 +746,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     merge the checked divide/remainder emitters without changing emitted Alpha.
     This reduces the live source-join compiler with a trivial entry from
     254,109 to 250,761 bytes; the complete adjacent gate remains 193/193.
-  - [ ] **OWNER-BLOCKED — Q7: GAMMA-ALPHA-TAPE-CAPACITY.** Choose the capacity
-    policy for the standalone Beta-written Gamma compiler before adding
-    selected-match lowering, whole-function label/entry emission, or either
-    D19 adapter. The current fixed frontend entry is already 251,142 of 262,140
-    runnable Alpha bytes after ordinary cleanup. Do not hide the pressure by
-    deleting required gates, splitting the compiler behind an older rung or
-    host script, adding a jet, weakening Gamma, or publishing a subset tape.
+  - [ ] **PROFILE-REVISION — D23: ALPHA-BOOTSTRAP-V2.** Implement the coherent
+    one-MiB Alpha runnable-tape profile before completing selected-match
+    lowering, whole-function label/entry emission, or either D19 adapter. The
+    seed hole is exactly 1,048,576 bytes including its four-byte stamped length;
+    the maximum raw tape is therefore 1,048,572 bytes. Revise both seeds and
+    stamping paths, Beta compiler payload storage and generated memory maps,
+    the Beta procedure table, Gamma/Delta/Omega emitter ceilings, Gamma
+    stack/heap boundaries, checker framing and arena capacity, compiler outcome
+    resource tables, and every exact/adjacent capacity gate as one versioned
+    profile migration. The authoritative checker must admit a representative
+    maximum-size framed subject with realistic
+    source, certificate, lemma, normalization, and scratch demand; a tape-only
+    allocation test is insufficient. Keep the fixed 193-case Gamma gate while
+    completing the closure. Ordinary density work remains welcome but is not a
+    condition for retaining the old 262,140-byte ceiling.
   - [x] Establish the dormant profile-parameterized sealed-input reader before
     selecting D19's application profile. The emitted helper consumes stdin once,
     accepts only a compiler-supplied closed maximum, returns canonical `EMPTY`
@@ -972,7 +980,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Alpha's payload cap. Profile the real `D` closure; terrible performance,
     unacceptable heap pressure, or pressure to extend Alpha instructions is an
     owner-escalation trigger, not permission for a hidden alternate backend.
-  - [ ] **OWNER-BLOCKED — Q8: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
+    D23 requires this encoder's exact payload preflight and adjacent vectors to
+    migrate with `AlphaBootstrapV2`; the current 262,140-byte implementation
+    remains a truthful V1 component until that coherent profile migration.
+  - [ ] **OWNER-BLOCKED — Q7: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
     D22's exact Delta identity census before type formation after the remaining
     transition-binder scope and collection-failure ordering rules are fixed.
     Collect grammar-selected owner, machine, member, state, parameter, binder,
@@ -980,7 +991,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     ordered let visibility without active shadowing; permit local/member and
     disjoint-state spelling reuse; and reject every authored body on a boundary
     owner as `InvalidBoundary`. Do not add first-wins lookup, omit executable
-    pattern binders, or retain a partial collector while Q8 is unresolved.
+    pattern binders, or retain a partial collector while Q7 is unresolved.
 - [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Delta contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
@@ -992,7 +1003,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     checking families, symbolic Alpha encoding/replay, all nine runtime traps,
     and boundary/adjacent private-resource obligations without materializing an
     unrun file corpus or claiming execution evidence.
-  - [ ] **OWNER-BLOCKED — Q8.** Complete the transition-binder and mixed
+  - [ ] **OWNER-BLOCKED — Q7.** Complete the transition-binder and mixed
     `DuplicateName`/`InvalidBoundary` rows after their exact scope, phase, and
     coordinate rules are settled.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
@@ -1057,7 +1068,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     open state, byte range, and whole-write capacity rather than relying on a
     prose-only caller precondition. `D` deliberately has no `Main`, source
     protocol, package lookup, publication, or placeholder compiler result while
-    `OMEGA-COMPILER-REQUEST-V1` is unimplemented.
+    `OMEGA-COMPILER-REQUEST-V1` is unimplemented. D23 requires its exact payload
+    ceiling, replay vectors, request/output profile rows, and adjacent failure
+    to migrate with `AlphaBootstrapV2`; it may not issue a larger tape ahead of
+    the seeds and authoritative checker.
   - [x] Give `D` explicit symbolic control-flow ownership before lowering.
     Monotonic typed label IDs bind once; each label-bearing emitter records the
     exact most-recent instruction and its single address operand; operand
@@ -1726,10 +1740,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 through Q8 still own
+  allowed; weakened Omega semantics are not. Q1 through Q7 still own
   unresolved full-spec compiler or standalone-edge contracts. Q6 blocks
   source identity, semantic/lowering custody, and the application boundary;
-  Q7 and Q8 block their named preceding-rung completion work. None prevents
+  Q7 blocks its named preceding-rung completion work. None prevents
   implementation of independently settled source-shaped parser slices.
 - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
   Compile `D` with `delta_compiler_bytecode.tape` into

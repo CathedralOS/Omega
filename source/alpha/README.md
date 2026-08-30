@@ -89,6 +89,13 @@ completed x64 32 KiB-to-256 KiB extent migration and its one-purpose script are
 recoverable from Git history; retaining a completed mutation tool in the live
 seed owner would add another apparent construction route.
 
+D23 selects `AlphaBootstrapV2`: a one-MiB seed hole including the four-byte
+length and therefore a 1,048,572-byte maximum raw tape. That is a pending
+coherent profile migration, not permission to patch one seed locally. Both
+seeds, stamping, compiler memory maps and resource outcomes, the authoritative
+checker, and exact/adjacent capacity gates must move together before this README
+may call V2 current.
+
 ## Retention inventory
 
 | Retained child/files | Direct role | Deletion condition |

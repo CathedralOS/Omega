@@ -80,6 +80,14 @@ payload buffer; the runnable Alpha payload limit is 262,140 bytes. Source,
 table, arena, fixup, and payload writes are checked before mutation. No output
 byte is published until every fixup and the complete payload extent validate.
 
+Those extents describe the current executable profile. D23 selects the pending
+`AlphaBootstrapV2` migration: a one-MiB stamped hole and 1,048,572-byte raw-tape
+maximum, with this compiler's payload buffer and emitted-program stack/heap map
+moving only as part of the same seed, Beta compiler, checker, outcome-table, and
+limit-gate revision. The measured 251,142-byte fixed frontend no longer has to
+fit the old ceiling once V2 lands. Its fixed 193-case gate remains mandatory,
+and ordinary density improvements remain useful rather than a release gate.
+
 The retained front end's four-word syntax nodes retain the exact
 zero-based source start in the high bits of their tag word; the 4 MiB source
 ceiling and closed tags make that packing exact without reducing AST capacity.

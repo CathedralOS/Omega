@@ -61,6 +61,12 @@ Gamma-written compiler and its selected D19 adapter.
 | Type and body checking | forward owners/machines/states; finite records/sums/arrays; views only in admitted positions; complete scalar and sum transitions | every reason from `UnknownType` through `NonexhaustiveSum`, at the first offending type, expression, statement, pattern, or control target; exact `Console`, `Main`, and entry shapes |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 262,140-byte cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
+The payload row describes the current executable V1 profile. D23 requires its
+exact cap and adjacent rejection to move to the 1,048,572-byte
+`AlphaBootstrapV2` maximum only as part of the coherent seed, compiler,
+generated-memory, checker, outcome-table, and gate migration. The symbolic
+encoding and replay rules do not otherwise change.
+
 D22 rows already settled by the third line include these discriminator pairs:
 
 - a type owner and an unqualified machine may share a spelling, while boundary
