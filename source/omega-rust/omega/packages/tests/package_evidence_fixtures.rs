@@ -14,6 +14,7 @@ use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_workspace_package_closure_with_storage,
 };
+use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_manager::review::{
     CompileResolvedPackageReviewsError, PackageSourceVerificationPhase, PackageTriageDisposition,
     PackageTriageReason, ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory,
@@ -25,7 +26,6 @@ use omega_package_manager::review::{
     triage_initial_install, triage_review_update, triage_review_update_from_baseline,
     triage_update_without_admission_baseline,
 };
-use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolverStorage,
 };

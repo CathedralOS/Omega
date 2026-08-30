@@ -6,6 +6,7 @@ use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
     ResolvedPackageSourceClosure, resolve_external_local_package_closure_with_storage,
 };
+use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_manager::review::{
     PackageTriageDisposition, PackageTriageReason, ReviewOnlyBaselineCapsule,
     ReviewOnlyBaselineLimits, ReviewOnlyCapabilityConflictChange,
@@ -18,7 +19,6 @@ use omega_package_manager::review::{
     resolve_review_only_root_policy_decisions, triage_review_update,
     triage_review_update_from_baseline,
 };
-use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
