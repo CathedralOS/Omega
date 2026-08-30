@@ -103,6 +103,22 @@ awk 'BEGIN {
   for (i = 0; i <= 32768; i++) printf "(def f%d () Int 0)\n", i
 }' > "$T/function-capacity.gamma"
 reject_source function-capacity "$T/function-capacity.gamma"
+awk 'BEGIN {
+  printf "(def main () Int "
+  for (i = 0; i < 900; i++) printf "(let x%d 0 ", i
+  printf "0"
+  for (i = 0; i < 900; i++) printf ")"
+  print ")"
+}' > "$T/nesting-within-profile.gamma"
+accept_source nesting-within-profile "$T/nesting-within-profile.gamma"
+awk 'BEGIN {
+  printf "(def main () Int "
+  for (i = 0; i < 1100; i++) printf "(let x%d 0 ", i
+  printf "0"
+  for (i = 0; i < 1100; i++) printf ")"
+  print ")"
+}' > "$T/nesting-exhausted.gamma"
+reject_source nesting-exhausted "$T/nesting-exhausted.gamma"
 # fixed D16 program/declaration grammar and exact source exhaustion
 tc '' 0 'empty program'
 tc '; comment only' 0 'comment-only program'
