@@ -12,7 +12,8 @@ own the exact D17 rejection/outcome sums, complete lexical phase, native syntax
 representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
-census, and pure final symbolic-Alpha encoder. It validates every source byte
+census, whole-program named-type validation, and pure final symbolic-Alpha
+encoder. It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
 Gamma values with exact source spans rather than byte-rope records or numeric
@@ -37,8 +38,9 @@ through the current Gamma frontend gate.
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion.
-Type/control checking, AST-to-symbolic-Alpha lowering, `main`, and final
-publication remain implementation gaps. The existing source is therefore not
+Remaining type/control checking, AST-to-symbolic-Alpha lowering, `main`, and
+final publication remain implementation gaps. Q5 owns the type-formation cases
+that D17 does not yet classify exactly; the existing source is therefore not
 yet a compiler edge and no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
@@ -53,6 +55,16 @@ owner row is ambiguous, including same-kind duplication, so it contributes no
 inferred boundary kind and suppresses `InvalidBoundary` until repaired. The
 current source type-checks through the Gamma frontend; no census behavior is
 claimed as executed while the canonical Gamma compiler edge is incomplete.
+
+The first type-formation slice walks every authored declaration type after that
+census and records a candidate when a named type's exact spelling is absent
+from the complete owner table. It covers boundary signatures, fields, case
+payloads, machine/state parameters, returns, and local declarations,
+accumulating the earliest potential `UnknownType` coordinate independent of
+traversal order. It preserves the collected native syntax rather than
+serializing a resolved tree. The candidate is not yet promoted to a rejection:
+data-shape, recursive-value, placement, entry, and body judgments remain
+separate, and Q5 blocks their exact within-phase composition.
 
 ## Contract-derived conformance plan
 

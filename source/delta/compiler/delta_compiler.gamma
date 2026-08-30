@@ -3,7 +3,8 @@
 ; These retained components belong to the final compiler. They validate and
 ; parse the complete Delta surface and provide the final pure symbolic-Alpha
 ; encoder. The D22/D24 source-shaped semantic identity census is implemented;
-; type/body checking and AST-to-Alpha lowering remain incomplete. This source
+; exact named-type validation now begins type formation, while remaining
+; type/body checking and AST-to-Alpha lowering are incomplete. This source
 ; intentionally exposes no `main` and emits no
 ; placeholder artifact until those intervening phases exist.
 
@@ -367,6 +368,17 @@
 
 (data DeltaCensusLocalScan
   (DeltaCensusLocalScanResult DeltaCensusCandidate DeltaNameList))
+
+; Type-name validation begins D17's type-formation phase without claiming the
+; later data-shape, recursive-value, placement, entry, or body judgments.  It
+; accumulates candidates because declaration traversal order cannot override
+; the earliest authored unknown-type coordinate.
+(data DeltaTypeNameCandidate
+  (NoDeltaTypeNameCandidate)
+  (DeltaUnknownTypeCandidate Int))
+
+(data DeltaTypeNameScan
+  (DeltaTypeNameScanResult DeltaCollectedProgram DeltaTypeNameCandidate))
 
 (data DeltaOwnerIdentity
   (NoDeltaOwnerIdentity)
@@ -3204,6 +3216,199 @@
       (DeltaCensusRejected reasonValue errorOffset))
     ((DeltaProgramParsed program)
       (delta_collect_program_identities source program))))
+
+; ---- declared type-name validation ---------------------------------------
+
+(def delta_type_name_candidate_min_present ((leftOffset Int)
+  (right DeltaTypeNameCandidate)) DeltaTypeNameCandidate
+  (match right
+    (NoDeltaTypeNameCandidate (DeltaUnknownTypeCandidate leftOffset))
+    ((DeltaUnknownTypeCandidate rightOffset)
+      (if (lt rightOffset leftOffset)
+        (DeltaUnknownTypeCandidate rightOffset)
+        (DeltaUnknownTypeCandidate leftOffset)))))
+
+(def delta_type_name_candidate_min ((left DeltaTypeNameCandidate)
+  (right DeltaTypeNameCandidate)) DeltaTypeNameCandidate
+  (match left
+    (NoDeltaTypeNameCandidate right)
+    ((DeltaUnknownTypeCandidate leftOffset)
+      (delta_type_name_candidate_min_present leftOffset right))))
+
+(def delta_owner_name_exists ((source Bytes) (nameValue DeltaName)
+  (owners DeltaOwnerRowList)) Int
+  (match owners
+    (NoDeltaOwnerRows 0)
+    ((MoreDeltaOwnerRows item rest)
+      (match item
+        ((DeltaOwnerRowSyntax declarationStart rowName kind)
+          (if (delta_names_equal source nameValue rowName)
+            1
+            (delta_owner_name_exists source nameValue rest)))))))
+
+(def delta_validate_type_name ((source Bytes) (typeValue DeltaType)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match typeValue
+    ((DeltaI32Type start end) NoDeltaTypeNameCandidate)
+    ((DeltaU8Type start end) NoDeltaTypeNameCandidate)
+    ((DeltaNeverType start end) NoDeltaTypeNameCandidate)
+    ((DeltaNamedType start end name)
+      (if (delta_owner_name_exists source name owners)
+        NoDeltaTypeNameCandidate
+        (DeltaUnknownTypeCandidate start)))
+    ((DeltaArrayType start end elementType lengthValue)
+      (delta_validate_type_name source elementType owners))
+    ((DeltaViewType start end elementType)
+      (delta_validate_type_name source elementType owners))))
+
+(def delta_validate_optional_type_names ((source Bytes)
+  (typeValue DeltaOptionalType)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match typeValue
+    (NoDeltaType NoDeltaTypeNameCandidate)
+    ((SomeDeltaType start end item)
+      (delta_validate_type_name source item owners))))
+
+(def delta_validate_parameter_type_names ((source Bytes)
+  (parameters DeltaParameterList)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match parameters
+    (NoDeltaParameters NoDeltaTypeNameCandidate)
+    ((MoreDeltaParameters item rest)
+      (match item
+        ((DeltaParameterSyntax start end name typeValue)
+          (delta_type_name_candidate_min
+            (delta_validate_type_name source typeValue owners)
+            (delta_validate_parameter_type_names source rest owners)))))))
+
+(def delta_validate_payload_type_names ((source Bytes)
+  (payload DeltaOptionalPayload)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match payload
+    (NoDeltaPayload NoDeltaTypeNameCandidate)
+    ((SomeDeltaPayload start end parameters)
+      (delta_validate_parameter_type_names source parameters owners))))
+
+(def delta_validate_data_member_type_names ((source Bytes)
+  (members DeltaDataMemberList)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match members
+    (NoDeltaDataMembers NoDeltaTypeNameCandidate)
+    ((MoreDeltaDataMembers item rest)
+      (let current
+        (match item
+          ((DeltaFieldMember start end name typeValue)
+            (delta_validate_type_name source typeValue owners))
+          ((DeltaCaseMember start end name payload)
+            (delta_validate_payload_type_names source payload owners)))
+        (delta_type_name_candidate_min current
+          (delta_validate_data_member_type_names source rest owners))))))
+
+(def delta_validate_boundary_machine_type_names ((source Bytes)
+  (machines DeltaBoundaryMachineList)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match machines
+    (NoDeltaBoundaryMachines NoDeltaTypeNameCandidate)
+    ((MoreDeltaBoundaryMachines item rest)
+      (match item
+        ((DeltaBoundaryMachineSyntax start end name parameters returnType)
+          (delta_type_name_candidate_min
+            (delta_validate_parameter_type_names source parameters owners)
+            (delta_type_name_candidate_min
+              (delta_validate_optional_type_names source returnType owners)
+              (delta_validate_boundary_machine_type_names source rest
+                owners))))))))
+
+(def delta_validate_statement_type_names ((source Bytes)
+  (statements DeltaStatementList)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match statements
+    (NoDeltaStatements NoDeltaTypeNameCandidate)
+    ((MoreDeltaStatements item rest)
+      (let current
+        (match item
+          ((DeltaLetStatement start end name typeValue expressionValue)
+            (delta_validate_type_name source typeValue owners))
+          ((DeltaAssignmentStatement start end placeValue expressionValue)
+            NoDeltaTypeNameCandidate)
+          ((DeltaPostfixStatement start end expressionValue)
+            NoDeltaTypeNameCandidate)
+          ((DeltaAssertStatement start end expressionValue)
+            NoDeltaTypeNameCandidate))
+        (delta_type_name_candidate_min current
+          (delta_validate_statement_type_names source rest owners))))))
+
+(def delta_validate_state_body_type_names ((source Bytes)
+  (bodyValue DeltaStateBody)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match bodyValue
+    ((DeltaStateBodySyntax start end statements terminalValue)
+      (delta_validate_statement_type_names source statements owners))))
+
+(def delta_validate_state_type_names ((source Bytes)
+  (states DeltaStateList)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match states
+    (NoDeltaStates NoDeltaTypeNameCandidate)
+    ((MoreDeltaStates item rest)
+      (match item
+        ((DeltaStateSyntax start end name parameters bodyValue)
+          (delta_type_name_candidate_min
+            (delta_validate_parameter_type_names source parameters owners)
+            (delta_type_name_candidate_min
+              (delta_validate_state_body_type_names source bodyValue owners)
+              (delta_validate_state_type_names source rest owners))))))))
+
+(def delta_validate_machine_body_type_names ((source Bytes)
+  (bodyValue DeltaMachineBody)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match bodyValue
+    ((DeltaMachineBodySyntax start end statements terminalValue states)
+      (delta_type_name_candidate_min
+        (delta_validate_statement_type_names source statements owners)
+        (delta_validate_state_type_names source states owners)))))
+
+(def delta_validate_machine_input_type_names ((source Bytes)
+  (inputs DeltaMachineInputs)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match inputs
+    ((NoDeltaMachineInputs start end) NoDeltaTypeNameCandidate)
+    ((DeltaPlainMachineInputs start end parameters)
+      (delta_validate_parameter_type_names source parameters owners))
+    ((DeltaReceiverMachineInputs start end receiverStart receiverEnd parameters)
+      (delta_validate_parameter_type_names source parameters owners))))
+
+(def delta_validate_declaration_type_names ((source Bytes)
+  (declarations DeltaDeclarationList)
+  (owners DeltaOwnerRowList)) DeltaTypeNameCandidate
+  (match declarations
+    (NoDeltaDeclarations NoDeltaTypeNameCandidate)
+    ((MoreDeltaDeclarations item rest)
+      (let current
+        (match item
+          ((DeltaBoundaryDeclaration start end name machines)
+            (delta_validate_boundary_machine_type_names source machines owners))
+          ((DeltaDataDeclaration start end name members)
+            (delta_validate_data_member_type_names source members owners))
+          ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+            (delta_type_name_candidate_min
+              (delta_validate_machine_input_type_names source inputs owners)
+              (delta_type_name_candidate_min
+                (delta_validate_optional_type_names source returnType owners)
+                (delta_validate_machine_body_type_names source bodyValue
+                  owners)))))
+        (delta_type_name_candidate_min current
+          (delta_validate_declaration_type_names source rest owners))))))
+
+(def delta_scan_collected_type_names ((source Bytes)
+  (collected DeltaCollectedProgram)) DeltaTypeNameScan
+  (match collected
+    ((DeltaCollectedProgramSyntax program owners machines)
+      (match program
+        ((DeltaSyntaxProgram start end declarations)
+          (DeltaTypeNameScanResult collected
+            (delta_validate_declaration_type_names source declarations
+              owners)))))))
 
 ; ---- direct symbolic Alpha encoding ----------------------------------------
 
