@@ -97,7 +97,7 @@ impl ValidatedElfAssembledDynamicFile {
 pub struct ValidatedElfDynamicExecutable {
     image: FinalImage,
     output: ExecutableImageOutput,
-    assembled_file_compatibility_fingerprint: u64,
+    non_authoritative_assembled_file_compatibility_fingerprint: u64,
 }
 
 impl ValidatedElfDynamicExecutable {
@@ -111,8 +111,8 @@ impl ValidatedElfDynamicExecutable {
 
     /// Compatibility/report coordinate only. Exact image and byte replay is
     /// authoritative for this carrier.
-    pub const fn assembled_file_compatibility_fingerprint(&self) -> u64 {
-        self.assembled_file_compatibility_fingerprint
+    pub const fn non_authoritative_assembled_file_compatibility_fingerprint(&self) -> u64 {
+        self.non_authoritative_assembled_file_compatibility_fingerprint
     }
 
     pub fn into_parts(self) -> (FinalImage, ExecutableImageOutput) {
@@ -251,7 +251,7 @@ pub fn admit_elf_dynamic_executable(
         }));
     }
 
-    let assembled_file_compatibility_fingerprint =
+    let non_authoritative_assembled_file_compatibility_fingerprint =
         assembled.non_authoritative_assembled_file_compatibility_fingerprint;
     let ValidatedElfAssembledDynamicFile {
         resolved_linkage, ..
@@ -263,7 +263,7 @@ pub fn admit_elf_dynamic_executable(
     Ok(ValidatedElfDynamicExecutable {
         image,
         output,
-        assembled_file_compatibility_fingerprint,
+        non_authoritative_assembled_file_compatibility_fingerprint,
     })
 }
 
@@ -1248,7 +1248,7 @@ mod tests {
             assert_eq!(admitted.output().imports, 2);
             assert_eq!(admitted.output().relocations, 3);
             assert_eq!(
-                admitted.assembled_file_compatibility_fingerprint(),
+                admitted.non_authoritative_assembled_file_compatibility_fingerprint(),
                 assembled_fingerprint,
             );
             assert!(admitted.output().bytes.starts_with(b"\x7fELF"));

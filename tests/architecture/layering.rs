@@ -3964,14 +3964,22 @@ fn external_root_stack_and_fuel_fingerprints_are_report_only() {
 
     let epochs = std::fs::read_to_string(runtime.join("epoch_stack_demand.rs"))
         .expect("read external-root epoch stack composition");
+    let pure_composition = epochs
+        .split_once("pub struct EpochStackComposition {")
+        .and_then(|(_, tail)| tail.split_once("\n}\n\nimpl EpochStackComposition"))
+        .map(|(body, _)| body);
+    let bound_composition = epochs
+        .split_once("pub struct BoundEpochStackComposition {")
+        .and_then(|(_, tail)| tail.split_once("\n}\n\nimpl BoundEpochStackComposition"))
+        .map(|(body, _)| body);
     assert!(
-        epochs
-            .matches("non_authoritative_report_fingerprint: u64")
-            .count()
-            == 2
-            && epochs.contains("inputs: BTreeMap<ExternalRootId, EpochStackCompositionInput>")
-            && epochs.contains("inputs: BTreeMap<ExternalRootId, BoundEpochStackCompositionInput>")
-            && !epochs.contains("\n    fingerprint: u64"),
+        pure_composition.is_some_and(|body| {
+            body.contains("inputs: BTreeMap<ExternalRootId, EpochStackCompositionInput>")
+                && body.contains("non_authoritative_report_fingerprint: u64")
+        }) && bound_composition.is_some_and(|body| {
+            body.contains("inputs: BTreeMap<ExternalRootId, BoundEpochStackCompositionInput>")
+                && body.contains("non_authoritative_report_fingerprint: u64")
+        }) && !epochs.contains("\n    fingerprint: u64"),
         "epoch stack FNV values must remain report-only beside exact pure and bound inputs",
     );
 
