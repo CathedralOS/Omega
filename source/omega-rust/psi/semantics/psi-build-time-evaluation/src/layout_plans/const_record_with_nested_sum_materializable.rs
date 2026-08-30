@@ -3,10 +3,10 @@
 
 use psi_layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder,
-    ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
-    MaterializationDiagnostic, conventional_sum_layout_reports_match_for_replay,
-    layout_plan_reports_match_for_replay, materialize_aggregate_layout_into,
-    normalized_layout_plan_report_fingerprint,
+    ConventionalDepthTwoRecordSumPathLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, MaterializationDiagnostic,
+    conventional_sum_layout_reports_match_for_replay, layout_plan_reports_match_for_replay,
+    materialize_aggregate_layout_into, normalized_layout_plan_report_fingerprint,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
@@ -26,6 +26,452 @@ use super::{
     validate_const_materializable_record_with_conventional_sums,
 };
 use crate::layout_plans::ValidatedConstRecordWithSumMaterialization;
+
+/// Exact custody for one fixed-depth
+/// `Outer -> Middle -> Leaf -> direct sums` chain.
+#[derive(Debug)]
+pub struct ValidatedConstRecordWithDepthTwoNestedSumMaterialization {
+    schema_name: String,
+    non_authoritative_schema_report_fingerprint: u64,
+    value: BuildTimeValue,
+    path_layout: ConventionalDepthTwoRecordSumPathLayoutReport,
+    non_authoritative_outer_layout_report_fingerprint: u64,
+    middle: ValidatedConstRecordWithNestedSumRecordMaterialization,
+    byte_order: ByteOrder,
+    bytes: Vec<u8>,
+    non_authoritative_materialization_report_fingerprint: u64,
+}
+
+impl ValidatedConstRecordWithDepthTwoNestedSumMaterialization {
+    pub fn schema_name(&self) -> &str {
+        &self.schema_name
+    }
+
+    pub const fn value(&self) -> &BuildTimeValue {
+        &self.value
+    }
+
+    pub const fn path_layout(&self) -> &ConventionalDepthTwoRecordSumPathLayoutReport {
+        &self.path_layout
+    }
+
+    pub const fn middle(&self) -> &ValidatedConstRecordWithNestedSumRecordMaterialization {
+        &self.middle
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn non_authoritative_materialization_report_fingerprint(&self) -> u64 {
+        self.non_authoritative_materialization_report_fingerprint
+    }
+
+    pub fn replay_against(
+        &self,
+        typed: &TypedTrees,
+        schema_name: &str,
+        path_layout: &ConventionalDepthTwoRecordSumPathLayoutReport,
+        value: &BuildTimeValue,
+        byte_order: ByteOrder,
+    ) -> Result<(), MaterializationDiagnostic> {
+        if schema_name != self.schema_name || value != &self.value || byte_order != self.byte_order
+        {
+            return Err(MaterializationDiagnostic(
+                "ConstMaterializable depth-two record path invocation drifted from retained custody"
+                    .into(),
+            ));
+        }
+        let outer_fingerprint =
+            normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
+        if outer_fingerprint != self.non_authoritative_outer_layout_report_fingerprint
+            || !depth_two_path_reports_match_for_replay(path_layout, &self.path_layout)
+        {
+            return Err(MaterializationDiagnostic(
+                "ConstMaterializable depth-two record path layout drifted from retained custody"
+                    .into(),
+            ));
+        }
+        let replayed =
+            derive_depth_two_nested_sum_bytes(typed, schema_name, path_layout, value, byte_order)?;
+        self.middle.replay_against(
+            typed,
+            replayed.middle.schema_name(),
+            &path_layout.middle_path,
+            replayed.middle.value(),
+            byte_order,
+        )?;
+        if replayed.schema_report_fingerprint != self.non_authoritative_schema_report_fingerprint
+            || replayed.bytes != self.bytes
+            || replayed
+                .middle
+                .non_authoritative_materialization_report_fingerprint()
+                != self
+                    .middle
+                    .non_authoritative_materialization_report_fingerprint()
+        {
+            return Err(MaterializationDiagnostic(
+                "ConstMaterializable depth-two record path custody drifted from exact replay"
+                    .into(),
+            ));
+        }
+        let fingerprint = depth_two_nested_sum_materialization_fingerprint(
+            schema_name,
+            replayed.schema_report_fingerprint,
+            outer_fingerprint,
+            path_layout,
+            &replayed.middle,
+            byte_order,
+            value,
+            &replayed.bytes,
+        );
+        if fingerprint != self.non_authoritative_materialization_report_fingerprint {
+            return Err(MaterializationDiagnostic(
+                "ConstMaterializable depth-two record path fingerprint drifted after exact replay"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn apply(
+        &self,
+        typed: &TypedTrees,
+        destination: &mut [u8],
+    ) -> Result<(), MaterializationDiagnostic> {
+        self.replay_against(
+            typed,
+            &self.schema_name,
+            &self.path_layout,
+            &self.value,
+            self.byte_order,
+        )?;
+        if destination.len() < self.bytes.len() {
+            return Err(MaterializationDiagnostic(format!(
+                "ConstMaterializable depth-two record copy needs {} bytes, destination has {}",
+                self.bytes.len(),
+                destination.len()
+            )));
+        }
+        destination[..self.bytes.len()].copy_from_slice(&self.bytes);
+        Ok(())
+    }
+}
+
+pub fn validate_const_materializable_record_with_depth_two_nested_sum(
+    typed: &TypedTrees,
+    schema_name: &str,
+    path_layout: &ConventionalDepthTwoRecordSumPathLayoutReport,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+) -> Result<ValidatedConstRecordWithDepthTwoNestedSumMaterialization, MaterializationDiagnostic> {
+    let derived =
+        derive_depth_two_nested_sum_bytes(typed, schema_name, path_layout, value, byte_order)?;
+    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
+    let materialization_fingerprint = depth_two_nested_sum_materialization_fingerprint(
+        schema_name,
+        derived.schema_report_fingerprint,
+        outer_fingerprint,
+        path_layout,
+        &derived.middle,
+        byte_order,
+        value,
+        &derived.bytes,
+    );
+    Ok(ValidatedConstRecordWithDepthTwoNestedSumMaterialization {
+        schema_name: schema_name.to_owned(),
+        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
+        value: value.clone(),
+        path_layout: path_layout.clone(),
+        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
+        middle: derived.middle,
+        byte_order,
+        bytes: derived.bytes,
+        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
+    })
+}
+
+struct DerivedDepthTwoNestedSumMaterialization {
+    schema_report_fingerprint: u64,
+    middle: ValidatedConstRecordWithNestedSumRecordMaterialization,
+    bytes: Vec<u8>,
+}
+
+fn derive_depth_two_nested_sum_bytes(
+    typed: &TypedTrees,
+    schema_name: &str,
+    path_layout: &ConventionalDepthTwoRecordSumPathLayoutReport,
+    value: &BuildTimeValue,
+    byte_order: ByteOrder,
+) -> Result<DerivedDepthTwoNestedSumMaterialization, MaterializationDiagnostic> {
+    let data = unique_data_by_name(typed, schema_name)?;
+    validate_outer_record_owner(typed, data)?;
+    let schema_report_fingerprint = normalized_schema_report_fingerprint(typed, data);
+    if path_layout.outer_layout.schema_report_fingerprint != schema_report_fingerprint {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable depth-two outer layout schema report fingerprint does not match `{schema_name}`"
+        )));
+    }
+    let BuildTimeValue::Struct { type_name, fields } = value else {
+        return Err(MaterializationDiagnostic(format!(
+            "value expected record `{schema_name}`, found {}",
+            value_kind(value)
+        )));
+    };
+    if type_name != data.name.as_str() {
+        return Err(MaterializationDiagnostic(format!(
+            "value record `{type_name}` does not match `{}`",
+            data.name
+        )));
+    }
+    let supplied = exact_struct_fields(schema_name, fields)?;
+    let members = typed.data_members(data);
+    if supplied.len() != members.len() {
+        return Err(MaterializationDiagnostic(format!(
+            "value supplies {} field(s), expected {} for `{schema_name}`",
+            supplied.len(),
+            members.len()
+        )));
+    }
+
+    let mut candidate = None;
+    let mut reachability = SumReachability::new(typed);
+    for member in members {
+        let DataMember::Field(field) = member else {
+            unreachable!("outer record shape was validated above")
+        };
+        if !supplied.contains_key(field.name.as_str()) {
+            return Err(MaterializationDiagnostic(format!(
+                "value has no declared field `{}`",
+                field.name
+            )));
+        }
+        if field.relevance.is_erased() {
+            continue;
+        }
+        if !reachability.type_contains_sum(field.type_reference)? {
+            continue;
+        }
+        if matches!(
+            typed
+                .type_reference_table
+                .type_reference(field.type_reference),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            return Err(MaterializationDiagnostic(format!(
+                "value.{} reaches a sum through an array, outside the depth-two record path rung",
+                field.name
+            )));
+        }
+        let named = exact_named_data(typed, field.type_reference)?.ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "value.{} lacks one exact middle-record identity",
+                field.name
+            ))
+        })?;
+        if DataDefinition::shape_kind_from_members(typed.data_members(named))
+            != DataShapeKind::Record
+        {
+            return Err(MaterializationDiagnostic(format!(
+                "value.{} does not name the required middle record",
+                field.name
+            )));
+        }
+        if candidate.is_some() {
+            return Err(MaterializationDiagnostic(
+                "ConstMaterializable depth-two path requires exactly one sum-reachable outer record field"
+                    .into(),
+            ));
+        }
+        candidate = Some((field, named));
+    }
+    let Some((middle_field, middle_data)) = candidate else {
+        return Err(MaterializationDiagnostic(
+            "ConstMaterializable depth-two path requires exactly one qualifying record chain"
+                .into(),
+        ));
+    };
+    if !field_occurrence_matches(
+        &path_layout.outer_field,
+        path_layout.outer_member_identity,
+        middle_field.name.as_str(),
+        middle_field.identity,
+    ) {
+        return Err(MaterializationDiagnostic(format!(
+            "ConstMaterializable depth-two path does not name exact outer field `{}`",
+            middle_field.name
+        )));
+    }
+    let middle_value = supplied
+        .get(middle_field.name.as_str())
+        .expect("complete outer value checked above");
+    let middle = validate_const_materializable_record_with_nested_sum_record(
+        typed,
+        middle_data.name.as_str(),
+        &path_layout.middle_path,
+        middle_value,
+        byte_order,
+    )?;
+    let middle_size = path_layout.middle_path.outer_layout.size.ok_or_else(|| {
+        MaterializationDiagnostic(
+            "ConstMaterializable depth-two path requires one exact middle extent".into(),
+        )
+    })?;
+    if usize::try_from(middle_size).ok() != Some(middle.bytes().len()) {
+        return Err(MaterializationDiagnostic(
+            "ConstMaterializable depth-two middle bytes do not cover the exact middle extent"
+                .into(),
+        ));
+    }
+
+    let mut encoded_fields = Vec::new();
+    encoded_fields
+        .try_reserve_exact(members.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable depth-two outer field custody exceeds compiler resources"
+                    .into(),
+            )
+        })?;
+    let mut active = vec![data.symbol];
+    for member in members {
+        let DataMember::Field(field) = member else {
+            unreachable!("outer record shape was validated above")
+        };
+        let field_value = supplied
+            .get(field.name.as_str())
+            .expect("complete outer value checked above");
+        if field_occurrence_matches(
+            field.name.as_str(),
+            field.identity,
+            middle_field.name.as_str(),
+            middle_field.identity,
+        ) {
+            let mut middle_bytes = Vec::new();
+            middle_bytes
+                .try_reserve_exact(middle.bytes().len())
+                .map_err(|_| {
+                    MaterializationDiagnostic(
+                        "ConstMaterializable depth-two middle staging exceeds compiler resources"
+                            .into(),
+                    )
+                })?;
+            middle_bytes.extend_from_slice(middle.bytes());
+            encoded_fields.push(EncodedOuterField {
+                name: field.name.to_string(),
+                identity: field.identity,
+                size: middle_size,
+                align: path_layout.middle_path.outer_layout.align,
+                repeated: None,
+                bytes: middle_bytes,
+            });
+            continue;
+        }
+        validate_value(
+            typed,
+            field.type_reference,
+            field_value,
+            &format!("value.{}", field.name),
+            &mut active,
+        )?;
+        if field.relevance.is_erased() {
+            continue;
+        }
+        let (size, align, _, _, _, _, repeated) =
+            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "value.{} is outside the target-independent fixed aggregate subset",
+                    field.name
+                ))
+            })?;
+        let bytes = encode_typed_owned_value(
+            typed,
+            field.type_reference,
+            field_value,
+            byte_order,
+            &mut active,
+        )?;
+        if bytes.len() as u64 != size {
+            return Err(MaterializationDiagnostic(format!(
+                "value.{} encoded to {} bytes, expected {size}",
+                field.name,
+                bytes.len()
+            )));
+        }
+        encoded_fields.push(EncodedOuterField {
+            name: field.name.to_string(),
+            identity: field.identity,
+            size,
+            align,
+            repeated,
+            bytes,
+        });
+    }
+    validate_outer_layout(&path_layout.outer_layout, &encoded_fields)?;
+    let byte_len = usize::try_from(
+        path_layout
+            .outer_layout
+            .size
+            .expect("validated depth-two outer extent"),
+    )
+    .map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable depth-two outer extent exceeds compiler host".into(),
+        )
+    })?;
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(byte_len).map_err(|_| {
+        MaterializationDiagnostic(
+            "ConstMaterializable depth-two staged bytes exceed compiler resources".into(),
+        )
+    })?;
+    bytes.resize(byte_len, 0);
+    let mut schemas = Vec::new();
+    let mut values = Vec::new();
+    schemas
+        .try_reserve_exact(encoded_fields.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable depth-two schema staging exceeds compiler resources".into(),
+            )
+        })?;
+    values
+        .try_reserve_exact(encoded_fields.len())
+        .map_err(|_| {
+            MaterializationDiagnostic(
+                "ConstMaterializable depth-two value staging exceeds compiler resources".into(),
+            )
+        })?;
+    for field in encoded_fields {
+        let schema = match (field.repeated, field.identity) {
+            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
+                &field.name,
+                identity,
+                repeated.element_size,
+                repeated.element_align,
+                repeated.element_count,
+            )?,
+            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
+                &field.name,
+                repeated.element_size,
+                repeated.element_align,
+                repeated.element_count,
+            )?,
+            (None, Some(identity)) => {
+                AggregateFieldSchema::new_numbered(&field.name, identity, field.size)?
+            }
+            (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
+        };
+        schemas.push(schema);
+        values.push(AggregateFieldValue::new(field.name, field.bytes)?);
+    }
+    materialize_aggregate_layout_into(&path_layout.outer_layout, &schemas, &values, &mut bytes)?;
+    Ok(DerivedDepthTwoNestedSumMaterialization {
+        schema_report_fingerprint,
+        middle,
+        bytes,
+    })
+}
 
 /// Exact custody for one bounded outer-record -> inner-record -> direct-sums
 /// materialization path.
@@ -1156,6 +1602,20 @@ fn nested_path_reports_match_for_replay(
             })
 }
 
+fn depth_two_path_reports_match_for_replay(
+    left: &ConventionalDepthTwoRecordSumPathLayoutReport,
+    right: &ConventionalDepthTwoRecordSumPathLayoutReport,
+) -> bool {
+    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
+        && field_occurrence_matches(
+            &left.outer_field,
+            left.outer_member_identity,
+            &right.outer_field,
+            right.outer_member_identity,
+        )
+        && nested_path_reports_match_for_replay(&left.middle_path, &right.middle_path)
+}
+
 fn nested_paths_reports_match_for_replay(
     left: &ConventionalNestedRecordSumPathsLayoutReport,
     right: &ConventionalNestedRecordSumPathsLayoutReport,
@@ -1186,6 +1646,55 @@ fn nested_paths_reports_match_for_replay(
                         )
                     })
         })
+}
+
+fn depth_two_nested_sum_materialization_fingerprint(
+    schema_name: &str,
+    schema_report_fingerprint: u64,
+    outer_layout_report_fingerprint: u64,
+    path_layout: &ConventionalDepthTwoRecordSumPathLayoutReport,
+    middle: &ValidatedConstRecordWithNestedSumRecordMaterialization,
+    byte_order: ByteOrder,
+    value: &BuildTimeValue,
+    bytes: &[u8],
+) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_bytes(
+        &mut hash,
+        b"omega.const-materializable-depth-two-record-sum-path.v1",
+    );
+    hash_text(&mut hash, schema_name);
+    hash_u64(&mut hash, schema_report_fingerprint);
+    hash_u64(&mut hash, outer_layout_report_fingerprint);
+    match path_layout.outer_member_identity {
+        Some(identity) => {
+            hash_byte(&mut hash, 1);
+            hash_u64(&mut hash, identity);
+        }
+        None => {
+            hash_byte(&mut hash, 0);
+            hash_text(&mut hash, &path_layout.outer_field);
+        }
+    }
+    hash_u64(
+        &mut hash,
+        normalized_layout_plan_report_fingerprint(&path_layout.middle_path.outer_layout),
+    );
+    hash_u64(
+        &mut hash,
+        middle.non_authoritative_materialization_report_fingerprint(),
+    );
+    hash_byte(
+        &mut hash,
+        match byte_order {
+            ByteOrder::LittleEndian => 0,
+            ByteOrder::BigEndian => 1,
+        },
+    );
+    hash_value(&mut hash, value);
+    hash_u64(&mut hash, bytes.len() as u64);
+    hash_bytes(&mut hash, bytes);
+    if hash == 0 { 1 } else { hash }
 }
 
 fn nested_record_sum_materialization_fingerprint(

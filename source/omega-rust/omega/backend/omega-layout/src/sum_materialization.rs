@@ -8,6 +8,7 @@ use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{DataSupplyMode, Multiplicity};
 use psi_layout_plans::{
+    ConventionalDepthTwoRecordSumPathLayoutReport,
     ConventionalNestedRecordSumOccurrenceLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
     ConventionalNestedRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
     ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
@@ -392,6 +393,173 @@ pub fn project_conventional_record_with_nested_sum_records_materialization_layou
     Ok(ConventionalNestedRecordSumPathsLayoutReport {
         outer_layout,
         paths,
+    })
+}
+
+/// Project one exact fixed-depth record chain:
+/// `Outer -> Middle -> Leaf -> direct conventional sums`.
+///
+/// Exactly one runtime-relevant outer field may reach any sum, and the middle
+/// record must itself satisfy the existing singular one-level path judgment.
+/// All three whole-record layouts and the leaf sum rows come from `plan`.
+pub fn project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<ConventionalDepthTwoRecordSumPathLayoutReport, Diagnostic> {
+    let definition = unique_data_definition(program, data_symbol, "depth-two sum owner")?;
+    validate_closed_copy_record(program, definition, "depth-two sum owner")?;
+    let data_layout = unique_data_layout(plan, data_symbol, definition.name.as_str())?;
+    let DataShape::Record {
+        fields: laid_fields,
+    } = data_layout.shape
+    else {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout row for depth-two sum owner `{}` is not a record",
+            definition.name
+        )));
+    };
+    let declared_fields = relevant_record_fields(program, definition);
+    let laid_fields = plan.fields.span_or_empty(laid_fields);
+    if declared_fields.len() != laid_fields.len() {
+        return Err(Diagnostic::error(format!(
+            "target runtime layout for depth-two sum owner `{}` has {} fields; checked schema has {} relevant fields",
+            definition.name,
+            laid_fields.len(),
+            declared_fields.len()
+        )));
+    }
+
+    let mut entries = Vec::new();
+    entries
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error("depth-two sum outer report exceeds compiler resources"))?;
+    let mut offsets = Vec::new();
+    offsets
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error("depth-two sum outer offsets exceed compiler resources"))?;
+    let mut selected = None;
+    let mut reachability = SumReachability::new(program);
+    for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
+        if declared.symbol != laid.symbol || declared.name != laid.name {
+            return Err(Diagnostic::error(format!(
+                "target runtime layout field identity/order drifted at `{}`",
+                declared.name
+            )));
+        }
+        if plan.bit_field(declared.symbol).is_some()
+            || plan.stored_integer(declared.symbol).is_some()
+            || plan.repeated_field(declared.symbol).is_some()
+        {
+            return Err(Diagnostic::error(format!(
+                "depth-two sum outer field `{}` uses target-dependent fragment, stored-integer, or repeated placement",
+                declared.name
+            )));
+        }
+
+        if reachability.type_contains_sum(declared.type_reference)? {
+            if matches!(
+                program
+                    .type_reference_table
+                    .type_reference(declared.type_reference),
+                TypeReferenceNode::FixedArray { .. }
+            ) {
+                return Err(Diagnostic::error(format!(
+                    "depth-two sum outer field `{}` reaches a sum through an array",
+                    declared.name
+                )));
+            }
+            let named = exact_named_data(program, declared.type_reference)?.ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "depth-two sum outer field `{}` lacks one exact record identity",
+                    declared.name
+                ))
+            })?;
+            if DataDefinition::shape_kind_from_members(program.data_members(named))
+                != DataShapeKind::Record
+            {
+                return Err(Diagnostic::error(format!(
+                    "depth-two sum outer field `{}` does not name the required middle record",
+                    declared.name
+                )));
+            }
+            if selected.is_some() {
+                return Err(Diagnostic::error(
+                    "depth-two sum projection requires exactly one sum-reachable outer record field",
+                ));
+            }
+            let middle_path =
+                project_conventional_record_with_nested_sum_record_materialization_layout(
+                    program,
+                    plan,
+                    named.symbol,
+                )?;
+            let TypeLayoutDescriptor::Named {
+                symbol: laid_symbol,
+                name: laid_name,
+            } = &laid.type_descriptor
+            else {
+                return Err(Diagnostic::error(format!(
+                    "target runtime layout field `{}` is not the exact declared middle record",
+                    declared.name
+                )));
+            };
+            if laid.type_symbol != named.symbol
+                || *laid_symbol != named.symbol
+                || laid_name.as_str() != named.name.as_str()
+            {
+                return Err(Diagnostic::error(format!(
+                    "target runtime layout field `{}` substitutes its middle record type",
+                    declared.name
+                )));
+            }
+            if usize_to_u64(laid.layout.size, "middle record extent")?
+                != middle_path
+                    .outer_layout
+                    .size
+                    .expect("middle projection has fixed extent")
+                || usize_to_u64(laid.layout.alignment, "middle record alignment")?
+                    != middle_path.outer_layout.align
+            {
+                return Err(Diagnostic::error(format!(
+                    "target runtime layout field `{}` does not retain the exact middle record extent/alignment",
+                    declared.name
+                )));
+            }
+            selected = Some((declared.name.to_string(), declared.identity, middle_path));
+        }
+
+        let offset = usize_to_u64(laid.offset, "depth-two outer field offset")?;
+        entries.push(LayoutFieldEntryReport {
+            field: declared.name.to_string(),
+            member_identity: declared.identity,
+            placement: LayoutPlacementReport::At { offset },
+        });
+        offsets.push(offset);
+    }
+    let Some((outer_field, outer_member_identity, middle_path)) = selected else {
+        return Err(Diagnostic::error(
+            "depth-two sum projection requires exactly one qualifying record chain",
+        ));
+    };
+    Ok(ConventionalDepthTwoRecordSumPathLayoutReport {
+        outer_layout: LayoutPlanReport {
+            schema_report_fingerprint:
+                psi_typed_trees::identity::normalized_schema_report_fingerprint(program, definition),
+            entries,
+            offsets: Some(offsets),
+            size: Some(usize_to_u64(
+                data_layout.layout.size,
+                "depth-two outer record extent",
+            )?),
+            align: usize_to_u64(
+                data_layout.layout.alignment,
+                "depth-two outer record alignment",
+            )?,
+        },
+        outer_field,
+        outer_member_identity,
+        middle_path,
     })
 }
 
@@ -1159,6 +1327,7 @@ mod tests {
         validate_const_materializable_record_with_conventional_sum,
         validate_const_materializable_record_with_conventional_sum_array,
         validate_const_materializable_record_with_conventional_sum_arrays,
+        validate_const_materializable_record_with_depth_two_nested_sum,
         validate_const_materializable_record_with_nested_sum_record,
         validate_const_materializable_record_with_nested_sum_records,
     };
@@ -1882,6 +2051,357 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn depth_two_record_chain_projects_replays_and_fails_closed_on_every_adjacent_shape() {
+        let checked = checked(
+            r#"
+            data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u16); }
+            data Leaf [copy] {
+                #1 lead: u8;
+                #2 first: Choice;
+                #3 marker: u16;
+                #4 second: Choice;
+                #5 tail: u8;
+            }
+            data Middle [copy] { #1 lead: u8; #2 leaf: Leaf; #3 tail: u16; }
+            data Outer [copy] { #1 lead: u8; #2 middle: Middle; #3 tail: u16; }
+
+            data OuterTwo [copy] { first: Middle; second: Middle; }
+            data MiddleTwo [copy] { first: Leaf; second: Leaf; }
+            data OuterMiddleTwo [copy] { middle: MiddleTwo; }
+            data OuterShallow [copy] { leaf: Leaf; }
+            data Deep [copy] { middle: Middle; }
+            data OuterDeep [copy] { deep: Deep; }
+            data OuterDirect [copy] { middle: Middle; direct: Choice; }
+            data MiddleDirect [copy] { leaf: Leaf; direct: Choice; }
+            data OuterMiddleDirect [copy] { middle: MiddleDirect; }
+            data OuterArray [copy] { middle: Middle; choices: [Choice; 1]; }
+            "#,
+        );
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let definition = |name: &str| {
+            checked
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == name)
+                .unwrap()
+        };
+        let outer = definition("Outer");
+        let path = project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+            &checked,
+            &plan,
+            outer.symbol,
+        )
+        .expect("one exact depth-two chain should project compositionally");
+        assert_eq!(path.outer_layout.offsets.as_deref(), Some(&[0, 4, 40][..]));
+        assert_eq!(path.outer_layout.size, Some(44));
+        assert_eq!(path.outer_field, "middle");
+        assert_eq!(path.outer_member_identity, Some(2));
+        assert_eq!(
+            path.middle_path.outer_layout.offsets.as_deref(),
+            Some(&[0, 4, 32][..])
+        );
+        assert_eq!(path.middle_path.outer_layout.size, Some(36));
+        assert_eq!(path.middle_path.outer_field, "leaf");
+        assert_eq!(path.middle_path.outer_member_identity, Some(2));
+        assert_eq!(
+            path.middle_path.inner_layout.offsets.as_deref(),
+            Some(&[0, 4, 12, 16, 24][..])
+        );
+        assert_eq!(path.middle_path.inner_layout.size, Some(28));
+        assert_eq!(
+            path.middle_path
+                .child_sum_layouts
+                .iter()
+                .map(|row| (row.field.as_str(), row.member_identity))
+                .collect::<Vec<_>>(),
+            [("first", Some(2)), ("second", Some(4))]
+        );
+
+        let empty = || BuildTimeValue::Case {
+            variant: "Empty".into(),
+            payload: Vec::new(),
+        };
+        let number = |value| BuildTimeValue::Case {
+            variant: "Number".into(),
+            payload: vec![("value".into(), BuildTimeValue::Int(value))],
+        };
+        let value = BuildTimeValue::Struct {
+            type_name: "Outer".into(),
+            fields: vec![
+                ("lead".into(), BuildTimeValue::Int(0xdd)),
+                (
+                    "middle".into(),
+                    BuildTimeValue::Struct {
+                        type_name: "Middle".into(),
+                        fields: vec![
+                            ("lead".into(), BuildTimeValue::Int(0xcc)),
+                            (
+                                "leaf".into(),
+                                BuildTimeValue::Struct {
+                                    type_name: "Leaf".into(),
+                                    fields: vec![
+                                        ("lead".into(), BuildTimeValue::Int(0xaa)),
+                                        ("first".into(), empty()),
+                                        ("marker".into(), BuildTimeValue::Int(0x1122)),
+                                        ("second".into(), number(0x3344)),
+                                        ("tail".into(), BuildTimeValue::Int(0xbb)),
+                                    ],
+                                },
+                            ),
+                            ("tail".into(), BuildTimeValue::Int(0x5566)),
+                        ],
+                    },
+                ),
+                ("tail".into(), BuildTimeValue::Int(0x7788)),
+            ],
+        };
+        let carrier = validate_const_materializable_record_with_depth_two_nested_sum(
+            &checked,
+            "Outer",
+            &path,
+            &value,
+            ByteOrder::LittleEndian,
+        )
+        .expect("the target-produced depth-two report should rejoin value custody");
+        assert_eq!(
+            carrier.bytes(),
+            &[
+                0xdd, 0, 0, 0, 0xcc, 0, 0, 0, 0xaa, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x22, 0x11, 0,
+                0, 1, 0, 0, 0, 0x44, 0x33, 0, 0, 0xbb, 0, 0, 0, 0x66, 0x55, 0, 0, 0x88, 0x77, 0, 0,
+            ]
+        );
+        assert_eq!(carrier.middle().inner().nested_sums().len(), 2);
+
+        let mut destination = [0x5a; 48];
+        carrier
+            .apply(&checked, &mut destination)
+            .expect("the complete outer image should copy atomically");
+        assert_eq!(&destination[..44], carrier.bytes());
+        assert_eq!(&destination[44..], &[0x5a; 4]);
+        let mut short = [0x6b; 43];
+        assert!(carrier.apply(&checked, &mut short).is_err());
+        assert_eq!(short, [0x6b; 43]);
+
+        let mut renamed = path.clone();
+        renamed.outer_layout.entries[1].field = "renamed_middle".into();
+        renamed.outer_field = "renamed_middle".into();
+        renamed.middle_path.outer_layout.entries[1].field = "renamed_leaf".into();
+        renamed.middle_path.outer_field = "renamed_leaf".into();
+        renamed.middle_path.inner_layout.entries[1].field = "renamed_first".into();
+        renamed.middle_path.inner_layout.entries[3].field = "renamed_second".into();
+        renamed.middle_path.child_sum_layouts[0].field = "renamed_first".into();
+        renamed.middle_path.child_sum_layouts[1].field = "renamed_second".into();
+        carrier
+            .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
+            .expect("stable-numbered names at all three layers are presentation-only");
+
+        let rejects =
+            |mutated: &psi_layout_plans::ConventionalDepthTwoRecordSumPathLayoutReport| {
+                assert!(
+                carrier
+                    .replay_against(
+                        &checked,
+                        "Outer",
+                        mutated,
+                        &value,
+                        ByteOrder::LittleEndian,
+                    )
+                    .is_err()
+            );
+            };
+        let mut wrong_outer_identity = path.clone();
+        wrong_outer_identity.outer_member_identity = Some(3);
+        rejects(&wrong_outer_identity);
+        let mut wrong_middle_identity = path.clone();
+        wrong_middle_identity.middle_path.outer_member_identity = Some(3);
+        rejects(&wrong_middle_identity);
+        let mut wrong_leaf_identity = path.clone();
+        wrong_leaf_identity.middle_path.child_sum_layouts[0].member_identity = Some(4);
+        rejects(&wrong_leaf_identity);
+        let mut wrong_outer_geometry = path.clone();
+        wrong_outer_geometry.outer_layout.entries[1].placement =
+            LayoutPlacementReport::At { offset: 8 };
+        rejects(&wrong_outer_geometry);
+        let mut wrong_middle_geometry = path.clone();
+        wrong_middle_geometry.middle_path.outer_layout.entries[1].placement =
+            LayoutPlacementReport::At { offset: 8 };
+        rejects(&wrong_middle_geometry);
+        let mut wrong_leaf_geometry = path.clone();
+        wrong_leaf_geometry.middle_path.inner_layout.entries[1].placement =
+            LayoutPlacementReport::At { offset: 8 };
+        rejects(&wrong_leaf_geometry);
+        let mut missing_child = path.clone();
+        missing_child.middle_path.child_sum_layouts.pop();
+        rejects(&missing_child);
+        let mut reordered_children = path.clone();
+        reordered_children.middle_path.child_sum_layouts.swap(0, 1);
+        rejects(&reordered_children);
+        let mut wrong_child_geometry = path.clone();
+        wrong_child_geometry.middle_path.child_sum_layouts[1]
+            .layout
+            .cases[1]
+            .payload_fields[0]
+            .offset += 1;
+        rejects(&wrong_child_geometry);
+        assert!(
+            carrier
+                .replay_against(&checked, "Outer", &path, &value, ByteOrder::BigEndian)
+                .is_err()
+        );
+
+        project_conventional_record_with_nested_sum_record_materialization_layout(
+            &checked,
+            &plan,
+            definition("Middle").symbol,
+        )
+        .expect("the preexisting one-level singular producer remains unchanged");
+        for name in [
+            "OuterTwo",
+            "OuterMiddleTwo",
+            "OuterShallow",
+            "OuterDeep",
+            "OuterDirect",
+            "OuterMiddleDirect",
+            "OuterArray",
+        ] {
+            assert!(
+                project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+                    &checked,
+                    &plan,
+                    definition(name).symbol,
+                )
+                .is_err(),
+                "{name} must remain outside the exact-one depth-two chain"
+            );
+        }
+
+        let outer_layout = unique_data_layout(&plan, outer.symbol, "Outer").unwrap();
+        let DataShape::Record {
+            fields: outer_fields,
+        } = outer_layout.shape
+        else {
+            unreachable!("fixture is a record")
+        };
+        let middle_layout =
+            unique_data_layout(&plan, definition("Middle").symbol, "Middle").unwrap();
+        let DataShape::Record {
+            fields: middle_fields,
+        } = middle_layout.shape
+        else {
+            unreachable!("fixture is a record")
+        };
+        let leaf_layout = unique_data_layout(&plan, definition("Leaf").symbol, "Leaf").unwrap();
+        let DataShape::Record {
+            fields: leaf_fields,
+        } = leaf_layout.shape
+        else {
+            unreachable!("fixture is a record")
+        };
+
+        let middle = definition("Middle");
+        let leaf = definition("Leaf");
+        let mut wrong_top_type_symbol = plan.clone();
+        wrong_top_type_symbol.fields.span_mut_or_empty(outer_fields)[1].type_symbol = leaf.symbol;
+        assert!(
+            project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+                &checked,
+                &wrong_top_type_symbol,
+                outer.symbol,
+            )
+            .is_err(),
+            "the top edge must rejoin the exact laid type symbol"
+        );
+        let mut wrong_top_descriptor_symbol = plan.clone();
+        wrong_top_descriptor_symbol
+            .fields
+            .span_mut_or_empty(outer_fields)[1]
+            .type_descriptor = TypeLayoutDescriptor::Named {
+            symbol: leaf.symbol,
+            name: middle.name.clone(),
+        };
+        assert!(
+            project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+                &checked,
+                &wrong_top_descriptor_symbol,
+                outer.symbol,
+            )
+            .is_err(),
+            "the top edge must rejoin the exact descriptor symbol"
+        );
+        let mut wrong_top_descriptor_name = plan.clone();
+        wrong_top_descriptor_name
+            .fields
+            .span_mut_or_empty(outer_fields)[1]
+            .type_descriptor = TypeLayoutDescriptor::Named {
+            symbol: middle.symbol,
+            name: leaf.name.clone(),
+        };
+        assert!(
+            project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+                &checked,
+                &wrong_top_descriptor_name,
+                outer.symbol,
+            )
+            .is_err(),
+            "the top edge must rejoin the exact descriptor spelling"
+        );
+
+        let recursive_type = checked
+            .data_members(middle)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Field(field) if field.name.as_str() == "lead" => {
+                    Some(field.type_reference)
+                }
+                DataMember::Field(_) | DataMember::Variant(_) => None,
+            })
+            .unwrap();
+        let mut recursive_checked = checked.clone();
+        recursive_checked
+            .typed
+            .type_reference_table
+            .substitute_node(
+                recursive_type,
+                TypeReferenceNode::Named {
+                    symbol: middle.symbol,
+                    name: middle.name.clone(),
+                },
+            );
+        assert!(
+            project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+                &recursive_checked,
+                &plan,
+                outer.symbol,
+            )
+            .is_err(),
+            "a sum-reachable middle record cycle must fail through bounded Visiting-state detection"
+        );
+
+        for field_symbol in [
+            plan.fields.span_or_empty(outer_fields)[1].symbol,
+            plan.fields.span_or_empty(middle_fields)[1].symbol,
+            plan.fields.span_or_empty(leaf_fields)[0].symbol,
+        ] {
+            let mut special_plan = plan.clone();
+            special_plan
+                .repeated_fields
+                .push(crate::RepeatedFieldLayout {
+                    field: field_symbol,
+                    element_stride: 16,
+                });
+            assert!(
+                project_conventional_record_with_depth_two_nested_sum_materialization_layout(
+                    &checked,
+                    &special_plan,
+                    outer.symbol,
+                )
+                .is_err(),
+                "target-dependent placement at every record layer must reject"
+            );
+        }
     }
 
     #[test]
