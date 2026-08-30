@@ -24,6 +24,13 @@ A test, experiment, benchmark, or implementation task cannot be the sole
 motivation, and machinery introduced only to support such work is removed or
 kept non-authoritative rather than promoted into an owner decision.
 
+Apply the same test to security machinery. Omega owns only claims it can
+enforce at its actual compiler, package, and artifact boundaries. A proposal
+that merely restates host operating-system, credential, transport, or operator
+trust must be deleted or delegated to that owner rather than dressed as an
+Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
+promote that narrow ambiguity here before adding machinery.
+
 Last pruned: 2026-08-30.
 
 ## Q1 — Own proof-only FloatMeaning equality and source correspondence
@@ -502,3 +509,60 @@ consumed candidate unchanged for retry.
   access plans without a checked source operation, use compact range/device
   identifiers in place of retained contexts, or let erased proof values stand
   in for Terminal ordering events.
+
+## Q9 — Attribute selected opaque representations across package reviews
+
+### Context
+
+Package review compiles dependencies first and compiles each package under that
+package's own authoritative `build.omg`. A later consumer may select a concrete
+`OpaqueRepresentation<Opaque>` conformance for dependency-owned opaque data.
+The dependency's earlier review may therefore be unbound or may select a
+different application for its own uses. The compiler now retains the exact
+selected conformance and closes each actual by-value boundary use into a
+target-, shape-, and calling-plan-bound application identity.
+
+### Problem statement
+
+Choose who owns canonical review evidence for that selection and what
+"producer/consumer agreement" means before independently compiled artifacts
+exist. Requiring the producer's source review to accept the consumer's choice
+would invent producer authority that was never exercised. Requiring every
+library build to preselect one representation would remove the target and
+integration flexibility the build-owned selection was introduced to provide.
+Conversely, recording only the consumer's compact application fingerprint
+would not let closure review rejoin the selected conformance and carrier to the
+producer's exact reviewed declarations.
+
+### Proposed direction
+
+Make the selecting consumer build own each demanded representation row. Retain
+the exact selecting build machine, boundary requirement application, opaque
+declaration, named conformance, concrete carrier, selected target, and strong
+target-closed application commitment. Emit no demand row for an unused
+selection.
+
+Keep producer review factual: it publishes the opaque declaration and the
+ordinary public conformance/carrier surface, but does not claim to accept a
+consumer selection. Closure validation requires every foreign consumer demand
+to rejoin those exact producer rows and the same locally checked source. The
+single consumer compilation already uses one application on both sides of the
+boundary. Independently compiled artifacts, replacement, and stable-handle eras
+must later require equality of the same strong application commitment at their
+actual composition boundary; source review must not pretend that composition
+already occurred.
+
+### Alternates
+
+- Acceptable: let an opaque declaration publish one producer-fixed stable ABI,
+  provided this becomes an explicit language contract and consumers cannot
+  silently replace it through `build.omg`.
+- Acceptable: retain consumer demand and producer availability as two distinct
+  canonical row kinds rather than one role-tagged representation row, provided
+  closure validation and diff rendering preserve the same exact joins.
+- Tempting but wrong: treat publication of a conformance as producer acceptance
+  of every consumer use, require a dependency's independent build selection to
+  equal all future consumers, or copy a consumer decision into producer review.
+- Tempting but wrong: call matching names, compact fingerprints, audit prose,
+  or a lockfile string "agreement" without rejoining the exact declarations
+  and strong compiler-issued application.

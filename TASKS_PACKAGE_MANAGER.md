@@ -233,8 +233,10 @@ explicitly.
 
   - carry the same application into general type layout and physical
     move/finalization planning, including cleanup and multiplicity checks;
-  - publish demanded/bound representation rows in package review and require
-    producer/consumer agreement;
+  - **OWNER-BLOCKED — representation application attribution:** publish
+    demanded/bound representation rows and enforce producer/consumer agreement
+    only after the owner settles whether source review records consumer demand,
+    a producer-fixed ABI, or distinct demand/availability rows;
   - bind the application into artifacts, replacement compatibility, stable-
     handle era rules, and independently replaceable provider contracts;
   - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,
