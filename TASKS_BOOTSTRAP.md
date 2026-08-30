@@ -879,6 +879,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     backward/alias, undefined/end-label, duplicate-bind, interior-target, and
     capacity canaries join the real Delta-compiler gate when that executable
     exists; do not create a host Delta executor to run this incomplete closure.
+  - [x] Establish `D`'s source-view UTF-8 framing primitive independently of
+    Q7's package/source custody. It accepts an immutable byte view, implements
+    the complete one- through four-byte scalar envelope, rejects overlong
+    forms, surrogates, values above U+10FFFF, stray continuations, and truncated
+    tails, and reports the malformed scalar's lead-byte offset. It does not
+    invent source IDs, unit ordering, token custody, or where otherwise-valid
+    non-ASCII scalars are permitted by LEXICAL-PROFILE-V1. Exact boundary and
+    malformed-family vectors join the real Delta-compiler gate rather than a
+    host reimplementation.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
