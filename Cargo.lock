@@ -1263,6 +1263,7 @@ name = "omega-regalloc"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
+ "omega-calling-conventions",
  "omega-legalized-operations",
  "omega-optimization-core",
  "omega-optimization-unit",

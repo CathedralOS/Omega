@@ -173,8 +173,8 @@ does not yet fully satisfy this contract.
   compare/receipt join; independent GVN keys descend by total,
   proof-certified, and compatible-policy vocabulary. The former 1,457-line
   structural-catalog test matrix now mirrors six production validation families.
-- All 283 governed module maps are source-locally classified: 158 executable
-  entrances, 14 crate maps, and 111 stage groups. The guard exhaustively checks
+- All 284 governed module maps are source-locally classified: 158 executable
+  entrances, 14 crate maps, and 112 stage groups. The guard exhaustively checks
   those roles and the real coordination marker of every executable entrance.
 - The transformation ledger now descends from a 92-line custody-validation
   entrance into model, error, validation, encoding, decoding, cursor, and test
@@ -188,7 +188,10 @@ does not yet fully satisfy this contract.
   framing, instruction, structural, ownership, and value leaves.
 - MOVN proposal computation now has a 95-line root-admission, bounded-selection,
   and plan-finalization join over source, recipe, materialization, budget, and
-  focused test leaves.
+  focused test leaves. Fixed-view-copy persistence now has an 82-line V4/V5
+  selected-plan entrance over a historical scalar leaf and a 71-line structural
+  entrance; structural ABI, call, declaration, settlement, and signature fields
+  descend into named leaves below it.
 - Five production-classified leaves remain at 750-1,000 lines in register
   allocation, machine planning, selected validation, rewriting, and lowering.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though

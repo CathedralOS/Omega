@@ -1,65 +1,82 @@
-//! Optimizer module role: executable entrance. Selected-instruction-plan wire taxonomy for fixed-view-copy v4.
+//! Optimizer module role: executable entrance. Versioned selected-plan wire coordination.
+//!
+//! V4 owns the historical scalar roster. V5 wraps one canonical selected-plan
+//! payload, authenticates its exact bytes, and descends into the structural
+//! function taxonomy without changing the legacy format.
 
 mod block;
 mod function;
 mod instruction;
 mod provenance;
 mod register;
+mod scalar;
+mod structural;
 
 use omega_selected_instructions::SelectedInstructionPlan;
-use psi_core::{FuelScheduleIdentity, MachineId};
-use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use sha2::{Digest, Sha256};
 
 use crate::FixedViewCopyDecodeError;
 
-use self::function::{decode_function, encode_function};
-use super::{
-    primitives::{Cursor, decode_id, length},
-    values::{decode_target, encode_target},
-};
+use self::structural::{decode_structural_function, encode_structural_function};
+use super::primitives::{Cursor, length};
 
 #[cfg(test)]
 pub(super) use self::instruction::decode_kind;
 
-pub(super) fn encode_selected_plan(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
-    bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
-    bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
-    encode_target(bytes, plan.target);
-    bytes.extend_from_slice(&plan.entry.get().to_le_bytes());
-    length(bytes, plan.functions.len());
-    for function in &plan.functions {
-        encode_function(bytes, function);
-    }
+pub(super) struct DecodedSelectedPlan {
+    pub(super) plan: SelectedInstructionPlan,
+    pub(super) payload_matches: bool,
 }
 
-pub(super) fn decode_selected_plan(
+pub(super) fn encode_selected_plan_v4(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
+    scalar::encode(bytes, plan);
+}
+
+pub(super) fn decode_selected_plan_v4(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionPlan, FixedViewCopyDecodeError> {
-    let fingerprint = SemanticFingerprint::from_bytes(cursor.array()?);
-    let marker_raw = cursor.u16()?;
-    let marker = VocabularyMarker::new(marker_raw)
-        .ok_or(FixedViewCopyDecodeError::InvalidVocabulary(marker_raw))?;
-    let fuel_raw = cursor.u32()?;
-    let fuel_schedule = FuelScheduleIdentity::new(fuel_raw)
-        .ok_or(FixedViewCopyDecodeError::InvalidFuelSchedule(fuel_raw))?;
-    let target = decode_target(cursor)?;
-    let entry = decode_id(cursor, MachineId::new)?;
-    let function_count = cursor.length()?;
-    let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
-    for _ in 0..function_count {
-        functions.push(decode_function(cursor)?);
+    scalar::decode(cursor)
+}
+
+pub(super) fn encode_selected_plan_v5(bytes: &mut Vec<u8>, plan: &SelectedInstructionPlan) {
+    let payload = encode_v5_payload(plan);
+    bytes.extend_from_slice(&<[u8; 32]>::from(Sha256::digest(&payload)));
+    length(bytes, payload.len());
+    bytes.extend_from_slice(&payload);
+}
+
+pub(super) fn decode_selected_plan_v5(
+    cursor: &mut Cursor<'_>,
+) -> Result<DecodedSelectedPlan, FixedViewCopyDecodeError> {
+    let expected_digest: [u8; 32] = cursor.array()?;
+    let payload_length = cursor.length()?;
+    let payload = cursor.take(payload_length)?;
+    let mut payload_cursor = Cursor::new(payload);
+    let mut plan = decode_selected_plan_v4(&mut payload_cursor)?;
+    let structural_count = payload_cursor.length()?;
+    let mut structural_unit_functions =
+        Vec::with_capacity(structural_count.min(payload_cursor.remaining()));
+    for _ in 0..structural_count {
+        structural_unit_functions.push(decode_structural_function(&mut payload_cursor)?);
     }
-    Ok(SelectedInstructionPlan {
-        psi: TerminalPsiIdentity {
-            vocabulary_marker: marker,
-            program_fingerprint: fingerprint,
-        },
-        fuel_schedule,
-        target,
-        entry,
-        functions,
-        // The v4 format predates this roster. Nonempty rosters require a v5 format.
-        structural_unit_functions: Vec::new(),
+    if payload_cursor.remaining() != 0 {
+        return Err(FixedViewCopyDecodeError::TrailingBytes);
+    }
+    plan.structural_unit_functions = structural_unit_functions;
+    let digest_matches = <[u8; 32]>::from(Sha256::digest(payload)) == expected_digest;
+    let canonical_matches = encode_v5_payload(&plan).as_slice() == payload;
+    Ok(DecodedSelectedPlan {
+        plan,
+        payload_matches: digest_matches && canonical_matches,
     })
+}
+
+fn encode_v5_payload(plan: &SelectedInstructionPlan) -> Vec<u8> {
+    let mut payload = Vec::new();
+    encode_selected_plan_v4(&mut payload, plan);
+    length(&mut payload, plan.structural_unit_functions.len());
+    for function in &plan.structural_unit_functions {
+        encode_structural_function(&mut payload, function);
+    }
+    payload
 }

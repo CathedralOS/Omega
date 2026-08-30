@@ -2,7 +2,8 @@ use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
 
 use super::{
     super::{
-        copy::decode_copy, primitives::Cursor, selected::decode_kind, values::decode_fixed_site,
+        copy::decode_copy, encode_v4, primitives::Cursor, selected::decode_kind,
+        values::decode_fixed_site,
     },
     plan,
 };
@@ -33,10 +34,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(5))
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(6))
     );
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -78,8 +79,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
 }
 
 #[test]
-fn artifact_rejection_precedence_is_stable() {
-    let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
+fn artifact_v4_rejection_precedence_is_stable() {
+    let encoded = encode_v4(&plan(
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+    ));
     let transformed_offset = transformed_identity_offset(&encoded);
 
     let mut trailing_and_transformed = encoded.clone();
@@ -95,6 +98,40 @@ fn artifact_rejection_precedence_is_stable() {
     transformed_and_outer[12] ^= 1;
     assert_eq!(
         FixedViewCopyPlan::decode(&transformed_and_outer),
+        Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
+    );
+}
+
+#[test]
+fn artifact_v5_rejection_precedence_is_trailing_payload_semantic_then_outer() {
+    let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
+    let transformed_offset = transformed_identity_offset(&encoded);
+    let payload_digest_offset = transformed_offset + 32;
+
+    let mut trailing_payload_semantic_outer = encoded.clone();
+    trailing_payload_semantic_outer[payload_digest_offset] ^= 1;
+    trailing_payload_semantic_outer[transformed_offset] ^= 1;
+    trailing_payload_semantic_outer[12] ^= 1;
+    trailing_payload_semantic_outer.push(0);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&trailing_payload_semantic_outer),
+        Err(FixedViewCopyDecodeError::TrailingBytes)
+    );
+
+    let mut payload_semantic_outer = encoded.clone();
+    payload_semantic_outer[payload_digest_offset] ^= 1;
+    payload_semantic_outer[transformed_offset] ^= 1;
+    payload_semantic_outer[12] ^= 1;
+    assert_eq!(
+        FixedViewCopyPlan::decode(&payload_semantic_outer),
+        Err(FixedViewCopyDecodeError::TransformedPayloadMismatch)
+    );
+
+    let mut semantic_outer = encoded;
+    semantic_outer[transformed_offset] ^= 1;
+    semantic_outer[12] ^= 1;
+    assert_eq!(
+        FixedViewCopyPlan::decode(&semantic_outer),
         Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
     );
 }

@@ -16,9 +16,9 @@ decision. Only true language-semantic questions belong in
 
 1. [>] Restore the source-navigation contract. Complete the organization work
    below before adding another broad optimization family.
-2. [ ] Split the fixed-view-copy artifact architecture from v4 to v5. V5 must
-   carry `SelectedInstructionPlan::structural_unit_functions`; v4 must remain
-   byte-stable and decode that field as empty.
+2. [x] Split the fixed-view-copy artifact architecture from v4 to v5. V5
+   carries `SelectedInstructionPlan::structural_unit_functions`; v4 remains
+   byte-stable and decodes that field as empty.
 3. [ ] Add abstract-to-target translation validation for
    `WrappingIntegerAdd(parameter, parameter)`, then wrapping subtract and
    multiply as separate exact catalog rows and leaves.
@@ -132,9 +132,9 @@ decision. Only true language-semantic questions belong in
   u12 folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
-- [ ] Add fixed-view-copy v5 as a versioned envelope and structural selected
+- [x] Add fixed-view-copy v5 as a versioned envelope and structural selected
   subtree. Public encoding emits v5; decoding accepts v4/v5; v4 bytes and
-  rejection order remain pinned. V5 must authenticate the exact selected-plan
+  rejection order remain pinned. V5 authenticates the exact selected-plan
   payload as well as semantic identities because duplicated caller/callee call
   plans are validator-bound rather than fully selected-identity-bound.
 - [ ] Add generated differential testing across interpreter/reference native
