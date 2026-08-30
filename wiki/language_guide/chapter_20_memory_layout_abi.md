@@ -1224,9 +1224,12 @@ into a compatible snapshot record is ordinary value recast and remains legal.
 
 Borrow checking retains the source loan for validated whole-name and
 whole-member recasts, with the authored shared or mutable polarity. An indexed
-recast may cover a wider byte footprint than its syntactic source element, so
-that form remains conservatively outside precise loan publication until the
-complete validated footprint is carried into overlap facts.
+recast may cover a wider byte footprint than its syntactic source element. The
+first precise indexed rung therefore admits only an exact literal offset into a
+fixed byte array with a fact-free primitive target: the validated complete
+half-open target footprint, rather than the selected byte alone, enters overlap
+facts with the authored shared or mutable polarity. Runtime or merely bounded
+offsets, slices, aggregate targets, and other indexed forms remain conservative.
 
 The source and target must cover the same bytes under their normalized layout
 plans. A shared recast may only weaken facts (source implies target). A mutable

@@ -75,6 +75,107 @@ use scalar_representation::{
     scalar_representation_facts_imply,
 };
 
+/// Canonical checked footprint for the first precise indexed-recast loan rung.
+///
+/// The collection expression names the fixed byte-array place. `start..end`
+/// is the complete validated target footprint in byte ordinals. This carrier
+/// is produced only by replaying the ordinary recast judgment for a direct
+/// reference-local initializer; consumers must not reconstruct it from cast
+/// syntax alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedLiteralIndexedRecastFootprint {
+    collection: ExpressionHandle,
+    start: usize,
+    end: usize,
+}
+
+impl ValidatedLiteralIndexedRecastFootprint {
+    pub const fn collection(self) -> ExpressionHandle {
+        self.collection
+    }
+
+    pub const fn start(self) -> usize {
+        self.start
+    }
+
+    pub const fn end(self) -> usize {
+        self.end
+    }
+}
+
+/// Replay the canonical recast judgment and retain one exact literal-index
+/// byte footprint for borrow overlap.
+///
+/// This deliberately excludes runtime or singleton-range offsets, slices,
+/// whole-array sources, and aggregate targets. Those shapes remain under their
+/// existing conservative loan fence even when the broader recast judgment can
+/// validate their representation.
+pub fn validate_literal_indexed_recast_footprint(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    local: &psi_typed_trees::statement::TableLocalData,
+) -> Option<ValidatedLiteralIndexedRecastFootprint> {
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    let initializer = strip_mutable(program, local.initial_value);
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
+        return None;
+    };
+    if !cast.form.is_recast() || program.primitive_type_reference(cast.target_type).is_none() {
+        return None;
+    }
+
+    let mut diagnostics = Vec::new();
+    judge_scalar_recast(
+        program,
+        machine,
+        state,
+        cast,
+        *referee,
+        access.is_exclusive(),
+        &mut diagnostics,
+    );
+    if !diagnostics.is_empty() {
+        return None;
+    }
+
+    let source = strip_mutable(program, cast.value);
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
+        return None;
+    };
+    let ExpressionNode::Integer(offset) = program.expression_table.expression(indexed.index) else {
+        return None;
+    };
+    let start = usize::try_from(offset.value_i64()?).ok()?;
+    let target = program.primitive_type_reference(cast.target_type)?;
+    let target_size = target.scalar_byte_size()?;
+    let end = start.checked_add(target_size)?;
+
+    let InteriorByteRegion::Bounded {
+        offset,
+        region_length,
+    } = interior_byte_region_source(program, machine, state, source)
+    else {
+        return None;
+    };
+    if usize::try_from(offset).ok()? != start || end > usize::try_from(region_length).ok()? {
+        return None;
+    }
+
+    Some(ValidatedLiteralIndexedRecastFootprint {
+        collection: indexed.collection,
+        start,
+        end,
+    })
+}
+
 pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     // The blessed positions: direct initializers of reference-typed lets
     // (mirrors the D14 literal gate's shape -- collect the legal roots,
