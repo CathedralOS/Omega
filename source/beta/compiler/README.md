@@ -4,6 +4,8 @@ This directory owns the compiler artifact required by the Beta rung:
 
 - `beta_compiler.alpha` is the canonical immediate-predecessor source;
 - `beta_compiler_bytecode.tape` is the current platform-independent artifact;
+- `outcomes-v1.tsv` is the closed compiler-boundary code table consumed by the
+  focused gate;
 - `validation/` contains only machinery that targets the canonical source or
   its emitted tape;
 - `rebuild-artifact.sh` performs exact direct construction;
@@ -39,8 +41,8 @@ parallel assembly semantics, not an admission premise. The exact source/tape
 certificate remains open under OWNER Q5 (the exact Alpha-to-Beta edge) in
 `OWNER_QUESTIONS.md`.
 
-The committed artifact is 20,977 bytes with SHA-256
-`1911fc4f9667081ca96559ee970f07c3359f225c1177b5ed889d55c05a059f0f`.
+The committed artifact is 22,552 bytes with SHA-256
+`869eef1cc0ae0ca78a5e3860ff85b4c9f659d968bd27856a2f889d976b77de3a`.
 The byte comparison, not the convenient digest, governs repository identity.
 
 ## Compiler boundary outcome
@@ -83,9 +85,9 @@ boundary. On every non-complete outcome, stdout is exactly one canonical
 `0xFF` is permanently never an Alpha opcode, so a failure frame cannot be a
 runnable payload. Unknown versions, kinds, coordinate spaces, reason/resource
 codes, nonzero reserved bytes, noncanonical unused fields, or disagreement
-between frame and halt tag reject the boundary observation. The implementation
-change must publish closed version-1 reason and resource code tables alongside
-the compiler; a shell script may decode them but may not define or repair them.
+between frame and halt tag reject the boundary observation. `outcomes-v1.tsv`
+is the closed version-1 reason/resource table. `test.sh` consumes it directly;
+the gate may decode the producer's fields but cannot define or repair them.
 
 Success is intentionally not self-describing. Its integrity rests jointly on
 complete first-pass validation, byte-count agreement with the private replay,
@@ -109,9 +111,9 @@ publication. The compiler currently enforces every row except state-block
 participation in the combined syntax-depth row, whose missing guard is tracked
 under **BETA-FLATTENED-CFG-INITIALIZATION**. These ceilings bound the
 implementation accepted by the current edge. Exceeding any independently
-reachable row below is `Incomplete`, never invalid Beta source. Until the
-settled carrier is implemented, the focused gate continues to require every
-refused adjacent case to return nonzero with empty stdout.
+reachable row below is `Incomplete`, never invalid Beta source. The focused
+gate checks the exact resource code, limit, requested amount, and canonical
+failure framing at each adjacent refusal.
 
 | Resource | Last admitted extent |
 | --- | ---: |
@@ -152,7 +154,8 @@ addresses and generated-stack containment.
 | --- | --- | --- |
 | `validation/` | Exact reachable-artifact structure for this compiler edge. | Delete it when the direct checked source/tape refinement proves the same facts. |
 
-Root files are the one compiler source, one Alpha-tape artifact, one artifact
-loader, one exact reconstruction entry point, and one focused language gate.
+Root files are the one compiler source, one Alpha-tape artifact, one boundary
+code table, one artifact loader, one exact reconstruction entry point, and one
+focused language gate.
 No separate cold-start, self-host, generated-artifact, or publication owner is
 retained.

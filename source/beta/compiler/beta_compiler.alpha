@@ -41,6 +41,8 @@
 ;   524688 U64_SCRATCH 524696 U64_INDEX
 ;   524704 MEM_GUARD_ID 524712 MEM_GUARD_NEEDED
 ;   524720 MEM_SITE_LABEL 524728 STACK_FAULT_LABEL 524736 STACK_BYTES
+;   524744 OUTCOME_CODE 524752 OUTCOME_SPACE 524760 OUTCOME_COORD
+;   524768 OUTCOME_LIMIT 524776 OUTCOME_REQUESTED
 ; Buffers:
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   2097152 TAPE_BUFFER (262140-byte checked Alpha payload extent)
@@ -126,6 +128,11 @@ source_done:
         imm   r0, 524664
         load  r2, r0
         jeq   r1, r2, source_patch
+        imm   r0, 2
+        imm   r1, 2
+        imm   r2, 524400
+        load  r2, r2
+        call  set_internal
         jmp   internal_error
 source_patch:
         call  patch_fixups
@@ -135,12 +142,20 @@ source_patch:
         imm   r0, 0
         halt  r0
 source_too_large:
-        imm   r0, 2
-        halt  r0
+        imm   r0, 1
+        imm   r1, 1048576
+        imm   r2, 1048577
+        imm   r3, 1
+        imm   r4, 1048576
+        call  set_incomplete
+        jmp   publish_failure
 invalid_source:
-        halt  r0
+        jmp   publish_failure
 internal_error:
-        imm   r0, 3
+        call  promote_internal_failure
+publish_failure:
+        call  publish_diagnostic
+        call  error_value
         halt  r0
 
 ; ---------------- program ----------------
@@ -689,7 +704,7 @@ pf_paren:
         imm   r0, 524392
         load  r1, r0
         imm   r2, 64
-        jeq   r1, r2, pf_error
+        jeq   r1, r2, pf_depth_incomplete
         imm   r2, 1
         add   r1, r2
         store r0, r1
@@ -755,6 +770,12 @@ pf_call_factor:
 pf_error:
         call  set_error
 pf_return:
+        ret
+pf_depth_incomplete:
+        imm   r0, 3
+        imm   r1, 64
+        imm   r2, 65
+        call  set_incomplete_at_source
         ret
 
 ; Parse a call after parse_identifier has retained its name and the token cursor
@@ -866,7 +887,10 @@ push_load_width:
         store r0, r6
         ret
 plw_error:
-        call  set_error
+        imm   r0, 3
+        imm   r1, 64
+        imm   r2, 65
+        call  set_incomplete_at_source
         ret
 
 finish_memory_load:
@@ -1519,7 +1543,7 @@ declare_name:
         imm   r0, 524424
         load  r7, r0
         imm   r1, 64
-        jeq   r7, r1, dn_error
+        jeq   r7, r1, dn_slot_incomplete
         imm   r0, 524496
         imm   r1, 0
         store r0, r1
@@ -1563,6 +1587,12 @@ dn_add:
 dn_error:
         call  set_error
         ret
+dn_slot_incomplete:
+        imm   r0, 10
+        imm   r1, 64
+        imm   r2, 65
+        call  set_incomplete_at_source
+        ret
 
 ; Look up NAME in the current procedure. Return its frame slot.
 lookup_name:
@@ -1602,7 +1632,7 @@ add_proc:
         imm   r0, 524408
         load  r7, r0
         imm   r1, 128
-        jeq   r7, r1, ap_error
+        jeq   r7, r1, ap_incomplete
         imm   r0, 524496
         imm   r1, 0
         store r0, r1
@@ -1655,6 +1685,12 @@ ap_add:
         ret
 ap_error:
         call  set_error
+        ret
+ap_incomplete:
+        imm   r0, 4
+        imm   r1, 128
+        imm   r2, 129
+        call  set_incomplete_at_source
         ret
 
 select_proc:
@@ -1794,7 +1830,10 @@ eph_param:
 eph_done:
         ret
 eph_error:
-        call  set_error
+        imm   r0, 5
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 
 check_proc_slots:
@@ -1841,7 +1880,10 @@ push_call_name:
         store r0, r6
         ret
 pcn_error:
-        call  set_error
+        imm   r0, 3
+        imm   r1, 64
+        imm   r2, 65
+        call  set_incomplete_at_source
         ret
 
 increment_call_arg:
@@ -1983,7 +2025,7 @@ add_call:
         imm   r0, 524416
         load  r6, r0
         imm   r1, 1024
-        jeq   r6, r1, ac_error
+        jeq   r6, r1, ac_incomplete
         imm   r0, 24
         mul   r0, r6
         imm   r1, 550000
@@ -2009,6 +2051,12 @@ add_call:
 ac_error:
         call  set_error
         ret
+ac_incomplete:
+        imm   r0, 9
+        imm   r1, 1024
+        imm   r2, 1025
+        call  set_incomplete_at_source
+        ret
 
 add_state:
         call  name_is_reserved
@@ -2016,11 +2064,11 @@ add_state:
         imm   r0, 524592
         load  r6, r0
         imm   r1, 128
-        jeq   r6, r1, ast_error
+        jeq   r6, r1, ast_proc_incomplete
         imm   r0, 524568
         load  r7, r0
         imm   r1, 1024
-        jeq   r7, r1, ast_error
+        jeq   r7, r1, ast_global_incomplete
         imm   r0, 524496
         imm   r1, 0
         store r0, r1
@@ -2083,6 +2131,18 @@ ast_add:
 ast_error:
         call  set_error
         ret
+ast_proc_incomplete:
+        imm   r0, 5
+        imm   r1, 128
+        imm   r2, 129
+        call  set_incomplete_at_source
+        ret
+ast_global_incomplete:
+        imm   r0, 6
+        imm   r1, 1024
+        imm   r2, 1025
+        call  set_incomplete_at_source
+        ret
 
 add_edge:
         call  name_is_reserved
@@ -2090,11 +2150,11 @@ add_edge:
         imm   r0, 524600
         load  r7, r0
         imm   r1, 256
-        jeq   r7, r1, ae_error
+        jeq   r7, r1, ae_proc_incomplete
         imm   r0, 524576
         load  r6, r0
         imm   r1, 1024
-        jeq   r6, r1, ae_error
+        jeq   r6, r1, ae_global_incomplete
         imm   r0, 24
         mul   r0, r6
         imm   r1, 680000
@@ -2123,6 +2183,18 @@ add_edge:
         ret
 ae_error:
         call  set_error
+        ret
+ae_proc_incomplete:
+        imm   r0, 7
+        imm   r1, 256
+        imm   r2, 257
+        call  set_incomplete_at_source
+        ret
+ae_global_incomplete:
+        imm   r0, 8
+        imm   r1, 1024
+        imm   r2, 1025
+        call  set_incomplete_at_source
         ret
 
 select_state:
@@ -2588,7 +2660,15 @@ pi_done:
         store r0, r6
         ret
 pi_error:
-        call  set_error
+        imm   r0, 2
+        imm   r1, 64
+        imm   r2, 65
+        imm   r3, 1
+        imm   r4, 524320
+        load  r4, r4
+        imm   r5, 64
+        add   r4, r5
+        call  set_incomplete
         ret
 
 ; Inputs r0=fixed bytes and r1=length. Compare against NAMESTART/NAMELEN.
@@ -3157,7 +3237,11 @@ eb_store:
 eb_done:
         ret
 eb_error:
-        call  set_error
+        imm   r0, 3
+        imm   r1, 2
+        imm   r2, 524400
+        load  r2, r2
+        call  set_internal
         ret
 
 ; Input r0=operand offset, r1=identity kind (0 proc, 1 state, 2 internal),
@@ -3189,7 +3273,11 @@ add_fixup:
 af_done:
         ret
 af_error:
-        call  set_error
+        imm   r0, 4
+        imm   r1, 3
+        imm   r2, 524656
+        load  r2, r2
+        call  set_internal
         ret
 
 ; Input r0=procedure identity.
@@ -3213,7 +3301,10 @@ rpc_store:
 rpc_done:
         ret
 rpc_error:
-        call  set_error
+        imm   r0, 6
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 
 ; Input r0=state identity.
@@ -3237,7 +3328,10 @@ rsp_store:
 rsp_done:
         ret
 rsp_error:
-        call  set_error
+        imm   r0, 6
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 
 ; Input r0=internal numeric identity.
@@ -3260,7 +3354,10 @@ rip_store:
 rip_done:
         ret
 rip_error:
-        call  set_error
+        imm   r0, 5
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 
 load_selected_call_target:
@@ -3374,7 +3471,10 @@ pfu_patch:
         add   r6, r0
         jmp   pfu_loop
 pfu_error:
-        call  set_error
+        imm   r0, 6
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 
 publish_tape:
@@ -3405,15 +3505,178 @@ reserve_output:
         store r3, r4
         ret
 ro_error:
-        call  set_error
+        mov   r5, r4
+        mov   r2, r4
+        add   r2, r1
+        imm   r0, 11
+        imm   r1, 262140
+        imm   r3, 2
+        mov   r4, r5
+        call  set_incomplete
         ret
 
+; Record the first source-level failure. All parser/static failures deliberately
+; share one stable v1 reason instead of exposing private parser phases.
 set_error:
         imm   r0, 524304
-        imm   r1, 524384
-        load  r1, r1
+        load  r1, r0
+        jnz   r1, se_done
+        imm   r1, 1
         store r0, r1
+        imm   r0, 524744
+        imm   r1, 1
+        store r0, r1
+        imm   r0, 524752
+        store r0, r1
+        imm   r0, 524296
+        load  r1, r0
+        imm   r0, 524760
+        store r0, r1
+        imm   r0, 524768
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524776
+        store r0, r1
+se_done:
         ret
+
+; Inputs r0=resource code, r1=limit, r2=requested. The decisive source cursor
+; is the coordinate. Preserve any earlier outcome.
+set_incomplete_at_source:
+        mov   r6, r0
+        mov   r7, r1
+        mov   r10, r2
+        imm   r3, 1
+        imm   r4, 524296
+        load  r4, r4
+        mov   r0, r6
+        mov   r1, r7
+        mov   r2, r10
+        call  set_incomplete
+        ret
+
+; Inputs r0=resource code, r1=limit, r2=requested, r3=coordinate space,
+; r4=coordinate. Preserve the first decisive outcome.
+set_incomplete:
+        mov   r5, r0
+        imm   r0, 524304
+        load  r6, r0
+        jnz   r6, si_done
+        imm   r6, 2
+        store r0, r6
+        imm   r0, 524744
+        store r0, r5
+        imm   r0, 524752
+        store r0, r3
+        imm   r0, 524760
+        store r0, r4
+        imm   r0, 524768
+        store r0, r1
+        imm   r0, 524776
+        store r0, r2
+si_done:
+        ret
+
+; Inputs r0=internal reason, r1=coordinate space, r2=coordinate. An explicit
+; internal contradiction supersedes no prior event; replay promotion below
+; handles earlier Reject/Incomplete outcomes from a supposedly identical pass.
+set_internal:
+        mov   r5, r0
+        imm   r0, 524304
+        load  r6, r0
+        jnz   r6, sint_done
+        imm   r6, 3
+        store r0, r6
+        imm   r0, 524744
+        store r0, r5
+        imm   r0, 524752
+        store r0, r1
+        imm   r0, 524760
+        store r0, r2
+        imm   r0, 524768
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 524776
+        store r0, r1
+sint_done:
+        ret
+
+; Replay must never rediscover a source rejection or private exhaustion after
+; the complete validation pass. Preserve a more specific InternalFailure, or
+; promote any other replay outcome to REPLAY_REJECTED at the current cursor.
+promote_internal_failure:
+        imm   r0, 524304
+        load  r1, r0
+        imm   r2, 3
+        jeq   r1, r2, pif_done
+        imm   r1, 0
+        store r0, r1
+        imm   r0, 1
+        imm   r1, 1
+        imm   r2, 524296
+        load  r2, r2
+        call  set_internal
+pif_done:
+        ret
+
+; Emit the exact BCOUT v1 frame after all fields and the halt tag have been
+; committed. The first byte is permanently outside Alpha's opcode space.
+publish_diagnostic:
+        imm   r0, 255
+        write r0
+        imm   r0, 66
+        write r0
+        imm   r0, 67
+        write r0
+        imm   r0, 79
+        write r0
+        imm   r0, 85
+        write r0
+        imm   r0, 84
+        write r0
+        imm   r0, 1
+        write r0
+        imm   r0, 0
+        write r0
+        imm   r0, 524304
+        load  r0, r0
+        write r0
+        imm   r0, 524752
+        load  r0, r0
+        write r0
+        imm   r0, 0
+        write r0
+        write r0
+        imm   r0, 524744
+        imm   r1, 4
+        call  publish_memory_bytes
+        imm   r0, 524760
+        imm   r1, 8
+        call  publish_memory_bytes
+        imm   r0, 524768
+        imm   r1, 8
+        call  publish_memory_bytes
+        imm   r0, 524776
+        imm   r1, 8
+        call  publish_memory_bytes
+        ret
+
+; Inputs r0=memory address and r1=byte count.
+publish_memory_bytes:
+        mov   r6, r0
+        mov   r7, r1
+pmb_loop:
+        imm   r0, 0
+        jeq   r7, r0, pmb_done
+        loadb r0, r6
+        write r0
+        imm   r0, 1
+        add   r6, r0
+        sub   r7, r0
+        jmp   pmb_loop
+pmb_done:
+        ret
+
 error_value:
         imm   r0, 524304
         load  r0, r0

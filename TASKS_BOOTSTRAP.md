@@ -242,7 +242,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     guards are necessarily dominated by the smaller tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
-  - [ ] **BETA-COMPILER-OUTCOME:** Implement the settled four-case boundary.
+  - [x] **BETA-COMPILER-OUTCOME:** Implement the settled four-case boundary.
     Reserve Alpha halt tags 0/1/2/3 for `Complete`/`Reject`/`Incomplete`/
     `InternalFailure`; leave successful stdout as the exact raw runnable
     payload; and emit the canonical `0xFF BCOUT v1` 40-byte diagnostic frame on
@@ -256,6 +256,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     noncanonical-field, partial-output/trap, shell-low-byte, and runtime-status
     250/251 separation canaries. Publish the exact version-1 code tables beside
     the compiler and make gates consume rather than invent them.
+    The Alpha compiler now records the first decisive typed outcome, emits the
+    exact 40-byte `BCOUT` frame only after all fields are fixed, and leaves
+    successful tape bytes unwrapped. `outcomes-v1.tsv` owns the closed tables;
+    the focused gate consumes them and passes 150 language, ceiling, framing,
+    partial-output/trap, and runtime-separation cases. The rebuilt 22,552-byte
+    compiler artifact passes exact reconstruction and structural validation.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
   focused language tests to the Alpha source subject. Remove any two-stage
   “cold compiler builds a Beta self-host, then that self-host becomes canonical” logic. The
@@ -298,7 +304,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     assembler and independent reference implementation over that grammar while
     retaining their byte-identical fixed point.
   - [x] Retire the Alpha-written status-only encoding reconstructor and its
-    parallel mutation gate. It exercised the exact 78,109-byte source and
+    parallel mutation gate. It exercised the then-current 78,109-byte source and
     20,977-byte tape, but returned private halt statuses rather than a checked
     derivation and could not be adapted into the selected certificate shape.
     Keeping it after that result would preserve a second assembly semantics and
@@ -309,8 +315,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
     spoof either constant, and the rebuilt 236,076-byte checker tape retains
-    26,064 bytes of Alpha payload headroom. The exact 78,109-byte compiler
-    source plus 20,977-byte tape carrier runs in under one second. Fixed
+    26,064 bytes of Alpha payload headroom. The exact 84,909-byte compiler
+    source plus 22,552-byte tape carrier remains within the same bounded
+    subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
     path and make subject structure available to ordinary bounded certificate
     functions at logarithmic recursion depth;
@@ -343,7 +350,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       recursive balanced carrier traverses all 6,467 leaves in 0.704 seconds,
       and a folded 3,240-leaf carrier in 0.465 seconds, but adding local parsing
       exhausts the same arena. Even a content-free structural visit of all
-      78,109 raw bytes fails inside one equality. Sequential remainder folds
+      78,109 bytes in the then-current subject failed inside one equality; the
+      present 84,909-byte source is no smaller. Sequential remainder folds
       instead hit contained semantic-stack status 250. The checker reclaims
       conversion scratch only after a complete equality decision, so one
       compiler-scale reflexive equality retains every branch temporary.

@@ -115,11 +115,11 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 78,109 |
-| Instructions | 2,849 |
-| Label definitions | 365 |
+| Source bytes | 84,909 |
+| Instructions | 3,067 |
+| Label definitions | 386 |
 | `db` rows | 12 |
-| Encoded payload bytes | 20,977 |
+| Encoded payload bytes | 22,552 |
 
 An admission certificate must bind the raw source and tape outside the proof
 producer, partition every source item and output byte exactly once, reconstruct
