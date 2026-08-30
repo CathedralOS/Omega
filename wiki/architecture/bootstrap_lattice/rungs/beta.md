@@ -51,6 +51,13 @@ Alpha-written Beta compiler source
 
 The tape is platform-independent. Native seeds merely execute it.
 
+Its construction certificate derives one exact source-to-payload root equality
+from bounded checked assembler lemmas. Pass-one and pass-two partitions compose
+through one checked frozen-label-map joint; certificate-selected cuts carry no
+authority. Source and payload byte counts are derived artifact observations, so
+any edit or size reduction rebuilds and rechecks this certificate rather than
+changing the architecture.
+
 The compiler boundary is a closed `Complete` / `Reject` / `Incomplete` /
 `InternalFailure` result. Alpha halt values 0/1/2/3 carry only that case tag.
 Successful stdout remains the exact runnable payload; failures carry the

@@ -303,7 +303,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   executable consumers and no bounded comparison gate; constructing a new gate
   merely to justify retention would reverse the repository policy. Its fixed
   point and source now survive only in Git history.
-- [ ] **OWNER-BLOCKED — OWNER Q5.** Close exact
+- [ ] **ALPHA-BETA-EXACT-CONSTRUCTION.** Close exact
   Alpha-assembly-source-to-Alpha-tape correspondence. First
   specify the authoritative assembly grammar and two-pass encoding, then bind
   the exact raw `beta_compiler.alpha` and tape subjects and check that every
@@ -344,24 +344,32 @@ code, discover a closure, manufacture proof premises, or decide admission.
     lemma, duplicate IDs and trailing forms reject, and the independent checker
     matches those controls; a later rewrite cannot change an accepted lemma's
     definitional meaning.
-  - [ ] **OWNER-BLOCKED — OWNER Q5:** Turn the ground assembly judgment into a derivation certificate
+  - [ ] **ALPHA-BETA-COMPOSED-CERTIFICATE:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact
     fixups, and full exhaustion.
     - The only permitted end state here is one artifact-owned fixed `.proof`
-      and one artifact-owned acceptance/mutation gate. Define one closed ground
-      judgment `VERIFY(source, tape, trace) = ACCEPT`, discharged by checked
-      computation/reflexivity. Do not add an assembly rule to the generic
-      checker, a theorem-library subtree, a host parser, a generated ledger,
-      a persisted receipt, or another acceptance gate.
-    - Make `trace` a balanced tree of label, instruction, `db`, and trailing-
-      trivia leaves. Checked cut paths must partition both checker-owned trees;
-      local parsers must exhaust each source span; a balanced width/prefix pass
-      must assign absolute PCs; a sparse checked name trie must reject duplicate
-      and undefined labels; and pass two must check every opcode, operand,
-      decoded `db` byte, and little-endian fixup against its exact tape span.
-      Root cuts and totals must prove both subjects fully exhausted, without
-      gaps or suffixes.
+      and one artifact-owned acceptance/mutation gate. Retain one closed ground
+      root judgment `VERIFY(source, tape, trace) = ACCEPT`, but discharge it
+      through bounded named equalities and one checked composition proof rather
+      than one compiler-scale conversion. Do not add an assembly rule to the
+      generic checker, a theorem-library subtree, a host parser, a generated
+      ledger, a persisted receipt, or another acceptance gate.
+    - Give pass one and pass two distinct checked chunk schemas. Pass-one chunks
+      partition the exact source, parse local rows completely, thread payload
+      positions and the unique label map, and derive the total payload length;
+      their predicted PC intervals are accounting, not tape ownership. Freeze
+      that terminal label map and length through one exact pass joint. Pass-two
+      chunks independently partition the source and the tape, use that frozen
+      map, and check every opcode, operand, decoded `db` byte, and little-endian
+      fixup. Checked composition must prove per-pass adjacency, order, unique
+      span ownership, canonical initial/terminal states, and full exhaustion
+      without gaps, overlap, duplication, or suffixes.
+    - Treat cut locations as untrusted certificate witnesses, not owner-fixed
+      authority. The owner fixes the exact framed subjects, Alpha assembly
+      relation, pass schemas and joint, composition theorem, canonical
+      endpoints, and root proposition. Any cut strategy is accepted only when
+      those generic checks establish the same total edge.
     - Measurements closed the representation search rather than merely finding
       a slow implementation. Dynamic balanced cutting accepts 714 canonical
       leaves and fails at 715 with contained memory status 251. A structurally
@@ -378,13 +386,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
       checked propositions with `use`; it accepts in 1.192 seconds. This proves
       the proposed reclamation boundary is viable but does not yet prove the
       required boundary chain or assembly semantics.
-    - OWNER Q5 must choose between bounded subject-bound chunk equalities whose exact
-      boundary states compose through checked congruence/`eqelim` into the one
-      root edge judgment, or generic sound branch-local reclamation in the
-      checker. Neither choice may add an assembly-specific primitive, trusted
-      premise, host parser, generated ledger, persisted producer/receipt, or
-      second acceptance gate. Enlarging an undocumented bound, weakening exact
-      exhaustion, or restoring the deleted status ledger is not an option.
+    - Publish the canonical Beta checker's exact arena, semantic-stack, framed
+      input, certificate, declaration, and lemma-table profile. The fixed proof
+      must fit that profile. The independent Python checker must agree on the
+      logical result but is diagnostic and need not reproduce Beta's resource
+      ceilings. A future authoritative checker cannot replace the service while
+      silently refusing its live certificate/profile.
+    - Repeat measurements against the exact current bound subjects rather than
+      copying prose byte counts. Across candidate chunk counts record peak
+      conversion scratch, permanently retained lemma/boundary-state arena,
+      semantic-stack demand, certificate bytes, and checking time. The earlier
+      112 content-free equalities prove only that the existing per-equality
+      reclamation boundary is viable; the selected certificate must measure
+      real two-pass assembler state and composition cost.
+    - Neither implementation nor measurement may add an assembly-specific
+      primitive, trusted premise, host parser, generated ledger, persisted
+      producer/receipt, or second acceptance gate. Enlarging an undocumented
+      bound, weakening exact exhaustion, or restoring the deleted status ledger
+      is not an option.
 
 ## 3. Beta-written Gamma compiler
 

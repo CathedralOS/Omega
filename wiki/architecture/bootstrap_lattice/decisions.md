@@ -253,6 +253,34 @@ and yield `Incomplete`; dominated corruption guards and pass disagreement yield
 `InternalFailure`. Generated-program statuses 250 and 251 remain separate
 runtime observations.
 
+## D14 — One admitted edge may compose bounded checked equalities
+
+The exact Alpha-source-to-Beta-compiler-tape edge remains one owner-fixed root
+judgment, but no rule requires one compiler-scale normalization to decide it.
+The artifact-owned proof may establish bounded subject-bound equalities as
+named lemmas and compose them through the existing checked calculus. This uses
+the checker's sound per-equality scratch boundary and adds no assembly-specific
+kernel rule or evaluator path.
+
+The two assembler passes have distinct schemas. Pass one partitions the exact
+source, threads payload positions and the unique label map, and derives total
+payload length; predicted positions do not own tape bytes. One checked joint
+freezes that state. Pass two independently partitions source and tape and checks
+every encoding and fixup against it. Composition proves adjacency and unique
+ownership separately per pass, the exact pass joint, canonical endpoints, and
+full exhaustion. Cut locations are untrusted witnesses; the owner fixes the
+subjects, assembly relation, schemas, joint, composition theorem, endpoints,
+and final proposition.
+
+The canonical Beta checker publishes the finite resource profile certificate
+producers must meet. Its Python reference is a diagnostic logical diamond, not
+a second resource authority. Measurements bind the exact current subjects and
+report conversion scratch, permanently retained proof state, semantic stack,
+certificate size, and checking time across candidate chunk counts. Literal
+artifact byte counts are observations derived from those subjects, not durable
+architecture: editing or golfing either subject requires rebuilding and
+rechecking its artifact-owned certificate.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

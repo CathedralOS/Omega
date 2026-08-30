@@ -11,10 +11,13 @@ The structural diagnostic does not admit the compiler edge by itself.
 
 The status-only encoding ledger and its gate were deleted after compiler-scale
 measurement proved they could not become the selected checked derivation. They
-were a parallel assembly semantics, not an admission premise. OWNER Q5 (the exact
-Alpha-to-Beta edge) in `OWNER_QUESTIONS.md` owns the measured conflict between one compiler-scale
-reflexive equality and the generic checker's conversion-scratch lifetime.
+were a parallel assembly semantics, not an admission premise. The settled
+**ALPHA-BETA-COMPOSED-CERTIFICATE** task in `TASKS_BOOTSTRAP.md` owns the
+measured conflict between one compiler-scale reflexive equality and the generic
+checker's conversion-scratch lifetime.
 
 The eventual encoding surface remains one fixed proof and one mutation gate,
-not a subsystem. Artifact-specific assembly definitions, traces, and admission
-policy belong here; `source/alpha/checker/` remains a generic derivation service.
+not a subsystem. That proof may contain bounded named chunk equalities and one
+checked composition theorem while still deriving one root edge judgment.
+Artifact-specific assembly definitions, traces, and admission policy belong
+here; `source/alpha/checker/` remains a generic derivation service.
