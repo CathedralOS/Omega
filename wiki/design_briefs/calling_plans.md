@@ -998,10 +998,14 @@ retains that sidecar beside the source-free artifact, exposes borrowed
 observation, and permits only a consuming transfer of both parts together.
 Checked provenance and canonical row order come from the private driver route;
 the report carrier validates each row but does not attempt to reconstruct its
-origin. Check-only compilation remains valid. Native artifact requests remain
-fenced until native realization explicitly consumes every row. This custody
-route grants no registration, invocation, address, lifetime, or publication
-authority.
+origin. The canonical native-realization seam likewise has an opaque by-value
+adapter that returns the exact sidecar beside successful native realization or
+diagnostic rejection without interpreting its contents. The neutral source-
+free `NativeArtifact` does not absorb those checked-derived rows. Check-only
+compilation remains valid, and native artifact requests remain fenced until
+compiler-report and publication custody preserve the sidecar without an
+artifact-only escape. These custody routes grant no registration, invocation,
+address, lifetime, or publication authority.
 
 The identity row additionally pins two separate normalized public-contract
 endpoints: the callback requirement capsule and the selected machine's declared
