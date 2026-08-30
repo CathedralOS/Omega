@@ -22,6 +22,7 @@ pub use parameter::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 pub use terminal::StraightLineScalarCrashTranslationError;
 
@@ -79,6 +80,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineWrappingIntegerAddParameters(
         StraightLineWrappingIntegerAddParametersTranslationError,
+    ),
+    StraightLineWrappingIntegerSubtractParameters(
+        StraightLineWrappingIntegerSubtractParametersTranslationError,
     ),
 }
 

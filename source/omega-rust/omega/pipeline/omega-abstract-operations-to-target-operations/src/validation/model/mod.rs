@@ -20,6 +20,7 @@ pub use error::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError, StraightLineScalarCrashTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 pub use receipt::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
@@ -40,6 +41,7 @@ pub use receipt::{
     StraightLineIntegerParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
+    StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };
 
 /// Stable identity of one independently replayed abstract-to-target family.
@@ -62,4 +64,5 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerBitwiseOrParameters,
     StraightLineIntegerBitwiseXorParameters,
     StraightLineWrappingIntegerAddParameters,
+    StraightLineWrappingIntegerSubtractParameters,
 }

@@ -20,8 +20,8 @@ decision. Only true language-semantic questions belong in
    carries `SelectedInstructionPlan::structural_unit_functions`; v4 remains
    byte-stable and decodes that field as empty.
 3. [>] Add exact wrapping arithmetic parameter translation families.
-   `WrappingIntegerAdd(parameter, parameter)` is complete; wrapping subtract
-   and multiply remain separate catalog rows and leaves.
+   `WrappingIntegerAdd(parameter, parameter)` and wrapping subtract are
+   complete; wrapping multiply remains a separate catalog row and leaf.
 4. [x] Repair the four stale optimization-pipeline proof fixtures whose exact
    add/subtract goals are still represented by `KernelDerived(Truth)`. Use
    checked certificate-derived proofs; do not weaken proof admission.
@@ -133,7 +133,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Seventeen abstract-to-target families, selected incoming
+  machine-rule family. Eighteen abstract-to-target families, selected incoming
   u12 folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
@@ -172,10 +172,10 @@ decision. Only true language-semantic questions belong in
   scalar-family catalog and returns registers and blocks together.
 - [x] Exact incoming-u12 add/subtract immediate folds.
 - [>] Add exact wrapping add/subtract/multiply parameter translation families.
-  Wrapping add now owns its catalog row, source grammar, target replay, typed
-  error/receipt, corruption, and optimized-custody leaves. Wrapping subtract
-  and multiply remain; share only whole-roster ABI/provenance mechanics until
-  a second exact arithmetic family proves another helper is real.
+  Wrapping add and subtract now own separate catalog rows, source grammars,
+  target replay, typed error/receipt, corruption, and optimized-custody leaves.
+  Their common arithmetic carrier and whole-roster ABI/provenance replay are
+  shared at the nearest two-consumer ancestor. Wrapping multiply remains.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

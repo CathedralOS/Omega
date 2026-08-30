@@ -1,4 +1,4 @@
-//! Exact `[WrappingIntegerAdd(parameter, parameter), Return]` source replay.
+//! Exact `[WrappingIntegerSubtract(parameter, parameter), Return]` source replay.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
@@ -6,7 +6,7 @@ use psi_core::ScalarType;
 use super::super::super::super::model::{
     IntegerArithmeticParametersSource, ParameterResultKind, ReconstructedEnvelope,
 };
-use crate::validation::model::StraightLineWrappingIntegerAddParametersTranslationError;
+use crate::validation::model::StraightLineWrappingIntegerSubtractParametersTranslationError;
 
 pub(in crate::validation::straight_line_parameter) fn is_candidate(
     function: &AbstractFunction,
@@ -15,7 +15,7 @@ pub(in crate::validation::straight_line_parameter) fn is_candidate(
         && matches!(
             function.operations.as_slice(),
             [
-                AbstractOperation::WrappingIntegerAdd { .. },
+                AbstractOperation::WrappingIntegerSubtract { .. },
                 AbstractOperation::Return {
                     cleanup_actions,
                     ..
@@ -29,12 +29,12 @@ pub(super) fn reconstruct(
     envelope: &ReconstructedEnvelope<'_>,
 ) -> Result<
     IntegerArithmeticParametersSource,
-    StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerSubtractParametersTranslationError,
 > {
     let [
-        AbstractOperation::WrappingIntegerAdd {
+        AbstractOperation::WrappingIntegerSubtract {
             psi_operation,
-            result: add_result,
+            result: subtract_result,
             scalar_type,
             left,
             right,
@@ -49,40 +49,44 @@ pub(super) fn reconstruct(
     ] = function.operations.as_slice()
     else {
         return Err(
-            StraightLineWrappingIntegerAddParametersTranslationError::SourceOperationRoster,
+            StraightLineWrappingIntegerSubtractParametersTranslationError::SourceOperationRoster,
         );
     };
     if !cleanup_actions.is_empty() {
-        return Err(StraightLineWrappingIntegerAddParametersTranslationError::SourceCleanup);
+        return Err(StraightLineWrappingIntegerSubtractParametersTranslationError::SourceCleanup);
     }
     if *result != envelope.function_result
         || *return_type != ScalarType::Integer(*scalar_type)
-        || *value != *add_result
+        || *value != *subtract_result
     {
-        return Err(StraightLineWrappingIntegerAddParametersTranslationError::SourceReturnLink);
+        return Err(
+            StraightLineWrappingIntegerSubtractParametersTranslationError::SourceReturnLink,
+        );
     }
     if envelope
         .parameters
         .iter()
-        .any(|parameter| parameter.value == *add_result)
+        .any(|parameter| parameter.value == *subtract_result)
     {
         return Err(
-            StraightLineWrappingIntegerAddParametersTranslationError::SourceAddResultRoster,
+            StraightLineWrappingIntegerSubtractParametersTranslationError::SourceSubtractResultRoster,
         );
     }
-    let (left_parameter_index, left_type) = super::super::parameter(envelope, *left)
-        .ok_or(StraightLineWrappingIntegerAddParametersTranslationError::SourceLeftOperandLink)?;
-    let (right_parameter_index, right_type) = super::super::parameter(envelope, *right)
-        .ok_or(StraightLineWrappingIntegerAddParametersTranslationError::SourceRightOperandLink)?;
+    let (left_parameter_index, left_type) = super::super::parameter(envelope, *left).ok_or(
+        StraightLineWrappingIntegerSubtractParametersTranslationError::SourceLeftOperandLink,
+    )?;
+    let (right_parameter_index, right_type) = super::super::parameter(envelope, *right).ok_or(
+        StraightLineWrappingIntegerSubtractParametersTranslationError::SourceRightOperandLink,
+    )?;
     if left_type != *scalar_type || right_type != *scalar_type {
         return Err(
-            StraightLineWrappingIntegerAddParametersTranslationError::SourceOperandTypeMismatch,
+            StraightLineWrappingIntegerSubtractParametersTranslationError::SourceOperandTypeMismatch,
         );
     }
     Ok(IntegerArithmeticParametersSource {
         operation: *psi_operation,
         return_edge: *psi_edge,
-        source_value: *add_result,
+        source_value: *subtract_result,
         scalar_type: *scalar_type,
         left_value: *left,
         right_value: *right,
