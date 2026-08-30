@@ -138,7 +138,25 @@ frame_chk "framed raw subjects equal" 'abc' 'abc' '(= source tape) (refl source)
 frame_chk "framed raw subject mutation" 'abc' 'abd' '(= source tape) (refl source)' reject
 RAW_TREE_FOLD='(fun 100 61 z) (fun 100 62 (s z)) (fun 100 63 (p (rec 0) (rec 1)))'
 frame_chk "framed raw tree is computable" 'abc' 'x' "$RAW_TREE_FOLD (= (f 100 source) (s (s (s z)))) (refl (s (s (s z))))" accept
+frame_chk "certificate raw lookalike still substitutes" 'abc' 'x' \
+  '(= (k 63 z (k 61)) (k 63 z (k 61))) (eqelim (= (k 63 (v 0) (k 61)) (k 63 (v 0) (k 61))) (refl z) (refl (k 63 z (k 61))))' accept
 chk "raw subject constants require a frame" "(= source source) (refl source)" reject
+
+# Equality transport may retain a pointer to the immutable checker-owned raw
+# interval. Recursively copying this maximum-size subject would exhaust the
+# arena; the accepted proof therefore pins the closed-term fast path itself.
+dd if=/dev/zero bs=262144 count=1 2>/dev/null | tr '\000' ' ' > "$TMP/raw-subst-source"
+printf 'x' > "$TMP/raw-subst-tape"
+printf '%s' '(= source source) (eqelim (= source source) (refl z) (refl source))' \
+  > "$TMP/raw-subst-cert"
+printf 'OMGCHK1\n' > "$TMP/raw-subst-frame"
+append_u64le 262144 "$TMP/raw-subst-frame"
+dd if="$TMP/raw-subst-source" status=none >> "$TMP/raw-subst-frame"
+append_u64le 1 "$TMP/raw-subst-frame"
+dd if="$TMP/raw-subst-tape" status=none >> "$TMP/raw-subst-frame"
+append_u64le "$(wc -c < "$TMP/raw-subst-cert" | tr -d ' ')" "$TMP/raw-subst-frame"
+dd if="$TMP/raw-subst-cert" status=none >> "$TMP/raw-subst-frame"
+file_chk "checker raw interval survives transport" "$TMP/raw-subst-frame" 1 accept
 
 # The published profile fails closed at both its outer input boundary and its
 # permanent-arena boundary. Neither exhaustion may trap or accidentally accept.
