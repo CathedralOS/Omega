@@ -432,6 +432,10 @@ fn count_state_signature(
     for parameter in syntax_trees.items.state_parameters(signature.parameters) {
         count_state_parameter(syntax_trees, *parameter, counts);
     }
+    for parameter in &signature.native_callback_parameters {
+        count_identifier(&parameter.name, counts);
+        count_identifier(&parameter.binder, counts);
+    }
     if signature.return_type.is_valid() {
         count_type_reference_handle(syntax_trees, signature.return_type, counts);
     }
@@ -464,6 +468,10 @@ fn count_state_signature_node(
     }
     for parameter in syntax_trees.items.state_parameters(signature.parameters) {
         count_state_parameter(syntax_trees, *parameter, counts);
+    }
+    for parameter in &signature.native_callback_parameters {
+        count_identifier(&parameter.name, counts);
+        count_identifier(&parameter.binder, counts);
     }
     if signature.return_type.is_valid() {
         count_type_reference_handle(syntax_trees, signature.return_type, counts);

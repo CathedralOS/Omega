@@ -123,6 +123,7 @@ pub(crate) fn lower_state_signature_node(
         &signature.lifetime_parameters,
         signature.type_parameters,
         signature.parameters,
+        &signature.native_callback_parameters,
         signature.return_type,
         signature.is_default,
         signature.service_reach_is_installation_bound,
@@ -147,6 +148,7 @@ pub(crate) fn lower_state_signature_parts(
     lifetime_parameters: &[syntax::identifier::Identifier],
     type_parameters: HandleSpan<syntax::item::TypeParameter>,
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
+    native_callback_parameters: &[syntax::item::NativeCallbackParameterNode],
     return_type_handle: syntax::types::TypeReferenceHandle,
     is_default: bool,
     service_reach_is_installation_bound: bool,
@@ -184,6 +186,16 @@ pub(crate) fn lower_state_signature_parts(
                 type_parameters,
                 is_default,
                 parameters,
+                native_callback_parameters: native_callback_parameters
+                    .iter()
+                    .map(|parameter| {
+                        psi_symbol_resolved_trees::signature::NativeCallbackParameter {
+                            name: crate::name::lower_name(&parameter.name),
+                            binder: crate::name::lower_name(&parameter.binder),
+                            native_ordinal: parameter.native_ordinal,
+                        }
+                    })
+                    .collect(),
                 return_type,
                 invokes,
                 service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,

@@ -344,13 +344,27 @@ and report fingerprint, byte order, bytes, and deterministic report identity.
 Replay uses an exact hash-free comparison that treats stable-numbered
 case/payload names as presentation while retaining authored ordinal and
 complete geometry; replay and short-destination rejection leave the destination
-unchanged. Mixed shapes,
-sums nested in records or arrays, and sums whose all-case geometry requires a
-target capsule remain later rungs. Neither slice narrows the legacy typed-owned
-materialization API or establishes evaluator admission, quotient
-canonicalization, producer-origin chains, or proof authority. Carried quotient
-representatives, richer origin diagnostics, and target-dependent const
-application remain later slices.
+unchanged.
+
+The first nested rung admits exactly one direct runtime-relevant conventional
+pure-sum field in one closed non-generic `[copy]` record. `omega-layout`
+projects its whole-field outer `LayoutPlanReport` and complete conventional
+nested-sum report from the same built target runtime layout; source still gains
+no tag/case placement vocabulary. A distinct non-clone carrier retains the
+outer typed value, exact outer report, direct field identity, complete nested
+report, selected case identity and ordinal, target byte order, and final staged
+bytes. Replay revalidates the current typed program, compares both reports
+hash-free, reconstructs the selected nested bytes, reconstructs the zero-padded
+outer bytes, and copies only after every check succeeds.
+
+Multiple direct sum fields, arrays of sums, sums behind another record, mixed
+common-field/case shapes, and sums whose all-case geometry requires a target
+capsule remain later rungs. The same NaN, generic/opaque/quotient, reference,
+slice, Text, dynamic, atomic, and non-copy fences remain in force. None of these
+slices narrows the legacy typed-owned materialization API or establishes
+evaluator admission, quotient canonicalization, producer-origin chains, or
+proof authority. Carried quotient representatives, richer origin diagnostics,
+and target-dependent const application remain later slices.
 
 The second judgment is value-sensitive and structural over the realized value,
 not merely its outer type. It traverses the active sum case and its actual

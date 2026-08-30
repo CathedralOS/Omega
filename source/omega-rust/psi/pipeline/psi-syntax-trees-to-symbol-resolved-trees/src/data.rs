@@ -221,6 +221,7 @@ pub(crate) fn lower_type_parameters(
                             &contract.lifetime_parameters,
                             contract.type_parameters,
                             contract.parameters,
+                            &contract.native_callback_parameters,
                             contract.return_type,
                             contract.is_default,
                             false,

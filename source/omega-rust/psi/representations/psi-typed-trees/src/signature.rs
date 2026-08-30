@@ -73,6 +73,10 @@ pub struct StateSignature {
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
+    /// Native-only callback entries are separate from runtime parameters so
+    /// ordinary call arity, value flow, and source argument lowering cannot
+    /// accidentally observe them.
+    pub native_callback_parameters: Vec<NativeCallbackParameter>,
     pub return_type: TypeReferenceHandle,
     pub invokes: HandleSpan<AuthoredInvocation>,
     /// EFX: normalized symbol-resolved boundary-service row.
@@ -101,6 +105,7 @@ impl Default for StateSignature {
             type_parameters: HandleSpan::empty(),
             is_default: false,
             parameters: HandleSpan::empty(),
+            native_callback_parameters: Vec::new(),
             return_type: TypeReferenceHandle::invalid(),
             invokes: HandleSpan::empty(),
             service_reach_row: psi_language_semantics::ServiceReachRowId::NULL,
@@ -113,6 +118,13 @@ impl Default for StateSignature {
             termination_guarantee: psi_language_semantics::TerminationGuarantee::NoGuarantee,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NativeCallbackParameter {
+    pub name: Identifier,
+    pub binder: Identifier,
+    pub native_ordinal: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

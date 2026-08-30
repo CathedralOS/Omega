@@ -263,6 +263,10 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
                     &mut counts,
                 );
             }
+            for parameter in &signature.native_callback_parameters {
+                count_declaration_name(&parameter.name, &mut counts);
+                count_declaration_name(&parameter.binder, &mut counts);
+            }
         }
     }
 

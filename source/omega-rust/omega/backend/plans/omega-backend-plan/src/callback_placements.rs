@@ -53,6 +53,10 @@ pub struct BoundCallbackPrivateMaterialization {
     /// Non-authoritative compatibility/report coordinate beside the exact
     /// registrar plan above.
     pub registrar_calling_plan_report_fingerprint: u64,
+    /// Versioned application identity over the exact requirement, ordered
+    /// nominal native telescope, callback rows, placements, and physical plan.
+    pub registrar_application_report_fingerprint: u64,
+    pub registrar_application_commitment: [u8; 32],
     pub context: CallbackMaterializationContext,
 }
 
@@ -232,6 +236,16 @@ fn fingerprint_private_materialization(
         &materialization
             .registrar_calling_plan_report_fingerprint
             .to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
+        &materialization
+            .registrar_application_report_fingerprint
+            .to_le_bytes(),
+    );
+    fingerprint_into(
+        report_fingerprint,
+        &materialization.registrar_application_commitment,
     );
     fingerprint_into(
         report_fingerprint,

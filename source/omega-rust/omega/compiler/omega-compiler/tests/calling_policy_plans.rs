@@ -258,6 +258,85 @@ fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
 }
 
 #[test]
+fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() {
+    let main_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .unwrap()
+        .join("source/library/std/tests/direct_callback_parameter.omg");
+    let checked = compile_to_checked(&main_path, Some("windows_x64"))
+        .expect("target closure should place the declared direct callback parameter");
+    let registrar = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str().ends_with("HookRegistrar"))
+        .expect("HookRegistrar boundary trait");
+    let install = checked
+        .typed
+        .trait_machine_signatures(registrar)
+        .iter()
+        .find(|signature| signature.name.as_str() == "install")
+        .expect("HookRegistrar::install requirement");
+    assert_eq!(
+        checked.typed.state_signature_parameters(install).len(),
+        2,
+        "the native-only callback must not become a source runtime parameter"
+    );
+    let [callback] = install.native_callback_parameters.as_slice() else {
+        panic!("one exact native-only callback declaration must survive typed lowering");
+    };
+    assert_eq!(callback.name.as_str(), "procedure");
+    assert_eq!(callback.binder.as_str(), "Handler");
+    assert_eq!(callback.native_ordinal, 1);
+}
+
+#[test]
+fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
+    let source = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(5)
+            .unwrap()
+            .join("source/library/std/tests/direct_callback_parameter.omg"),
+    )
+    .unwrap()
+    .replace("boundary trait HookRegistrar", "trait HookRegistrar");
+    let main_path = write_program("direct-callback-nonboundary", &source);
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+        .expect_err("a non-boundary trait cannot declare a native callback parameter");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("permitted only on a bodyless boundary-trait requirement")
+    }));
+}
+
+#[test]
+fn direct_callback_parameter_requires_its_exact_nominal_binder() {
+    let source = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(5)
+            .unwrap()
+            .join("source/library/std/tests/direct_callback_parameter.omg"),
+    )
+    .unwrap()
+    .replace(
+        "native callback procedure from Handler",
+        "native callback procedure from Missing",
+    );
+    let main_path = write_program("direct-callback-missing-binder", &source);
+    let diagnostics = compile_to_checked(&main_path, Some("windows_x64"))
+        .expect_err("a direct callback cannot infer or invent its binder");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("unknown machine binder `Missing`")
+    }));
+}
+
+#[test]
 fn callback_private_materialization_requires_an_explicit_cited_demand() {
     let source = CALLBACK_MATERIALIZATION_POLICY.replace(
         "    let placed: Plan =\n        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);\n    Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)",

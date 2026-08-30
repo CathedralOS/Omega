@@ -11,8 +11,8 @@ use omega_calling_conventions::{
     LayoutSlotId, MachineRegime, MachineRegister, MachineState, MachineStateSet,
     NativeCallbackDemand, NativeParameterId, NativePlace, Preemption, RegisterSet, StatePlan,
     StaticMachineBinderId, SystemVEightbyteClass, ValidatedBoundaryEntryPlan, ValueClass,
-    ValueLocation, ValuePlacement, ValueShape, callback_native_parameter_id,
-    callback_requirement_id, evaluate_ordinary_boundary_entry_plan,
+    ValueLocation, ValuePlacement, ValueShape, callback_requirement_id,
+    evaluate_ordinary_boundary_entry_plan, nominal_callback_native_parameter_id,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
 use omega_target::NativeTarget;
@@ -20,6 +20,7 @@ use psi_build_time_evaluation::BuildTimeValue;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use sha2::{Digest, Sha256};
 
 const PARAMETER_CAPACITY: usize = 32;
 const VALUE_SHAPE_CAPACITY: usize = 256;
@@ -66,19 +67,50 @@ struct BoundaryValueField {
 
 #[derive(Debug, Clone)]
 pub struct MaterializedBoundarySignature {
+    owner_requirement_identity: String,
     shapes: Vec<BoundaryValueShape>,
     fields: Vec<BoundaryValueField>,
     parameters: Vec<u16>,
     callback_binders: Vec<BoundaryCallbackBinder>,
     callback_demands: Vec<NativeCallbackDemand>,
     native_parameters: Vec<BoundaryNativeParameter>,
+    direct_callback_parameters: Vec<BoundaryDirectCallbackParameter>,
     result: Option<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryNativeParameter {
     identity: NativeParameterId,
+    native_ordinal: u32,
+    shape: BoundaryNativeParameterShape,
+    origin: BoundaryNativeParameterOrigin,
     layout_data_symbol: psi_symbols::SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BoundaryNativeParameterShape {
+    Semantic(u16),
+    TargetFunctionPointer { byte_size: u16, alignment: u16 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BoundaryNativeParameterOrigin {
+    SemanticFormal {
+        formal_ordinal: u32,
+    },
+    PrivateCallback {
+        binder: StaticMachineBinderId,
+        requirement: CallbackRequirementId,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BoundaryDirectCallbackParameter {
+    name: String,
+    identity: NativeParameterId,
+    native_ordinal: u32,
+    binder: StaticMachineBinderId,
+    requirement: CallbackRequirementId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -733,6 +765,8 @@ fn bound_private_callback_materialization(
             matching_demands.len()
         ));
     };
+    let (application_report_fingerprint, application_commitment) =
+        boundary_plan_application_identity(&registrar.materialized_signature, &validated);
     Ok(Some(
         omega_backend_plan::BoundCallbackPrivateMaterialization {
             binder: binder.binder,
@@ -740,6 +774,8 @@ fn bound_private_callback_materialization(
             requirement: demand.requirement,
             registrar_boundary_entry_plan: validated.plan().clone(),
             registrar_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
+            registrar_application_report_fingerprint: application_report_fingerprint,
+            registrar_application_commitment: application_commitment,
             context,
         },
     ))
@@ -976,14 +1012,18 @@ pub fn close_outbound_callback_materializations(
         );
 
     for realization in realizations {
+        let mut signature = realization.materialized_signature.clone();
+        let mut demands =
+            close_direct_callback_parameters(&mut signature, native_target).map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+            })?;
         let binder_requirement_catalog =
             exact_callback_requirement_catalog(&checked.typed, &realization.callback_binders)
                 .map_err(|reason| {
                     vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
                 })?;
         let mut demand_requirement_catalog = Vec::new();
-        let mut demands = Vec::new();
-        for parameter in &realization.native_parameters {
+        for parameter in &signature.native_parameters {
             for demand in layout_plan
                 .private_callback_demands
                 .iter()
@@ -1064,7 +1104,6 @@ pub fn close_outbound_callback_materializations(
 
         let old_report_fingerprint = realization.report_fingerprint;
         let old_commitment = realization.commitment;
-        let mut signature = realization.materialized_signature.clone();
         signature.callback_demands = demands.clone();
         let validated = evaluate_materialized_calling_policy_plan(
             &checked.typed,
@@ -1118,6 +1157,7 @@ pub fn close_outbound_callback_materializations(
         realization.boundary_entry_plan = validated.plan().clone();
         realization.exact_boundary_entry_plan = validated.plan().clone();
         realization.callback_demands = demands;
+        realization.native_parameters = signature.native_parameters.clone();
         realization.callback_context_closed = true;
         realization.materialized_signature = signature;
 
@@ -1141,6 +1181,78 @@ pub fn close_outbound_callback_materializations(
         );
     }
     Ok(())
+}
+
+fn close_direct_callback_parameters(
+    signature: &mut MaterializedBoundarySignature,
+    target: NativeTarget,
+) -> Result<Vec<NativeCallbackDemand>, String> {
+    signature.native_parameters.retain(|parameter| {
+        matches!(
+            parameter.origin,
+            BoundaryNativeParameterOrigin::SemanticFormal { .. }
+        )
+    });
+    let byte_size = u16::try_from(target.pointer_size)
+        .map_err(|_| "target function-pointer size exceeds boundary shape range".to_owned())?;
+    let alignment = u16::try_from(target.pointer_alignment)
+        .map_err(|_| "target function-pointer alignment exceeds boundary shape range".to_owned())?;
+    if byte_size == 0 || alignment == 0 || !alignment.is_power_of_two() {
+        return Err(format!(
+            "target function-pointer geometry {}/{} is invalid for a direct callback parameter",
+            target.pointer_size, target.pointer_alignment,
+        ));
+    }
+
+    let mut demands = Vec::with_capacity(signature.direct_callback_parameters.len());
+    for direct in &signature.direct_callback_parameters {
+        validate_fresh_native_parameter_report_identity(
+            &signature.native_parameters,
+            direct.identity,
+            direct.native_ordinal,
+        )?;
+        signature.native_parameters.push(BoundaryNativeParameter {
+            identity: direct.identity,
+            native_ordinal: direct.native_ordinal,
+            shape: BoundaryNativeParameterShape::TargetFunctionPointer {
+                byte_size,
+                alignment,
+            },
+            origin: BoundaryNativeParameterOrigin::PrivateCallback {
+                binder: direct.binder,
+                requirement: direct.requirement,
+            },
+            layout_data_symbol: psi_symbols::SymbolHandle::invalid(),
+        });
+        demands.push(NativeCallbackDemand {
+            destination: NativePlace::Parameter(direct.identity),
+            requirement: direct.requirement,
+        });
+    }
+    signature
+        .native_parameters
+        .sort_unstable_by_key(|parameter| parameter.native_ordinal);
+    for (expected, parameter) in signature.native_parameters.iter().enumerate() {
+        if usize::try_from(parameter.native_ordinal).ok() != Some(expected) {
+            return Err(format!(
+                "native parameter telescope has position {} where contiguous position {expected} is required",
+                parameter.native_ordinal,
+            ));
+        }
+        if matches!(
+            parameter.shape,
+            BoundaryNativeParameterShape::TargetFunctionPointer { .. }
+        ) && (byte_size != 8 || alignment != 8)
+        {
+            // The current source-level closed vocabulary has only admitted
+            // 64-bit native targets. Keep unsupported future pointer geometry
+            // fail-closed until its scalar ABI carrier is present.
+            return Err(format!(
+                "direct callback parameters currently require an admitted 8/8 target function-pointer shape, got {byte_size}/{alignment}"
+            ));
+        }
+    }
+    Ok(demands)
 }
 
 fn reconcile_closed_callback_plan_identity(
@@ -1366,46 +1478,6 @@ fn call_signature_from_typed(
     let mut shapes = Vec::new();
     let mut fields = Vec::new();
     let mut parameters = Vec::new();
-    let runtime_parameters = typed
-        .state_signature_parameters(signature)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
-    for (ordinal, parameter) in runtime_parameters.iter().enumerate() {
-        let (_, root) = value_shape_from_type(
-            typed,
-            parameter.type_reference,
-            bindings,
-            &mut Vec::new(),
-            &mut shapes,
-            &mut fields,
-        )?;
-        parameters.push(root);
-        let type_reference = substituted_type_reference(typed, parameter.type_reference, bindings);
-        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, type_reference);
-        let ordinal = u32::try_from(ordinal)
-            .map_err(|_| "boundary signature has too many runtime parameters")?;
-        let identity = callback_native_parameter_id(owner_requirement_identity, ordinal);
-        validate_fresh_native_parameter_report_identity(&native_parameters, identity, ordinal)?;
-        native_parameters.push(BoundaryNativeParameter {
-            identity,
-            layout_data_symbol,
-        });
-    }
-    let result = if signature.return_type.is_valid() {
-        let (_, root) = value_shape_from_type(
-            typed,
-            signature.return_type,
-            bindings,
-            &mut Vec::new(),
-            &mut shapes,
-            &mut fields,
-        )?;
-        Some(root)
-    } else {
-        None
-    };
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
     for parameter in typed.state_signature_type_parameters(signature) {
@@ -1454,13 +1526,143 @@ fn call_signature_from_typed(
             requirement_machine: *requirement,
         });
     }
+
+    let runtime_parameters = typed
+        .state_signature_parameters(signature)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    let total_native_parameters = runtime_parameters
+        .len()
+        .checked_add(signature.native_callback_parameters.len())
+        .ok_or_else(|| "boundary native parameter telescope length overflow".to_owned())?;
+    if total_native_parameters > PARAMETER_CAPACITY {
+        return Err(format!(
+            "boundary signature has {total_native_parameters} native parameters; calling policies currently support at most {PARAMETER_CAPACITY}"
+        ));
+    }
+    let mut direct_callback_parameters = Vec::new();
+    for direct in &signature.native_callback_parameters {
+        let native_ordinal = usize::try_from(direct.native_ordinal)
+            .map_err(|_| "native callback parameter ordinal exceeds usize".to_owned())?;
+        if native_ordinal >= total_native_parameters {
+            return Err(format!(
+                "native callback parameter `{}` has telescope position {}, outside {} declared native parameters",
+                direct.name, direct.native_ordinal, total_native_parameters,
+            ));
+        }
+        if direct_callback_parameters
+            .iter()
+            .any(|prior: &BoundaryDirectCallbackParameter| {
+                prior.native_ordinal == direct.native_ordinal || prior.name == direct.name.as_str()
+            })
+            || runtime_parameters
+                .iter()
+                .any(|runtime| runtime.name.as_str() == direct.name.as_str())
+        {
+            return Err(format!(
+                "native callback parameter `{}` repeats a native telescope position or declared parameter name",
+                direct.name,
+            ));
+        }
+        let Some(machine_parameter) = typed
+            .state_signature_type_parameters(signature)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == direct.binder.as_str())
+        else {
+            return Err(format!(
+                "native callback parameter `{}` names unknown machine binder `{}`",
+                direct.name, direct.binder,
+            ));
+        };
+        let Some(binder) = callback_binders
+            .iter()
+            .find(|binder| binder.parameter_symbol == machine_parameter.symbol)
+        else {
+            return Err(format!(
+                "native callback parameter `{}` binder `{}` does not have one exact nominal callback requirement",
+                direct.name, direct.binder,
+            ));
+        };
+        direct_callback_parameters.push(BoundaryDirectCallbackParameter {
+            name: direct.name.as_str().to_owned(),
+            identity: nominal_callback_native_parameter_id(
+                owner_requirement_identity,
+                direct.name.as_str(),
+            ),
+            native_ordinal: direct.native_ordinal,
+            binder: binder.binder,
+            requirement: binder.requirement,
+        });
+    }
+    direct_callback_parameters.sort_unstable_by_key(|parameter| parameter.native_ordinal);
+
+    let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
+    let mut next_native_ordinal = 0u32;
+    for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
+        while direct_callback_parameters
+            .iter()
+            .any(|direct| direct.native_ordinal == next_native_ordinal)
+        {
+            next_native_ordinal = next_native_ordinal
+                .checked_add(1)
+                .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
+        }
+        let (_, root) = value_shape_from_type(
+            typed,
+            parameter.type_reference,
+            bindings,
+            &mut Vec::new(),
+            &mut shapes,
+            &mut fields,
+        )?;
+        parameters.push(root);
+        let type_reference = substituted_type_reference(typed, parameter.type_reference, bindings);
+        let layout_data_symbol = exact_boundary_layout_root_symbol(typed, type_reference);
+        let formal_ordinal = u32::try_from(formal_ordinal)
+            .map_err(|_| "boundary signature has too many runtime parameters")?;
+        let identity = nominal_callback_native_parameter_id(
+            owner_requirement_identity,
+            parameter.name.as_str(),
+        );
+        validate_fresh_native_parameter_report_identity(
+            &native_parameters,
+            identity,
+            next_native_ordinal,
+        )?;
+        native_parameters.push(BoundaryNativeParameter {
+            identity,
+            native_ordinal: next_native_ordinal,
+            shape: BoundaryNativeParameterShape::Semantic(root),
+            origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal },
+            layout_data_symbol,
+        });
+        next_native_ordinal = next_native_ordinal
+            .checked_add(1)
+            .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
+    }
+    let result = if signature.return_type.is_valid() {
+        let (_, root) = value_shape_from_type(
+            typed,
+            signature.return_type,
+            bindings,
+            &mut Vec::new(),
+            &mut shapes,
+            &mut fields,
+        )?;
+        Some(root)
+    } else {
+        None
+    };
     Ok(MaterializedBoundarySignature {
+        owner_requirement_identity: owner_requirement_identity.to_owned(),
         shapes,
         fields,
         parameters,
         callback_binders,
         callback_demands: Vec::new(),
         native_parameters,
+        direct_callback_parameters,
         result,
     })
 }
@@ -2027,8 +2229,9 @@ pub fn materialized_boundary_signature_from_abi(
 ) -> Result<MaterializedBoundarySignature, String> {
     let mut shapes = Vec::new();
     let mut parameters = Vec::new();
-    for shape in &signature.parameters {
-        parameters.push(push_boundary_shape(
+    let mut native_parameters = Vec::new();
+    for (ordinal, shape) in signature.parameters.iter().enumerate() {
+        let root = push_boundary_shape(
             &mut shapes,
             BoundaryValueShape {
                 class: match shape.class {
@@ -2038,7 +2241,22 @@ pub fn materialized_boundary_signature_from_abi(
                 byte_size: shape.byte_size,
                 alignment: shape.alignment,
             },
-        )?);
+        )?;
+        parameters.push(root);
+        let ordinal = u32::try_from(ordinal)
+            .map_err(|_| "synthetic ABI signature has too many parameters")?;
+        native_parameters.push(BoundaryNativeParameter {
+            identity: nominal_callback_native_parameter_id(
+                "omega.synthetic-abi-signature",
+                &format!("parameter-{ordinal}"),
+            ),
+            native_ordinal: ordinal,
+            shape: BoundaryNativeParameterShape::Semantic(root),
+            origin: BoundaryNativeParameterOrigin::SemanticFormal {
+                formal_ordinal: ordinal,
+            },
+            layout_data_symbol: psi_symbols::SymbolHandle::invalid(),
+        });
     }
     let result = signature
         .result
@@ -2057,12 +2275,14 @@ pub fn materialized_boundary_signature_from_abi(
         })
         .transpose()?;
     Ok(MaterializedBoundarySignature {
+        owner_requirement_identity: "omega.synthetic-abi-signature".to_owned(),
         shapes,
         fields: Vec::new(),
         parameters,
         callback_binders: Vec::new(),
         callback_demands: Vec::new(),
-        native_parameters: Vec::new(),
+        native_parameters,
+        direct_callback_parameters: Vec::new(),
         result,
     })
 }
@@ -2118,6 +2338,96 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
             ],
         });
     }
+    let mut native_parameters = Vec::with_capacity(PARAMETER_CAPACITY);
+    for index in 0..PARAMETER_CAPACITY {
+        let parameter = signature.native_parameters.get(index);
+        native_parameters.push(BuildTimeValue::Struct {
+            type_name: "NativeParameterIdentity".to_owned(),
+            fields: vec![
+                (
+                    "identity".to_owned(),
+                    BuildTimeValue::Int(parameter.map_or(0, |row| row.identity.get()) as i64),
+                ),
+                (
+                    "native_ordinal".to_owned(),
+                    BuildTimeValue::Int(
+                        parameter.map_or(0, |row| u64::from(row.native_ordinal)) as i64
+                    ),
+                ),
+                (
+                    "origin".to_owned(),
+                    parameter.map_or_else(
+                        || {
+                            case(
+                                "NativeParameterOrigin::SemanticFormal",
+                                vec![("formal_ordinal".to_owned(), BuildTimeValue::Int(0))],
+                            )
+                        },
+                        |row| match row.origin {
+                            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
+                                case(
+                                    "NativeParameterOrigin::SemanticFormal",
+                                    vec![(
+                                        "formal_ordinal".to_owned(),
+                                        BuildTimeValue::Int(i64::from(formal_ordinal)),
+                                    )],
+                                )
+                            }
+                            BoundaryNativeParameterOrigin::PrivateCallback {
+                                binder,
+                                requirement,
+                            } => case(
+                                "NativeParameterOrigin::PrivateCallback",
+                                vec![
+                                    (
+                                        "binder".to_owned(),
+                                        BuildTimeValue::Int(binder.get() as i64),
+                                    ),
+                                    (
+                                        "requirement".to_owned(),
+                                        BuildTimeValue::Int(requirement.get() as i64),
+                                    ),
+                                ],
+                            ),
+                        },
+                    ),
+                ),
+                (
+                    "shape".to_owned(),
+                    parameter.map_or_else(
+                        || {
+                            case(
+                                "NativeParameterShape::Semantic",
+                                vec![("root".to_owned(), BuildTimeValue::Int(0))],
+                            )
+                        },
+                        |row| match row.shape {
+                            BoundaryNativeParameterShape::Semantic(root) => case(
+                                "NativeParameterShape::Semantic",
+                                vec![("root".to_owned(), BuildTimeValue::Int(i64::from(root)))],
+                            ),
+                            BoundaryNativeParameterShape::TargetFunctionPointer {
+                                byte_size,
+                                alignment,
+                            } => case(
+                                "NativeParameterShape::TargetFunctionPointer",
+                                vec![
+                                    (
+                                        "byte_size".to_owned(),
+                                        BuildTimeValue::Int(i64::from(byte_size)),
+                                    ),
+                                    (
+                                        "alignment".to_owned(),
+                                        BuildTimeValue::Int(i64::from(alignment)),
+                                    ),
+                                ],
+                            ),
+                        },
+                    ),
+                ),
+            ],
+        });
+    }
     let mut callback_demands = Vec::with_capacity(CALLBACK_MATERIALIZATION_CAPACITY);
     for index in 0..CALLBACK_MATERIALIZATION_CAPACITY {
         let demand = signature.callback_demands.get(index);
@@ -2160,6 +2470,14 @@ fn build_boundary_signature(signature: &MaterializedBoundarySignature) -> BuildT
             (
                 "parameter_count".to_owned(),
                 BuildTimeValue::Int(signature.parameters.len() as i64),
+            ),
+            (
+                "native_parameters".to_owned(),
+                BuildTimeValue::Array(native_parameters),
+            ),
+            (
+                "native_parameter_count".to_owned(),
+                BuildTimeValue::Int(signature.native_parameters.len() as i64),
             ),
             (
                 "callback_binders".to_owned(),
@@ -2303,11 +2621,11 @@ fn validate_materialized_boundary_plan_result(
         return validate_boundary_plan_result(result, &CallSignature::default())
             .map_err(|diagnostic| diagnostic.to_string());
     };
-    if plan.call.parameters.len() != signature.parameters.len() {
+    if plan.call.parameters.len() != signature.native_parameters.len() {
         return Err(invalid_authored_plan(format!(
-            "plan places {} parameters for a boundary signature with {} parameters",
+            "plan places {} parameters for a boundary signature with {} native parameters",
             plan.call.parameters.len(),
-            signature.parameters.len()
+            signature.native_parameters.len()
         )));
     }
     if plan.call.result.is_some() != signature.result.is_some() {
@@ -2315,20 +2633,37 @@ fn validate_materialized_boundary_plan_result(
             "plan result presence does not match the boundary signature".to_owned(),
         ));
     }
-    for (index, (placement, root)) in plan
+    for (index, (placement, native_parameter)) in plan
         .call
         .parameters
         .iter()
-        .zip(signature.parameters.iter().copied())
+        .zip(signature.native_parameters.iter())
         .enumerate()
     {
-        validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy).map_err(
-            |reason| {
-                invalid_authored_plan(format!(
-                    "parameter {index} classification is invalid: {reason}"
-                ))
-            },
-        )?;
+        let validation = match native_parameter.shape {
+            BoundaryNativeParameterShape::Semantic(root) => {
+                validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy)
+            }
+            BoundaryNativeParameterShape::TargetFunctionPointer {
+                byte_size,
+                alignment,
+            } => {
+                let expected = ValueShape::integer(byte_size, alignment);
+                if placement.shape == expected {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "direct callback parameter requires target function-pointer ABI shape {:?}, got {:?}",
+                        expected, placement.shape,
+                    ))
+                }
+            }
+        };
+        validation.map_err(|reason| {
+            invalid_authored_plan(format!(
+                "parameter {index} classification is invalid: {reason}"
+            ))
+        })?;
     }
     if let (Some(placement), Some(root)) = (&plan.call.result, signature.result) {
         validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy).map_err(
@@ -2367,6 +2702,56 @@ fn callback_materialization_context(
             .collect(),
         demands: signature.callback_demands.clone(),
     }
+}
+
+fn boundary_plan_application_identity(
+    signature: &MaterializedBoundarySignature,
+    validated: &ValidatedBoundaryEntryPlan,
+) -> (u64, [u8; 32]) {
+    let mut strong = Sha256::new();
+    strong.update(b"omega.boundary-plan-application.v2");
+    strong.update((signature.owner_requirement_identity.len() as u64).to_le_bytes());
+    strong.update(signature.owner_requirement_identity.as_bytes());
+    strong.update((signature.native_parameters.len() as u64).to_le_bytes());
+    for parameter in &signature.native_parameters {
+        strong.update(parameter.identity.get().to_le_bytes());
+        strong.update(parameter.native_ordinal.to_le_bytes());
+        match parameter.origin {
+            BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
+                strong.update([1]);
+                strong.update(formal_ordinal.to_le_bytes());
+            }
+            BoundaryNativeParameterOrigin::PrivateCallback {
+                binder,
+                requirement,
+            } => {
+                strong.update([2]);
+                strong.update(binder.get().to_le_bytes());
+                strong.update(requirement.get().to_le_bytes());
+            }
+        }
+        match parameter.shape {
+            BoundaryNativeParameterShape::Semantic(root) => {
+                strong.update([1]);
+                strong.update(root.to_le_bytes());
+            }
+            BoundaryNativeParameterShape::TargetFunctionPointer {
+                byte_size,
+                alignment,
+            } => {
+                strong.update([2]);
+                strong.update(byte_size.to_le_bytes());
+                strong.update(alignment.to_le_bytes());
+            }
+        }
+    }
+    strong.update(validated.contract_commitment_digest());
+    let commitment: [u8; 32] = strong.finalize().into();
+    let report = callback_plan_report_fingerprint(
+        b"omega.boundary-plan-application-report.v2",
+        &[&commitment],
+    );
+    (report, commitment)
 }
 
 fn invalid_authored_plan(reason: String) -> String {
@@ -3102,12 +3487,47 @@ mod tests {
         let identity = NativeParameterId::new(0x51).expect("nonzero report identity");
         let prior = [BoundaryNativeParameter {
             identity,
+            native_ordinal: 0,
+            shape: BoundaryNativeParameterShape::Semantic(0),
+            origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 0 },
             layout_data_symbol: psi_symbols::SymbolHandle::from_arena_index(3),
         }];
 
         let error = validate_fresh_native_parameter_report_identity(&prior, identity, 1)
             .expect_err("a second exact parameter cannot reuse a compact report identity");
         assert!(error.contains("collides with an earlier exact parameter"));
+    }
+
+    #[test]
+    fn boundary_application_v2_commits_nominal_telescope_order() {
+        let call_signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8), ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let validated =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &call_signature)
+                .expect("Microsoft x64 ordinary plan");
+        let signature = materialized_boundary_signature_from_abi(&call_signature).unwrap();
+        let first = boundary_plan_application_identity(&signature, &validated);
+
+        let mut reordered = signature.clone();
+        reordered.native_parameters.swap(0, 1);
+        let second = boundary_plan_application_identity(&reordered, &validated);
+        assert_ne!(
+            first, second,
+            "equally shaped nominal parameters cannot reorder under one application identity"
+        );
+
+        let mut renamed = signature;
+        renamed.native_parameters[0].identity = nominal_callback_native_parameter_id(
+            "omega.synthetic-abi-signature",
+            "renamed-parameter",
+        );
+        assert_ne!(
+            first,
+            boundary_plan_application_identity(&renamed, &validated),
+            "a changed declaration-owned native parameter identity must reissue the application"
+        );
     }
 
     #[test]
@@ -3201,12 +3621,14 @@ mod tests {
             requirement: CallbackRequirementId::new(43).unwrap(),
         };
         let signature = MaterializedBoundarySignature {
+            owner_requirement_identity: "test::Registrar::register#exact".to_owned(),
             shapes: Vec::new(),
             fields: Vec::new(),
             parameters: Vec::new(),
             callback_binders: vec![binder],
             callback_demands: vec![demand.clone()],
             native_parameters: Vec::new(),
+            direct_callback_parameters: Vec::new(),
             result: None,
         };
         let value = build_boundary_signature(&signature);
@@ -3851,6 +4273,7 @@ mod tests {
 
     fn four_f32_array_signature() -> MaterializedBoundarySignature {
         MaterializedBoundarySignature {
+            owner_requirement_identity: "test::Array::call#exact".to_owned(),
             shapes: vec![
                 BoundaryValueShape {
                     class: BoundaryValueClass::Float,
@@ -3871,6 +4294,7 @@ mod tests {
             callback_binders: Vec::new(),
             callback_demands: Vec::new(),
             native_parameters: Vec::new(),
+            direct_callback_parameters: Vec::new(),
             result: None,
         }
     }
@@ -3895,6 +4319,7 @@ mod tests {
     #[test]
     fn compatibility_signature_excludes_dispatch_only_table_parameter() {
         let signature = MaterializedBoundarySignature {
+            owner_requirement_identity: "test::Compatibility::call#exact".to_owned(),
             shapes: vec![
                 BoundaryValueShape {
                     class: BoundaryValueClass::Integer,
@@ -3912,6 +4337,7 @@ mod tests {
             callback_binders: Vec::new(),
             callback_demands: Vec::new(),
             native_parameters: Vec::new(),
+            direct_callback_parameters: Vec::new(),
             result: Some(1),
         };
         let wire = compatibility_call_signature(&signature, CallingPolicy::MicrosoftX64, 1)

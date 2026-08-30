@@ -31,6 +31,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
             type_parameters: HandleSpan::empty(),
             is_default: false,
             parameters,
+            native_callback_parameters: Vec::new(),
             return_type,
             service_reach_is_installation_bound: false,
             service_reach_keyword_source_spans: Vec::new(),
@@ -312,7 +313,7 @@ pub(super) fn parse_optional_return_type<'tokens, 'source>(
     parse_type_reference_handle_allowing_borrow(syntax_trees, input)
 }
 
-fn parse_state_parameter<'tokens, 'source>(
+pub(super) fn parse_state_parameter<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StateParameterHandle> {

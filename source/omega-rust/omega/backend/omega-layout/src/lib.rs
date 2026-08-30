@@ -13,7 +13,10 @@ mod sizing;
 pub use builder::{build_layout_plan, layout_type_reference};
 pub use field_paths::{field_data_layout_fields, field_machine_layout, field_path_offset};
 pub use sizing::primitive_layout;
-pub use sum_materialization::project_conventional_sum_materialization_layout;
+pub use sum_materialization::{
+    project_conventional_record_with_sum_materialization_layout,
+    project_conventional_sum_materialization_layout,
+};
 
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY

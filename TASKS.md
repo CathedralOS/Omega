@@ -219,11 +219,12 @@ scanners, or receipts.
   distinct. Native-fuel transfer-runtime evidence applies the same
   classification to its aggregate FNV beside the exact plan, unrelocated/final
   byte rows, physical footprint, and sponsor-stack peak.
-  Fixed-record and conventional-sum `ConstMaterializable` carriers now also
-  name their layout and materialization FNV values as non-authoritative report
-  fingerprints. Replay retains and compares the exact typed value, complete
-  layout report, target byte order, selected sum case, and staged bytes, so a
-  compact-equal layout substitution rejects before materialization or copying.
+  Fixed-record, conventional-sum, and first direct record-with-sum
+  `ConstMaterializable` carriers now also name their layout and materialization
+  FNV values as non-authoritative report fingerprints. Replay retains and
+  compares the exact typed value, complete outer and applicable nested layout
+  reports, target byte order, selected sum case, and staged bytes, so a compact-
+  equal layout substitution rejects before materialization or copying.
   Build evaluation now binds target-owned physical-entry package provenance
   with a domain-separated SHA-256 commitment to the exact package identity,
   canonical source path, and source bytes. Its former package-source FNV is an
@@ -3556,12 +3557,21 @@ Remaining:
   conjunctions; inequality is that complete equality proposition implying
   falsehood. Exact common-field, case, and payload-field identities survive
   whole-root Unit-call rebasing, and semantic codec, verifier, fixed-fuel, and
-  interpreter replay reject redirected or reordered structure. Nested or
-  projected mixed values, recursive cycles, address and erased payload equality,
-  and runtime sum layout remain fenced. Semantic codec format 33 / vocabulary
+  interpreter replay reject redirected or reordered structure. The first
+  bounded nested rung now admits exactly one acyclic relevant field of a
+  whole-root record whose type is that existing mixed shape. Every mixed
+  common-field, case-membership, and payload-leaf path is prefixed by the exact
+  enclosing field; `!=` retains the complete equality as its falsehood premise,
+  and whole-root Unit-call rebasing preserves the same prefixes. Independent
+  verification rejects an enclosing-field substitution, while codec,
+  interpreter, and fixed-fuel reuse the existing proposition vocabulary.
+  Deeper record nesting, case-payload or mixed-under-mixed placement, two mixed
+  sibling fields, direct projected mixed comparisons, recursive cycles,
+  address and erased payload equality, and runtime sum layout remain fenced.
+  Semantic codec format 33 / vocabulary
   35, proof-bundle v19, and installation-record v40 retain the structural
   shapes, case-payload paths, and proposition. Continue with those fenced
-  nested/projected mixed, recursive, and erased aggregate cases. Concrete
+  wider nested/projected mixed, recursive, and erased aggregate cases. Concrete
   machine/state contracts plus domain/data predicates and trait requirement signatures,
   machine-parameter requirements, and root/domain operator contracts now reject
   direct binary and named-float `Trapping` arithmetic plus direct Trapping
@@ -8562,9 +8572,11 @@ Owners:
   colliding roots, children, fields, terminal rows, reversed/short/long paths,
   formal or ABI-placement drift, target-architecture mismatch, and identity or
   geometry drift reject. Reference, array, variant, and deeper field descent
-  remain fenced engineering extensions. Direct-parameter construction remains
-  synthetic-only pending direct native-parameter implementation. This carrier
-  still owns no selected/assigned
+  remain fenced engineering extensions. Direct-parameter declaration and
+  target closure are now live through the normalized boundary signature and
+  placement application; joining that direct row to a source registrar
+  occurrence, selected callback, assigned operand, and emitted call remains a
+  later engineering slice. This carrier still owns no selected/assigned
   operation, object symbol, relocation kind, bytes, runtime address,
   registration authority, or lease. The exact assigned-operand
   prerequisite is now complete for the custom/unknown outbound registrar
@@ -8627,37 +8639,30 @@ Owners:
   owner, a cited slot whose callback requirement differs from the binder,
   duplicate cited placement, and a machine requirement substituted for the
   required named slot conformance. Two distinct cited slots at one physical
-  extent also reject as overlapping supply. The direct-parameter design is
-  settled and its pass canary is now an engineering task. Add an interleaved
-  native-only callback parameter to a registrar requirement. It has one
-  authored nominal identity and position in the ordered native telescope,
-  binds one static-machine parameter and its exact requirement, contributes no
-  Omega runtime parameter or address value, and is omitted from source call
-  arguments. Extend `BoundarySignature` with the ordered native telescope
-  rather than reinterpreting its semantic shape roots. Each entry distinguishes
-  a semantic-formal projection from a private callback, carries the compiler-
-  issued nominal `NativeParameterId` and exact target-closed shape, and is
-  validated one-to-one against the ordered calling-plan placement.
-  `NativePlace::Parameter` and `NativePlace::Field.parameter` both index this
-  one native-parameter identity space; existing field roots are semantic-
-  formal projections, while the direct form is a private-callback projection.
-  The calling policy places declared entries but cannot create, reorder, or
-  retarget them.
+  extent also reject as overlapping supply. The first direct-source and
+  application-v2 rung is complete under the settled design. A bodyless
+  boundary requirement may interleave `native callback procedure from Binder`
+  with ordinary parameters; syntax, resolved, and typed signatures retain its
+  separate authored native position and exact nominal binder while source-call
+  arity omits it. Target closure derives a requirement-and-declared-name-owned
+  `NativeParameterId`, supplies the target function-pointer shape, merges the
+  exact ordered native telescope, publishes `NativePlace::Parameter`, and
+  validates the telescope one-to-one against the physical plan. The v2
+  boundary-application identity commits the exact owner requirement, ordered
+  nominal entries and origins/shapes, parameter placements, callback demands,
+  and physical plan; callback-placement replay retains both its strong
+  commitment and report coordinate. Focused canaries cover interleaving with
+  no source runtime argument, rejecting a non-boundary declaration or unknown
+  binder, and reissuing identity for a same-shaped reorder or renamed nominal
+  parameter. Old ordinal-derived IDs remain a distinct v1 domain and are not
+  translated heuristically.
 
-  Split reusable physical `CallPlan` identity from exact boundary-plan
-  application identity. The latter must fingerprint the requirement, ordered
-  native telescope, every nominal parameter-to-`ValuePlacement` row, callback
-  materializations, and physical plan. This rejects reordering two ABI-
-  identical parameters even when their raw register sequence is unchanged.
-  Migrate ordinal-derived parameter identities to declaration-derived nominal
-  identities under a new fingerprint/domain version and deliberately reissue
-  every affected boundary plan, callback-placement receipt, and downstream
-  replay artifact; old and new rows must never compare or translate
-  heuristically. Add pass coverage with a callback between ordinary parameters
-  and negative coverage for an authored `addr`, undeclared trailing insertion,
-  inferred position, duplicate/wrong binder or requirement, policy-created
-  parameters, same-shaped native reorder, stale application fingerprint, and
-  stale pre-migration identity. Add the same
+  Remaining direct-form engineering is to bind a selected callback at an
+  actual source registrar occurrence, carry its native-only row through exact
+  assigned-operand/call emission and downstream replay, and complete the
+  negative matrix for authored `addr`, undeclared insertion, inferred or
+  duplicate/wrong binder/requirement, policy-created parameters, and stale v1
+  or application-v2 evidence. Add the same
   target-neutral requirement placed at different x86/x64 offsets once the
   target catalog gains its missing 32-bit x86 engineering support; its present
   native targets are X86-64 and AArch64 only. The raw-offset canary now proves
@@ -10697,14 +10702,22 @@ checked-result arithmetic decision listed below.
   deterministic identity; replay uses hash-free semantic-member equality, so
   stable-numbered case/payload renames are presentation-only while ordinals and
   geometry remain exact, and replay or short-copy failure is atomic. This does
-  not extend programmable `Layout` with tagged case placement. Mixed
-  common-field/case shapes, records or arrays containing sums, target-dependent
-  inactive-case geometry, generic/opaque/quotient records, references, slices,
-  Text, dynamic values, atomics, non-copy data, and malformed shapes remain
-  rejected without narrowing the legacy materialization API. This custody is
-  not evaluator admission, a target capsule, quotient canonicalization, an
-  origin-chain proof, or proof authority. Quotient snapshots/materialization,
-  sums nested in aggregates, mixed shapes, target capsules/observations,
+  not extend programmable `Layout` with tagged case placement. The first
+  nested rung is now live for exactly one direct runtime-relevant conventional
+  pure-sum field in one closed non-generic `[copy]` record. `omega-layout`
+  projects the paired whole-field outer layout and exact conventional nested
+  layout from the same target runtime plan. A distinct non-clone carrier keeps
+  the outer typed value and layout beside the nested sum's complete layout,
+  selected case identity/ordinal, target byte order, and zero-initialized final
+  bytes; replay uses hash-free comparison for both layouts before atomic copy.
+  Multiple sum fields, arrays of sums, sums behind another record, mixed
+  common-field/case shapes, target-dependent inactive-case geometry,
+  generic/opaque/quotient records, references, slices, Text, dynamic values,
+  atomics, non-copy data, and malformed shapes remain rejected without
+  narrowing the legacy materialization API. This custody is not evaluator
+  admission, a target capsule, quotient canonicalization, an origin-chain
+  proof, or proof authority. Quotient snapshots/materialization, wider sums
+  nested in aggregates, mixed shapes, target capsules/observations,
   complete origin diagnostics, and broader representation bytes remain
   subsequent.
 

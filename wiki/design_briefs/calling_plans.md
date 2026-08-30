@@ -1686,14 +1686,26 @@ values are compilation-local reports only; target and backend consumers rejoin
 the strong contract endpoint before attaching stack, fuel, or machine-state
 evidence.
 
-The direct `NativePlace::Parameter` variant and callback-demand carrier exist,
-but source can currently originate only layout-field demands. The remaining
-direct-parameter work is to parse an interleaved native-only callback entry,
-construct the complete ordered native telescope and target pointer shape,
-derive nominal rather than ordinal parameter identities, validate the keyed
-identity-to-placement application, version and reissue affected fingerprints,
-and then remove the synthetic-only backend fence. This is engineering work
-under the settled model, not an open language-design question.
+The first direct-source closure slice is live. A bodyless boundary requirement
+may parse and lower an interleaved `native callback procedure from Binder`
+entry without adding an Omega runtime parameter or source-call argument.
+Target closure reconstructs the exact binder requirement, derives the nominal
+parameter identity from the owning requirement and declared parameter name,
+adds the target function-pointer shape at the authored native position,
+publishes `NativePlace::Parameter`, and validates the resulting telescope
+against the physical plan. The application-v2 commitment covers that exact
+requirement, ordered nominal telescope, origins and shapes, placements,
+callback demands, and reusable physical plan; retained callback placement
+replay carries both the strong commitment and its compact report coordinate.
+The ordinal-derived v1 identity remains a separate domain and is never
+translated heuristically.
+
+This slice stops before an actual source registrar invocation binds a selected
+callback to the native-only row and carries it through the exact registrar
+occurrence, assigned operand, emitted call, and downstream artifact replay.
+Those integrations and the remaining authored-hidden-parameter and stale-v1/
+v2 negative matrix are engineering work under the settled model, not open
+language-design questions.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current
