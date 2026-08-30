@@ -478,18 +478,21 @@ mod tests {
     }
 
     #[test]
-    fn exact_rejoined_integer_literal_import_reaches_dynamic_elf_on_both_targets() {
+    fn exact_rejoined_two_literal_import_reaches_dynamic_elf_on_both_targets() {
         let requirement = "omega::test::Foreign::leaf()";
         let machine = psi_core::MachineId::new(810).unwrap();
         let block = psi_core::BlockId::new(810).unwrap();
         let boundary = psi_core::BoundaryMachineId::new(810).unwrap();
-        let constant_operation = psi_core::OperationId::new(810).unwrap();
-        let call_operation = psi_core::OperationId::new(811).unwrap();
+        let first_constant_operation = psi_core::OperationId::new(810).unwrap();
+        let second_constant_operation = psi_core::OperationId::new(811).unwrap();
+        let call_operation = psi_core::OperationId::new(812).unwrap();
         let return_edge = psi_core::EdgeId::new(810).unwrap();
-        let value = psi_core::ValueId::new(810).unwrap();
-        let integer_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
-        let scalar_type = psi_core::ScalarType::Integer(integer_type);
-        let immediate = psi_core::IntegerValue::Signed(37);
+        let first_value = psi_core::ValueId::new(810).unwrap();
+        let second_value = psi_core::ValueId::new(811).unwrap();
+        let first_type = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 16).unwrap();
+        let second_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 64).unwrap();
+        let first_immediate = psi_core::IntegerValue::Unsigned(513);
+        let second_immediate = psi_core::IntegerValue::Signed(-29);
         let psi = psi_terminal::TerminalPsiIdentity {
             vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
             program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x81; 32]),
@@ -502,7 +505,10 @@ mod tests {
                 id: boundary,
                 identity: requirement.into(),
                 attachment: None,
-                scalar_parameters: vec![scalar_type],
+                scalar_parameters: vec![
+                    psi_core::ScalarType::Integer(first_type),
+                    psi_core::ScalarType::Integer(second_type),
+                ],
                 structural_parameters: Vec::new(),
                 result: None,
                 requires: Vec::new(),
@@ -527,16 +533,22 @@ mod tests {
                 }],
                 operations: vec![
                     omega_abstract_operations::AbstractOperation::IntegerConstant {
-                        psi_operation: constant_operation,
-                        result: value,
-                        scalar_type,
-                        value: immediate,
+                        psi_operation: first_constant_operation,
+                        result: first_value,
+                        scalar_type: psi_core::ScalarType::Integer(first_type),
+                        value: first_immediate,
+                    },
+                    omega_abstract_operations::AbstractOperation::IntegerConstant {
+                        psi_operation: second_constant_operation,
+                        result: second_value,
+                        scalar_type: psi_core::ScalarType::Integer(second_type),
+                        value: second_immediate,
                     },
                     omega_abstract_operations::AbstractOperation::BoundaryCall {
                         psi_operation: call_operation,
                         result: None,
                         boundary,
-                        arguments: vec![value],
+                        arguments: vec![first_value, second_value],
                         structural_arguments: Vec::new(),
                         completion_claim_sources: Vec::new(),
                         completion_receipts: Vec::new(),
@@ -555,8 +567,9 @@ mod tests {
         ] {
             let target = profile.native_target();
             let mut selected_plan = import_plan(b"selected_integer_leaf", profile);
-            selected_plan.schema.methods[0].parameter_count = 1;
-            selected_plan.schema.methods[0].parameter_type_identities = vec!["i32".into()];
+            selected_plan.schema.methods[0].parameter_count = 2;
+            selected_plan.schema.methods[0].parameter_type_identities =
+                vec!["u16".into(), "i64".into()];
             let report_identity = selected_plan.report_fingerprint();
             let locator = match &selected_plan.rows[0].binding {
                 ProviderBinding::Import { locator } => locator.clone(),
@@ -566,7 +579,10 @@ mod tests {
                 omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     &omega_calling_conventions::CallSignature {
-                        parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+                        parameters: vec![
+                            omega_calling_conventions::ValueShape::integer(2, 2),
+                            omega_calling_conventions::ValueShape::integer(8, 8),
+                        ],
                         result: None,
                     },
                 )
@@ -633,17 +649,21 @@ mod tests {
             let omega_target_operations::TargetUnitOperation::NormalizedForeignCall {
                 scalar_arguments,
                 ..
-            } = &target_body.operations[1]
+            } = &target_body.operations[2]
             else {
                 panic!("literal import remains a normalized foreign call")
             };
-            let [target_argument] = scalar_arguments.as_slice() else {
-                panic!("one target argument")
+            let [first_target, second_target] = scalar_arguments.as_slice() else {
+                panic!("two target arguments")
             };
-            assert_eq!(target_argument.source_value, value);
-            assert_eq!(target_argument.scalar_type, integer_type);
-            assert_eq!(target_argument.immediate, immediate);
-            assert_eq!(target_argument.parameter_index, 0);
+            assert_eq!(first_target.source_value, first_value);
+            assert_eq!(first_target.scalar_type, first_type);
+            assert_eq!(first_target.immediate, first_immediate);
+            assert_eq!(first_target.parameter_index, 0);
+            assert_eq!(second_target.source_value, second_value);
+            assert_eq!(second_target.scalar_type, second_type);
+            assert_eq!(second_target.immediate, second_immediate);
+            assert_eq!(second_target.parameter_index, 1);
 
             let assigned = omega_target_operations_to_assigned_target_operations::assign_registers(
                 &target_plan,
@@ -657,45 +677,120 @@ mod tests {
             let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
                 scalar_arguments,
                 ..
-            } = &assigned_body.operations[1]
+            } = &assigned_body.operations[2]
             else {
                 panic!("assigned literal import remains a normalized foreign call")
             };
-            assert_eq!(scalar_arguments, std::slice::from_ref(target_argument));
+            assert_eq!(
+                scalar_arguments,
+                &[first_target.clone(), second_target.clone()]
+            );
+
+            let mutate_second =
+                |mut candidate: omega_assigned_target_operations::AssignedOperationPlan,
+                 mutate: &dyn Fn(&mut omega_target_operations::NormalizedForeignScalarArgument)| {
+                    let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+                        &mut candidate.functions[0].operation
+                    else {
+                        unreachable!()
+                    };
+                    let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+                        scalar_arguments,
+                        ..
+                    } = &mut body.operations[2]
+                    else {
+                        unreachable!()
+                    };
+                    mutate(&mut scalar_arguments[1]);
+                    assert!(omega_machine_emission::emit_machine_code(&candidate).is_err());
+                };
+            mutate_second(assigned.clone(), &|argument| {
+                argument.parameter_index = 0;
+            });
+            mutate_second(assigned.clone(), &|argument| {
+                argument.source_value = first_value;
+            });
+            mutate_second(assigned.clone(), &|argument| {
+                argument.placement = first_target.placement.clone();
+            });
+            let mut reordered_assignment = assigned.clone();
+            let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+                &mut reordered_assignment.functions[0].operation
+            else {
+                unreachable!()
+            };
+            let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+                scalar_arguments,
+                ..
+            } = &mut body.operations[2]
+            else {
+                unreachable!()
+            };
+            scalar_arguments.swap(0, 1);
+            assert!(omega_machine_emission::emit_machine_code(&reordered_assignment).is_err());
 
             let machine_code = omega_machine_emission::emit_machine_code(&assigned).unwrap();
             let [call] = machine_code.functions[0].foreign_calls.as_slice() else {
                 panic!("one retained foreign call")
             };
-            let [argument] = call.scalar_arguments.as_slice() else {
-                panic!("one retained machine argument")
+            let [first_argument, second_argument] = call.scalar_arguments.as_slice() else {
+                panic!("two retained machine arguments")
             };
             assert_eq!(call.locator, locator);
             assert_eq!(call.call_plan, boundary_entry_plan.call);
-            assert_eq!(argument.source_value, value);
-            assert_eq!(argument.scalar_type, integer_type);
-            assert_eq!(argument.immediate, immediate);
-            assert_eq!(argument.placement, target_argument.placement);
-            assert!(argument.byte_count > 0);
+            for (argument, target_argument) in [
+                (first_argument, first_target),
+                (second_argument, second_target),
+            ] {
+                assert_eq!(argument.source_value, target_argument.source_value);
+                assert_eq!(argument.scalar_type, target_argument.scalar_type);
+                assert_eq!(argument.immediate, target_argument.immediate);
+                assert_eq!(argument.parameter_index, target_argument.parameter_index);
+                assert_eq!(argument.placement, target_argument.placement);
+                assert!(argument.byte_count > 0);
+            }
+            assert_eq!(
+                first_argument.code_offset + first_argument.byte_count,
+                second_argument.code_offset
+            );
 
             let mut changed_value = machine_code.clone();
-            changed_value.functions[0].foreign_calls[0].scalar_arguments[0].immediate =
-                psi_core::IntegerValue::Signed(38);
+            changed_value.functions[0].foreign_calls[0].scalar_arguments[1].immediate =
+                psi_core::IntegerValue::Signed(-28);
             assert!(omega_image_emission::build_object_artifact(&changed_value).is_err());
             let mut changed_carrier = machine_code.clone();
-            changed_carrier.functions[0].foreign_calls[0].scalar_arguments[0].scalar_type =
+            changed_carrier.functions[0].foreign_calls[0].scalar_arguments[1].scalar_type =
                 psi_core::IntegerType::address(32).unwrap();
-            changed_carrier.functions[0].foreign_calls[0].scalar_arguments[0].immediate =
-                psi_core::IntegerValue::Unsigned(37);
+            changed_carrier.functions[0].foreign_calls[0].scalar_arguments[1].immediate =
+                psi_core::IntegerValue::Unsigned(29);
             assert!(omega_image_emission::build_object_artifact(&changed_carrier).is_err());
             let mut changed_bytes = machine_code.clone();
-            changed_bytes.functions[0].bytes[argument.code_offset] ^= 1;
+            changed_bytes.functions[0].bytes[second_argument.code_offset] ^= 1;
             assert!(omega_image_emission::build_object_artifact(&changed_bytes).is_err());
+            let mut reordered = machine_code.clone();
+            reordered.functions[0].foreign_calls[0]
+                .scalar_arguments
+                .swap(0, 1);
+            assert!(omega_image_emission::build_object_artifact(&reordered).is_err());
+            let mut changed_interval = machine_code.clone();
+            changed_interval.functions[0].foreign_calls[0].scalar_arguments[1].code_offset -= 1;
+            assert!(omega_image_emission::build_object_artifact(&changed_interval).is_err());
+            let mut changed_register = machine_code.clone();
+            changed_register.functions[0].foreign_calls[0].scalar_arguments[1]
+                .placement
+                .locations = first_argument.placement.locations.clone();
+            assert!(omega_image_emission::build_object_artifact(&changed_register).is_err());
             let mut stripped_custody = machine_code.clone();
             stripped_custody.functions[0].foreign_calls[0]
                 .scalar_arguments
-                .clear();
+                .pop();
             assert!(omega_image_emission::build_object_artifact(&stripped_custody).is_err());
+            let mut third_argument = machine_code.clone();
+            let extra = third_argument.functions[0].foreign_calls[0].scalar_arguments[1].clone();
+            third_argument.functions[0].foreign_calls[0]
+                .scalar_arguments
+                .push(extra);
+            assert!(omega_image_emission::build_object_artifact(&third_argument).is_err());
 
             let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
             assert_eq!(object.object().layout.normalized_imports.len(), 1);

@@ -124,7 +124,8 @@ pub struct ForeignCallRelocation {
     /// Exact source-selected ABI plan consumed to emit this call.
     pub call_plan: omega_calling_conventions::CallPlan,
     /// Canonically ordered evaluated literal arguments materialized before
-    /// the unresolved native procedure-call placeholder.
+    /// the unresolved native procedure-call placeholder. The bounded native
+    /// carrier admits at most two register-resident arguments.
     pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.
@@ -132,9 +133,10 @@ pub struct ForeignCallRelocation {
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
 }
 
-/// Exact source, value, and ABI custody for one evaluated foreign-call scalar
-/// literal. The byte interval names only its register materialization; the
-/// unresolved call field remains owned by [`ForeignCallRelocation::offset`].
+/// Exact occurrence-specific source, value, and ABI custody for one evaluated
+/// foreign-call scalar literal. The byte interval names only its register
+/// materialization; the unresolved call field remains owned by
+/// [`ForeignCallRelocation::offset`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForeignCallScalarArgumentRecord {
     pub parameter_index: u32,
