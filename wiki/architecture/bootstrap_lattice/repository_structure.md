@@ -61,13 +61,15 @@ The committed tree still has two important gaps:
   direct Alpha emitter substrate, resolved expression lowering, and
   profile-neutral whole-function emission. Both D19 source schemas are
   validated, but Q4's physical application profiles, the generated adapters,
-  remaining lowering, canonical tape, and refinement are still missing.
+  canonical tape, and refinement are still missing.
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
-  required replacement is a Gamma-written Delta compiler producing Alpha tape.
-  The restricted Delta-written native compiler prototype was also deleted: it
-  was neither that compiler nor the full Omega closure `D` and had no economical
-  unit-level adaptation into either owner.
+  Gamma-written replacement now owns complete syntax, D22/D24 identity census,
+  named-type candidate scanning, and symbolic Alpha encoding; Q5 and the
+  remaining type/body checking, lowering, tape publication, and refinement are
+  still open. The restricted Delta-written native compiler prototype was also
+  deleted: it was neither that compiler nor the full Omega closure `D` and had
+  no economical unit-level adaptation into either owner.
 
 These gaps are implementation work, not alternate accepted architectures. A
 legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its

@@ -43,6 +43,13 @@ binders, disjoint arm scope, and declaration-start ordering between
 `DuplicateName` and `InvalidBoundary`; owner kind is never inferred from an
 ambiguous owner row.
 
+The canonical compiler source now implements complete parsing, that identity
+census, a whole-program scan retaining the earliest absent named-type candidate,
+and pure symbolic Alpha encoding. It deliberately does not promote the
+candidate to `UnknownType` until Q5 fixes competition with the other
+type-formation failures. Remaining type/body checking, lowering, `main`, tape
+publication, and refinement are open implementation work.
+
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns
 `Incomplete` and publishes no tape.
