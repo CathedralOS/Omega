@@ -117,6 +117,14 @@ closed. Compiler-issued package review remains non-admitting.
   process CPU/memory and remaining session quotas. A summary or observation
   digest alone is not a receipt.
 
+  The Windows `find_first`/`find_next`/`find_close` companion remains ordered
+  after **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS**. Its current
+  plain-byte pattern records a host-absolute `directory/*` spelling rather
+  than a compiler-rooted coordinate, so accepting it now would make a receipt
+  source-location-dependent. Replace that operand with the root-aware Build
+  facet before adding replay; do not add a same-path-only receipt or ignore the
+  pattern during replay matching.
+
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Locally recheck every proof or retained
   certificate required by an ordinary package claim. Reject open/deferred
   proofs and contract-entailment stand-downs, retain accepted axioms and opaque

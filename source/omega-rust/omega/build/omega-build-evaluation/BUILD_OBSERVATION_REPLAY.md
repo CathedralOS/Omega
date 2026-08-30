@@ -195,3 +195,10 @@ does not parse names, infer unseen entries, or grant authority to use a returned
 name. Any later relative open or mutation requires its own exact checked replay
 lane. Failed reads, leaked descriptors, malformed carrier tails, changed
 counts, reordered calls, or incomplete chains remain non-receipted.
+
+The Windows find-enumeration family is not part of this increment. Its current
+plain-byte `directory/*` input contains the physical Source-root spelling, so
+retaining it exactly would make replay location-dependent while ignoring it
+would weaken prepared-input equality. It remains non-receipted until the
+root-aware compiler-owned Build path facet can retain a Source root plus
+relative pattern coordinate.
