@@ -272,23 +272,24 @@ owns target/root/roster custody and hands each function to the sub-100-line
 ordered `catalog/mod.rs` enable/disable inventory. Descriptor model and typed
 replay adapters descend into `catalog/model.rs` and
 `catalog/dispatch/{immediate,parameter,terminal}`; the parameter adapter
-entrance names `direct`, `unary`, and `comparison` leaves. The
+entrance names `direct`, `unary`, `bitwise`, and `comparison` leaves. The
 catalog rejects duplicate or overlapping matches before dispatch. Exact replay
 then descends to the sibling
 `straight_line_integer_immediate.rs` and
 `straight_line_boolean_immediate.rs` literal leaves or
 `straight_line_scalar_crash.rs` and the
-`straight_line_parameter/{boolean,integer}/{direct,unary,comparison}` taxonomy.
+`straight_line_parameter/{boolean,integer}/{direct,unary,bitwise,comparison}` taxonomy.
 The governed parameter coordinator visibly joins the small `source/mod.rs`
 cross-result grammar map and shared `envelope.rs` to whole-roster `abi.rs`
 calling-plan replay. Integer grammar descends through its own small
 `source/integer/mod.rs`, which owns typed-parameter lookup before named
 `unary/{bitwise_not,widen,exact_cast}` or
+`bitwise/{bitwise_and}` or
 `comparison/{equal,less_than,less_or_equal}`
 leaves. Target replay mirrors that semantic taxonomy; shared comparison ABI and
 provenance mechanics descend one more rung into `comparison/replay.rs`.
-Boolean-not, integer bitwise-not, integer-widen, and integer exact-cast preserve
-their operands; integer-widen retains distinct source and target types and
+Boolean-not, integer bitwise-not, integer bitwise-AND, integer-widen, and
+integer exact-cast preserve their operands; integer-widen retains distinct source and target types and
 admits only the exact native widening relation, while exact-cast also retains
 the source proof obligation and excludes identity and widening relations. Each binary
 family preserves both ordered operands, including identity, while integer
@@ -303,13 +304,13 @@ function-roster row carries either `Uncovered` or exactly one typed validated
 family receipt. The architecture gate forbids restoration of the old flat,
 mixed `derived`, parameter-model, parameter-error/receipt, and catalog-adapter
 catchalls. Test construction follows the same navigation contract: parameter
-fixtures and Terminal translation fixtures have small entrances over
-`direct`, `unary`, and `comparison` leaves, with immediate and terminal leaves
-where applicable. Adding a family must not enlarge a mixed fixture switch.
+fixtures and Terminal translation fixtures have small entrances over `direct`,
+`unary`, `bitwise`, and `comparison` leaves, with immediate and terminal
+leaves where applicable. Adding a family must not enlarge a mixed fixture switch.
 Exact-family validation suites then descend into `positive`,
 `source_corruption`, and `target_corruption` leaves. Optimized custody groups
-likewise descend from `unary` and `comparison` into one leaf per exact family;
-the grouping files contain only the taxonomy map.
+likewise descend from `unary`, `bitwise`, and `comparison` into one leaf per
+exact family; the grouping files contain only the taxonomy map.
 
 The temporary target-to-assigned compatibility continuation is governed too.
 Its 33-line stage entrance checks the entry roster and coordinates per-function

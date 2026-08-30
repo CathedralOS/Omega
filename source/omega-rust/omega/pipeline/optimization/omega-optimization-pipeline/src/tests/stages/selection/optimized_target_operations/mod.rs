@@ -6,6 +6,7 @@ use omega_target_operations::{
     ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression,
 };
 
+mod bitwise;
 mod comparison;
 mod direct;
 mod immediate;

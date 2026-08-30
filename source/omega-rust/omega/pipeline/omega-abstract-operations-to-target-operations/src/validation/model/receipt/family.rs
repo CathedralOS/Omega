@@ -45,6 +45,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerExactCastParameter(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerExactCastParameter
             }
+            Self::StraightLineIntegerBitwiseAndParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndParameters
+            }
         }
     }
 }

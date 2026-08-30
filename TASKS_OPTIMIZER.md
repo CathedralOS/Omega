@@ -17,6 +17,17 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has a fourteenth exact family
+for `IntegerBitwiseAnd(parameter, parameter)`. Its small source and target
+entrances establish a named `bitwise` rung, with exact `bitwise_and` leaves
+rather than extending a mixed binary catchall. Independent replay covers all
+eight native fixed-width signed/unsigned integer types, all five native targets,
+register and incoming-stack placements, mixed rosters, reversed and identical
+operands, and exact operation/edge/value/type/location custody. Address and
+nonnative integer carriers fail closed. Optimized-pipeline custody retains the
+typed receipt from a real Terminal artifact, and architecture gates pin the new
+navigation path and keep derived grammar out of the common source envelope.
+
 [x] Translation-validation coverage now mirrors the production taxonomy instead
 of accumulating mixed flat test files. Integer/Boolean immediates, scalar
 `Crash`, integer bitwise-not, and integer less-or-equal each descend through
@@ -50,7 +61,7 @@ types, operand/result identities, operation/edge provenance, full-roster ABI
 placement, and register/stack custody on all five native targets; corruption
 of either source or target fails closed. The former mixed parameter replay,
 model, error, receipt, and catalog-adapter files now descend through explicit
-`direct`, `unary`, and `comparison` rungs. The sole enable/disable catalog stays
+`direct`, `unary`, `bitwise`, and `comparison` rungs. The sole enable/disable catalog stays
 small and visible, and architecture gates forbid the retired flat and
 `derived` taxonomies.
 
@@ -120,16 +131,16 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first thirteen semantic
+and duplicate or overlapping matches fail closed. The first fourteen semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
 integer equality, strict ordering, or inclusive ordering of two same-type
 integer parameters, plus integer bitwise-not, integer-widen, and proof-bearing
-integer exact-cast of one parameter.
+integer exact-cast of one parameter, and integer bitwise-AND of two parameters.
 The parameter-expression families descend through a governed source-grammar
 map, integer-family coordinator, shared envelope, whole-roster ABI replay, and
-explicit direct/unary/comparison joins. Boolean-not, integer bitwise-not,
+explicit direct/unary/bitwise/comparison joins. Boolean-not, integer bitwise-not,
 integer widen, and equality replay
 retain their distinct operands, produced value, operation provenance, return
 edge, exact integer type where applicable, and exact register or stack
@@ -684,7 +695,7 @@ parallel route or optional coordinator field.
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
   integer-less-than-parameters, integer-less-or-equal-parameters,
   integer-bitwise-not-parameter, integer-widen-parameter, and proof-bearing
-  integer-exact-cast-parameter
+  integer-exact-cast-parameter, and integer-bitwise-and-parameters
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -955,3 +966,10 @@ rewrite or opt a program into lossy floating-point semantics.
     register/stack placement, and provenance; exercise optimized custody from
     a canonical Terminal proof artifact; and split mixed unary/fixture
     catchalls before adding the row to the sole enable/disable catalog.
+35. [x] Add `IntegerBitwiseAnd(parameter, parameter)` as the fourteenth
+    independent abstract-to-target family. Introduce a named `bitwise` taxonomy
+    rung; cover every native fixed-width integer type and native target with
+    register/stack rosters, reversed and identical operands; reject address and
+    nonnative carriers; retain exact provenance, ordered operands, ABI
+    locations, and optimized-target custody; and pin the entrances with
+    architecture tests.

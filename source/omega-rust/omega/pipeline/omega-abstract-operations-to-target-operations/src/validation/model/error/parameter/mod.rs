@@ -1,9 +1,11 @@
 //! Shared parameter reconstruction errors and exact family maps.
 
+mod bitwise;
 mod comparison;
 mod direct;
 mod unary;
 
+pub use bitwise::*;
 pub use comparison::*;
 pub use direct::*;
 pub use unary::*;
@@ -83,6 +85,7 @@ map_parameter_reconstruction_error!(StraightLineBooleanNotParameterTranslationEr
 map_parameter_reconstruction_error!(StraightLineIntegerBitwiseNotParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerWidenParameterTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerExactCastParameterTranslationError);
+map_parameter_reconstruction_error!(StraightLineIntegerBitwiseAndParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerEqualParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerLessThanParametersTranslationError);
