@@ -70,14 +70,18 @@ fixed four-byte tag, authored-order ordinals, all-case payload overlay, and
 total geometry; Psi revalidates that report before staging one active case.
 This report is not a `LayoutPlan`, cannot be authored by a layout policy, and
 does not settle the deferred tagged/untagged programmable placement vocabulary.
-For the first nested constant-materialization rung, `omega-layout` may pair
-that report with a whole-field outer `LayoutPlanReport` projected from the same
-target runtime layout for one closed `[copy]` record containing exactly one
-direct pure-sum field. The outer report places the sum only as one opaque
-aggregate `At` field; its tag, cases, and payload overlay remain exclusively in
-the conventional read-only report. Psi rejoins and replays both exact reports.
-This admits no arrays of sums, deeper nesting, multiple sum fields, mixed
-common-field/case shapes, or target-dependent sum geometry.
+For direct nested constant materialization, `omega-layout` pairs that report
+with a whole-field outer `LayoutPlanReport` projected from the same target
+runtime layout for the complete nonempty authored-order set of direct pure-sum
+fields in one closed `[copy]` record. A separate bounded rung admits exactly one
+direct nonzero literal fixed array of conventional sums. Its compact report
+retains the outer field identity, count, stride, and one complete element
+layout while value custody remains distinct per literal index. Outer reports
+place both direct sums and the whole array only as opaque aggregate `At` fields;
+tag, case, and payload-overlay geometry remains exclusively in conventional
+read-only reports. Psi rejoins and replays the exact reports. Deeper nesting,
+multiple or nested sum arrays, mixed common-field/case shapes, and target-
+dependent sum geometry remain excluded.
 
 The closed vocabulary includes only primitive placement concepts the backend
 must understand: offsets/alignment, fixed and runtime strides, tagged/untagged

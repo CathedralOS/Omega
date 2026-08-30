@@ -30,8 +30,11 @@ pub use const_materializable::{
     ValidatedConstMaterialization, validate_const_materializable_typed_owned_layout,
 };
 pub use const_record_with_sum_materializable::{
-    ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumMaterialization,
+    ValidatedConstRecordSumArrayElementMaterialization,
+    ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumArrayMaterialization,
+    ValidatedConstRecordWithSumMaterialization,
     validate_const_materializable_record_with_conventional_sum,
+    validate_const_materializable_record_with_conventional_sum_array,
     validate_const_materializable_record_with_conventional_sums,
 };
 pub use const_sum_materializable::{

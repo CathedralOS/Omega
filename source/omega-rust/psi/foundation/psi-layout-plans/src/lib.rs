@@ -117,6 +117,22 @@ pub struct ConventionalSumFieldLayoutReport {
     pub layout: ConventionalSumLayoutReport,
 }
 
+/// One direct runtime-relevant fixed-array field whose elements all use the
+/// same compiler-owned conventional pure-sum layout.
+///
+/// The report is deliberately compact in the literal element count. Selected
+/// cases and bytes remain value-sensitive facts retained once per index by the
+/// validated materialization carrier, rather than duplicating this complete
+/// all-case layout report once per array element.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalSumArrayFieldLayoutReport {
+    pub field: String,
+    pub member_identity: Option<u64>,
+    pub element_count: u64,
+    pub element_stride: u64,
+    pub element_layout: ConventionalSumLayoutReport,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns
