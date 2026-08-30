@@ -388,6 +388,18 @@ data OmegaCallStatementSyntax {
     end: i32;
 }
 
+data OmegaCallExpressionSyntax {
+    has_receiver: i32;
+    receiver: i32;
+    target: OmegaRelativeSpan;
+    first_machine_argument: i32;
+    machine_argument_count: i32;
+    first_argument: i32;
+    argument_count: i32;
+    start: i32;
+    end: i32;
+}
+
 data OmegaStaticMachineArgumentKind {
     case Path;
 }
@@ -451,6 +463,7 @@ data OmegaExpressionKind {
     case StructLiteral;
     case Binary;
     case Indexed;
+    case Call;
 }
 
 data OmegaBinaryOperatorKind {
@@ -521,7 +534,7 @@ data OmegaStructLiteralSyntax {
 // authored span. Integer payload0/payload1 retain its authored span; this first
 // numeric slice admits only unsuffixed nonnegative decimal spelling. String
 // payload0/payload1 retain the authored token span and payload2 its decoded
-// byte length. StructLiteral, Binary, and Indexed payload0 select their
+// byte length. StructLiteral, Binary, Indexed, and Call payload0 select their
 // dedicated rows.
 // Remaining words are reserved for richer nodes.
 data OmegaExpressionSyntax {
@@ -668,6 +681,7 @@ data OmegaParser {
     machine_clauses: [OmegaMachineClauseSyntax; 16384];
     statements: [OmegaStatementSyntax; 16384];
     call_statements: [OmegaCallStatementSyntax; 16384];
+    call_expressions: [OmegaCallExpressionSyntax; 16384];
     assignment_statements: [OmegaAssignmentStatementSyntax; 16384];
     local_data_statements: [OmegaLocalDataStatementSyntax; 16384];
     transition_statements: [OmegaTransitionStatementSyntax; 16384];
@@ -703,6 +717,7 @@ data OmegaParser {
     machine_clause_count: i32;
     statement_count: i32;
     call_statement_count: i32;
+    call_expression_count: i32;
     assignment_statement_count: i32;
     local_data_statement_count: i32;
     transition_statement_count: i32;
@@ -794,6 +809,15 @@ data OmegaParser {
     statement_starts_at_self: i32;
     call_first_machine_argument: i32;
     call_first_argument: i32;
+    call_is_expression: i32;
+    call_result_consumer: OmegaExpressionConsumer;
+    call_first_path_member: i32;
+    call_path_member_count: i32;
+    call_starts_at_self: i32;
+    call_name_member_count: i32;
+    call_start: i32;
+    call_has_receiver: i32;
+    call_receiver_expression: i32;
     static_argument_first_path_member: i32;
     static_argument_path_member_count: i32;
     static_argument_start: i32;
@@ -2932,6 +2956,7 @@ machine OmegaParser::parse_view(
     self.machine_clause_count = 0;
     self.statement_count = 0;
     self.call_statement_count = 0;
+    self.call_expression_count = 0;
     self.assignment_statement_count = 0;
     self.local_data_statement_count = 0;
     self.transition_statement_count = 0;
@@ -3022,6 +3047,15 @@ machine OmegaParser::parse_view(
     self.statement_starts_at_self = 0;
     self.call_first_machine_argument = 0;
     self.call_first_argument = 0;
+    self.call_is_expression = 0;
+    self.call_result_consumer = OmegaExpressionConsumer::CallArgument;
+    self.call_first_path_member = 0;
+    self.call_path_member_count = 0;
+    self.call_starts_at_self = 0;
+    self.call_name_member_count = 0;
+    self.call_start = 0;
+    self.call_has_receiver = 0;
+    self.call_receiver_expression = 0;
     self.static_argument_first_path_member = 0;
     self.static_argument_path_member_count = 0;
     self.static_argument_start = 0;
@@ -5626,12 +5660,35 @@ machine OmegaParser::parse_view(
     state statement_path_tail_punctuation() {
         transition self.scan.punctuation {
             OmegaPunctuationKind::Dot -> next_statement_path_member()
-            OmegaPunctuationKind::Less -> begin_call_static_arguments()
-            OmegaPunctuationKind::LeftParen -> call_target_available()
+            OmegaPunctuationKind::Less -> begin_statement_call_static_arguments()
+            OmegaPunctuationKind::LeftParen -> begin_statement_call()
             OmegaPunctuationKind::Equal -> begin_assignment_statement()
             OmegaPunctuationKind::LeftBracket -> begin_statement_path_expression(0)
             OmegaPunctuationKind::RightBrace -> begin_statement_path_expression(1)
             _ -> incomplete_root()
+        }
+    }
+
+    state begin_statement_call_static_arguments() {
+        self.call_is_expression = 0;
+        transition true { true -> retain_statement_call_path() }
+    }
+
+    state begin_statement_call() {
+        self.call_is_expression = 0;
+        transition true { true -> retain_statement_call_path() }
+    }
+
+    state retain_statement_call_path() {
+        self.call_first_path_member = self.statement_first_path_member;
+        self.call_path_member_count = self.statement_path_member_count;
+        self.call_starts_at_self = self.statement_starts_at_self;
+        self.call_name_member_count = 0;
+        self.call_start = self.statement_start;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Less -> begin_call_static_arguments()
+            OmegaPunctuationKind::LeftParen -> call_target_available()
+            _ -> internal_failure()
         }
     }
 
@@ -5837,8 +5894,8 @@ machine OmegaParser::parse_view(
     }
 
     state begin_call_static_arguments() {
-        transition (self.statement_starts_at_self == 0) ||
-            (self.statement_path_member_count > 1) {
+        transition (self.call_starts_at_self == 0) ||
+            (self.call_path_member_count > 1) {
             true -> scan_first_call_static_argument()
             _ -> incomplete_root()
         }
@@ -5995,8 +6052,8 @@ machine OmegaParser::parse_view(
     }
 
     state call_target_available() {
-        transition (self.statement_starts_at_self == 0) ||
-            (self.statement_path_member_count > 1) {
+        transition (self.call_starts_at_self == 0) ||
+            (self.call_path_member_count > 1) {
             true -> begin_call_arguments()
             _ -> incomplete_root()
         }
@@ -6149,19 +6206,55 @@ machine OmegaParser::parse_view(
                 retain_right_brace_terminated_path()
             OmegaPunctuationKind::RightBracket ->
                 retain_index_path()
+            OmegaPunctuationKind::LeftParen -> begin_call_expression_from_path()
             OmegaPunctuationKind::Semicolon -> retain_additive_value_path()
             OmegaPunctuationKind::Plus -> path_expression_plus()
             OmegaPunctuationKind::Minus -> path_expression_minus()
             OmegaPunctuationKind::EqualEqual -> retain_transition_operator_path()
             OmegaPunctuationKind::ExclamationEqual ->
                 retain_transition_operator_path()
-            OmegaPunctuationKind::Less -> retain_transition_operator_path()
+            OmegaPunctuationKind::Less -> path_expression_less()
             OmegaPunctuationKind::LessEqual -> retain_transition_operator_path()
             OmegaPunctuationKind::Greater -> retain_transition_operator_path()
             OmegaPunctuationKind::GreaterEqual -> retain_transition_operator_path()
             OmegaPunctuationKind::AndAnd -> retain_transition_operator_path()
             OmegaPunctuationKind::PipePipe -> retain_transition_operator_path()
             _ -> incomplete_root()
+        }
+    }
+
+    state path_expression_less() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                begin_call_expression_from_path()
+            OmegaExpressionConsumer::TransitionSubject ->
+                retain_transition_operator_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state begin_call_expression_from_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_call_expression_path()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_call_expression_path() {
+        self.call_is_expression = 1;
+        self.call_result_consumer = self.expression_consumer;
+        self.call_first_path_member = self.argument_first_path_member;
+        self.call_path_member_count = self.argument_path_member_count;
+        self.call_starts_at_self = self.argument_starts_at_self;
+        self.call_name_member_count = self.argument_name_member_count;
+        self.call_start = self.members[self.argument_first_path_member].start;
+        self.call_first_machine_argument = self.static_machine_argument_count;
+        self.call_first_argument = self.call_argument_count;
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Less -> begin_call_static_arguments()
+            OmegaPunctuationKind::LeftParen -> call_target_available()
+            _ -> internal_failure()
         }
     }
 
@@ -6735,8 +6828,159 @@ machine OmegaParser::parse_view(
     }
 
     state finish_call_arguments() {
+        transition self.call_is_expression {
+            1 -> retain_call_expression()
+            _ -> finish_call_statement_arguments()
+        }
+    }
+
+    state finish_call_statement_arguments() {
         self.cursor = self.scan.next_cursor;
         transition true { true -> scan_semantic(47) }
+    }
+
+    state retain_call_expression() {
+        transition self.call_path_member_count > 1 {
+            true -> retain_call_expression_with_receiver()
+            _ -> retain_call_expression_without_receiver()
+        }
+    }
+
+    state retain_call_expression_with_receiver() {
+        self.call_has_receiver = 1;
+        transition true { true -> retain_call_expression_capacity(2) }
+    }
+
+    state retain_call_expression_without_receiver() {
+        self.call_has_receiver = 0;
+        self.call_receiver_expression = 0;
+        transition true { true -> retain_call_expression_capacity(1) }
+    }
+
+    state retain_call_expression_capacity(required_expressions: i32) {
+        transition (required_expressions >= 1) &&
+            (required_expressions <= 2) &&
+            (self.expression_count <= 16384 - required_expressions) &&
+            (self.call_expression_count < 16384) {
+            true -> begin_retain_call_expression()
+            _ -> resource_failure(
+                OmegaParserResource::Expressions,
+                16384,
+                self.expression_count + required_expressions
+            )
+        }
+    }
+
+    state begin_retain_call_expression() {
+        transition self.call_has_receiver {
+            1 -> retain_call_receiver_path()
+            _ -> retain_call_expression_bounded()
+        }
+    }
+
+    state retain_call_receiver_path() {
+        self.call_receiver_expression = self.expression_count;
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::Path;
+        self.expressions[self.expression_count].payload0 =
+            self.call_first_path_member;
+        self.expressions[self.expression_count].payload1 =
+            self.call_path_member_count - 1;
+        self.expressions[self.expression_count].payload2 =
+            self.call_starts_at_self;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        transition self.call_starts_at_self {
+            1 -> classify_self_call_receiver()
+            _ -> classify_named_call_receiver()
+        }
+    }
+
+    state classify_self_call_receiver() {
+        self.expressions[self.expression_count].payload3 = 0;
+        transition self.call_path_member_count {
+            2 -> retain_self_call_receiver()
+            _ -> retain_member_call_receiver()
+        }
+    }
+
+    state retain_self_call_receiver() {
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::SelfValue;
+        transition true { true -> finish_call_receiver_path() }
+    }
+
+    state classify_named_call_receiver() {
+        transition self.call_path_member_count - 1 <=
+            self.call_name_member_count {
+            true -> retain_name_call_receiver()
+            _ -> retain_member_call_receiver()
+        }
+    }
+
+    state retain_name_call_receiver() {
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload3 =
+            self.call_path_member_count - 1;
+        transition true { true -> finish_call_receiver_path() }
+    }
+
+    state retain_member_call_receiver() {
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Member;
+        self.expressions[self.expression_count].payload3 =
+            self.call_name_member_count;
+        transition true { true -> finish_call_receiver_path() }
+    }
+
+    state finish_call_receiver_path() {
+        self.expression_count = self.expression_count + 1;
+        transition true { true -> retain_call_expression_bounded() }
+    }
+
+    state retain_call_expression_bounded() {
+        self.call_expressions[self.call_expression_count].has_receiver =
+            self.call_has_receiver;
+        self.call_expressions[self.call_expression_count].receiver =
+            self.call_receiver_expression;
+        self.call_expressions[self.call_expression_count].target.start =
+            self.members[
+                self.call_first_path_member + self.call_path_member_count - 1
+            ].start;
+        self.call_expressions[self.call_expression_count].target.end =
+            self.members[
+                self.call_first_path_member + self.call_path_member_count - 1
+            ].end;
+        self.call_expressions[
+            self.call_expression_count
+        ].first_machine_argument = self.call_first_machine_argument;
+        self.call_expressions[
+            self.call_expression_count
+        ].machine_argument_count =
+            self.static_machine_argument_count - self.call_first_machine_argument;
+        self.call_expressions[self.call_expression_count].first_argument =
+            self.call_first_argument;
+        self.call_expressions[self.call_expression_count].argument_count =
+            self.call_argument_count - self.call_first_argument;
+        self.call_expressions[self.call_expression_count].start = self.call_start;
+        self.call_expressions[self.call_expression_count].end = self.scan.token_end;
+        self.expression_result = self.expression_count;
+        self.expression_end = self.scan.token_end;
+        self.expressions[self.expression_count].kind = OmegaExpressionKind::Call;
+        self.expressions[self.expression_count].path_kind =
+            OmegaPathExpressionKind::Name;
+        self.expressions[self.expression_count].payload0 =
+            self.call_expression_count;
+        self.expressions[self.expression_count].payload1 = 0;
+        self.expressions[self.expression_count].payload2 = 0;
+        self.expressions[self.expression_count].payload3 = 0;
+        self.expressions[self.expression_count].payload4 = 0;
+        self.expressions[self.expression_count].payload5 = 0;
+        self.call_expression_count = self.call_expression_count + 1;
+        self.expression_count = self.expression_count + 1;
+        self.expression_consumer = self.call_result_consumer;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(54) }
     }
 
     state call_semicolon_token() {
@@ -6767,13 +7011,13 @@ machine OmegaParser::parse_view(
 
     state retain_call_statement_bounded() {
         self.call_statements[self.call_statement_count].first_receiver_member =
-            self.statement_first_path_member;
+            self.call_first_path_member;
         self.call_statements[self.call_statement_count].receiver_member_count =
-            self.statement_path_member_count - 1;
+            self.call_path_member_count - 1;
         self.call_statements[self.call_statement_count].receiver_starts_at_self =
-            self.statement_starts_at_self;
+            self.call_starts_at_self;
         self.call_statements[self.call_statement_count].target_member =
-            self.statement_first_path_member + self.statement_path_member_count - 1;
+            self.call_first_path_member + self.call_path_member_count - 1;
         self.call_statements[self.call_statement_count].first_machine_argument =
             self.call_first_machine_argument;
         self.call_statements[self.call_statement_count].machine_argument_count =
@@ -6782,7 +7026,7 @@ machine OmegaParser::parse_view(
             self.call_first_argument;
         self.call_statements[self.call_statement_count].argument_count =
             self.call_argument_count - self.call_first_argument;
-        self.call_statements[self.call_statement_count].start = self.statement_start;
+        self.call_statements[self.call_statement_count].start = self.call_start;
         self.call_statements[self.call_statement_count].end = self.scan.token_end;
         self.statements[self.statement_count].kind = OmegaStatementKind::Call;
         self.statements[self.statement_count].item_index =
