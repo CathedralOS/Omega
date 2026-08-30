@@ -577,6 +577,166 @@ fn exact_multiply_replays_a_computed_multiply_root_through_a_cast_chain() {
 }
 
 #[test]
+fn exact_multiply_replays_a_computed_multiply_root_through_a_widen_chain() {
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(i16_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(i32_type)),
+        (ValueId::new(6).unwrap(), ScalarType::Integer(i32_type)),
+        (ValueId::new(7).unwrap(), ScalarType::Integer(i8_type)),
+    ])
+    .unwrap();
+    let assumptions = [
+        Proposition::LessOrEqual(integer(i8_type, -63), value(1, i8_type)),
+        Proposition::LessOrEqual(value(1, i8_type), integer(i8_type, 64)),
+    ];
+    let axioms = [
+        Proposition::Equal(value(3, i8_type), integer(i8_type, -2)),
+        Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::exact_integer_multiply(i8_type, value(1, i8_type), value(3, i8_type))
+                .expect("computed product"),
+        ),
+        Proposition::Equal(
+            value(4, i16_type),
+            ScalarTerm::integer_widen(i8_type, i16_type, value(2, i8_type))
+                .expect("first widening"),
+        ),
+        Proposition::Equal(
+            value(5, i32_type),
+            ScalarTerm::integer_widen(i16_type, i32_type, value(4, i16_type))
+                .expect("second widening"),
+        ),
+        Proposition::Equal(value(6, i32_type), integer(i32_type, -2)),
+    ];
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i32_type,
+            value: ValueId::new(5).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i32_type,
+            value: ValueId::new(6).unwrap(),
+        }),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i32::MIN.into())),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i32::MAX.into())),
+        ),
+    ]);
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("the computed multiply endpoint replays through the widening chain");
+    accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+        .expect("the checker replays both multiply and widening custody");
+
+    let mut redirected_axioms = axioms.clone();
+    redirected_axioms[2] = Proposition::Equal(
+        value(4, i16_type),
+        ScalarTerm::integer_widen(i8_type, i16_type, value(7, i8_type))
+            .expect("redirected widening"),
+    );
+    assert!(
+        accept_certificate(&context, &goal, &assumptions, &redirected_axioms, &proof).is_err(),
+        "redirecting the widening source invalidates the nested witness",
+    );
+    let drifted_assumptions = [
+        Proposition::LessOrEqual(integer(i8_type, -62), value(1, i8_type)),
+        assumptions[1].clone(),
+    ];
+    assert!(
+        accept_certificate(&context, &goal, &drifted_assumptions, &axioms, &proof).is_err(),
+        "changing the computed root bound invalidates the widening witness",
+    );
+}
+
+#[test]
+fn exact_multiply_replays_source_local_cast_bounds_through_an_affine_suffix() {
+    let i16_type = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
+    let i8_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(i16_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(4).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(5).unwrap(), ScalarType::Integer(i8_type)),
+        (ValueId::new(6).unwrap(), ScalarType::Integer(i8_type)),
+    ])
+    .unwrap();
+    let assumptions = [
+        Proposition::LessOrEqual(integer(i16_type, -66), value(1, i16_type)),
+        Proposition::LessOrEqual(value(1, i16_type), integer(i16_type, 61)),
+    ];
+    let axioms = [
+        Proposition::Equal(
+            value(2, i8_type),
+            ScalarTerm::integer_exact_cast(i16_type, i8_type, value(1, i16_type))
+                .expect("exact cast"),
+        ),
+        Proposition::Equal(value(3, i8_type), integer(i8_type, 3)),
+        Proposition::Equal(value(6, i8_type), integer(i8_type, 4)),
+        Proposition::Equal(
+            value(4, i8_type),
+            ScalarTerm::exact_integer_add(i8_type, value(2, i8_type), value(3, i8_type))
+                .expect("affine suffix"),
+        ),
+        Proposition::Equal(value(5, i8_type), integer(i8_type, -2)),
+    ];
+    let product = psi_core::IntegerMathTerm::Multiply(
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(4).unwrap(),
+        }),
+        Box::new(psi_core::IntegerMathTerm::MathValue {
+            source_type: i8_type,
+            value: ValueId::new(5).unwrap(),
+        }),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MIN.into())),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            psi_core::IntegerMathTerm::literal(IntegerValue::Signed(i8::MAX.into())),
+        ),
+    ]);
+    let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+        .expect("source-local cast bounds replay through the affine suffix");
+    accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+        .expect("the checker replays cast and affine custody");
+
+    let drifted_assumptions = [
+        Proposition::LessOrEqual(integer(i16_type, -65), value(1, i16_type)),
+        assumptions[1].clone(),
+    ];
+    assert!(
+        accept_certificate(&context, &goal, &drifted_assumptions, &axioms, &proof).is_err(),
+        "changing the source-local cast bound invalidates the nested witness",
+    );
+    let mut redirected_axioms = axioms.clone();
+    redirected_axioms[3] = Proposition::Equal(
+        value(4, i8_type),
+        ScalarTerm::exact_integer_add(i8_type, value(2, i8_type), value(6, i8_type))
+            .expect("redirected affine suffix"),
+    );
+    assert!(
+        accept_certificate(&context, &goal, &assumptions, &redirected_axioms, &proof).is_err(),
+        "redirecting the affine suffix literal invalidates the nested witness",
+    );
+}
+
+#[test]
 fn exact_multiply_maps_one_immediate_remainder_range_through_an_affine_suffix() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let root = value(1, integer_type);
