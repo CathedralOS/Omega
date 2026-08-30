@@ -936,7 +936,7 @@ struct ReachabilityFrame<'a> {
     found: bool,
 }
 
-struct SumReachability<'a> {
+pub(super) struct SumReachability<'a> {
     typed: &'a TypedTrees,
     states: std::collections::HashMap<(u32, u32), ReachabilityState>,
     traversed_edges: usize,
@@ -946,7 +946,7 @@ impl<'a> SumReachability<'a> {
     const MAX_RECORDS: usize = 4096;
     const MAX_EDGES: usize = 16384;
 
-    fn new(typed: &'a TypedTrees) -> Self {
+    pub(super) fn new(typed: &'a TypedTrees) -> Self {
         Self {
             typed,
             states: std::collections::HashMap::new(),
@@ -954,7 +954,7 @@ impl<'a> SumReachability<'a> {
         }
     }
 
-    fn type_contains_sum(
+    pub(super) fn type_contains_sum(
         &mut self,
         mut type_reference: psi_typed_trees::types::TypeReferenceHandle,
     ) -> Result<bool, MaterializationDiagnostic> {

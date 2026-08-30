@@ -362,18 +362,20 @@ nested buffer, reconstructs the zero-padded outer bytes, and performs one copy
 only after every check succeeds. Erased direct sum fields remain outside the
 runtime occurrence set.
 
-The first array rung admits exactly one direct nonzero literal fixed-array-of-
-sums field in that same outer record cohort. The target report remains compact:
-one exact outer field identity, literal count, element stride, and complete
-conventional all-case element layout. Value-sensitive custody separately
-retains each literal index and selected sum, so different elements may select
-different cases without copying the complete all-case report per element.
-Projection rejoins the exact array descriptor, element symbol, count, extent,
-alignment, and outer layout from one target plan. Fragmented, stored-integer,
-or target-dependent repeated placement on any outer field rejects. Replay
-checks the outer and compact reports hash-free, reconstructs every selected
-element into contiguous fixed-array staging, reconstructs the zero-padded outer
-record, and performs one atomic copy.
+The direct array rung admits the complete nonempty authored-order set of direct
+nonzero literal fixed-array-of-sums fields in that same outer record cohort.
+Each compact target row retains one exact outer field identity, literal count,
+element stride, and complete conventional all-case element layout. Value-
+sensitive custody separately retains each field occurrence and literal index
+with its selected sum, so different elements may select different cases without
+copying the complete all-case report per element. Projection rejoins every
+exact array descriptor, element symbol, count, extent, alignment, and the outer
+layout from one target plan. Fragmented, stored-integer, or target-dependent
+repeated placement on any outer field rejects. Replay checks the outer and
+compact reports hash-free, reconstructs every selected element into contiguous
+fixed-array staging, reconstructs the zero-padded outer record, and performs one
+atomic copy. The singular surfaces remain exact-one wrappers and reject a
+plural cohort.
 
 The first one-level record-path rung admits the complete nonempty authored-order
 set of direct outer fields whose exact types are closed non-generic `[copy]`
@@ -392,7 +394,7 @@ walk with explicit record and edge bounds plus a linear authored-order cursor
 classifies excluded recursive and deeper sum paths without host recursion,
 repeated traversal of shared subgraphs, or occurrence cross-products.
 
-Zero-length, multiple, or nested sum arrays, coexistence with direct sum fields,
+Zero-length or nested sum arrays, coexistence with direct sum fields,
 paths deeper than one record, mixed common-field/case shapes, and sums whose
 all-case geometry requires a target capsule remain later rungs. The same NaN,
 reference, slice, Text, dynamic, atomic, and non-copy fences remain in force.

@@ -10793,16 +10793,19 @@ checked-result arithmetic decision listed below.
   order, and zero-initialized final bytes; replay rejects missing, extra,
   reordered, and duplicate occurrence rows, compares every layout hash-free,
   stages every nested buffer, and performs one atomic outer copy. Erased sum
-  fields remain outside the runtime occurrence set. The first array rung is
-  live for exactly one direct nonzero literal fixed-array-of-sums field in the
-  same closed record cohort. Its compact target report retains the exact outer
-  field identity, count, stride, and one complete conventional all-case layout;
-  a distinct non-clone carrier retains every literal index and independently
-  selected case/value/bytes without duplicating the complete layout per
-  element. Projection rejoins the exact array descriptor, symbol, extent, and
-  alignment from one runtime plan and rejects fragment, stored-integer, or
-  target-dependent repeated placement on every outer field. Replay reconstructs
-  every indexed sum and the zero-padded outer image before one atomic copy.
+  fields remain outside the runtime occurrence set. The direct array rung is
+  live for the complete nonempty authored-order set of direct nonzero literal
+  fixed-array-of-sums fields in the same closed record cohort. Each compact
+  target row retains one exact outer field identity, count, stride, and one
+  complete conventional all-case layout; a distinct non-clone carrier retains
+  every field occurrence and literal index with independently selected
+  case/value/bytes without duplicating the complete layout per element.
+  Projection rejoins each exact array descriptor, symbol, extent, and alignment
+  from one runtime plan and rejects fragment, stored-integer, or target-
+  dependent repeated placement on every outer field. Replay reconstructs every
+  indexed sum and the zero-padded outer image before one atomic copy. The
+  singular producer and consumer remain exact-one wrappers and reject a plural
+  cohort.
   The first one-level record-path rung is now live separately for the complete
   nonempty authored-order set of direct outer fields naming closed non-generic
   `[copy]` records with direct conventional pure-sum fields. Its compact plural
@@ -10819,7 +10822,7 @@ checked-result arithmetic decision listed below.
   Projection and replay use a fallible memoized bounded graph walk and a linear
   authored-order occurrence cursor, so recursive or oversized aggregate paths
   reject without host recursion or shared-subgraph amplification.
-  Zero/multiple/nested sum arrays, direct-sum coexistence, paths deeper than one
+  Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than one
   record, mixed common-field/case shapes, target-dependent
   inactive-case geometry, generic/opaque/quotient records, references, slices,
   Text, dynamic values, atomics, non-copy data, and malformed shapes remain

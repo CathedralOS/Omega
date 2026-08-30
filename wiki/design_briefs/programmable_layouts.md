@@ -73,11 +73,13 @@ does not settle the deferred tagged/untagged programmable placement vocabulary.
 For direct nested constant materialization, `omega-layout` pairs that report
 with a whole-field outer `LayoutPlanReport` projected from the same target
 runtime layout for the complete nonempty authored-order set of direct pure-sum
-fields in one closed `[copy]` record. A separate bounded rung admits exactly one
-direct nonzero literal fixed array of conventional sums. Its compact report
-retains the outer field identity, count, stride, and one complete element
-layout while value custody remains distinct per literal index. Outer reports
-place both direct sums and the whole array only as opaque aggregate `At` fields;
+fields in one closed `[copy]` record. A separate bounded rung admits the complete
+nonempty authored-order set of direct nonzero literal fixed arrays of
+conventional sums. Each compact row retains one outer field identity, count,
+stride, and complete element layout while value custody remains distinct per
+field occurrence and literal index. Singular surfaces remain exact-one
+wrappers. Outer reports place both direct sums and each whole array only as
+opaque aggregate `At` fields;
 tag, case, and payload-overlay geometry remains exclusively in conventional
 read-only reports. Psi rejoins and replays the exact reports. A separate first
 one-level record-path report retains the complete nonempty authored-order set of

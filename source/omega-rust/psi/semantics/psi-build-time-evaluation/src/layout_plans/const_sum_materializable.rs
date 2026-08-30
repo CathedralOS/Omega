@@ -38,6 +38,20 @@ pub struct ValidatedConstSumMaterialization {
 }
 
 impl ValidatedConstSumMaterialization {
+    pub(super) fn into_compact_selection(
+        self,
+    ) -> (u64, BuildTimeValue, u64, Option<u64>, u32, Vec<u8>, u64) {
+        (
+            self.non_authoritative_schema_report_fingerprint,
+            self.value,
+            self.non_authoritative_layout_report_fingerprint,
+            self.selected_case_identity,
+            self.selected_case_ordinal,
+            self.bytes,
+            self.non_authoritative_materialization_report_fingerprint,
+        )
+    }
+
     pub fn schema_name(&self) -> &str {
         &self.schema_name
     }

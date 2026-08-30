@@ -681,6 +681,28 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
     plan: &LayoutPlan,
     data_symbol: SymbolHandle,
 ) -> Result<(LayoutPlanReport, ConventionalSumArrayFieldLayoutReport), Diagnostic> {
+    let (outer, mut rows) = project_conventional_record_with_sum_arrays_materialization_layout(
+        program,
+        plan,
+        data_symbol,
+    )?;
+    if rows.len() != 1 {
+        return Err(Diagnostic::error(format!(
+            "singular nested-sum array materialization requires exactly one direct field; found {}",
+            rows.len()
+        )));
+    }
+    Ok((outer, rows.pop().expect("exactly one array row")))
+}
+
+/// Project the complete authored-order set of direct nonzero literal
+/// fixed-array-of-conventional-sum fields while retaining each complete sum
+/// layout only once per outer field occurrence.
+pub fn project_conventional_record_with_sum_arrays_materialization_layout(
+    program: &CheckedTrees,
+    plan: &LayoutPlan,
+    data_symbol: SymbolHandle,
+) -> Result<(LayoutPlanReport, Vec<ConventionalSumArrayFieldLayoutReport>), Diagnostic> {
     let definition = unique_data_definition(program, data_symbol, "nested-sum array record")?;
     if definition.supply_mode != DataSupplyMode::CheckedShape
         || definition.properties.multiplicity != Multiplicity::Unrestricted
@@ -725,9 +747,23 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
         )));
     }
 
-    let mut array_report = None;
-    let mut entries = Vec::with_capacity(declared_fields.len());
-    let mut offsets = Vec::with_capacity(declared_fields.len());
+    let mut array_reports = Vec::new();
+    let mut entries = Vec::new();
+    let mut offsets = Vec::new();
+    array_reports
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| Diagnostic::error("nested-sum array report set exceeds compiler resources"))?;
+    entries
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error("nested-sum array outer entries exceed compiler resources")
+        })?;
+    offsets
+        .try_reserve_exact(declared_fields.len())
+        .map_err(|_| {
+            Diagnostic::error("nested-sum array outer offsets exceed compiler resources")
+        })?;
+    let mut reachability = SumReachability::new(program);
     for (declared, laid) in declared_fields.into_iter().zip(laid_fields) {
         if declared.symbol != laid.symbol || declared.name != laid.name {
             return Err(Diagnostic::error(format!(
@@ -744,6 +780,7 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
                 declared.name
             )));
         }
+        let mut selected_direct_array = false;
         match program
             .type_reference_table
             .type_reference(declared.type_reference)
@@ -760,11 +797,6 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
                                     "nested-sum array field `{}` must have nonzero literal length",
                                     declared.name
                                 )));
-                            }
-                            if array_report.is_some() {
-                                return Err(Diagnostic::error(
-                                    "nested-sum array materialization permits exactly one direct fixed-array-of-sums field",
-                                ));
                             }
                             let element_layout = project_conventional_sum_materialization_layout(
                                 program,
@@ -827,13 +859,14 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
                                     declared.name
                                 )));
                             }
-                            array_report = Some(ConventionalSumArrayFieldLayoutReport {
+                            array_reports.push(ConventionalSumArrayFieldLayoutReport {
                                 field: declared.name.to_string(),
                                 member_identity: declared.identity,
                                 element_count,
                                 element_stride: element_layout.size,
                                 element_layout,
                             });
+                            selected_direct_array = true;
                         }
                         DataShapeKind::Mixed => {
                             return Err(Diagnostic::error(format!(
@@ -856,6 +889,12 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
                 }
             }
         }
+        if !selected_direct_array && reachability.type_contains_sum(declared.type_reference)? {
+            return Err(Diagnostic::error(format!(
+                "nested-sum array outer field `{}` reaches a sum through a nested array or record",
+                declared.name
+            )));
+        }
         let offset = laid.offset as u64;
         entries.push(LayoutFieldEntryReport {
             field: declared.name.to_string(),
@@ -864,11 +903,11 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
         });
         offsets.push(offset);
     }
-    let array_report = array_report.ok_or_else(|| {
-        Diagnostic::error(
-            "nested-sum array layout projection requires exactly one direct nonzero literal fixed-array-of-sums field",
-        )
-    })?;
+    if array_reports.is_empty() {
+        return Err(Diagnostic::error(
+            "nested-sum array layout projection requires a nonempty direct nonzero literal fixed-array-of-sums field set",
+        ));
+    }
 
     Ok((
         LayoutPlanReport {
@@ -879,7 +918,7 @@ pub fn project_conventional_record_with_sum_array_materialization_layout(
             size: Some(data_layout.layout.size as u64),
             align: data_layout.layout.alignment as u64,
         },
-        array_report,
+        array_reports,
     ))
 }
 
@@ -1119,6 +1158,7 @@ mod tests {
         BuildTimeValue, validate_const_materializable_conventional_sum,
         validate_const_materializable_record_with_conventional_sum,
         validate_const_materializable_record_with_conventional_sum_array,
+        validate_const_materializable_record_with_conventional_sum_arrays,
         validate_const_materializable_record_with_nested_sum_record,
         validate_const_materializable_record_with_nested_sum_records,
     };
@@ -2008,7 +2048,11 @@ mod tests {
             data ArrayOwner [copy] { choices: [Choice; 2]; }
             data ArrayWithNeighbor [copy] { bytes: [u8; 2]; choices: [Choice; 2]; suffix: u16; }
             data ZeroArrayOwner [copy] { choices: [Choice; 0]; }
-            data TwoArrayOwner [copy] { first: [Choice; 1]; second: [Choice; 1]; }
+            data TwoArrayOwner [copy] { first: [Choice; 1]; second: [Choice; 2]; }
+            data DirectAndNestedArrayOwner [copy] {
+                direct: [Choice; 1];
+                nested: [[Choice; 1]; 1];
+            }
             data Inner [copy] { choice: Choice; }
             data RecursiveOwner [copy] { inner: Inner; }
             data Mixed [copy] { common: u8; case Empty; }
@@ -2078,6 +2122,94 @@ mod tests {
         assert_eq!(array_row.element_count, 2);
         assert_eq!(array_row.element_stride, array_row.element_layout.size);
         assert_eq!(array_row.element_stride, 8);
+
+        let two_array_owner = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "TwoArrayOwner")
+            .unwrap();
+        let (two_array_outer, two_array_rows) =
+            project_conventional_record_with_sum_arrays_materialization_layout(
+                &checked,
+                &plan,
+                two_array_owner.symbol,
+            )
+            .expect("every direct sum-array occurrence should project in authored order");
+        assert_eq!(two_array_outer.offsets.as_deref(), Some(&[0, 8][..]));
+        assert_eq!(two_array_outer.size, Some(24));
+        assert_eq!(
+            two_array_rows
+                .iter()
+                .map(|row| (row.field.as_str(), row.element_count, row.element_stride))
+                .collect::<Vec<_>>(),
+            [("first", 1, 8), ("second", 2, 8)]
+        );
+        let two_array_value = BuildTimeValue::Struct {
+            type_name: "TwoArrayOwner".into(),
+            fields: vec![
+                (
+                    "first".into(),
+                    BuildTimeValue::Array(vec![BuildTimeValue::Case {
+                        variant: "Number".into(),
+                        payload: vec![("value".into(), BuildTimeValue::Int(0x11))],
+                    }]),
+                ),
+                (
+                    "second".into(),
+                    BuildTimeValue::Array(vec![
+                        BuildTimeValue::Case {
+                            variant: "Empty".into(),
+                            payload: Vec::new(),
+                        },
+                        BuildTimeValue::Case {
+                            variant: "Number".into(),
+                            payload: vec![("value".into(), BuildTimeValue::Int(0x22))],
+                        },
+                    ]),
+                ),
+            ],
+        };
+        let two_array_materialized =
+            validate_const_materializable_record_with_conventional_sum_arrays(
+                &checked,
+                "TwoArrayOwner",
+                &two_array_outer,
+                &two_array_rows,
+                &two_array_value,
+                ByteOrder::LittleEndian,
+            )
+            .expect("the plural target report should rejoin plural value custody");
+        assert_eq!(
+            two_array_materialized.bytes(),
+            &[
+                1, 0, 0, 0, 0x11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0x22, 0, 0, 0,
+            ]
+        );
+        let two_array_layout =
+            unique_data_layout(&plan, two_array_owner.symbol, "TwoArrayOwner").unwrap();
+        let DataShape::Record {
+            fields: two_array_fields,
+        } = two_array_layout.shape
+        else {
+            unreachable!("fixture is a record")
+        };
+        let second_array_symbol = plan.fields.span_or_empty(two_array_fields)[1].symbol;
+        let mut repeated_second_array_plan = plan.clone();
+        repeated_second_array_plan
+            .repeated_fields
+            .push(crate::RepeatedFieldLayout {
+                field: second_array_symbol,
+                element_stride: 16,
+            });
+        assert!(
+            project_conventional_record_with_sum_arrays_materialization_layout(
+                &checked,
+                &repeated_second_array_plan,
+                two_array_owner.symbol,
+            )
+            .is_err(),
+            "target-dependent placement on the second qualifying array must reject"
+        );
 
         let array_data_layout =
             unique_data_layout(&plan, array_owner.symbol, "ArrayOwner").unwrap();
@@ -2224,6 +2356,28 @@ mod tests {
                 )
                 .is_err(),
                 "{name} must remain outside the single direct nonzero sum-array rung"
+            );
+        }
+
+        for name in [
+            "ZeroArrayOwner",
+            "DirectAndNestedArrayOwner",
+            "RecursiveOwner",
+            "MixedOwner",
+        ] {
+            let definition = checked
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == name)
+                .unwrap();
+            assert!(
+                project_conventional_record_with_sum_arrays_materialization_layout(
+                    &checked,
+                    &plan,
+                    definition.symbol,
+                )
+                .is_err(),
+                "{name} must remain outside the plural direct sum-array rung"
             );
         }
 
