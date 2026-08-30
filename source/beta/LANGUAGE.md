@@ -20,7 +20,7 @@ the assembler proves the floor (it does all of this in raw assembly; Beta just
 makes it pleasant). No types beyond `i64`, no generics, no proofs — those are
 higher rungs.
 
-## Grammar (v0)
+## Grammar (v1)
 
 ```
 program    := proc*
@@ -34,6 +34,7 @@ ordinary   := 'let' IDENT '=' expr             ; declare + init a local
             | 'to' IDENT ('when' expr)?       ; a transition: jump, or guarded jump
             | 'return' expr
             | call                            ; call for effect (result discarded)
+            | 'emit' '(' STRING ')'           ; fixed byte output only
 expr       := sum (cmpop sum)?                ; a comparison yields 0 / 1
 sum        := term (('+' | '-') term)*
 term       := factor (('*' | '/' | '%') factor)*
@@ -42,7 +43,7 @@ call       := IDENT '(' (expr (',' expr)*)? ')'
 load       := 'byte' '[' expr ']'   |   'word' '[' expr ']'
 store      := ('byte' | 'word') '[' expr ']' '=' expr
 cmpop      := '<' | '>' | '==' | '<=' | '>=' | '!='
-CHAR       := "'" (char | '\' ('n'|'t'|'r'|'0'|'\'|"'")) "'"   ; the byte value
+CHAR       := "'" (char | '\\' ('n'|'t'|'r'|'0'|'\\'|"'")) "'"   ; the byte value
 INT        := decimal digits whose mathematical value is in 0..2^64-1
 ```
 
@@ -80,7 +81,8 @@ value and occurs before any wrapping machine accumulation.
 `emit("text")` is the one place a string literal is allowed: it writes the bytes
 to stdout (lowering to a `write` per byte). There is **no string type** — it is a
 write-only convenience so a compiler written in Beta can emit fixed output (e.g.
-assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \\ \"`.
+assembly mnemonics) without spelling every byte. `"..."` escapes are exactly
+`\n \t \r \0 \\ \"`.
 
 ## Lowering (every construct maps to what we already have)
 

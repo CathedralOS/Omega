@@ -135,7 +135,7 @@ class Interp:
         return 0                                       # fell off the end (well-formed programs return first)
 
 def decode_str(inner):
-    esc = {'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92, "'": 39, '"': 34}
+    esc = {'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92, '"': 34}
     out = bytearray(); i = 0
     while i < len(inner):
         if inner[i] == '\\':

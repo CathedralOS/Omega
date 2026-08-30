@@ -56,7 +56,7 @@ ceiling 35,651,584. Thus neither generated stack can alias tape or raw memory.
 | --- | --- |
 | `r15` | **stack pointer (sp)** — an offset into memory, grows **downward**. Initialized once at startup. Doubles as the expression-evaluation stack. |
 | `r14` | **frame pointer (fp)** — fixed for a procedure's lifetime; params/locals live at `[fp - 8 - 8*slot]`, so they stay addressable while `sp` moves for expression temporaries. The compiler uses it; hand-written code may skip it (the examples below do, tracking offsets by hand). |
-| `r0`–`r3` | the first four **arguments** (further args are pushed on the data stack — deferred). |
+| `r0`–`r3` | Beta v1's complete four-register **argument** surface; no further arguments are admitted. |
 | `r0` | the **return value**. |
 | `r0`–`r5` | **caller-saved** scratch. A caller that needs one of these to survive a `call` saves it in its own frame first. |
 | `r6`–`r12` | **callee-saved**. A callee that uses one must save it on entry and restore it before `ret`. |
@@ -69,8 +69,8 @@ and `r15` is reserved as the dsp.)
 ## Frame protocol
 
 The compiler brackets each procedure with an **fp-based** prologue and epilogue
-(schematic; immediates are loaded through a scratch register — see any generated
-`build/*.asm`):
+(schematic; immediates are loaded through a scratch register; the canonical
+compiler emits these encodings directly into Alpha tape):
 
 ```
 proc:

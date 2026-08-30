@@ -24,8 +24,8 @@
 ; Globals (i64):
 ;   524288 LEN       524296 CUR       524304 ERROR     524312 EMIT
 ;   524320 NAMESTART 524328 NAMELEN   524336 EXPECT    524344 EXPECTLEN
-;   524352 BOUNDARY  524360 EXPECTCHR 524368 NUMSTART  524376 NUMLEN
-;   524384 STAGE     524392 DEPTH     524400 OUTLEN     524408 PROC_COUNT
+;   524352 BOUNDARY  524360 EXPECTCHR
+;   524392 DEPTH     524400 OUTLEN     524408 PROC_COUNT
 ;   524416 CALL_COUNT 524424 SLOT_COUNT 524432 CURPROCSTART
 ;   524440 CURPROCLEN 524448 CURPROCINDEX 524456 ARGCOUNT
 ;   524464 TMPSTART  524472 TMPLEN     524480 PROC_CURSOR
@@ -176,9 +176,6 @@ publish_failure:
 
 ; ---------------- program ----------------
 parse_program:
-        imm   r0, 524384
-        imm   r1, 10
-        store r0, r1
         imm   r0, 524480
         imm   r1, 0
         store r0, r1
@@ -221,9 +218,6 @@ pp_return:
         ret
 
 parse_proc:
-        imm   r0, 524384
-        imm   r1, 11
-        store r0, r1
         imm   r0, kw_proc
         imm   r1, 4
         imm   r2, 1
@@ -429,9 +423,6 @@ psak_return:
 
 ; ---------------- statements ----------------
 parse_statement:
-        imm   r0, 524384
-        imm   r1, 15
-        store r0, r1
         imm   r0, 524792
         imm   r1, 0
         store r0, r1
@@ -1141,11 +1132,16 @@ emg_known:
         call  emit_rr
         ret
 emg_error:
-        call  set_error
+        imm   r0, 5
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 
-; Emit the shared generated guard after all procedures. It returns r3=1 for a
-; negative or too-large Word address and r3=0 with the biased address in r4.
+; Emit the shared generated guard after all procedures. Its private ABI
+; preserves r0/r1 (the live memory value/address operands), takes the candidate
+; address in r4 and exclusive bound in r5, and returns r3=1 for a negative or
+; too-large Word address or r3=0 with the biased address in r4.
 ; Each call site owns its unreachable fail-closed Halt(251), so this callable
 ; region always returns and remains structurally ordinary. The helper adds one
 ; transient Alpha return frame per memory access instead of duplicating the full
@@ -1161,7 +1157,10 @@ emit_memory_guard_runtime:
         load  r6, r0
         imm   r1, 65534
         jlt   r6, r1, emgr_labels
-        call  set_error
+        imm   r0, 5
+        imm   r1, 3
+        mov   r2, r6
+        call  set_internal
         ret
 emgr_labels:
         imm   r0, 524544
@@ -1435,10 +1434,6 @@ pd_done:
         mov   r1, r6
         add   r1, r7
         store r0, r1
-        imm   r0, 524368
-        store r0, r6
-        imm   r0, 524376
-        store r0, r7
         imm   r0, 0
         mov   r1, r10
         call  emit_imm
@@ -2257,9 +2252,6 @@ add_call:
         imm   r1, 1
         add   r6, r1
         store r0, r6
-        ret
-ac_error:
-        call  set_error
         ret
 ac_incomplete:
         imm   r0, 9

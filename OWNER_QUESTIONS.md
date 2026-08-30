@@ -224,21 +224,24 @@ failures.
 ### Context
 
 The first bootstrap edge must establish exact correspondence between the
-78,109-byte `beta_compiler.alpha` source and its 20,977-byte Alpha tape. The
+current 103,274-byte `beta_compiler.alpha` source and its 26,751-byte Alpha
+tape. The
 generic checker binds both raw subjects and can check a balanced trace, local
 assembly grammar, widths, label uniqueness, absolute fixups, and complete
 source/tape exhaustion without an assembly-specific kernel rule.
 
 The selected certificate shape required one closed
 `VERIFY(source, tape, trace) = ACCEPT` equality discharged wholly by
-computation and reflexivity. Compiler-scale prototypes established a hard
-implementation conflict. Dynamic balanced cutting accepts 714 canonical leaves
-and fails at 715. Structural recursion traverses all 6,467 leaves in 0.704
-seconds, but adding local parsing exhausts the arena; even a content-free visit
-of every raw source byte fails. Sequential state threading instead exhausts the
-generated semantic stack. The checker reclaims normalization scratch only after
-each complete equality decision, so a single root conversion retains every
-branch temporary.
+computation and reflexivity. Compiler-scale prototypes against the earlier
+78,109-byte/20,977-byte subject established a hard implementation conflict.
+Dynamic balanced cutting accepts 714 canonical leaves and fails at 715.
+Structural recursion traversed all 6,467 then-current leaves in 0.704 seconds,
+but adding local parsing exhausted the arena; even a content-free visit of every
+raw source byte failed. Sequential state threading instead exhausted the
+generated semantic stack. The current larger subject does not weaken those
+measurements. The checker reclaims normalization scratch only after each
+complete equality decision, so a single root conversion retains every branch
+temporary.
 
 A checker-native carrier control split the same source into 112 named equality
 decisions, visited every byte, and composed their checked propositions with
@@ -441,3 +444,44 @@ the equality rule.
 - Tempting but wrong: equate independently authored projections by matching
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
+
+## Q9 — Freeze Beta's byte-level lexical contract
+
+### Context
+
+Beta's grammar and operational semantics fix its constructs but do not define
+the complete byte-level source language. The canonical Alpha compiler accepts
+ASCII identifiers and digits, treats every byte `0x00..0x20` as trivia, and
+admits only printable unescaped character-literal bytes. The untrusted Python
+reference instead uses Unicode identifier/digit predicates, recognizes only
+space/tab/CR/LF trivia, and accepts a broader set of raw character values. The
+compiler's exact-source-extent control already uses NUL padding, so the trivia
+difference is observable in retained evidence.
+
+### Problem statement
+
+Choose the exact source-byte decoding, identifier and decimal alphabets, trivia
+bytes, and unescaped character-literal bytes for Beta v1. These choices change
+source validity, so neither implementation may be silently promoted as the
+written language rule. String and character escape sets are already closed and
+do not belong to this decision.
+
+### Proposed direction
+
+Treat Beta source as an uninterpreted byte stream; use ASCII
+`[A-Za-z_][A-Za-z0-9_]*` identifiers and `0..9` digits; retain the compiler's
+`0x00..0x20` trivia class; and admit printable ASCII bytes other than quote and
+backslash directly in character literals. This matches the small compiler-host
+rung, the canonical compiler, and the existing exact-source boundary without
+introducing a Unicode normalization or source-encoding dependency.
+
+### Alternates
+
+- Acceptable: restrict trivia to space/tab/CR/LF and replace the NUL-padded
+  exact-source control, provided compiler and reference migrate atomically.
+- Acceptable: define UTF-8 plus Unicode identifiers only with an exact
+  normalization and invalid-encoding rule suitable for the Alpha compiler.
+- Tempting but wrong: call host-language `isalpha`, `isalnum`, or `isdigit`
+  behavior the Beta contract.
+- Tempting but wrong: leave the implementations divergent and treat agreement
+  on the current ASCII corpus as a complete source-recognition audit.

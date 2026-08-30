@@ -15,6 +15,10 @@ OPS = [
     '(', ')', '{', '}', '[', ']', ',',
 ]
 MAX_WORD = (1 << 64) - 1
+STRING_ESCAPES = {'n', 't', 'r', '0', '\\', '"'}
+CHAR_ESCAPES = {
+    'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92, "'": 39,
+}
 
 
 def lex(src):
@@ -29,28 +33,35 @@ def lex(src):
         if c == '"':
             j = i + 1
             inner = ''
-            while j < n and src[j] != '"':
+            while j < n:
+                if src[j] == '"':
+                    break
                 if src[j] == '\\':
+                    if j + 1 >= n or src[j + 1] not in STRING_ESCAPES:
+                        raise SyntaxError('beta parser: invalid string escape')
                     inner += src[j:j + 2]
                     j += 2
                 else:
                     inner += src[j]
                     j += 1
+            if j >= n:
+                raise SyntaxError('beta parser: unterminated string literal')
             toks.append(('str', inner))
             i = j + 1
             continue
         if c == "'":
             i += 1
+            if i >= n:
+                raise SyntaxError('beta parser: unterminated char literal')
             if src[i] == '\\':
-                val = {
-                    'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92,
-                    "'": 39, '"': 34,
-                }[src[i + 1]]
+                if i + 1 >= n or src[i + 1] not in CHAR_ESCAPES:
+                    raise SyntaxError('beta parser: invalid char escape')
+                val = CHAR_ESCAPES[src[i + 1]]
                 i += 2
             else:
                 val = ord(src[i])
                 i += 1
-            if src[i] != "'":
+            if i >= n or src[i] != "'":
                 raise SyntaxError('beta parser: unterminated char literal')
             i += 1
             toks.append(('num', val))
@@ -121,10 +132,13 @@ class Parser:
         name = self.expect('word')[1]
         self.expect('op', '(')
         params = []
-        while self.peek() != ('op', ')'):
+        if self.peek() != ('op', ')'):
             params.append(self.expect('word')[1])
-            if self.peek() == ('op', ','):
+            while self.peek() == ('op', ','):
                 self.nxt()
+                if self.peek() == ('op', ')'):
+                    raise SyntaxError('beta parser: trailing parameter comma')
+                params.append(self.expect('word')[1])
         self.expect('op', ')')
         body = self.block()
         return ('proc', name, params, body)
@@ -198,11 +212,7 @@ class Parser:
         if token[0] == 'word' and self.toks[self.i + 1] == ('op', '('):
             name = self.nxt()[1]
             self.nxt()
-            args = []
-            while self.peek() != ('op', ')'):
-                args.append(self.expr())
-                if self.peek() == ('op', ','):
-                    self.nxt()
+            args = self.args()
             self.expect('op', ')')
             return ('callstmt', ('call', name, args))
         if token[0] == 'word':
@@ -215,7 +225,7 @@ class Parser:
 
     def expr(self):
         expression = self.addsub()
-        while self.peek()[0] == 'op' and self.peek()[1] in self.CMP:
+        if self.peek()[0] == 'op' and self.peek()[1] in self.CMP:
             operator = self.nxt()[1]
             expression = ('bin', operator, expression, self.addsub())
         return expression
@@ -246,11 +256,7 @@ class Parser:
                 return ('mem', token[1], address)
             if self.peek() == ('op', '('):
                 self.nxt()
-                args = []
-                while self.peek() != ('op', ')'):
-                    args.append(self.expr())
-                    if self.peek() == ('op', ','):
-                        self.nxt()
+                args = self.args()
                 self.expect('op', ')')
                 return ('call', token[1], args)
             return ('var', token[1])
@@ -259,6 +265,18 @@ class Parser:
             self.expect('op', ')')
             return expression
         raise SyntaxError(f'beta parser: bad factor at {token}')
+
+    def args(self):
+        args = []
+        if self.peek() == ('op', ')'):
+            return args
+        args.append(self.expr())
+        while self.peek() == ('op', ','):
+            self.nxt()
+            if self.peek() == ('op', ')'):
+                raise SyntaxError('beta parser: trailing argument comma')
+            args.append(self.expr())
+        return args
 
 
 RESERVED = {
@@ -317,7 +335,7 @@ def walk_expression(expression, visible, generated, required, calls):
     raise SyntaxError(f'beta formation: unknown expression {kind!r}')
 
 
-def validate_procedure(proc, procedure_arities, calls):
+def validate_procedure(proc, calls):
     _, proc_name, params, body = proc
     if proc_name in RESERVED:
         raise SyntaxError(f'beta formation: reserved procedure {proc_name!r}')
@@ -437,7 +455,7 @@ def validate_program(procs):
 
     calls = []
     for proc in procs:
-        validate_procedure(proc, procedure_arities, calls)
+        validate_procedure(proc, calls)
     for name, arity in calls:
         if name == 'read_byte':
             expected = 0
