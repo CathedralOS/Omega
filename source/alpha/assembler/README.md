@@ -26,9 +26,11 @@ values through signed division.
 - `asm_ref.py` — an untrusted reference assembler in Python, written from the
   encoding rather than ported from `assembler.alpha`. `asm-diamond.sh` compares
   outputs over a corpus and is useful for catching encoder bugs. Agreement is
-  diagnostic evidence, not source-to-artifact authority.
+  diagnostic evidence, not source-to-artifact authority. The pair is temporary
+  development scaffolding and cannot survive completion of the checked direct
+  assembly relation.
 The historical Rust cold-start producer has been retired. The checked-in seed,
-written assembly/VM semantics, self-hosting reconstruction, and independent reference gate
+written assembly/VM semantics, and self-hosting reconstruction
 are the maintained path.
 
 ## Retention inventory
@@ -42,9 +44,11 @@ are the maintained path.
 | `asm_ref.py`, `asm-diamond.sh` | One independent assembly relation and bounded comparison. | Delete together when the checked source-to-tape relation fully subsumes their failure detection. |
 | `register-label-regression.sh` | Closed lexical/operand/width discriminator against the fresh assembler and independent relation. | Delete when the checked assembly relation covers every retained case. |
 
-The root retains one authoritative Alpha source, the two platform assembler
-realizations, exact self-host/build entry points, one independent reference,
-and focused encoding regressions. Historical producer routes are not retained.
+The root currently retains one authoritative Alpha source, the two platform
+assembler realizations, exact self-host/build entry points, one temporary
+independent reference, and focused encoding regressions. Historical producer
+routes are not retained; the Python reference leaves when its deletion
+condition is met.
 
 ```
 ./selfhost.sh                                                  # Alpha assembler rebuilds itself, no Rust

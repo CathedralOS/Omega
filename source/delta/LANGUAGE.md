@@ -86,9 +86,11 @@ Delta source is a finite sequence of bytes from:
 HT LF CR SP ! through ~
 ```
 
-CRLF is normalized to LF before tokenization; a bare CR is rejected. NUL,
-non-ASCII bytes, and unterminated strings or comments reject. Horizontal tab,
-space, LF, and `//` through the next LF or end of input are trivia.
+No decoding or newline normalization occurs. NUL, DEL, bytes above `0x7F`,
+every other control byte, and unterminated strings or comments reject.
+Horizontal tab, space, CR, LF, and `//` through the next CR, LF, or end of input
+are trivia. A rejection coordinate is always an offset in the original source
+byte sequence.
 
 Identifiers match `[A-Za-z_][A-Za-z0-9_]*` and are case-sensitive. Decimal
 integer literals contain one or more ASCII digits. A negative value is written

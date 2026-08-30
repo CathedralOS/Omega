@@ -46,6 +46,11 @@ No later fixed point repairs an open earlier row. Every row must stand on its
 own exact source, exact tape, source semantics, Alpha semantics, observation
 profile, checked derivation, and disclosed realization admissions.
 
+Every Alpha-assembly, Beta, Gamma, or Delta source subject in those rows also
+conforms to D15's closed textual-ASCII envelope. The closure retains original
+bytes and byte coordinates; no decoder, Unicode table, locale, or filename
+extension participates in source recognition.
+
 ## Alpha execution floor
 
 Current committed native seeds:
@@ -84,6 +89,10 @@ above. A diagnostic remains only while it has a canonical owner, bounded cost,
 a specific failure it reveals on the current canonical subject, and a deletion
 condition. Duplicate coverage, historical interest, or hypothetical future use
 requires deletion rather than indefinite retention.
+
+Python implementations are necessarily temporary members of this category.
+They are removed as checked direct edges subsume their named comparisons and do
+not survive into the completed offline bootstrap closure.
 
 ## Owner escalation
 

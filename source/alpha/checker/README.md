@@ -162,7 +162,8 @@ sh source/alpha/checker/gates/semantics-diamond.sh
   non-constructive certificates.
 - `check-ref-diamond.sh` compares the complete retained rule set with one
   independently written Python reference. The reference is diagnostic and has
-  no runtime authority.
+  no runtime authority and is deleted when the checked direct route subsumes
+  this comparison; it is not part of the completed offline bootstrap.
 - `semantics-diamond.sh` is one bounded bridge between definitional equality
   and Gamma's operational evaluator. It is evidence, not a soundness theorem.
 

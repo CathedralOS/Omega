@@ -3,6 +3,9 @@
 This directory contains one independent, untrusted evaluator for the current
 Gamma reference semantics and one bounded deterministic differential against
 `../interp.beta`. It is a diagnostic, not a compiler stage or language owner.
+It is temporary development scaffolding and is deleted once the direct checked
+Gamma edge subsumes its bounded role; no Python evaluator belongs to the
+completed offline bootstrap.
 
 | Retained file | Bounded role | Deletion condition |
 | --- | --- | --- |

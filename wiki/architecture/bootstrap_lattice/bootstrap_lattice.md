@@ -33,6 +33,13 @@ The former Beta-written Delta-to-Gamma translator crossed two ownership
 boundaries and is deleted with its native-publication apparatus. Git history is
 the archive; no compatibility route replaces it.
 
+Alpha assembly, Beta, Gamma, and Delta implementation source also share the
+closed textual-ASCII envelope fixed by [D15](decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).
+This removes host decoding, Unicode tables, normalization, and invisible
+control-byte trivia from the bootstrap trust surface. Arbitrary bytes remain
+ordinary input, output, and artifact data rather than raw implementation-source
+characters.
+
 ## One canonical executable representation
 
 Alpha tape is the bootstrap authority from Beta through `omega`. A
@@ -123,6 +130,12 @@ implementation, not part of the canonical chain.
 report diagnostics. It may not discover source closure, parse or lower accepted
 source, manufacture evidence, or make a trust decision. Deleting or rewriting a
 runner may change ergonomics; it must not change chain meaning.
+
+Host-language reference implementations are development scaffolding with
+explicit deletion conditions, not a permanent diversified implementation rung.
+The completed repository can construct and check the chain from its audited
+native Alpha seed and owned bytes without Python, Rust, a network, a package
+manager, or a host Unicode database.
 
 ## The repository is the chain, not its history
 

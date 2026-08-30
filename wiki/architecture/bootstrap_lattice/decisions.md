@@ -274,12 +274,50 @@ and final proposition.
 
 The canonical Beta checker publishes the finite resource profile certificate
 producers must meet. Its Python reference is a diagnostic logical diamond, not
-a second resource authority. Measurements bind the exact current subjects and
+a second resource authority, and it is temporary development scaffolding rather
+than a member of the completed bootstrap closure. Measurements bind the exact current subjects and
 report conversion scratch, permanently retained proof state, semantic stack,
 certificate size, and checking time across candidate chunk counts. Literal
 artifact byte counts are observations derived from those subjects, not durable
 architecture: editing or golfing either subject requires rebuilding and
 rechecking its artifact-owned certificate.
+
+## D15 — Bootstrap implementation source is closed textual ASCII
+
+Alpha assembly, Beta, Gamma, and Delta source share one outer byte envelope.
+The only admitted source bytes are horizontal tab (`0x09`), line feed (`0x0A`),
+carriage return (`0x0D`), and printable ASCII (`0x20..0x7E`). Every other byte,
+including NUL, DEL, a byte above `0x7F`, and every byte of a Unicode BOM,
+rejects before tokenization at its exact byte offset. There is no source
+decoding, Unicode normalization, Unicode classification table, or
+host-locale-dependent predicate anywhere in these four language contracts.
+
+Each language defines its narrower token grammar inside that envelope.
+Identifiers and decimal digits use explicit ASCII ranges. Exactly space, tab,
+CR, and LF may act as whitespace; a comment ends at CR, LF, or source end.
+Direct literal contents are printable ASCII except for their delimiter and
+backslash, with each language's closed escape set supplying admitted control
+bytes. Arbitrary bytes remain program data and artifact bytes: a language may
+produce them through numeric byte operations, escapes, or checked embedding,
+but they do not occur raw in bootstrap implementation source.
+
+The profile applies to exact source subjects, including comments. It is checked
+by each language implementation before lexing and independently by a
+closure-aware repository gate. File suffix alone never selects the gate:
+Gamma's current implementation material is Beta source, and future compiler
+closures may contain several owned files. Capacity controls use valid space
+padding rather than treating NUL as invisible trivia. Cleaning an exact source
+subject changes its source identity even when comments erase before lowering,
+so affected certificates and measurements are rebuilt before publication.
+
+The completed chain is self-contained from the audited native Alpha seed and
+repository-owned bytes. Python, Rust, shell, and other ambient host tools may be
+temporary invocation or differential scaffolding while edges are incomplete;
+they never define source, decide admission, or enter a canonical closure. Every
+such reference has a deletion condition, and Python reference implementations
+are deleted once the checked direct edge subsumes their named diagnostic role.
+No network, host Unicode database, package installation, or historical
+compiler is a prerequisite of the completed bootstrap.
 
 ## Dependency order
 

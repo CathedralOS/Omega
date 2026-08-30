@@ -12,12 +12,15 @@ identity.
 
 ## Lexical form
 
-Assembly source is a byte stream. Significant tokens and `db` contents use the
-ASCII grammar below; bytes inside a comment are ignored and may be arbitrary
-except that line feed ends the comment. Outside a quoted `db` string:
+Assembly source is a byte stream in the bootstrap textual-ASCII envelope. The
+only admitted source bytes are horizontal tab (`0x09`), line feed (`0x0A`),
+carriage return (`0x0D`), and printable ASCII (`0x20..0x7E`). NUL, DEL, bytes
+above `0x7F`, and every other control byte reject before tokenization at their
+byte offset. There is no source decoding, BOM, Unicode classification, or
+locale-dependent character rule. Outside a quoted `db` string:
 
-- bytes `0x00..0x20` and comma separate tokens;
-- `;` begins a comment through the next line feed or end of source; and
+- space, tab, CR, LF, and comma separate tokens;
+- `;` begins a comment through the next CR, LF, or end of source; and
 - separators and comments otherwise have no meaning.
 
 The grammar is:
@@ -49,6 +52,11 @@ The decoded string bytes for `\\n`, `\\t`, `\\r`, `\\0`, `\\\\`, `\\"`, and
 permitted string byte is emitted unchanged. `db` bytes are data, not implicitly
 decoded instructions; ordinary Alpha control flow must jump around embedded
 data when it is reachable by address order.
+
+The source envelope does not restrict assembled data. `db` may produce control
+bytes through its closed escapes, and instructions may compute or write any
+byte. It only forbids embedding non-ASCII or invisible control bytes raw in the
+audited assembly source.
 
 ## Instructions
 

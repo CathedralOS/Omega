@@ -9,6 +9,18 @@ semantic oracles and candidate implementation material, not compiler rungs.
 The old imperative prototype is retired to Git history. It does not select the
 Gamma surface or compiler architecture.
 
+## Source envelope
+
+Every eventual Gamma contract, and both current bounded oracle surfaces, is
+confined to the bootstrap textual-ASCII envelope: source bytes are only HT, LF,
+CR, and printable ASCII. NUL, DEL, bytes above `0x7F`, and every other control
+byte reject before tokenization. Gamma has no source decoding, BOM, Unicode
+normalization, Unicode identifier class, or host-locale-dependent lexical rule.
+Identifiers and decimal digits use explicit ASCII ranges; exactly space, tab,
+CR, and LF may be whitespace, and any selected comment form ends at CR, LF, or
+source end. OWNER Q3 still selects the executable Gamma grammar inside this
+already-fixed outer envelope.
+
 ## Evaluated surface
 
 The current evaluation oracle accepts prefix expressions:

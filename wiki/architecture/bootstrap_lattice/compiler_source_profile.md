@@ -1,4 +1,4 @@
-# Delta and Omega compiler source contracts
+# Bootstrap compiler source contracts
 
 [Lattice overview](bootstrap_lattice.md) | [Decisions](decisions.md) |
 [Omega toolchain](omega_toolchain.md)
@@ -13,6 +13,21 @@ Three independent facts govern the top of the lattice:
 
 `D` and `C` implement the same full Omega specification. They are not the same
 source closure and neither defines the product language.
+
+## Shared implementation-source envelope
+
+Alpha assembly, Beta, Gamma, and Delta are repository-controlled bootstrap
+implementation languages. Their source is not decoded text: it is a finite byte
+sequence containing only HT, LF, CR, and printable ASCII. NUL, DEL, bytes above
+`0x7F`, BOMs, and every other control byte reject before tokenization. Each
+language uses explicit ASCII identifier and digit classes, exactly space/tab/
+CR/LF whitespace, CR/LF/source-end comment termination, and printable raw
+literal contents plus its closed escapes.
+
+This envelope governs implementation source, including comments; it does not
+restrict the byte data a compiler may consume or emit. Exact source closures,
+not filename suffixes, select enforcement. The full rule and offline-completion
+requirement are fixed by [D15](decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).
 
 ## Required artifacts
 

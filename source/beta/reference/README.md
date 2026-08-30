@@ -12,6 +12,13 @@ Its comparisons are diagnostics, not artifact authority. Acceptance of a
 compiler artifact still requires the lower-rooted refinement edge described by
 the bootstrap lattice.
 
+This Python owner is strictly temporary development scaffolding. It is not
+eligible for permanent retention after the checked direct Beta edge subsumes
+the bounded diagnostics below, and it is never a prerequisite of the
+self-contained bootstrap. While retained, it must consume raw bytes and obey
+the exact bootstrap textual-ASCII source envelope rather than Python Unicode or
+locale predicates.
+
 Run `ownership-test.sh`, `beta-correctness-fuzz.sh`, and
 `beta-io-exhaust.sh` from any working directory.
 
