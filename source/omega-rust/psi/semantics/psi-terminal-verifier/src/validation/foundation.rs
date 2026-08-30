@@ -684,6 +684,25 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                             if !returned_claims.is_empty() {
                                 return false;
                             }
+                            if let Some(StructuralPlaceDeclaration {
+                                kind: StructuralPlaceKind::Parameter { position, is_self },
+                                ..
+                            }) = machine
+                                .structural_places
+                                .iter()
+                                .find(|place| place.id == *source)
+                            {
+                                return matches!(machine.structural_parameters.as_slice(), [parameter]
+                                    if parameter.place == *source
+                                        && parameter.position == *position
+                                        && parameter.is_self == *is_self
+                                        && !parameter.is_self
+                                        && parameter.structural_type == result.structural_type
+                                        && parameter.multiplicity
+                                            == StructuralMultiplicity::Unrestricted
+                                        && parameter.access == StructuralAccess::Owned
+                                        && parameter.qualifications.is_empty());
+                            }
                             let Some(StructuralPlaceDeclaration {
                                 kind:
                                     StructuralPlaceKind::OperationResult {

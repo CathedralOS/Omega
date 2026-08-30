@@ -158,7 +158,7 @@ storage containing no live `T` is a separate feature.
 > providers remain gated. Structural parameters and calls preserve
 > owned/shared/mutable/write-only access (first introduced in Terminal format
 > 27); one exact unrestricted record-leaf field path crosses the codec and the
-> independent verifier. Terminal format 41/vocabulary 44 additionally carries
+> independent verifier. Terminal format 42/vocabulary 45 additionally carries
 > one direct whole-root unrestricted primitive integer store. Its ordinary SSA
 > value producer precedes a Unit write-only event, the verifier reconstructs
 > exact type/access/place custody without an old-value premise, and the

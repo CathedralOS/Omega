@@ -594,6 +594,113 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                 "guarded payloadless callee result is not structural",
             ))?
             .place;
+        let selected_consumers = checked
+            .facts
+            .proof
+            .contract_calls
+            .iter()
+            .filter_map(|(_, call)| {
+                if call.caller_machine_symbol != plan.machine
+                    || call.caller_state_symbol != plan.state
+                    || u32::try_from(call.statement_index).ok()
+                        != Some(selection.arm_statement_index)
+                {
+                    return None;
+                }
+                let arguments = checked
+                    .facts
+                    .proof
+                    .contract_evidence_arguments
+                    .span_or_empty(call.evidence_arguments);
+                arguments
+                    .iter()
+                    .any(|argument| argument.source == selection.selected_term)
+                    .then_some((call, arguments))
+            })
+            .collect::<Vec<_>>();
+        match (&selection.tail_use, selected_consumers.as_slice()) {
+            (None, []) => {}
+            (Some(use_), [(call, [argument])])
+                if call.target_state_symbol == use_.target_state
+                    && argument.source == selection.selected_term
+                    && argument.parameter == use_.parameter
+                    && u32::try_from(argument.lane_position).ok() == Some(use_.input_position) => {}
+            _ => {
+                return unsupported(
+                    "guarded selected evidence use did not rejoin its checked tail requirement",
+                );
+            }
+        }
+        let tail_requirement = selection
+            .tail_use
+            .as_ref()
+            .map(|use_| {
+                let parameter_term = terminal_evidence_term_id(
+                    &evidence_terms.term_ids,
+                    use_.parameter,
+                    "guarded selected evidence target requirement has no terminal identity",
+                )?;
+                let declaration = lowered
+                    .semantic_module
+                    .evidence_terms
+                    .iter()
+                    .find(|term| term.id == parameter_term)
+                    .ok_or(LoweringError::Unsupported(
+                        "guarded selected evidence target requirement is absent",
+                    ))?;
+                let target_requirement = declaration.proposition;
+                if declaration.interface != evidence_interface {
+                    return unsupported(
+                        "guarded selected evidence target requirement interface drifted",
+                    );
+                }
+                let target_application = lowered
+                    .semantic_module
+                    .proposition_applications
+                    .iter()
+                    .find(|application| application.id == target_requirement)
+                    .ok_or(LoweringError::Unsupported(
+                        "guarded selected evidence target proposition is absent",
+                    ))?;
+                if target_application.declaration != instantiated_application.declaration
+                    || target_application.binder_arguments
+                        != instantiated_application.binder_arguments
+                    || target_application.evidence_interface
+                        != instantiated_application.evidence_interface
+                    || target_application.arguments.len() != 1
+                    || target_requirement == instantiated_proposition
+                {
+                    return unsupported("guarded selected evidence target substitution is inexact");
+                }
+                let target = lowered
+                    .semantic_module
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == machine_id(3))
+                    .ok_or(LoweringError::Unsupported(
+                        "guarded selected evidence target machine is absent",
+                    ))?;
+                let [parameter] = target.structural_parameters.as_slice() else {
+                    return unsupported("guarded selected evidence target parameter is not exact");
+                };
+                if !target.contract.requires.is_empty() {
+                    return unsupported(
+                        "guarded selected evidence target requirement is duplicated",
+                    );
+                }
+                target
+                    .contract
+                    .requires
+                    .push(Proposition::Atom(target_requirement));
+                Ok((
+                    target.id,
+                    use_.input_position,
+                    target_requirement,
+                    parameter_term,
+                    parameter.place,
+                ))
+            })
+            .transpose()?;
         let caller = &mut lowered.semantic_module.machines[0];
         let [operation] = caller.blocks[0].operations.as_mut_slice() else {
             return unsupported("guarded payloadless caller has no exact call");
@@ -611,6 +718,23 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                 "guarded payloadless caller result is not structural",
             ))?
             .place;
+        let uses = tail_requirement
+            .map(
+                |(target, input_position, target_requirement, target_term, target_parameter)| {
+                    OutcomeSpecificEvidenceUse {
+                        target,
+                        input_position,
+                        target_requirement,
+                        target_term,
+                        source: output,
+                        instantiated_proposition,
+                        target_parameter,
+                        caller_result,
+                    }
+                },
+            )
+            .into_iter()
+            .collect::<Vec<_>>();
         selected_evidence.push(OutcomeSpecificCallEvidence {
             guard: callee_guard,
             position: callee_position,
@@ -642,6 +766,10 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                     .into_iter()
                     .collect(),
             },
+            expected_use_count: u32::try_from(uses.len()).map_err(|_| {
+                LoweringError::Unsupported("too many guarded selected evidence uses")
+            })?,
+            uses,
         });
     }
     let caller = &mut lowered.semantic_module.machines[0];
@@ -690,6 +818,11 @@ fn lower_payloadless_guarded_call_term_ids(
         plan.selected_evidence
             .iter()
             .map(|selection| selection.selected_term),
+    );
+    handles.extend(
+        plan.selected_evidence
+            .iter()
+            .filter_map(|selection| selection.tail_use.as_ref().map(|use_| use_.parameter)),
     );
     let mut term_ids = vec![None; checked.facts.proof.evidence_terms.len()];
     for (position, handle) in handles.into_iter().enumerate() {

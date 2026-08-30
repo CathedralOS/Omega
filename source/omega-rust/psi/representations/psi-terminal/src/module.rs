@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        44
+        45
     }
 }
 
@@ -1131,6 +1131,24 @@ pub struct OutcomeSpecificCallEvidence {
     /// display strings, authorizes the one bounded substitution.
     pub result_substitution: Option<OutcomeSpecificCallResultSubstitution>,
     pub validity: OutcomeSpecificCallEvidenceValidity,
+    /// Independent cardinality commitment for the bounded selected-term use
+    /// lane. This keeps omission distinct from an intentionally unused row.
+    pub expected_use_count: u32,
+    pub uses: Vec<OutcomeSpecificEvidenceUse>,
+}
+
+/// One proof-only consumption of a selected guarded term by an exact direct
+/// tail-state `requires` position. It adds no runtime edge or fuel unit.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct OutcomeSpecificEvidenceUse {
+    pub target: MachineId,
+    pub input_position: u32,
+    pub target_requirement: PropositionId,
+    pub target_term: EvidenceTermId,
+    pub source: EvidenceTermId,
+    pub instantiated_proposition: PropositionId,
+    pub target_parameter: PlaceId,
+    pub caller_result: PlaceId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

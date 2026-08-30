@@ -312,8 +312,10 @@ fn build_payloadless_guarded_call_return_machine(
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Option<CheckedPayloadlessGuardedCallReturnMachinePlan> {
-    let [state] = program.machine_states(machine) else {
-        return None;
+    let (state, tail_state) = match program.machine_states(machine) {
+        [state] => (state, None),
+        [state, tail] => (state, Some(tail)),
+        _ => return None,
     };
     if !machine.lifetime_parameters.is_empty()
         || !program.machine_type_parameters(machine).is_empty()
@@ -338,9 +340,8 @@ fn build_payloadless_guarded_call_return_machine(
         return None;
     }
 
-    let [flow_call] = facts.flow.control.calls.span_or_empty(state_flow.calls) else {
-        return None;
-    };
+    let flow_calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
+    let flow_call = flow_calls.iter().find(|call| call.statement_index == 0)?;
     if flow_call.statement_index != 0
         || flow_call.call_ordinal != 0
         || !flow_call.has_receiver
@@ -490,6 +491,49 @@ fn build_payloadless_guarded_call_return_machine(
             place.root == psi_facts::PlaceRoot::Symbol(saved.symbol) && place.segments.is_empty()
         })
     };
+    if let Some(tail_state) = tail_state {
+        let [parameter] = program.state_parameters(tail_state) else {
+            return None;
+        };
+        let [contract] = program.state_contracts(tail_state) else {
+            return None;
+        };
+        let [StatementNode::Expression(returned)] = program
+            .statement_table
+            .statements(tail_state.statement_nodes)
+        else {
+            return None;
+        };
+        let tail_flow = super::types::state_flow(facts, machine.symbol, tail_state.symbol)?;
+        let returned_parameter = crate::flow::place::contextual_canonical_place_from_expression(
+            program,
+            tail_state.symbol,
+            0,
+            *returned,
+        )
+        .is_some_and(|place| {
+            place.root == psi_facts::PlaceRoot::Symbol(parameter.symbol)
+                && place.segments.is_empty()
+        });
+        if parameter.is_const
+            || parameter.is_mutable
+            || parameter.is_self
+            || !matches!(contract.kind, SignatureContractKind::Requires)
+            || contract.binding.is_none()
+            || program.normalized_type_identity(tail_state.return_type)
+                != program.normalized_type_identity(state.return_type)
+            || !returned_parameter
+            || !facts
+                .flow
+                .control
+                .calls
+                .span_or_empty(tail_flow.calls)
+                .is_empty()
+            || !service_reach_is_empty(facts, tail_flow.service_reach)
+        {
+            return None;
+        }
+    }
     let destructures = statements
         .iter()
         .skip(1)
@@ -510,6 +554,7 @@ fn build_payloadless_guarded_call_return_machine(
     }
     let mut covered_cases = Vec::new();
     let mut covered_arms = Vec::new();
+    let mut tail_arm = None;
     for (offset, statement) in transitions.iter().enumerate() {
         let statement_index = 1 + destructures.len() + offset;
         let StatementNode::Transition(transition) = statement else {
@@ -530,13 +575,24 @@ fn build_payloadless_guarded_call_return_machine(
         }
         covered_cases.push(result_case);
         covered_arms.push((statement_index, result_case));
-        let TransitionTargetNode::Value(value) =
-            program.statement_table.transition_target(transition.target)
-        else {
-            return None;
-        };
-        if !expression_is_saved(*value, statement_index) {
-            return None;
+        match program.statement_table.transition_target(transition.target) {
+            TransitionTargetNode::Value(value) if expression_is_saved(*value, statement_index) => {}
+            TransitionTargetNode::Named {
+                path,
+                arguments,
+                evidence_arguments,
+                ..
+            } if tail_state.is_some_and(|tail| path.symbol == tail.symbol)
+                && tail_arm.is_none()
+                && matches!(
+                    program.statement_table.expression_handles(*arguments),
+                    [argument] if expression_is_saved(*argument, statement_index)
+                )
+                && evidence_arguments.len() == 1 =>
+            {
+                tail_arm = Some(statement_index);
+            }
+            _ => return None,
         }
     }
     if covered_cases.len() != result_cases.len()
@@ -613,6 +669,7 @@ fn build_payloadless_guarded_call_return_machine(
                     guarantee,
                     selected_term,
                     substitutes_result: !validity.referenced_occurrences.is_empty(),
+                    tail_use: None,
                 })
             },
         )
@@ -623,6 +680,62 @@ fn build_payloadless_guarded_call_return_machine(
             selection.guarantee.generation(),
         )
     });
+    match (tail_state, tail_arm) {
+        (None, None) => {
+            if flow_calls.len() != 1 {
+                return None;
+            }
+        }
+        (Some(tail_state), Some(tail_statement_index)) => {
+            if flow_calls.len() != 2 || selected_evidence.len() != 1 {
+                return None;
+            }
+            let selection = selected_evidence.first_mut()?;
+            if selection.arm_statement_index != u32::try_from(tail_statement_index).ok()? {
+                return None;
+            }
+            let tail_flow_call = flow_calls.iter().find(|call| {
+                call.statement_index == tail_statement_index
+                    && call.target_symbol == tail_state.symbol
+            })?;
+            let tail_contract_call = crate::flow::common::proof_contract_call(
+                &facts.proof,
+                machine.symbol,
+                state.symbol,
+                tail_statement_index,
+                tail_flow_call.call_ordinal,
+            )?;
+            let [requirement] = facts
+                .proof
+                .contract_fact_refs
+                .span_or_empty(tail_contract_call.requires)
+            else {
+                return None;
+            };
+            let [argument] = facts
+                .proof
+                .contract_evidence_arguments
+                .span_or_empty(tail_contract_call.evidence_arguments)
+            else {
+                return None;
+            };
+            let requirement = facts.proof.contract_facts.get(requirement.fact);
+            if tail_flow_call.has_receiver
+                || tail_contract_call.target_state_symbol != tail_state.symbol
+                || argument.source != selection.selected_term
+                || argument.lane_position != 0
+                || requirement.evidence_term != Some(argument.parameter)
+            {
+                return None;
+            }
+            selection.tail_use = Some(CheckedPayloadlessGuardedCallEvidenceUsePlan {
+                target_state: tail_state.symbol,
+                input_position: 0,
+                parameter: argument.parameter,
+            });
+        }
+        _ => return None,
+    }
 
     Some(CheckedPayloadlessGuardedCallReturnMachinePlan {
         machine: machine.symbol,

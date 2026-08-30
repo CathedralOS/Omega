@@ -210,6 +210,18 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                     for dependency in &binding.validity.interface_dependencies {
                         writer.id(*dependency);
                     }
+                    writer.u32(binding.expected_use_count);
+                    writer.len("guarded selected evidence uses", binding.uses.len())?;
+                    for use_ in &binding.uses {
+                        writer.id(use_.target);
+                        writer.u32(use_.input_position);
+                        writer.id(use_.target_requirement);
+                        writer.id(use_.target_term);
+                        writer.id(use_.source);
+                        writer.id(use_.instantiated_proposition);
+                        writer.id(use_.target_parameter);
+                        writer.id(use_.caller_result);
+                    }
                 }
             }
             OperationKind::BoundaryCall {
@@ -907,6 +919,19 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                             evidence_interface: decode_evidence_interface(reader)?,
                             interface_dependencies: decode_ids(reader, "PlaceId")?,
                         },
+                        expected_use_count: reader.u32()?,
+                        uses: decode_counted(reader, |reader| {
+                            Ok(psi_terminal::OutcomeSpecificEvidenceUse {
+                                target: reader.id("MachineId")?,
+                                input_position: reader.u32()?,
+                                target_requirement: reader.id("PropositionId")?,
+                                target_term: reader.id("EvidenceTermId")?,
+                                source: reader.id("EvidenceTermId")?,
+                                instantiated_proposition: reader.id("PropositionId")?,
+                                target_parameter: reader.id("PlaceId")?,
+                                caller_result: reader.id("PlaceId")?,
+                            })
+                        })?,
                     })
                 })?,
             },
@@ -1179,6 +1204,8 @@ mod tests {
                 },
                 interface_dependencies: Vec::new(),
             },
+            expected_use_count: 0,
+            uses: Vec::new(),
         });
         let mut writer = Writer::default();
         encode_block(&mut writer, &block).expect("guarded call selection encodes");

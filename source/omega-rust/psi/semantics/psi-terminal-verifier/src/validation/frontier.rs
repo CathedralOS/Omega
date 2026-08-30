@@ -770,7 +770,17 @@ pub(super) fn validate_structural_frontier(
                             })
                     })
                     .expect("control validation requires a structural source declaration");
-                if frontier.owned_places.remove(source).is_none() {
+                let exact_unrestricted_parameter_return = source_signature.1
+                    == StructuralMultiplicity::Unrestricted
+                    && source_signature.2.is_empty()
+                    && matches!(machine.structural_parameters.as_slice(), [parameter]
+                        if parameter.place == *source
+                            && parameter.position == 0
+                            && !parameter.is_self
+                            && parameter.access == StructuralAccess::Owned);
+                if frontier.owned_places.remove(source).is_none()
+                    && !exact_unrestricted_parameter_return
+                {
                     return Err(ModuleError::StructuralReturnSourceNotLive {
                         machine: machine.id,
                         block: block.id,
@@ -813,7 +823,8 @@ pub(super) fn validate_structural_frontier(
                                     && result.qualifications.is_empty()
                                     && result.claims.is_empty()
                             })
-                        });
+                        })
+                    || exact_unrestricted_parameter_return;
                 if (returned_claims.is_empty() && !exact_payloadless_claim_free_return)
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
