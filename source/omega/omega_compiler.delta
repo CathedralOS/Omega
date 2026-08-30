@@ -1,9 +1,9 @@
-// Delta-written Omega compiler D: final Alpha tape encoder.
+// Delta-written Omega compiler D: final boundary-independent foundations.
 //
 // This source intentionally has no Main yet. The canonical sealed Omega
 // compilation request and publication boundary are owner-blocked by Q7. This
-// unit owns only a boundary-independent final component: exact construction of
-// Alpha's [u32 little-endian payload length][payload] tape format.
+// incomplete unit currently owns exact Alpha tape construction and strict
+// source UTF-8 framing. It owns no invented source-unit or package boundary.
 //
 // status is sticky: 0 open, 1 construction capacity, 2 internal misuse.
 // failure_offset is a payload-relative byte offset. failure_requested is the
@@ -25,6 +25,178 @@ data AlphaTapeBuffer {
     failure_offset: i32;
     failure_requested: i32;
     finalized: i32;
+}
+
+data OmegaUtf8Validation {
+    valid: i32;
+    error_offset: i32;
+}
+
+// Validate one exact source byte view. On failure error_offset is the lead byte
+// of the malformed scalar, matching LEXICAL-PROFILE-V1's one-byte diagnostic
+// span. This does not decide where non-ASCII scalars are permitted by the lexer.
+machine OmegaUtf8Validation::validate(&mut self, source: &[u8]) {
+    self.valid = 1;
+    self.error_offset = 0;
+    transition source.len {
+        0 -> return
+        _ -> scan(0)
+    }
+
+    state scan(index: i32) {
+        transition index < source.len {
+            true -> first(index)
+            _ -> return
+        }
+    }
+
+    state first(index: i32) {
+        let byte0: i32 = source[index];
+        transition byte0 < 128 {
+            true -> advance(index, 1)
+            _ -> two_lead(index, byte0)
+        }
+    }
+
+    state two_lead(index: i32, byte0: i32) {
+        transition (byte0 >= 194) && (byte0 <= 223) {
+            true -> two_extent(index)
+            _ -> three_lead(index, byte0)
+        }
+    }
+
+    state two_extent(index: i32) {
+        transition source.len - index >= 2 {
+            true -> two_tail(index)
+            _ -> invalid(index)
+        }
+    }
+
+    state two_tail(index: i32) {
+        let byte1: i32 = source[index + 1];
+        transition (byte1 >= 128) && (byte1 <= 191) {
+            true -> advance(index, 2)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_lead(index: i32, byte0: i32) {
+        transition (byte0 >= 224) && (byte0 <= 239) {
+            true -> three_extent(index, byte0)
+            _ -> four_lead(index, byte0)
+        }
+    }
+
+    state three_extent(index: i32, byte0: i32) {
+        transition source.len - index >= 3 {
+            true -> three_tails(index, byte0)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_tails(index: i32, byte0: i32) {
+        let byte1: i32 = source[index + 1];
+        let byte2: i32 = source[index + 2];
+        transition (byte2 >= 128) && (byte2 <= 191) {
+            true -> three_second(index, byte0, byte1)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_second(index: i32, byte0: i32, byte1: i32) {
+        transition byte0 {
+            224 -> three_e0(index, byte1)
+            237 -> three_ed(index, byte1)
+            _ -> three_regular(index, byte1)
+        }
+    }
+
+    state three_e0(index: i32, byte1: i32) {
+        transition (byte1 >= 160) && (byte1 <= 191) {
+            true -> advance(index, 3)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_ed(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 159) {
+            true -> advance(index, 3)
+            _ -> invalid(index)
+        }
+    }
+
+    state three_regular(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 191) {
+            true -> advance(index, 3)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_lead(index: i32, byte0: i32) {
+        transition (byte0 >= 240) && (byte0 <= 244) {
+            true -> four_extent(index, byte0)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_extent(index: i32, byte0: i32) {
+        transition source.len - index >= 4 {
+            true -> four_tails(index, byte0)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_tails(index: i32, byte0: i32) {
+        let byte1: i32 = source[index + 1];
+        let byte2: i32 = source[index + 2];
+        let byte3: i32 = source[index + 3];
+        transition (byte2 >= 128) && (byte2 <= 191) &&
+            (byte3 >= 128) && (byte3 <= 191) {
+            true -> four_second(index, byte0, byte1)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_second(index: i32, byte0: i32, byte1: i32) {
+        transition byte0 {
+            240 -> four_f0(index, byte1)
+            244 -> four_f4(index, byte1)
+            _ -> four_regular(index, byte1)
+        }
+    }
+
+    state four_f0(index: i32, byte1: i32) {
+        transition (byte1 >= 144) && (byte1 <= 191) {
+            true -> advance(index, 4)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_f4(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 143) {
+            true -> advance(index, 4)
+            _ -> invalid(index)
+        }
+    }
+
+    state four_regular(index: i32, byte1: i32) {
+        transition (byte1 >= 128) && (byte1 <= 191) {
+            true -> advance(index, 4)
+            _ -> invalid(index)
+        }
+    }
+
+    state advance(index: i32, width: i32) {
+        transition true {
+            true -> scan(index + width)
+        }
+    }
+
+    state invalid(index: i32) {
+        self.valid = 0;
+        self.error_offset = index;
+        return;
+    }
 }
 
 machine AlphaTapeBuffer::initialize(&mut self) {
