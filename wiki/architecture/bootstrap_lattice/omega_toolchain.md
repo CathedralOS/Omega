@@ -32,8 +32,8 @@ Delta-written source can run while compiling `C`, producing a better `omega`.
 
 The former restricted Delta-written Darwin compiler prototype was deleted
 rather than relabeled as `D`. It lacked the complete Omega frontend, Psi
-pipeline, optimizer, and product target model; the real closure `D` is authored
-under `source/omega/` from the full contract.
+pipeline, optimizer, and product target model; the real closure `D` is being
+authored under `source/omega/` from the full contract.
 
 ## The source profile used by `C`
 

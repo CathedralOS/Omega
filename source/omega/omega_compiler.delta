@@ -214,6 +214,7 @@ data OmegaTypeConsumer {
     case CasePayloadField;
     case MachineParameter;
     case MachineReturn;
+    case LocalData;
 }
 
 data OmegaPathDestination {
@@ -364,10 +365,11 @@ data OmegaStatementKind {
     case Assignment;
     case Transition;
     case Expression;
+    case LocalData;
 }
 
-// Call, Assignment, and Transition select their dedicated row with item_index.
-// Expression selects the shared expression arena directly.
+// Call, Assignment, Transition, and LocalData select their dedicated row with
+// item_index. Expression selects the shared expression arena directly.
 data OmegaStatementSyntax {
     kind: OmegaStatementKind;
     item_index: i32;
@@ -403,6 +405,16 @@ data OmegaStaticMachineArgumentSyntax {
 data OmegaAssignmentStatementSyntax {
     target: i32;
     value: i32;
+    start: i32;
+    end: i32;
+}
+
+data OmegaLocalDataStatementSyntax {
+    name: OmegaRelativeSpan;
+    type_reference: i32;
+    has_initial_value: i32;
+    initial_value: i32;
+    is_mutable: i32;
     start: i32;
     end: i32;
 }
@@ -482,6 +494,7 @@ data OmegaExpressionConsumer {
     case TransitionSubject;
     case ExpressionStatement;
     case TransitionTargetArgument;
+    case LocalDataInitialValue;
     case IndexedIndex;
 }
 
@@ -619,6 +632,11 @@ data OmegaParseDiagnosticCode {
     case ExpectedReachService;
     case ExpectedIndexedIndex;
     case ExpectedIndexedTail;
+    case ExpectedLocalDataName;
+    case ExpectedLocalDataColon;
+    case ExpectedLocalDataType;
+    case ExpectedLocalDataEnd;
+    case ExpectedLocalDataInitialValue;
     case ExpectedDataFieldEnd;
 }
 
@@ -651,6 +669,7 @@ data OmegaParser {
     statements: [OmegaStatementSyntax; 16384];
     call_statements: [OmegaCallStatementSyntax; 16384];
     assignment_statements: [OmegaAssignmentStatementSyntax; 16384];
+    local_data_statements: [OmegaLocalDataStatementSyntax; 16384];
     transition_statements: [OmegaTransitionStatementSyntax; 16384];
     static_machine_arguments: [OmegaStaticMachineArgumentSyntax; 16384];
     expressions: [OmegaExpressionSyntax; 16384];
@@ -685,6 +704,7 @@ data OmegaParser {
     statement_count: i32;
     call_statement_count: i32;
     assignment_statement_count: i32;
+    local_data_statement_count: i32;
     transition_statement_count: i32;
     static_machine_argument_count: i32;
     expression_count: i32;
@@ -799,6 +819,14 @@ data OmegaParser {
     assignment_pending_operator_end: i32;
     indexed_base_expression: i32;
     indexed_index_expression: i32;
+    local_data_start: i32;
+    local_data_name_start: i32;
+    local_data_name_end: i32;
+    local_data_is_mutable: i32;
+    local_data_type_reference: i32;
+    local_data_has_initial_value: i32;
+    local_data_initial_value: i32;
+    local_data_end: i32;
     struct_literal_consumer: OmegaExpressionConsumer;
     struct_literal_first_type_member: i32;
     struct_literal_type_member_count: i32;
@@ -2905,6 +2933,7 @@ machine OmegaParser::parse_view(
     self.statement_count = 0;
     self.call_statement_count = 0;
     self.assignment_statement_count = 0;
+    self.local_data_statement_count = 0;
     self.transition_statement_count = 0;
     self.static_machine_argument_count = 0;
     self.expression_count = 0;
@@ -3018,6 +3047,14 @@ machine OmegaParser::parse_view(
     self.assignment_pending_operator_end = 0;
     self.indexed_base_expression = 0;
     self.indexed_index_expression = 0;
+    self.local_data_start = 0;
+    self.local_data_name_start = 0;
+    self.local_data_name_end = 0;
+    self.local_data_is_mutable = 0;
+    self.local_data_type_reference = 0;
+    self.local_data_has_initial_value = 0;
+    self.local_data_initial_value = 0;
+    self.local_data_end = 0;
     self.struct_literal_consumer = OmegaExpressionConsumer::CallArgument;
     self.struct_literal_first_type_member = 0;
     self.struct_literal_type_member_count = 0;
@@ -3230,6 +3267,10 @@ machine OmegaParser::parse_view(
             73 -> reach_tail_token()
             74 -> indexed_index_token()
             75 -> indexed_expression_tail_token()
+            76 -> local_data_name_token()
+            77 -> local_data_name_after_mut_token()
+            78 -> local_data_colon_token()
+            79 -> local_data_initial_value_token()
             _ -> internal_failure()
         }
     }
@@ -3563,6 +3604,26 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            76 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataName,
+                source.len,
+                source.len
+            )
+            77 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataColon,
+                source.len,
+                source.len
+            )
+            78 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataColon,
+                source.len,
+                source.len
+            )
+            79 -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataInitialValue,
+                source.len,
+                source.len
+            )
             _ -> internal_failure()
         }
     }
@@ -3614,6 +3675,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::LocalDataInitialValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataEnd,
+                source.len,
+                source.len
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 source.len,
@@ -3651,6 +3717,11 @@ machine OmegaParser::parse_view(
             )
             OmegaExpressionConsumer::TransitionTargetArgument -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedTransitionTargetClose,
+                source.len,
+                source.len
+            )
+            OmegaExpressionConsumer::LocalDataInitialValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataInitialValue,
                 source.len,
                 source.len
             )
@@ -3694,6 +3765,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaExpressionConsumer::LocalDataInitialValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataEnd,
+                source.len,
+                source.len
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 source.len,
@@ -3714,6 +3790,11 @@ machine OmegaParser::parse_view(
                 source.len,
                 source.len
             )
+            OmegaTypeConsumer::LocalData -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataType,
+                source.len,
+                source.len
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldType,
                 source.len,
@@ -3731,6 +3812,11 @@ machine OmegaParser::parse_view(
             )
             OmegaTypeConsumer::MachineReturn -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedMachineReturnEnd,
+                source.len,
+                source.len
+            )
+            OmegaTypeConsumer::LocalData -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataEnd,
                 source.len,
                 source.len
             )
@@ -4665,7 +4751,7 @@ machine OmegaParser::parse_view(
             OmegaKeywordKind::SelfValue -> begin_self_statement_path()
             OmegaKeywordKind::True -> begin_boolean_expression_statement(1)
             OmegaKeywordKind::False -> begin_boolean_expression_statement(0)
-            OmegaKeywordKind::Let -> incomplete_root()
+            OmegaKeywordKind::Let -> begin_local_data_statement()
             OmegaKeywordKind::If -> incomplete_root()
             OmegaKeywordKind::Transition -> begin_transition()
             OmegaKeywordKind::Match -> incomplete_root()
@@ -4679,6 +4765,118 @@ machine OmegaParser::parse_view(
             OmegaPunctuationKind::RightBrace -> finish_current_state()
             _ -> incomplete_root()
         }
+    }
+
+    state begin_local_data_statement() {
+        self.state_has_body_syntax = 1;
+        self.local_data_start = self.scan.token_start;
+        self.local_data_is_mutable = 0;
+        self.local_data_has_initial_value = 0;
+        self.local_data_initial_value = 0;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(76) }
+    }
+
+    state local_data_name_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> local_data_name_identifier()
+            OmegaTokenKind::Keyword -> local_data_name_keyword()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state local_data_name_identifier() {
+        self.local_data_name_start = self.scan.token_start;
+        self.local_data_name_end = self.scan.token_end;
+        transition self.scan.span_equals(
+            source,
+            self.scan.token_start,
+            self.scan.token_end,
+            "mut"
+        ) {
+            1 -> retain_possible_local_data_mut()
+            _ -> retain_local_data_name()
+        }
+    }
+
+    state local_data_name_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            OmegaKeywordKind::SelfValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataName,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+            _ -> retain_local_data_name()
+        }
+    }
+
+    state retain_possible_local_data_mut() {
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(77) }
+    }
+
+    state local_data_name_after_mut_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Identifier -> retain_mutable_local_data_name()
+            OmegaTokenKind::Keyword -> local_data_name_after_mut_keyword()
+            _ -> local_data_colon_token()
+        }
+    }
+
+    state local_data_name_after_mut_keyword() {
+        transition self.scan.keyword {
+            OmegaKeywordKind::SelfType -> local_data_colon_token()
+            OmegaKeywordKind::SelfValue -> local_data_colon_token()
+            _ -> retain_mutable_local_data_name()
+        }
+    }
+
+    state retain_mutable_local_data_name() {
+        self.local_data_is_mutable = 1;
+        transition true { true -> retain_local_data_name() }
+    }
+
+    state retain_local_data_name() {
+        self.local_data_name_start = self.scan.token_start;
+        self.local_data_name_end = self.scan.token_end;
+        self.cursor = self.scan.next_cursor;
+        transition true { true -> scan_semantic(78) }
+    }
+
+    state local_data_colon_token() {
+        transition self.scan.token_kind {
+            OmegaTokenKind::Punctuation -> local_data_colon_punctuation()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataColon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state local_data_colon_punctuation() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Colon -> begin_local_data_type()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataColon,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state begin_local_data_type() {
+        self.type_consumer = OmegaTypeConsumer::LocalData;
+        transition true { true -> begin_type() }
     }
 
     state begin_integer_expression_statement() {
@@ -5951,7 +6149,7 @@ machine OmegaParser::parse_view(
                 retain_right_brace_terminated_path()
             OmegaPunctuationKind::RightBracket ->
                 retain_index_path()
-            OmegaPunctuationKind::Semicolon -> retain_assignment_value_path()
+            OmegaPunctuationKind::Semicolon -> retain_additive_value_path()
             OmegaPunctuationKind::Plus -> path_expression_plus()
             OmegaPunctuationKind::Minus -> path_expression_minus()
             OmegaPunctuationKind::EqualEqual -> retain_transition_operator_path()
@@ -5971,6 +6169,8 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::AssignmentValue ->
                 retain_assignment_value_path()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_local_data_initial_value_path()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_transition_subject_path()
             _ -> incomplete_root()
@@ -5981,6 +6181,8 @@ machine OmegaParser::parse_view(
         transition self.expression_consumer {
             OmegaExpressionConsumer::AssignmentValue ->
                 retain_assignment_value_path()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_local_data_initial_value_path()
             OmegaExpressionConsumer::TransitionSubject ->
                 retain_transition_subject_path()
             _ -> incomplete_root()
@@ -6103,6 +6305,11 @@ machine OmegaParser::parse_view(
                 self.scan.token_start,
                 self.scan.token_end
             )
+            OmegaExpressionConsumer::LocalDataInitialValue -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataInitialValue,
+                self.scan.token_start,
+                self.scan.token_end
+            )
             OmegaExpressionConsumer::IndexedIndex -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedIndexedIndex,
                 self.scan.token_start,
@@ -6121,6 +6328,24 @@ machine OmegaParser::parse_view(
     state retain_assignment_value_path() {
         transition self.expression_consumer {
             OmegaExpressionConsumer::AssignmentValue -> retain_path_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_local_data_initial_value_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_path_expression()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_additive_value_path() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::AssignmentValue ->
+                retain_assignment_value_path()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_local_data_initial_value_path()
             _ -> incomplete_root()
         }
     }
@@ -6392,6 +6617,8 @@ machine OmegaParser::parse_view(
                 retain_path_expression_bounded()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 retain_transition_target_argument_capacity()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_path_expression_bounded()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_path_expression_bounded()
         }
@@ -6443,6 +6670,8 @@ machine OmegaParser::parse_view(
                 retain_expression_statement_path_handle()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 retain_transition_target_argument_handle()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_local_data_initial_value_handle()
             OmegaExpressionConsumer::IndexedIndex ->
                 retain_index_handle()
         }
@@ -6482,6 +6711,12 @@ machine OmegaParser::parse_view(
     }
 
     state retain_assignment_value_handle() {
+        self.assignment_value_expression = self.expression_count;
+        self.expression_count = self.expression_count + 1;
+        transition true { true -> finish_assignment_value_operand() }
+    }
+
+    state retain_local_data_initial_value_handle() {
         self.assignment_value_expression = self.expression_count;
         self.expression_count = self.expression_count + 1;
         transition true { true -> finish_assignment_value_operand() }
@@ -6654,6 +6889,10 @@ machine OmegaParser::parse_view(
         }
     }
 
+    state local_data_initial_value_token() {
+        transition true { true -> assignment_value_token() }
+    }
+
     state assignment_keyword_value() {
         transition self.scan.keyword {
             OmegaKeywordKind::True -> retain_boolean_expression(1)
@@ -6762,7 +7001,6 @@ machine OmegaParser::parse_view(
         self.argument_starts_at_self = 0;
         self.argument_name_member_count = 1;
         self.argument_path_kind = OmegaPathExpressionKind::Name;
-        self.expression_consumer = OmegaExpressionConsumer::AssignmentValue;
         transition true { true -> begin_path_expression() }
     }
 
@@ -6770,7 +7008,6 @@ machine OmegaParser::parse_view(
         self.argument_starts_at_self = 1;
         self.argument_name_member_count = 0;
         self.argument_path_kind = OmegaPathExpressionKind::SelfValue;
-        self.expression_consumer = OmegaExpressionConsumer::AssignmentValue;
         transition true { true -> begin_path_expression() }
     }
 
@@ -6807,6 +7044,8 @@ machine OmegaParser::parse_view(
                 expression_statement_end_punctuation()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 transition_target_argument_end_punctuation()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                assignment_literal_end_punctuation()
             OmegaExpressionConsumer::IndexedIndex -> incomplete_root()
         }
     }
@@ -6958,8 +7197,23 @@ machine OmegaParser::parse_view(
     state finish_assignment_expression() {
         transition self.assignment_has_binary {
             1 -> retain_assignment_binary_expression(0)
-            _ -> retain_assignment_statement()
+            _ -> finish_additive_value()
         }
+    }
+
+    state finish_additive_value() {
+        transition self.expression_consumer {
+            OmegaExpressionConsumer::AssignmentValue -> retain_assignment_statement()
+            OmegaExpressionConsumer::LocalDataInitialValue ->
+                retain_local_data_initial_value()
+            _ -> incomplete_root()
+        }
+    }
+
+    state retain_local_data_initial_value() {
+        self.local_data_initial_value = self.assignment_value_expression;
+        self.local_data_end = self.scan.token_end;
+        transition true { true -> retain_local_data_statement(self.scan.next_cursor) }
     }
 
     state continue_assignment_expression() {
@@ -7017,7 +7271,7 @@ machine OmegaParser::parse_view(
         self.binary_expression_count = self.binary_expression_count + 1;
         self.expression_count = self.expression_count + 1;
         transition continuation {
-            0 -> retain_assignment_statement()
+            0 -> finish_additive_value()
             _ -> begin_next_assignment_binary_operand()
         }
     }
@@ -7060,6 +7314,49 @@ machine OmegaParser::parse_view(
         self.assignment_statement_count = self.assignment_statement_count + 1;
         self.statement_count = self.statement_count + 1;
         self.cursor = self.scan.next_cursor;
+        transition true { true -> resume_state_body() }
+    }
+
+    state retain_local_data_statement(next_cursor: i32) {
+        transition (self.statement_count < 16384) &&
+            (self.local_data_statement_count < 16384) {
+            true -> retain_local_data_statement_bounded(next_cursor)
+            _ -> resource_failure(
+                OmegaParserResource::Statements,
+                16384,
+                self.statement_count + 1
+            )
+        }
+    }
+
+    state retain_local_data_statement_bounded(next_cursor: i32) {
+        self.local_data_statements[self.local_data_statement_count].name.start =
+            self.local_data_name_start;
+        self.local_data_statements[self.local_data_statement_count].name.end =
+            self.local_data_name_end;
+        self.local_data_statements[
+            self.local_data_statement_count
+        ].type_reference = self.local_data_type_reference;
+        self.local_data_statements[
+            self.local_data_statement_count
+        ].has_initial_value = self.local_data_has_initial_value;
+        self.local_data_statements[
+            self.local_data_statement_count
+        ].initial_value = self.local_data_initial_value;
+        self.local_data_statements[
+            self.local_data_statement_count
+        ].is_mutable = self.local_data_is_mutable;
+        self.local_data_statements[self.local_data_statement_count].start =
+            self.local_data_start;
+        self.local_data_statements[self.local_data_statement_count].end =
+            self.local_data_end;
+        self.statements[self.statement_count].kind =
+            OmegaStatementKind::LocalData;
+        self.statements[self.statement_count].item_index =
+            self.local_data_statement_count;
+        self.local_data_statement_count = self.local_data_statement_count + 1;
+        self.statement_count = self.statement_count + 1;
+        self.cursor = next_cursor;
         transition true { true -> resume_state_body() }
     }
 
@@ -7745,6 +8042,11 @@ machine OmegaParser::parse_view(
                 start,
                 end
             )
+            OmegaTypeConsumer::LocalData -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataType,
+                start,
+                end
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldType,
                 start,
@@ -8225,6 +8527,11 @@ machine OmegaParser::parse_view(
                 start,
                 end
             )
+            OmegaTypeConsumer::LocalData -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataEnd,
+                start,
+                end
+            )
             _ -> syntax_failure(
                 OmegaParseDiagnosticCode::ExpectedDataFieldEnd,
                 start,
@@ -8455,6 +8762,45 @@ machine OmegaParser::parse_view(
             OmegaTypeConsumer::CasePayloadField -> case_payload_field_end()
             OmegaTypeConsumer::MachineParameter -> machine_parameter_end()
             OmegaTypeConsumer::MachineReturn -> machine_return_end()
+            OmegaTypeConsumer::LocalData -> local_data_type_end()
+        }
+    }
+
+    state local_data_type_end() {
+        transition self.scan.punctuation {
+            OmegaPunctuationKind::Equal -> retain_initialized_local_data_type()
+            OmegaPunctuationKind::Semicolon -> retain_uninitialized_local_data_type()
+            OmegaPunctuationKind::ColonColon -> incomplete_root()
+            OmegaPunctuationKind::Less -> incomplete_root()
+            OmegaPunctuationKind::LeftBracket -> incomplete_root()
+            OmegaPunctuationKind::Hash -> incomplete_root()
+            OmegaPunctuationKind::Ampersand -> incomplete_root()
+            _ -> syntax_failure(
+                OmegaParseDiagnosticCode::ExpectedLocalDataEnd,
+                self.scan.token_start,
+                self.scan.token_end
+            )
+        }
+    }
+
+    state retain_initialized_local_data_type() {
+        self.local_data_has_initial_value = 1;
+        transition true {
+            true -> retain_type_for_consumer(
+                self.type_end,
+                self.scan.next_cursor
+            )
+        }
+    }
+
+    state retain_uninitialized_local_data_type() {
+        self.local_data_has_initial_value = 0;
+        self.local_data_end = self.scan.token_end;
+        transition true {
+            true -> retain_type_for_consumer(
+                self.scan.token_end,
+                self.scan.next_cursor
+            )
         }
     }
 
@@ -8574,6 +8920,10 @@ machine OmegaParser::parse_view(
                 next_cursor
             )
             OmegaTypeConsumer::MachineReturn -> retain_type_nodes(
+                member_end,
+                next_cursor
+            )
+            OmegaTypeConsumer::LocalData -> retain_type_nodes(
                 member_end,
                 next_cursor
             )
@@ -8914,7 +9264,24 @@ machine OmegaParser::parse_view(
             OmegaTypeConsumer::MachineReturn -> retain_machine_return_type(
                 next_cursor
             )
+            OmegaTypeConsumer::LocalData -> retain_local_data_type(next_cursor)
         }
+    }
+
+    state retain_local_data_type(next_cursor: i32) {
+        self.local_data_type_reference = self.type_root;
+        transition self.local_data_has_initial_value {
+            1 -> begin_local_data_initial_value(next_cursor)
+            _ -> retain_local_data_statement(next_cursor)
+        }
+    }
+
+    state begin_local_data_initial_value(next_cursor: i32) {
+        self.expression_consumer = OmegaExpressionConsumer::LocalDataInitialValue;
+        self.assignment_has_binary = 0;
+        self.assignment_binary_left = 0;
+        self.cursor = next_cursor;
+        transition true { true -> scan_semantic(79) }
     }
 
     state retain_machine_return_type(next_cursor: i32) {

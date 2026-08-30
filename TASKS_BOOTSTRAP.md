@@ -119,10 +119,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     tape publication, and refinement.
   - [ ] Materialize the Delta compiler source, tape, and adjacent validation in
     `source/delta/compiler/` under D17; section 4 owns the implementation.
-  - [ ] Author `source/omega/omega_compiler.delta` under D17; section 5 owns
-    the implementation. This source work does not wait for the physical
-    Gamma/Delta compiler artifacts.
-  - [ ] **DEPENDENCY-BLOCKED — missing Gamma/Delta compilers and missing `D`.**
+  - [ ] Complete `source/omega/omega_compiler.delta` under D17; section 5 owns
+    the existing incomplete implementation. This source work does not wait for
+    the physical Gamma/Delta compiler artifacts.
+  - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compilers and `D`.**
     Materialize the resulting `omega0_compiler_bytecode.tape` only after
     the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
     section 6 owns completion of the existing `build.omg`/`main.omg` closure and
@@ -920,11 +920,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     ordered locals participate in the early collection phase. Do not retain a
     collector that guesses those accepted-language and rejection-priority
     rules.
-- [ ] Derive compact positive, negative, trap, and
-  private-budget `Incomplete` conformance directly from the frozen Delta
-  contract. Do not recreate cases that merely pin quirks of the removed
-  translator.
-- [ ] **DEPENDENCY-BLOCKED — missing `delta_compiler.gamma`.** Run that
+- [ ] Derive compact positive, negative, trap, and private-budget `Incomplete`
+  conformance directly from settled portions of the Delta contract. Q4 blocks
+  duplicate-identity and dependent rejection-priority vectors, not independent
+  lexical, syntax, encoder, or resource cases. Do not recreate cases that
+  merely pin quirks of the removed translator or materialize another unrun
+  corpus.
+- [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
+  and run that
   contract-derived suite through the real Gamma-written compiler and bind every
   outcome to its no-partial-tape behavior.
   - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
@@ -1298,9 +1301,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
       for both sides before Complete-only machine/root publication. This
       completes seven more real current `C` roots—`SourceUnit::clear`,
       `TokenStream::{clear,reject}`, `SyntaxTrees::{clear,reject}`,
-      `Parser::initialize`, and `Parser::initialize_cursor`—raising completed
-      roots from four to eleven while all 54 representable headers still reach
-      the body boundary. Keep exact path-kind, literal-span, delimiter,
+      `Parser::initialize`, and `Parser::initialize_cursor`—and also completes
+      the previously omitted `Lexer::tokenize` root through the same ordinary
+      call/assignment/transition grammar. Completed roots therefore rise from
+      four to twelve while all 54 representable headers still reach the body
+      boundary. Keep exact path-kind, literal-span, delimiter,
       expression/statement-capacity, reset, mixed-call/assignment, and partial-
       publication vectors at the real Delta-compiler gate.
     - [x] Retain the first canonical static machine-call argument lane:
@@ -1318,7 +1323,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       parsing.
       This completes all four target-scoped
       `ConsoleNativeProvider::provider_defaults` roots, raising completed
-      current `C` roots from eleven to fifteen while body-boundary coverage
+      current `C` roots from twelve to sixteen while body-boundary coverage
       remains 54 of 73. Keep exact path/list/delimiter, static-versus-value
       ownership, capacity, reset, and Complete-only publication vectors at the
       real Delta-compiler gate.
@@ -1335,7 +1340,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       arrays, struct literals, casts, indexing, and nested calls remain
       implementation-incomplete. This completes the real `psi` package build
       root (`builder.package("psi");`), raising completed current `C` roots from
-      fifteen to sixteen while body-boundary coverage remains 54 of 73. Keep
+      sixteen to seventeen while body-boundary coverage remains 54 of 73. Keep
       exact literal/span/decoded-length, consumer/delimiter, capacity, reset,
       and partial-publication vectors at the real Delta-compiler gate.
     - [x] Retain shallow named struct literals as ordinary expression nodes for
@@ -1351,7 +1356,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       remain implementation-incomplete until a real bounded expression-frame
       design exists; no recursive scratch state may overwrite an outer literal.
       This completes `Lexer::initialize` and the canonical Omega package build
-      root, raising completed current `C` roots from sixteen to eighteen while
+      root, raising completed current `C` roots from seventeen to nineteen while
       body-boundary coverage remains 54 of 73. Keep exact record-versus-case
       type paths, field/value/delimiter spans, empty/trailing-comma behavior,
       capacity, reset, nested-incomplete, and Complete-only publication vectors
@@ -1374,7 +1379,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       arrival contracts, and richer state bodies remain implementation-
       incomplete rather than being skipped or misrejected. This completes
       `Lexer::{is_whitespace,push_decoded}`, raising completed current `C` roots
-      from eighteen to twenty while all 54 representable headers still reach
+      from nineteen to twenty-one while all 54 representable headers still reach
       the body boundary. Keep exact implicit-entry presence, state ordering,
       per-state ownership, transition expansion, guard/target spans, resource,
       reset, and partial-publication vectors at the real Delta-compiler gate.
@@ -1389,8 +1394,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       adjacency-separated services, and all other clauses remain
       implementation-incomplete. This completes
       `ConsoleNativeProvider::{write,write_line}`, raising completed current
-      `C` roots from twenty to twenty-two while body-boundary coverage remains
-      54 of 73. Keep exact clause/member/order/delimiter, no-parentheses header,
+      `C` roots from twenty-one to twenty-three and body-boundary coverage from
+      54 to 56 of 73. Keep exact clause/member/order/delimiter, no-parentheses header,
       resource, reset, and Complete-only publication vectors at the real Delta-
       compiler gate.
     - [x] Materialize the first source-ordered binary-expression layer instead
@@ -1403,8 +1408,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       unary and grouped operands, postfix continuations, and binary expressions in other
       consumers remain implementation-incomplete until their shared precedence
       frame exists. This completes `Lexer::emit_punctuation`, raising completed
-      current `C` roots from twenty-two to twenty-three while body-boundary
-      coverage remains 54 of 73. Keep exact associativity/operator/delimiter,
+      current `C` roots from twenty-three to twenty-four while body-boundary
+      coverage remains 56 of 73. Keep exact associativity/operator/delimiter,
       mixed-primary, expression-capacity, reset, and partial-publication vectors
       at the real Delta-compiler gate.
     - [x] Add one bounded nonrecursive precedence frame for transition subjects
@@ -1420,8 +1425,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and targets. Extending the assignment layer to subtraction shares the
       same operator representation. This completes
       `Lexer::{is_identifier_start,is_identifier_continue,hex_digit_value}`,
-      raising completed current `C` roots from twenty-three to twenty-six while
-      body-boundary coverage remains 54 of 73. Keep exact precedence,
+      raising completed current `C` roots from twenty-four to twenty-seven while
+      body-boundary coverage remains 56 of 73. Keep exact precedence,
       associativity, reduction-depth, mixed-primary, resource, reset, and
       Complete-only publication vectors at the real Delta-compiler gate.
     - [x] Retain the first indexed assignment place as an ordinary expression
@@ -1435,7 +1440,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and compound assignment remain implementation-
       incomplete. This completes `SourceUnit::append` and
       `TokenStream::push_decoded`, raising completed current `C` roots from
-      twenty-six to twenty-eight while body-boundary coverage remains 54 of
+      twenty-seven to twenty-nine while body-boundary coverage remains 56 of
       73. `TokenStream::push` still requires its transition target argument.
       Keep exact base/index/bracket/equal spans, expression/path capacity,
       richer-postfix incompleteness, reset, and Complete-only publication
@@ -1449,8 +1454,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       while the state-closing `}` selects it as a terminal value. Richer
       postfix/index forms and nonterminal bare expressions remain
       implementation-incomplete. This completes `SourceUnit::byte_or_nul`,
-      raising completed current `C` roots from twenty-eight to twenty-nine while
-      body-boundary coverage remains 54 of 73. Keep exact terminal/bracket
+      raising completed current `C` roots from twenty-nine to thirty while
+      body-boundary coverage remains 56 of 73. Keep exact terminal/bracket
       spans, value/place discrimination, statement/expression capacity, reset,
       and Complete-only publication vectors at the real Delta-compiler gate.
     - [x] Retain subjectless `transition { ... }` blocks as the canonical
@@ -1458,7 +1463,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Every expanded arm now records subject presence separately from its
       optional expression handle; the existing explicit-subject precedence
       frame remains unchanged. This covers all 49 subjectless transitions in
-      the current `C` closure. It does not raise the twenty-nine complete-root count
+      the current `C` closure. It does not raise the thirty complete-root count
       yet because every owning root also contains target arguments, local
       bindings, casts, or another unretained form. Keep zero-versus-one-subject,
       wildcard, reset, and Complete-only publication vectors at the real
@@ -1471,25 +1476,65 @@ code, discover a closure, manufacture proof premises, or decide admission.
       implementation-incomplete. Each expanded transition row owns its exact
       contiguous argument span, and no target-specific expression arena is
       introduced. This legitimately completes `TokenStream::push`, raising
-      completed current `C` roots from twenty-nine to thirty while body-
-      boundary coverage remains 54 of 73. Keep exact argument order,
+      completed current `C` roots from thirty to thirty-one while body-
+      boundary coverage remains 56 of 73. Keep exact argument order,
       delimiter/trailing-comma behavior, expression/argument capacity, reset,
       and Complete-only publication vectors at the real Delta-compiler gate.
-- [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
-  complete Omega specification, including difficult features even if `D`
-  itself uses only plain Delta. Conservative lowering and poor optimization are
-  allowed; weakened Omega semantics are not.
-- [ ] **DEPENDENCY-BLOCKED — missing Gamma/Delta compilers and `D`.** Compile `D` with `delta_compiler_bytecode.tape` into
+    - [x] Retain canonical local-data statements as dedicated source-shaped
+      rows: `let [mut] name: Type [= expression];`. `mut` is contextual only
+      when followed by another name-like token, so `let mut: T;` remains an
+      immutable binding named `mut`. Each row owns the exact name and statement
+      spans, one shared type-engine handle, explicit initializer presence and
+      handle, and mutability. Initializers reuse the assignment lane's existing
+      left-associated `+`/`-` grammar over retained path, Boolean, unsuffixed
+      decimal-integer, string, and shallow-struct primaries; no local-only type
+      or expression parser is introduced. `Statements` and `TypeNodes`
+      dominate the equal local-data table, so it adds no resource kind. Call,
+      cast, indexed, unary, grouped, and other richer initializers remain
+      implementation-incomplete. This completes `Lexer::{retain_token,
+      classify_keyword,lex_identifier,lex_whitespace,consume_suffix}`, raising
+      completed current `C` roots from thirty-one to thirty-six while body-
+      boundary coverage remains 56 of 73. Keep exact contextual-mut,
+      initialized/uninitialized, type/expression consumer isolation, capacity,
+      reset, and Complete-only publication vectors at the real Delta-compiler
+      gate.
+    - [ ] Retain ordinary call expressions as expression nodes and share their
+      receiver, target, static-argument, runtime-argument, and delimiter parser
+      with call statements without reusing the statement-only flattened row as
+      a fake initializer. This is the current first blocker in twelve of the
+      twenty body-reaching incomplete `C` roots: `Main::main` and
+      `Lexer::{decode_at,span_equals,lex_line_comment,lex_block_comment,
+      copy_source_to_decoded,lex_cooked_string,consume_digits,lex_number,
+      lex_punctuation,reject_raw_string_candidate,is_raw_string_candidate}`.
+      Preserve general expression ownership and leave chained calls and other
+      richer postfix forms incomplete until their shared representation lands.
+    - [ ] Generalize indexed expressions into the local-initializer lane for
+      `Parser::{parse_data,skip_trivia,parse_roots}`; generalize additive
+      ordinary call arguments for `Lexer::{validate_utf8,dot_starts_float,
+      lex_next}`; retain qualified case guards for `Lexer::digit_in_base`; and
+      retain the already-specified cast form in transition-target arguments for
+      `Parser::load_current`. Each is an ordinary syntax capability, not a
+      closure-specific rewrite.
+- [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
+  Complete `D` against the full Omega specification, including difficult
+  features even if `D` itself uses only plain Delta. Conservative lowering and
+  poor optimization are
+  allowed; weakened Omega semantics are not. Q1, Q8, Q9, and Q10 still own
+  unresolved full-spec compiler contracts, but they do not block continued
+  implementation of settled parser, semantic, and lowering slices.
+- [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
+  Compile `D` with `delta_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full
   Omega acceptance/rejection suite.
-- [ ] **DEPENDENCY-BLOCKED — missing `D` and `omega0`.** Verify that product
+- [ ] **DEPENDENCY-BLOCKED — incomplete `D` and absent `omega0`.** Verify that product
   target realization remains inside Omega. The bootstrap compiler itself
   remains Alpha tape even when the programs it compiles target ARM64, x86-64,
   UEFI, or another product target.
 
 ## 6. Omega-written full compiler `C`
 
-- [ ] Publish one deterministic package-resolved Omega closure `C` rooted at
+- [ ] **OWNER-BLOCKED — Q7.** Publish one deterministic package-resolved Omega
+  closure `C` rooted at
   `source/omega/build.omg`. Psi modules are included only when imported by the
   compiler executable; interpreters, viewers, REPLs, proof explorers, and other
   adjacent tools are excluded unless truly required.
@@ -1500,7 +1545,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   mismatched standalone source-snapshot/census command, compiler route, schemas,
   and gates are already deleted rather than retained as a second bootstrap
   observation. Freeze that final checked production closure only when `C`
-  itself is complete; do not revive an inspection-only precursor.
+  itself is complete; do not revive an inspection-only precursor. Q7 blocks
+  final source custody and publication, not continued authoring of the closure.
 - [ ] Author `C` with a conservative compositional subset of ordinary Omega to
   simplify the first self-build. This is an incidental source profile, never a
   named dialect or permission for `omega₀` to implement less than full Omega.

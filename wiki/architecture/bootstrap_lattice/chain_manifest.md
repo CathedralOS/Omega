@@ -37,9 +37,9 @@ receipt ceremony without a semantic edge has negative maintenance value.
 | --- | --- | --- | --- |
 | Alpha VM seed | native assembly | audited realization of `source/alpha/SEMANTICS.md` | Darwin arm64 and Windows x64 seeds exist; human binary/listing and physical-platform admissions remain irreducible |
 | Beta compiler | Alpha | exact Alpha source refines the exact Beta-compiler tape | canonical source and direct artifact exist; full refinement and resource outcomes remain open |
-| Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | D16 fixes the language and compiler boundary; standalone compiler source, tape, and refinement remain open |
-| Delta compiler | Gamma | exact Gamma source refines the exact Delta-compiler tape | D17 fixes Delta v1 and the compiler boundary; source, tape, suite, and refinement remain open |
-| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | `D` is not yet authored; the obsolete native prototype was deleted |
+| Gamma compiler | Beta | exact Beta source refines the exact Gamma-compiler tape | D16 fixes the language and compiler boundary; incomplete source exists, while lowering, tape, and refinement remain open |
+| Delta compiler | Gamma | exact Gamma source refines the exact Delta-compiler tape | D17 fixes Delta v1 and the compiler boundary; incomplete source owns syntax and symbolic encoding, while semantics, lowering, tape, suite, and refinement remain open |
+| `omega₀` | Delta closure `D` | exact `D` refines a full Omega compiler represented as Alpha tape | incomplete `D` owns lexical, parser, and Alpha-encoder slices; the full compiler and edge remain open |
 | `omega` | Omega closure `C` | exact `C`, compiled by `omega₀`, refines a full Omega compiler represented as Alpha tape | product source is incomplete; edge is open |
 
 No later fixed point repairs an open earlier row. Every row must stand on its
