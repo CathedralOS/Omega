@@ -94,13 +94,16 @@ class Interp:
             if op == '!=': return 1 if a != b else 0
         raise Trap()
 
-    # a proc body is: leading entry statements, then `state` blocks; entry falls into the first state.
+    # Migration debt under BETA-FLATTENED-CFG-INITIALIZATION: this projection is
+    # top-level-only and hoists loose statements. It must recursively flatten
+    # ordinary-prefix/state-suffix blocks in depth-first lexical order before
+    # this reference can witness the settled Beta semantics.
     def run_proc(self, proc, argvals):
         _, name, params, body = proc
         env = {}
         for i, p in enumerate(params):
             env[p] = argvals[i] if i < len(argvals) else 0
-        # blocks: index 0 = entry stmts (non-state, in order); then one per state, in order.
+        # Current stale projection; see the migration note above.
         blocks = [[]]
         labels = {}
         for s in body:

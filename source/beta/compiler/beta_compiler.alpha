@@ -1,12 +1,14 @@
 ; beta_compiler.alpha — canonical Alpha-written compiler for Beta.
 ;
-; Accepted source:
-;   proc IDENT(PARAMS) { STATEMENT* }
-;   STATEMENT := 'let' IDENT '=' EXPR | IDENT '=' EXPR | 'return' EXPR
-;              | 'state' IDENT '{' STATEMENT* '}'
-;              | 'to' IDENT ('when' EXPR)?
-;              | ('byte'|'word') '[' EXPR ']' '=' EXPR
-;              | IDENT '(' ARGS ')' | 'emit' '(' STRING ')'
+; Normative source (BETA-FLATTENED-CFG-INITIALIZATION; enforcement migration
+; remains open below):
+;   proc IDENT(PARAMS) BLOCK
+;   BLOCK := '{' ORDINARY* STATE* '}'
+;   STATE := 'state' IDENT BLOCK
+;   ORDINARY := 'let' IDENT '=' EXPR | IDENT '=' EXPR | 'return' EXPR
+;             | 'to' IDENT ('when' EXPR)?
+;             | ('byte'|'word') '[' EXPR ']' '=' EXPR
+;             | IDENT '(' ARGS ')' | 'emit' '(' STRING ')'
 ;   EXPR := SUM (('<'|'>'|'=='|'!='|'<='|'>=') SUM)?
 ;   SUM := TERM (('+' | '-') TERM)*
 ;   TERM := FACTOR (('*' | '/' | '%') FACTOR)*
@@ -16,7 +18,9 @@
 ; Whitespace and `;` line comments are accepted between tokens. Decimal
 ; literals are checked across the complete unsigned 64-bit Word range. Character
 ; literals accept printable bytes plus \n \t \r \0 \\ \'. The whole source is
-; validated before any output is published.
+; validated before any output is published. Nested STATE rows already emit in
+; normative depth-first lexical order. The remaining formation, combined-depth,
+; and fixed-point initialization checks are tracked in TASKS_BOOTSTRAP.md.
 ;
 ; Globals (i64):
 ;   524288 LEN       524296 CUR       524304 ERROR     524312 EMIT

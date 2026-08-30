@@ -11,7 +11,8 @@ types, effects, ownership, or proofs.
 
 - named procedures, parameters, locals, calls, and recursion;
 - explicit stack frames and a fixed calling convention;
-- CFG-shaped state blocks and guarded transitions;
+- recursively organized state blocks that flatten to one procedure-wide CFG,
+  guarded transitions, and fixed-point definite initialization;
 - one fixed-width scalar plus raw byte/word memory; and
 - deterministic byte I/O and fixed-text emission.
 
@@ -19,6 +20,11 @@ Beta's meaning is the written small-step
 [`SEMANTICS.md`](../../../../source/beta/SEMANTICS.md). The canonical Beta
 compiler is written in Alpha and emits Alpha tape. Its output is the standalone
 compiler used to consume the Beta-written Gamma compiler source.
+
+Nested state braces are an authoring aid for substantial compiler CFGs, not a
+second control hierarchy. Labels and locals remain procedure-wide; exact
+depth-first lexical flattening and every-path initialization keep the Alpha
+compiler and its proof obligations finite and explicit.
 
 ## Current implementation
 

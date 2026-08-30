@@ -26,11 +26,11 @@ higher rungs.
 program    := proc*
 proc       := 'proc' IDENT '(' params? ')' block
 params     := IDENT (',' IDENT)*
-block      := '{' statement* '}'
-statement  := 'let' IDENT '=' expr            ; declare + init a local
+block      := '{' ordinary* state* '}'
+state      := 'state' IDENT block              ; recursively authored, flat CFG label
+ordinary   := 'let' IDENT '=' expr             ; declare + init a local
             | IDENT '=' expr                  ; assign a local
             | store                           ; write memory
-            | 'state' IDENT block             ; a CFG basic block (a label + its body)
             | 'to' IDENT ('when' expr)?       ; a transition: jump, or guarded jump
             | 'return' expr
             | call                            ; call for effect (result discarded)
@@ -45,6 +45,29 @@ cmpop      := '<' | '>' | '==' | '<=' | '>=' | '!='
 CHAR       := "'" (char | '\' ('n'|'t'|'r'|'0'|'\'|"'")) "'"   ; the byte value
 INT        := decimal digits whose mathematical value is in 0..2^64-1
 ```
+
+**BETA-FLATTENED-CFG-INITIALIZATION.** Every procedure body and state body has
+the same recursive authored shape: an ordinary-statement prefix followed by
+zero or more state declarations. Once a state declaration begins in one block,
+no loose ordinary statement may follow it in that block. Within the ordinary
+prefix, `return` and an unconditional `to` must be the final ordinary statement;
+following state declarations remain legal because they declare separately
+targetable blocks.
+
+Nesting organizes source but does not create hierarchical runtime control or
+scope. State declarations flatten to procedure-wide labels in exact depth-first
+lexical order: emit a state's label, visit its ordinary prefix, recursively
+visit its child states, then continue with the next state after that subtree.
+An unterminated final child therefore falls through to the next outer sibling.
+All state names are unique and targetable throughout their procedure; braces do
+not qualify a state name or restrict a `to` edge.
+
+Locals likewise occupy procedure-wide frame slots rather than block scopes. A
+`let` declaration becomes visible from its position in the flattened lexical
+order through the remainder of the procedure. Its initializer establishes the
+slot only after the expression succeeds. A later assignment to a resolved slot
+also establishes it after evaluating its right-hand side; reads require
+every-path establishment under the rules in `SEMANTICS.md`.
 
 `;`-to-end-of-line comments. `read_byte()` / `write_byte(x)` are built-in calls
 (the only host boundary, straight to Alpha `read`/`write`); a call may also stand
@@ -68,7 +91,7 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 | reading `x` | `load` from its frame slot |
 | `f(args...)` | evaluate args into `r0..r3` (spilling caller-saved live values to the frame first); `call f`; result in `r0` |
 | `expr` | stack-based evaluation for `+ - * / %` and comparisons |
-| `state S { ... }` | a label `<proc>__S:`; falls through to the next state |
+| `state S { ... }` | a procedure-wide label `<proc>__S:` in depth-first lexical order; falls through to the next flattened state |
 | `to S` / `to S when e` | `jmp <proc>__S` / evaluate `e`, `jz` past a `jmp` to it |
 | `return e` | evaluate `e` into `r0`; epilogue; `ret` |
 | `byte[e]` / `word[e]` | checked logical raw-memory address, physical-region bias, then `loadb` / `load`; stores analogously |

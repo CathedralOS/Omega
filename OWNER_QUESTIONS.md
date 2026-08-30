@@ -219,72 +219,7 @@ failures.
 - Tempting but wrong: make Alpha I/O effects directly callable from arbitrary
   Gamma source merely to avoid defining the compiler-entry adapter.
 
-## Q4 — Fix Beta block formation and definite-initialization reachability
-
-### Context
-
-Beta procedures have one entry block and an ordered state-machine CFG. A call
-binds only parameters; every other local becomes initialized when its `let` is
-executed. The Alpha-written compiler currently proves only that a referenced
-slot was declared earlier in source order. A jump may skip that initializing
-store, so source-order lookup is not the required every-path property.
-
-The implementation audit produced a bounded forward must-analysis over the
-entry plus at most 1,024 state blocks. It records per-block reads-before-write,
-writes, reachability, fallthrough, and per-transition write prefixes, then
-intersects initialization at joins. That machinery fits below the existing
-1 MiB compiler source buffer and needs no new Beta feature.
-
-### Problem statement
-
-Two language-formation choices remain unstated:
-
-1. `LANGUAGE.md` recursively includes `state` as a statement in any block,
-   while `SEMANTICS.md` describes a flat entry block followed by ordered state
-   blocks. Decide whether nested states and loose ordinary statements after the
-   first state are valid and, if so, exactly how they become blocks and acquire
-   fallthrough edges.
-2. Define the static reachability criterion for initialization. In particular,
-   decide whether every guarded `to S when e` contributes both its target and
-   false-continuation successors even when `e` appears constant, and whether
-   reads in syntactically unreachable blocks are checked.
-
-These choices change which Beta programs are well formed. They cannot be
-selected solely inside `beta_compiler.alpha`.
-
-### Proposed direction
-
-Keep Beta's state graph flat and mechanically auditable:
-
-- a procedure body consists of ordinary entry statements followed by zero or
-  more sibling `state` declarations;
-- a state body contains ordinary statements but no nested `state` declaration;
-- no loose ordinary statement follows the first sibling state declaration;
-- sibling state blocks fall through in source order, while `return` and an
-  unconditional `to` terminate the remaining path in their block;
-- a guarded `to` always contributes both target and false-continuation edges
-  for definite initialization, without constant folding or call reasoning; and
-- only blocks reachable from that procedure's entry under those syntactic
-  edges are checked for reads-before-initialization. Every procedure is analyzed
-  independently, including one with no callers.
-
-This gives one deterministic, terminating byte-vector must-analysis and keeps
-semantic acceptance independent of optimizer sophistication.
-
-### Alternates
-
-- Acceptable: permit nested states if flattening, name scope, source order, and
-  fallthrough are specified without depending on compiler traversal accidents.
-- Acceptable: require every syntactic block, including unreachable blocks, to
-  be initialization-safe; this is simpler but deliberately rejects more dead
-  source and must be stated as formation rather than runtime meaning.
-- Tempting but wrong: infer a constant guard or callee result in the bootstrap
-  compiler to recover initialization, making well-formedness depend on an
-  increasingly sophisticated evaluator.
-- Tempting but wrong: zero-initialize generated frame slots and call the gap
-  closed; that changes Beta's written local semantics and hides skipped stores.
-
-## Q5 — Select the canonical Beta compiler outcome carrier
+## Q4 — Select the canonical Beta compiler outcome carrier
 
 ### Context
 
@@ -348,7 +283,7 @@ impossible fixup/table condition maps to `InternalFailure`.
 - Tempting but wrong: prepend a success tag to Alpha tape and thereby change the
   canonical artifact bytes or require a stripping stage.
 
-## Q6 — Compose the exact Alpha-to-Beta edge within checker capacity
+## Q5 — Compose the exact Alpha-to-Beta edge within checker capacity
 
 ### Context
 
@@ -410,7 +345,7 @@ of adding an assembly-specific evaluator path.
   primitive, trust a producer receipt, compare hashes, or weaken exact total
   partitioning.
 
-## Q7 — Own the ranked native-fuel sponsor entry
+## Q6 — Own the ranked native-fuel sponsor entry
 
 ### Context
 
@@ -458,7 +393,7 @@ prove the final call target is exactly that admitted sponsor entry.
 - Tempting but wrong: append an anonymous helper, magic host callback, script,
   or test-only trampoline and treat successful execution as chain evidence.
 
-## Q8 — Semantic loci for the remaining dangerous-authority classes
+## Q7 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 

@@ -36,7 +36,7 @@ second assembler invocation participates.
 The former Alpha-written status reconstructor was deleted after measured proof
 work showed that it could not become the selected checked derivation. It was a
 parallel assembly semantics, not an admission premise. The exact source/tape
-certificate remains open under OWNER Q6 (the exact Alpha-to-Beta edge) in
+certificate remains open under OWNER Q5 (the exact Alpha-to-Beta edge) in
 `OWNER_QUESTIONS.md`.
 
 The committed artifact is 20,977 bytes with SHA-256
@@ -45,18 +45,21 @@ The byte comparison, not the convenient digest, governs repository identity.
 
 ## Current compiler resource profile
 
-The Alpha-written compiler enforces the following fixed private ceilings before
-publishing any tape. They bound the implementation accepted by the current
-edge; they do not settle OWNER Q5's typed `Complete` / `Reject` / `Incomplete` /
-internal-failure carrier. The focused gate therefore requires every refused
-adjacent case to return nonzero with empty stdout, without assigning that raw
-status its future language-level meaning.
+The selected compiler profile fixes the following private ceilings before tape
+publication. The compiler currently enforces every row except state-block
+participation in the combined syntax-depth row, whose missing guard is tracked
+under **BETA-FLATTENED-CFG-INITIALIZATION**. These ceilings bound the
+implementation accepted by the current edge; they do not settle OWNER Q4's
+typed `Complete` / `Reject` / `Incomplete` / internal-failure carrier. The
+focused gate therefore requires every refused adjacent case to return nonzero
+with empty stdout, without assigning that raw status its future language-level
+meaning.
 
 | Resource | Last admitted extent |
 | --- | ---: |
 | Source byte stream | 1,048,576 bytes |
 | Identifier | 64 bytes |
-| Shared parenthesis, nested-call, and nested-load depth | 64 |
+| Combined state-block, parenthesis, nested-call, and nested-load syntax depth | 64 |
 | Parameters plus function-scoped locals | 64 per procedure |
 | Procedures | 128 |
 | Call sites | 1,024 |
@@ -64,6 +67,14 @@ status its future language-level meaning.
 | Transitions | 256 per procedure; 1,024 total |
 | Emitted runnable Alpha payload | 262,140 bytes |
 | Source-visible raw memory | 33,554,432 zeroed bytes |
+
+These are compiler-profile ceilings, not Beta language limits. In particular,
+state nesting remains a recursive language form; this compiler must extend its
+existing checked `DEPTH` accounting to that parser path and report profile
+exhaustion through OWNER Q4's eventual `Incomplete` carrier rather than reject
+otherwise valid Beta. Parentheses, calls, loads, and state bodies consume one
+combined recursion budget because they compose on the same Alpha parser call
+path.
 
 The generated data stack is separately guarded in `[262144,1048576)` and every
 procedure reserves at least its caller-frame word, as specified in
