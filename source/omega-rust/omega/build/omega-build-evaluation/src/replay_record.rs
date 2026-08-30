@@ -34,7 +34,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 26;
+const VERSION: u16 = 27;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -1326,7 +1326,7 @@ fn validate_first_rung(
     let mut identities = Vec::new();
     let mut event_count = 0;
     while cursor < shapes.len() {
-        if matches!(shapes[cursor].operation, 1 | 11 | 20) {
+        if matches!(shapes[cursor].operation, 1 | 11 | 19 | 20 | 27) {
             break;
         }
         if shapes[cursor].operation == 21 {

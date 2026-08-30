@@ -113,11 +113,11 @@ pub(super) fn rehydrate_source_read_link_shape(
         *requested_count,
         result,
         attempt.post_error,
-        completeness,
-        clone_bytes(returned.bytes)?,
         clone_bytes(resolution)?,
         clone_bytes(carrier.pre)?,
         clone_bytes(carrier.post)?,
+        completeness,
+        clone_bytes(returned.bytes)?,
     )
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new(

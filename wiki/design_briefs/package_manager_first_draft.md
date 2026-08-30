@@ -1565,6 +1565,16 @@ late, directory, or symbolic-link sources, cross-root names, insufficient
 authority, collisions, alternate operations, and failures remain
 non-receipted.
 
+Observation summary v46 and replay-record v27 additionally admit exact
+successful Source-rooted `read_link` events at tag 21 within the ordered Source
+prefix. The record binds the authored rooted symlink name, separately
+authorized no-follow target, requested count, scalar result, post-error state,
+complete mutable resolution/pre/post carrier, and exact returned target bytes.
+Complete targets and capacity-limited prefixes remain distinct; no unseen
+suffix is inferred from a truncated result. Provider-free replay restores the
+exact carrier and event order. Returned target bytes remain inert and require a
+new checked root resolution before any path use.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities reject negative, wrapped, or
