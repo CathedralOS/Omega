@@ -417,19 +417,20 @@ Current ownership is:
   participates only when its terminal independently qualifies and the whole
   record remains nonzero; its element alignment and padding remain covered.
   Fully specialized type plus scalar-integer `const` or exact-replayed acyclic
-  structured-record `const` instances use the exact synthesized symbol and
+  structured-data `const` instances use the exact synthesized symbol and
   substituted fields after validating their concrete base/argument origin.
   Scalar const arguments are unbound canonical decimal leaves within their
   exact declared integer carriers. Structured atoms are completely decoded
   under fixed resource bounds and replayed in declaration order against the
-  exact resolved monomorphic carrier, including nested literal arrays/records
-  and exact integer/Boolean leaves. Substituted instance fields remain the only
-  layout authority. Generic normalization rewrites
+  exact resolved monomorphic record or pure-sum carrier, including selected
+  cases, ordered payloads, nested literal arrays/records/sums, and exact
+  integer/Boolean leaves. Substituted instance fields remain the only layout
+  authority. Generic normalization rewrites
   concrete-machine cast targets and supports recursively nonzero literal-array
   type arguments. Record eligibility and representation recursion use exact
   symbol identity and require a nonzero, quotient-free, acyclic, all-relevant,
   recursively fact-free shape. Runtime or merely bounded offsets, slices, total
-  zero-size targets, open/unresolved or cased/recursive/custom-canonical
+  zero-size targets, open/unresolved or mixed/recursive/custom-canonical
   structured-const, lifetime/machine/proposition generic instances,
   invariant-bearing/erased/cased records, and other indexed recasts stay fenced
   because an element path cannot represent their complete target footprint.

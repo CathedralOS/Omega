@@ -550,13 +550,14 @@ array fields ending in the same exact primitive or record shapes. A zero-length
 field participates only when its terminal independently qualifies and the
 whole record remains nonzero; its element alignment can still induce protected
 padding. Fully specialized type plus scalar-integer `const` or exact-replayed
-acyclic structured-record `const` instances participate under their exact
+acyclic structured-data `const` instances participate under their exact
 synthesized symbol, validated carrier/value origin, and substituted-field
 eligibility. Structured atoms are completely decoded under fixed resource
-bounds and replayed in declaration order against the exact resolved carrier;
-layout remains a property only of the substituted instance fields. Runtime or
-merely bounded offsets, slices, total zero-size targets, open/unresolved,
-cased/recursive/custom-canonical structured-const, lifetime/machine/proposition
+bounds and replayed in declaration order against the exact resolved record or
+pure-sum carrier, including the selected case and ordered payload; layout
+remains a property only of the substituted instance fields. Runtime or merely
+bounded offsets, slices, total zero-size targets, open/unresolved,
+mixed/recursive/custom-canonical structured-const, lifetime/machine/proposition
 generic instances, and invariant-bearing/erased/cased records remain
 conservative. Last-use accounting compares the canonical
 field/index path, so a
