@@ -29,6 +29,12 @@ I/O, and enough modularity to maintain `D`. It does not inherit Omega's proof
 surface, dependent types, packages, optimizer, or target model merely because
 `D` implements those facilities for Omega users.
 
+D17 and `source/delta/LANGUAGE.md` fix the exact v1 surface. Checking and
+execution are separate judgments; `Incomplete` is an outer tool outcome, not a
+Delta program result. `D` uses source-declared fixed arrays and integer indexes
+for dynamic compiler structures because v1 has no heap or recursive value
+types.
+
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns
 `Incomplete` and publishes no tape.
@@ -50,7 +56,7 @@ available in Git without occupying a live compiler owner.
 
 Delta closes when:
 
-1. its independent language contract is complete;
+1. its independent D17 language contract remains complete;
 2. a Gamma-written compiler accepts that language and emits exact Alpha tape;
 3. the tape directly refines the Gamma compiler source under Gamma and Alpha
    semantics;

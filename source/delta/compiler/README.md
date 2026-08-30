@@ -7,7 +7,8 @@ emits platform-independent Alpha tape:
 delta_compiler.gamma → delta_compiler_bytecode.tape
 ```
 
-That implementation does not yet exist.
+That implementation does not yet exist. D17 fixes the language it must accept,
+so this is now an implementation gap rather than a design-blocked surface.
 
 The superseded Beta Delta-to-Gamma route, Darwin-native publication tree, and
 restricted Delta-written native compiler prototype are deleted rather than
@@ -18,7 +19,12 @@ backend was less economical than authoring the specified direct components.
 
 ## Required replacement
 
-- author `delta_compiler.gamma` against the independent Delta contract;
+- author `delta_compiler.gamma` against D17 and
+  [`../LANGUAGE.md`](../LANGUAGE.md);
+- expose pure `main : Bytes -> DeltaCompileOutcome`, with only
+  `Complete(Bytes)` and `Reject(DeltaRejectReason, Int)` authored outcomes;
+- let the generated adapter own `DCOUT`, its explicit reason-code table, and
+  outer `Incomplete`/`InternalFailure` outcomes;
 - compile it with `gamma_compiler_bytecode.tape`;
 - emit one exact Alpha tape without external older-rung semantic tools;
 - reconstruct Gamma source and Alpha artifact semantics independently;

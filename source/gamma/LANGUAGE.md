@@ -125,10 +125,11 @@ DeltaCompileOutcome =
   | Reject(DeltaRejectReason, Int)
 ```
 
-The `Int` in `Reject` is the source byte offset. The Delta contract owns the
-closed `DeltaRejectReason` constructors and an explicit constructor-to-wire-code
-table; codes never derive from declaration order. A different accepted language
-owns a different reason sum and table.
+The `Int` in `Reject` is the source byte offset. D17 and
+`source/delta/LANGUAGE.md` own the closed `DeltaRejectReason` constructors and
+the explicit `DCOUT` constructor-to-wire-code table; codes never derive from
+declaration order. A different accepted language owns a different reason sum
+and table.
 
 Only the generated Alpha adapter performs I/O. It reads sealed stdin, constructs
 the input `Bytes`, invokes `main`, and maps a returned value as follows:

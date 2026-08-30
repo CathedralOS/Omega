@@ -115,13 +115,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     nested artifact buckets for every canonical compiler owner.
   - [ ] Materialize the Gamma compiler source, tape, and adjacent validation in
     `source/gamma/compiler/` under D16; section 3 owns the implementation.
-  - [ ] **DESIGN-BLOCKED — OWNER Q2.** Materialize the Delta compiler source,
-    tape, and adjacent validation in `source/delta/compiler/`; section 4 owns
-    the implementation.
-  - [ ] **DESIGN-BLOCKED — OWNER Q2.** Author
-    `source/omega/omega_compiler.delta` once Delta's source and closure contract
-    is selected; section 5 owns the implementation. This source work does not
-    wait for the physical Gamma/Delta compiler artifacts.
+  - [ ] Materialize the Delta compiler source, tape, and adjacent validation in
+    `source/delta/compiler/` under D17; section 4 owns the implementation.
+  - [ ] Author `source/omega/omega_compiler.delta` under D17; section 5 owns
+    the implementation. This source work does not wait for the physical
+    Gamma/Delta compiler artifacts.
   - [ ] **DEPENDENCY-BLOCKED — missing Gamma/Delta compilers and missing `D`.**
     Materialize the resulting `omega0_compiler_bytecode.tape` only after
     the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
@@ -176,10 +174,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     comments in both bounded Gamma oracle surfaces and the temporary Python
     evaluator. The existing gates now retain matching positive and negative
     byte controls.
-  - [ ] **DEPENDENCY-BLOCKED — DELTA COMPILER:** Apply the already-fixed outer
-    envelope to the Gamma-written Delta compiler when OWNER Q2 supplies the
-    executable Delta contract and that compiler exists. No current Delta parser
-    or compiler implementation can receive this code change.
+  - [ ] **DEPENDENCY-BLOCKED — DELTA COMPILER:** Apply D15's already-fixed outer
+    envelope and D17's exact Delta lexical rules when the Gamma-written Delta
+    compiler exists. No current Delta parser or compiler implementation can
+    receive this code change.
 
 ## 1. Alpha execution floor
 
@@ -520,19 +518,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Gamma-written Delta compiler
 
-- [ ] **DESIGN-BLOCKED — OWNER Q2: FREEZE-DELTA-V1.** Finish one self-contained Delta grammar, static
-  semantics, deterministic execution model, sealed byte I/O contract, and
-  resource taxonomy. Delta is an independent robust C-like compiler-host
-  language; it does not inherit Omega meaning merely by sharing spelling. Q2
-  must close the contradictory `Incomplete` placement, exact reject/trap
-  taxonomy, keyword policy, optional domains/contracts, builtin resolution,
-  Console/string ABI, scalar-transition miss, and closure presentation.
-- [ ] **DESIGN-BLOCKED — OWNER Q2: BUILD-DELTA-COMPILER.** Implement
+- [x] **FREEZE-DELTA-V1.** D17 and `source/delta/LANGUAGE.md` fix one
+  self-contained grammar, static semantics, execution model, boundary,
+  rejection/trap taxonomy, closure presentation, and resource classification.
+- [ ] **BUILD-DELTA-COMPILER.** Implement
   `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
   and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
   participates.
-- [ ] **DESIGN-BLOCKED — OWNER Q2.** Derive compact positive, negative, trap, and
+- [ ] Derive compact positive, negative, trap, and
   private-budget `Incomplete` conformance directly from the frozen Delta
   contract. Do not recreate cases that merely pin quirks of the removed
   translator.
@@ -545,21 +539,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     classifying native-backend slices as language tests. It mixed retired
     Darwin/ARM layout and trap assumptions, deleted `contracts.sh` workflows,
     demonstrations, and unresolved keyword/domain/result/builtin proposals.
-    After OWNER Q2 freezes Delta v1, derive a compact positive/negative suite from
-    the frozen contract and run it through the actual Gamma-written compiler.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and missing Gamma/Delta compilers.** Check
+    Derive a compact positive/negative suite from D17 and run it through the
+    actual Gamma-written compiler.
+- [ ] **DEPENDENCY-BLOCKED — missing Gamma/Delta compilers.** Check
   exact Gamma-source-to-Alpha-tape refinement, including realistic source
   closures large enough to compile `D`.
 
 ## 5. Delta-written full Omega compiler `D`
 
-- [ ] **DESIGN-BLOCKED — OWNER Q2: OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
+- [ ] **OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
   `source/omega/omega_compiler.delta`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of the frozen Delta/Gamma contracts and compilers. The deleted prototype
+  of the frozen Delta/Gamma contracts; source authoring need not wait for the
+  physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-- [ ] **DEPENDENCY-BLOCKED — OWNER Q2 and missing `D`.** Make `D` implement the
+- [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
   allowed; weakened Omega semantics are not.

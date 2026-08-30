@@ -47,19 +47,19 @@ or package it, but native container bytes do not replace the tape identity.
 
 ## Delta v1
 
-Delta is a small deterministic systems/compiler-host language. It may share
-spelling with Omega, but its grammar, static rules, execution, resources, and
-observations are self-contained. Its compiler is written in Gamma and lowers
-Delta directly to Alpha tape. Neither the superseded Beta translator nor the
-sample corpus defines Delta.
+Delta is the closed deterministic compiler-host language fixed by D17 and
+`source/delta/LANGUAGE.md`. It may share spelling with Omega, but its grammar,
+checking, execution, resources, and observations are self-contained. Its
+compiler is written in Gamma and lowers Delta directly to Alpha tape. Neither
+the superseded Beta translator nor a sample corpus defines Delta.
 
-Delta needs a coherent C-like floor: structured state-machine control, scalar
-and aggregate data, fixed storage or explicit allocation failure, sealed byte
-I/O, deterministic traps, and sufficient modularity to maintain `D`. It does
-not inherit Omega proofs, dependent types, packages, or optimizer machinery.
-
-Every bound is source-visible semantics, an explicit profile parameter, or a
-private budget whose exhaustion returns `Incomplete` and publishes no tape.
+V1 provides finite records and sums, fixed arrays, bounded views, checked
+scalars, state-machine control, recursion, and one sealed `Console` boundary.
+It has no package model, heap, or recursive value type. `D` therefore represents
+dynamic structures in source-declared arrays with integer indexes. Those
+capacities are program semantics; a compiler's parser, arena, stack, and output
+ceilings are private budgets whose exhaustion returns outer `Incomplete` and
+publishes no tape.
 
 ## Delta-written Omega implementation `D`
 

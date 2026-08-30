@@ -357,6 +357,44 @@ must fail loudly on no match during migration; the canonical compiler rejects
 nonexhaustive source statically. The Beta-written compiler type-checks and emits
 Alpha tape directly rather than packaging an interpreter with source syntax.
 
+## D17 — Delta v1 is one closed fixed-storage compiler-host language
+
+`source/delta/LANGUAGE.md` is the self-contained normative Delta v1 contract.
+Delta shares familiar spelling with Omega but inherits no Omega meaning. Its
+source closure is resolved outside the language and packed into one exact
+translation unit; top-level forward references ensure that packing order
+changes coordinates rather than program meaning.
+
+Checking and execution are distinct judgments. `CheckDelta` either accepts one
+program or returns one closed `DeltaRejectReason` and exact packed byte offset.
+`RunDelta` yields only `Exit`, `Trap`, or actual divergence. `Incomplete` and
+`InternalFailure` belong to bounded tools and compiler adapters, never to Delta
+program semantics, and publish no partial artifact. `DCOUT` owns explicit
+versioned constructor-to-code tables independent of Gamma declaration order.
+
+V1 reserves only its active syntax and removes contextual or speculative
+surface: no packages, imports, attributes, domains, range types, contracts,
+`terminates by`, generic parameters, heap, or recursive value types. It retains
+finite records and sums, arbitrary finite payload arity, fixed arrays, bounded
+non-escaping views, `i32`, storage-only `u8`, return-only `never`, checked
+scalar operations, short-circuit Boolean connectives, assertions, machines,
+states, transitions, recursion, and one exact receiver-qualified `Console`
+boundary. Scalar transition misses trap deterministically.
+
+Because Delta has no heap or recursive value type, `D` represents dynamic
+compiler structures in source-declared fixed arrays with integer indexes.
+Those capacities and their failure behavior are semantic program state. Small
+parser, arena, declaration, parameter, or output ceilings inside an
+implementation remain private budgets whose exhaustion is outer `Incomplete`,
+not a language rejection or limit.
+
+The Gamma-written compiler exposes pure
+`main : Bytes -> Complete(Bytes) | Reject(DeltaRejectReason, Int)`. Its adapter
+alone owns sealed input, the four compiler halt tags, `DCOUT` framing, and outer
+resource/internal failures. The compiler emits an unwrapped Alpha tape and is
+accepted only by direct checked Delta-source-to-Alpha-tape refinement. Deleted
+translator behavior and historical samples grant no compatibility claim.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

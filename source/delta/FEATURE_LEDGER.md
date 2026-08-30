@@ -4,11 +4,10 @@ Delta is justified by the smallest robust surface needed to author the
 Delta-written full Omega compiler source closure `D` and compile it with the
 Gamma-written Delta compiler.
 
-[`LANGUAGE.md`](LANGUAGE.md) currently records the OWNER Q2 contract proposal; it
-does not fix Delta v1 facilities before that ruling. This ledger is rationale
-and decision input, not a second specification or a vote by historical
-samples. After OWNER Q2, a future facility belongs to Delta only when at least one
-of these holds and the normative language contract is revised explicitly:
+[`LANGUAGE.md`](LANGUAGE.md) is the normative Delta v1 contract fixed by D17.
+This ledger is rationale and change control, not a second specification or a
+vote by historical samples. A future facility belongs to Delta only when at
+least one of these holds and the normative contract is revised explicitly:
 
 1. the Delta-written Omega compiler closure `D` requires it;
 2. implementing or compiling `D` coherently requires it;
