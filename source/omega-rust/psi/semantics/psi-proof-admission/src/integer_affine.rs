@@ -42,6 +42,9 @@ enum CheckedIntegerEndpointStep {
     ShiftRight(u32),
     CorrelatedAddLower,
     CorrelatedAddUpper,
+    CorrelatedSubtractLower,
+    CorrelatedSubtractUpper,
+    CorrelatedUnsignedSubtract,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,9 +84,56 @@ pub fn check_integer_affine_witness(
     if let Some(form) = check_correlated_add_witness(context, semantic_axioms, witness)? {
         return Ok(form);
     }
+    if let Some(form) = check_correlated_subtract_witness(context, semantic_axioms, witness)? {
+        return Ok(form);
+    }
+    if witness.definition_axioms.is_empty()
+        && witness.literal_axioms.is_empty()
+        && let ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } = &witness.target
+        && scalar_type.carrier() == IntegerCarrier::Fixed
+        && scalar_type.sign() == IntegerSign::Unsigned
+        && right.as_ref() == &witness.root
+        && left.as_ref() != right.as_ref()
+        && direct_math_leaf(left, *scalar_type).is_some()
+        && direct_math_leaf(right, *scalar_type).is_some()
+    {
+        return Ok(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: *scalar_type,
+            coefficient: 1,
+            offset: 0,
+            endpoint_steps: vec![CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract],
+        });
+    }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
         && let ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } = &witness.target
+        && left.as_ref() == &witness.root
+        && scalar_type.carrier() == IntegerCarrier::Fixed
+        && direct_math_leaf(left, *scalar_type).is_some()
+        && direct_math_leaf(right, *scalar_type).is_some()
+    {
+        return Ok(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: *scalar_type,
+            coefficient: 1,
+            offset: 0,
+            endpoint_steps: Vec::new(),
+        });
+    }
+    if witness.definition_axioms.is_empty()
+        && witness.literal_axioms.is_empty()
+        && let ScalarTerm::ExactIntegerSubtract {
             scalar_type,
             left,
             right,
@@ -297,6 +347,86 @@ fn check_correlated_add_witness(
         }
         Some(value) if value == scalar_type.maximum_value() => {
             CheckedIntegerEndpointStep::CorrelatedAddUpper
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(CheckedIntegerAffineForm {
+        root: witness.root.clone(),
+        target: witness.target.clone(),
+        integer_type: *scalar_type,
+        coefficient: 1,
+        offset: 0,
+        endpoint_steps: vec![endpoint_step],
+    }))
+}
+
+fn check_correlated_subtract_witness(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    witness: &IntegerAffineWitness,
+) -> Result<Option<CheckedIntegerAffineForm>, IntegerAffineWitnessError> {
+    let ScalarTerm::ExactIntegerSubtract {
+        scalar_type,
+        left,
+        right,
+    } = &witness.target
+    else {
+        return Ok(None);
+    };
+    if witness.definition_axioms.len() != 1 || witness.literal_axioms.len() != 1 {
+        return Ok(None);
+    }
+    if !matches!(witness.root, ScalarTerm::Value { .. })
+        || scalar_type.carrier() != IntegerCarrier::Fixed
+        || direct_math_leaf(left, *scalar_type).is_none()
+        || direct_math_leaf(right, *scalar_type).is_none()
+        || witness.root.scalar_type() != ScalarType::Integer(*scalar_type)
+    {
+        return Ok(None);
+    }
+    let index = witness.definition_axioms[0];
+    let axiom = semantic_axioms
+        .get(index)
+        .ok_or(IntegerAffineWitnessError::UnknownSemanticAxiom(index))?;
+    context
+        .validate(axiom)
+        .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+    let Proposition::Equal(equal_left, equal_right) = axiom else {
+        return Ok(None);
+    };
+    let expression = if equal_left == &witness.root {
+        equal_right
+    } else if equal_right == &witness.root {
+        equal_left
+    } else {
+        return Ok(None);
+    };
+    let ScalarTerm::ExactIntegerAdd {
+        scalar_type: add_type,
+        left: endpoint,
+        right: add_right,
+    } = expression
+    else {
+        return Ok(None);
+    };
+    if add_type != scalar_type || add_right.as_ref() != right.as_ref() {
+        return Ok(None);
+    }
+    let endpoint_value = match (endpoint.integer_value(), witness.literal_axioms[0]) {
+        (Some((actual, value)), None) => (actual == *scalar_type).then_some(value),
+        (None, Some(landing_index)) => {
+            let landed = landed_integer(context, semantic_axioms, index, landing_index)?;
+            (landed.term == endpoint.as_ref().clone() && landed.integer_type == *scalar_type)
+                .then_some(landed.value)
+        }
+        _ => return Ok(None),
+    };
+    let endpoint_step = match endpoint_value {
+        Some(value) if value == scalar_type.minimum_value() => {
+            CheckedIntegerEndpointStep::CorrelatedSubtractLower
+        }
+        Some(value) if value == scalar_type.maximum_value() => {
+            CheckedIntegerEndpointStep::CorrelatedSubtractUpper
         }
         _ => return Ok(None),
     };
@@ -645,9 +775,22 @@ pub fn map_integer_affine_bound(
     ) {
         return map_correlated_add_bound(form, root_bound);
     }
+    if matches!(
+        form.endpoint_steps.as_slice(),
+        [CheckedIntegerEndpointStep::CorrelatedSubtractLower]
+            | [CheckedIntegerEndpointStep::CorrelatedSubtractUpper]
+            | [CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract]
+    ) {
+        return map_correlated_subtract_bound(form, root_bound);
+    }
     if form.endpoint_steps.is_empty() && matches!(form.target(), ScalarTerm::ExactIntegerAdd { .. })
     {
         return map_direct_add_bound(form, root_bound);
+    }
+    if form.endpoint_steps.is_empty()
+        && matches!(form.target(), ScalarTerm::ExactIntegerSubtract { .. })
+    {
+        return map_direct_subtract_bound(form, root_bound);
     }
     if form.endpoint_steps.is_empty()
         && let ScalarTerm::ExactIntegerShiftLeft {
@@ -713,7 +856,10 @@ pub fn map_integer_affine_bound(
             ),
             CheckedIntegerEndpointStep::ShiftRight(count) => Some(mapped >> count),
             CheckedIntegerEndpointStep::CorrelatedAddLower
-            | CheckedIntegerEndpointStep::CorrelatedAddUpper => {
+            | CheckedIntegerEndpointStep::CorrelatedAddUpper
+            | CheckedIntegerEndpointStep::CorrelatedSubtractLower
+            | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
+            | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract => {
                 return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
             }
         }
@@ -786,6 +932,55 @@ fn map_correlated_add_bound(
     })
 }
 
+fn map_correlated_subtract_bound(
+    form: &CheckedIntegerAffineForm,
+    evidence: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    let ScalarTerm::ExactIntegerSubtract { left, right, .. } = form.target() else {
+        return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+    };
+    let lower = matches!(
+        form.endpoint_steps.as_slice(),
+        [CheckedIntegerEndpointStep::CorrelatedSubtractLower]
+            | [CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract]
+    );
+    let unsigned = matches!(
+        form.endpoint_steps.as_slice(),
+        [CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract]
+    );
+    let expected = if unsigned {
+        Proposition::LessOrEqual(right.as_ref().clone(), left.as_ref().clone())
+    } else if lower {
+        Proposition::LessOrEqual(form.root().clone(), left.as_ref().clone())
+    } else {
+        Proposition::LessOrEqual(left.as_ref().clone(), form.root().clone())
+    };
+    if evidence != &expected {
+        return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+    }
+    let difference = IntegerMathTerm::Subtract(
+        Box::new(
+            direct_math_leaf(left, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
+        ),
+        Box::new(
+            direct_math_leaf(right, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
+        ),
+    );
+    Ok(if lower {
+        Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(form.integer_type().minimum_value()),
+            difference,
+        )
+    } else {
+        Proposition::IntegerMathLessOrEqual(
+            difference,
+            IntegerMathTerm::literal(form.integer_type().maximum_value()),
+        )
+    })
+}
+
 fn map_direct_add_bound(
     form: &CheckedIntegerAffineForm,
     evidence: &Proposition,
@@ -833,6 +1028,78 @@ fn map_direct_add_bound(
         Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), sum)
     } else {
         Proposition::IntegerMathLessOrEqual(sum, IntegerMathTerm::IntegerLiteral(bound))
+    })
+}
+
+fn map_direct_subtract_bound(
+    form: &CheckedIntegerAffineForm,
+    evidence: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    let Proposition::Conjunction(parts) = evidence else {
+        return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+    };
+    let [left_evidence, right_evidence] = parts.as_slice() else {
+        return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+    };
+    let ScalarTerm::ExactIntegerSubtract {
+        scalar_type,
+        left,
+        right,
+    } = form.target()
+    else {
+        return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+    };
+    if *scalar_type != form.integer_type() {
+        return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+    }
+    let left_endpoint = direct_operand_endpoint(left, left_evidence, form.integer_type())?;
+    let right_endpoint = direct_operand_endpoint(right, right_evidence, form.integer_type())?;
+    let lower = match (left_endpoint.orientation(), right_endpoint.orientation()) {
+        (Some(left), Some(right)) if left != right => left,
+        (None, Some(right)) => !right,
+        (Some(left), None) => left,
+        (None, None)
+            if matches!(
+                (&left_endpoint, &right_endpoint),
+                (DirectAddEndpoint::Exact(left), DirectAddEndpoint::Carrier)
+                    if left.as_integer_value(form.integer_type())
+                        == Some(form.integer_type().maximum_value())
+            ) =>
+        {
+            true
+        }
+        (None, None)
+            if matches!(
+                (&left_endpoint, &right_endpoint),
+                (DirectAddEndpoint::Exact(left), DirectAddEndpoint::Carrier)
+                    if left.as_integer_value(form.integer_type())
+                        == Some(form.integer_type().minimum_value())
+            ) =>
+        {
+            false
+        }
+        (None, None) => {
+            return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
+        }
+        _ => return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch),
+    };
+    let left_bound = left_endpoint.literal(form.integer_type(), lower);
+    let right_bound = right_endpoint.literal(form.integer_type(), !lower);
+    let bound = subtract_math_literals(left_bound, right_bound)?;
+    let difference = IntegerMathTerm::Subtract(
+        Box::new(
+            direct_math_leaf(left, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
+        ),
+        Box::new(
+            direct_math_leaf(right, form.integer_type())
+                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
+        ),
+    );
+    Ok(if lower {
+        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), difference)
+    } else {
+        Proposition::IntegerMathLessOrEqual(difference, IntegerMathTerm::IntegerLiteral(bound))
     })
 }
 
@@ -944,6 +1211,28 @@ fn add_math_literals(
     };
     psi_core::IntegerMathLiteral::new(negative, magnitude)
         .map_err(|_| IntegerAffineBoundConversionError::DirectAddBoundOverflow)
+}
+
+fn subtract_math_literals(
+    left: psi_core::IntegerMathLiteral,
+    right: psi_core::IntegerMathLiteral,
+) -> Result<psi_core::IntegerMathLiteral, IntegerAffineBoundConversionError> {
+    let (negative, magnitude) = if left.negative() != right.negative() {
+        (
+            left.negative(),
+            left.magnitude()
+                .checked_add(right.magnitude())
+                .ok_or(IntegerAffineBoundConversionError::DirectSubtractBoundOverflow)?,
+        )
+    } else {
+        match left.magnitude().cmp(&right.magnitude()) {
+            std::cmp::Ordering::Less => (!left.negative(), right.magnitude() - left.magnitude()),
+            std::cmp::Ordering::Equal => (false, 0),
+            std::cmp::Ordering::Greater => (left.negative(), left.magnitude() - right.magnitude()),
+        }
+    };
+    psi_core::IntegerMathLiteral::new(negative, magnitude)
+        .map_err(|_| IntegerAffineBoundConversionError::DirectSubtractBoundOverflow)
 }
 
 fn direct_math_leaf(term: &ScalarTerm, expected: IntegerType) -> Option<IntegerMathTerm> {
@@ -1242,7 +1531,10 @@ pub fn integer_affine_truth_bounds(
                 saw_total_image = true;
             }
             CheckedIntegerEndpointStep::CorrelatedAddLower
-            | CheckedIntegerEndpointStep::CorrelatedAddUpper => {
+            | CheckedIntegerEndpointStep::CorrelatedAddUpper
+            | CheckedIntegerEndpointStep::CorrelatedSubtractLower
+            | CheckedIntegerEndpointStep::CorrelatedSubtractUpper
+            | CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract => {
                 return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
             }
         }
@@ -1308,6 +1600,8 @@ pub enum IntegerAffineBoundConversionError {
     AmbiguousDirectShiftEvidence,
     DirectAddEvidenceMismatch,
     DirectAddBoundOverflow,
+    DirectSubtractEvidenceMismatch,
+    DirectSubtractBoundOverflow,
     ConclusionMismatch,
 }
 
@@ -2272,6 +2566,209 @@ mod tests {
                 "reordered, omitted, or stale endpoint landing custody rejects: {mutation}: {result:?}",
             );
         }
+    }
+
+    #[test]
+    fn direct_subtract_bound_replays_opposite_ordered_endpoints_and_rejects_mutations() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let target =
+            ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).unwrap();
+        let context = PropositionContext::from_value_types(
+            (1..=3).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+        )
+        .unwrap();
+        let checked = check_integer_affine_witness(
+            &context,
+            &[],
+            &IntegerAffineWitness {
+                root: left.clone(),
+                target,
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        )
+        .expect("direct subtract witness");
+        let lower = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(literal(integer_type, -100), left.clone()),
+            Proposition::LessOrEqual(right.clone(), literal(integer_type, 20)),
+        ]);
+        assert_eq!(
+            map_integer_affine_bound(&checked, &lower),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Signed(-120)),
+                IntegerMathTerm::Subtract(
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer_type,
+                        value: ValueId::new(1).unwrap(),
+                    }),
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer_type,
+                        value: ValueId::new(2).unwrap(),
+                    }),
+                ),
+            )),
+        );
+        let upper = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(left.clone(), literal(integer_type, 100)),
+            Proposition::LessOrEqual(literal(integer_type, -20), right.clone()),
+        ]);
+        assert!(map_integer_affine_bound(&checked, &upper).is_ok());
+        for malformed in [
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(literal(integer_type, -100), left.clone()),
+                Proposition::LessOrEqual(literal(integer_type, -20), right.clone()),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(right.clone(), literal(integer_type, 20)),
+                Proposition::LessOrEqual(literal(integer_type, -100), left.clone()),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(literal(integer_type, -100), value(3, integer_type)),
+                Proposition::LessOrEqual(right.clone(), literal(integer_type, 20)),
+            ]),
+        ] {
+            assert!(
+                map_integer_affine_bound(&checked, &malformed).is_err(),
+                "mixed orientation, reordered evidence, and redirected operands reject",
+            );
+        }
+        assert!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    Proposition::Equal(left.clone(), literal(integer_type, 127)),
+                    Proposition::Truth,
+                ]),
+            )
+            .is_ok(),
+            "an exact MAX minuend and carrier-wide subtrahend derive the lower endpoint",
+        );
+        assert!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::Conjunction(vec![
+                    Proposition::Equal(left, literal(integer_type, 100)),
+                    Proposition::Truth,
+                ]),
+            )
+            .is_err(),
+            "a noncarrier exact minuend cannot orient bare subtrahend inclusion",
+        );
+    }
+
+    #[test]
+    fn correlated_subtract_replays_complement_definition_and_endpoint_landing() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let correlated = value(3, integer_type);
+        let landed_endpoint = value(4, integer_type);
+        let target =
+            ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).unwrap();
+        let context = PropositionContext::from_value_types(
+            (1..=5).map(|id| (ValueId::new(id).unwrap(), ScalarType::Integer(integer_type))),
+        )
+        .unwrap();
+        let landing = Proposition::Equal(landed_endpoint.clone(), literal(integer_type, -128));
+        let complement = Proposition::Equal(
+            correlated.clone(),
+            ScalarTerm::exact_integer_add(integer_type, landed_endpoint.clone(), right.clone())
+                .unwrap(),
+        );
+        let witness = IntegerAffineWitness {
+            root: correlated.clone(),
+            target: target.clone(),
+            definition_axioms: vec![1],
+            literal_axioms: vec![Some(0)],
+        };
+        let checked = check_integer_affine_witness(
+            &context,
+            &[landing.clone(), complement.clone()],
+            &witness,
+        )
+        .expect("landed MIN plus right complement");
+        assert_eq!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(correlated.clone(), left.clone()),
+            ),
+            Ok(Proposition::IntegerMathLessOrEqual(
+                IntegerMathTerm::literal(IntegerValue::Signed(-128)),
+                IntegerMathTerm::Subtract(
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer_type,
+                        value: ValueId::new(1).unwrap(),
+                    }),
+                    Box::new(IntegerMathTerm::MathValue {
+                        source_type: integer_type,
+                        value: ValueId::new(2).unwrap(),
+                    }),
+                ),
+            )),
+        );
+        assert!(
+            check_integer_affine_witness(
+                &context,
+                &[landing.clone(), complement.clone()],
+                &IntegerAffineWitness {
+                    literal_axioms: vec![None],
+                    ..witness.clone()
+                },
+            )
+            .is_err(),
+            "omitting the endpoint landing rejects",
+        );
+        let stale = Proposition::Equal(value(5, integer_type), literal(integer_type, -128));
+        assert!(
+            check_integer_affine_witness(&context, &[stale, complement], &witness).is_err(),
+            "redirecting the endpoint landing rejects",
+        );
+        assert!(
+            map_integer_affine_bound(&checked, &Proposition::LessOrEqual(left, correlated),)
+                .is_err(),
+            "reversing the authored guard rejects",
+        );
+    }
+
+    #[test]
+    fn unsigned_correlated_subtract_replays_exact_operand_order() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+            (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+        ])
+        .unwrap();
+        let checked = check_integer_affine_witness(
+            &context,
+            &[],
+            &IntegerAffineWitness {
+                root: right.clone(),
+                target: ScalarTerm::exact_integer_subtract(
+                    integer_type,
+                    left.clone(),
+                    right.clone(),
+                )
+                .unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        )
+        .expect("unsigned joint guard witness");
+        assert!(
+            map_integer_affine_bound(
+                &checked,
+                &Proposition::LessOrEqual(right.clone(), left.clone()),
+            )
+            .is_ok(),
+        );
+        assert!(
+            map_integer_affine_bound(&checked, &Proposition::LessOrEqual(left, right)).is_err(),
+            "reversed unsigned guard rejects",
+        );
     }
 
     #[test]

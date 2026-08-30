@@ -53,6 +53,11 @@ fn prove_math_relation(
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     if let Some(proof) =
+        prove_direct_subtract_relation(context, goal, assumptions, semantic_axioms, definitions)
+    {
+        return Some(proof);
+    }
+    if let Some(proof) =
         prove_direct_add_relation(context, goal, assumptions, semantic_axioms, definitions)
     {
         return Some(proof);
@@ -83,6 +88,288 @@ fn prove_math_relation(
         conclusion: goal.clone(),
         rule: scalar_proof.rule,
     })
+}
+
+fn prove_direct_subtract_relation(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    let Proposition::IntegerMathLessOrEqual(goal_left, goal_right) = goal else {
+        return None;
+    };
+    let (difference, carrier_bound, lower) = match (goal_left, goal_right) {
+        (IntegerMathTerm::Subtract(_, _), IntegerMathTerm::IntegerLiteral(bound)) => {
+            (goal_left, *bound, false)
+        }
+        (IntegerMathTerm::IntegerLiteral(bound), IntegerMathTerm::Subtract(_, _)) => {
+            (goal_right, *bound, true)
+        }
+        _ => return None,
+    };
+    let IntegerMathTerm::Subtract(left, right) = difference else {
+        unreachable!("matched direct mathematical subtraction")
+    };
+    let integer_type = match (left.as_ref(), right.as_ref()) {
+        (
+            IntegerMathTerm::MathValue { source_type, .. },
+            IntegerMathTerm::MathValue {
+                source_type: right_type,
+                ..
+            },
+        ) if source_type == right_type => *source_type,
+        (IntegerMathTerm::MathValue { source_type, .. }, IntegerMathTerm::IntegerLiteral(_))
+        | (IntegerMathTerm::IntegerLiteral(_), IntegerMathTerm::MathValue { source_type, .. }) => {
+            *source_type
+        }
+        _ => return None,
+    };
+    if integer_type.carrier() != psi_core::IntegerCarrier::Fixed {
+        return None;
+    }
+    let left = lower_add_math_leaf(left, integer_type)?;
+    let right = lower_add_math_leaf(right, integer_type)?;
+    let expected_carrier_bound = if lower {
+        integer_type.minimum_value()
+    } else {
+        integer_type.maximum_value()
+    };
+    if carrier_bound.as_integer_value(integer_type) != Some(expected_carrier_bound) {
+        return None;
+    }
+
+    let target =
+        ScalarTerm::exact_integer_subtract(integer_type, left.clone(), right.clone()).ok()?;
+    if lower && integer_type.sign() == IntegerSign::Unsigned {
+        let endpoint_goal = Proposition::LessOrEqual(right.clone(), left.clone());
+        if let Some(endpoint_proof) = bound::prove(
+            context,
+            &endpoint_goal,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        ) {
+            let witness = IntegerAffineWitness {
+                root: right.clone(),
+                target: target.clone(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            };
+            if let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness)
+                && let Ok(mapped) = map_integer_affine_bound(&form, &endpoint_proof.conclusion)
+                && &mapped == goal
+            {
+                return Some(ProofNode {
+                    conclusion: mapped,
+                    rule: ProofRule::IntegerAffineBound {
+                        root_bound: Box::new(endpoint_proof),
+                        witness,
+                    },
+                });
+            }
+        }
+    }
+    if let Some(proof) = prove_correlated_subtract_relation(
+        context,
+        goal,
+        integer_type,
+        &left,
+        &right,
+        &target,
+        lower,
+        assumptions,
+        semantic_axioms,
+        definitions,
+    ) {
+        return Some(proof);
+    }
+    let mut candidates =
+        add_endpoint_candidates(integer_type, &left, lower, assumptions, semantic_axioms);
+    for candidate in
+        add_endpoint_candidates(integer_type, &right, !lower, assumptions, semantic_axioms)
+    {
+        if !candidates.contains(&candidate) {
+            candidates.push(candidate);
+        }
+    }
+    for left_bound in candidates {
+        let Some(left_proof) = prove_add_operand_endpoint(
+            context,
+            integer_type,
+            &left,
+            left_bound,
+            lower,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        ) else {
+            continue;
+        };
+        let right_bound =
+            exact_add_operand_value(integer_type, &right, assumptions, semantic_axioms)
+                .or_else(|| subtract_complement(integer_type, left_bound, lower))
+                .unwrap_or_else(|| {
+                    if lower {
+                        integer_type.maximum_value()
+                    } else {
+                        integer_type.minimum_value()
+                    }
+                });
+        let Some(right_proof) = prove_add_operand_endpoint(
+            context,
+            integer_type,
+            &right,
+            right_bound,
+            !lower,
+            assumptions,
+            semantic_axioms,
+            definitions,
+        ) else {
+            continue;
+        };
+        let evidence = ProofNode {
+            conclusion: Proposition::Conjunction(vec![
+                left_proof.conclusion.clone(),
+                right_proof.conclusion.clone(),
+            ]),
+            rule: ProofRule::ConjunctionIntroduction(vec![left_proof, right_proof]),
+        };
+        let witness = IntegerAffineWitness {
+            root: left.clone(),
+            target: target.clone(),
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
+        let mapped = map_integer_affine_bound(&form, &evidence.conclusion).ok()?;
+        let mapped_proof = ProofNode {
+            conclusion: mapped.clone(),
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(evidence),
+                witness,
+            },
+        };
+        if &mapped == goal {
+            return Some(mapped_proof);
+        }
+        if let Some(proof) = relax_math_bound(goal, mapped_proof) {
+            return Some(proof);
+        }
+    }
+    None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_correlated_subtract_relation(
+    context: &PropositionContext,
+    goal: &Proposition,
+    integer_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    target: &ScalarTerm,
+    lower: bool,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    for (index, axiom) in semantic_axioms.iter().enumerate() {
+        let Proposition::Equal(equal_left, equal_right) = axiom else {
+            continue;
+        };
+        for (root, expression) in [(equal_left, equal_right), (equal_right, equal_left)] {
+            let ScalarTerm::Value {
+                scalar_type: ScalarType::Integer(root_type),
+                ..
+            } = root
+            else {
+                continue;
+            };
+            let ScalarTerm::ExactIntegerAdd {
+                scalar_type,
+                left: endpoint,
+                right: add_right,
+            } = expression
+            else {
+                continue;
+            };
+            let expected_endpoint = if lower {
+                integer_type.minimum_value()
+            } else {
+                integer_type.maximum_value()
+            };
+            if *root_type != integer_type
+                || *scalar_type != integer_type
+                || add_right.as_ref() != right
+            {
+                continue;
+            }
+            let literal_axiom =
+                if endpoint.integer_value() == Some((integer_type, expected_endpoint)) {
+                    None
+                } else {
+                    let Some(landing_index) = semantic_axioms[..index].iter().enumerate().find_map(
+                        |(landing_index, landing)| {
+                            let Proposition::Equal(landing_left, landing_right) = landing else {
+                                return None;
+                            };
+                            let literal = if landing_left == endpoint.as_ref() {
+                                landing_right
+                            } else if landing_right == endpoint.as_ref() {
+                                landing_left
+                            } else {
+                                return None;
+                            };
+                            (literal.integer_value() == Some((integer_type, expected_endpoint)))
+                                .then_some(landing_index)
+                        },
+                    ) else {
+                        continue;
+                    };
+                    Some(landing_index)
+                };
+            let endpoint_goal = if lower {
+                Proposition::LessOrEqual(root.clone(), left.clone())
+            } else {
+                Proposition::LessOrEqual(left.clone(), root.clone())
+            };
+            let Some(endpoint_proof) = bound::prove(
+                context,
+                &endpoint_goal,
+                assumptions,
+                semantic_axioms,
+                definitions,
+            ) else {
+                continue;
+            };
+            let witness = IntegerAffineWitness {
+                root: root.clone(),
+                target: target.clone(),
+                definition_axioms: vec![index],
+                literal_axioms: vec![literal_axiom],
+            };
+            let Some(form) = check_integer_affine_witness(context, semantic_axioms, &witness).ok()
+            else {
+                continue;
+            };
+            let Some(mapped) = map_integer_affine_bound(&form, &endpoint_proof.conclusion).ok()
+            else {
+                continue;
+            };
+            if &mapped != goal {
+                continue;
+            }
+            return Some(ProofNode {
+                conclusion: mapped,
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(endpoint_proof),
+                    witness,
+                },
+            });
+        }
+    }
+    None
 }
 
 fn prove_direct_add_relation(
@@ -477,6 +764,31 @@ fn add_complement(
                 unreachable!("unsigned carrier has unsigned endpoint")
             };
             Some(IntegerValue::Unsigned(carrier.checked_sub(value)?))
+        }
+        _ => None,
+    }
+}
+
+fn subtract_complement(
+    integer_type: IntegerType,
+    left_bound: IntegerValue,
+    lower: bool,
+) -> Option<IntegerValue> {
+    match (integer_type.sign(), left_bound) {
+        (IntegerSign::Signed, IntegerValue::Signed(left)) => {
+            let carrier = match if lower {
+                integer_type.minimum_value()
+            } else {
+                integer_type.maximum_value()
+            } {
+                IntegerValue::Signed(carrier) => carrier,
+                IntegerValue::Unsigned(_) => unreachable!("signed carrier has signed endpoints"),
+            };
+            let value = IntegerValue::Signed(left.checked_sub(carrier)?);
+            integer_type.admits(value).then_some(value)
+        }
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(left)) if lower => {
+            Some(IntegerValue::Unsigned(left))
         }
         _ => None,
     }

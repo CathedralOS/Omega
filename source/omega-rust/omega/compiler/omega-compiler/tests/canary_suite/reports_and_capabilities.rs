@@ -282,8 +282,10 @@ fn typed_requested_product_stops_at_exact_check_and_native_artifact_boundaries()
         "terminal artifact production must not create native or report output"
     );
     terminal
-        .into_artifact()
-        .expect("terminal artifact custody must leave the report only by value")
+        .into_retained_terminal_artifact()
+        .expect("complete terminal product custody must leave the report only by value")
+        .into_parts()
+        .0
         .validate()
         .expect("transferred terminal artifact custody must still replay");
     native

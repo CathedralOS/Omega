@@ -86,7 +86,18 @@ scanners, or receipts.
   only replays the serialized route and recomputes the sum. Missing, reordered,
   redirected, mixed-orientation, overflowing, or wrong-complement evidence
   rejects, and the operation's own result equation remains unavailable.
-  Implement exact subtract/multiply next, then make
+  Exact subtraction now projects its canonical mathematical difference bounds:
+  signed subtraction retains both carrier endpoints, while unsigned subtraction
+  retains its nonvacuous zero lower bound. Independent-range certificates use
+  opposite endpoint orientations for the minuend and subtrahend. The unsigned
+  joint guard serializes the exact authored `right <= left` comparison.
+  Correlated signed guards cite the earlier exact complement equation
+  (`MIN + right` or `MAX + right`), its ordered endpoint-literal landing when
+  needed, and the authored comparison to `left`. The existing
+  `IntegerAffineBound` checker replays those coordinates and recomputes the
+  mathematical difference without verifier search or result self-citation;
+  reordered, redirected, missing, or wrong-orientation evidence rejects.
+  Implement exact multiply next, then make
   `kernel_proposition` total rather than optional. Deterministic schema-local normalization may fold
   closed mathematical expressions, bare carrier inclusion, and vacuous bounds.
   Symbolic interval propagation, affine reduction, aliases, and other
@@ -6829,15 +6840,17 @@ Owners:
   deterministic compiler-private thunk symbol joined by placement-row index.
   That identity includes every source/selected handle generation and duplicate
   private identities reject before instruction selection.
-  The canonical checked-to-Terminal product route does not yet carry this
-  callback-placement sidecar. Its shared product driver now fails closed for
-  both Terminal and native artifact requests whenever the validated sidecar is
-  nonempty, naming the exact row count and canonical callback overloads before
-  Terminal production borrows the checked tree. Check-only requests remain
-  valid and retain the rows. The remaining engineering is to give canonical
-  Terminal production an explicit callback-use custody input/output and remove
-  this fence only when that consumer preserves every row; the deleted legacy
-  backend route is not authority to discard them.
+  The canonical checked-to-Terminal product route now carries this sidecar as
+  an opaque by-value input/output beside the source-free artifact. Success and
+  rejection return the exact ordered rows, and the compiler report retains the
+  artifact and rows as one product with no consuming artifact-only escape.
+  The driver supplies checked provenance and order; the report carrier only
+  replays each row's structural validity and cannot reconstruct that
+  provenance independently. Check-only requests remain valid and retain the
+  rows. Native artifact requests remain fenced until native realization
+  explicitly consumes every row; the deleted legacy backend route is not
+  authority to discard them. This custody milestone grants no callback
+  registration, invocation, address, lifetime, or publication authority.
   The symbol is planned object identity only and never an Omega value. A
   callback thunk now also has a distinct machine-function identity bound to
   its placement-row index and selected source entry, so an ordinary source

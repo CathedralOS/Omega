@@ -2372,6 +2372,17 @@ rebuilds the manifest before custody crosses into Omega. The typed compiler
 native emission, output, or installation. Unsupported Terminal vocabulary
 rejects there and cannot select another backend as a fallback.
 
+Target-owned callback placement remains outside that source-free vocabulary.
+The checked-to-Terminal producer therefore treats the complete ordered sidecar
+as opaque by-value custody and returns it unchanged beside either the artifact
+or a production rejection. Omega retains the resulting artifact and sidecar as
+one compiler product with no consuming artifact-only projection. The private
+driver route supplies checked provenance and order; the retained-product
+validator replays the artifact and every row but does not infer their origin.
+Native realization remains fenced for nonempty callback sidecars until it owns
+an explicit consumer. This establishes custody only, not registration,
+invocation, address, lifetime, or publication authority.
+
 The compiler exposes one production native-realization boundary after that
 owner. It consumes the complete canonical artifact by value, then performs
 portable verification, target assignment, machine emission, object/image
@@ -2775,14 +2786,15 @@ binds eleven rows—exact arithmetic, divide/remainder and shifts plus
 wrapping/saturating divide/remainder—to the shared integer-policy catalog by
 primitive and domain identity; exact cast is the sole table row outside that
 catalog. A separate migration dispatcher still chooses the legacy sufficient
-proposition for exact subtract/multiply and is explicitly hashed into each
-affected reduction dependency. Exact shift-left and the four
+proposition for exact multiply and is explicitly hashed into that affected
+reduction dependency. Exact shift-left, exact add, exact subtract, and the four
 wrapping/saturating divide/remainder rows instead select their canonical
 proposition directly from their exact operation tags. This does not certify the
 remaining reducers, and the current closure remains `fully-derived false`.
 
 `NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`,
-`ExactShiftLeftRepresentable`, `ExactCastRepresentable`, and exact-add
+`ExactShiftLeftRepresentable`, `ExactCastRepresentable`, exact-add, and
+exact-subtract
 representability currently have exact kernel-proposition projections.
 Unsigned fixed integers use `1 <= d` for both.
 Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
@@ -2797,9 +2809,9 @@ count carrier may imply the whole goal. Address carriers and mismatched operand
 types reject. Exact cast folds closed operands and complete source-carrier
 inclusion, otherwise retaining the stricter target lower bound before the
 stricter target upper bound in the mathematical relation vocabulary. Exact
-addition now projects its canonical mathematical carrier bounds. Exact
-subtraction and multiplication remain unprojected in the current
-implementation, but their exact projections are settled below.
+addition and subtraction now project their canonical mathematical carrier
+bounds. Exact multiplication remains unprojected in the current implementation,
+but its exact projection is settled below.
 
 Exact representability uses a separate proof-only, total mathematical term
 domain rather than executable `ScalarTerm` operations, whose exact arithmetic
@@ -2866,6 +2878,21 @@ by the other ordered child. The producer may
 search prior facts, including cast-compatible literal coordinates, but cannot
 cite the addition's own result equation. Omitted, reordered, redirected,
 mixed-orientation, overflowing, or wrong-complement evidence rejects.
+
+Exact subtraction selects the mathematical difference bounds directly from its
+operation shape. Signed subtraction retains `MIN <= left - right` and
+`left - right <= MAX`; unsigned subtraction retains the nonvacuous
+`0 <= left - right` while schema-local normalization omits its carrier-implied
+upper bound. Independent certificates serialize a lower/upper minuend endpoint
+against the opposite upper/lower subtrahend endpoint. The unsigned joint form
+serializes the authored `right <= left` comparison directly. Correlated signed
+forms cite an earlier exact `bound = MIN + right` or
+`bound = MAX + right` definition, the endpoint's ordered literal landing when
+it is a value, and the authored `bound <= left` or `left <= bound` comparison.
+The existing `IntegerAffineBound` checker validates the exact operands,
+orientations, definition, landing, and carrier endpoint, then reconstructs the
+mathematical difference. It neither searches for another route nor permits the
+subtraction's result equation to justify its own representability.
 
 For the four whole-row wrapping and saturating divide/remainder pilots,
 reconstruction selects the nonzero goal solely from the exact operation tag.
@@ -3571,9 +3598,10 @@ mathematical shifted-value projection. Its untrusted producer may search prior
 facts and recursively compose checked endpoint certificates, but the verifier
 replays only the supplied `IntegerAffineBound` route, including explicit count
 endpoints and sign-sensitive minimum/maximum selection; the operation's own
-result equation is unavailable. Exact add/subtract/multiply retain the legacy
-reducer until their corresponding mathematical projections and producer
-certificates land. At that point
+result equation is unavailable. Exact addition and subtraction likewise select
+their settled mathematical projections and replay only producer-serialized
+`IntegerAffineBound` routes. Exact multiplication retains the legacy reducer
+until its mathematical projection and producer certificate land. At that point
 `kernel_proposition` becomes total, with no wildcard or optional unsettled
 result, and the remaining production reducer and mirrored verifier search are
 deleted. Until then this is an explicit implementation dependency, not
@@ -3596,9 +3624,10 @@ ordered conversion word may contain validator-legal partial exact casts and
 strict fixed-native widening identity edges; every carrier and endpoint is
 replayed independently. These are extensions of existing checked witness
 boundaries, not new proof rules, mathematical-relation lifts, or verifier-side
-route search. They let an exact-cast certificate retain the established
-arithmetic, shift, cast-chain, and widening corpus while exact-left-shift
-representability itself remains on the legacy migration path.
+route search. They let exact-cast, exact-shift-left, exact-add, and
+exact-subtract certificates retain the established arithmetic, shift,
+cast-chain, and widening corpus while exact multiplication remains on the
+legacy migration path.
 
 That producer status is also the module boundary. Structural Unit-plan
 construction must not accumulate every sufficient-form recognizer merely
