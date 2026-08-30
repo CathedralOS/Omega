@@ -52,7 +52,12 @@ pub(crate) fn project_contract_call_evidence_arguments(
             context.subject_kind, context.subject_name,
         ))]);
     };
-    let parameters = exact_target_evidence_parameters(compilation, target_machine, target_state);
+    let parameters =
+        psi_typed_trees_to_checked_trees::derive_checked_contract_expression_evidence_parameters(
+            &compilation.facts,
+            target_machine,
+            target_state,
+        );
     if checked.target_machine_symbol != target_machine
         || checked.target_state_symbol != target_state
         || checked.evidence_arguments.len() != authored_count
@@ -87,9 +92,18 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 .proof
                 .evidence_terms
                 .get(binding.parameter);
+            let current_instantiation = psi_typed_trees_to_checked_trees::
+                derive_checked_contract_expression_evidence_instantiation(
+                    &compilation.typed,
+                    &compilation.facts,
+                    expression,
+                    target_state,
+                    binding.parameter,
+                );
             if source.kind != psi_checked_trees::ContractProofFactKind::Requires
                 || !evidence_owner_visible_from(source.owner, context.owner)
                 || source.proposition != binding.instantiated_proposition
+                || current_instantiation.as_ref() != Some(&binding.instantiated_proposition)
                 || parameter.kind != psi_checked_trees::ContractProofFactKind::Requires
                 || !evidence_owner_belongs_to_target(
                     parameter.owner,
@@ -107,28 +121,6 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 source: project_term(compilation, source)?,
                 parameter: project_term(compilation, parameter)?,
             })
-        })
-        .collect()
-}
-
-fn exact_target_evidence_parameters(
-    compilation: &CheckedCompilation,
-    target_machine: SymbolHandle,
-    target_state: SymbolHandle,
-) -> Vec<psi_arena::Handle<psi_checked_trees::CheckedEvidenceTerm>> {
-    compilation
-        .facts
-        .proof
-        .contract_facts
-        .iter()
-        .filter_map(|(_, contract)| {
-            let parameter = contract.evidence_term?;
-            let checked = compilation.facts.proof.evidence_terms.get(parameter);
-            (contract.kind == psi_checked_trees::ContractProofFactKind::Requires
-                && evidence_owner_belongs_to_target(contract.owner, target_machine, target_state)
-                && checked.owner == contract.owner
-                && checked.kind == contract.kind)
-                .then_some(parameter)
         })
         .collect()
 }
