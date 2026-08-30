@@ -28,10 +28,10 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         let attempt_index = self.filesystem_operation_attempts.len();
         let replay_expected = self.expected_filesystem_replay_attempt(attempt_index, operation)?;
-        let execute_replayed_output = self
+        let execute_replayed_attempt = self
             .filesystem_replay
             .as_ref()
-            .is_some_and(|replay| replay.executes_output_attempt(attempt_index));
+            .is_some_and(|replay| replay.executes_replay_attempt(attempt_index));
         let provider = replay_expected.as_ref().map_or_else(
             || match self.real_fs.as_ref() {
                 None => FilesystemObservationProvider::Virtual,
@@ -79,7 +79,7 @@ impl<'program> Evaluator<'program> {
                             Err(halt) => Err(halt),
                             Ok(()) => {
                                 let served = match replay_expected.as_ref() {
-                                    Some(expected) if execute_replayed_output => self
+                                    Some(expected) if execute_replayed_attempt => self
                                         .serve_executed_replay_filesystem_call(
                                             attempt_index,
                                             expected,
