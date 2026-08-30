@@ -21,3 +21,15 @@ not a subsystem. That proof may contain bounded named chunk equalities and one
 checked composition theorem while still deriving one root edge judgment.
 Artifact-specific assembly definitions, traces, and admission policy belong
 here; `source/alpha/checker/` remains a generic derivation service.
+
+The selected implementation shape is a streaming two-pass DFA over
+checker-owned raw subtrees. Cuts are power-of-two paths supplied by the
+certificate and checked for source/tape adjacency and exhaustion; they are not
+fixed semantic authority. Parser-rich pass-one measurement begins at 256-byte
+subtrees, while larger comment-only regions may be coarsened after measurement.
+The first 1,024-byte comment subtree already checks the exact textual-ASCII and
+comment transitions in the authoritative checker in under one second. A
+complete retained pass-one checkpoint must include every source region,
+cross-cut token/`db` continuation, fixed-width PC accounting, balanced unique
+label-map construction, and the exact 104,459-byte / 27,087-byte joint. No
+one-chunk demonstration is retained here.
