@@ -536,9 +536,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     access is centralized through two emitter helpers using caller-clobbered
     `r249`/`r250`; this changes no layout or runtime path and prevents repeated
     four-instruction address sequences from consuming the compiler's own fixed
-    tape budget. The retained source declares 103 procedures; with the frontend
-    gate entry, the gate uses 104 of Beta's 128 procedure slots and compiles to
-    234,462 bytes, leaving 27,678 bytes below Alpha's runnable payload ceiling.
+    tape budget. The retained source declares 104 procedures; with the frontend
+    gate entry, the gate uses 105 of Beta's 128 procedure slots and compiles to
+    237,097 bytes, leaving 25,043 bytes below Alpha's runnable payload ceiling.
     That is measured pressure, not evidence that all remaining lowering and the
     adapter will fit; profile each retained milestone and escalate before the
     fixed edge is forced into an alternate architecture.
@@ -580,6 +580,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
     payload. Q3 still owns source binder/reference-to-slot assignment, scope,
     and shadowing. Until that ruling produces canonical arm/slot metadata, do
     not retain a tag-only or binderless match-lowering scaffold.
+  - [x] Establish one Q3-neutral resolved-parameter accessor inside the same
+    frame ABI. Validate the complete fixed prefix, bounded parameter count, and
+    opaque source-order index before emission; require the combined fixed-plus-
+    parameter extent to remain within the explicit-stack profile; then load the
+    complete pair from the settled reverse-positioned parameter region.
+    Replace the resolved-call bridge's hand-authored offsets with this accessor
+    for both mixed-kind parameters across its ordinary and proper-tail paths.
+    Focused controls
+    reject a malformed prefix, negative count, adjacent index, and one parameter
+    beyond the combined extent under the private frame failure with zero payload.
+    Q3 still owns mapping source references to parameter indexes, not their
+    runtime placement.
   - [x] Establish the private arbitrary-arity algebraic-value ABI without
     assigning Q3-blocked source constructor identities. Consume an opaque
     resolved kind `>= 2`, copy complete argument pairs from the guarded stack
@@ -1137,6 +1149,29 @@ code, discover a closure, manufacture proof premises, or decide admission.
       zero current `C` machine roots; it is the reusable signature foundation,
       not a closure-coverage claim. Exact list/delimiter/path-isolation/
       capacity/reset vectors remain assigned to the real Delta-compiler gate.
+    - [x] Retain the complete simple state-parameter prefix matrix and one
+      elided-lifetime outer Reference type without creating a receiver or data-
+      field special case. Parse canonical optional `const`, then optional
+      leading `mut`, then optional shared/mutable/write-only binding `&`; retain
+      consuming or referenced `self` and ordinary named binders with exact
+      const/mutable/self flags. A leading `mut` overrides a receiver reference
+      to Mutable exactly as the canonical parser does, while a non-self binding
+      `&` affects flags but does not wrap the post-colon type. Data fields, case
+      payload fields, and parameters all accept the same outer shared/mutable/
+      write-only Reference around the existing named/domain/range/fixed-array
+      tree. Emit SelfType or Named first, then inner-to-outer FixedArray,
+      optional Constrained, and optional Reference nodes in strict postorder;
+      Reference payloads reserve the final lifetime shape while this checkpoint
+      sets `has_lifetime = 0`. Include that optional node in the atomic
+      TypeNodes demand before every write, preserving TypeNodes dominance of
+      the equal parameter table and Complete-only publication. Explicit
+      lifetimes, general type-position `Self`, Slice, returns, prefixes,
+      clauses, and nonempty bodies remain implementation-incomplete. This
+      represents 104 of 112 parameter occurrences and 64 of 72 complete
+      parameter lists in current `C`; 39 headers now reach body parsing, but
+      zero roots complete because every reached body is nonempty. Keep exact
+      modifier/access/flag/postorder/resource/reset vectors at the real Delta-
+      compiler gate.
 - [ ] **DEPENDENCY-BLOCKED — missing `D`.** Make `D` implement the
   complete Omega specification, including difficult features even if `D`
   itself uses only plain Delta. Conservative lowering and poor optimization are
