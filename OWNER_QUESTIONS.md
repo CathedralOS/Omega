@@ -356,71 +356,7 @@ class, ordered first by phase and then by D18's request or source coordinate.
   infer product/target/source identity from filenames, or let `D` and `C`
   choose separate convenient encodings.
 
-## Q7 — Choose the Gamma compiler's Alpha tape capacity policy
-
-### Context
-
-The canonical lattice requires one standalone Beta-written Gamma compiler that
-accepts full Gamma and emits Alpha tape directly. Under the current Alpha
-profile, every runnable tape is at most 262,140 bytes. The retained compiler now
-implements the strict frontend, D20 resolution, the runtime ABI, direct emitter,
-checked `Int` and `Bytes` lowering, and source joins for variables, lets, calls,
-and constructor applications.
-
-Ordinary size cleanup is no longer hypothetical. Packed recognition and nominal
-predicate reuse previously recovered 19,310 bytes. The latest pass merged
-identical lookup/lookahead scans, shared the call/constructor type zipper,
-removed a one-use local wrapper, and merged byte-identical checked division and
-remainder emitters. That pass reduced the live source-join compiler with a
-trivial entry from 254,109 to 250,761 bytes. The fixed frontend gate is 251,142
-bytes, leaving 10,998 bytes. Before the latest pass, the required ordinary-call
-execution gate already crossed the ceiling; after it, all 193 adjacent cases
-pass.
-
-Selected-match lowering, complete function-label and entry emission, both D19
-application adapters, `GCOUT`, and final publication are still absent. The
-current measurements do not prove that no further encoding improvement exists,
-but they satisfy D12's escalation condition: a realistic compiler closure has
-reached fixed tape pressure after ordinary algorithmic and diagnostic cleanup.
-
-### Problem statement
-
-Choose which capacity contract governs completion of the full standalone Gamma
-compiler. Continuing feature work without that ruling would encourage local
-workarounds: deleting required execution gates, splitting the edge through an
-older rung or host script, adding a Gamma-specific Alpha primitive or jet, or
-quietly publishing a subset compiler. None preserves the agreed lattice.
-
-The independently motivated product requirement is the canonical
-`gamma_compiler.beta -> gamma_compiler_bytecode.tape` edge itself: Delta cannot
-be built by its immediate predecessor until one complete Gamma compiler exists.
-
-### Proposed direction
-
-Keep one standalone compiler, the current Gamma semantics, direct Alpha-tape
-output, and the current Alpha instruction set. First authorize a bounded,
-general Beta code-density pass with an explicit closure target covering selected
-match, whole-function emission, both D19 adapters, and publication—not merely a
-smaller test entry. Prefer improvements in ordinary Beta procedure/state
-lowering that benefit every Beta program and preserve exact behavior. If that
-measured pass still cannot fit the complete closure, revise the Alpha runnable
-tape/memory profile explicitly and globally rather than introducing a private
-Gamma exception.
-
-### Alternates
-
-- Acceptable: enlarge the canonical Alpha runnable-tape profile now, provided
-  the memory map, seed realizations, compiler resource outcomes, and all exact
-  tape bounds change together.
-- Acceptable: retain the current ceiling and require a named quantitative
-  compiler-size budget for each remaining component, provided the completed
-  standalone compiler and its required gates fit without weakening behavior.
-- Tempting but wrong: count deleted canaries as production code-density savings,
-  split parsing/lowering across multiple accepted tapes, invoke Beta or a host
-  helper at runtime, add a source-pattern shortcut or jet, or omit Gamma
-  features from the published compiler.
-
-## Q8 — Complete Delta's census rules for transition binders and failures
+## Q7 — Complete Delta's census rules for transition binders and failures
 
 ### Context
 

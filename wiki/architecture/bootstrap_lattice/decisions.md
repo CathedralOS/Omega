@@ -620,6 +620,48 @@ collection-phase duplicate. Those narrow rules remain open in the owner question
 `Complete Delta's census rules for transition binders and failures`; they must not
 be inferred from collector traversal or used to justify a partial census.
 
+## D23 — AlphaBootstrapV2 admits a one-MiB tape through a coherent checker profile
+
+The canonical bootstrap execution profile advances from the current 256-KiB
+seed hole to `AlphaBootstrapV2`. Its seed hole is exactly 1,048,576 bytes,
+including the four-byte stamped tape length, so its maximum raw Alpha tape is
+1,048,572 bytes. This is one global lattice profile, not a Gamma-only exception.
+It changes no Alpha opcode, encoding, or execution rule: runnable-tape capacity
+remains an execution-profile fact rather than Alpha language semantics.
+
+The profile revision is atomic across every owner of the old extent. Both
+platform seeds and their stamping paths, the Beta compiler's payload storage
+and generated-program memory maps, adjacent compiler-profile ceilings including
+the procedure table, Gamma's emitted-program stack and heap boundaries, the
+authoritative checker's input frame and subject arena, compiler outcome resource
+tables, and all exact/adjacent limit gates move together. Until that migration
+lands, the committed seeds and tools honestly remain the 256-KiB profile; no
+component may advertise V2 while retaining a V1 consumer or checker bound.
+
+V2 is admitted only when the authoritative checker can check a realistically
+framed maximum-size subject. A seed accepting a maximum tape is insufficient if
+the checker cannot retain that tape together with representative source,
+certificate, lemma, normalization, and scratch demand. The profile therefore
+owns an executed exact-edge acceptance canary over the combined checker frame,
+plus adjacent fail-closed resource outcomes. Its maxima remain explicit and
+conjunctive; an advertised tape maximum may not be practically unprovable under
+the same profile.
+
+The measured Gamma compiler pressure establishes that the old ceiling is a
+lattice constraint, not permission for a weakened compiler, split compiler,
+host helper, Gamma-specific jet, or deleted conformance gate. General Beta code
+density improvements remain ordinary quality work and must preserve the fixed
+gate set, but no further density pass gates V2. Per-feature size budgets do not
+replace the profile revision.
+
+D14's bounded equality lemmas and composition do not yet authorize a paged root
+subject representation. A later checker revision may make subject custody
+chunk-addressable and thereby break the current roughly linear tape-to-arena
+coupling, but that is a separately specified checker/input change rather than an
+unstated part of V2. Real Gamma and Delta artifacts are measured under V2 before
+any further capacity revision; continued pressure first reopens subject custody,
+not the Alpha instruction set.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

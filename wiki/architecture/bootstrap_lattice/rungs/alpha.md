@@ -88,10 +88,12 @@ Gaps versus this target, all small and self-contained:
   seeds both implement it; div/mod now trap on `INT_MIN/-1` to match the x64
   `idiv` overflow.)
 - **Fixed memory hole** — memory size should be an execution *parameter* with a
-  defined out-of-memory result, not baked into the artifact. Interim: both
-  committed seeds now reserve 256 KiB (`0x40000`) to fit the self-hosting Beta
-  compiler. Hole size is a capacity, not a semantic—the realizations agree for
-  any tape that fits both.
+  defined out-of-memory result, not baked into the artifact. Both committed
+  seeds currently reserve 256 KiB (`0x40000`). D23 requires the coherent
+  `AlphaBootstrapV2` migration to a one-MiB hole and a maximum 1,048,572-byte
+  raw tape, including the checker and every adjacent resource profile rather
+  than enlarging only the seeds. Hole size remains capacity, not semantics—the
+  realizations agree for any tape that fits the selected common profile.
 - **Memory accesses are unchecked** — out-of-bounds is silent, not a defined
   trap. A trust-root executor should trap, not corrupt. (Spelled out as the only
   *undefined* corner in SEMANTICS.md §8; the hardening is the next step here.)
@@ -106,6 +108,9 @@ noting its trust-architecture framing is superseded by the
 
 ## Implementation frontiers
 
+- Implement D23's `AlphaBootstrapV2` atomically across seeds, compilers,
+  generated memory maps, checker capacity, boundary outcome tables, and exact
+  limit gates. Current 256-KiB artifacts remain V1 until that migration passes.
 - Fixed-width vs variable-width instruction encoding (canonical-parsing
   simplicity vs density).
 - Complete the memory-fault/`OutOfMemory` event surface when bounds checks land.
