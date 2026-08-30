@@ -17,6 +17,19 @@ another broad alias while executing this plan.
 
 ## Current stopping point
 
+[x] Abstract-to-target translation validation now has a fifteenth exact family
+for `IntegerBitwiseOr(parameter, parameter)`. OR reuses the named `bitwise`
+rung but owns distinct source and target leaves, catalog identity, error,
+receipt, fixtures, corruption suite, and optimized custody. Common bitwise ABI
+and provenance replay now sits below the 48-line target entrance. Bitwise
+error/receipt vocabulary and both parameter/Terminal fixture maps descend into
+exact AND and OR leaves rather than becoming mixed files. Independent replay
+covers all eight native fixed-width integer types, all five native targets,
+register and incoming-stack placements, mixed rosters, reversed and identical
+operands, and every retained target field; address and nonnative carriers fail
+closed. Architecture gates forbid the retired flat bitwise vocabulary and
+fixture paths.
+
 [x] Abstract-to-target translation validation now has a fourteenth exact family
 for `IntegerBitwiseAnd(parameter, parameter)`. Its small source and target
 entrances establish a named `bitwise` rung, with exact `bitwise_and` leaves
@@ -131,13 +144,14 @@ function roster before descending into exact family replay. The adjacent
 sub-100-line catalog is the sole enable/disable inventory; each descriptor
 joins one source classifier to one typed replay adapter. Zero matches publish
 `Uncovered`, one match publishes one receipt on that exact function-roster row,
-and duplicate or overlapping matches fail closed. The first fourteen semantic
+and duplicate or overlapping matches fail closed. The first fifteen semantic
 rows reconstruct parameterless straight-line integer and Boolean literal
 returns, scalar `Crash`, direct integer and Boolean parameter returns, Boolean
 negation of a parameter, ordered Boolean equality of two parameters, and typed
 integer equality, strict ordering, or inclusive ordering of two same-type
 integer parameters, plus integer bitwise-not, integer-widen, and proof-bearing
-integer exact-cast of one parameter, and integer bitwise-AND of two parameters.
+integer exact-cast of one parameter, and integer bitwise-AND or bitwise-OR of
+two parameters.
 The parameter-expression families descend through a governed source-grammar
 map, integer-family coordinator, shared envelope, whole-roster ABI replay, and
 explicit direct/unary/bitwise/comparison joins. Boolean-not, integer bitwise-not,
@@ -695,7 +709,8 @@ parallel route or optional coordinator field.
   Boolean-equal-parameters, typed integer-equal-parameters, and typed
   integer-less-than-parameters, integer-less-or-equal-parameters,
   integer-bitwise-not-parameter, integer-widen-parameter, and proof-bearing
-  integer-exact-cast-parameter, and integer-bitwise-and-parameters
+  integer-exact-cast-parameter, integer-bitwise-and-parameters, and
+  integer-bitwise-or-parameters
   abstract-to-target translation,
   layout-independent baseline, MOVN, XOR-zero, MOV-r32-imm32, CBNZ dispositions,
   structural-Unit encodings, and resolved function-relative layouts now replay
@@ -973,3 +988,9 @@ rewrite or opt a program into lossy floating-point semantics.
     nonnative carriers; retain exact provenance, ordered operands, ABI
     locations, and optimized-target custody; and pin the entrances with
     architecture tests.
+36. [x] Add `IntegerBitwiseOr(parameter, parameter)` as the fifteenth exact
+    translation family. Reuse the named `bitwise` rung with distinct OR leaves,
+    extract shared ABI/provenance replay below the entrance, split bitwise
+    vocabulary and fixture maps into exact-family leaves, cover all native
+    type/target/register-stack cells plus ordered and identical operands, and
+    reject address/nonnative carriers and every source/target field mutation.

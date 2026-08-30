@@ -1,5 +1,5 @@
-use super::common::{parameter_types, parameter_value, scalar_terminal_artifact};
-use super::*;
+use super::super::common::{parameter_types, parameter_value, scalar_terminal_artifact};
+use super::super::*;
 
 pub(crate) fn integer_bitwise_and_parameters_return_artifact(
     integer_type: IntegerType,

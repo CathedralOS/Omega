@@ -30,6 +30,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::parameter::unary::INTEGER_WIDEN,
     dispatch::parameter::unary::INTEGER_EXACT_CAST,
     dispatch::parameter::bitwise::INTEGER_AND,
+    dispatch::parameter::bitwise::INTEGER_OR,
 ];
 
 pub(super) fn validate_function(
