@@ -812,10 +812,15 @@ Remaining:
   checked provider plans without creating a satisfier edge. Installation reach
   settlement now rejoins the selected exact requirement/provider row. The core
   task claim and public outcome carriers are visible in preparation for their
-  exported requirement signatures. Remaining work is bodyless external-
-  realization planning, selected invocation replay of the installed execution
-  and era, exact generic-provider coverage, and final removal of the
-  transitional undifferentiated bodyless-machine cases.
+  exported requirement signatures. Nongeneric payload-bearing bodyless
+  external satisfiers now derive selectable provider candidates from their
+  exact typed requirement edge and binding. Candidate validation and selected
+  provenance replay reject binding, realization-symbol, or requirement-symbol
+  substitution. Remaining work is package-review and executable extraction of
+  those external rows, selected invocation replay of the installed execution
+  and era, exact generic-provider coverage, compiler-intrinsic catalog
+  settlement, and final removal of the transitional undifferentiated
+  bodyless-machine cases.
 
   Migrate `InterruptMaskGuard::restore`,
   `InterruptAcknowledgement::complete`, `Task::request_cancel`, and

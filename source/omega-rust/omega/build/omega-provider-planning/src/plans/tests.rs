@@ -158,6 +158,166 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
 }
 
 #[test]
+fn derives_and_selects_external_top_level_boundary_requirement_provider() {
+    let source = r#"
+        pub data InterruptAcknowledgement [copy] { token: u64; }
+        pub data LinuxCompletion {}
+
+        pub boundary requirement InterruptAcknowledgement::complete(self);
+
+        machine LinuxCompletion::complete(
+            acknowledgement: InterruptAcknowledgement
+        )
+        satisfies InterruptAcknowledgement::complete
+        via Binding::Syscall(60);
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize external top-level requirement fixture");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse external top-level requirement fixture");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve external top-level requirement fixture");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type external top-level requirement fixture");
+    psi_typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
+        .expect("the exact external satisfier should pass conformance validation");
+
+    let requirement = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")
+        .expect("typed top-level requirement");
+    let provider = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "LinuxCompletion::complete")
+        .expect("typed external provider");
+    let provider_type = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "LinuxCompletion")
+        .expect("nominal external provider type");
+    let derived = derive_satisfies_plans_with_provenance(&typed, Some("linux_x86_64"));
+    let [derived] = derived.as_slice() else {
+        panic!(
+            "one exact external top-level provider plan, got {}",
+            derived.len()
+        )
+    };
+
+    assert_eq!(
+        derived.provenance.schema,
+        ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol)
+    );
+    assert_eq!(derived.provenance.provider_type, Some(provider_type.symbol));
+    assert_eq!(derived.provenance.row_requirements, [requirement.symbol]);
+    assert_eq!(derived.provenance.row_realizations, [provider.symbol]);
+    assert_eq!(derived.plan.target, "linux_x86_64");
+    assert!(matches!(
+        derived.plan.rows.as_slice(),
+        [ProviderPlanRow {
+            binding: ProviderBinding::Syscall { number: 60 },
+            ..
+        }]
+    ));
+    let validation = validate_provider_plan_candidates(&typed, std::slice::from_ref(&derived.plan));
+    assert!(
+        validation.is_empty(),
+        "the external plan must replay against its exact typed binding: {validation:?}"
+    );
+
+    let selection = crate::ProviderSelection {
+        subject: crate::ProviderSelectionSubject::BoundaryRequirement(
+            crate::ProviderSelectionIdentity {
+                symbol: requirement.symbol,
+                package: typed.symbols.symbol_package_identity(requirement.symbol),
+                canonical_path: derived.plan.schema.trait_name.clone(),
+                authored_path: "InterruptAcknowledgement::complete".to_owned(),
+            },
+        ),
+        provider_type: crate::ProviderSelectionIdentity {
+            symbol: provider_type.symbol,
+            package: typed.symbols.symbol_package_identity(provider_type.symbol),
+            canonical_path: derived.plan.provider_type.clone(),
+            authored_path: "LinuxCompletion".to_owned(),
+        },
+        selecting_machine: psi_symbols::SymbolHandle::invalid(),
+        source_span: psi_source::SourceSpan::default(),
+    };
+    let selected = select_provider_plans(
+        std::slice::from_ref(&derived.plan),
+        omega_target::NativeTarget::linux_x64(),
+        &[],
+        &[selection],
+    )
+    .expect("an explicit selection chooses the declared external candidate");
+    assert_eq!(selected, [derived.plan.clone()]);
+
+    let selected_with_provenance = select_provider_plans_with_provenance(
+        std::slice::from_ref(derived),
+        omega_target::NativeTarget::linux_x64(),
+        &[],
+        &[],
+    )
+    .expect("the unique external candidate retains exact selection provenance");
+    selected_provider_plan_facts_with_provenance(&typed, selected_with_provenance.clone())
+        .expect("selected facts must replay the external realization and binding");
+
+    let mut drifted = derived.plan.clone();
+    drifted.rows[0].binding = ProviderBinding::Syscall { number: 61 };
+    let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolves to 0 exact typed external realizations")
+        }),
+        "a substituted external binding must not replay against source: {diagnostics:?}"
+    );
+
+    let mut drifted_binding_provenance = selected_with_provenance.clone();
+    drifted_binding_provenance[0].derived.plan.rows[0].binding =
+        ProviderBinding::Syscall { number: 61 };
+    let diagnostics =
+        selected_provider_plan_facts_with_provenance(&typed, drifted_binding_provenance)
+            .expect_err("selected provenance must reject substituted external binding identity");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("resolves to 0 exact typed external realizations")
+    }));
+
+    let mut drifted_realization_provenance = selected_with_provenance.clone();
+    drifted_realization_provenance[0]
+        .derived
+        .provenance
+        .row_realizations[0] = requirement.symbol;
+    let diagnostics =
+        selected_provider_plan_facts_with_provenance(&typed, drifted_realization_provenance)
+            .expect_err("selected provenance must reject a substituted realization symbol");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("not its exact typed external realization")
+    }));
+
+    let mut drifted_requirement_provenance = selected_with_provenance;
+    drifted_requirement_provenance[0]
+        .derived
+        .provenance
+        .row_requirements[0] = provider.symbol;
+    let diagnostics =
+        selected_provider_plan_facts_with_provenance(&typed, drifted_requirement_provenance)
+            .expect_err("selected provenance must reject a substituted requirement symbol");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("without its exact requirement declaration")
+    }));
+}
+
+#[test]
 fn provider_derivation_consumes_typed_external_binding_identity() {
     let source = |library: &str, symbol: &str| {
         format!(
