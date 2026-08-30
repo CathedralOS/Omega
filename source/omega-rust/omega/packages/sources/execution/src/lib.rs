@@ -20,7 +20,7 @@ pub use model::{
     ResolverExecutionBackendIdentity, ResolverExecutionGuarantee,
     ResolverExecutionGuaranteeDisposition, ResolverExecutionGuaranteeRow,
     ResolverExecutionNetworkTransport, ResolverExecutionPhase, ResolverExecutionPolicyObservation,
-    ResolverExecutionResourceCeilings, ResolverStrictExecutionUnavailable,
+    ResolverExecutionResourceCeilings,
 };
 pub use network::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,

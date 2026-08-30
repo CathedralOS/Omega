@@ -9,7 +9,7 @@ use crate::tree::filesystem::open_absolute_directory_nofollow;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(any(target_os = "macos", windows))]
 use cap_std::fs::OpenOptions as CapabilityOpenOptions;
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(target_os = "macos")]
 use std::fs::File;
 use std::path::Path;
 
@@ -71,7 +71,7 @@ fn verify_git_transport_invocation_node_custody(
     path: &Path,
     metadata: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    verify_windows_executable_path_custody(path, metadata)
+    verify_windows_executable_path_identity(path, metadata)
 }
 
 #[cfg(all(not(unix), not(windows)))]
@@ -254,11 +254,11 @@ pub(super) fn verify_git_executable_custody(path: &Path) -> Result<(), SourceRes
             message: "canonical resolver executable is not a concrete regular file".to_owned(),
         });
     }
-    verify_windows_executable_path_custody(path, &metadata)
+    verify_windows_executable_path_identity(path, &metadata)
 }
 
 #[cfg(windows)]
-fn verify_windows_executable_path_custody(
+fn verify_windows_executable_path_identity(
     path: &Path,
     classified: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
@@ -299,46 +299,6 @@ fn verify_windows_executable_path_custody(
     if !same_std_and_capability_file_identity(classified, &opened) {
         return Err(SourceResolveError::GitExecutableChanged {
             path: path.to_path_buf(),
-        });
-    }
-    verify_windows_open_executable_custody(path, &file.into_std())
-}
-
-#[cfg(windows)]
-fn verify_windows_open_executable_custody(
-    path: &Path,
-    file: &File,
-) -> Result<(), SourceResolveError> {
-    use omega_platform_custody::{
-        WindowsFileCustodyViolation, WindowsFileOwnerPolicy, inspect_open_windows_file_custody,
-    };
-
-    let violation = inspect_open_windows_file_custody(
-        file,
-        WindowsFileOwnerPolicy::CurrentUserSystemOrAdministrators,
-    )
-    .map_err(|error| SourceResolveError::GitExecutableInvalid {
-        path: path.to_path_buf(),
-        message: format!("could not inspect retained Windows executable custody: {error}"),
-    })?;
-    if let Some(violation) = violation {
-        let message = match violation {
-            WindowsFileCustodyViolation::UntrustedOwner => {
-                "resolver executable is owned by an untrusted Windows principal"
-            }
-            WindowsFileCustodyViolation::NullDacl => {
-                "resolver executable has a null DACL granting unrestricted access"
-            }
-            WindowsFileCustodyViolation::UntrustedMutationAuthority => {
-                "resolver executable grants mutation authority to an untrusted Windows principal"
-            }
-            WindowsFileCustodyViolation::UnsupportedAllowAce => {
-                "resolver executable contains an unsupported access-allowing Windows ACE"
-            }
-        };
-        return Err(SourceResolveError::GitExecutableInvalid {
-            path: path.to_path_buf(),
-            message: message.to_owned(),
         });
     }
     Ok(())

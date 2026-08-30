@@ -1,7 +1,6 @@
 use super::{
-    ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
-    ResolverExecutionGuaranteeRow, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
-    ResolverStrictExecutionUnavailable,
+    ResolverExecutionGuarantee, ResolverExecutionGuaranteeRow, ResolverExecutionNetworkTransport,
+    ResolverExecutionPhase,
 };
 use crate::network::ResolverExecutionEndpointRoutePolicy;
 use std::path::{Path, PathBuf};
@@ -77,20 +76,6 @@ impl ResolverExecutionPolicyObservation {
 
     pub const fn guarantees(&self) -> &[ResolverExecutionGuaranteeRow] {
         &self.guarantees
-    }
-
-    /// Reject unless every strict guarantee required for this phase was
-    /// established by the selected backend.
-    pub fn require_strict(&self) -> Result<(), ResolverStrictExecutionUnavailable> {
-        for row in self.guarantees {
-            if row.disposition == ResolverExecutionGuaranteeDisposition::Unavailable {
-                return Err(ResolverStrictExecutionUnavailable {
-                    phase: self.phase,
-                    guarantee: row.guarantee,
-                });
-            }
-        }
-        Ok(())
     }
 
     /// Emit deterministic opaque bytes for later comparison and provenance.

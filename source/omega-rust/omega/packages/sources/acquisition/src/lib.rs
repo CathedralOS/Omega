@@ -43,10 +43,7 @@ pub use observations::accounting::GitNetworkTransferObservation;
 pub use observations::execution::{
     GitCommandInputCommitment, GitExecutableIdentity, GitTransportExecutableIdentity,
 };
-pub use observations::receipt::{
-    GitSourceStrictReceipt, GitSourceStrictReceiptError, GitSourceStrictReceiptRequirement,
-};
-pub use observations::resolution::GitSourceResolutionObservation;
+pub use observations::resolution::GitSourceReceipt;
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 pub use observations::storage::GitRetainedStorageObservation;
 pub use storage::SourceResolverStorage;

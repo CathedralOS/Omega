@@ -174,19 +174,6 @@ fn policy_observation_is_complete_canonical_and_locally_fail_closed() {
             ResolverExecutionGuaranteeDisposition::Unavailable
         );
     }
-    assert!(inspection.require_strict().is_err());
-    assert!(fetch.require_strict().is_err());
-    for observation in [&inspection, &fetch] {
-        let unavailable = observation
-            .guarantees()
-            .iter()
-            .find(|row| row.disposition() == ResolverExecutionGuaranteeDisposition::Unavailable)
-            .expect("current backend retains at least one unavailable strict guarantee");
-        let error = observation
-            .require_strict()
-            .expect_err("strict policy rejects");
-        assert_eq!(error.guarantee(), unavailable.guarantee());
-    }
 }
 
 #[test]

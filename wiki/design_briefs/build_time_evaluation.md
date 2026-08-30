@@ -752,8 +752,8 @@ replay must reproduce the complete attempt and teardown before empty
 staged-output custody issues.
 
 Runtime WCET and target instruction cost remain a different resource theory.
-A fixed-IR certificate may remove runtime fuel metering, but its scalar does
-not predict the target's worst-cycle path.
+A fixed-IR logical-work certificate does not alter native execution and its
+scalar does not predict the target's worst-cycle path.
 
 ## Result caching and usage accounting
 

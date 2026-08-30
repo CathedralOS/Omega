@@ -22,7 +22,7 @@ lowers?"
   transparent runtime authority carriers, routed qualification evidence,
   receipt-backed fact origination, and checked resource transformations.
 - [Terminal Psi, Fuel, And Resource Provisioning](../design_briefs/canonical_ir_fuel_and_resource_provisioning.md):
-  terminal-Psi identity and evidence, deterministic sponsor-owned fuel,
+  terminal-Psi identity and evidence, deterministic compiler-service budgets,
   restricted fixed-work certificates, and capability-provisioned spatial
   resources.
 

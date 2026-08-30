@@ -2,15 +2,15 @@
 
 use psi_diagnostics::Diagnostic;
 
-use crate::{ObjectArtifact, ObjectFunction};
+use crate::ObjectArtifact;
 
-use super::{contract, fuel, layout};
+use super::{contract, layout};
 
 pub(super) fn replay_final_image(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
-    let mut candidates = artifact.functions().iter().filter(|function| {
-        function.ranked_u32_countdown.is_some()
-            || requires_ranked_countdown_replay(function, artifact.fuel_attribution())
-    });
+    let mut candidates = artifact
+        .functions()
+        .iter()
+        .filter(|function| function.ranked_u32_countdown.is_some());
     let Some(function) = candidates.next() else {
         return Ok(());
     };
@@ -30,36 +30,13 @@ pub(super) fn replay_final_image(artifact: &ObjectArtifact) -> Result<(), Diagno
         )));
     }
     let bytes = function.bytes(artifact);
-    let decoded =
-        layout::validate_ranked_countdown_layout(artifact.target(), bytes).ok_or_else(|| {
-            Diagnostic::error(format!(
-                "ranked-u32 countdown function {} failed final-image target decoding",
-                function.machine
-            ))
-        })?;
+    layout::validate_ranked_countdown_layout(artifact.target(), bytes).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "ranked-u32 countdown function {} failed final-image target decoding",
+            function.machine
+        ))
+    })?;
     contract::replay_ranked_countdown_object_contract(artifact, function, record)
         .map_err(|error| Diagnostic::error(error.to_string()))?;
-    if !fuel::replay_ranked_countdown_object_fuel(
-        record,
-        artifact.fuel_attribution(),
-        function,
-        decoded,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "ranked-u32 countdown function {} failed final-image fuel replay",
-            function.machine
-        )));
-    }
     Ok(())
-}
-
-fn requires_ranked_countdown_replay(
-    function: &ObjectFunction,
-    fuel: &[crate::ObjectFuelAttribution],
-) -> bool {
-    function.ranked_u32_countdown.is_some()
-        || (function.provenance.operations.len() == 4
-            && function.provenance.edges.len() == 5
-            && fuel.len() == 9
-            && fuel.iter().all(|row| row.machine == function.machine))
 }

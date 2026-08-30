@@ -66,8 +66,8 @@ pub(crate) fn create_git_cache_entry(
         init_arguments.push(OsString::from("--object-format=sha256"));
     }
     init_arguments.push(OsString::from("--template"));
-    init_arguments.push(empty_template.as_os_str().to_owned());
-    init_arguments.push(repository.as_os_str().to_owned());
+    init_arguments.push(OsString::from("empty-template"));
+    init_arguments.push(OsString::from(GIT_CACHE_REPOSITORY));
     pending.verify_ambient_path_identity(cache_dir)?;
     let init_result = run_git(
         executor,

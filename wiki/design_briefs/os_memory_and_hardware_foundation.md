@@ -1510,7 +1510,8 @@ control flow, no dynamic or recursive path, and fixed-work acknowledgement,
 clock-capture, wake, and return leaves. Provider work summaries compose
 transitively just as reach summaries do; an acyclic caller cannot launder an
 unbounded leaf. Trusted lowering/install provenance is required before a
-fixed-IR certificate removes native runtime metering.
+fixed-IR certificate is applied to installed bytes; the certificate is
+analysis evidence and native runtime metering does not exist.
 
 The IDT is consequently a first serious customer, not a special construct:
 

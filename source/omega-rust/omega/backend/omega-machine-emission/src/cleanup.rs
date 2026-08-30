@@ -5,9 +5,9 @@ use omega_assigned_target_operations::{
 use omega_calling_conventions::ValueLocation;
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, InternalCallRelocation, InternalUnitCallRecord, MachineCodeFunction,
-    NativeFuelAttribution, NativeFuelSite, ScalarCallStackEvidence,
-    ScalarCleanupPreservationEvidence, ScalarConditionalBranchEvidence, ScalarConditionalCondition,
-    ScalarControlAffineCleanupRecord, ScalarControlFlowEvidence, StackAdjustmentPair,
+    ScalarCallStackEvidence, ScalarCleanupPreservationEvidence, ScalarConditionalBranchEvidence,
+    ScalarConditionalCondition, ScalarControlAffineCleanupRecord, ScalarControlFlowEvidence,
+    SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::CallSiteOwner;
@@ -286,14 +286,14 @@ pub(super) fn emit_scalar_return_with_cleanup(
     emitted.scalar_affine_cleanup = Some(cleanup.clone());
     emitted.scalar_structural_parameters = parameter_records;
     emitted.scalar_structural_parameter_homes = parameter_homes;
-    emitted.fuel_attribution.push(NativeFuelAttribution {
-        schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-        site: NativeFuelSite::Edge(psi_edge),
-        units: 1,
-        operation_ordinal: 0,
-        code_offset: cleanup.code_offset,
-        byte_count: cleanup.byte_count,
-    });
+    emitted
+        .semantic_code_attribution
+        .push(SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(psi_edge),
+            operation_ordinal: 0,
+            code_offset: cleanup.code_offset,
+            byte_count: cleanup.byte_count,
+        });
     Ok(emitted)
 }
 
@@ -459,14 +459,12 @@ pub(super) fn emit_boolean_control_with_cleanup(
             ),
         })
         .collect::<Vec<_>>();
-    let fuel_attribution = emitted
+    let semantic_code_attribution = emitted
         .cleanups
         .iter()
         .enumerate()
-        .map(|(operation_ordinal, leaf)| NativeFuelAttribution {
-            schedule: psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-            site: NativeFuelSite::Edge(leaf.cleanup.psi_edge),
-            units: 1,
+        .map(|(operation_ordinal, leaf)| SemanticCodeAttribution {
+            site: SemanticCodeSite::Edge(leaf.cleanup.psi_edge),
             operation_ordinal,
             code_offset: leaf.cleanup.code_offset,
             byte_count: leaf.cleanup.byte_count,
@@ -491,7 +489,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         scalar_structural_parameters: parameter_records,
         scalar_structural_parameter_homes: parameter_homes,
         ranked_u32_countdown: None,
-        fuel_attribution,
+        semantic_code_attribution,
         port_effects: Vec::new(),
         boundary_settlements: Vec::new(),
         structural_return: None,

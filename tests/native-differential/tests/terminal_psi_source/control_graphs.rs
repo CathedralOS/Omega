@@ -122,7 +122,7 @@ fn checked_source_conditional_survives_frontend_drop() {
     );
     let assigned = assign_registers(&target_operations)
         .expect("source conditional parameter homes should assign");
-    let machine_code =
+    let _machine_code =
         emit_machine_code(&assigned).expect("source conditional machine code should emit");
     #[cfg(unix)]
     for (condition, expected) in [(true, 49), (false, 239)] {
@@ -956,7 +956,7 @@ fn checked_source_boolean_conditional_reaches_native_control() {
     ));
     let assigned = assign_registers(&target_operations)
         .expect("Boolean source conditional parameter homes should assign");
-    let machine_code =
+    let _machine_code =
         emit_machine_code(&assigned).expect("Boolean source conditional machine code should emit");
     #[cfg(unix)]
     for (condition, expected) in [(true, 1), (false, 0)] {

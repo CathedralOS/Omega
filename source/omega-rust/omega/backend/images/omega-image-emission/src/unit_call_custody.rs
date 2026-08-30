@@ -1,11 +1,11 @@
 //! Exact internal Unit-call custody and projected-copy replay.
 //!
-//! This module validates retained call identity, provenance/fuel ownership,
+//! This module validates retained call identity, provenance/code ownership,
 //! calling-policy placements, projected structural arguments, claim transfers,
 //! exact copy bytes, and call-span containment. It neither assigns layouts nor
 //! emits relocations or executable bytes.
 
-use omega_machine_code::{NativeFuelAttribution, NativeFuelSite};
+use omega_machine_code::{SemanticCodeAttribution, SemanticCodeSite};
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{CallSiteOwner, TerminalPsiProvenance};
 use psi_core::MachineId;
@@ -21,7 +21,7 @@ pub(super) fn validate_internal_unit_call_custody(
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
     function_bytes: &[u8],
-    fuel: &[NativeFuelAttribution],
+    attribution: &[SemanticCodeAttribution],
     relocations: &[omega_machine_code::InternalCallRelocation],
     parameter_homes: &[omega_machine_code::UnitParameterHomeRecord],
     validated_function_stack: Option<&ObjectUnitStack>,
@@ -64,10 +64,10 @@ pub(super) fn validate_internal_unit_call_custody(
         let owner_valid = match custody.owner {
             CallSiteOwner::Operation(operation) => {
                 provenance.operations.contains(&operation)
-                    && fuel
+                    && attribution
                         .iter()
                         .filter(|attribution| {
-                            attribution.site == NativeFuelSite::Operation(operation)
+                            attribution.site == SemanticCodeSite::Operation(operation)
                                 && attribution.operation_ordinal == custody.operation_ordinal
                                 && attribution.code_offset == custody.code_offset
                                 && attribution.byte_count == custody.byte_count
@@ -98,10 +98,10 @@ pub(super) fn validate_internal_unit_call_custody(
                     && nominal.cleanup_machine == custody.target
                     && cleanup.code_offset <= custody.code_offset
                     && end <= cleanup_end
-                    && fuel
+                    && attribution
                         .iter()
                         .filter(|attribution| {
-                            attribution.site == NativeFuelSite::Edge(edge)
+                            attribution.site == SemanticCodeSite::Edge(edge)
                                 && attribution.operation_ordinal == custody.operation_ordinal
                                 && attribution.code_offset == cleanup.code_offset
                                 && attribution.byte_count == cleanup.byte_count
@@ -212,10 +212,10 @@ pub(super) fn validate_internal_unit_call_custody(
         || custody.code_offset > relocation.offset
         || relocation_end > end
         || !provenance.operations.contains(&operation)
-        || fuel
+        || attribution
             .iter()
             .filter(|attribution| {
-                attribution.site == NativeFuelSite::Operation(operation)
+                attribution.site == SemanticCodeSite::Operation(operation)
                     && attribution.operation_ordinal == custody.operation_ordinal
                     && attribution.code_offset == custody.code_offset
                     && attribution.byte_count == custody.byte_count

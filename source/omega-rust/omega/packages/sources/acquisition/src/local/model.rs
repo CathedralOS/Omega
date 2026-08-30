@@ -12,7 +12,7 @@ pub use crate::tree::{
 /// The resolver is the only issuer. The observation binds the caller's exact
 /// request, its canonical live source, immutable publication, source limits,
 /// snapshot custody, and the final exact-tree rehash. It records successful
-/// non-admitting custody; it is not package admission.
+/// source resolution; package review and lock admission remain separate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalSourceResolutionObservation {
     pub(super) schema_version: u32,

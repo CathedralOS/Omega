@@ -183,12 +183,7 @@ impl RecordFileRoot {
                 &display_path,
             )?;
             stage.remove()?;
-            self.directory
-                .try_clone()
-                .map_err(|error| io_error(&self.display_path, error))?
-                .into_std_file()
-                .sync_all()
-                .map_err(|error| io_error(&self.display_path, error))?;
+            synchronize_directory(&self.directory, &self.display_path)?;
             verify_capability_regular_identity(
                 &self.directory,
                 file_name,
@@ -270,12 +265,7 @@ impl RecordFileRoot {
                 &stage.file,
                 &display_path,
             )?;
-            self.directory
-                .try_clone()
-                .map_err(|error| io_error(&self.display_path, error))?
-                .into_std_file()
-                .sync_all()
-                .map_err(|error| io_error(&self.display_path, error))?;
+            synchronize_directory(&self.directory, &self.display_path)?;
             stage
                 .file
                 .seek(SeekFrom::Start(0))
@@ -299,6 +289,27 @@ impl RecordFileRoot {
             message: record_error_message(error),
         })
     }
+}
+
+#[cfg(unix)]
+fn synchronize_directory(
+    directory: &CapabilityDirectory,
+    display_path: &Path,
+) -> Result<(), RecordFileError> {
+    directory
+        .try_clone()
+        .map_err(|error| io_error(display_path, error))?
+        .into_std_file()
+        .sync_all()
+        .map_err(|error| io_error(display_path, error))
+}
+
+#[cfg(not(unix))]
+fn synchronize_directory(
+    _directory: &CapabilityDirectory,
+    _display_path: &Path,
+) -> Result<(), RecordFileError> {
+    Ok(())
 }
 
 pub struct RootRecordRead<'root> {

@@ -3,7 +3,7 @@
 use super::lock::verify_retained_cache_parent_path;
 use super::platform::{
     same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
-    verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
+    verify_macos_open_cache_extended_acl_custody,
 };
 #[cfg(test)]
 use super::tree::verify_cache_custody_root;
@@ -144,12 +144,28 @@ pub(crate) fn publish_cache_directory_from_open_parent(
             "published cache directory does not identify the staged directory",
         ));
     }
+    synchronize_cache_parent(directory, parent)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn synchronize_cache_parent(
+    directory: &CapabilityDirectory,
+    parent: &Path,
+) -> Result<(), SourceResolveError> {
     directory
         .try_clone()
         .map_err(|error| io_error(parent, error))?
         .into_std_file()
         .sync_all()
-        .map_err(|error| io_error(parent, error))?;
+        .map_err(|error| io_error(parent, error))
+}
+
+#[cfg(not(unix))]
+fn synchronize_cache_parent(
+    _directory: &CapabilityDirectory,
+    _parent: &Path,
+) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
@@ -261,6 +277,7 @@ impl PendingCacheEntry {
         entry_name: &OsStr,
     ) -> Result<(), SourceResolveError> {
         let retained = self.verify_path_identity()?;
+        drop(self.directory.take());
         publish_cache_directory_from_open_parent(
             CacheCustodyKind::Git,
             cache_dir,
@@ -314,11 +331,13 @@ impl Drop for ProvisionalCacheDirectory<'_> {
 
 impl Drop for PendingCacheEntry {
     fn drop(&mut self) {
-        if !self.published
-            && let Some(directory) = self.directory.take()
-        {
-            make_open_tree_owner_writable(&directory);
-            let _ = directory.remove_open_dir_all();
+        if !self.published {
+            if let Some(directory) = self.directory.take() {
+                make_open_tree_owner_writable(&directory);
+                let _ = directory.remove_open_dir_all();
+            } else {
+                let _ = self.parent.remove_dir_all(&self.stage_name);
+            }
         }
     }
 }
@@ -388,14 +407,6 @@ pub(crate) fn retain_private_cache_directory(
         }
     }
     verify_macos_open_cache_extended_acl_custody(
-        kind,
-        path,
-        &directory
-            .try_clone()
-            .map_err(|error| io_error(path, error))?
-            .into_std_file(),
-    )?;
-    verify_windows_open_cache_custody(
         kind,
         path,
         &directory

@@ -5,6 +5,7 @@ mod observation;
 mod preparation;
 mod request;
 
+#[cfg(target_os = "macos")]
 use crate::confinement;
 use crate::model::ResolverExecutionBackendIdentity;
 use std::path::Path;

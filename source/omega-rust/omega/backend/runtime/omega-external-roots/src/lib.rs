@@ -19,12 +19,7 @@ pub use omega_executable_installation::{ArtifactId, InstallationScopeId, Install
 use omega_executable_installation::{
     InstallationRegistryAuthority, InstalledCode, InstalledCodeContext,
 };
-pub use omega_installation_evidence::{
-    NativeFuelActivationStateSlot, NativeFuelContextLayout, NativeFuelRuntimeEntryIdentity,
-    NativeFuelSavedValue, NativeFuelSponsorStackPlan, NativeFuelTargetPlanProjection,
-    NativeFuelTransferRuntimePlanProjection, ObjectEvidence, SponsorContextTransport,
-    StackDemandEvidence,
-};
+pub use omega_installation_evidence::{ObjectEvidence, StackDemandEvidence};
 pub use psi_core::FuelScheduleIdentity;
 use psi_layout_plans::EntryStubId;
 
@@ -94,11 +89,6 @@ normalized_id!(
     "fixed-fuel provider validation receipt"
 );
 normalized_id!(FuelValidationReceiptId, "logical-fuel validation receipt");
-normalized_id!(
-    FuelSuspensionValidationReceiptId,
-    "fuel-suspension validation receipt"
-);
-normalized_id!(NativeFuelMeterPlanId, "native fuel-meter plan");
 normalized_id!(StateValidationReceiptId, "machine-state validation receipt");
 normalized_id!(InterruptInvocationId, "interrupt invocation");
 normalized_id!(InterruptEntryReceiptId, "interrupt entry receipt");
@@ -165,8 +155,6 @@ mod fixed_fuel;
 pub use fixed_fuel::*;
 mod epoch_stack_demand;
 pub use epoch_stack_demand::*;
-mod native_fuel;
-pub use native_fuel::*;
 mod opaque_callback_replacement;
 pub use opaque_callback_replacement::*;
 mod provider_execution;
@@ -454,7 +442,6 @@ pub struct RootAdmission {
     slot: RootSlotId,
     owner: RootSlotOwnerId,
     trust_receipts: BTreeSet<TrustReceiptId>,
-    native_fuel: InstalledNativeFuelRealization,
 }
 
 impl RootAdmission {
@@ -466,96 +453,9 @@ impl RootAdmission {
         slot: &RootSlotAuthority,
         trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
     ) -> Result<Self, ExternalRootDiagnostic> {
-        let fuel = &root.candidate.logical_fuel;
-        let fixed = admit_fixed_native_fuel(&fuel.realization, fuel.provision, fuel.ceiling_units)?;
-        let native_fuel = bind_installed_native_fuel_realization(
-            select_fixed_native_fuel(fixed),
-            &fuel.realization,
-            fuel.provision,
-            fuel.ceiling_units,
-            installed_code,
-            None,
-            None,
-        )?;
-        Self::from_admitted_provider_with_native_fuel(
-            identity,
-            root,
-            execution,
-            installed_code,
-            slot,
-            native_fuel,
-            trust_receipts,
-        )
-    }
-
-    /// Admit one explicitly selected deployed dynamic-fuel root. The ordinary
-    /// constructor remains fixed-only; this path exists only when final
-    /// metered-image attribution and executable transfer-runtime custody have
-    /// already been sealed against the same installed-code occurrence.
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_admitted_provider_with_dynamic_native_fuel(
-        identity: RootAdmissionId,
-        root: &ValidatedExternalRoot,
-        execution: &ProviderExecution,
-        installed_code: &InstalledCode,
-        slot: &RootSlotAuthority,
-        environment: NativeFuelExecutionEnvironment,
-        dynamic_attribution: InstalledDynamicFuelAttributionPlan,
-        dynamic_transfer_runtime: InstalledNativeFuelTransferRuntime,
-        trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
-    ) -> Result<Self, ExternalRootDiagnostic> {
-        let fuel = &root.candidate.logical_fuel;
-        let selected = admit_native_fuel_realization(
-            &fuel.realization,
-            fuel.provision,
-            fuel.ceiling_units,
-            environment,
-            NativeFuelRealizationRequest::Dynamic(dynamic_attribution.plan()),
-        )?;
-        let native_fuel = bind_installed_native_fuel_realization(
-            selected,
-            &fuel.realization,
-            fuel.provision,
-            fuel.ceiling_units,
-            installed_code,
-            Some(dynamic_attribution),
-            Some(dynamic_transfer_runtime),
-        )?;
-        Self::from_admitted_provider_with_native_fuel(
-            identity,
-            root,
-            execution,
-            installed_code,
-            slot,
-            native_fuel,
-            trust_receipts,
-        )
-    }
-
-    pub fn from_admitted_provider_with_native_fuel(
-        identity: RootAdmissionId,
-        root: &ValidatedExternalRoot,
-        execution: &ProviderExecution,
-        installed_code: &InstalledCode,
-        slot: &RootSlotAuthority,
-        native_fuel: InstalledNativeFuelRealization,
-        trust_receipts: impl IntoIterator<Item = TrustReceiptId>,
-    ) -> Result<Self, ExternalRootDiagnostic> {
         if !execution.matches_root(root) {
             return Err(ExternalRootDiagnostic(
                 "root admission provider execution does not bind the exact validated root realization"
-                    .into(),
-            ));
-        }
-        let fuel = &root.candidate.logical_fuel;
-        if !native_fuel.matches(
-            &fuel.realization,
-            fuel.provision,
-            fuel.ceiling_units,
-            installed_code,
-        ) {
-            return Err(ExternalRootDiagnostic(
-                "root admission native-fuel realization does not bind the exact resource column and installed code"
                     .into(),
             ));
         }
@@ -575,7 +475,6 @@ impl RootAdmission {
             slot: slot.slot,
             owner: slot.owner,
             trust_receipts: trust_receipts.into_iter().collect(),
-            native_fuel,
         })
     }
 
@@ -606,8 +505,6 @@ pub struct InstalledRootRecord {
     pub provider_exit_assurance: OpaqueProviderExitAssurance,
     pub provider_exit_assurance_report_fingerprint: u64,
     pub provider_plan: ProviderPlanId,
-    pub native_fuel_kind: NativeFuelRealizationKind,
-    pub native_fuel_report_fingerprint: u64,
     pub requirement_identity: String,
     pub entry_claims: Vec<ExternalRootEntryClaim>,
     pub acknowledgement_parameter_index: Option<usize>,
@@ -646,7 +543,6 @@ struct InstalledRootEvidence {
     slot: RootSlotId,
     owner: RootSlotOwnerId,
     admission: RootAdmissionId,
-    native_fuel: InstalledNativeFuelRealization,
 }
 
 #[derive(Debug)]
@@ -1602,7 +1498,6 @@ impl InstalledRootLedger {
             hash.u64(record.provider_execution_report_fingerprint);
             hash.u64(record.provider_exit_assurance_report_fingerprint);
             hash.u64(record.provider_plan.normalized_identity());
-            hash.u64(record.native_fuel_report_fingerprint);
             hash.u64(record.selected_provider_closure_report_fingerprint);
             hash.bytes(record.selected_provider_closure_digest.as_bytes());
             hash.u64(record.boundary_contract_report_fingerprint);
@@ -1693,12 +1588,6 @@ impl InstalledRootLedger {
             || admission.slot != slot.slot
             || admission.owner != slot.owner
             || admission.trust_receipts != root.candidate.trust_receipts
-            || !admission.native_fuel.matches(
-                &root.candidate.logical_fuel.realization,
-                root.candidate.logical_fuel.provision,
-                root.candidate.logical_fuel.ceiling_units,
-                installed_code,
-            )
         {
             return reject(
                 ExternalRootDiagnostic(
@@ -1718,7 +1607,6 @@ impl InstalledRootLedger {
             slot: slot.slot,
             owner: slot.owner,
             admission: admission.identity,
-            native_fuel: admission.native_fuel.clone(),
         };
         let record = InstalledRootRecord {
             root: root.candidate.identity,
@@ -1735,8 +1623,6 @@ impl InstalledRootLedger {
             provider_exit_assurance_report_fingerprint: admission
                 .provider_exit_assurance_report_fingerprint,
             provider_plan: admission.provider_plan,
-            native_fuel_kind: admission.native_fuel.kind(),
-            native_fuel_report_fingerprint: admission.native_fuel.report_fingerprint(),
             requirement_identity: root.candidate.requirement_identity,
             entry_claims: root.candidate.entry_claims,
             acknowledgement_parameter_index: root.candidate.acknowledgement_parameter_index,

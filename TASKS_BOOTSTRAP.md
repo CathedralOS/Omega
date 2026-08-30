@@ -504,7 +504,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     calls, exhaustive matches and complete static rejection of every
     nonexhaustive shape, checked `Int` traps, every `Bytes` operation, and
     invalid byte/range access.
-  - **OWNER-BLOCKED — Q6:** freeze global declaration identity, duplicate
+  - **OWNER-BLOCKED — Q4:** freeze global declaration identity, duplicate
     binder handling, lexical scope, and shadowing before the canonical resolver
     assigns meaning to ambiguous source. This blocks resolver/type-checker
     completion only; source-envelope validation, strict grammar parsing, target
@@ -513,7 +513,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     compiler-application adapter (the Delta compiler uses `DCOUT`). The adapter
     supplies sealed `Bytes`, validates structured returned rejection values,
     owns private failures, and never emits partial artifact bytes.
-    **OWNER-BLOCKED — Q5:** select how the exact Gamma compilation question
+    **OWNER-BLOCKED — Q3:** select how the exact Gamma compilation question
     carries the generated application profile. This blocks adapter publication
     and the final tape, not the complete profile-independent front end,
     lowering, or emitter.

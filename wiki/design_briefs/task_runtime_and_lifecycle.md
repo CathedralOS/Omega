@@ -597,7 +597,7 @@ arguments remain TR3–TR8 work.
 8. Build `ArenaTaskPool`, bounded mailbox, and supervisor reference packages;
    promote no additional language construct unless a package finds something
    semantically inexpressible.
-9. Implement terminal-Psi metering plus restricted fixed-work entry and
+9. Implement compiler-service Terminal-Psi metering plus restricted fixed-work entry and
    safe-point segment checking; keep logical work, response wait, and target
    timing conversion distinct.
 10. Implement registered callback lowering and the Windows acceptance slice

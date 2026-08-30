@@ -8,7 +8,7 @@ use omega_executable_installation::{
     install_validated, materialize_admitted_artifact, materialize_and_freeze,
     validate_final_placement,
 };
-use omega_installation_evidence::{FuelAttributionEvidence, ObjectEvidence};
+use omega_installation_evidence::ObjectEvidence;
 use psi_core::{BlockId, ContractId, EdgeId, MachineId};
 use psi_extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
@@ -50,10 +50,6 @@ impl ObjectEvidence for TestObject {
 
     fn function_text_offset(&self, machine: MachineId) -> Option<usize> {
         (machine == self.machine).then_some(16)
-    }
-
-    fn fuel_attribution(&self) -> Vec<FuelAttributionEvidence> {
-        Vec::new()
     }
 }
 

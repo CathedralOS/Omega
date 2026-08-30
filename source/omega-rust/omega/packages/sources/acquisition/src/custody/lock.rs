@@ -2,7 +2,7 @@
 
 use super::platform::{
     same_capability_file_identity, verify_capability_cache_node_owner_and_mode,
-    verify_macos_open_cache_extended_acl_custody, verify_windows_open_cache_custody,
+    verify_macos_open_cache_extended_acl_custody,
 };
 #[cfg(test)]
 use super::publication::direct_cache_child_name;
@@ -87,7 +87,6 @@ impl CacheEntryLock {
         verify_capability_cache_node_owner_and_mode(kind, &path, &path_metadata)?;
         let file = capability_file.into_std();
         verify_macos_open_cache_extended_acl_custody(kind, &path, &file)?;
-        verify_windows_open_cache_custody(kind, &path, &file)?;
         Ok((file, parent, lock_name.to_os_string()))
     }
 
@@ -139,7 +138,6 @@ impl CacheEntryLock {
         verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
         let file = capability_file.into_std();
         verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
-        verify_windows_open_cache_custody(kind, path, &file)?;
         Ok((file, parent, lock_name))
     }
 
@@ -400,7 +398,6 @@ pub(crate) fn verify_cache_lock_path_identity(
     }
     verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
     verify_macos_open_cache_extended_acl_custody(kind, path, file)?;
-    verify_windows_open_cache_custody(kind, path, file)?;
 
     let parent_path = path
         .parent()

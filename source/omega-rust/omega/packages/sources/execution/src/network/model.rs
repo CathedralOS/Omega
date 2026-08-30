@@ -177,8 +177,9 @@ impl ResolverExecutionEndpointEvent {
 
 /// Bounded endpoint evidence emitted after a route is closed.
 ///
-/// This records broker activity. It does not establish TLS or SSH trust,
-/// credential custody, transferred-byte accounting, or source acceptance.
+/// This records broker activity. TLS or SSH authentication remains the selected
+/// transport's responsibility; the package layer composes these events into
+/// whole-resolution transfer accounting and the final source receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolverExecutionEndpointObservation {
     pub(super) route: ResolverExecutionEndpointRoutePolicy,

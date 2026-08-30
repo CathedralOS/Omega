@@ -26,77 +26,6 @@ impl InstalledArtifactOccurrenceDigest {
     }
 }
 
-mod native_fuel;
-pub use native_fuel::{
-    NativeFuelActivationStateSlot, NativeFuelContextLayout, NativeFuelRuntimeEntryIdentity,
-    NativeFuelRuntimeTextEvidence, NativeFuelRuntimeTextSpan, NativeFuelSavedValue,
-    NativeFuelSponsorStackPlan, NativeFuelTargetPlanProjection, NativeFuelTransferEvidenceError,
-    NativeFuelTransferPlanCommitment, NativeFuelTransferPlanError,
-    NativeFuelTransferRuntimeEvidence, NativeFuelTransferRuntimePlanProjection,
-    SponsorContextTransport,
-};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FuelAttributionSite {
-    Operation(psi_core::OperationId),
-    Edge(psi_core::EdgeId),
-}
-
-/// Read-only normalized projection of one byte-validated native fuel site.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FuelAttributionEvidence {
-    pub machine: psi_core::MachineId,
-    pub schedule: psi_core::FuelScheduleIdentity,
-    pub site: FuelAttributionSite,
-    pub units: u64,
-    pub operation_ordinal: usize,
-    pub text_offset: usize,
-    pub byte_count: usize,
-}
-
-/// Exact source, hot-charge, semantic, and cold-dispatch locations retained by
-/// an independently replayed metered image.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NativeFuelChargeEvidence {
-    pub attribution: FuelAttributionEvidence,
-    pub charge_text_offset: usize,
-    pub charge_byte_count: usize,
-    pub semantic_text_offset: usize,
-    pub cold_dispatch_text_offset: usize,
-    pub cold_dispatch_byte_count: usize,
-}
-
-/// Dependency-light projection of a final, independently replayed dynamic-
-/// fuel image. This is input evidence, not installation authority; external-
-/// root admission still binds both unrelocated and materialized bytes to one
-/// exact installed-code value on its side of the
-/// dependency boundary.
-pub trait NativeFuelImageEvidence {
-    fn psi(&self) -> psi_terminal::TerminalPsiIdentity;
-    fn target(&self) -> omega_target::NativeTarget;
-    fn target_policy(&self) -> NativeFuelTargetPlanProjection;
-    fn source_text_bytes(&self) -> &[u8];
-    fn metered_text_bytes(&self) -> &[u8];
-    fn final_text_bytes(&self) -> &[u8];
-    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize>;
-    fn charges(&self) -> Vec<NativeFuelChargeEvidence>;
-}
-
-/// Dependency-light view of a final image containing the compiler-owned
-/// exhaustion-transfer runtime. This exposes both complete text coordinates
-/// and the independently replayed runtime intervals, but grants no authority
-/// to install or execute either entry.
-pub trait NativeFuelTransferRuntimeImageEvidence {
-    fn psi(&self) -> psi_terminal::TerminalPsiIdentity;
-    fn target(&self) -> omega_target::NativeTarget;
-    fn unrelocated_text_bytes(&self) -> &[u8];
-    fn final_text_bytes(&self) -> &[u8];
-    /// Exact compiler-owned `.text` coordinate named by the replayed sponsor
-    /// call relocation. This remains a coordinate, not a callable reference.
-    fn sponsor_text_offset(&self) -> usize;
-    fn transfer_runtime_evidence(&self) -> &NativeFuelTransferRuntimeEvidence;
-}
-
 /// Exact admitted provider-execution identity projected into terminal
 /// lowering and installation records.
 pub trait ProviderExecutionEvidence: std::fmt::Debug {
@@ -161,7 +90,6 @@ pub trait ObjectEvidence {
     }
     fn text_bytes(&self) -> &[u8];
     fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize>;
-    fn fuel_attribution(&self) -> Vec<FuelAttributionEvidence>;
 }
 
 /// Emitter-derived stack closure for one terminal entry.

@@ -18,106 +18,15 @@ capability beyond existing checked machines is retired rather than redesigned.
 Hypothetical future utility does not by itself preserve syntax; a concrete
 customer requiring a distinct capability may propose a new surface later.
 
+Every `OWNER-BLOCKED` escalation must name an independently motivated product
+requirement or credible external use case. Existing corpus use is not required.
+A test, experiment, benchmark, or implementation task cannot be the sole
+motivation, and machinery introduced only to support such work is removed or
+kept non-authoritative rather than promoted into an owner decision.
+
 Last pruned: 2026-08-29.
 
-## Q1 — Strict SSH trust and credential authority
-
-### Context
-
-Package source requests admit HTTPS, SSH URLs, and SCP-like SSH locators. The
-resolver seals Git configuration, selects and hashes one exact SSH client, uses
-batch mode, disables user SSH configuration, and requires strict host-key
-checking. It still consumes the invoking user's default known-host and key
-files. The strict resolver contract requires explicit host-trust evidence and a
-closed credential-provider class before an accepted source receipt can claim
-that ambient authority was excluded.
-
-### Problem statement
-
-No trusted command/resolver input currently supplies SSH host trust or
-credentials. Treating the user's default files or agent as implicit authority
-would make resolution depend on ambient mutable state that is absent from the
-source question and receipt. Letting `build.omg` or dependency source choose
-those values would grant untrusted package code transport and secret authority.
-Persisting private key material in `omega.lock` would expose secrets while still
-failing to define which process may use them.
-
-### Proposed direction
-
-Require trusted command infrastructure to provide one explicit resolver-owned
-SSH authority input. It binds the requested host to exact known-host evidence
-and selects one closed credential-provider class, such as a specifically opened
-key capability or an explicitly designated credential broker. The fetch helper
-receives only those capabilities; home-directory discovery and an ambient agent
-remain disabled. The resolver receipt records commitments to the host evidence,
-provider class, and effective endpoint, never secret bytes. This authority is
-deployment input rather than package source, dependency identity, or a portable
-producer claim.
-
-### Alternates
-
-- Acceptable for the first strict release: admit only HTTPS to accepted
-  resolution while SSH remains available solely through the clearly diagnostic
-  resolver path.
-- Acceptable: support an explicitly selected SSH agent or platform credential
-  broker as a distinct provider class, provided its identity and authority are
-  bounded and receipt-visible rather than inherited.
-- Tempting but wrong: inherit `~/.ssh`, a default agent, or system Git/SSH
-  configuration and call strict host-key checking sufficient custody.
-- Tempting but wrong: let a package, dependency declaration, repository, or
-  `build.omg` select host trust or credential material.
-- Tempting but wrong: serialize private keys, tokens, or reusable credentials in
-  `omega.lock` or source-resolution evidence.
-
-## Q2 — Own the ranked native-fuel sponsor entry
-
-### Context
-
-The exact ranked-`u32` countdown now reaches directly metered final-image,
-format-43 installation, and source-free native-artifact custody on Linux x86-64
-and AArch64. Transfer-runtime encoding and replay already retain exact activation
-slots, interrupted/saved/restored state, transfer/resume bytes, sponsor-stack
-demand, relocations, and full unrelocated/final text fingerprints. Ranked
-transfer admission also requires the activation record to save the actual ABI
-rank carrier (`rdi` or `x0`).
-
-The runtime binder requires the sponsor symbol to be an existing nonempty text
-function in the metered object. The admitted ranked artifact deliberately owns
-exactly one semantic function: the countdown itself. Naming it as sponsor would
-make exhaustion call the countdown under an unrelated sponsor ABI and is not a
-valid execution model. Appending an unowned compiler helper would contradict
-the exact one-function artifact and hide a new authority edge.
-
-### Problem statement
-
-Choose which owner supplies the sponsor entry and how that ownership joins the
-ranked image without turning runtime scaffolding into a second semantic source
-tree. This blocks honest native rank 0, 1, and 3 execution/schedule comparison;
-it does not block direct metered publication.
-
-### Proposed direction
-
-Bind the transfer runtime to an admitted installed sponsor route owned outside
-the ranked semantic object. The installation/external-root join should name the
-exact sponsor artifact, calling contract, target, and provision, while the
-compiler-owned transfer stub remains the only appended runtime text. Preserve
-the one-function ranked semantic identity and require source-free replay to
-prove the final call target is exactly that admitted sponsor entry.
-
-### Alternates
-
-- Acceptable: define one compiler-owned sponsor body as an explicit, separately
-  identified runtime artifact with a closed ABI and proof/replay contract, then
-  compose it with the ranked image rather than laundering it into the semantic
-  object.
-- Acceptable for the first measurement only: use an already admitted fixed
-  sponsor fixture as differential-test scaffolding, provided no result is
-  reported as production installation authority.
-- Tempting but wrong: use the countdown entry itself as sponsor.
-- Tempting but wrong: append an anonymous helper, magic host callback, script,
-  or test-only trampoline and treat successful execution as chain evidence.
-
-## Q3 — Semantic loci for the remaining dangerous-authority classes
+## Q1 — Semantic loci for the remaining dangerous-authority classes
 
 ### Context
 
@@ -172,7 +81,7 @@ inventing a nominal declaration solely for package review.
 - Tempting but wrong: treat a package-wide role or a reviewer/model verdict as
   the authority identity.
 
-## Q4 — Own proof-only FloatMeaning equality and source correspondence
+## Q2 — Own proof-only FloatMeaning equality and source correspondence
 
 ### Context
 
@@ -230,7 +139,7 @@ the equality rule.
   operator names, format labels, compact fingerprints, or coincidentally equal
   values without a shared source/contract owner.
 
-## Q5 — Select the generated Gamma application profile
+## Q3 — Select the generated Gamma application profile
 
 ### Context
 
@@ -285,7 +194,7 @@ ordinary Gamma syntax.
   use an ambient host flag absent from the reconstructed edge, or let a script
   rewrite the emitted tape afterward.
 
-## Q6 — Freeze Gamma declaration identity and lexical scope
+## Q4 — Freeze Gamma declaration identity and lexical scope
 
 ### Context
 

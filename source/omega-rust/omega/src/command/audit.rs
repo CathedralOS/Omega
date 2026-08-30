@@ -22,7 +22,6 @@ fn usage() {
 }
 
 fn source(arguments: impl Iterator<Item = OsString>) {
-    warn_unhardened_source_resolver();
     let Some(arguments) = parse_source_arguments(arguments) else {
         eprintln!("{SOURCE_USAGE}");
         std::process::exit(2);
@@ -55,15 +54,6 @@ fn source(arguments: impl Iterator<Item = OsString>) {
             std::process::exit(1);
         }
     }
-}
-
-fn warn_unhardened_source_resolver() {
-    eprintln!(
-        "warning: source inspection is diagnostic and non-admitting; strict native \
-         confinement on every platform, TLS/SSH credential custody, aggregate \
-         CPU/memory/process/object-store accounting, and an accepted source \
-         receipt remain unavailable"
-    );
 }
 
 struct SourceArguments {

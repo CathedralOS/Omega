@@ -14,7 +14,7 @@ brief, retains superseded encodings and implementation checkpoints.
 WCSU proves a spatial fact: a closed activation needs at most a derived amount
 of stack. Logical-work accounting has three distinct customers:
 
-- deterministic metering of work that actually executes;
+- deterministic metering inside bounded compiler and bootstrap services;
 - a restricted theorem for paths that must fit a fixed logical budget; and
 - attributed response reporting for waits and edges with no finite guarantee.
 
@@ -114,12 +114,10 @@ The fuel schedule assigns deterministic logical cost to terminal Psi
 instructions or normalized blocks. Fuel is not native instruction count,
 cycles, energy, or wall-clock time.
 
-The execution sponsor supplies a budget. Executed code cannot inspect its
-remaining fuel, branch on budget policy, catch exhaustion as a machine result,
-or distinguish interpreted from natively metered execution. Exhaustion is a
-sponsor event: the host may replenish and resume, or terminate the enclosing
-execution under separate installation authority. Exhaustion itself creates no
-structured cancellation frontier.
+An evaluator or other bounded compiler service may supply a budget. Evaluated
+code cannot inspect the remaining budget, branch on budget policy, or catch
+exhaustion as a machine result. Exhaustion is an incomplete compiler-service
+outcome, never Omega program semantics.
 
 The documentation calls the greatest total charged along any one admitted
 path the **maximum logical work**, measured in fuel units. Sequential work
@@ -135,12 +133,12 @@ sequential calls normally contribute their maximum because the first frame is
 reclaimed before the second. Logical work is consumed and is not returned.
 The maximum is neither native instruction count nor elapsed time.
 
-The same denomination serves:
-
-- build-time evaluation by executing terminal Psi in the evaluator;
-- portable interpreted artifacts through direct metering; and
-- native realizations whose trusted lowering inserts counters that charge the
-  corresponding terminal-Psi blocks.
+The denomination serves deterministic build-time evaluation, bounded
+bootstrap tools, static work reports, and optional WCET analysis. It is not a
+native runtime mechanism. Native lowering inserts no fuel counter, hot charge,
+cold dispatcher, transfer stub, resume stub, sponsor route, or hidden allowance
+context. Once admitted native code starts, it executes according to its machine
+semantics and ordinary boundary contracts.
 
 The target-neutral admission floor, checked zero-argument/fixed-array
 evaluator, ownership-taking const-generic pre-resolution evaluation, and
@@ -155,54 +153,9 @@ machine selection between them and performs calling-policy ABI, provider,
 artifact, and native realization afterward; those target decisions are not
 folded back into Psi language elaboration.
 
-Optimization may reduce physical work without reducing logical fuel. A
-compiler release may not silently change budget behavior merely because its
-native lowering improved.
-
-Native installation selects a fuel realization for each sponsor region. A
-sponsor region is the transitive execution charged to one sponsor-owned fuel
-context; an explicit transition to a separately sponsored call begins another
-region. Ordinary calls remain in their caller's region.
-
-- **Fixed provision.** An exact installed certificate proves the region's
-  maximum logical work fits its admitted grant. Native lowering emits no meter.
-- **Dynamic metering.** Native lowering charges the exact executed operations
-  and edges incrementally against a private per-activation sponsor context.
-  The target must supply an admitted native meter and exhaustion-transfer plan.
-- **Unavailable realization.** A hosted deployment may interpret; a target
-  without an interpreter rejects the installation.
-
-Canonical native-metered installation uses an explicit dual-coordinate
-carrier. Ordinary installation rows continue to name the immutable semantic
-source functions and sites. A separate optional section binds the exact target
-meter recipe and source-text fingerprint, maps every source function span to
-its replay-validated metered span, and records every hot charge, corresponding
-semantic site, and cold dispatcher in physical coordinates. It is report-only
-evidence, not execution authority. Plain images require the section to be
-absent; metered installation rejects any source, target-policy, function-map,
-charge-catalog, or final-image drift.
-
-Installed dynamic attribution retains the exact source-basis fingerprint beside
-the source-text identity and exposes an independent replay boundary. Replay
-rederives the target-profile plan and ordered semantic sites, checks the source,
-metered, and final images plus hot/cold intervals against the exact installed
-occurrence, and reconstructs both basis and installed fingerprints. It is
-attribution equality only: inserted native metering must still consume these
-rows, and replay grants no insertion, transfer, root, lease, or publication
-authority.
-
-Fixed provision proves that its region cannot exhaust. It does not imply that
-the complete activation is free from fuel suspension when a reachable call
-crosses into a separately sponsored dynamic region. Installation derives the
-stronger `FuelSuspensionFree` fact only when every reachable sponsor region is
-proven non-exhausting. Interrupt, non-suspendable critical, and similar roots
-that rely on this property require it explicitly.
-
-For a transparent closure, `FuelSuspensionFree` is derived. An opaque provider
-publishes an independently admitted suspension guarantee alongside its work
-summary. A numeric provider-work summary alone says how much work to charge; it
-does not prove that the provider lacks a separately sponsored dynamic region.
-Missing suspension evidence fails closed.
+Optimization may reduce physical work without changing this portable logical
+work measure. The measure constrains only services or analyses that explicitly
+consume it; it never constrains a native activation implicitly.
 
 A value-less `ReturnUnit` is still one taken normal-return edge. It has the
 same edge charge as a scalar return and no invented value-producing operation.
@@ -416,81 +369,19 @@ not seed target WCET analysis. An edge without a finite response contract
 retains the exact attribution that prevented closure.
 
 Static premises may be discharged at installation. Invocation-dependent
-premises are ordinary call obligations and must hold at each meter-free call.
+premises are ordinary call obligations and must hold whenever a consumer uses
+the certificate.
 
-External-root fixed-fuel composition retains the complete canonical provider
-summary graph and every admitted opaque-provider receipt. Its compact FNV is a
-non-authoritative report/cache coordinate only; installation and suspension-
-free admission compare the retained demand and evidence rather than accepting
-fingerprint equality.
+External-root work composition retains the complete canonical provider summary
+graph and every admitted opaque-provider receipt. Its compact FNV is a
+non-authoritative report/cache coordinate only; certificate consumers compare
+the retained demand and evidence rather than accepting fingerprint equality.
 
-The final native-fuel transfer-runtime carrier likewise exposes its aggregate
-FNV only as a report/cache coordinate. Evidence remains the exact transfer
-plan, the separate unrelocated and final byte rows for both runtime entries,
-the complete physical state footprint, and the sponsor-stack peak; installation
-must independently rejoin those facts to installed code and sponsor authority.
-The installed sponsor-route carrier therefore retains exact transfer-code
-custody: the admitted plan, terminal Psi identity, opaque installed-occurrence
-context, runtime evidence, and sponsor coordinate. Executable runtime binding
-compares that custody structurally. The aggregate transfer-code and route FNVs
-remain report coordinates and cannot authorize a compact-equal substitution.
-
-A sponsor may execute a certified entry natively without runtime metering when
-trusted lowering and installation establish that the executing bytes came
-from the certified Psi module and the proved ceiling fits the granted fuel. Psi
-without such a theorem remains safely executable under interpreter metering or
-trusted inserted native metering. A certificate that arbitrary native bytes
-refine terminal Psi is a separate future proof-carrying-code chain.
-
-A segment ceiling is not an additional execution mode. Bulk charging preserves
-exact fuel behavior only when every path through the segment has the same
-logical cost. Reserving a merely maximal segment ceiling makes exhaustion
-inside that segment impossible and is fixed provision at segment granularity;
-otherwise lowering retains the exact per-site charges. It may not replace
-actual path cost with a conservative ceiling, because doing so could reject an
-execution that the reference meter permits.
-
-Dynamic native exhaustion is architectural suspension, not a semantic safe
-point. The failed check occurs before the operation or edge, changes neither
-the remaining allowance nor program state, and transfers to sponsor-owned
-runtime machinery with the exact schedule, unpaid `OperationId` or `EdgeId`,
-required units, and remaining units. The preserved register, stack, and program
-counter state is the continuation. No Omega value names it, and exhaustion does
-not authorize structured cancellation, migration, replacement, or source-level
-handling. Replenishment restores that opaque state at the failed pre-charge
-check, so already completed work and paid call edges are not replayed.
-
-When inserting charges into ranked control, an internal branch to a semantic
-site targets the first charge associated with that source coordinate. This is
-distinct from the relocated semantic-instruction coordinate, which follows all
-charges at the same source offset. The distinction ensures every header visit
-pays its zero/compare work and the false exit pays its edge/return work. Target
-encoders may rebase the relative fields, but object admission independently
-decodes hot charges, cold dispatches, and semantic branch destinations before
-retaining metered custody.
-
-Every dynamic region requires an exhaustion-transfer plan executable from each
-charge site without waiting on a resource held by the suspended activation.
-The compiler/target transfer stub is trusted instrumentation outside Terminal
-Psi logical-work accounting. It has independently admitted stack and machine-
-state needs and switches to a sponsor context without charging the exhausted
-meter. Any authored sponsor policy reached afterward runs as a distinct,
-`FuelSuspensionFree` region with complete fixed provision. This split prevents
-recursive exhaustion without hiding authored policy work from admission.
-
-Installation preserves the same split in its evidence. Exact transfer-code
-custody binds the full unrelocated and final image plus independently replayed
-transfer/resume intervals to one `InstalledCodeContext`; it is not itself a
-sponsor-route receipt. Executable transfer authority additionally requires the
-resolved sponsor call target to be joined to the exact installed root/provider
-entry and its fixed, suspension-free provision. The live external-root join
-performs that replay and exposes executable transfer custody only from both
-sealed halves.
-Component deployment is the production owner of the next join: it consumes the
-installed attribution and executable transfer custody against the exact
-installed-code occurrence, installs the dynamic root in the claimed ledger,
-and returns a live carrier that cannot discard root custody before explicit
-transactional removal. Admission rejection returns both sealed halves intact.
+An installed-code certificate may bind a proved maximum-logical-work theorem to
+the exact bytes it describes. That is PCC/report evidence only: it grants no
+execution authority, reserves no runtime allowance, and changes no native
+control flow. A certificate that arbitrary native bytes refine Terminal Psi is
+a separate proof-carrying-code chain.
 
 The live hard-root precursor composes recomputable entry/segment certificates
 and admitted opaque-provider summaries under one `FuelScheduleIdentity`.
@@ -639,11 +530,10 @@ allocators remain fallible or require an exact free-extent/reservation theorem.
 
 ## Contracts, installation, and proof-carrying code
 
-Fuel and spatial provisions normally belong to an execution sponsor or
-installation profile, not API/ABI identity. A replacement may require more
-fuel or provision while remaining semantically compatible; installation
-rejects or reprovisions it. A deadline or fixed resource ceiling enters the
-interface contract only when an API deliberately promises it.
+Logical-work budgets belong to the compiler or bootstrap service that consumes
+them. Spatial provisions may belong to an installation profile. Neither is
+API/ABI identity unless an API deliberately promises a deadline or fixed
+resource ceiling.
 
 The proof-carrying-code scope in this brief is terminal Psi. Its verifier may
 check memory safety, ownership and resource conservation, reach, termination,
@@ -677,27 +567,21 @@ reference interpreter separately admits only that exact one-machine structural
 Unit countdown through an opaque interpreter-specific verifier carrier. Its
 proof walk removes the validated backedge from the deterministic schedule,
 reconstructs the positive guard as the discrete unsigned subtraction premise,
-and checks the decrement evidence before execution. Dynamic interpreter fuel
-therefore remains resumable across the backedge without granting the ordinary
-verified carrier used by fixed fuel, Omega lowering, native installation, or
-provider dispatch. Whole-entry fixed fuel for this exact slice uses another
+and checks the decrement evidence before execution. Interpreter budget
+accounting grants no ordinary verified carrier used by fixed-work checking,
+Omega lowering, native installation, or provider dispatch. Whole-entry fixed
+work for this exact slice uses another
 opaque verifier carrier: it derives actual preheader, header, decrement, exit,
 and return costs from the current schedule and combines them as `entry +
 maximum_iterations * cycle + exit`. The certificate binds the canonical
 terminal identity and fails closed when that exact all-input ceiling cannot fit
-its scalar denomination. Omega's disjoint ranked-native path retains an opaque
+its scalar denomination. Omega's ranked-native path retains an opaque
 verifier-issued owned semantic subject through machine code and independently
 rejoins its public ranked graph, structural signature, type declarations,
 provenance, and logical-fuel rows at object emission. This prevents coordinated
 rewrites of otherwise self-consistent projected coordinates from replacing the
-verified subject. Its directly metered publication rederives the five ranked
-branch coordinates from immutable semantic bytes plus the nine logical fuel
-rows, decodes those targets from metered and final text on both Linux ISAs, and
-rejoins canonical installation plus source-free native-artifact custody. The
-installation does not serialize the derivable rebase record as a second truth.
-Transfer plans must preserve the exact ABI rank carrier in their activation
-slots. Honest ranked runtime execution remains owner-blocked on the ownership
-of a sponsor entry outside the deliberately one-function artifact (OWNER Q2).
+verified subject. Ordinary publication rejoins canonical installation plus
+source-free native-artifact custody without changing the countdown body.
 Acyclic segment checking is not widened.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
@@ -714,7 +598,7 @@ reconstruction assurance.
   consumer moves; they never define a second semantic path.
 - Bind evidence to exact semantic and reconstructed-obligation identities. A
   certificate-provided proposition is never authoritative.
-- Preserve accounting provenance through build-time and native metering, and
+- Preserve accounting provenance through build-time evaluation and analysis, and
   retain `Bounded`, `Unknown`, and attributed no-finite-guarantee outcomes.
 - Keep spatial authority concrete: content frontier rows and allocator canaries
   must retain exact placement, custody, and recomposition evidence.

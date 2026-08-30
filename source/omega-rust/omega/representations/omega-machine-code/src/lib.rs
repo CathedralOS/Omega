@@ -11,15 +11,14 @@ pub use x86_fma::*;
 
 use omega_abstract_operations::RankedU32CountdownCustody;
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
-use omega_installation_evidence::NativeFuelTargetPlanProjection;
 use omega_target::NativeTarget;
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
     ProviderExecutionBinding, TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ScalarType, ServiceId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
@@ -33,52 +32,6 @@ pub struct MachineCodePlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<MachineCodeFunction>,
-}
-
-/// Metered bytes derived from one immutable, already emitted semantic plan.
-/// The source plan remains intact so object validation can replay every
-/// semantic interval independently. Charge records map those intervals into
-/// the derived byte stream; ranked branch immediates are the one explicitly
-/// recorded, equivalent rebase over that mapping.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeFuelInstrumentedPlan {
-    pub source: MachineCodePlan,
-    pub target_policy: NativeFuelTargetPlanProjection,
-    pub functions: Vec<NativeFuelInstrumentedFunction>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeFuelInstrumentedFunction {
-    pub machine: MachineId,
-    pub bytes: Vec<u8>,
-    /// End of semantic code and start of appended cold dispatch thunks.
-    pub semantic_end_offset: usize,
-    pub charges: Vec<NativeFuelChargeRecord>,
-    /// Exact function-local control coordinates for the one ranked carrier
-    /// whose semantic branch immediates move when hot charges are inserted.
-    pub ranked_u32_countdown: Option<NativeFuelRankedU32CountdownRebaseRecord>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NativeFuelRankedU32CountdownRebaseRecord {
-    pub preheader_branch_code_offset: usize,
-    pub header_charge_code_offset: usize,
-    pub exit_branch_code_offset: usize,
-    pub exit_charge_code_offset: usize,
-    pub backward_branch_code_offset: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NativeFuelChargeRecord {
-    /// Original semantic attribution retained by the immutable source plan.
-    pub attribution: NativeFuelAttribution,
-    pub charge_code_offset: usize,
-    pub charge_byte_count: usize,
-    /// Position of the corresponding semantic interval in the metered bytes.
-    /// Ranked control fragments may contain an equivalent rebased immediate.
-    pub semantic_code_offset: usize,
-    pub cold_dispatch_code_offset: usize,
-    pub cold_dispatch_byte_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,9 +94,8 @@ pub struct MachineCodeFunction {
     /// Object construction remains fail-closed until it independently replays
     /// this record; ordinary scalar/control evidence cannot stand in for it.
     pub ranked_u32_countdown: Option<RankedU32CountdownMachineCodeRecord>,
-    /// Exact native byte intervals attributed to the current Psi logical-fuel
-    /// schedule. These records are accounting provenance, not runtime charges.
-    pub fuel_attribution: Vec<NativeFuelAttribution>,
+    /// Exact semantic operation/edge ownership of emitted byte intervals.
+    pub semantic_code_attribution: Vec<SemanticCodeAttribution>,
     /// Privileged effects retained with their exact semantic service and byte
     /// range. Installation can therefore bind emitted instructions to the
     /// selected provider execution instead of inferring privilege from bytes.
@@ -175,46 +127,6 @@ pub struct ForeignCallRelocation {
     /// opaque same-stack contribution for the foreign leaf.
     pub unit_stack: UnitCallStackEvidence,
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
-}
-
-impl MachineCodeFunction {
-    /// Conservative stripped-custody fence for the first ranked carrier.
-    ///
-    /// The shape check prevents an optional-custody stripping mutation from
-    /// reclassifying the exact emitted countdown as ordinary code. Delete this
-    /// Object replay accepts and independently checks the intact ranked record.
-    /// Delete this fallback when `MachineCodeFunction` has a closed disjoint
-    /// body carrier whose variant cannot be stripped independently.
-    pub fn requires_ranked_countdown_replay(&self) -> bool {
-        if self.ranked_u32_countdown.is_some() {
-            return true;
-        }
-        let [zero, compare, one, subtract] = self.provenance.operations.as_slice() else {
-            return false;
-        };
-        let [preheader, positive, false_exit, backedge, returned] =
-            self.provenance.edges.as_slice()
-        else {
-            return false;
-        };
-        let expected = [
-            NativeFuelSite::Edge(*preheader),
-            NativeFuelSite::Operation(*zero),
-            NativeFuelSite::Operation(*compare),
-            NativeFuelSite::Edge(*positive),
-            NativeFuelSite::Operation(*one),
-            NativeFuelSite::Operation(*subtract),
-            NativeFuelSite::Edge(*backedge),
-            NativeFuelSite::Edge(*false_exit),
-            NativeFuelSite::Edge(*returned),
-        ];
-        self.fuel_attribution.len() == expected.len()
-            && self.fuel_attribution.iter().zip(expected).enumerate().all(
-                |(ordinal, (row, site))| {
-                    row.site == site && row.units == 1 && row.operation_ordinal == ordinal
-                },
-            )
-    }
 }
 
 /// Complete machine-code custody for the one admitted structural Unit / `u32`
@@ -300,17 +212,18 @@ pub struct StructuralReturnRecord {
     pub byte_count: usize,
 }
 
+/// Semantic operation or edge owning one exact emitted byte interval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NativeFuelSite {
+pub enum SemanticCodeSite {
     Operation(OperationId),
     Edge(EdgeId),
 }
 
+/// Source-free semantic-to-code custody used by independent object replay.
+/// It carries no runtime budget, charge, meter, or execution policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NativeFuelAttribution {
-    pub schedule: FuelScheduleIdentity,
-    pub site: NativeFuelSite,
-    pub units: u64,
+pub struct SemanticCodeAttribution {
+    pub site: SemanticCodeSite,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,

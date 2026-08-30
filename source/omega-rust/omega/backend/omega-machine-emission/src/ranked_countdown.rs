@@ -5,7 +5,8 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
 };
 use omega_machine_code::{
-    MachineCodeFunction, NativeFuelAttribution, NativeFuelSite, RankedU32CountdownMachineCodeRecord,
+    MachineCodeFunction, RankedU32CountdownMachineCodeRecord, SemanticCodeAttribution,
+    SemanticCodeSite,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::MachineRegister;
@@ -90,7 +91,7 @@ pub(super) fn emit(
     } else {
         AARCH64_LAYOUT
     };
-    let fuel_attribution = fuel_attribution(&record.custody, layout);
+    let semantic_code_attribution = semantic_code_attribution(&record.custody, layout);
 
     Ok(MachineCodeFunction {
         machine: function.machine,
@@ -111,7 +112,7 @@ pub(super) fn emit(
         scalar_structural_parameters: Vec::new(),
         scalar_structural_parameter_homes: Vec::new(),
         ranked_u32_countdown: Some(record),
-        fuel_attribution,
+        semantic_code_attribution,
         port_effects: Vec::new(),
         boundary_settlements: Vec::new(),
         structural_return: None,
@@ -128,60 +129,59 @@ fn record(countdown: &AssignedRankedU32Countdown) -> RankedU32CountdownMachineCo
     }
 }
 
-fn fuel_attribution(
+fn semantic_code_attribution(
     custody: &omega_target_operations::RankedU32CountdownCustody,
     layout: RankedLayout,
-) -> Vec<NativeFuelAttribution> {
+) -> Vec<SemanticCodeAttribution> {
     let graph = custody.graph;
     let component = &custody.ranked_scc;
     let covered = &component.covered_cyclic_edges[0];
     let TerminalRankedGuard::UnsignedParameterPositive {
         edge: guard_edge, ..
     } = covered.guard;
-    let schedule = custody.fixed_fuel.schedule();
     [
         (
-            NativeFuelSite::Edge(graph.preheader_edge),
+            SemanticCodeSite::Edge(graph.preheader_edge),
             layout.preheader_branch_offset,
             layout.preheader_branch_byte_count,
         ),
         (
-            NativeFuelSite::Operation(graph.zero_operation),
+            SemanticCodeSite::Operation(graph.zero_operation),
             layout.header_offset,
             0,
         ),
         (
-            NativeFuelSite::Operation(graph.compare_operation),
+            SemanticCodeSite::Operation(graph.compare_operation),
             layout.compare_offset,
             layout.compare_byte_count,
         ),
         (
-            NativeFuelSite::Edge(guard_edge),
+            SemanticCodeSite::Edge(guard_edge),
             layout.positive_path_offset,
             0,
         ),
         (
-            NativeFuelSite::Operation(graph.one_operation),
+            SemanticCodeSite::Operation(graph.one_operation),
             layout.positive_path_offset,
             0,
         ),
         (
-            NativeFuelSite::Operation(graph.subtract_operation),
+            SemanticCodeSite::Operation(graph.subtract_operation),
             layout.decrement_offset,
             layout.decrement_byte_count,
         ),
         (
-            NativeFuelSite::Edge(covered.edge),
+            SemanticCodeSite::Edge(covered.edge),
             layout.backward_branch_offset,
             layout.backward_branch_byte_count,
         ),
         (
-            NativeFuelSite::Edge(graph.false_exit_edge),
+            SemanticCodeSite::Edge(graph.false_exit_edge),
             layout.exit_offset,
             0,
         ),
         (
-            NativeFuelSite::Edge(graph.return_edge),
+            SemanticCodeSite::Edge(graph.return_edge),
             layout.return_offset,
             layout.return_byte_count,
         ),
@@ -189,10 +189,8 @@ fn fuel_attribution(
     .into_iter()
     .enumerate()
     .map(
-        |(operation_ordinal, (site, code_offset, byte_count))| NativeFuelAttribution {
-            schedule,
+        |(operation_ordinal, (site, code_offset, byte_count))| SemanticCodeAttribution {
             site,
-            units: 1,
             operation_ordinal,
             code_offset,
             byte_count,

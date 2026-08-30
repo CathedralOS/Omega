@@ -34,8 +34,8 @@ pub fn resolve_local_source(
 
 /// Re-hash a published package snapshot under its original resolver limits.
 ///
-/// This is a package-compilation custody check, not a defense against a
-/// same-user process that can race both the verification and compiler reads.
+/// This detects source drift at the verification boundary. Processes already
+/// holding the invoking user's host authority remain outside its claim.
 pub fn verify_package_source_snapshot(
     root: &Path,
     expected: &SourceContentDigest,

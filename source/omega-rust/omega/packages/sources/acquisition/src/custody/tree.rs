@@ -1,14 +1,13 @@
 //! Filesystem custody shared by local snapshots and Git cache entries.
 
 #[cfg(windows)]
-use super::platform::verify_windows_open_cache_ancestry_custody;
+use super::platform::verify_windows_open_cache_ancestry_identity;
 use super::platform::{
     same_capability_file_identity, verify_cache_node_owner_and_mode,
     verify_capability_cache_node_owner_and_mode, verify_macos_cache_link_extended_acl_custody,
     verify_macos_open_cache_directory_acl_custody, verify_macos_open_cache_extended_acl_custody,
-    verify_macos_open_cache_regular_file_acl_custody, verify_windows_open_cache_custody,
-    verify_windows_open_cache_directory_custody, verify_windows_open_cache_link_custody,
-    verify_windows_open_cache_regular_file_custody,
+    verify_macos_open_cache_regular_file_acl_custody, verify_windows_open_cache_directory_identity,
+    verify_windows_open_cache_link_identity, verify_windows_open_cache_regular_file_identity,
 };
 use crate::SourceResolveError;
 use crate::error::{cache_invalid, local_snapshot_invalid};
@@ -134,7 +133,7 @@ pub(crate) fn verify_cache_custody_root(
     }
     verify_cache_node_owner_and_mode(kind, root, &metadata)?;
     verify_macos_open_cache_directory_acl_custody(kind, root, &metadata)?;
-    verify_windows_open_cache_directory_custody(kind, root, &metadata)
+    verify_windows_open_cache_directory_identity(kind, root, &metadata)
 }
 
 #[cfg(unix)]
@@ -184,7 +183,7 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry contains a non-directory or reparse point",
             ));
         }
-        verify_windows_open_cache_ancestry_custody(kind, ancestor, &metadata)?;
+        verify_windows_open_cache_ancestry_identity(kind, ancestor, &metadata)?;
     }
     Ok(())
 }
@@ -263,7 +262,6 @@ pub(crate) fn verify_cache_custody_from_open_root(
             .map_err(|error| io_error(&path, error))?
             .into_std_file();
         verify_macos_open_cache_extended_acl_custody(kind, &path, &directory_file)?;
-        verify_windows_open_cache_custody(kind, &path, &directory_file)?;
 
         let children = directory
             .entries()
@@ -294,7 +292,7 @@ pub(crate) fn verify_cache_custody_from_open_root(
                     &name,
                     &metadata,
                 )?;
-                verify_windows_open_cache_regular_file_custody(
+                verify_windows_open_cache_regular_file_identity(
                     kind,
                     &child_path,
                     &directory,
@@ -303,7 +301,7 @@ pub(crate) fn verify_cache_custody_from_open_root(
                 )?;
             } else if file_type.is_symlink() {
                 verify_macos_cache_link_extended_acl_custody(kind, &child_path)?;
-                verify_windows_open_cache_link_custody(
+                verify_windows_open_cache_link_identity(
                     kind,
                     &child_path,
                     &directory,

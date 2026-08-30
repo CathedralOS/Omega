@@ -8,8 +8,7 @@ use super::accounting::{GitCapturedOutputObservation, GitNetworkTransferObservat
 use super::execution::{
     GitCommandExecutionObservation, GitExecutableIdentity, GitTransportExecutableIdentity,
 };
-use super::receipt::{GitSourceStrictReceipt, GitSourceStrictReceiptError};
-use super::resolution::GitSourceResolutionObservation;
+use super::resolution::GitSourceReceipt;
 use super::storage::GitRetainedStorageObservation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,15 +34,15 @@ pub struct ResolvedGitSource {
     /// target, and exact content digest.
     pub(crate) execution_helper_executables: Vec<GitTransportExecutableIdentity>,
     /// Locally reconstructed native policy observations for every command
-    /// configured during this resolution. These rows are provenance, not accepted source
-    /// authority; strict admission must reject any unavailable required row.
+    /// configured during this resolution. These rows report which optional
+    /// platform hardening was active; unavailable rows do not invalidate a
+    /// successful source resolution.
     pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
     pub(crate) captured_output_observation: GitCapturedOutputObservation,
     pub(crate) network_transfer_observation: GitNetworkTransferObservation,
     pub(crate) retained_storage_observation: GitRetainedStorageObservation,
-    pub(crate) resolution_observation: GitSourceResolutionObservation,
-    pub(crate) strict_receipt: Result<GitSourceStrictReceipt, GitSourceStrictReceiptError>,
+    pub(crate) receipt: GitSourceReceipt,
 }
 
 /// Operation-local reuse pin for one already resolved Git acquisition.
@@ -146,19 +145,13 @@ impl ResolvedGitSource {
         &self.retained_storage_observation
     }
 
-    /// Canonical final-result provenance issued only after source, cache,
-    /// executable, policy, and command reconciliation all succeed.
-    ///
-    /// This is not a strict source receipt: it preserves unavailable native
-    /// guarantees rather than converting them into accepted authority.
-    pub fn resolution_observation(&self) -> &GitSourceResolutionObservation {
-        &self.resolution_observation
-    }
-
-    /// Return the locally reconstructed strict receipt, or the exact closed
-    /// reason current native/source evidence cannot issue one.
-    pub fn strict_receipt(&self) -> Result<&GitSourceStrictReceipt, &GitSourceStrictReceiptError> {
-        self.strict_receipt.as_ref()
+    /// Canonical receipt of one successful resolution, issued only after
+    /// source, cache, executable, policy, command, endpoint, and accounting
+    /// reconciliation all succeed. It records the platform hardening that was
+    /// actually present without claiming that ambient host authority was
+    /// excluded.
+    pub fn receipt(&self) -> &GitSourceReceipt {
+        &self.receipt
     }
 }
 

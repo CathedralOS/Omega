@@ -14,7 +14,6 @@ use crate::limits::*;
 use crate::observations::{
     accounting::{git_resolution_captured_output_ceiling, git_resolution_network_transfer_ceiling},
     execution::*,
-    receipt::*,
     resolution::*,
     resolved::*,
     storage::*,

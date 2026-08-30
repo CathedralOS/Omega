@@ -1,6 +1,4 @@
-use super::ResolverExecutionPhase;
-
-/// One native guarantee required by strict package-source resolution.
+/// One optional native hardening property observed during package-source resolution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ResolverExecutionGuarantee {
     FilesystemWritesConfined,
@@ -54,7 +52,7 @@ impl ResolverExecutionGuarantee {
     }
 }
 
-/// Whether one native guarantee was required and established for a phase.
+/// Whether one native hardening property was established for a phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResolverExecutionGuaranteeDisposition {
     Enforced,
@@ -88,32 +86,3 @@ impl ResolverExecutionGuaranteeRow {
         self.disposition
     }
 }
-
-/// The first required native guarantee unavailable from the selected backend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResolverStrictExecutionUnavailable {
-    pub(super) phase: ResolverExecutionPhase,
-    pub(super) guarantee: ResolverExecutionGuarantee,
-}
-
-impl ResolverStrictExecutionUnavailable {
-    pub const fn phase(&self) -> ResolverExecutionPhase {
-        self.phase
-    }
-
-    pub const fn guarantee(&self) -> ResolverExecutionGuarantee {
-        self.guarantee
-    }
-}
-
-impl std::fmt::Display for ResolverStrictExecutionUnavailable {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "resolver phase {:?} lacks required native guarantee {:?}",
-            self.phase, self.guarantee
-        )
-    }
-}
-
-impl std::error::Error for ResolverStrictExecutionUnavailable {}

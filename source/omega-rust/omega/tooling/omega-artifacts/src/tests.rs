@@ -25,12 +25,12 @@ use omega_external_roots::{
     ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
     FixedFuelCall, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
     FuelValidationReceiptId, InstalledRootRecord, LogicalFuelResourceColumn,
-    MachineStateResourceColumn, NativeFuelRealizationKind, NestingRelationId,
-    OpaqueProviderExitAssurance, ProviderExecutionId, ProviderFuelSummaryId,
-    ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary, RootAdmissionId,
-    RootEffectId, RootProviderId, RootSlotId, RootSlotOwnerId, StackNestingRelation,
-    StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
-    bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
+    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
+    ProviderStackSummary, RootAdmissionId, RootEffectId, RootProviderId, RootSlotId,
+    RootSlotOwnerId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
+    StateValidationReceiptId, TrustReceiptId, bind_opaque_adapter_stack_realization,
+    compose_bound_entry_stack_epochs, compose_fixed_fuel,
 };
 use omega_target::{Architecture, TargetProfile};
 use psi_extents::{
@@ -956,8 +956,6 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         },
         provider_exit_assurance_report_fingerprint: 0x3031,
         provider_plan: root_id(31, ProviderPlanId::from_normalized_identity),
-        native_fuel_kind: NativeFuelRealizationKind::FixedProvision,
-        native_fuel_report_fingerprint: 0x3032,
         requirement_identity: "TestRoot::entry".into(),
         entry_claims: Vec::new(),
         acknowledgement_parameter_index: None,
@@ -1020,11 +1018,6 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
         "0x000000000000001e"
     );
     assert_eq!(parsed["roots"][0]["provider_plan"], "0x000000000000001f");
-    assert_eq!(parsed["roots"][0]["native_fuel"]["kind"], "fixed_provision");
-    assert_eq!(
-        parsed["roots"][0]["native_fuel"]["report_fingerprint"],
-        "0x0000000000003032"
-    );
     assert_eq!(
         parsed["roots"][0]["selected_provider_closure_report_fingerprint"],
         "0x0000000000003033"

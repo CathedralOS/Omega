@@ -121,6 +121,7 @@ impl PendingMaterializedSnapshot {
             ));
         }
         let publication_name = direct_cache_child_name(self.kind, snapshots, publication)?;
+        drop(self.directory.take());
         publish_cache_directory_from_open_parent(
             self.kind,
             snapshots,
@@ -140,6 +141,8 @@ impl Drop for PendingMaterializedSnapshot {
             if let Some(directory) = self.directory.take() {
                 make_open_tree_owner_writable(&directory);
                 let _ = directory.remove_open_dir_all();
+            } else {
+                let _ = self.parent.remove_dir_all(&self.stage_name);
             }
         }
     }

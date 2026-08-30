@@ -68,5 +68,5 @@ Missing old source is already covered with both live and reopened review-only
 baselines. `remote-journal` provides the local and remote source-custody
 retained-dangerous-authority case; sealed remote admission still depends on the
 accepted-lock pipeline. The private-network canary remains ignored unless the
-environment has CathedralOS GitHub SSH custody; missing credentials reject and
-never trigger a substitute transport.
+environment has working system GitHub SSH authentication; missing credentials
+reject and never trigger a substitute transport.

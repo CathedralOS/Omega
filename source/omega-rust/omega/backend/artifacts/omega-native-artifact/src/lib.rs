@@ -13,9 +13,6 @@ use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v1\0";
-mod ranked_native_fuel;
-
-pub use ranked_native_fuel::{RankedNativeFuelArtifact, RankedNativeFuelArtifactParts};
 
 /// Collision-resistant identity of one complete, validated native artifact.
 ///

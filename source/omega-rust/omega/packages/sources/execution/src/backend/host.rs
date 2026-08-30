@@ -1,4 +1,5 @@
 use super::ResolverExecutionBackend;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use crate::confinement;
 use crate::model::ResolverExecutionBackendIdentity;
 use crate::network::{
@@ -61,21 +62,6 @@ impl ResolverExecutionBackend {
 
     pub const fn identity(&self) -> &ResolverExecutionBackendIdentity {
         &self.identity
-    }
-
-    /// Reject a Linux package-source launch that would otherwise degrade to
-    /// resource limits without a native filesystem boundary.
-    pub fn require_package_resolution_floor(&self) -> io::Result<()> {
-        #[cfg(target_os = "linux")]
-        if !matches!(
-            self.identity,
-            ResolverExecutionBackendIdentity::LinuxLandlockV5
-        ) {
-            return Err(io::Error::other(
-                "Linux package resolution requires fully available Landlock ABI v5",
-            ));
-        }
-        Ok(())
     }
 
     /// Open a compiler-owned loopback broker for one already-validated remote

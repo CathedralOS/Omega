@@ -113,7 +113,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
             .snapshot_root()
             .starts_with(storage.workspace_members().path())
     );
-    assert_eq!(source.resolution_observation().schema_version(), 7);
+    assert_eq!(source.receipt().schema_version(), 8);
 
     drop(storage);
     let _ = std::fs::remove_dir_all(&repository);

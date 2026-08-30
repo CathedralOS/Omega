@@ -2,8 +2,8 @@ use super::ResolverExecutionAuthorityRoots;
 use crate::model::{ResolverExecutionNetworkTransport, ResolverExecutionPhase};
 use crate::network::ResolverExecutionEndpointRoute;
 use crate::request::{
-    require_absolute, require_canonical_bounded_path, require_regular_file,
-    RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT,
+    RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, require_absolute,
+    require_canonical_bounded_path, require_regular_file,
 };
 use std::io;
 use std::path::{Path, PathBuf};

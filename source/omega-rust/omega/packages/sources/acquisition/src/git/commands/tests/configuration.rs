@@ -2,8 +2,8 @@ use super::{
     GIT_CACHE_REPOSITORY, GitExecutionTransport, LocalSourceLimits,
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_TARGET_ENVIRONMENT,
     ResolverExecutionPhase, SourceResolveError, create_git_source, git_cache_entry_root,
-    git_helper_path, local_git_request, null_device, resolve_git_source, run_test_git,
-    sealed_git_command, sealed_ssh_command, temp_root, test_system_git_executor,
+    local_git_request, resolve_git_source, run_test_git, sealed_git_command, sealed_ssh_command,
+    temp_root, test_system_git_executor,
 };
 use std::ffi::{OsStr, OsString};
 #[cfg(target_os = "macos")]
@@ -41,7 +41,7 @@ fn git_cache_rejects_local_filter_configuration_without_running_it() {
 }
 
 #[test]
-fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
+fn git_commands_constrain_protocol_and_execution_without_disabling_host_authentication() {
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
     let helper_directory = executor
@@ -77,14 +77,6 @@ fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
             Some(OsString::from("1")),
         ),
         (
-            OsString::from("GIT_CONFIG_GLOBAL"),
-            Some(OsString::from(null_device())),
-        ),
-        (
-            OsString::from("GIT_CONFIG_NOSYSTEM"),
-            Some(OsString::from("1")),
-        ),
-        (
             OsString::from("GIT_EXEC_PATH"),
             Some(helper_directory.into_os_string()),
         ),
@@ -106,7 +98,6 @@ fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
         ),
         (OsString::from("LANG"), Some(OsString::from("C"))),
         (OsString::from("LC_ALL"), Some(OsString::from("C"))),
-        (OsString::from("PATH"), Some(git_helper_path(&executor))),
     ]);
     assert_eq!(environment, expected_environment);
     #[cfg(target_os = "macos")]
@@ -220,10 +211,7 @@ fn git_commands_admit_only_the_request_transport() {
                     environment.get(OsStr::new("GIT_EXEC_PATH")),
                     Some(&Some(helper_directory.as_os_str().to_owned()))
                 );
-                assert_eq!(
-                    environment.get(OsStr::new("PATH")),
-                    Some(&Some(helper_directory.as_os_str().to_owned()))
-                );
+                assert!(!environment.contains_key(OsStr::new("PATH")));
                 assert!(!environment.contains_key(OsStr::new("GIT_SSH_COMMAND")));
                 assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
                 assert!(!environment.contains_key(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT)));
@@ -254,17 +242,17 @@ fn git_commands_admit_only_the_request_transport() {
                 let connector = executor
                     .resolver_connect_helper()
                     .expect("SSH CONNECT helper identity");
-                assert_eq!(
-                    environment.get(OsStr::new("PATH")),
-                    Some(&Some(
-                        connector
-                            .identity
-                            .invocation_path
-                            .parent()
-                            .expect("CONNECT helper parent")
-                            .as_os_str()
-                            .to_owned()
-                    ))
+                let connector_parent = connector
+                    .identity
+                    .invocation_path
+                    .parent()
+                    .expect("CONNECT helper parent");
+                assert!(
+                    environment
+                        .get(OsStr::new("PATH"))
+                        .and_then(Option::as_ref)
+                        .is_some_and(|path| std::env::split_paths(path).next().as_deref()
+                            == Some(connector_parent))
                 );
                 assert_eq!(
                     environment.get(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT)),
