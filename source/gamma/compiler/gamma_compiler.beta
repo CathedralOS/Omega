@@ -1631,6 +1631,130 @@ proc emit_stack_reserver(entry_label, failure_label) {
     return 0
 }
 
+proc emit_checked_add(entry_label, failure_label) {
+    let left_negative = new_label()
+    let both_negative = new_label()
+    let success = new_label()
+    define_label(entry_label)
+    emit_rr(2, 0, 2)
+    emit_rr(3, 0, 3)
+    emit_imm(4, 0)
+    emit_rrx(15, 2, 4, left_negative)
+    emit_rrx(15, 3, 4, success)
+    emit_rrx(15, 0, 4, failure_label)
+    emit_jump(12, success)
+    define_label(left_negative)
+    emit_rrx(15, 3, 4, both_negative)
+    emit_jump(12, success)
+    define_label(both_negative)
+    emit_rrx(15, 0, 4, success)
+    emit_jump(12, failure_label)
+    define_label(success)
+    emit_ret()
+    return 0
+}
+
+proc emit_checked_sub(entry_label, failure_label) {
+    let left_negative = new_label()
+    let positive_minus_negative = new_label()
+    let negative_minus_positive = new_label()
+    let success = new_label()
+    define_label(entry_label)
+    emit_rr(2, 0, 2)
+    emit_rr(4, 0, 3)
+    emit_imm(4, 0)
+    emit_rrx(15, 2, 4, left_negative)
+    emit_rrx(15, 3, 4, positive_minus_negative)
+    emit_jump(12, success)
+    define_label(positive_minus_negative)
+    emit_rrx(15, 0, 4, failure_label)
+    emit_jump(12, success)
+    define_label(left_negative)
+    emit_rrx(15, 3, 4, success)
+    emit_jump(12, negative_minus_positive)
+    define_label(negative_minus_positive)
+    emit_rrx(15, 0, 4, success)
+    emit_jump(12, failure_label)
+    define_label(success)
+    emit_ret()
+    return 0
+}
+
+proc emit_checked_mul(entry_label, failure_label) {
+    let left_minimum = new_label()
+    let right_minimum = new_label()
+    let minimum_result = new_label()
+    let zero_result = new_label()
+    let success = new_label()
+    define_label(entry_label)
+    emit_imm(4, 0)
+    emit_rrx(16, 2, 4, zero_result)
+    emit_rrx(16, 3, 4, zero_result)
+    emit_imm(5, 9223372036854775808)
+    emit_rrx(16, 2, 5, left_minimum)
+    emit_rrx(16, 3, 5, right_minimum)
+    emit_rr(2, 0, 2)
+    emit_rr(5, 0, 3)
+    emit_rr(2, 6, 0)
+    emit_rr(6, 6, 3)
+    emit_rrx(16, 6, 2, success)
+    emit_jump(12, failure_label)
+    define_label(left_minimum)
+    emit_imm(6, 1)
+    emit_rrx(16, 3, 6, minimum_result)
+    emit_jump(12, failure_label)
+    define_label(right_minimum)
+    emit_imm(6, 1)
+    emit_rrx(16, 2, 6, minimum_result)
+    emit_jump(12, failure_label)
+    define_label(minimum_result)
+    emit_rr(2, 0, 5)
+    emit_jump(12, success)
+    define_label(zero_result)
+    emit_imm(0, 0)
+    define_label(success)
+    emit_ret()
+    return 0
+}
+
+proc emit_checked_div(entry_label, failure_label) {
+    let operate = new_label()
+    let minimum_left = new_label()
+    define_label(entry_label)
+    emit_imm(4, 0)
+    emit_rrx(16, 3, 4, failure_label)
+    emit_imm(4, 9223372036854775808)
+    emit_rrx(16, 2, 4, minimum_left)
+    emit_jump(12, operate)
+    define_label(minimum_left)
+    emit_imm(4, 18446744073709551615)
+    emit_rrx(16, 3, 4, failure_label)
+    define_label(operate)
+    emit_rr(2, 0, 2)
+    emit_rr(6, 0, 3)
+    emit_ret()
+    return 0
+}
+
+proc emit_checked_mod(entry_label, failure_label) {
+    let operate = new_label()
+    let minimum_left = new_label()
+    define_label(entry_label)
+    emit_imm(4, 0)
+    emit_rrx(16, 3, 4, failure_label)
+    emit_imm(4, 9223372036854775808)
+    emit_rrx(16, 2, 4, minimum_left)
+    emit_jump(12, operate)
+    define_label(minimum_left)
+    emit_imm(4, 18446744073709551615)
+    emit_rrx(16, 3, 4, failure_label)
+    define_label(operate)
+    emit_rr(2, 0, 2)
+    emit_rr(7, 0, 3)
+    emit_ret()
+    return 0
+}
+
 proc validate_payload() {
     state sticky { to invalid when (word[2097016] != 0)  to nonempty }
     state nonempty { to empty when (word[2097040] == 0)  to resolve }

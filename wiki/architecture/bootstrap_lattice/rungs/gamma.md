@@ -44,10 +44,10 @@ primitive merely because one application is a compiler.
 ## Current migration
 
 `source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
-direct Alpha payload/fixup substrate, and executed heap/stack containment
-helpers. It is incomplete and has no published tape. `source/gamma/interp.beta`
-remains a bounded semantic oracle; it does not define an alternate Gamma
-language or a serialized-AST runtime. Their
+direct Alpha payload/fixup substrate, and executed heap/stack and checked-`Int`
+helpers. It is incomplete and has no published tape.
+`source/gamma/interp.beta` remains a bounded semantic oracle; it does not define
+an alternate Gamma language or a serialized-AST runtime. Their
 now-hardened historical omission of match exhaustiveness remains the warning
 that differential agreement cannot establish a rule both sides omit. The former
 Beta-written Delta-to-Gamma route was outside Gamma ownership and is deleted

@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Adjacent gate for the canonical Gamma compiler's retained frontend and direct
-# Alpha emitter substrate. No compiler artifact is published by this gate.
+# Alpha emitter/runtime substrate. No compiler artifact is published by this gate.
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
@@ -282,6 +282,221 @@ if [ "$runtime_emitter_status" != 1 ] || [ ! -s "$T/runtime-probe.tape" ]; then
 fi
 stamp_seed "$T/runtime-probe.tape" "$SEED" "$T/runtime-probe.exe" >/dev/null 2>&1
 
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    emit_reset()' \
+    '    let entry_label = new_label()' \
+    '    let add_label = new_label()' \
+    '    let sub_label = new_label()' \
+    '    let mul_label = new_label()' \
+    '    let div_label = new_label()' \
+    '    let mod_label = new_label()' \
+    '    let failure_label = new_label()' \
+    '    let check_label = new_label()' \
+    '    let accepted_label = new_label()' \
+    '    let unexpected_label = new_label()' \
+    '    let add_ok = new_label()' \
+    '    let add_positive_overflow = new_label()' \
+    '    let add_negative_overflow = new_label()' \
+    '    let sub_ok = new_label()' \
+    '    let sub_positive_overflow = new_label()' \
+    '    let sub_negative_overflow = new_label()' \
+    '    let mul_ok = new_label()' \
+    '    let mul_positive_overflow = new_label()' \
+    '    let mul_minimum_ok = new_label()' \
+    '    let mul_minimum_overflow = new_label()' \
+    '    let div_ok = new_label()' \
+    '    let div_zero = new_label()' \
+    '    let div_minimum_overflow = new_label()' \
+    '    let mod_ok = new_label()' \
+    '    let mod_zero = new_label()' \
+    '    let mod_minimum_overflow = new_label()' \
+    '    define_label(entry_label)' \
+    '    emit_r(17, 11)' \
+    '    emit_imm(12, 97)' \
+    '    emit_rrx(16, 11, 12, add_ok)' \
+    '    emit_imm(12, 65)' \
+    '    emit_rrx(16, 11, 12, add_positive_overflow)' \
+    '    emit_imm(12, 66)' \
+    '    emit_rrx(16, 11, 12, add_negative_overflow)' \
+    '    emit_imm(12, 115)' \
+    '    emit_rrx(16, 11, 12, sub_ok)' \
+    '    emit_imm(12, 83)' \
+    '    emit_rrx(16, 11, 12, sub_positive_overflow)' \
+    '    emit_imm(12, 84)' \
+    '    emit_rrx(16, 11, 12, sub_negative_overflow)' \
+    '    emit_imm(12, 109)' \
+    '    emit_rrx(16, 11, 12, mul_ok)' \
+    '    emit_imm(12, 77)' \
+    '    emit_rrx(16, 11, 12, mul_positive_overflow)' \
+    '    emit_imm(12, 78)' \
+    '    emit_rrx(16, 11, 12, mul_minimum_ok)' \
+    '    emit_imm(12, 79)' \
+    '    emit_rrx(16, 11, 12, mul_minimum_overflow)' \
+    '    emit_imm(12, 100)' \
+    '    emit_rrx(16, 11, 12, div_ok)' \
+    '    emit_imm(12, 68)' \
+    '    emit_rrx(16, 11, 12, div_zero)' \
+    '    emit_imm(12, 69)' \
+    '    emit_rrx(16, 11, 12, div_minimum_overflow)' \
+    '    emit_imm(12, 114)' \
+    '    emit_rrx(16, 11, 12, mod_ok)' \
+    '    emit_imm(12, 82)' \
+    '    emit_rrx(16, 11, 12, mod_zero)' \
+    '    emit_imm(12, 70)' \
+    '    emit_rrx(16, 11, 12, mod_minimum_overflow)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(add_ok)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 2)' \
+    '    emit_imm(3, 3)' \
+    '    emit_imm(9, 5)' \
+    '    emit_jump(19, add_label)' \
+    '    emit_jump(12, check_label)' \
+    '    define_label(add_positive_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775807)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, add_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(add_negative_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775808)' \
+    '    emit_imm(3, 18446744073709551615)' \
+    '    emit_jump(19, add_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(sub_ok)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 5)' \
+    '    emit_imm(3, 3)' \
+    '    emit_imm(9, 2)' \
+    '    emit_jump(19, sub_label)' \
+    '    emit_jump(12, check_label)' \
+    '    define_label(sub_positive_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775807)' \
+    '    emit_imm(3, 18446744073709551615)' \
+    '    emit_jump(19, sub_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(sub_negative_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775808)' \
+    '    emit_imm(3, 1)' \
+    '    emit_jump(19, sub_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(mul_ok)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 6)' \
+    '    emit_imm(3, 7)' \
+    '    emit_imm(9, 42)' \
+    '    emit_jump(19, mul_label)' \
+    '    emit_jump(12, check_label)' \
+    '    define_label(mul_positive_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775807)' \
+    '    emit_imm(3, 2)' \
+    '    emit_jump(19, mul_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(mul_minimum_ok)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 9223372036854775808)' \
+    '    emit_imm(3, 1)' \
+    '    emit_imm(9, 9223372036854775808)' \
+    '    emit_jump(19, mul_label)' \
+    '    emit_jump(12, check_label)' \
+    '    define_label(mul_minimum_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775808)' \
+    '    emit_imm(3, 18446744073709551615)' \
+    '    emit_jump(19, mul_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(div_ok)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 18446744073709551609)' \
+    '    emit_imm(3, 2)' \
+    '    emit_imm(9, 18446744073709551613)' \
+    '    emit_jump(19, div_label)' \
+    '    emit_jump(12, check_label)' \
+    '    define_label(div_zero)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 7)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, div_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(div_minimum_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775808)' \
+    '    emit_imm(3, 18446744073709551615)' \
+    '    emit_jump(19, div_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(mod_ok)' \
+    '    emit_imm(10, 0)' \
+    '    emit_imm(2, 18446744073709551609)' \
+    '    emit_imm(3, 2)' \
+    '    emit_imm(9, 18446744073709551615)' \
+    '    emit_jump(19, mod_label)' \
+    '    emit_jump(12, check_label)' \
+    '    define_label(mod_zero)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 7)' \
+    '    emit_imm(3, 0)' \
+    '    emit_jump(19, mod_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(mod_minimum_overflow)' \
+    '    emit_imm(10, 1)' \
+    '    emit_imm(2, 9223372036854775808)' \
+    '    emit_imm(3, 18446744073709551615)' \
+    '    emit_jump(19, mod_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(failure_label)' \
+    '    emit_rx(13, 10, unexpected_label)' \
+    '    emit_jump(12, accepted_label)' \
+    '    define_label(check_label)' \
+    '    emit_rrx(16, 0, 9, accepted_label)' \
+    '    emit_jump(12, unexpected_label)' \
+    '    define_label(accepted_label)' \
+    '    emit_imm(0, 7)' \
+    '    emit_r(0, 0)' \
+    '    define_label(unexpected_label)' \
+    '    emit_imm(0, 9)' \
+    '    emit_r(0, 0)' \
+    '    emit_checked_add(add_label, failure_label)' \
+    '    emit_checked_sub(sub_label, failure_label)' \
+    '    emit_checked_mul(mul_label, failure_label)' \
+    '    emit_checked_div(div_label, failure_label)' \
+    '    emit_checked_mod(mod_label, failure_label)' \
+    '    let payload_ok = validate_payload()' \
+    '    state publish_setup {' \
+    '        to failed when (payload_ok != 1)' \
+    '        let i = 0' \
+    '        to publish_loop' \
+    '    }' \
+    '    state publish_loop {' \
+    '        to publish when (i < word[2097040])' \
+    '        return 1' \
+    '    }' \
+    '    state publish {' \
+    '        write_byte(byte[33292288 + i])' \
+    '        i = i + 1' \
+    '        to publish_loop' \
+    '    }' \
+    '    state failed { return 0 }' \
+    '}'
+} | "$T/bc.exe" > "$T/int-emitter.tape" || {
+  echo "bc(gamma_compiler.beta + checked Int probe) failed"
+  exit 1
+}
+stamp_seed "$T/int-emitter.tape" "$SEED" "$T/int-emitter.exe" >/dev/null 2>&1
+"$T/int-emitter.exe" > "$T/int-probe.tape"
+int_emitter_status=$?
+if [ "$int_emitter_status" != 1 ] || [ ! -s "$T/int-probe.tape" ]; then
+  echo "Gamma checked Int probe emission failed: status $int_emitter_status" >&2
+  exit 1
+fi
+stamp_seed "$T/int-probe.tape" "$SEED" "$T/int-probe.exe" >/dev/null 2>&1
+
 PASS=0; FAIL=0
 "$T/emitter.exe" > "$T/emitter.out"
 emitter_status=$?
@@ -299,6 +514,16 @@ for runtime_mode in h s H S o u; do
   else
     FAIL=$((FAIL+1))
     echo "  FAIL runtime $runtime_mode: status $runtime_status, output $(wc -c < "$T/runtime-$runtime_mode.out" | tr -d ' ') bytes"
+  fi
+done
+for int_mode in a A B s S T m M N O d D E r R F; do
+  printf '%s' "$int_mode" | "$T/int-probe.exe" > "$T/int-$int_mode.out"
+  int_status=$?
+  if [ "$int_status" = 7 ] && [ ! -s "$T/int-$int_mode.out" ]; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL checked Int $int_mode: status $int_status, output $(wc -c < "$T/int-$int_mode.out" | tr -d ' ') bytes"
   fi
 done
 tc() { # program  expect(1 ok / 0 type-error)  desc
