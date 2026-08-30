@@ -182,6 +182,30 @@ pub struct ConventionalDepthTwoRecordSumPathLayoutReport {
     pub middle_path: ConventionalNestedRecordSumPathLayoutReport,
 }
 
+/// One exact direct outer-field occurrence and the complete authored-order
+/// middle-to-leaf record paths reachable through that occurrence.
+///
+/// The nested report retains its middle whole-record layout once and one leaf
+/// layout plus complete direct-sum row set per middle occurrence. No child row
+/// is flattened into the outer record or duplicated across sibling paths.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwoRecordSumOccurrenceLayoutReport {
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub middle_paths: ConventionalNestedRecordSumPathsLayoutReport,
+}
+
+/// Compact complete authored-order set of qualifying depth-two record chains.
+///
+/// The outer layout is retained once. Each occurrence owns the unchanged
+/// plural one-level report for its exact middle record, preserving both path
+/// boundaries instead of flattening their layouts or child sum rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthTwoRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub paths: Vec<ConventionalDepthTwoRecordSumOccurrenceLayoutReport>,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns
