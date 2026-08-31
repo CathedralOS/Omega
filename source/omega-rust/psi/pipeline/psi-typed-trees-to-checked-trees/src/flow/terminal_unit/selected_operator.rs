@@ -99,12 +99,17 @@ pub(super) fn build_selected_operator_scalar_call(
             )
         })
         .collect::<Option<Vec<_>>>()?;
-    let realization_return_expression = checked_selected_scalar_return_expression(
-        program,
-        facts,
-        realization_state,
-        result.primitive_type,
-    )?;
+    let realization_graph = facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(application.realization_machine)?;
+    let realization_entry = realization_graph.states.first()?;
+    if realization_entry.state != application.realization_state
+        || realization_entry.result_type != result.primitive_type
+        || realization_entry.parameter_types.len() != parameters.len()
+    {
+        return None;
+    }
     let contract = facts
         .contract_plans
         .for_machine(application.realization_machine)?;
@@ -120,7 +125,7 @@ pub(super) fn build_selected_operator_scalar_call(
         realization_machine: application.realization_machine,
         realization_state: application.realization_state,
         realization_contract_report_fingerprint: contract.report_fingerprint,
-        realization_return_expression,
+        realization_contract_commitment: contract.commitment,
         service_reach: state_flow(
             facts,
             application.realization_machine,
@@ -129,40 +134,4 @@ pub(super) fn build_selected_operator_scalar_call(
         .service_reach,
         scalar_arguments,
     })
-}
-
-fn checked_selected_scalar_return_expression(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    state: &psi_typed_trees::state::State,
-    result_type: PrimitiveType,
-) -> Option<CheckedScalarExpression> {
-    let [statement] = program.statement_table.statements(state.statement_nodes) else {
-        return None;
-    };
-    let expression = match statement {
-        StatementNode::Expression(expression) => *expression,
-        StatementNode::Transition(transition)
-            if transition.exit == TransitionExit::Ordinary
-                && transition.guard == TransitionGuardNode::Always
-                && !transition.continuation.is_valid() =>
-        {
-            let TransitionTargetNode::Value(expression) =
-                program.statement_table.transition_target(transition.target)
-            else {
-                return None;
-            };
-            *expression
-        }
-        _ => return None,
-    };
-    crate::values::lower_state_scalar_expression(
-        program,
-        &facts.operators,
-        state,
-        0,
-        expression,
-        result_type,
-        &[],
-    )
 }

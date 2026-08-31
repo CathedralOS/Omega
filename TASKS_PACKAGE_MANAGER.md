@@ -119,16 +119,16 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Native execution of the repaired named checked-adapter canary remains
-  blocked on owner Q5; the fixed-token checked/interpreter canary now passes.
   Terminal retains the exact settled join
   `{ authored operator-use coordinate, selected requirement/candidate } ->
-  { selected realization machine, selected realization state }` without a
-  global conformance scan. Native production proceeds through that operation,
-  then rejects the unrelated `Console::exit_process` boundary because the
-  compiler driver supplies no boundary settlement. Do not fabricate package-
-  installation execution evidence for a compiler-owned target builtin merely
-  to satisfy the existing settlement interface.
+  { selected realization machine, selected realization state }` as an ordinary
+  scalar `Call`, without a global conformance scan, and named/fixed-token
+  compiler canaries replay the canonical Terminal artifact through the later
+  boundary consumer. NativeArtifact production remains an engineering
+  continuation: lower mixed scalar calls inside attached Unit machines, then
+  settle compiler-owned target builtins through a distinct compiler/target TCB
+  lane. Do not fabricate package-installation `ProviderExecutionEvidence` for
+  a compiler-owned builtin merely to satisfy the existing settlement API.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
   representation projection according to D26. Add separate producer-

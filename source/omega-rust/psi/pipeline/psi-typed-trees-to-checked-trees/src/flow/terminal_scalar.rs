@@ -107,6 +107,19 @@ fn build_machine_graph(
                     statement_ordinal: terminator_ordinal,
                 },
                 [StatementNode::Transition(transition)]
+                    if transition.exit == TransitionExit::Ordinary
+                        && transition.guard == TransitionGuardNode::Always
+                        && !transition.continuation.is_valid()
+                        && matches!(
+                            program.statement_table.transition_target(transition.target),
+                            TransitionTargetNode::Value(_)
+                        ) =>
+                {
+                    CheckedScalarStateTerminator::Return {
+                        statement_ordinal: terminator_ordinal,
+                    }
+                }
+                [StatementNode::Transition(transition)]
                     if matches!(transition.exit, TransitionExit::Crash(_))
                         && transition.guard == TransitionGuardNode::Always
                         && !transition.continuation.is_valid()

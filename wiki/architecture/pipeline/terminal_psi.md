@@ -2061,7 +2061,18 @@ the resulting calls inside conditional control. A guarded staged call follows
 the checked row's pinned target contract and substitutes its parameter-relative
 routes with the exact terminal argument values; it never reverse-matches caller
 expressions, which would be ambiguous for equal or overlapping arguments. A
-nonempty path to a relevant Boolean field of a record parameter retains every
+selected boundary-operator result bound inside an attached Unit machine uses
+the same scalar `Call` operation. Provider settlement supplies the exact
+authored use, public requirement, strong `ProviderPlan` identity, and selected
+machine/state application while Unit planning still owns the unrewritten
+operator expression. Attached-Unit production admits only that selected scalar
+graph and its ordinary scalar-call closure, emits the selected realization as
+a distinct Terminal machine, and passes the call result to later operations.
+Missing, duplicate, stale, or coordinate-mismatched applications fail closed;
+neither planning nor production scans conformances for a uniquely shaped
+realization.
+
+A nonempty path to a relevant Boolean field of a record parameter retains every
 canonical structural-field identity and rebases across structural Unit calls.
 For a field- or literal-fixed-index-projected structural argument, the caller's
 canonical argument path is prepended to the callee's parameter-relative Boolean

@@ -278,6 +278,30 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 expression: CheckedScalarExpression::Boolean(Box::new(guard)),
                             });
                         }
+                        if transition.exit == psi_typed_trees::statement::TransitionExit::Ordinary
+                            && transition.guard == TransitionGuardNode::Always
+                            && !transition.continuation.is_valid()
+                            && let TransitionTargetNode::Value(expression) =
+                                program.statement_table.transition_target(transition.target)
+                            && let Some(result_type) = result_type
+                            && let Some(expression) = lower_return_expression(
+                                program,
+                                operators,
+                                *expression,
+                                &scalar_parameters,
+                                &parameter_types,
+                                &locals,
+                                result_type,
+                                exact_integer_casts,
+                            )
+                        {
+                            expressions.push(CheckedLocatedScalarExpression {
+                                state: state.symbol,
+                                statement_ordinal,
+                                role: CheckedScalarExpressionRole::Return,
+                                expression,
+                            });
+                        }
                         let TransitionTargetNode::Named {
                             path, arguments, ..
                         } = program.statement_table.transition_target(transition.target)
@@ -2022,7 +2046,15 @@ fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            let source_type = scalar_expression_type(&operand)?;
+            let source_type = scalar_expression_type(&operand);
+            if source_type.is_none()
+                && cast.domain == ArithmeticDomain::Exact
+                && target_type != PrimitiveType::Addr
+                && let Some(literal) = retag_exact_integer_literal(&operand, target_type)
+            {
+                return Some((literal, cast.domain));
+            }
+            let source_type = source_type?;
             if source_type == target_type {
                 return Some((operand, cast.domain));
             }
@@ -2788,5 +2820,16 @@ mod tests {
             ),
         };
         assert!(retag_exact_integer_literal(&outside, PrimitiveType::I8).is_none());
+    }
+
+    #[test]
+    fn compile_known_exact_integer_conversion_lands_untyped_literals() {
+        let source = CheckedScalarExpression::IntegerLiteral {
+            literal: psi_numerics::literals::IntegerLiteral::from_value(70),
+        };
+        let landed = retag_exact_integer_literal(&source, PrimitiveType::I32)
+            .expect("70 is exactly representable as i32");
+        assert_eq!(scalar_expression_type(&landed), Some(PrimitiveType::I32));
+        assert!(retag_exact_integer_literal(&source, PrimitiveType::Addr).is_none());
     }
 }

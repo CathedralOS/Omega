@@ -1,6 +1,6 @@
 // A fixed-token boundary operator may select a checked Omega body. The token
 // resolves the public operator while execution redirects to the exact selected
-// adapter in the checked execution path.
+// adapter in both checked interpretation and target-selected Terminal production.
 use omega::language::std::console;
 
 data CheckedMath {}
@@ -18,6 +18,6 @@ satisfies CheckedMath::select_left
 data Main { console: Console; }
 
 machine Main::main(&mut self) {
-    let result: i32 = 70 - 0;
+    let result: i32 = (70 as i32) - 0;
     self.console.exit_process(result);
 }

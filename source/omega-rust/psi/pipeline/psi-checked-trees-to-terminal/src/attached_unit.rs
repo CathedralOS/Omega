@@ -13,8 +13,8 @@ mod providers;
 mod selected_operator;
 
 use call_closure::{
-    checked_terminal_machine_name, reject_recursive_unit_closure, unique_unit_boundary,
-    validate_unit_operation_sequence,
+    checked_selected_scalar_call_closure, checked_terminal_machine_name,
+    reject_recursive_unit_closure, unique_unit_boundary, validate_unit_operation_sequence,
 };
 pub(super) use call_closure::{
     checked_unit_boundary_identity, checked_unit_call_closure_including, unique_unit_machine,
@@ -199,6 +199,57 @@ pub(super) fn lower_attached_unit_closure_including(
     };
     reject_recursive_unit_closure(plans, &closure)?;
 
+    let mut selected_scalar_roots = Vec::new();
+    for machine_symbol in &closure {
+        for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
+            if let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                realization_machine,
+                ..
+            } = operation
+            {
+                selected_scalar_roots.push(*realization_machine);
+            }
+        }
+    }
+    let scalar_closure = checked_selected_scalar_call_closure(checked, &selected_scalar_roots)?;
+    if scalar_closure
+        .iter()
+        .any(|machine| closure.contains(machine))
+    {
+        return unsupported(
+            "selected scalar realization overlaps the attached Unit machine closure",
+        );
+    }
+    let prepared_scalar_machines = scalar_closure
+        .iter()
+        .map(|machine| {
+            let graph = checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(*machine)
+                .ok_or(LoweringError::Unsupported(
+                    "selected scalar realization closure has no checked scalar graph",
+                ))?;
+            if selected_scalar_roots.contains(machine) {
+                prepare_selected_scalar_graph_machine(checked, *machine, graph)
+            } else {
+                prepare_scalar_graph_machine(checked, *machine, graph)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if prepared_scalar_machines.iter().any(|machine| {
+        !machine.identity_reshuffles.structural_places.is_empty()
+            || !machine.identity_reshuffles.entry_claims.is_empty()
+            || !machine.identity_reshuffles.reshuffles.is_empty()
+            || !machine.partition_compositions.structural_places.is_empty()
+            || !machine.partition_compositions.compositions.is_empty()
+    }) {
+        return unsupported(
+            "selected scalar realization structural/content effects require a dedicated terminal slice",
+        );
+    }
+
     let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
     for machine_symbol in &closure {
         let machine = unique_unit_machine(plans, *machine_symbol)?;
@@ -290,6 +341,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     realization_machine,
                     realization_state,
                     realization_contract_report_fingerprint,
+                    realization_contract_commitment,
                     service_reach,
                     scalar_arguments,
                     ..
@@ -305,6 +357,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         *realization_machine,
                         *realization_state,
                         *realization_contract_report_fingerprint,
+                        *realization_contract_commitment,
                         *service_reach,
                         scalar_arguments.len(),
                     )?;
@@ -525,15 +578,25 @@ pub(super) fn lower_attached_unit_closure_including(
 
     let machine_ids = closure
         .iter()
+        .chain(&scalar_closure)
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let scalar_requirement_counts = prepared_scalar_machines
+        .iter()
+        .map(|machine| {
+            (
+                machine.source_machine,
+                usize::from(machine.contract_value.is_some()),
+            )
+        })
+        .collect::<Vec<_>>();
     let mut next_operation = 1_u64;
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut call_evidence = Vec::new();
-    let mut machines = Vec::with_capacity(closure.len());
+    let mut machines = Vec::with_capacity(closure.len() + scalar_closure.len());
 
     for machine_symbol in &closure {
         let plan = unique_unit_machine(plans, *machine_symbol)?;
@@ -921,9 +984,10 @@ pub(super) fn lower_attached_unit_closure_including(
                     }
                 }
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    coordinate,
                     result,
+                    realization_machine,
                     realization_state,
-                    realization_return_expression,
                     scalar_arguments,
                     ..
                 } => {
@@ -934,35 +998,34 @@ pub(super) fn lower_attached_unit_closure_including(
                             "selected Unit operator result binding ordinal drifted from source order",
                         );
                     }
-                    let realization = checked
-                        .typed
-                        .machines()
+                    let prepared_target = prepared_scalar_machines
                         .iter()
-                        .flat_map(|machine| checked.typed.machine_states(machine))
-                        .find(|state| state.symbol == *realization_state)
+                        .find(|target| target.source_machine == *realization_machine)
                         .ok_or(LoweringError::Unsupported(
-                            "selected Unit operator realization entry is absent",
+                            "selected scalar call target is absent from the prepared closure",
                         ))?;
-                    let parameter_types = checked
-                        .typed
-                        .state_parameters(realization)
-                        .iter()
-                        .map(|parameter| {
-                            checked
-                                .typed
-                                .primitive_type_reference(parameter.type_reference)
-                                .map(terminal_scalar_type)
-                                .transpose()
-                                .and_then(|primitive| {
-                                    primitive.ok_or(LoweringError::Unsupported(
-                                        "selected Unit operator realization has a non-scalar parameter",
-                                    ))
-                                })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    if scalar_arguments.len() != parameter_types.len() {
+                    let target_graph = checked
+                        .facts
+                        .flow
+                        .terminal_scalar_graphs
+                        .for_machine(*realization_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "selected scalar call target has no checked graph",
+                        ))?;
+                    let target_entry =
+                        target_graph
+                            .states
+                            .first()
+                            .ok_or(LoweringError::Unsupported(
+                                "selected scalar call target has no checked entry state",
+                            ))?;
+                    if target_entry.state != *realization_state
+                        || prepared_target.result_type
+                            != terminal_scalar_type(result.primitive_type)?
+                        || scalar_arguments.len() != target_entry.parameter_types.len()
+                    {
                         return unsupported(
-                            "selected Unit operator realization argument count drifted",
+                            "selected scalar call disagrees with its prepared target signature",
                         );
                     }
                     let source_types = scalar_result_values
@@ -971,10 +1034,16 @@ pub(super) fn lower_attached_unit_closure_including(
                         .collect::<Vec<_>>();
                     let arguments = scalar_arguments
                         .iter()
-                        .zip(&parameter_types)
-                        .map(|(argument, expected_type)| {
+                        .zip(&target_entry.parameter_types)
+                        .map(|(argument, target_type)| {
                             let argument = lower_checked_scalar_expression(argument)?;
-                            if argument.scalar_type() != *expected_type {
+                            if direct_expression_contains_short_circuit(&argument) {
+                                return unsupported(
+                                    "selected scalar call arguments do not yet admit short-circuit control",
+                                );
+                            }
+                            let target_type = terminal_scalar_type(*target_type)?;
+                            if argument.scalar_type() != target_type {
                                 return unsupported(
                                     "selected Unit operator argument type disagrees with its realization",
                                 );
@@ -988,29 +1057,83 @@ pub(super) fn lower_attached_unit_closure_including(
                             );
                             Ok(ValueDeclaration {
                                 id,
-                                scalar_type: *expected_type,
+                                scalar_type: target_type,
                             })
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
-                    let expression =
-                        lower_checked_scalar_expression(realization_return_expression)?;
-                    validate_direct_parameter_types(&expression, &parameter_types)?;
-                    let result_type = terminal_scalar_type(result.primitive_type)?;
-                    if expression.scalar_type() != result_type {
-                        return unsupported(
-                            "selected Unit operator return type disagrees with its bound result",
-                        );
-                    }
-                    let id = emit_direct_expression(
-                        &expression,
+                    let target_contract = checked
+                        .facts
+                        .contract_plans
+                        .for_machine(*realization_machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "selected scalar call target has no checked contract",
+                        ))?;
+                    let crash_continuations = lower_checked_crash_route_buckets(
+                        target_contract.crash.published(),
                         &arguments,
-                        &mut next_value_identity,
-                        &mut operations,
-                    );
-                    scalar_result_values.push(ValueDeclaration {
-                        id,
-                        scalar_type: result_type,
+                    )?;
+                    let requirement_count = scalar_requirement_counts
+                        .iter()
+                        .find_map(|(source, count)| {
+                            (*source == *realization_machine).then_some(*count)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "selected scalar call target has no prepared contract",
+                        ))?;
+                    let requirement_obligations = (0..requirement_count)
+                        .map(|_| {
+                            let obligation = obligation_id(next_call_obligation);
+                            next_call_obligation = next_call_obligation.checked_add(1).ok_or(
+                                LoweringError::Unsupported(
+                                    "selected scalar call obligation identity space is exhausted",
+                                ),
+                            )?;
+                            Ok(obligation)
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let value = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type: prepared_target.result_type,
+                    };
+                    next_value_identity =
+                        next_value_identity
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "selected scalar result value identity space is exhausted",
+                            ))?;
+                    let operation_id = operations.allocate();
+                    operations.record_source_call(
+                        SourceCallCoordinate {
+                            state: plan.state,
+                            statement_index: usize::try_from(coordinate.statement_index).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "selected scalar call statement coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "selected scalar call ordinal coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                        },
+                        operation_id,
+                        *realization_machine,
+                    )?;
+                    operations.push(Operation {
+                        id: operation_id,
+                        result: psi_terminal::OperationResult::Scalar(value),
+                        kind: OperationKind::Call {
+                            callee: lookup_machine_id(&machine_ids, *realization_machine)?,
+                            arguments: arguments.iter().map(|argument| argument.id).collect(),
+                            requirement_obligations,
+                            crash_continuations,
+                        },
                     });
+                    scalar_result_values.push(value);
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -1487,6 +1610,42 @@ pub(super) fn lower_attached_unit_closure_including(
         });
     }
 
+    let mut scalar_evidence = Vec::new();
+    for (index, machine) in prepared_scalar_machines.into_iter().enumerate() {
+        let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine)?;
+        let machine_index = closure
+            .len()
+            .checked_add(index)
+            .ok_or(LoweringError::Unsupported(
+                "selected scalar closure machine count overflows usize",
+            ))?;
+        let identity_base = u64::try_from(machine_index)
+            .map_err(|_| {
+                LoweringError::Unsupported("selected scalar closure machine count exceeds u64")
+            })?
+            .checked_mul(TERMINAL_MACHINE_IDENTITY_STRIDE)
+            .ok_or(LoweringError::Unsupported(
+                "selected scalar closure identity range overflows",
+            ))?;
+        let mut lowered = build_scalar_graph_module(
+            &machine.states,
+            machine.result_type,
+            machine.contract_value,
+            machine.crash_routes,
+            machine.identity_reshuffles,
+            machine.partition_compositions,
+            terminal_machine,
+            identity_base,
+            &machine_ids,
+            &scalar_requirement_counts,
+        )?;
+        let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
+            unreachable!("one prepared selected scalar graph emits one terminal machine")
+        };
+        machines.push(terminal_machine.clone());
+        scalar_evidence.append(&mut lowered.proof_bundle.evidence);
+    }
+
     let mut provider_candidates = provider_candidate_plans
         .iter()
         .map(|candidate| {
@@ -1563,6 +1722,7 @@ pub(super) fn lower_attached_unit_closure_including(
             ))
     });
 
+    call_evidence.append(&mut scalar_evidence);
     let requires_operation_proofs = closure.iter().any(|machine_symbol| {
         plans.for_machine(*machine_symbol).is_some_and(|machine| {
             machine.operations.iter().any(|operation| {

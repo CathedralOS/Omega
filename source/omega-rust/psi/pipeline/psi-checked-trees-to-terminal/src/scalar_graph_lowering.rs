@@ -166,6 +166,27 @@ pub(super) fn prepare_scalar_graph_machine(
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
+    prepare_scalar_graph_machine_with_contract_mode(checked, machine, graph, true)
+}
+
+/// Prepare an exact selected-adapter body for inclusion beneath an attached
+/// Unit root. Provider settlement and the retained checked contract identity
+/// authorize this exact body; unlike the ordinary standalone scalar lane, its
+/// parameter-relative contract need not reduce to one closed literal.
+pub(super) fn prepare_selected_scalar_graph_machine(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    graph: &CheckedScalarMachineGraph,
+) -> Result<PreparedScalarMachine, LoweringError> {
+    prepare_scalar_graph_machine_with_contract_mode(checked, machine, graph, false)
+}
+
+fn prepare_scalar_graph_machine_with_contract_mode(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    graph: &CheckedScalarMachineGraph,
+    require_closed_value_contract: bool,
+) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
@@ -351,7 +372,10 @@ pub(super) fn prepare_scalar_graph_machine(
         )
     });
     let expected_value = evaluate_known_scalar_graph(&lowered_states);
-    let contract_value = if has_return {
+    let contract_value = if !require_closed_value_contract {
+        closed_scalar_contract_plan(checked, machine)?;
+        None
+    } else if has_return {
         Some(validate_closed_scalar_contract(
             checked,
             machine,
