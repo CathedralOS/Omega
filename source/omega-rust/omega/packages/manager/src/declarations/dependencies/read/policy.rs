@@ -1,5 +1,8 @@
 use super::error::DependencyProjectionError;
-use super::projection::{DEPEND_AS_MACHINE_NAME, DEPEND_MACHINE_NAME};
+use super::projection::{
+    DEPEND_AS_MACHINE_NAME, DEPEND_AS_WHEN_MACHINE_NAME, DEPEND_MACHINE_NAME,
+    DEPEND_WHEN_MACHINE_NAME,
+};
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -33,7 +36,10 @@ pub(super) fn reject_authored_toolchain_vocabulary(
                     .is_some_and(|owner| owner.as_str() == BUILD_TYPE_NAME)
                     && matches!(
                         machine_leaf_name(machine.name.as_str()),
-                        DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
+                        DEPEND_MACHINE_NAME
+                            | DEPEND_AS_MACHINE_NAME
+                            | DEPEND_WHEN_MACHINE_NAME
+                            | DEPEND_AS_WHEN_MACHINE_NAME
                     ) =>
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
@@ -80,7 +86,10 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 };
                 if matches!(
                     call.target.as_str(),
-                    DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
+                    DEPEND_MACHINE_NAME
+                        | DEPEND_AS_MACHINE_NAME
+                        | DEPEND_WHEN_MACHINE_NAME
+                        | DEPEND_AS_WHEN_MACHINE_NAME
                 ) && !accepted_statements.contains(statement_handle)
                 {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
@@ -101,7 +110,10 @@ pub(super) fn reject_unprojected_dependency_syntax(
             ExpressionNode::Call(call)
                 if matches!(
                     call.target.as_str(),
-                    DEPEND_MACHINE_NAME | DEPEND_AS_MACHINE_NAME
+                    DEPEND_MACHINE_NAME
+                        | DEPEND_AS_MACHINE_NAME
+                        | DEPEND_WHEN_MACHINE_NAME
+                        | DEPEND_AS_WHEN_MACHINE_NAME
                 ) =>
             {
                 match (

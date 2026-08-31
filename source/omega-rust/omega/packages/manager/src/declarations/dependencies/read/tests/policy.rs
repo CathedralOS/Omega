@@ -43,6 +43,8 @@ fn rejects_authored_dependency_vocabulary() {
         "trait Build {} machine build(builder: &mut Build) {}",
         "machine Build::depend(source: Source) {} machine build(builder: &mut Build) {}",
         "machine Build::depend_as(alias: &[u8], source: Source) {} machine build(builder: &mut Build) {}",
+        "machine Build::depend_when(condition: bool, source: Source) {} machine build(builder: &mut Build) {}",
+        "machine Build::depend_as_when(alias: &[u8], condition: bool, source: Source) {} machine build(builder: &mut Build) {}",
     ] {
         let fixture = PackageFixture::with_source(source);
         let result = fixture.extract();
@@ -82,8 +84,7 @@ fn rejects_nested_helper_and_control_flow_dependency_requests() {
     );
     assert!(matches!(
         nested_state.extract(),
-        Err(DependencyProjectionError::UnreachableDependency { state, .. })
-            if state == "later"
+        Err(DependencyProjectionError::UnsupportedDependencyShape)
     ));
 }
 

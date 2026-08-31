@@ -15,7 +15,10 @@ pub(super) const BUILD_FILE_NAME: &str = "build.omg";
 pub fn extract_dependency_projection(
     package_root: impl AsRef<Path>,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
-    flatten_unconditional_projection(extract_build_dependency_projection(package_root)?)
+    Ok(extract_build_dependency_projection(package_root)?
+        .into_parts()
+        .1
+        .into_authored_dependencies())
 }
 
 /// Project the project role and direct dependencies together from one parse.
@@ -46,15 +49,8 @@ pub fn extract_build_dependency_projection(
 pub(crate) fn extract_from_source(
     source: &str,
 ) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
-    flatten_unconditional_projection(extract_build_projection_from_source(source)?)
-}
-
-fn flatten_unconditional_projection(
-    projection: BuildDependencyProjection,
-) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
-    let (_, dependencies) = projection.into_parts();
-    if dependencies.has_target_conditions() {
-        return Err(DependencyProjectionError::TargetConditionedResolutionUnavailable);
-    }
-    Ok(dependencies.common().cloned().collect())
+    Ok(extract_build_projection_from_source(source)?
+        .into_parts()
+        .1
+        .into_authored_dependencies())
 }
