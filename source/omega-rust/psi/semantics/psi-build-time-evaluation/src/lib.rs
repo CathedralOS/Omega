@@ -23,9 +23,11 @@ pub use build_machines::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
-    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor,
+    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, PreparedBuildMachineEntry,
     PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
     evaluate_build_machine_arguments_measured_with_sponsor,
+    evaluate_build_machine_entry_arguments_measured,
+    evaluate_build_machine_entry_arguments_measured_with_sponsor,
 };
 pub use const_domain_facts::{
     evaluate_const_domain_facts, evaluate_const_domain_facts_with_authority,

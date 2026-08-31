@@ -2,7 +2,8 @@ use psi_build_time_evaluation::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
     PreparedBuildMachineProgram, evaluate_build_machine_arguments_measured,
-    evaluate_build_machine_arguments_measured_with_sponsor, evaluate_const_array_lengths,
+    evaluate_build_machine_arguments_measured_with_sponsor,
+    evaluate_build_machine_entry_arguments_measured, evaluate_const_array_lengths,
     evaluate_zero_argument_machine,
 };
 use psi_source_files_to_tokens::Lexer;
@@ -56,6 +57,119 @@ const SOURCE: &str = r#"
         value.freestanding = true;
     }
 "#;
+
+fn empty_build_selection() -> BuildTimeValue {
+    BuildTimeValue::Struct {
+        type_name: "Build".to_owned(),
+        fields: vec![("selected".to_owned(), BuildTimeValue::Int(0))],
+    }
+}
+
+#[test]
+fn prepared_entries_select_exact_scoped_machines_with_the_same_short_name() {
+    let typed = typed(
+        r#"
+        data Build { selected: u16; }
+        data First {}
+        data Second {}
+
+        machine First::build(&mut self, value: &mut Build) {
+            value.selected = 11;
+        }
+
+        machine Second::build(&mut self, value: &mut Build) {
+            value.selected = 29;
+        }
+        "#,
+    );
+    let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare exact entries");
+    let entry = |name: &str| {
+        let symbol = prepared
+            .typed()
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("scoped build machine")
+            .symbol;
+        prepared.entry(symbol).expect("bind exact prepared entry")
+    };
+
+    let first = evaluate_build_machine_entry_arguments_measured(
+        &prepared,
+        &entry("First::build"),
+        vec![empty_build_selection()],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect("evaluate First's exact build entry");
+    let second = evaluate_build_machine_entry_arguments_measured(
+        &prepared,
+        &entry("Second::build"),
+        vec![empty_build_selection()],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect("evaluate Second's exact build entry");
+
+    assert_eq!(
+        first.value(),
+        &[BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("selected".to_owned(), BuildTimeValue::Int(11))],
+        }]
+    );
+    assert_eq!(
+        second.value(),
+        &[BuildTimeValue::Struct {
+            type_name: "Build".to_owned(),
+            fields: vec![("selected".to_owned(), BuildTimeValue::Int(29))],
+        }]
+    );
+}
+
+#[test]
+fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
+    let source = r#"
+        data Build { selected: u16; }
+        machine build(value: &mut Build) {
+            value.selected = 7;
+        }
+    "#;
+    let first = PreparedBuildMachineProgram::prepare(&typed(source)).expect("first preparation");
+    let second = PreparedBuildMachineProgram::prepare(&typed(source)).expect("second preparation");
+    let first_symbol = first
+        .typed()
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("first build machine")
+        .symbol;
+    let second_symbol = second
+        .typed()
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("second build machine")
+        .symbol;
+    assert_eq!(
+        first_symbol, second_symbol,
+        "the canary must exercise arena-local handle collision"
+    );
+    let foreign_entry = first.entry(first_symbol).expect("bind first entry");
+
+    let error = evaluate_build_machine_entry_arguments_measured(
+        &second,
+        &foreign_entry,
+        vec![empty_build_selection()],
+        BuildMachineExecutionMode::Pure,
+    )
+    .expect_err("a numerically colliding symbol must not cross prepared-program custody");
+
+    assert!(
+        error
+            .to_string()
+            .contains("belongs to a different prepared program"),
+        "{error}"
+    );
+}
 
 #[test]
 fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {

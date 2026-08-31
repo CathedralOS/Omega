@@ -336,7 +336,7 @@ pub(crate) fn run_build_time_machine_arguments(
 ) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     run_observed_build_time_machine_arguments_with_optional_sponsor(
         program,
-        machine_name,
+        BuildMachineEntry::Name(machine_name),
         arguments,
         None,
     )
@@ -354,7 +354,7 @@ pub(crate) fn run_build_time_machine_arguments_with_sponsor(
 ) -> Result<MeasuredEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     run_observed_build_time_machine_arguments_with_optional_sponsor(
         program,
-        machine_name,
+        BuildMachineEntry::Name(machine_name),
         arguments,
         Some(sponsor.clone()),
     )
@@ -371,7 +371,7 @@ pub(crate) fn run_observed_build_time_machine_arguments(
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     run_observed_build_time_machine_arguments_with_optional_sponsor(
         program,
-        machine_name,
+        BuildMachineEntry::Name(machine_name),
         arguments,
         None,
     )
@@ -385,15 +385,48 @@ pub(crate) fn run_observed_build_time_machine_arguments_with_sponsor(
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     run_observed_build_time_machine_arguments_with_optional_sponsor(
         program,
-        machine_name,
+        BuildMachineEntry::Name(machine_name),
         arguments,
         Some(sponsor.clone()),
     )
 }
 
+pub(crate) fn run_observed_build_time_machine_symbol_arguments(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+    run_observed_build_time_machine_arguments_with_optional_sponsor(
+        program,
+        BuildMachineEntry::Symbol(machine_symbol),
+        arguments,
+        None,
+    )
+}
+
+pub(crate) fn run_observed_build_time_machine_symbol_arguments_with_sponsor(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+    run_observed_build_time_machine_arguments_with_optional_sponsor(
+        program,
+        BuildMachineEntry::Symbol(machine_symbol),
+        arguments,
+        Some(sponsor.clone()),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum BuildMachineEntry<'name> {
+    Name(&'name str),
+    Symbol(SymbolHandle),
+}
+
 fn run_observed_build_time_machine_arguments_with_optional_sponsor(
     program: &TypedTrees,
-    machine_name: &str,
+    entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     sponsor: Option<BuildEvaluationSponsor>,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
@@ -403,7 +436,13 @@ fn run_observed_build_time_machine_arguments_with_optional_sponsor(
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
-                let result = evaluator.run_build_time_machine_arguments(machine_name, arguments);
+                let result = match entry {
+                    BuildMachineEntry::Name(machine_name) => {
+                        evaluator.run_build_time_machine_arguments(machine_name, arguments)
+                    }
+                    BuildMachineEntry::Symbol(machine_symbol) => evaluator
+                        .run_build_time_machine_symbol_arguments(machine_symbol, arguments),
+                };
                 evaluator.finish_cell_usage();
                 use std::io::Write as _;
                 if !evaluator.build_log.is_empty() {
@@ -464,7 +503,7 @@ pub(crate) fn run_granted_build_machine_arguments(
 > {
     run_granted_build_machine_arguments_with_optional_sponsor(
         program,
-        machine_name,
+        BuildMachineEntry::Name(machine_name),
         arguments,
         options,
         None,
@@ -483,7 +522,44 @@ pub(crate) fn run_granted_build_machine_arguments_with_sponsor(
 > {
     run_granted_build_machine_arguments_with_optional_sponsor(
         program,
-        machine_name,
+        BuildMachineEntry::Name(machine_name),
+        arguments,
+        options,
+        Some(sponsor.clone()),
+    )
+}
+
+pub(crate) fn run_granted_build_machine_symbol_arguments(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    options: InterpretOptions,
+) -> Result<
+    MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
+    BuildMachineEvaluationFailure,
+> {
+    run_granted_build_machine_arguments_with_optional_sponsor(
+        program,
+        BuildMachineEntry::Symbol(machine_symbol),
+        arguments,
+        options,
+        None,
+    )
+}
+
+pub(crate) fn run_granted_build_machine_symbol_arguments_with_sponsor(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    options: InterpretOptions,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<
+    MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
+    BuildMachineEvaluationFailure,
+> {
+    run_granted_build_machine_arguments_with_optional_sponsor(
+        program,
+        BuildMachineEntry::Symbol(machine_symbol),
         arguments,
         options,
         Some(sponsor.clone()),
@@ -492,7 +568,7 @@ pub(crate) fn run_granted_build_machine_arguments_with_sponsor(
 
 fn run_granted_build_machine_arguments_with_optional_sponsor(
     program: &TypedTrees,
-    machine_name: &str,
+    entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     options: InterpretOptions,
     sponsor: Option<BuildEvaluationSponsor>,
@@ -545,11 +621,17 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                         evaluator.filesystem_replay = Some(replay);
                     }
                 }
-                let result = evaluator.run_build_machine_arguments_with_policy(
-                    machine_name,
-                    arguments,
-                    true,
-                ).and_then(|values| {
+                let result = match entry {
+                    BuildMachineEntry::Name(machine_name) => evaluator
+                        .run_build_machine_arguments_with_policy(machine_name, arguments, true),
+                    BuildMachineEntry::Symbol(machine_symbol) => evaluator
+                        .run_build_machine_symbol_arguments_with_policy(
+                            machine_symbol,
+                            arguments,
+                            true,
+                        ),
+                }
+                .and_then(|values| {
                     evaluator.finish_filesystem_replay()?;
                     Ok(values)
                 });

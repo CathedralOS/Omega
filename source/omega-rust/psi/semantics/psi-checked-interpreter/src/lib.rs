@@ -6453,6 +6453,34 @@ pub fn evaluate_observed_build_time_machine_arguments_measured_with_sponsor(
     )
 }
 
+/// Exact-symbol form of
+/// [`evaluate_observed_build_time_machine_arguments_measured`]. The selected
+/// machine must be present under this exact identity; this entry never retries
+/// lookup by declaration spelling.
+pub fn evaluate_observed_build_time_machine_symbol_arguments_measured(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+    evaluator::run_observed_build_time_machine_symbol_arguments(program, machine_symbol, arguments)
+}
+
+/// Sponsored form of
+/// [`evaluate_observed_build_time_machine_symbol_arguments_measured`].
+pub fn evaluate_observed_build_time_machine_symbol_arguments_measured_with_sponsor(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
+    evaluator::run_observed_build_time_machine_symbol_arguments_with_sponsor(
+        program,
+        machine_symbol,
+        arguments,
+        sponsor,
+    )
+}
+
 /// The GRANTED build entry (open-work #3's settled design, rung 4): run the
 /// augmenting `build(b: &mut Build)` machine WITH a `Filesystem` capability
 /// and read back the augmented arguments. The capability grant IS the audit
@@ -6495,6 +6523,41 @@ pub fn evaluate_build_machine_with_filesystem_measured_with_sponsor(
     evaluator::run_granted_build_machine_arguments_with_sponsor(
         program,
         machine_name,
+        arguments,
+        options,
+        sponsor,
+    )
+}
+
+/// Exact-symbol form of [`evaluate_build_machine_with_filesystem_measured`].
+/// The interpreter does not rediscover the entry by name when the symbol is
+/// absent.
+pub fn evaluate_build_machine_symbol_with_filesystem_measured(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+    options: InterpretOptions,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
+    evaluator::run_granted_build_machine_symbol_arguments(
+        program,
+        machine_symbol,
+        arguments,
+        options,
+    )
+}
+
+/// Sponsored form of
+/// [`evaluate_build_machine_symbol_with_filesystem_measured`].
+pub fn evaluate_build_machine_symbol_with_filesystem_measured_with_sponsor(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+    options: InterpretOptions,
+    sponsor: &BuildEvaluationSponsor,
+) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
+    evaluator::run_granted_build_machine_symbol_arguments_with_sponsor(
+        program,
+        machine_symbol,
         arguments,
         options,
         sponsor,
