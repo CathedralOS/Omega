@@ -116,6 +116,7 @@ pub(super) fn lower_payloadless_case_return_machine(
             services: Vec::new(),
             root_service_reach: Default::default(),
             placed_view_inputs: Vec::new(),
+            reborrow_root_handoffs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

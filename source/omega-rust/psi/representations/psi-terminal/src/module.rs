@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        47
+        48
     }
 }
 
@@ -98,6 +98,10 @@ pub struct TerminalModule {
     /// bound to one exact source-derived placement interpretation. This is
     /// semantic custody only and grants no runtime storage or access.
     pub placed_view_inputs: Vec<TerminalPlacedViewInput>,
+    /// Exact direct-root custody restored by independently replayed, one-hop
+    /// exclusive reborrows. These rows grant no cleanup, transfer, or linear
+    /// discharge authority.
+    pub reborrow_root_handoffs: Vec<TerminalReborrowRootHandoff>,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     /// Every checked, target-neutral provider candidate eligible to realize a
@@ -141,6 +145,65 @@ pub struct TerminalModule {
 pub struct TerminalRootServiceReach {
     pub concrete: Vec<ServiceId>,
     pub installation_dependencies: Vec<InstallationReachDependency>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalBorrowBoundarySource {
+    Statement {
+        statement_index: u64,
+    },
+    Call {
+        statement_index: u64,
+        call_ordinal: u64,
+        target_identity: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalBorrowOwnerSegment {
+    Field(String),
+    Case(String),
+    FixedIndex(u64),
+    DynamicIndex,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalBorrowPlaceSegment {
+    Field(String),
+    Case(String),
+    FixedIndex(u64),
+    FixedRange { start: u64, end: u64 },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalBorrowPlace {
+    pub root_identity: String,
+    pub segments: Vec<TerminalBorrowPlaceSegment>,
+}
+
+/// Closed publication of direct-root custody after one exact exclusive child
+/// reborrow has reached a checked state-exit handoff. The row's vocabulary is
+/// intentionally incapable of expressing cleanup, transfer, or discharge.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalReborrowRootHandoff {
+    pub machine: MachineId,
+    pub source_machine_identity: String,
+    pub source_state_identity: String,
+    pub direct_root_owner_identity: String,
+    pub direct_root_owner_path: Vec<TerminalBorrowOwnerSegment>,
+    pub child_owner_identity: String,
+    pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
+    pub direct_root_place: TerminalBorrowPlace,
+    pub child_place: TerminalBorrowPlace,
+    pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
+    pub direct_root_access: StructuralAccess,
+    pub child_access: StructuralAccess,
+    pub direct_root_activation: TerminalBorrowBoundarySource,
+    pub child_activation: TerminalBorrowBoundarySource,
+    pub formation_boundary: TerminalBorrowBoundarySource,
+    pub child_weakening: TerminalBorrowBoundarySource,
+    pub direct_root_weakening: TerminalBorrowBoundarySource,
+    pub direct_root_lifetime_identity: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

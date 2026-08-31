@@ -14,8 +14,10 @@ use psi_terminal::{
     ProofOnlyValueType, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
     ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration,
     ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
-    StructuralContentProjection, StructuralDomainDeclaration, TerminalModule,
-    TerminalPlacedViewInput, TerminalRootServiceReach, VocabularyMarker,
+    StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
+    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
+    TerminalPlacedViewInput, TerminalReborrowRootHandoff, TerminalRootServiceReach,
+    VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -36,6 +38,221 @@ use super::structural_signature_wire::{
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
 use super::{CodecError, FORMAT_MARKER, MAGIC, decode_counted, decode_ids};
+
+fn encode_borrow_boundary(
+    writer: &mut Writer,
+    source: &TerminalBorrowBoundarySource,
+) -> Result<(), CodecError> {
+    match source {
+        TerminalBorrowBoundarySource::Statement { statement_index } => {
+            writer.u8(1);
+            writer.u64(*statement_index);
+        }
+        TerminalBorrowBoundarySource::Call {
+            statement_index,
+            call_ordinal,
+            target_identity,
+        } => {
+            writer.u8(2);
+            writer.u64(*statement_index);
+            writer.u64(*call_ordinal);
+            writer.string("reborrow call target identity", target_identity)?;
+        }
+    }
+    Ok(())
+}
+
+fn decode_borrow_boundary(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalBorrowBoundarySource, CodecError> {
+    match reader.u8()? {
+        1 => Ok(TerminalBorrowBoundarySource::Statement {
+            statement_index: reader.u64()?,
+        }),
+        2 => Ok(TerminalBorrowBoundarySource::Call {
+            statement_index: reader.u64()?,
+            call_ordinal: reader.u64()?,
+            target_identity: reader.string("reborrow call target identity")?,
+        }),
+        tag => Err(CodecError::InvalidTag("TerminalBorrowBoundarySource", tag)),
+    }
+}
+
+fn encode_owner_path(
+    writer: &mut Writer,
+    path: &[TerminalBorrowOwnerSegment],
+) -> Result<(), CodecError> {
+    writer.len("reborrow owner path", path.len())?;
+    for segment in path {
+        match segment {
+            TerminalBorrowOwnerSegment::Field(identity) => {
+                writer.u8(1);
+                writer.string("reborrow owner field", identity)?;
+            }
+            TerminalBorrowOwnerSegment::Case(identity) => {
+                writer.u8(2);
+                writer.string("reborrow owner case", identity)?;
+            }
+            TerminalBorrowOwnerSegment::FixedIndex(index) => {
+                writer.u8(3);
+                writer.u64(*index);
+            }
+            TerminalBorrowOwnerSegment::DynamicIndex => writer.u8(4),
+        }
+    }
+    Ok(())
+}
+
+fn decode_owner_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalBorrowOwnerSegment>, CodecError> {
+    decode_counted(reader, |reader| match reader.u8()? {
+        1 => Ok(TerminalBorrowOwnerSegment::Field(
+            reader.string("reborrow owner field")?,
+        )),
+        2 => Ok(TerminalBorrowOwnerSegment::Case(
+            reader.string("reborrow owner case")?,
+        )),
+        3 => Ok(TerminalBorrowOwnerSegment::FixedIndex(reader.u64()?)),
+        4 => Ok(TerminalBorrowOwnerSegment::DynamicIndex),
+        tag => Err(CodecError::InvalidTag("TerminalBorrowOwnerSegment", tag)),
+    })
+}
+
+fn encode_place_segments(
+    writer: &mut Writer,
+    segments: &[TerminalBorrowPlaceSegment],
+) -> Result<(), CodecError> {
+    writer.len("reborrow place segments", segments.len())?;
+    for segment in segments {
+        match segment {
+            TerminalBorrowPlaceSegment::Field(identity) => {
+                writer.u8(1);
+                writer.string("reborrow place field", identity)?;
+            }
+            TerminalBorrowPlaceSegment::Case(identity) => {
+                writer.u8(2);
+                writer.string("reborrow place case", identity)?;
+            }
+            TerminalBorrowPlaceSegment::FixedIndex(index) => {
+                writer.u8(3);
+                writer.u64(*index);
+            }
+            TerminalBorrowPlaceSegment::FixedRange { start, end } => {
+                writer.u8(4);
+                writer.u64(*start);
+                writer.u64(*end);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn decode_place_segments(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalBorrowPlaceSegment>, CodecError> {
+    decode_counted(reader, |reader| match reader.u8()? {
+        1 => Ok(TerminalBorrowPlaceSegment::Field(
+            reader.string("reborrow place field")?,
+        )),
+        2 => Ok(TerminalBorrowPlaceSegment::Case(
+            reader.string("reborrow place case")?,
+        )),
+        3 => Ok(TerminalBorrowPlaceSegment::FixedIndex(reader.u64()?)),
+        4 => Ok(TerminalBorrowPlaceSegment::FixedRange {
+            start: reader.u64()?,
+            end: reader.u64()?,
+        }),
+        tag => Err(CodecError::InvalidTag("TerminalBorrowPlaceSegment", tag)),
+    })
+}
+
+fn encode_place(writer: &mut Writer, place: &TerminalBorrowPlace) -> Result<(), CodecError> {
+    writer.string("reborrow place root", &place.root_identity)?;
+    encode_place_segments(writer, &place.segments)
+}
+
+fn decode_place(reader: &mut Reader<'_>) -> Result<TerminalBorrowPlace, CodecError> {
+    Ok(TerminalBorrowPlace {
+        root_identity: reader.string("reborrow place root")?,
+        segments: decode_place_segments(reader)?,
+    })
+}
+
+fn encode_borrow_access(writer: &mut Writer, access: StructuralAccess) {
+    writer.u8(match access {
+        StructuralAccess::Owned => 1,
+        StructuralAccess::SharedBorrow => 2,
+        StructuralAccess::MutableBorrow => 3,
+        StructuralAccess::WriteOnlyBorrow => 4,
+    });
+}
+
+fn decode_borrow_access(reader: &mut Reader<'_>) -> Result<StructuralAccess, CodecError> {
+    match reader.u8()? {
+        1 => Ok(StructuralAccess::Owned),
+        2 => Ok(StructuralAccess::SharedBorrow),
+        3 => Ok(StructuralAccess::MutableBorrow),
+        4 => Ok(StructuralAccess::WriteOnlyBorrow),
+        tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
+    }
+}
+
+fn encode_reborrow_root_handoff(
+    writer: &mut Writer,
+    handoff: &TerminalReborrowRootHandoff,
+) -> Result<(), CodecError> {
+    writer.id(handoff.machine);
+    writer.string(
+        "reborrow machine identity",
+        &handoff.source_machine_identity,
+    )?;
+    writer.string("reborrow state identity", &handoff.source_state_identity)?;
+    writer.string("reborrow direct owner", &handoff.direct_root_owner_identity)?;
+    encode_owner_path(writer, &handoff.direct_root_owner_path)?;
+    writer.string("reborrow child owner", &handoff.child_owner_identity)?;
+    encode_owner_path(writer, &handoff.child_owner_path)?;
+    encode_place(writer, &handoff.direct_root_place)?;
+    encode_place(writer, &handoff.child_place)?;
+    encode_place_segments(writer, &handoff.projection_remainder)?;
+    encode_borrow_access(writer, handoff.direct_root_access);
+    encode_borrow_access(writer, handoff.child_access);
+    encode_borrow_boundary(writer, &handoff.direct_root_activation)?;
+    encode_borrow_boundary(writer, &handoff.child_activation)?;
+    encode_borrow_boundary(writer, &handoff.formation_boundary)?;
+    encode_borrow_boundary(writer, &handoff.child_weakening)?;
+    encode_borrow_boundary(writer, &handoff.direct_root_weakening)?;
+    writer.string(
+        "reborrow direct-root lifetime",
+        &handoff.direct_root_lifetime_identity,
+    )?;
+    Ok(())
+}
+
+fn decode_reborrow_root_handoff(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalReborrowRootHandoff, CodecError> {
+    Ok(TerminalReborrowRootHandoff {
+        machine: reader.id("MachineId")?,
+        source_machine_identity: reader.string("reborrow machine identity")?,
+        source_state_identity: reader.string("reborrow state identity")?,
+        direct_root_owner_identity: reader.string("reborrow direct owner")?,
+        direct_root_owner_path: decode_owner_path(reader)?,
+        child_owner_identity: reader.string("reborrow child owner")?,
+        child_owner_path: decode_owner_path(reader)?,
+        direct_root_place: decode_place(reader)?,
+        child_place: decode_place(reader)?,
+        projection_remainder: decode_place_segments(reader)?,
+        direct_root_access: decode_borrow_access(reader)?,
+        child_access: decode_borrow_access(reader)?,
+        direct_root_activation: decode_borrow_boundary(reader)?,
+        child_activation: decode_borrow_boundary(reader)?,
+        formation_boundary: decode_borrow_boundary(reader)?,
+        child_weakening: decode_borrow_boundary(reader)?,
+        direct_root_weakening: decode_borrow_boundary(reader)?,
+        direct_root_lifetime_identity: reader.string("reborrow direct-root lifetime")?,
+    })
+}
 
 pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
@@ -127,6 +344,13 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.string("placed-view schema identity", &input.schema_identity)?;
         writer.u64(input.placement_report_fingerprint);
         writer.bytes(&input.placement_commitment);
+    }
+    writer.len(
+        "reborrow root handoffs",
+        module.reborrow_root_handoffs.len(),
+    )?;
+    for handoff in &module.reborrow_root_handoffs {
+        encode_reborrow_root_handoff(&mut writer, handoff)?;
     }
     writer.len("boundary machines", module.boundary_machines.len())?;
     for declaration in &module.boundary_machines {
@@ -428,6 +652,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             placement_commitment: reader.array()?,
         })
     })?;
+    let reborrow_root_handoffs = decode_counted(reader, decode_reborrow_root_handoff)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let float_meaning_projections = decode_counted(reader, |reader| {
@@ -641,6 +866,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             installation_dependencies: installation_reach_dependencies,
         },
         placed_view_inputs,
+        reborrow_root_handoffs,
         boundary_machines,
         provider_candidates,
         float_meaning_projections,

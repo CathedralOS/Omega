@@ -6779,11 +6779,23 @@ Owners:
   rebuilding either resource arena. The evidence remains non-authorizing and
   proves no completed restoration or Terminal custody.
 
-  Complete the settled reborrow-restoration model:
+  The first Terminal root-custody publication rung is now live for one exact
+  direct-root `Mutable -> Mutable` or `Mutable -> WriteOnly` reborrow that ends
+  at state exit. The producer rejoins the checked child and direct-root
+  resources, `StateExitDirectRootHandoff` disposition, exact direct-root
+  lifetime target, parent-suspension formation boundary, both weakening
+  boundaries, and `ExclusiveSuspension` containment before publishing one
+  canonical row. Terminal format 45 / vocabulary 48 retains the machine/state,
+  owner paths, parent/child captured places and projection remainder, access
+  pair, lifecycle coordinates, and root lifetime. Codec and verifier reject
+  access amplification, malformed projection or identity, redirected formation,
+  duplicates, and noncanonical order. This row grants root custody only; its
+  vocabulary cannot express cleanup, transfer, or linear discharge.
 
-  - publish restored use or root custody to Terminal only after independent
-    replay. Root handoff must not authorize cleanup, transfer, or linear
-    discharge.
+  Complete the settled reborrow-restoration model by publishing post-reborrow
+  use and broader root custody only after independent replay. Multihop lineages,
+  shared-freeze cohorts, non-state-exit restoration, and broader exclusive
+  branching remain outside the first Terminal rung.
 
   Acceptance: every access cell has a positive or directed negative canary;
   concurrent shared descendants do not produce internal drift; premature or

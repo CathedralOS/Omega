@@ -273,6 +273,13 @@ cohort ended. Lexical survival and a compiler-recorded disposition are not by
 themselves authority. Terminal Psi independently reconstructs and replays this
 evidence before publishing post-reborrow use or root custody.
 
+The first published root-custody case is deliberately narrow: one direct-root
+mutable loan may lend one mutable or write-only child, and both must close at
+state exit through the exact exclusive-suspension path. Terminal retains that
+handoff as semantic custody, not as an executable cleanup or transfer. Shared
+cohorts, multihop lineages, restoration before state exit, and later use of the
+restored parent require further publication support.
+
 ## Transitions And Ownership
 
 A transition is a jump. Arguments passed to the target state must be valid on

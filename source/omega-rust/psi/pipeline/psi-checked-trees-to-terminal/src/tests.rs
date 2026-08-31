@@ -33,6 +33,211 @@ fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+fn reborrow_source(child_access: &str) -> psi_checked_trees::CheckedTrees {
+    checked_source(&format!(
+        r#"
+            data Cell {{ value: i32; }}
+            data Main {{ cell: Cell; }}
+            machine Main::exercise(&mut self) {{
+                let parent: &mut Cell = &mut self.cell;
+                let child: {child_access} Cell = {child_access} parent;
+            }}
+        "#
+    ))
+}
+
+fn lower_reborrow_rows(
+    checked: &psi_checked_trees::CheckedTrees,
+) -> Result<Vec<psi_terminal::TerminalReborrowRootHandoff>, LoweringError> {
+    let source_machine = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("real source retains one child resource")
+        .1
+        .machine_symbol;
+    let mut rows = Vec::new();
+    reborrow_root_handoff::retain_selected_reborrow_root_handoffs(
+        checked,
+        source_machine,
+        psi_core::MachineId::new(1).expect("nonzero machine"),
+        &mut rows,
+    )?;
+    Ok(rows)
+}
+
+fn terminal_module_with_reborrow(
+    checked: &psi_checked_trees::CheckedTrees,
+) -> psi_terminal::TerminalModule {
+    let empty = checked_source(
+        r#"
+            data Empty {}
+            machine Empty::run() {}
+        "#,
+    );
+    let mut module = lower_machine(&empty, "Empty::run")
+        .expect("empty terminal baseline")
+        .semantic_module;
+    let mut rows = lower_reborrow_rows(checked).expect("real checked handoff");
+    for row in &mut rows {
+        row.machine = module.entry;
+    }
+    module.reborrow_root_handoffs = rows;
+    module
+}
+
+#[test]
+fn terminal_reborrow_root_handoff_lowers_mutable_and_write_only_children() {
+    for child_access in ["&mut", "&write"] {
+        let checked = reborrow_source(child_access);
+        let rows = lower_reborrow_rows(&checked)
+            .expect("one-hop state-exit reborrow publishes root custody");
+        let [row] = rows.as_slice() else {
+            panic!("one exact root handoff")
+        };
+        assert_eq!(
+            row.direct_root_access,
+            psi_terminal::StructuralAccess::MutableBorrow
+        );
+        assert_eq!(
+            row.child_access,
+            if child_access == "&mut" {
+                psi_terminal::StructuralAccess::MutableBorrow
+            } else {
+                psi_terminal::StructuralAccess::WriteOnlyBorrow
+            }
+        );
+        assert_eq!(row.formation_boundary, row.child_activation);
+        assert_eq!(
+            row.direct_root_lifetime_identity,
+            row.direct_root_place.root_identity
+        );
+    }
+}
+
+#[test]
+fn terminal_reborrow_root_handoff_rejects_tampered_checked_joins() {
+    let baseline = reborrow_source("&mut");
+    let event_handle = baseline
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .next()
+        .expect("disposition")
+        .0;
+    let certificate_handle = baseline
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .next()
+        .expect("containment")
+        .0;
+
+    let mut wrong_phase = baseline.clone();
+    wrong_phase
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get_mut(event_handle)
+        .boundary_phase = psi_checked_trees::CheckedBorrowResourceLifecyclePhase::Activation;
+    assert!(lower_reborrow_rows(&wrong_phase).is_err());
+
+    let mut wrong_disposition = baseline.clone();
+    wrong_disposition
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get_mut(event_handle)
+        .disposition = psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate;
+    assert!(lower_reborrow_rows(&wrong_disposition).is_err());
+
+    let mut wrong_containment = baseline.clone();
+    wrong_containment
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .get_mut(certificate_handle)
+        .containment = psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze;
+    assert!(lower_reborrow_rows(&wrong_containment).is_err());
+
+    let child_handle = baseline
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .next()
+        .expect("child resource")
+        .0;
+    let mut wrong_effect = baseline.clone();
+    wrong_effect
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .get_mut(child_handle)
+        .access_effect = psi_checked_trees::CheckedReborrowAccessEffect::SharedFreeze;
+    assert!(lower_reborrow_rows(&wrong_effect).is_err());
+
+    let mut missing_event = baseline.clone();
+    missing_event.facts.borrow.reborrow_disposition_events = psi_arena::Arena::new();
+    assert!(lower_reborrow_rows(&missing_event).is_err());
+}
+
+#[test]
+fn terminal_reborrow_root_handoff_codec_and_verifier_reject_tampering() {
+    let checked = reborrow_source("&mut");
+    let module = terminal_module_with_reborrow(&checked);
+    psi_terminal_verifier::validate_module(&module).expect("exact handoff verifies");
+    let encoded = psi_terminal_codec::encode_module(&module).expect("handoff encodes");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&encoded).expect("handoff decodes"),
+        module
+    );
+
+    let mut amplified = module.clone();
+    amplified.reborrow_root_handoffs[0].direct_root_access = psi_terminal::StructuralAccess::Owned;
+    assert!(psi_terminal_verifier::validate_module(&amplified).is_err());
+
+    let mut redirected = module.clone();
+    redirected.reborrow_root_handoffs[0].formation_boundary =
+        psi_terminal::TerminalBorrowBoundarySource::Statement {
+            statement_index: u64::MAX,
+        };
+    assert!(psi_terminal_verifier::validate_module(&redirected).is_err());
+
+    let mut duplicated = module.clone();
+    duplicated
+        .reborrow_root_handoffs
+        .push(duplicated.reborrow_root_handoffs[0].clone());
+    assert!(psi_terminal_verifier::validate_module(&duplicated).is_err());
+
+    let mut observed_invalid_access_tag = false;
+    for (index, byte) in encoded.iter().enumerate() {
+        if *byte != 3 {
+            continue;
+        }
+        let mut tampered = encoded.clone();
+        tampered[index] = 0xff;
+        if matches!(
+            psi_terminal_codec::decode_module(&tampered),
+            Err(psi_terminal_codec::CodecError::InvalidTag(
+                "StructuralAccess",
+                0xff
+            ))
+        ) {
+            observed_invalid_access_tag = true;
+            break;
+        }
+    }
+    assert!(
+        observed_invalid_access_tag,
+        "codec rejects a corrupted custody access tag"
+    );
+}
+
 #[test]
 fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_rejection() {
     let checked = checked_source(
@@ -1322,7 +1527,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &45_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -1403,7 +1608,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &45_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
