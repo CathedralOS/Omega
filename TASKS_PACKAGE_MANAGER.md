@@ -39,11 +39,8 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - const- or machine-parameterized external/top-level realizations, generic
-    external boundary-operator realizations, and the remaining selected
-    provider-demand and installation-issuance joins. Type-generic and
-    lifetime-parameterized top-level external disclosure is complete and
-    deliberately mints no provider selection;
+  - generic or lifetime-parameterized external/top-level realizations and the
+    remaining provider-demand and installation-issuance joins;
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact

@@ -157,27 +157,17 @@ pub(super) fn project_callable_conformances(
                         machine.name, requirement.name
                     ))]);
                 }
-                psi_validation::revalidate_top_level_requirement_realization(
-                    &compilation.typed,
-                    machine,
-                    requirement,
-                    conformance,
-                )?;
-                let requirement_parameters = compilation.machine_type_parameters(requirement);
-                let realization_parameters = compilation.machine_type_parameters(machine);
-                if requirement_parameters.iter().any(|parameter| {
-                    !matches!(
-                        parameter.kind,
-                        psi_typed_trees::data::TypeParameterKind::Type
-                    )
-                }) || realization_parameters.iter().any(|parameter| {
-                    !matches!(
-                        parameter.kind,
-                        psi_typed_trees::data::TypeParameterKind::Type
-                    )
-                }) {
+                if !compilation
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments)
+                    .is_empty()
+                    || !requirement.lifetime_parameters.is_empty()
+                    || !compilation.machine_type_parameters(requirement).is_empty()
+                    || !machine.lifetime_parameters.is_empty()
+                    || !machine.type_parameters.is_empty()
+                {
                     return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes top-level requirement `{}` with a non-type static telescope not yet represented by package review",
+                        "reviewed callable `{}` realizes generic or lifetime-parameterized top-level requirement `{}` through external supply not yet represented by package review",
                         machine.name, requirement.name
                     ))]);
                 }

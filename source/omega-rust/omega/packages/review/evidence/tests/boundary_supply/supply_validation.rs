@@ -1,58 +1,6 @@
 use crate::support::*;
 
 #[test]
-fn generic_top_level_external_supply_rejects_post_check_lifetime_telescope_drift() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub data LifetimeSurface {}
-pub data LifetimeProvider {}
-pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
-pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
-    satisfies LifetimeSurface::observe
-    via Binding::DllImport("omega-generic", "observe");
-"#,
-    );
-    package.write(
-        "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
-"#,
-    );
-    let mut checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
-    .expect("lifetime-generic top-level external supply should check");
-    let realization = checked
-        .typed
-        .machines_mut()
-        .iter_mut()
-        .find(|machine| machine.name.as_str() == "LifetimeProvider::observe")
-        .expect("external realization");
-    realization
-        .lifetime_parameters
-        .push(realization.lifetime_parameters[0].clone());
-
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("post-check provider lifetime telescope drift must reject");
-    assert!(
-        diagnostics.iter().any(|diagnostic| {
-            diagnostic.message.contains("LifetimeProvider::observe")
-                && diagnostic.message.contains("lifetime parameter")
-        }),
-        "unexpected diagnostics: {diagnostics:?}",
-    );
-}
-
-#[test]
 fn external_top_level_requirement_supply_rejects_post_check_requirement_drift() {
     let Some(target) = host_target_name() else {
         return;
