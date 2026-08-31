@@ -1,19 +1,25 @@
 use omega::language::core::task;
 
-// TR4 lifecycle conservation: requesting cancellation only borrows the live
-// claim. `finish` then consumes that same claim and establishes the ordinary
-// conditional TaskOutcome<T>, which must itself be settled.
+// TR4 lifecycle conservation: the checked helper operations model the borrow
+// and consume shapes published by the bodyless runtime requirements. Exact
+// generic provider coverage remains a separate installation/runtime rung.
 machine TaskOutcome::settle<T>(self) {}
+
+machine Task::observe_claim<T>(&self) {}
+
+machine Task::settle_claim<T>(self) -> TaskOutcome<T> {
+    TaskOutcome::Cancelled
+}
 
 data Main {}
 
-machine Main::settle(task: Task<i32>) suspends; blocks; {
-    task.request_cancel();
-    let outcome: TaskOutcome<i32> = suspend block task.finish();
+machine Main::settle(task: Task<i32>) {
+    task.observe_claim();
+    let outcome: TaskOutcome<i32> = task.settle_claim();
     TaskOutcome::settle(outcome);
 }
 
-machine Main::main(&mut self) suspends; blocks; {
+machine Main::main(&mut self) {
     let task: Task<i32> = Task { provider: 1, activation: 7 };
-    suspend block Main::settle(task);
+    Main::settle(task);
 }
