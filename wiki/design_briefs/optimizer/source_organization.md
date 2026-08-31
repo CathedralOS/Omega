@@ -140,6 +140,14 @@ the module map, test-only classifier visibility, and exact sixteen-row roster;
 all local, dominating, phi-translated, and identity leaves name their own
 dependencies.
 
+SCCP range comparisons follow the same descent. The pass entrance retains the
+sole 39-row local order, while `range_comparisons/` first separates
+range-against-constant from range-against-range evidence. Each of the nine
+canonical rule identities then owns an exact executable `mod.rs`; only contract
+construction, proposal traversal, and interval evaluation are shared within
+the matching evidence family. The architecture guard pins every exact proposal
+join and rejects restoration of the former mixed producer or flat test path.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.
