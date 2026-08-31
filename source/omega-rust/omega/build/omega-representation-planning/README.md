@@ -9,6 +9,15 @@ validates its compiler-owned trait, opaque subject, and concrete carrier. It
 does not accept byte sizes, alignments, ABI classes, or movement rules from
 source.
 
+D44 requires every v1 selection to carry the explicit role-tagged lifecycle
+disposition `Inert`. Admission must derive that disposition from the complete
+closed carrier graph: every field, array element type, and sum payload must be
+ABI-movable without independently invoked nominal cleanup, nested live linear
+debt, or an unjoined opaque/external discharge. A direct no-`drop` test or a
+provider assertion is insufficient. An invalid explicit selection rejects even
+when unused. Cleanup-owning carriers belong to a future separate, versioned
+lifecycle relationship and are not an interpretation of this empty trait.
+
 D26 scopes uniqueness to the compilation activation: one opaque declaration
 has at most one selected application, including an unused selection. Current
 orchestration evaluates one authoritative build machine, so the local harvest
@@ -41,5 +50,6 @@ realization. Its materialized signature exposes the compiler-derived
 unused selection remains absent from that use list. Package review now rejoins
 public producer candidates to canonical opaque, conformance, and carrier
 identities without selecting them. Consumer demand still requires the complete
-D26 movement/finalization and boundary-plan join. General size/alignment
-substitution alone is deliberately not published as demand evidence.
+D26/D44 movement and inert-finalization commitment plus the boundary-plan join.
+General size/alignment substitution alone is deliberately not published as
+demand evidence.

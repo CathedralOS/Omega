@@ -88,9 +88,10 @@ part of the declaration's closed application:
 
 Representation demand is therefore lazy. A runtime-relevant by-value crossing
 requires one exact target-closed application before calling-policy evaluation.
-Reference-only and proof-erased uses are complete without one. Missing,
-duplicate, conflicting, stale, or ambient applications reject only when a use
-actually demands closure.
+Reference-only and proof-erased uses are complete without one. Absence rejects
+only when a use demands closure. An authored selection is nevertheless checked
+when selected: duplicate, conflicting, stale, shape-invalid, or lifecycle-
+invalid selections reject even if no later by-value use emits a demand row.
 
 Packages declare provider-owned candidates through the ordinary named-
 conformance model rather than a new `represents` keyword. Conceptually:
@@ -113,11 +114,22 @@ machine build(builder: &mut Build) {
 The compiler-owned trait is recognized by exact identity; a package-authored
 lookalike grants nothing. The conformance is inert until selected. Its concrete
 subject is load-bearing: the compiler derives the closed shape and physical
-movement/finalization plan from `PicAckCarrier` rather than accepting authored
-sizes, alignments, ABI classes, or numeric representation IDs. A foreign
-carrier may supply the same relationship only through a disclosed admission.
-Compiler-sealed generic families such as `Ptr<T>` resolve from target semantics
-without package selection.
+movement plan from `PicAckCarrier` rather than accepting authored sizes,
+alignments, ABI classes, or numeric representation IDs. The selected v1
+lifecycle disposition is explicitly `Inert`. Across every field, array element
+type, and sum payload, the closed carrier may contain no independently invoked
+cleanup or disposable obligation. The opaque declaration remains the sole
+source of semantic multiplicity and discharge. A foreign carrier may supply
+the same relationship only through a disclosed admission, not by asserting
+that it is cleanup-free. Compiler-sealed generic families such as `Ptr<T>`
+resolve from target semantics without package selection.
+
+For affine and linear opaque values, backend copies used for registers, spills,
+arguments, returns, and aggregates relocate or place one semantic occurrence;
+they do not copy the value. A checked copy of a copyable opaque may create a new
+occurrence only when its carrier is itself structurally copyable and inert.
+Resource-owning carriers require a separate, versioned lifecycle relationship;
+ordinary carrier `drop` is never silently imported through the empty trait.
 
 Representation, minting, and authority remain independent. A representation
 application states how bits carry a value. A minting route states who may create
@@ -138,10 +150,10 @@ not claim that the producer accepted any consumer's build selection.
 A selecting consumer owns the demand row for each actual runtime by-value use.
 That row binds the exact boundary requirement application, opaque declaration,
 named conformance or compiler-owned target-semantics source, concrete carrier,
-target, closed shape graph, physical movement/finalization plan,
-representation version and evidence origin, closed-conformance commitment, and
-complete boundary-calling-plan commitment. A foreign row rejoins the
-producer's exact reviewed declarations and selected immutable source instance.
+target, closed shape graph, physical movement, role-tagged lifecycle
+disposition, representation version and evidence origin, closed-conformance
+commitment, and complete boundary-calling-plan commitment. A foreign row
+rejoins the producer's exact reviewed declarations and selected immutable source instance.
 Checked carrier derivation is recheckable evidence rather than an admission.
 
 Selection is compilation-activation policy. At most one application may be

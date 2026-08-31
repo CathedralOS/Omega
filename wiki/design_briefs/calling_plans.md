@@ -269,7 +269,8 @@ roots. Future independently compiled artifacts compare the strong application
 commitment at each actual by-value composition edge.
 
 The exact opaque declaration, representation source, target-semantics version,
-closed shape, movement/finalization plan, and evidence origin enter the
+closed shape, physical movement, role-tagged lifecycle disposition, and
+evidence origin enter the
 `BoundarySignature` and `CallPlan` application fingerprints. Representation
 closure therefore precedes calling-policy evaluation whenever an opaque
 by-value demand exists; replay against another carrier rejects before placement

@@ -1972,9 +1972,9 @@ ordinary public conformance/carrier surface without claiming acceptance of a
 consumer selection. For every demanded runtime by-value occurrence, the
 selecting consumer reports its exact boundary requirement application, named
 representation conformance or compiler-owned target-semantics source, carrier,
-target/version, closed shape graph or sealed ABI leaf, physical
-movement/finalization, evidence origin, and strong conformance and boundary-
-plan commitments. Foreign demand rejoins the producer's exact rows and selected
+target/version, closed shape graph or sealed ABI leaf, physical movement,
+role-tagged lifecycle disposition, evidence origin, and strong conformance and
+boundary-plan commitments. Foreign demand rejoins the producer's exact rows and selected
 immutable source instance. Explicit `Unbound` is complete only when no active
 runtime by-value crossing demands a shape. Initial introduction or material
 change strongly recommends code/ABI audit but does not, by opacity alone,

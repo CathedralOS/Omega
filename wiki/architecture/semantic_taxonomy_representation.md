@@ -107,11 +107,16 @@ demand row. Dependency review selections are historical rather than inherited
 policy. Strong application equality is checked inside the active compilation
 and later at each real independently compiled by-value composition edge.
 
-The selected carrier supplies only closed shape, movement, and physical
-finalization. It does not mint occurrences, establish domains, grant rights,
-make a linear declaration copyable, or add a semantic terminal path. Those
-facts continue to arise from routed establishment, receipt-backed boundary
-guarantees, and resource-frontier transformations.
+The selected v1 carrier supplies only closed shape and physical movement. Its
+role-tagged lifecycle disposition is `Inert`: the compiler traverses the whole
+closed carrier graph, including array elements and every sum payload, and
+rejects independently invoked cleanup or disposable debt. The carrier does not
+mint occurrences, establish domains, grant rights, make a linear declaration
+copyable, add a semantic terminal path, or import ordinary `drop`. Those facts
+continue to arise from routed establishment, receipt-backed boundary
+guarantees, and resource-frontier transformations. A resource-owning carrier
+would require a separate versioned lifecycle relationship rather than a wider
+interpretation of the empty representation trait.
 
 The compiler records whether each domain fact originated through checked proof,
 an authorized checked conformance, validation, resource transfer, or accepted
