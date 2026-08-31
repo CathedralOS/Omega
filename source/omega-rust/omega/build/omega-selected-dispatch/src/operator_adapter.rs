@@ -65,6 +65,137 @@ pub fn settle_selected_operator_adapter_dispatch(
     Ok(())
 }
 
+/// Rejoin every retained selected Unit call to the exact ProviderPlan still
+/// owned by the compiler before Terminal production. Checked Psi deliberately
+/// carries only the selected join; Omega retains the complete plan whose
+/// strong identity authorizes that join.
+pub fn validate_selected_operator_terminal_custody(
+    checked: &CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for machine in &checked.facts.flow.terminal_unit_effects.machines {
+        for operation in &machine.operations {
+            let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                coordinate,
+                requirement_operator,
+                provider_plan_report_fingerprint,
+                provider_plan_commitment,
+                realization_machine,
+                realization_state,
+                ..
+            } = operation
+            else {
+                continue;
+            };
+            let origin = CheckedValueOrigin::StateStatement {
+                machine_symbol: machine.machine,
+                state_symbol: machine.state,
+                statement_index: match usize::try_from(coordinate.statement_index) {
+                    Ok(statement_index) => statement_index,
+                    Err(_) => {
+                        diagnostics.push(Diagnostic::error(
+                            "selected Unit operator statement coordinate exceeds usize",
+                        ));
+                        continue;
+                    }
+                },
+                role: CheckedValueStatementRole::LocalInitializer,
+            };
+            let uses = checked
+                .facts
+                .operators
+                .named_uses
+                .iter()
+                .map(|(_, operator_use)| {
+                    (
+                        operator_use.expression,
+                        operator_use.origin,
+                        operator_use.selected_operator_symbol,
+                        operator_use.provider_plan_report_fingerprint,
+                        operator_use.provider_plan_commitment,
+                    )
+                })
+                .chain(
+                    checked
+                        .facts
+                        .operators
+                        .uses
+                        .iter()
+                        .map(|(_, operator_use)| {
+                            (
+                                operator_use.expression,
+                                operator_use.origin,
+                                operator_use.selected_operator_symbol,
+                                operator_use.provider_plan_report_fingerprint,
+                                operator_use.provider_plan_commitment,
+                            )
+                        }),
+                )
+                .filter(|(_, use_origin, operator, report, commitment)| {
+                    *use_origin == origin
+                        && *operator == *requirement_operator
+                        && *report == *provider_plan_report_fingerprint
+                        && *commitment == *provider_plan_commitment
+                })
+                .collect::<Vec<_>>();
+            let [(expression, _, _, _, _)] = uses.as_slice() else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected Unit operator call at {:?} retained {} matching authored uses; expected exactly one",
+                    origin,
+                    uses.len(),
+                )));
+                continue;
+            };
+            let plan = match resolve_exact_selected_plan(
+                selected_provider_plans.plans(),
+                *provider_plan_report_fingerprint,
+                *provider_plan_commitment,
+                "selected Unit operator call",
+            ) {
+                Ok(plan) => plan,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+            let operator =
+                match exact_operator_definition(checked, *expression, *requirement_operator) {
+                    Ok(operator) => operator,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        continue;
+                    }
+                };
+            match resolve_checked_adapter_for_operator(checked, operator, plan, *expression) {
+                Ok(Some((expected_machine, _, expected_state)))
+                    if expected_machine == *realization_machine
+                        && expected_state == *realization_state => {}
+                Ok(Some((expected_machine, expected_name, expected_state))) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "selected Unit operator call at {:?} retains realization {:?}/{:?}, but its exact ProviderPlan selects `{expected_name}` at {:?}/{:?}",
+                        origin,
+                        realization_machine,
+                        realization_state,
+                        expected_machine,
+                        expected_state,
+                    )));
+                }
+                Ok(None) => diagnostics.push(Diagnostic::error(format!(
+                    "selected Unit operator call at {:?} is not backed by a checked-adapter ProviderPlan row",
+                    origin,
+                ))),
+                Err(diagnostic) => diagnostics.push(diagnostic),
+            }
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn plan_selected_operator_adapter_rewrites(
     checked: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
@@ -459,6 +590,15 @@ mod tests {
             transition { _ -> (input + 0) }
         }
 
+        data AlternateMathProvider {}
+        machine AlternateMathProvider::offset_zero_impl(input: i32) -> i32
+        satisfies CheckedMath::offset_zero
+        requires input == input
+        ensures result == input + 0 && input == input
+        {
+            transition { _ -> (input + 0) }
+        }
+
         machine run() -> i32 {
             transition { _ -> (CheckedMath::offset_zero(70)) }
         }
@@ -490,7 +630,10 @@ mod tests {
         let plans = omega_provider_planning::plans::derive_satisfies_plans(&typed, None);
         let checked_plan = plans
             .iter()
-            .find(|plan| plan.schema.trait_name.contains("CheckedMath::offset_zero"))
+            .find(|plan| {
+                plan.schema.trait_name.contains("CheckedMath::offset_zero")
+                    && plan.provider_type == "CheckedMathProvider"
+            })
             .expect("CheckedMath provider plan")
             .clone();
         let other_plan = plans
@@ -900,6 +1043,144 @@ mod tests {
                         })
             )
         }));
+        validate_selected_operator_terminal_custody(&settled, &selected)
+            .expect("retained Unit call must rejoin its exact selected ProviderPlan");
+        let missing = validate_selected_operator_terminal_custody(
+            &settled,
+            &omega_effects::SelectedProviderPlanFacts::default(),
+        )
+        .expect_err("retained Unit call cannot outlive its selected ProviderPlan closure");
+        assert_eq!(missing.len(), 1);
+        assert!(
+            missing[0]
+                .message
+                .contains("unknown ProviderPlan report fingerprint"),
+            "unexpected diagnostic: {}",
+            missing[0].message,
+        );
+    }
+
+    #[test]
+    fn terminal_custody_rejects_another_conforming_realization() {
+        let mut fixture = fixture();
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (use_handle, mut operator_use) = fixture
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .map(|(handle, operator_use)| (handle, *operator_use))
+            .find(|(_, operator_use)| {
+                matches!(
+                    operator_use.origin,
+                    CheckedValueOrigin::StateStatement {
+                        machine_symbol,
+                        state_symbol,
+                        statement_index: 0,
+                        role: CheckedValueStatementRole::LocalInitializer,
+                    } if machine_symbol == main_symbol && state_symbol == main_state
+                )
+            })
+            .expect("selected operator local in Unit fixture");
+        operator_use.provider_plan_report_fingerprint = fixture.checked_plan.report_fingerprint();
+        operator_use.provider_plan_commitment =
+            psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+                *fixture.checked_plan.identity_digest().as_bytes(),
+            );
+        *fixture
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .get_mut(use_handle) = operator_use;
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&fixture.checked_plan),
+            std::slice::from_ref(&fixture.checked_plan.name),
+        )
+        .expect("select exact checked-operator plan");
+        let mut settled = Arc::new(fixture.checked);
+        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect("selected Unit operator application settles");
+
+        let alternate = settled
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "AlternateMathProvider::offset_zero_impl")
+            .expect("alternate conforming adapter");
+        let alternate_machine = alternate.symbol;
+        let alternate_state = settled.typed.machine_states(alternate)[0].symbol;
+        let alternate_contract = settled
+            .facts
+            .contract_plans
+            .for_machine(alternate_machine)
+            .expect("alternate contract");
+        let alternate_contract_report_fingerprint = alternate_contract.report_fingerprint;
+        let alternate_contract_commitment = alternate_contract.commitment;
+        let alternate_reach = settled
+            .facts
+            .flow
+            .control
+            .states
+            .iter()
+            .find(|(_, state)| {
+                state.machine_symbol == alternate_machine && state.state_symbol == alternate_state
+            })
+            .map(|(_, state)| state.service_reach)
+            .expect("alternate service reach");
+        let settled_mut = Arc::make_mut(&mut settled);
+        let selected_call = settled_mut
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == main_symbol && plan.state == main_state)
+            .and_then(|plan| {
+                plan.operations.iter_mut().find(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                    )
+                })
+            })
+            .expect("selected Unit call");
+        let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+            realization_machine,
+            realization_state,
+            realization_contract_report_fingerprint,
+            realization_contract_commitment,
+            service_reach,
+            ..
+        } = selected_call
+        else {
+            unreachable!("selected operation kind was filtered above")
+        };
+        *realization_machine = alternate_machine;
+        *realization_state = alternate_state;
+        *realization_contract_report_fingerprint = alternate_contract_report_fingerprint;
+        *realization_contract_commitment = alternate_contract_commitment;
+        *service_reach = alternate_reach;
+
+        let diagnostics = validate_selected_operator_terminal_custody(&settled, &selected)
+            .expect_err("another conforming realization must not replace the selected plan row");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("but its exact ProviderPlan selects"),
+            "unexpected diagnostic: {}",
+            diagnostics[0].message,
+        );
     }
 
     #[test]

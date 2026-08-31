@@ -19,4 +19,6 @@ pub use float_intrinsic::{
     settle_selected_float_intrinsic_dispatch,
 };
 pub use intrinsic_review::retain_selected_compiler_intrinsic_review_identities;
-pub use operator_adapter::settle_selected_operator_adapter_dispatch;
+pub use operator_adapter::{
+    settle_selected_operator_adapter_dispatch, validate_selected_operator_terminal_custody,
+};

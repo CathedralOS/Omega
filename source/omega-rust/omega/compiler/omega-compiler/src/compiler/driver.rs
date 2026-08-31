@@ -93,6 +93,10 @@ fn terminal_report(
             )]
         })?
         .to_owned();
+    omega_selected_dispatch::validate_selected_operator_terminal_custody(
+        &checked,
+        checked.selected_provider_plans(),
+    )?;
     let produced = psi_checked_trees_to_terminal::produce_terminal_artifact_with_callback_custody(
         &checked,
         &entry_machine,
@@ -138,6 +142,10 @@ fn native_report(
     })?;
     crate::pipeline::component_progress::reject_undischarged_build_bound_progress(
         checked.component_progress(),
+    )?;
+    omega_selected_dispatch::validate_selected_operator_terminal_custody(
+        checked,
+        checked.selected_provider_plans(),
     )?;
     let rollback_settlement = request
         .optimization_rollback
