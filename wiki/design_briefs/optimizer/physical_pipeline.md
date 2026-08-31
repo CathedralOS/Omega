@@ -102,15 +102,18 @@ two-prefix canaries cover boundary and internal-call leaves. Admission rejects
 changed scalar maps, target states, attachments, contracts, custody, or leaf
 effects rather than silently routing the graph through a shorter family.
 
-A disjoint nested-control family retains a finite right-deep Boolean decision
-tree. Each control consumes parameter zero, forwards the ordered suffix of
-future guards to its true-arm dispatch, and sends its false arm to a distinct
-effect leaf; the final control selects the first two leaves. Independent
-lowering derives block/value identities and block-parameter arity from depth
-before publishing either boundary leaves or one deduplicated internal target
-closure. Two- and three-frontier canaries cover one- and multi-value handoffs.
-Scalar suffix reordering and target corruption reject the route before
-verifier or codec publication.
+A disjoint nested-control family retains a general finite acyclic Boolean
+control graph. Controls may target any retained control or effect leaf and may
+forward any exact ordered Boolean parameter map required by the target;
+multiple edges may converge on one leaf. Producer and consumer independently
+walk the graph by checked state identity, reject cycles or unreachable states,
+and rejoin every scalar argument expression and structural-cleanup target.
+Lowering derives block/value identities and block-parameter arity from the
+admitted graph before publishing boundary leaves or one deduplicated internal
+target closure. Right-deep depth-three and balanced three-control canaries
+cover multi-value handoffs, argument-bearing true and false arms, and a shared
+leaf emitted once. Scalar-map reordering, target corruption, and forged
+convergence reject the route before verifier or codec publication.
 
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common

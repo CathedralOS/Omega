@@ -1,4 +1,4 @@
-//! Source topology and scalar-suffix edge admission.
+//! General acyclic conditional topology and exact scalar-edge admission.
 
 use super::*;
 
@@ -18,13 +18,9 @@ pub(super) fn admit<'a>(
     machine: &psi_typed_trees::machine::Machine,
 ) -> Option<NestedTopology<'a>> {
     let states = program.machine_states(machine);
-    if states.len() < 5 || states.len() % 2 == 0 {
+    if states.len() < 4 {
         return None;
     }
-    let control_count = (states.len() - 1) / 2;
-    let (control_states, leaf_states) = states.split_at(control_count);
-    let controls = control_states.iter().collect::<Vec<_>>();
-    let leaves = leaf_states.iter().collect::<Vec<_>>();
     let binders = machine_binders(program, machine);
     let mut signatures = Vec::new();
     let mut attachment = None;
@@ -44,50 +40,61 @@ pub(super) fn admit<'a>(
             || attachment
                 .as_ref()
                 .is_some_and(|identity| identity != &state_attachment)
+            || scalar.iter().enumerate().any(|(index, parameter)| {
+                parameter.source_position != u32::try_from(index).unwrap_or(u32::MAX)
+                    || parameter.primitive_type != PrimitiveType::Bool
+            })
         {
             return None;
         }
         attachment = Some(state_attachment);
         signatures.push(scalar);
     }
-    let (control_parameters, leaf_parameters) = signatures.split_at(control_count);
-    if leaf_parameters
-        .iter()
-        .any(|parameters| !parameters.is_empty())
-        || control_parameters
-            .iter()
-            .enumerate()
-            .any(|(index, parameters)| !exact_boolean_suffix(parameters, control_count - index))
-    {
+    let mut controls = Vec::new();
+    let mut leaves = Vec::new();
+    let mut saw_leaf = false;
+    for state in states {
+        match program.statement_table.statements(state.statement_nodes) {
+            [StatementNode::Transition(_), StatementNode::Transition(_)] if !saw_leaf => {
+                controls.push(state)
+            }
+            [StatementNode::Call(_)] if signatures[state_index(states, state)?].is_empty() => {
+                saw_leaf = true;
+                leaves.push(state)
+            }
+            _ => return None,
+        }
+    }
+    if controls.len() < 2 || controls.first()?.symbol != states[0].symbol || leaves.is_empty() {
         return None;
     }
-    let mut guards = Vec::with_capacity(control_count);
-    let mut edges = Vec::with_capacity(control_count);
-    for index in 0..control_count {
-        let final_control = index + 1 == control_count;
-        let true_target = if final_control {
-            leaves[0].symbol
-        } else {
-            controls[index + 1].symbol
-        };
-        let false_target = leaves[control_count - index].symbol;
-        let (guard, control_edges) = conditional(
+    let control_parameters = controls
+        .iter()
+        .map(|state| Some(signatures[state_index(states, state)?].clone()))
+        .collect::<Option<Vec<_>>>()?;
+    if control_parameters.iter().any(Vec::is_empty) {
+        return None;
+    }
+    let mut guards = Vec::with_capacity(controls.len());
+    let mut edges = Vec::with_capacity(controls.len());
+    for (state, parameters) in controls.iter().zip(&control_parameters) {
+        let (guard, successors) = conditional(
             program,
             facts,
             machine,
-            controls[index],
-            &control_parameters[index],
-            true_target,
-            false_target,
-            (!final_control).then_some(control_count - index - 1),
+            states,
+            &signatures,
+            state,
+            parameters,
         )?;
         guards.push(guard);
-        edges.push(control_edges);
+        edges.push(successors);
     }
+    validate_acyclic_reachable(states, controls[0].symbol, &edges)?;
     Some(NestedTopology {
         controls,
         leaves,
-        control_parameters: control_parameters.to_vec(),
+        control_parameters,
         attachment: attachment?,
         guards,
         edges,
@@ -98,11 +105,10 @@ fn conditional(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &psi_typed_trees::machine::Machine,
+    states: &[psi_typed_trees::state::State],
+    signatures: &[Vec<CheckedStructuralScalarParameterPlan>],
     state: &psi_typed_trees::state::State,
     parameters: &[CheckedStructuralScalarParameterPlan],
-    true_target: SymbolHandle,
-    false_target: SymbolHandle,
-    forwarded_count: Option<usize>,
 ) -> Option<(
     CheckedScalarExpression,
     [CheckedStructuralControlSuccessorPlan; 2],
@@ -135,38 +141,25 @@ fn conditional(
         guard,
         [
             scalar_successor(
-                program,
-                facts,
-                machine,
-                state,
-                0,
-                when_true,
-                true_target,
-                forwarded_count.unwrap_or(0),
+                program, facts, machine, states, signatures, state, 0, when_true,
             )?,
             scalar_successor(
-                program,
-                facts,
-                machine,
-                state,
-                1,
-                when_false,
-                false_target,
-                0,
+                program, facts, machine, states, signatures, state, 1, when_false,
             )?,
         ],
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn scalar_successor(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &psi_typed_trees::machine::Machine,
+    states: &[psi_typed_trees::state::State],
+    signatures: &[Vec<CheckedStructuralScalarParameterPlan>],
     source: &psi_typed_trees::state::State,
     ordinal: u32,
     transition: &psi_typed_trees::statement::TableTransition,
-    expected: SymbolHandle,
-    forwarded_count: usize,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -174,32 +167,38 @@ fn scalar_successor(
     else {
         return None;
     };
-    if path.symbol != expected
-        || program.statement_table.expression_handles(*arguments).len() != forwarded_count
-    {
+    let target_index = states
+        .iter()
+        .position(|state| state.symbol == path.symbol)?;
+    let target_parameters = &signatures[target_index];
+    if program.statement_table.expression_handles(*arguments).len() != target_parameters.len() {
         return None;
     }
-    let scalar_arguments = (0..forwarded_count)
-        .map(|argument_index| {
-            let source_index = argument_index.checked_add(1)?;
+    let scalar_arguments = target_parameters
+        .iter()
+        .enumerate()
+        .map(|(argument_index, target)| {
             let argument_ordinal = u32::try_from(argument_index).ok()?;
-            if !matches!(
-                facts.values.scalar_expressions.expression_at(
-                    source.symbol,
-                    0,
-                    CheckedScalarExpressionRole::TransitionArgument {
-                        argument_ordinal,
-                    },
-                )?,
-                CheckedScalarExpression::Boolean(expression)
-                    if matches!(expression.as_ref(), CheckedBooleanExpression::Parameter { position }
-                        if *position == source_index)
-            ) {
+            let expression = facts.values.scalar_expressions.expression_at(
+                source.symbol,
+                ordinal,
+                CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
+            )?;
+            let CheckedScalarExpression::Boolean(expression) = expression else {
+                return None;
+            };
+            let CheckedBooleanExpression::Parameter { position } = expression.as_ref() else {
+                return None;
+            };
+            let source_parameter = signatures[state_index(states, source)?].get(*position)?;
+            if source_parameter.primitive_type != PrimitiveType::Bool
+                || target.primitive_type != PrimitiveType::Bool
+            {
                 return None;
             }
             Some(CheckedStructuralScalarArgumentPlan {
                 argument_ordinal,
-                source_scalar_parameter_index: u32::try_from(source_index).ok()?,
+                source_scalar_parameter_index: u32::try_from(*position).ok()?,
                 target_scalar_parameter_index: u32::try_from(argument_index).ok()?,
                 primitive_type: PrimitiveType::Bool,
             })
@@ -210,7 +209,7 @@ fn scalar_successor(
         source.symbol,
         ordinal,
     )?;
-    if cleanup.target_state != expected
+    if cleanup.target_state != path.symbol
         || !cleanup
             .trivial_affine_discard_parameter_positions
             .is_empty()
@@ -219,7 +218,7 @@ fn scalar_successor(
     }
     Some(CheckedStructuralControlSuccessorPlan {
         statement_ordinal: ordinal,
-        target_state: expected,
+        target_state: path.symbol,
         transfers: Vec::new(),
         scalar_arguments,
         trivial_affine_discard_parameter_positions: Vec::new(),
@@ -230,22 +229,60 @@ fn parameter_guard(
     expression: &CheckedScalarExpression,
     parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> Option<CheckedScalarExpression> {
-    matches!(expression,
-        CheckedScalarExpression::Boolean(boolean)
-            if matches!(boolean.as_ref(), CheckedBooleanExpression::Parameter { position: 0 }))
-    .then(|| ())?;
-    matches!(parameters.first(), Some(parameter)
-        if parameter.source_position == 0 && parameter.primitive_type == PrimitiveType::Bool)
+    let CheckedScalarExpression::Boolean(boolean) = expression else {
+        return None;
+    };
+    let CheckedBooleanExpression::Parameter { position } = boolean.as_ref() else {
+        return None;
+    };
+    matches!(parameters.get(*position), Some(parameter)
+        if parameter.primitive_type == PrimitiveType::Bool)
     .then(|| expression.clone())
 }
 
-fn exact_boolean_suffix(
-    parameters: &[CheckedStructuralScalarParameterPlan],
-    expected: usize,
-) -> bool {
-    parameters.len() == expected
-        && parameters.iter().enumerate().all(|(index, parameter)| {
-            parameter.source_position == u32::try_from(index).unwrap_or(u32::MAX)
-                && parameter.primitive_type == PrimitiveType::Bool
-        })
+fn validate_acyclic_reachable(
+    states: &[psi_typed_trees::state::State],
+    entry: SymbolHandle,
+    edges: &[[CheckedStructuralControlSuccessorPlan; 2]],
+) -> Option<()> {
+    fn visit(
+        states: &[psi_typed_trees::state::State],
+        edges: &[[CheckedStructuralControlSuccessorPlan; 2]],
+        index: usize,
+        active: &mut Vec<usize>,
+        complete: &mut Vec<usize>,
+    ) -> Option<()> {
+        if active.contains(&index) {
+            return None;
+        }
+        if complete.contains(&index) {
+            return Some(());
+        }
+        active.push(index);
+        if let Some(control_index) = (index < edges.len()).then_some(index) {
+            for edge in &edges[control_index] {
+                let target = states
+                    .iter()
+                    .position(|state| state.symbol == edge.target_state)?;
+                visit(states, edges, target, active, complete)?;
+            }
+        }
+        active.pop();
+        complete.push(index);
+        Some(())
+    }
+    let entry_index = states.iter().position(|state| state.symbol == entry)?;
+    let mut active = Vec::new();
+    let mut complete = Vec::new();
+    visit(states, edges, entry_index, &mut active, &mut complete)?;
+    (complete.len() == states.len()).then_some(())
+}
+
+fn state_index(
+    states: &[psi_typed_trees::state::State],
+    state: &psi_typed_trees::state::State,
+) -> Option<usize> {
+    states
+        .iter()
+        .position(|candidate| candidate.symbol == state.symbol)
 }

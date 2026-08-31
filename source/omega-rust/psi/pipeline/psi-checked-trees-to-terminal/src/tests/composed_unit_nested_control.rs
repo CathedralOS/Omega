@@ -48,6 +48,47 @@ fn checked_depth_three_nested_control() -> CheckedTrees {
     )
 }
 
+fn checked_balanced_nested_control() -> CheckedTrees {
+    checked_source(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::enter(first: bool, left_guard: bool, right_guard: bool) {
+                transition first {
+                    true -> left(left_guard)
+                    _ -> right(right_guard)
+                }
+                state left(flag: bool) {
+                    transition flag { true -> yes() _ -> shared() }
+                }
+                state right(flag: bool) {
+                    transition flag { true -> shared() _ -> no() }
+                }
+                state yes() { Host::exit(1); }
+                state shared() { Host::exit(2); }
+                state no() { Host::exit(3); }
+            }
+        "#,
+    )
+}
+
+fn checked_four_state_nested_control() -> CheckedTrees {
+    checked_source(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::enter(first: bool, second: bool) {
+                transition first { true -> dispatch(second) _ -> no() }
+                state dispatch(flag: bool) {
+                    transition flag { true -> yes() _ -> no() }
+                }
+                state yes() { Host::exit(1); }
+                state no() { Host::exit(2); }
+            }
+        "#,
+    )
+}
+
 #[test]
 fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
     let checked = checked_nested_control();
@@ -101,6 +142,44 @@ fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
         psi_terminal_codec::decode_module(&bytes).expect("decode"),
         lowered.semantic_module
     );
+}
+
+#[test]
+fn lowers_the_smallest_two_frontier_convergent_graph() {
+    let checked = checked_four_state_nested_control();
+    let lowered = lower_machine(&checked, "Root::enter").expect("four-state graph lowers");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("four-state boundary graph emits one machine")
+    };
+    let [entry, dispatch, yes, no] = machine.blocks.as_slice() else {
+        panic!("four-state graph emits two controls and two leaves")
+    };
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("entry remains conditional")
+    };
+    assert_eq!(when_true.target, dispatch.id);
+    assert_eq!(when_false.target, no.id);
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &dispatch.terminator
+    else {
+        panic!("dispatch remains conditional")
+    };
+    assert_eq!(when_true.target, yes.id);
+    assert_eq!(when_false.target, no.id);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("four-state convergent module verifies");
 }
 
 #[test]
@@ -245,6 +324,96 @@ fn depth_three_nested_control_rejects_suffix_reordering() {
         unreachable!()
     };
     when_true.scalar_arguments.swap(0, 1);
+    assert!(matches!(
+        lower_machine(&checked, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
+#[test]
+fn lowers_balanced_control_and_emits_one_convergent_leaf() {
+    let checked = checked_balanced_nested_control();
+    let lowered = lower_machine(&checked, "Root::enter").expect("balanced control graph lowers");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("balanced boundary graph emits one machine")
+    };
+    let [first, left_guard, right_guard] = machine.parameters.as_slice() else {
+        panic!("entry retains all three Boolean inputs")
+    };
+    let [entry, left, right, yes, shared, no] = machine.blocks.as_slice() else {
+        panic!("balanced graph emits each control and leaf exactly once")
+    };
+    let [left_parameter] = left.parameters.as_slice() else {
+        panic!("left frontier receives its Boolean")
+    };
+    let [right_parameter] = right.parameters.as_slice() else {
+        panic!("right frontier receives its Boolean")
+    };
+    let Terminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &entry.terminator
+    else {
+        panic!("entry lowers as a conditional")
+    };
+    assert_eq!(*condition, first.id);
+    assert_eq!(when_true.target, left.id);
+    assert_eq!(when_true.arguments.as_slice(), [left_guard.id]);
+    assert_eq!(when_false.target, right.id);
+    assert_eq!(when_false.arguments.as_slice(), [right_guard.id]);
+    let Terminator::Conditional {
+        condition,
+        when_false,
+        ..
+    } = &left.terminator
+    else {
+        panic!("left frontier lowers as a conditional")
+    };
+    assert_eq!(*condition, left_parameter.id);
+    assert_eq!(when_false.target, shared.id);
+    let Terminator::Conditional {
+        condition,
+        when_true,
+        ..
+    } = &right.terminator
+    else {
+        panic!("right frontier lowers as a conditional")
+    };
+    assert_eq!(*condition, right_parameter.id);
+    assert_eq!(when_true.target, shared.id);
+    for leaf in [yes, shared, no] {
+        assert!(matches!(
+            leaf.operations.last(),
+            Some(Operation {
+                kind: OperationKind::BoundaryCall { .. },
+                ..
+            })
+        ));
+    }
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("balanced convergent module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn balanced_control_rejects_convergent_edge_drift() {
+    let mut checked = checked_balanced_nested_control();
+    let no = checked.facts.flow.terminal_unit_effects.composed_machines[0].states[5].state;
+    let CheckedComposedUnitControlTerminatorPlan::Conditional { when_false, .. } =
+        &mut checked.facts.flow.terminal_unit_effects.composed_machines[0].states[1].terminator
+    else {
+        unreachable!()
+    };
+    when_false.target_state = no;
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(_))

@@ -1,4 +1,4 @@
-//! Finite right-deep Boolean decision trees with exact effect leaves.
+//! General acyclic Boolean control graphs with exact effect leaves.
 
 use super::*;
 
