@@ -14,8 +14,9 @@
 ;
 ; Surface (prefix; Int is builtin, every binder annotated):
 ;   program := (data T (C TYPE...)...)*  (def NAME ((PARAM TYPE)...) RETTYPE EXPR)*
-; The temporary frontend gate maps a fully well-typed program to exit 1 and a
-; type error to exit 0. The final compiler output boundary is not implemented.
+; The temporary frontend gate admits one canonical GCREQ and maps a fully
+; well-typed Gamma body to exit 1 and a request/source/type error to exit 0.
+; The final compiler output boundary is not implemented.
 ;
 ; CONTROL FLOW is CFG/Omega-shaped: each proc is a set of `state` basic blocks linked
 ; by guarded `to ... when ...` transitions - no if/while.
@@ -35,6 +36,10 @@
 ;          2096896 NEXT_LOCAL_SLOT 2096888 MAX_LOCAL_SLOTS
 ;          2096880 CURRENT_FRAME_PREFIX 2096872 CURRENT_PARAMETER_COUNT
 ;          2096864 RUNTIME_INTERNAL_LABEL
+;          2096856 REQUEST_PROFILE 2096848 OUTCOME_KIND 2096840 OUTCOME_CODE
+;          2096832 OUTCOME_SPACE 2096824 OUTCOME_COORDINATE
+;          2096816 OUTCOME_LIMIT 2096808 OUTCOME_REQUESTED
+;          2096800 GCREQ_HEADER [8 bytes]
 ;          6291456 TYNAMES [6 MiB,6.5 MiB)
 ;          6815744 CONS [6.5 MiB,8 MiB)  8388608 FUNS [8 MiB,9 MiB)
 ;          9437184 TENV [9 MiB,10 MiB)  10485760 COVERAGE [10 MiB,10.5 MiB)
@@ -54,35 +59,88 @@
 ; identities in f2; zero remains the unresolved or builtin sentinel.
 
 proc source_byte_allowed(c) {
-    state ht { to yes when (c == 9)  to lf }
-    state lf { to yes when (c == 10)  to cr }
-    state cr { to yes when (c == 13)  to printable_low }
-    state printable_low { to no when (c < 32)  to printable_high }
-    state printable_high { to no when (c > 126)  return 1 }
-    state yes { return 1 }
-    state no { return 0 }
+    state result {
+        return (c == 9) + (c == 10) + (c == 13) + (c >= 32) * (c <= 126)
+    }
 }
 
-proc slurp() {
+proc admit_gcreq() {
     let n = 0
+    let header_index = 0
+    let profile = 0
+    let source_length = 0
     word[2097088] = 0        ; INVALID_TYPE
     word[2097056] = 0        ; FAIL_OFF (meaningful when INVALID_TYPE != 0)
     word[2097048] = 0        ; NODE_OFF for the next AST allocation
+    word[2096856] = 0        ; REQUEST_PROFILE (zero until selected)
+    word[2096848] = 0        ; OUTCOME_KIND (0 none, 1 reject, 2 incomplete)
+    word[2096840] = 0        ; OUTCOME_CODE
+    word[2096832] = 0        ; OUTCOME_SPACE
+    word[2096824] = 0        ; OUTCOME_COORDINATE
+    word[2096816] = 0        ; OUTCOME_LIMIT
+    word[2096808] = 0        ; OUTCOME_REQUESTED
+    byte[2096800] = 71       ; GCREQ V1 magic/version/reserved
+    byte[2096801] = 67
+    byte[2096802] = 82
+    byte[2096803] = 69
+    byte[2096804] = 81
+    byte[2096805] = 1
+    byte[2096806] = 0
+    byte[2096807] = 0
     let c = read_byte()
-    state loop {
-        to body when (c >= 0)
-        to done
+    state header {
+        to malformed when (c < 0)
+        byte[2097152 + header_index] = c
+        header_index = header_index + 1
+        to validate_header when (header_index == 16)
+        c = read_byte()
+        to header
+    }
+    state validate_header {
+        header_index = header_index % 16
+        to select_profile when (header_index == 8)
+        to malformed when (byte[2097152 + header_index] != byte[2096800 + header_index])
+        header_index = header_index + 1
+        to validate_header
+    }
+    state select_profile {
+        profile = byte[2097160] + byte[2097161] * 256
+        profile = profile + byte[2097162] * 65536
+        profile = profile + byte[2097163] * 16777216
+        to unknown_profile when ((profile != 1) * (profile != 2) != 0)
+        word[2096856] = profile
+        source_length = byte[2097164] + byte[2097165] * 256
+        source_length = source_length + byte[2097166] * 65536
+        source_length = source_length + byte[2097167] * 16777216
+        to source_exhausted when (source_length > 4194304)
+        c = read_byte()
+        to body
     }
     state body {
-        to exhausted when (n == 4194304)
-        to invalid when (source_byte_allowed(c) == 0)
+        to body_done when (n == source_length)
+        header_index = 16 + n
+        to malformed when (c < 0)
         byte[2097152 + n] = c
         n = n + 1
         c = read_byte()
-        to loop
+        to body
+    }
+    state body_done {
+        header_index = 16 + source_length
+        to malformed when (c >= 0)
+        word[2097136] = source_length
+        word[2097144] = 0
+        n = 0
+        to validate_source
+    }
+    state validate_source {
+        to done when (n == source_length)
+        to invalid when (source_byte_allowed(byte[2097152 + n]) == 0)
+        n = n + 1
+        to validate_source
     }
     state done {
-        word[2097136] = n
+        word[2097136] = source_length
         word[2097144] = 0
         ; Keep one readable zero node as the return value of a failed allocation.
         ; The real arena begins after it and ends at the reserved 125 MiB
@@ -103,8 +161,37 @@ proc slurp() {
         word[2097064] = 0        ; PARSE_DEPTH
         return 0
     }
-    state invalid { mark_invalid_at(n)  return 1 }
-    state exhausted { return 2 }
+    state malformed {
+        word[2096848] = 1
+        word[2096840] = 1        ; malformed_request
+        word[2096832] = 4        ; GCREQ byte
+        word[2096824] = header_index
+        return 1
+    }
+    state unknown_profile {
+        word[2096848] = 1
+        word[2096840] = 2
+        word[2096832] = 4
+        word[2096824] = 8
+        return 1
+    }
+    state source_exhausted {
+        word[2096848] = 2
+        word[2096840] = 1        ; source_bytes
+        word[2096832] = 4
+        word[2096824] = 12
+        word[2096816] = 4194304
+        word[2096808] = source_length
+        return 2
+    }
+    state invalid {
+        word[2096848] = 1
+        word[2096840] = 3        ; invalid_source_byte
+        word[2096832] = 1        ; Gamma source byte
+        word[2096824] = n
+        mark_invalid_at(n)
+        return 1
+    }
 }
 
 proc cbyte() {
@@ -118,11 +205,9 @@ proc adv() {
 }
 
 proc is_space(c) {
-    state c1 { to yes when (c == ' ')  to c2 }
-    state c2 { to yes when (c == 9)    to c3 }
-    state c3 { to yes when (c == 10)   to c4 }
-    state c4 { to yes when (c == 13)   return 0 }
-    state yes { return 1 }
+    state result {
+        return (c == ' ') + (c == 9) + (c == 10) + (c == 13)
+    }
 }
 
 proc skip_ws() {
@@ -3663,9 +3748,9 @@ proc emit_gamma_function_bodies() {
 }
 
 proc frontend_check_main() {
-    let slurp_status = slurp()
+    let request_status = admit_gcreq()
     state source {
-        to source_failed when (slurp_status != 0)
+        to source_failed when (request_status != 0)
         skip_ws()
         to dataloop
     }

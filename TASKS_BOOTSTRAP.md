@@ -86,7 +86,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
+| Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment, resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
 | Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q3/Q6/Q7/Q8/Q9/Q10 diagnostics, complete transition-pattern negatives and coverage, reachability, and the remaining D37 terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
@@ -601,10 +601,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
     generated-runtime block, and the exact `GCOUT`/`DCOUT` magics, coordinates,
     and closed tables. The checked TSV projections live beside the compiler;
     their constants belong in the offline artifact rather than becoming host
-    runtime inputs. Implementation must now retain the semantic `GCOUT` reason
-    alongside `FAIL_OFF`, generate the two PC-zero adapters, validate D21's
-    profile invariant, supply sealed `Bytes`, preflight every success/failure
-    publication, and emit no partial bytes.
+    runtime inputs.
+  - [x] **D33 — BOUNDED GCOUT ADMISSION AND TOTAL SCHEMA DIAGNOSIS.** Fix the
+    header/profile/provision/body ordering, category priority 19/20/21,
+    truthful none-or-source schema coordinates, and the normative table's
+    request-profile availability. A completed adapter and gate reject a code
+    impossible for the originating request rather than treating a detached
+    GCOUT frame as sufficient context.
+  - [x] Implement D30/D33's canonical `GCREQ` admission in
+    `gamma_compiler.beta`. The fixed 16-byte header is obtained before its
+    first-difference check; profile 1/2 selection precedes the 4-MiB source
+    provision; an adjacent declared length returns
+    `Incomplete(source_bytes, 4194304, 4194305)` without consuming the body;
+    and admitted bodies require exact EOF before source-byte validation. The
+    compiler retains selected profile and private kind/code/space/coordinate/
+    limit/requested fields. Eleven focused cases pin both profiles, truncated
+    header/body, first bad magic byte, unknown-profile precedence, exact and
+    adjacent source capacity, trailing input, and exact-end precedence over an
+    invalid source byte without increasing the 994 non-builtin call rows.
+  - [ ] Complete the semantic `GCOUT` judgment behind the retained private
+    outcome fields. Replace the remaining one-bit parser/type/resource results
+    with the normative reason/resource codes, retain every profile-schema
+    `(reason, coordinate)` candidate, apply D33's total ordering, check each
+    code against the selected profile, and gate the four embedded TSV
+    projections. This is implementation work independent of Q2's adapter-call
+    capacity ruling.
   - [x] Preserve D30's generated resource identity at the sealed-input seam.
     The emitted reader now transfers input-extent and heap-extent failures to
     distinct adapter-owned terminals while containment remains independent;
@@ -618,15 +639,6 @@ code, discover a closure, manufacture proof premises, or decide admission.
     canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
     total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
     publication, or silently revise the Alpha-written compiler profile.
-  - [x] **D33 — BOUNDED GCOUT ADMISSION AND TOTAL SCHEMA DIAGNOSIS.** Check the
-    fixed header and profile before the selected source provision; reject an
-    oversized declared length at request byte 12 without consuming its body;
-    and perform body exact-end validation only for admitted lengths. Retain all
-    schema reason/coordinate candidates and apply category order 19/20/21,
-    truthful none-or-source coordinates, and the normative table's request-
-    profile availability. The completed adapter and gate must reject a code
-    impossible for the originating request rather than treating a detached
-    GCOUT frame as sufficient context.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
