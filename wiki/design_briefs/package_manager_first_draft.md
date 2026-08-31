@@ -184,11 +184,13 @@ the one declared dependency set.
 Platform variation ordinarily lives in target-scoped declarations inside the
 selected packages, while application entry selection uses flat unconditional
 `roots.bind(target::ProgramEntry, entry)` rows. One invocation filters and
-checks one exact target closure. A matrix checker repeats that operation for
-every declared target rather than placing unresolved target branches in one
-Psi subject. A future target-specific dependency surface, if a concrete
-customer requires one, must be an unconditional row naming the exact target;
-it cannot restore conditional dependency discovery.
+checks one exact target closure. CI can repeat that operation for an explicit
+target matrix without placing unresolved target branches in one Psi subject.
+Whether `omega` should discover an authoritative `all` set remains an owner
+question; package resolution does not manufacture one. A future
+target-specific dependency surface, if a concrete customer requires one, must
+be an unconditional row naming the exact target; it cannot restore conditional
+dependency discovery.
 
 The resolver obtains the selected package's name from its own
 `builder.package` declaration. The default in-code alias is the mechanical

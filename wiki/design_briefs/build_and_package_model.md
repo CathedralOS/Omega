@@ -527,10 +527,11 @@ it, or multiply it. A CLI `Host` convenience is resolved to one concrete
 profile before semantic build evaluation; `Host` is never retained as artifact
 identity. Building four targets means four independently filtered activations
 and four committed Psi/PCC subjects. Declaring four targets does not place all
-four in one invocation's Psi. A matrix-checking mode may enumerate and check
-all four without physically realizing any of them. A fat or universal artifact
-is an explicit envelope over separately committed subjects, not several
-unresolved target branches in one Terminal module.
+four in one invocation's Psi. CI may request four exact checks without
+physically realizing any of them. Whether `omega` should infer an `all` set is
+an open convenience-surface question, not package authority. A fat or universal
+artifact is an explicit envelope over separately committed subjects, not
+several unresolved target branches in one Terminal module.
 
 This is the durable projection, not a claim that the source-visible activation
 handle serializes every ephemeral facet it exposes. In particular, its source

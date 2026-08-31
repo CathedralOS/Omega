@@ -77,9 +77,11 @@ build machine owns roots, dependencies, generated outputs, subsystem/image
 facts, and provider selections. Platform implementation variation ordinarily
 uses target-scoped declarations inside packages; applications bind entries with
 flat unconditional `roots.bind(target::ProgramEntry, entry)` rows. One build
-invocation filters and checks one exact target closure. An all-target check
-repeats that operation independently for every declared target and does not
-place multiple target branches in one Terminal Psi subject.
+invocation filters and checks one exact target closure. CI may repeat that
+operation independently for an explicit target matrix; it never places
+multiple target branches in one Terminal Psi subject. The convenience question
+of whether `omega` itself discovers an `all` set is not language semantics and
+remains open in `OWNER_QUESTIONS.md`.
 
 `PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
 the canonical repository namespace and
