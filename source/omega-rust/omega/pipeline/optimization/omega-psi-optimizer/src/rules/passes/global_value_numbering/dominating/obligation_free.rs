@@ -1,10 +1,23 @@
 //! Obligation-free cross-block elimination from dominating leaders.
 
-use super::*;
+use std::collections::BTreeMap;
+
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use omega_optimization_unit::{
+    DominatingScalarCommonSubexpressionRewrite, NodeLocation, PsiOptimizationUnit,
+    PsiRewriteCandidate,
+};
+
+use crate::rules::passes::support::{block_dominates, node_elision_accounting};
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{
+    effect_admission::exact_pure_scalar_effect, expression_keys::total_scalar_expression,
+};
+use super::dominating_contract;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DominatorTotalScalarGvnRule;
-
 
 impl DominatorTotalScalarGvnRule {
     pub fn contract() -> OptimizationRuleContract {

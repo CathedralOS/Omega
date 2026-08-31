@@ -3,11 +3,17 @@
 //! The three exact rule families share one analysis/invalidation contract but
 //! keep their expression and evidence mechanics in named leaves.
 
+mod accounting;
 mod compatible_policy;
 mod obligation_free;
 mod proof_certified;
 
-use super::*;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+
+use super::super::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 
 pub use compatible_policy::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule;
 pub use obligation_free::PhiTranslatedObligationFreeScalarGvnRule;
@@ -27,10 +33,7 @@ fn phi_translated_contract(
             AnalysisKind::UseDefinition,
             AnalysisKind::EffectSummaries,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
         safety,
     )
     .expect("built-in rule has nonzero version")

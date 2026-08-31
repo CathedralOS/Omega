@@ -1,6 +1,19 @@
 //! Proof-certified same-block common-subexpression elimination.
 
-use super::*;
+use std::collections::BTreeMap;
+
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use omega_optimization_unit::{
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate,
+};
+
+use crate::rules::passes::support::{accepted_obligation_fact, node_elision_accounting};
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{
+    effect_admission::exact_pure_scalar_effect, expression_keys::proof_certified_scalar_expression,
+};
+use super::same_block_contract;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockProofCertifiedScalarCseRule;

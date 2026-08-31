@@ -133,6 +133,12 @@ GVN's `expression_keys/` group owns a closed key model and three explicit
 classifiers: total, proof-certified, and directional compatible-policy. Those
 vocabulary leaves import their own operation and scalar types rather than
 inheriting the broader traversal namespace from the GVN entrance.
+`effect_admission.rs` owns the shared exact-pure query, while provenance
+accounting that only applies to join-parameter translation lives beside that
+family in `phi_translated/accounting.rs`. The pass entrance is therefore only
+the module map, test-only classifier visibility, and exact sixteen-row roster;
+all local, dominating, phi-translated, and identity leaves name their own
+dependencies.
 
 ## Semantic folder templates
 

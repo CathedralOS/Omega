@@ -1,10 +1,22 @@
 //! Obligation-free same-block common-subexpression elimination.
 
-use super::*;
+use std::collections::BTreeMap;
+
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use omega_optimization_unit::{
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate,
+};
+
+use crate::rules::passes::support::node_elision_accounting;
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{
+    effect_admission::exact_pure_scalar_effect, expression_keys::total_scalar_expression,
+};
+use super::same_block_contract;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockTotalScalarCseRule;
-
 
 impl SameBlockTotalScalarCseRule {
     pub fn contract() -> OptimizationRuleContract {
@@ -69,18 +81,13 @@ impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
                     };
                     let node_index =
                         u32::try_from(index).expect("optimization node index fits u32");
-                    let pure = effects.nodes.iter().any(|row| {
-                        row.revision == unit.identity
-                            && row.machine == function.machine
-                            && row.block == block.id
-                            && row.node == node_index
-                            && row.class == crate::EffectClass::PureScalar
-                            && row.observable == crate::EffectKnowledge::No
-                            && row.structural_state == crate::EffectKnowledge::No
-                            && row.crash == crate::EffectKnowledge::No
-                            && row.suspension == crate::EffectKnowledge::No
-                    });
-                    if !pure {
+                    if !exact_pure_scalar_effect(
+                        unit,
+                        effects,
+                        function.machine,
+                        block.id,
+                        node_index,
+                    ) {
                         continue;
                     }
                     let Some((leader, leader_operation, leader_result, leader_type)) =

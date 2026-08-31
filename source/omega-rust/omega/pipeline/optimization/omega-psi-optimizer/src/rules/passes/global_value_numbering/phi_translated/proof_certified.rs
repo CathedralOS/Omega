@@ -1,6 +1,20 @@
 //! Proof-certified total-scalar translation across join parameters.
 
-use super::*;
+use std::collections::{BTreeMap, BTreeSet};
+
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use omega_optimization_unit::{
+    NodeLocation, PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
+    PsiRewriteCandidate,
+};
+
+use crate::rules::passes::support::{accepted_obligation_fact, block_dominates};
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{
+    effect_admission::exact_pure_scalar_effect, expression_keys::proof_certified_scalar_expression,
+};
+use super::{accounting::phi_translated_cse_accounting, phi_translated_contract};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PhiTranslatedProofCertifiedScalarGvnRule;

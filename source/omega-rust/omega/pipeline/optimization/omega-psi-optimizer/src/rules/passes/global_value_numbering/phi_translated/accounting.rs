@@ -1,29 +1,15 @@
-//! Shared effect checks and provenance accounting for GVN rewrites.
+//! Provenance accounting for common-subexpression elimination across join parameters.
 
-use super::*;
+use std::collections::BTreeSet;
 
-pub(super) fn exact_pure_scalar_effect(
-    unit: &PsiOptimizationUnit,
-    effects: &crate::EffectSummaryAnalysis,
-    machine: MachineId,
-    block: BlockId,
-    node: u32,
-) -> bool {
-    effects.nodes.iter().any(|row| {
-        row.revision == unit.identity
-            && row.machine == machine
-            && row.block == block
-            && row.node == node
-            && row.class == crate::EffectClass::PureScalar
-            && row.observable == crate::EffectKnowledge::No
-            && row.structural_state == crate::EffectKnowledge::No
-            && row.crash == crate::EffectKnowledge::No
-            && row.suspension == crate::EffectKnowledge::No
-    })
-}
+use omega_optimization_unit::{
+    NodeLocation, PhiTranslatedScalarIncoming, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiRealizationSite,
+};
+use psi_core::BlockId;
 
 pub(super) fn phi_translated_cse_accounting(
-    function: &omega_optimization_unit::PsiOptimizationFunction,
+    function: &PsiOptimizationFunction,
     redundant: NodeLocation,
     incoming: &[PhiTranslatedScalarIncoming],
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {

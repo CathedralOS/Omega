@@ -7,7 +7,12 @@ mod compatible_policy;
 mod obligation_free;
 mod proof_certified;
 
-use super::*;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+
+use super::super::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 
 pub use compatible_policy::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
 pub use obligation_free::SameBlockTotalScalarCseRule;
@@ -22,10 +27,7 @@ fn same_block_contract(
         OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
         1,
         AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
         safety,
     )
     .expect("built-in rule has nonzero version")
