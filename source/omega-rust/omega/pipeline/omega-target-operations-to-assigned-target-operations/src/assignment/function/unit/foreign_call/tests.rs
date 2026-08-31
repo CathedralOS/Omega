@@ -267,11 +267,42 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
             },
         )
         .collect::<Vec<_>>();
-    assert!(
+    assert_eq!(
         assign_normalized_foreign_scalar_arguments_for_plan(
             &five_plan,
             target,
             &five_arguments,
+            &preceding,
+        ),
+        Ok(five_arguments)
+    );
+
+    let six_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(4, 4); 6],
+            result: None,
+        },
+    )
+    .unwrap()
+    .plan()
+    .clone();
+    let six_arguments = (0..6)
+        .map(
+            |index| omega_target_operations::NormalizedForeignScalarArgument {
+                source_value: argument.source_value,
+                scalar_type: argument.scalar_type,
+                immediate: argument.immediate,
+                parameter_index: index,
+                placement: six_plan.call.parameters[index as usize].clone(),
+            },
+        )
+        .collect::<Vec<_>>();
+    assert!(
+        assign_normalized_foreign_scalar_arguments_for_plan(
+            &six_plan,
+            target,
+            &six_arguments,
             &preceding,
         )
         .is_err()

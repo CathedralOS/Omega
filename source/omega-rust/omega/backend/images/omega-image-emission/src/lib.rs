@@ -1717,7 +1717,7 @@ fn validate_foreign_scalar_arguments(
     semantic_code_attribution: &[SemanticCodeAttribution],
     call: &omega_machine_code::ForeignCallRelocation,
 ) -> Result<(), ObjectError> {
-    if call.scalar_arguments.len() > 4 {
+    if call.scalar_arguments.len() > 5 {
         return Err(ObjectError::InvalidForeignCallArgument {
             caller,
             owner: call.owner,
@@ -1849,10 +1849,12 @@ fn validate_foreign_scalar_arguments(
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rsi) => 6,
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rdx) => 2,
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rcx) => 1,
+            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86R8) => 8,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(0)) => 0,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(1)) => 1,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(2)) => 2,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(3)) => 3,
+            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(4)) => 4,
             _ => {
                 return Err(ObjectError::InvalidForeignCallArgument {
                     caller,
@@ -1883,11 +1885,17 @@ fn validate_foreign_scalar_arguments(
         let mut expected_bytes = Vec::new();
         match target.architecture {
             Architecture::X86_64 if bits <= 32 => {
-                expected_bytes.push(0xb8 | register_number);
+                if register_number >= 8 {
+                    expected_bytes.push(0x41);
+                }
+                expected_bytes.push(0xb8 | (register_number & 7));
                 expected_bytes.extend_from_slice(&(value_bits as u32).to_le_bytes());
             }
             Architecture::X86_64 => {
-                expected_bytes.extend_from_slice(&[0x48, 0xb8 | register_number]);
+                expected_bytes.extend_from_slice(&[
+                    0x48 | ((register_number >> 3) & 1),
+                    0xb8 | (register_number & 7),
+                ]);
                 expected_bytes.extend_from_slice(&value_bits.to_le_bytes());
             }
             Architecture::Aarch64 => {
