@@ -62,6 +62,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         coordination_marker: "fn new(",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/mod.rs",
+        coordination_marker: "pub fn reconstruct_psi_optimization_unit_seed",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/mod.rs",
         coordination_marker: "pub fn new(",
     },
@@ -969,4 +973,16 @@ pub(super) const REQUIRED_REWRITE_MODEL_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/cfg_rewrite_plans.rs",
     "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/scalar_rewrite_plans.rs",
     "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/contracts.rs",
+];
+
+/// Optimization-unit seed construction keeps its plan/function/identity join
+/// above exact operation-projection responsibilities.
+pub(super) const REQUIRED_OPTIMIZATION_UNIT_CONSTRUCTION_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/mod.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/function.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/provenance.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/scalar_dataflow.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/control_flow.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/facts.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/structural_custody.rs",
 ];

@@ -63,7 +63,7 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
-- [x] Audit all 297 governed `lib.rs`/`mod.rs` files and explicitly classify
+- [x] Audit all 298 governed `lib.rs`/`mod.rs` files and explicitly classify
   each at its source as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall. The
@@ -108,8 +108,13 @@ decision. Only true language-semantic questions belong in
   leaf is 169 lines; public vocabulary, enum order, and identity bytes are
   unchanged. Neutral canonical writers now sit beside model and candidate
   codecs, so fact identities no longer depend on the candidate codec.
+- [x] Replace the 748-line optimization-unit seed constructor with a 67-line
+  executable plan/function/identity join over ordered function assembly,
+  provenance, scalar dataflow, control flow, facts, and structural custody.
+  Its largest leaf is 196 lines; diagnostic, effect, custody, and identity
+  order are unchanged.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 23 remain at 600-749
+  has no production-classified leaves at 750+ lines; 22 remain at 600-749
   lines.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
