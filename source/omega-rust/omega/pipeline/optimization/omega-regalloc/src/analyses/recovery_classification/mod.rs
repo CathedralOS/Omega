@@ -5,6 +5,7 @@ use crate::*;
 pub(crate) mod compute;
 pub(crate) mod identity;
 pub(crate) mod model;
+mod persistence;
 pub(crate) mod validate;
 
 pub use identity::recovery_classification_identity;

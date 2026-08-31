@@ -31,8 +31,11 @@ decision. Only true language-semantic questions belong in
    and four-test call native-differential suites are green. The broader
    no-fail-fast audit's stale compact-identity and generated-target inventories
    are repaired, and the 537-line package-review projection leaf now has a
-   semantic taxonomy below its ratchet. The access-plan, build-output, and
-   source-custody canaries still need isolation from recent provider changes.
+   semantic taxonomy below its ratchet. The 36-test access-plan suite and four
+   affected build-output replay canaries are green. The source-custody Console
+   canary now pins the one target with a closed exit identity and asserts that
+   the provider's remaining unclosed intrinsic children block review instead
+   of varying with the host. Broader workspace validation remains.
 
 ## P0 — Source navigation and taxonomy
 
@@ -150,8 +153,19 @@ decision. Only true language-semantic questions belong in
   and focused fixtures. Its largest leaf is 151 lines; the public
   `post_allocation/mod.rs` remains the sole producer-to-validator entrance and
   no rule catalog or execution boundary was duplicated.
+- [x] Replace the 722-line recovery-classification computation and 639-line
+  mixed semantic/persistence model with an 86-line compute coordinator over
+  function/victim classification, immediate eligibility, and exact work
+  accounting, plus a separate V3 persistence leaf. Every leaf is below 600
+  lines; `recovery_classification/mod.rs` remains the sole compute-to-
+  independent-validation entrance.
+- [x] Replace the 720-line x86 branch-relaxation computation with a 51-line
+  producer/replay-to-artifact coordinator over work admission, branch
+  inspection, production, independent replay, reflow, and artifact assembly.
+  Every production leaf is below 210 lines; the existing stage entrance and
+  sole exact-rule catalog retain execution and enablement ownership.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 17 remain at 600-749
+  has no production-classified leaves at 750+ lines; 14 remain at 600-749
   lines.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
