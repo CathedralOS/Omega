@@ -693,6 +693,15 @@ boundary trait Console {
 }
 ```
 
+The current `exit_process` spelling is a migration surface whose selected
+native realization is physically nonreturning. D39 does not infer successful
+external termination from the method name, its Unit result, a syscall number,
+or backend convention. A complete language contract must attach one explicit
+checked terminal-effect completion identity to the boundary operation and
+retain it through Terminal and provider selection. Until that carrier lands,
+the existing lowering is implementation evidence rather than reusable
+`TerminalTraceV1` termination authority.
+
 The write-only destination is an existing valid byte slice whose prior
 contents the provider is not authorized to inspect. A checked provider is
 verified transitively against that restriction. An opaque selected provider

@@ -77,6 +77,11 @@ Terminal replay contributes only the exact demanded boundary identity; later
 compiler-owned evidence rejoins that demand to the selected plan before choosing
 the existing `exit_group` realization. Lookalike symbols, targetless plans,
 sibling Console operations, and non-Linux targets confer no catalog identity.
+This row closes physical provider selection and emission only. D39 requires a
+distinct checked terminal-effect completion identity before
+`TerminalTraceV1` may observe successful external termination; neither the Unit
+signature nor the backend's knowledge that `exit_group` does not return may
+manufacture that semantic fact.
 Privileged target instructions belong to parsed, contract-emitting `asm {}`;
 `Binding::Instruction` is retired rather than preserving two ways to state the
 same operation with different visibility to effect and authority analysis.

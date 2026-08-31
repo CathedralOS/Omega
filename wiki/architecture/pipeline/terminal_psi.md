@@ -93,9 +93,13 @@ that field to precisely the bodyless boundaries called through it. Validation
 requires exact root/call equality and rejects missing attachments, duplicate or
 orphan roots, runtime `self`, and provider roots forwarded as arguments.
 
-Preservation is not realization. Omega target lowering accepts the one exact
-Linux `exit_process(i32)` shape through import-free `exit_group`, including the
-consumed scalar and nonreturning trap tail. It also accepts the exact literal-only
+Preservation is not realization. Omega target lowering currently accepts the
+one exact Linux `exit_process(i32) -> Unit` migration shape through import-free
+`exit_group`, including the consumed scalar and nonreturning trap tail. D39
+forbids treating that late provider fact as source-semantic external
+termination: the path is physical implementation evidence until the boundary
+contract and Terminal carry one explicit terminal-effect identity. It also
+accepts the exact literal-only
 Linux `write_line` settlement: x86-64 and AArch64 emit an import-free short-write
 loop over the retained bytes plus one newline, and object/image/installation
 validation replays the code, data intervals, and structural custody. Other
@@ -106,12 +110,16 @@ effect input as an ordinary machine return or introduce a private pre-terminal
 IR to evade this fence.
 
 The production compiler now supplies that distinct later binding for the first
-sealed ordinary intrinsic: Linux `Console::exit_process(i32) -> Unit`.
+sealed ordinary intrinsic: the transitional Linux
+`Console::exit_process(i32) -> Unit` shape.
 Canonical Terminal replay preserves the exact called boundary requirement;
 selected-dispatch catalog review independently rejoins the toolchain-owned
 requirement and realization symbols, normalized signatures and conformance,
 payloadless binding, and selected Linux profile. Only then may provider evidence
-select the existing `exit_group` realization. This grants neither a sibling
+select the existing `exit_group` realization. This closes provider selection
+and physical emission, but under D39 it does not close the reusable execution
+observation: neither a Unit requirement nor a nonreturning syscall proves
+successful external termination. This grants neither a sibling
 Console operation nor a Darwin or Windows realization, and retained ELF custody
 still does not imply publication without compiler-function validation evidence.
 
@@ -2844,6 +2852,45 @@ unreachable, unless specialization makes erasure valid.
 These normalized obligations are semantic and fingerprinted. Their proof
 derivations remain replaceable proof-bundle material.
 
+## Canonical observation profile
+
+D39 fixes `TerminalTraceV1` as a static observer reconstructed from the exact
+canonical module. It is not a per-execution result record. The module-scoped
+profile instance binds the Terminal vocabulary and module commitment; one root
+row; every crash site; every ordinary external-event site; and every declared
+terminal-external site. Canonical rows use exact Terminal coordinates and
+semantic type/comparison identities. The runtime trace carries actual values in
+execution order:
+
+```text
+ExternalEvent* Return(value)
+ExternalEvent* Crash(Trap | Abort)
+ExternalEvent* ExternalTerminate(effect identity, arguments)
+infinite maximal execution through its finite observable prefixes
+```
+
+Site coordinates prove correspondence but are not user-visible trace values.
+`BoundaryCall` and direct semantic service operations such as `PortWrite` are
+ordinary events in version 1. Every new operation variant must receive an
+explicit known classification. Unknown versions or classifications and empty,
+missing, duplicate, stale, substituted, padded, or misordered site rows reject.
+The proof producer supplies none of them. Exact profile equality permits proof
+replay under the same observer but never substitutes for the refinement proof.
+
+A terminal-external event requires an explicit checked boundary completion
+identity. `never` alone proves no normal return but cannot distinguish
+successful termination from divergence or crash. Terminal therefore still
+needs a closed completion carrier such as
+`TerminatesExternally(effect_identity)` and a terminal invocation form. The
+current ordinary Unit `exit_process` call, interpreter spelling match, and
+provider-selected nonreturning backend operation are migration facts rather
+than issuers for this row.
+
+Fixed fuel, timeout, and `Incomplete` outcomes remain in consumer profiles.
+Compiler products compose input, diagnostics, artifact bytes, and product
+resource outcomes over this reusable trace. Deployment adds the distinct
+formal-target-to-silicon admission.
+
 ## Verification boundary
 
 The artifact verifier, proof kernel, and proof producer have distinct jobs:
@@ -2872,9 +2919,9 @@ identity, semantics versions, target capsule, observation profile, bridge
 dependencies, and admissions are canonical identity rather than proof-bundle
 annotations.
 
-The producer never supplies the required observation profile. The verifier
-derives it from canonical semantics, boundary/component contracts, and the
-consumer-selected deployment policy. Exact equality is the first sound replay
+The producer never supplies the required observation profile. Under D39 the
+verifier derives it from canonical semantics, boundary/component contracts,
+and the consumer-selected typed schema. Exact equality is the first sound replay
 gate. A later cross-profile reuse path must carry a checked canonical forgetting
 projection; two profiles may be incomparable. A profile omitting all
 observations therefore cannot trivialize a nonempty reconstructed obligation.

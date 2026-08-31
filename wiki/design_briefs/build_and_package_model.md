@@ -2563,7 +2563,12 @@ Package review v97/canonical row v55 closes the first compiler-intrinsic catalog
 identity for the exact selected Linux `Console::exit_process(i32) -> Unit`
 requirement and realization. Targetless, non-Linux, wrong-symbol,
 wrong-signature, and sibling rows remain closed; further intrinsic entries still
-require their own catalog settlement. Canonical recovery remains v14.
+require their own catalog settlement. Canonical recovery remains v14. This is
+physical execution identity, not the D39 semantic external-termination row:
+Unit and a provider-known nonreturning realization do not establish successful
+termination. That authority remains closed until one explicit checked
+terminal-effect completion identity survives from the boundary contract through
+Terminal and the selected target realization.
 
 For a selected payload-bearing top-level external satisfier, provider planning
 extracts the foreign calling row from the same exact selected plan. The ABI

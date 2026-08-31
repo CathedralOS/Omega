@@ -153,7 +153,7 @@ arity, complete argument typing, and value/resultless/`never` production for
 direct-qualified, unqualified, data-receiver, and sealed-boundary spellings.
 Exact catalog ownership gives `self` its nominal value and storage place only
 inside a receiver-bearing qualified data machine and all of that machine's
-states; invalid `self` remains factless pending Q11's rejection ruling.
+states; invalid `self` remains factless pending Q10's rejection ruling.
 Grouped named-receiver heads preserve exact data-machine or boundary-member
 custody before receiver-place and signature checks. Static machines are never
 inferred to have a receiver. Same-spelled record fields fall back to ordinary
@@ -205,7 +205,7 @@ argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
 an embedded `never` result is `InvalidTerminal`. Every authored argument keeps
 its explicitly anchored `never` branch independently of callee admission and
-arity; Q12 blocks the unspecified resultless-argument anchor. Let and `assert`
+arity; Q11 blocks the unspecified resultless-argument anchor. Let and `assert`
 relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into

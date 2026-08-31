@@ -338,70 +338,7 @@ event occurred.
   numeric boundary ID, globally permit unresolved boundaries, or require users
   to install/audit code that is actually shipped inside the compiler backend.
 
-## Q6 — Define the first canonical Terminal observation profile
-
-### Context
-
-The proof-kernel and Terminal architecture require the artifact verifier to
-reconstruct one nonempty observation profile, bind it into the artifact subject,
-and admit replay only at exact profile equality until checked forgetting
-projections exist. They correctly forbid the proof producer from choosing or
-weakening that profile. The current specification does not define the Terminal
-profile's canonical fields or their identity encoding.
-
-The surrounding documents name several possible observations at different
-layers: source inputs and diagnostics, ordinary return values, crash/trap
-outcomes, boundary and service effects, fixed-fuel exhaustion or incomplete
-results, artifact bytes, and deployment policy. Some belong to reusable
-Terminal semantics, some to a compiler/bootstrap product, and some only to a
-deployment verdict. Choosing which participate changes the refinement claim
-and whether two artifacts or consumers may reuse one certificate.
-
-### Problem statement
-
-Define the first versioned canonical Terminal observation profile, including:
-
-1. the exact observation kinds and coordinates retained for returns, crashes,
-   external effects, and bounded-execution outcomes;
-2. which fields are reconstructed solely from canonical Terminal semantics and
-   contracts, and which are supplied by an authenticated consumer or deployment
-   policy;
-3. the canonical ordering and identity encoding, including the rule that an
-   empty or unknown profile rejects; and
-4. whether source diagnostics and artifact bytes belong to this reusable
-   Terminal profile or to separate compiler/bootstrap subject profiles.
-
-Without this ruling, an implementation can add only an opaque constant or hash
-of convenient current Rust inputs. Exact equality of that value would not
-establish the specified semantic observation relation.
-
-### Proposed direction
-
-Make the reusable Terminal profile a closed, versioned set of semantic
-observations reconstructed from the verified module: root normal-return value
-shape, crash cause and semantic site, and ordered bodyless-boundary/service
-events with their canonical argument/result identities. Put fixed-fuel
-exhaustion in the fixed-fuel consumer profile, and keep source diagnostics,
-artifact bytes, and formal-target-to-silicon admissions in their distinct
-compiler or deployment subjects. A consumer requesting artifact replay supplies
-an authenticated expected profile identity; the verifier derives the artifact
-profile independently and initially requires exact equality.
-
-### Alternates
-
-- Acceptable: define one deliberately broader first profile that always
-  observes every canonical Terminal outcome and external event, provided its
-  fields and version are explicit and nonempty rather than represented by an
-  unexplained constant.
-- Acceptable: include bounded exhaustion/incomplete outcomes in the reusable
-  profile, provided ordinary, interpreted, fixed-fuel, and native consumers get
-  total profile-construction rules.
-- Tempting but wrong: hash `AdmissionProfile`, the proof bundle, or the module
-  and call that an observation profile; let the producer serialize its preferred
-  flags; infer strength from set inclusion or names; or treat exact equality of
-  two empty/opaque profile tokens as a refinement result.
-
-## Q7 — Retire resolver execution custody that adds no source guarantee
+## Q6 — Retire resolver execution custody that adds no source guarantee
 
 ### Context
 
@@ -475,7 +412,7 @@ production protocol.
   unused sandbox executable to remain unchanged, or forbid an operator's
   HTTPS-to-SSH rewrite while claiming host Git configuration is inherited.
 
-## Q8 — Keep carrier cleanup out of opaque semantic ownership
+## Q7 — Keep carrier cleanup out of opaque semantic ownership
 
 ### Context
 
@@ -525,7 +462,7 @@ resource-owning representation protocol.
   treat an ABI copy as semantic copying, or publish a D26 demand before the
   lifecycle join is complete.
 
-## Q9 — Define the closed terminal-authority classification policy
+## Q8 — Define the closed terminal-authority classification policy
 
 ### Context
 
@@ -588,7 +525,7 @@ missing leaves, and unclassified physical operations.
   unknown means harmless; or map every binding beneath a service to that
   service's permitted class set.
 
-## Q10 — Fix the zero-parameter Delta state-transfer spelling
+## Q9 — Fix the zero-parameter Delta state-transfer spelling
 
 ### Context
 
@@ -624,7 +561,7 @@ before arity rather than letting zero arity select a meaning.
   declaration has matching arity, or let source order choose state versus
   machine.
 
-## Q11 — Assign invalid Delta `self` diagnostics
+## Q10 — Assign invalid Delta `self` diagnostics
 
 ### Context
 
@@ -658,7 +595,7 @@ place; receiver mutability is therefore not guessed from use.
 - Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
   recovery receiver, or defer the failure until a later field/call suffix.
 
-## Q12 — Anchor a resultless Delta call used as an argument
+## Q11 — Anchor a resultless Delta call used as an argument
 
 ### Context
 

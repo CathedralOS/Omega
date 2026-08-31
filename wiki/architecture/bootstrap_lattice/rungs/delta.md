@@ -79,7 +79,7 @@ classifier plus complete index/slice joins now retain settled projection
 failures and resultless/`never` categories without manufacturing relations from
 missing sibling facts. Scalar operators retain complete category branches;
 application arguments retain their explicitly anchored `never` branch while
-Q12 blocks the resultless anchor. Let/assignment/assert relations consume only
+Q11 blocks the resultless anchor. Let/assignment/assert relations consume only
 their complete value/place premises and preserve storage `u8` establishment. Expression
 use distinguishes an ordinary value, call head, discarded postfix statement,
 and transition continuation rather than collapsing the latter three. Grouped
@@ -91,8 +91,8 @@ publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
 case/machine collision census, direct qualified applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
-continuation/state classification including Q10's state-transfer spelling,
-Q11's invalid-`self` diagnostic, and Q12's resultless-argument anchor remain
+continuation/state classification including Q9's state-transfer spelling,
+Q10's invalid-`self` diagnostic, and Q11's resultless-argument anchor remain
 open. D37's field/index/slice projection failures, scalar categories,
 argument-`never` branch, and let/assignment/assert relations are implemented;
 its remaining control, return, and terminal-flow composition remains open. D38

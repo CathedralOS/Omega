@@ -838,7 +838,8 @@ Remaining:
   bodyless-machine cases.
 
   The first ordinary boundary-trait compiler-intrinsic catalog entry is now
-  closed end to end for Linux `Console::exit_process(i32) -> Unit`. Checked
+  physically closed through provider selection and native emission for Linux
+  `Console::exit_process(i32) -> Unit`. Checked
   settlement rejoins the exact toolchain-owned requirement and realization
   symbols, their normalized signatures and conformance, the payloadless
   `CompilerIntrinsic` binding, and the independently selected canonical Linux
@@ -851,8 +852,14 @@ Remaining:
   exact selected-plan provider evidence. Both Linux x86-64 and AArch64 then
   reuse the existing settlement-gated `exit_group` realization and retain one
   provider execution, one boundary settlement, and an ELF NativeArtifact in a
-  product-source canary. Compiler-function publication certification remains
-  a later engineering rung; read/write Console leaves, Darwin/Windows exits,
+  product-source canary. D39 deliberately withholds semantic external-
+  termination authority from this migration shape: Unit plus a backend-known
+  nonreturning syscall does not distinguish successful termination from crash
+  or divergence. Carry the same explicit checked terminal-effect completion
+  identity through the boundary contract, checked trees, Terminal, and target
+  realization before using this path in `TerminalTraceV1`. Compiler-function
+  publication certification remains a later engineering rung; read/write
+  Console leaves, Darwin/Windows exits,
   source-form inference, and removal of `via Binding::CompilerIntrinsic`
   remain open.
 
@@ -3826,9 +3833,22 @@ Remaining:
   a deployment-scoped admission rather than contaminating the reusable artifact
   seal. Render every verdict with source/artifact subjects, semantics versions,
   profile, and disclosed artifact/deployment admissions; never emit an
-  unqualified `verified` label. The first canonical Terminal profile schema and
-  its compiler-versus-deployment partition require owner Q6; do not substitute
-  an opaque hash of current Rust verifier inputs for that semantic ruling.
+  unqualified `verified` label.
+
+  Implement D39's `TerminalTraceV1` as a versioned typed schema and a canonical
+  module-derived instance, not an opaque hash of current Rust verifier inputs.
+  Add canonical encode/decode and reconstruction for the root, crash,
+  ordinary-event, and terminal-external rows; exact semantic value comparison;
+  maximal finite and infinite trace refinement; and checked forgetting
+  projections before any cross-profile replay. Unknown versions, event
+  classifications, missing/extra/duplicate/reordered rows, and producer-
+  supplied weakening must reject. Carry an explicit checked
+  `TerminatesExternally(effect_identity)`-class completion fact and terminal
+  invocation form from boundary declaration through checked trees, Terminal
+  codec/verifier/interpreter, provider selection, and target emission. Delete
+  the interpreter spelling match and backend-only invention as authority once
+  that join is live. Keep fixed fuel, compiler diagnostics/artifacts, and
+  deployment admissions in their D39-defined consumer/product layers.
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace the current trusted Rust fusion of
   artifact traversal and algebraic reduction with the settled two-part closure.
   A total low-rung generator consumes canonical terminal-Psi bytes, validates
@@ -8990,7 +9010,7 @@ compiler concept is introduced.
   enabled facets. Evidence over the current raw `i32` descriptors may claim
   operation classes only. Add typed unforgeable descriptor handles and checked
   attenuation before claiming that reads or writes are confined to objects
-  opened with corresponding authority. The redirect is owner-blocked on Q9's
+  opened with corresponding authority. The redirect is owner-blocked on Q8's
   first closed target/binding classification table; the containment formula
   alone does not determine authority for current syscall, import, firmware,
   table, or checked-physical coordinates.
@@ -10338,9 +10358,11 @@ boundary without its corresponding checked law.
   bootstrap with ordinary typed compile-time values.** The intrinsic binding
   value shape is complete: `CompilerIntrinsic` is payloadless, while exact
   realization symbol, signature, and target select a sealed catalog entry.
-  The first production entry and native handoff now cover Linux
-  `Console::exit_process(i32) -> Unit`; the remaining intrinsic catalog and
-  source-form migration stay open under the provider work above. For imported leaves,
+  The first production entry and native handoff now physically cover Linux
+  `Console::exit_process(i32) -> Unit`; under D39 this is not yet semantic
+  external-termination authority. The remaining intrinsic catalog, the
+  explicit checked completion-kind join, and source-form migration stay open
+  under the provider and observation-profile work above. For imported leaves,
   add const-generic typed object-format locator cases over ordinary fixed byte
   arrays (`PeByName`, `PeByOrdinal`, versioned ELF symbols, and later peers).
   Target-scoped ordinary machines construct complete `Binding` values; `via`
