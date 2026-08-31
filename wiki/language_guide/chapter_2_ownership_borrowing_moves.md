@@ -277,15 +277,16 @@ themselves authority. Terminal Psi independently reconstructs and replays this
 evidence before publishing post-reborrow use or root custody.
 
 The first checked post-reactivation use row is deliberately narrower than that
-publication boundary. It accepts one direct mutable parent, one mutable or
-write-only child that ends by last use, and the exact next receiver-free call
+publication boundary. It accepts one direct mutable parent and an exact mutable
+or write-only child while other non-overlapping sequential siblings may occur
+in the state, when that child ends by last use before the exact next receiver-free call
 whose sole mutable parameter consumes the bare parent carrier and mutates the
 whole restored referent. It independently rejoins the child and parent
 resources, exclusive-suspension containment, reactivation, weakening, call,
-entry-loan, access, place, and target evidence. Shared cohorts, multihop or
-sequential children, state exit, projected arguments, receiver calls, direct
-assignment, and partial mutation remain outside this row. The row is checked
-evidence only; Terminal publication remains separate.
+entry-loan, access, place, and target evidence. Shared cohorts, multihop
+children, concurrent siblings, state exit, projected arguments, receiver
+calls, direct assignment, and partial mutation remain outside this row. The row
+is checked evidence only; Terminal publication remains separate.
 
 Published root custody remains deliberately narrow but now covers a finite
 linear exclusive lineage. One direct-root mutable loan may lend a mutable or
