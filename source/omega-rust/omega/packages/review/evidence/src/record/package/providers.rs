@@ -266,6 +266,26 @@ pub enum PackageReviewBoundaryApplication {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewBoundaryApplicationRealizationRole {
     NongenericCheckedBody,
+    ExactCompilerIntrinsic,
+}
+
+/// Role-specific semantic realization retained for one exact application.
+///
+/// Checked bodies and compiler intrinsics do not share a meaningful payload:
+/// the former is authorized by an independently replayed machine contract,
+/// while the latter is identified by the compiler's closed execution catalog.
+/// Keeping them as disjoint variants prevents absent fields from being
+/// mistaken for evidence supplied by another role.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewBoundaryApplicationRealization {
+    NongenericCheckedBody {
+        realization_machine: PackageReviewNominalIdentity,
+        realization_state: PackageReviewNominalIdentity,
+        realization_contract_commitment: [u8; 32],
+    },
+    ExactCompilerIntrinsic {
+        execution: PackageReviewCompilerIntrinsicExecution,
+    },
 }
 
 /// One actual checked boundary-operator application rejoined to its exact
@@ -274,16 +294,13 @@ pub enum PackageReviewBoundaryApplicationRealizationRole {
 /// This row deliberately stops before Terminal/native coverage. It records a
 /// compiler-rechecked semantic relation for review and makes no claim that
 /// machine code was emitted or that any external authority admitted it.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPackageBoundaryApplicationRealizationReview {
     pub(crate) requirement_identity: String,
     pub(crate) operator_declaration: PackageReviewNominalIdentity,
     pub(crate) application: PackageReviewBoundaryApplication,
     pub(crate) selected_plan_digest: [u8; 32],
-    pub(crate) role: PackageReviewBoundaryApplicationRealizationRole,
-    pub(crate) realization_machine: PackageReviewNominalIdentity,
-    pub(crate) realization_state: PackageReviewNominalIdentity,
-    pub(crate) realization_contract_commitment: [u8; 32],
+    pub(crate) realization: PackageReviewBoundaryApplicationRealization,
 }
 
 impl CheckedPackageBoundaryApplicationRealizationReview {
@@ -304,19 +321,18 @@ impl CheckedPackageBoundaryApplicationRealizationReview {
     }
 
     pub const fn role(&self) -> PackageReviewBoundaryApplicationRealizationRole {
-        self.role
+        match self.realization {
+            PackageReviewBoundaryApplicationRealization::NongenericCheckedBody { .. } => {
+                PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody
+            }
+            PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic { .. } => {
+                PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic
+            }
+        }
     }
 
-    pub const fn realization_machine(&self) -> &PackageReviewNominalIdentity {
-        &self.realization_machine
-    }
-
-    pub const fn realization_state(&self) -> &PackageReviewNominalIdentity {
-        &self.realization_state
-    }
-
-    pub const fn realization_contract_commitment(&self) -> &[u8; 32] {
-        &self.realization_contract_commitment
+    pub const fn realization(&self) -> &PackageReviewBoundaryApplicationRealization {
+        &self.realization
     }
 }
 

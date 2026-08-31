@@ -21,6 +21,11 @@ pub machine FloatProvider::negate_f32(value: f32) -> f32
 pub machine FloatProvider::negate_f64(value: f64) -> f64
     satisfies F64::negate
     via Binding::CompilerIntrinsic;
+
+machine exercise() {
+    let negative32: f32 = F32::negate(1.0f32);
+    let negative64: f64 = F64::negate(1.0f64);
+}
 "#,
     );
     package.write(
@@ -76,6 +81,33 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         );
     }
 
+    let applications = review.boundary_application_realizations();
+    assert_eq!(applications.len(), 2);
+    for (requirement, format) in [
+        ("F32::negate", psi_numerics::literals::FloatFormat::F32),
+        ("F64::negate", psi_numerics::literals::FloatFormat::F64),
+    ] {
+        let application = applications
+            .iter()
+            .find(|application| application.operator_declaration().path() == requirement)
+            .unwrap_or_else(|| panic!("missing exact application for {requirement}"));
+        assert_eq!(
+            application.application(),
+            PackageReviewBoundaryApplication::Empty
+        );
+        assert_eq!(
+            application.role(),
+            PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic,
+        );
+        assert!(matches!(
+            application.realization(),
+            PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+                execution: PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(actual),
+            } if *actual == format
+        ));
+        assert_ne!(application.selected_plan_digest(), &[0; 32]);
+    }
+
     let selected_rows = review
         .canonical_rows()
         .expect("canonical negation provider rows")
@@ -90,6 +122,76 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .expect("selected negation-provider recovery envelope should decode");
         assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
     }
+    let application_rows = review
+        .canonical_rows()
+        .expect("canonical intrinsic application rows")
+        .into_iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationRealization)
+        .collect::<Vec<_>>();
+    assert_eq!(application_rows.len(), 2);
+    for row in application_rows {
+        let decoded = decode_package_review_canonical_row(
+            &encode_package_review_canonical_row(&row)
+                .expect("intrinsic application recovery envelope should encode"),
+        )
+        .expect("intrinsic application recovery envelope should decode");
+        assert_eq!(decoded.canonical_bytes(), row.canonical_bytes());
+    }
+}
+
+#[test]
+fn intrinsic_application_rejects_post_check_selected_plan_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::negate(value: f32) -> f32;
+pub data FloatProvider {}
+pub machine FloatProvider::negate(value: f32) -> f32
+    satisfies F32::negate
+    via Binding::CompilerIntrinsic;
+machine exercise(value: f32) -> f32 { F32::negate(value) }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("intrinsic application drift fixture should check");
+    let (actual_use, _) = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .next()
+        .expect("one actual named intrinsic use");
+    checked
+        .facts
+        .operators
+        .named_uses
+        .get_mut(actual_use)
+        .provider_plan_commitment = psi_checked_trees::CheckedProviderPlanCommitment::default();
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("post-check selected-plan substitution must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("rejoins 0 exact selected provider plans")
+    }));
 }
 
 #[test]
@@ -199,6 +301,7 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
             ));
         }
     }
+    source.push_str("machine exercise_add(left: f32, right: f32) -> f32 { left + right }\n");
 
     let package = TempPackage::new();
     package.write("main.omg", &source);
@@ -244,6 +347,22 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             assert_eq!(row.compiler_intrinsic_builtin(), None);
         }
     }
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one actual primitive-float application")
+    };
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic,
+    );
+    assert!(matches!(
+        application.realization(),
+        PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+            execution: PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary {
+                operation: Operation::Add,
+                format: FloatFormat::F32,
+            },
+        }
+    ));
 
     let selected_provider_row = review
         .canonical_rows()
