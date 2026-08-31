@@ -14,6 +14,7 @@
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::machine::Machine;
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use crate::BuildTimeValue;
@@ -263,6 +264,59 @@ impl BuildTimeAdmissionPlan {
             machine_symbol,
             arguments,
         )
+    }
+
+    /// Return the exact checked-machine closure admitted for one compiler
+    /// invocation. The root is included. Consumers may commit this set beside
+    /// a decoded result, but must still derive stable symbol and source
+    /// identities rather than persisting arena handles.
+    pub fn admitted_machine_closure_symbols(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<Vec<SymbolHandle>, String> {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .ok_or_else(|| {
+                format!(
+                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+                )
+            })?;
+        self.require_common_floor_for_invocation(program, machine, custody)?;
+
+        let machine_symbols = program
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .collect::<Vec<_>>();
+        let mut pending = VecDeque::from([machine_symbol]);
+        let mut closure = Vec::new();
+        while let Some(source) = pending.pop_front() {
+            if closure.contains(&source) {
+                continue;
+            }
+            closure.push(source);
+            for target in self
+                .call_edges
+                .iter()
+                .filter(|edge| edge.source_machine_symbol == source)
+                .map(|edge| edge.target_machine_symbol)
+            {
+                if !target.is_valid() || !machine_symbols.contains(&target) {
+                    return Err(format!(
+                        "build-time machine closure rooted at `{}` contains an unresolved machine target",
+                        machine.name,
+                    ));
+                }
+                if !closure.contains(&target) {
+                    pending.push_back(target);
+                }
+            }
+        }
+        Ok(closure)
     }
 
     /// Admit and evaluate one machine whose result position explicitly
