@@ -41,6 +41,9 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         panic!("one exact external executable-supply row")
     };
     assert_eq!(supply.callable().path(), "LinuxCompletion::complete");
+    assert_eq!(supply.signature().lifetime_parameter_count(), 0);
+    assert_eq!(supply.signature().type_parameter_count(), 0);
+    assert_eq!(supply.signature().parameters().len(), 1);
     assert_eq!(
         supply.binding(),
         &PackageReviewExternalBinding::Syscall { number: 60 }

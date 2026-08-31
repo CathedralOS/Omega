@@ -16,8 +16,9 @@ use super::external_supply::{
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewCallableConformance, PackageReviewExternalBinding,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewNominalIdentity, PackageReviewOperatorRealization,
+    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
+    PackageReviewExternalRequirement, PackageReviewNominalIdentity,
+    PackageReviewOperatorRealization,
 };
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
@@ -29,6 +30,7 @@ pub(super) fn project_callable_conformances(
     machine: &psi_typed_trees::machine::Machine,
     callable_identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
+    external_callable_signature: Option<&PackageReviewExternalCallableSignature>,
     require_public_trait: bool,
 ) -> Result<
     (
@@ -67,7 +69,13 @@ pub(super) fn project_callable_conformances(
                 ))]);
             }
             validate_external_binding_payload(compilation, machine, identity)?;
-            Some((binding, project_external_binding(identity)))
+            let Some(signature) = external_callable_signature else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has no self-contained executable-supply signature",
+                    machine.name
+                ))]);
+            };
+            Some((binding, project_external_binding(identity), signature))
         }
         MachineSupplyMode::CheckedBody
         | MachineSupplyMode::Requirement
@@ -111,7 +119,7 @@ pub(super) fn project_callable_conformances(
                     machine.name
                 ))]);
             }
-            (Some((expected, _)), Some(actual)) if *expected != actual => {
+            (Some((expected, _, _)), Some(actual)) if *expected != actual => {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed external callable `{}` has a conformance binding inconsistent with its supply mode",
                     machine.name
@@ -177,7 +185,7 @@ pub(super) fn project_callable_conformances(
                         machine.name, requirement.name
                     ))]);
                 }
-                let Some((_, binding)) = expected_external.as_ref() else {
+                let Some((_, binding, signature)) = expected_external.as_ref() else {
                     unreachable!("external supply was checked above")
                 };
                 if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) {
@@ -197,6 +205,7 @@ pub(super) fn project_callable_conformances(
                     conformance,
                     PackageReviewExternalExecutableSupply {
                         callable: callable_identity.clone(),
+                        signature: (*signature).clone(),
                         requirement: PackageReviewExternalRequirement::TopLevelRequirement(
                             top_level_requirement_identity(compilation, requirement)?,
                         ),
@@ -258,7 +267,7 @@ pub(super) fn project_callable_conformances(
                 ))]);
             }
             if external_operator {
-                let Some((_, binding)) = expected_external.as_ref() else {
+                let Some((_, binding, signature)) = expected_external.as_ref() else {
                     return Err(vec![Diagnostic::error(format!(
                         "reviewed callable `{}` realizes boundary operator `{}::{}` through an external binding without exact external supply",
                         machine.name, conformance.name, requirement_name
@@ -311,6 +320,7 @@ pub(super) fn project_callable_conformances(
                     conformance,
                     PackageReviewExternalExecutableSupply {
                         callable: callable_identity.clone(),
+                        signature: (*signature).clone(),
                         requirement: PackageReviewExternalRequirement::Operator(coordinate),
                         binding: binding.clone(),
                     },
@@ -463,12 +473,13 @@ pub(super) fn project_callable_conformances(
                 .as_ref()
                 .map(|alias| alias.as_str().to_owned()),
         };
-        if let Some((_, binding)) = expected_external.as_ref() {
+        if let Some((_, binding, signature)) = expected_external.as_ref() {
             external_executable_supply.push(project_external_executable_supply_with_source(
                 machine,
                 conformance,
                 PackageReviewExternalExecutableSupply {
                     callable: callable_identity.clone(),
+                    signature: (*signature).clone(),
                     requirement: PackageReviewExternalRequirement::Trait(row.clone()),
                     binding: binding.clone(),
                 },
