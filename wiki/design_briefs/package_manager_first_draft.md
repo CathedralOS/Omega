@@ -1260,24 +1260,26 @@ final substitution closes every binder and rejoins the exact selected plan.
 Checked generic bodies use ordinary authoritative specialization, while
 bodyless or external supply requires independently admitted concrete authority.
 The retained realization is a role-tagged sum rather than a common row with
-optional specialization fields. Empty telescopes have one cheap canonical
-empty application. Bootstrap lowering cannot publish authoritative coverage.
+optional specialization fields. A boundary operator whose telescope has
+length zero has one cheap canonical empty application; an ordinary boundary-
+trait machine has no telescope and never uses that value. Bootstrap lowering
+cannot publish authoritative coverage.
 Under D28, every emitted artifact retains this finite exact set even if a future
 checked generic body proves universal semantic selection coverage. No such
 checked generic operator realization exists today, so generic coverage remains
 deliberately unrepresented; provider assertions and one successful
 specialization grant nothing.
 
-D32 keeps that package-facing semantic evidence separate from native physical
-realization. The immutable canonical Terminal artifact feeds a validated
-optimization projection. Every surviving boundary-operation occurrence
-carrying a D29 row has one `NativeArtifact` physical child bound to both its
-Terminal parent and distinct optimized-operation identity. Equal applications
+D32 keeps semantic evidence separate from native physical realization. The
+immutable canonical Terminal artifact feeds a validated optimization
+projection. Every surviving settled boundary occurrence has one
+`NativeArtifact` physical child. Its role-tagged `PhysicalChildParent` is
+either an `OperatorApplicationCoverageRef` to reconstructible D29 coverage or
+a complete replayable D41 `BoundaryTraitSettlement`. Equal D29 applications
 may share a semantic parent row but not a physical child. Native replay derives
-the survivor set and rejects missing, duplicate, stale, substituted, or padded
-children. Package
-review does not claim assigned homes, relocation, or emitted bytes merely
-because its semantic D29 row is complete.
+the survivor set and rejects missing, duplicate, stale, substituted, padded,
+or role-swapped children. Package review does not claim assigned homes,
+relocation, or emitted bytes merely because its semantic D29 row is complete.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
@@ -2326,7 +2328,11 @@ selected intrinsic row, one Terminal boundary, and the consuming lowerer's
 local ELF catalog. Physical custody retains the closed role
 `CompilerBuiltin(LinuxExitGroupI32)` through image and installation framing
 while provider-execution reports remain empty. Installed and foreign
-implementations continue through their separate admitted-provider role.
+implementations continue through their separate admitted-provider role. The
+planner-to-lowerer catalog conversion is one exhaustive `match` returning an
+optional `CompilerBuiltinExecution`, and the admitted D41 settlement remains
+complete replay input for its D32 physical child rather than collapsing to a
+commitment.
 
 Dependency evidence composes transitively. Each subject retains its own
 obligation-semantics identity. Checked obligations compose upward. Missing or

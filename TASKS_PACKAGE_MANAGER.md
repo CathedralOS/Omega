@@ -49,8 +49,10 @@ stop the item on one precise owner question before adding machinery.
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact
-    Terminal parent and surviving optimized operation occurrence; the complete
-    child set must equal the derived surviving set. Lifetime, machine, and
+    role-tagged `PhysicalChildParent` and surviving optimized operation
+    occurrence; the complete child set must equal the derived surviving set.
+    D29 parents reference reconstructible operator coverage; D41 parents retain
+    and replay complete boundary-trait settlements. Lifetime, machine, and
     proposition operator applications remain fail-closed. D28 authorizes no
     universal generic coverage; only compiler-derived demand joined to an
     independently checked application-specific realization may authorize a
@@ -91,9 +93,10 @@ stop the item on one precise owner question before adding machinery.
   `CompilerBuiltin(LinuxExitGroupI32)` physical record, and mint no provider
   execution or installation receipt. Installed and foreign implementations
   retain their disjoint admitted execution custody. Extend the closed builtin
-  sum only with another demanded local target mechanism, and finish D32's
-  occurrence-specific physical-child binding rather than adding pre-lowering
-  fingerprints.
+  sum only with another demanded local target mechanism. Convert planner
+  classifications to `CompilerBuiltinExecution` with one exhaustive
+  `match -> Option`, then finish D32's occurrence-specific D41 physical-child
+  parent and replay rather than adding pre-lowering fingerprints.
 
   The first standalone-product lane now retains the selected provider-plan
   facts, external-binding requirements, target/profile, ProgramEntry, and
@@ -338,8 +341,10 @@ explicitly.
   selected role-specific semantic realization, attach rows to production
   selected plans, and add compiler-to-update tests. Then implement D32's exact
   native physical children over the validated optimized projection, including
-  per-occurrence parent bindings and missing/duplicate/stale/substituted/padded
-  rejection. Exercise distinct and equivalent const values.
+  the role-tagged D29/D41 `PhysicalChildParent`, complete D41 settlement
+  retention and replay, per-occurrence parent bindings, and
+  missing/duplicate/stale/substituted/padded/role-swapped rejection. Exercise
+  distinct and equivalent const values.
   Keep compatibility failure when a public family gains an uncovered
   coordinate. Universal generic coverage remains deliberately unimplemented
   under D28; package evidence must never substitute declaration order, display

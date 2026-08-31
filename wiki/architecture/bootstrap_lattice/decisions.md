@@ -981,7 +981,7 @@ checked-body evidence. Provider-authored `generic` flags, one successful
 concrete compilation, toolchain strings, and compact fingerprints never prove
 universal coverage.
 
-## D29 — Compiler-issued exact boundary-application coverage
+## D29 — Compiler-issued exact boundary-operator-application coverage
 
 One checked boundary-operator use produces a typed application demand rather
 than an arity plus display strings. An application binds each lifetime/static
@@ -1008,20 +1008,24 @@ A checked generic Omega realization is specialized once for each distinct
 closed demanded application through the ordinary authoritative machine-
 specialization path. The compiler rechecks the substituted signature,
 contracts, effects, target restrictions, admissions, selected provider plan,
-and semantic realization. The Terminal coverage fact retains the exact
-requirement coordinate, tagged application, strong selected-provider-plan
-identity, and one role-tagged realization payload. The closed realization
-roles are specialized checked body, nongeneric checked body, compiler
-intrinsic, and externally admitted concrete authority. The role discriminant
-participates in canonical identity; roles do not share optional template,
-specialization, or external-authority fields. D32 separately joins every
-surviving executable row to its late physical realization.
+and semantic realization. Target-neutral Terminal retains the exact checked
+operator occurrence, requirement coordinate, and tagged application as a
+demand. The strong selected-provider-plan identity and one role-tagged
+realization payload live in an exact representation-rank companion bound to
+that Terminal product; coverage exists only after replay rejoins both. The
+closed realization roles are specialized checked body, nongeneric checked
+body, compiler intrinsic, and externally admitted concrete authority. The role
+discriminant participates in canonical identity; roles do not share optional
+template, specialization, or external-authority fields. D32 separately joins
+every surviving executable row to its late physical realization.
 
-The empty telescope is one canonical empty application. It performs no
-substitution and is the ordinary cheap path for monomorphic boundary
-operators, but it still rejoins the exact selected plan and realization before
-authoritative publication. A compiler intrinsic retains its exact closed
-execution atom. A bodyless, external, opaque, or separately supplied
+The empty telescope is one canonical empty application. It means that a
+boundary operator has a real static telescope of length zero; it never stands
+for an ordinary boundary-trait machine, which has no telescope construct. It
+performs no substitution and is the ordinary cheap path for monomorphic
+boundary operators, but it still rejoins the exact selected plan and
+realization before authoritative publication. A compiler intrinsic retains
+its exact closed execution atom. A bodyless, external, opaque, or separately supplied
 realization has no body to specialize and therefore requires independently
 admitted concrete authority for each demanded application. Requiring authored
 concrete realizations for checked generic bodies would duplicate ordinary
@@ -1037,8 +1041,9 @@ checked body, compiler intrinsic, or admitted external realization; it never
 fills a plan or specialization field with zero and never silently omits a
 demanded boundary application.
 
-Terminal and package replay recompute the closed application and its
-role-specific realization commitment from retained structural facts. They
+Coverage and package replay recompute the closed application and its
+role-specific realization commitment from the Terminal demand and bound
+companion. They
 reject open or missing binders, category erasure, const-carrier drift,
 application/plan substitution, stale early plans, unsupported binder
 categories, and any coverage row produced before its demand was closed. D28's
@@ -1195,15 +1200,16 @@ tape prefix. The adapter has not been published, so D31 revises its V1 schema
 and checked table projection in place; a post-publication schema change would
 require an explicit profile version.
 
-## D32 — Split semantic boundary coverage from physical realization
+## D32 — Split semantic boundary evidence from physical realization
 
-Terminal Psi owns the semantic half of D29 boundary-operator coverage. Each
-row binds the exact checked use to its source-free operation, closed tagged
-application, strong selected-provider-plan identity, and role-tagged semantic
-realization. Equal closed applications may share that semantic row while their
-checked-use coordinates remain separate provenance. Package and Terminal
-replay may publish that semantic evidence
-without claiming register assignment, final call placement, relocation, or
+Terminal Psi owns target-neutral boundary demands, not target acceptance or
+native settlement. For D29 boundary operators it retains the exact checked use,
+source-free operation, and closed tagged application; the selected plan and
+role-specific semantic realization remain in the strongly bound product
+companion. For D41 ordinary boundary-trait invocations it retains the exact
+`BoundaryCall`; the consuming lowerer creates a settlement only after rejoining
+that demand and companion proposal to its own target catalog and admissions.
+Neither form claims register assignment, final call placement, relocation, or
 emitted bytes that do not yet exist.
 
 A plan may enter Terminal only when its carrier and independent validator can
@@ -1219,22 +1225,45 @@ relocations, and emitted-byte custody do not.
 Terminal remains immutable through optimization. A verified optimization run
 publishes a validated transformed unit or projection retaining the canonical
 `TerminalPsiIdentity`; it does not mint a post-optimization Terminal. Each
-surviving boundary-operation occurrence carrying a D29 row then receives one
-physical child receipt in `NativeArtifact`. Multiple occurrences may share one
-semantic parent row, but their optimized-operation identities and physical
-children remain distinct. The child binds both the domain-separated strong
-identity of its canonical Terminal D29 parent row and its exact surviving
-optimized operation/projection identity, then retains the target-lowering,
-instruction-selection, assignment, relocation, and emitted-byte-span joins.
+surviving executable boundary occurrence then receives one physical child
+receipt in `NativeArtifact`. Its parent is the closed role-tagged
+`PhysicalChildParent` sum: `OperatorApplicationCoverageRef` names
+reconstructible D29 coverage, while `BoundaryTraitSettlement` retains the D41
+settlement first created by consuming-lowerer admission. The parent role enters
+canonical identity. Multiple occurrences may share one D29 semantic parent,
+but their optimized-operation identities and physical children remain
+distinct. The child binds both the domain-separated strong parent identity and
+its exact surviving optimized operation/projection identity, then retains the
+target-lowering, instruction-selection, assignment, relocation, and emitted-
+byte-span joins.
+
+The D41 payload reuses the representation-rank `BoundaryExecutionBinding` sum:
+`AdmittedProvider(ProviderExecutionBinding)` or
+`CompilerBuiltin(CompilerBuiltinExecution)`. It introduces no parallel role
+tag. `CompilerBuiltinExecution`, not the planner-rank
+`CompilerIntrinsicExecutionIdentity`, enters the settlement and parent
+commitments. Conversion from a planner classification into this lowerer
+catalog is one exhaustive `match` returning
+`Option<CompilerBuiltinExecution>`; the tested planner role and returned
+payload are never separate expressions, and unknown roles fail closed.
+
+Because D41 settlement is first created at consuming-lowerer admission, the
+native artifact retains its complete canonical content rather than only its
+commitment: the Terminal occurrence, selected-plan commitment, target/catalog
+identity, execution binding, realization, and role-specific custody inputs.
+Replay treats those bytes as inputs, rejoins them to the Terminal product and
+bound companion, and independently validates the receiving target catalog or
+admitted provider custody. D29 may retain a reference because its complete
+coverage is reconstructible from already-published demand and companion facts.
 
 Native replay derives the surviving boundary-operation occurrence set from the
 published validated optimization projection and requires exact correspondence
 with the physical children. Missing, duplicate, stale, substituted, or padded
-children reject. An eliminated occurrence needs no child only when the verified
-optimization proof establishes that elimination. With no optimization the
-projection is the identity projection. Rechecking a byte digest or a self-
-consistent physical receipt without both parent bindings establishes no
-semantic-to-physical relation.
+children and parent-role substitution reject. An eliminated occurrence needs
+no child only when the verified optimization proof establishes that
+elimination. With no optimization the projection is the identity projection.
+Rechecking a byte digest or a self-consistent physical receipt without both
+parent bindings establishes no semantic-to-physical relation.
 
 One realized-artifact envelope may contain the canonical Terminal artifact,
 validated optimization projection, and physical children, but their evidence
@@ -1721,11 +1750,14 @@ selection it cannot select native lowering in place of the structural catalog
 identity.
 
 Native emission publishes D32's occurrence-specific physical child bound to
-the exact Terminal semantic parent and surviving optimized occurrence. The
-child, not a self-issued pre-lowering hash, retains target lowering, assignment,
-relocation, and emitted-byte custody. D39 remains orthogonal: selecting and
-emitting `exit_group` cannot manufacture the source-semantic
-`ExternalTerminate` completion kind.
+the exact role-tagged `PhysicalChildParent` and surviving optimized occurrence.
+For an ordinary `BoundaryCall`, that parent retains the complete replayable D41
+settlement using the existing representation-rank `BoundaryExecutionBinding`;
+for a D29 operator it references independently reconstructible application
+coverage. The child, not a self-issued pre-lowering hash, retains target
+lowering, assignment, relocation, and emitted-byte custody. D39 remains
+orthogonal: selecting and emitting `exit_group` cannot manufacture the source-
+semantic `ExternalTerminate` completion kind.
 
 The former `CompilerIntrinsicSettlementEvidence` adapter violated this split:
 it derived compact coordinates solely from compiler-owned inputs and presented
@@ -2096,6 +2128,38 @@ corruption diagnosis, but accepted-lock compatibility is decided by the one
 outer version before those frames are read. A fingerprint may bind the exact
 canonical lock bytes after decoding begins; it does not replace the cheap
 magic/version gate or become an admission baseline by itself.
+
+## D49 — Physical children retain role-specific semantic parents
+
+D29 remains specific to checked boundary-operator applications. Its canonical
+empty application means one real operator telescope of length zero; it never
+means that an ordinary boundary-trait machine has no telescope. A target-
+neutral Terminal operator demand and its strongly bound realization companion
+jointly reconstruct D29 coverage.
+
+D32's parent relation is the closed `PhysicalChildParent` sum rather than a
+widening of D29. `OperatorApplicationCoverageRef` references independently
+reconstructible D29 coverage. `BoundaryTraitSettlement` retains the complete
+D41 settlement first created when the consuming lowerer accepts an ordinary
+Terminal `BoundaryCall`. The parent discriminant enters canonical identity,
+and a child of one role cannot satisfy the other even when native lowering is
+byte-identical.
+
+The D41 branch reuses `BoundaryExecutionBinding` and its existing
+`AdmittedProvider` / `CompilerBuiltin` roles. Its compiler-builtin identity is
+the representation-rank `CompilerBuiltinExecution`; the planner-rank
+`CompilerIntrinsicExecutionIdentity` remains package-review provenance.
+Conversion between them is one exhaustive `match` returning
+`Option<CompilerBuiltinExecution>`, so the classification and returned payload
+cannot drift as parallel expressions and every unclassified role rejects.
+
+Native replay derives the complete surviving boundary-occurrence set from the
+validated optimization projection. For each occurrence it reconstructs or
+replays the role-specific parent, then checks the physical child's exact
+parent, optimized occurrence, lowering, assignment, relocation, and emitted-
+byte custody. Missing, duplicate, stale, substituted, padded, or role-swapped
+children reject; verified elimination is the only omission. Retained D41
+settlement content is replay input, not self-issued authority.
 
 ## Dependency order
 

@@ -41,6 +41,14 @@ admissions or rejects realization without invalidating the Psi semantics. The
 compiler Terminal-product canary discards all frontend objects before
 exercising that consumer boundary.
 
+Compiler-builtin proposals use the representation-rank
+`CompilerBuiltinExecution` catalog. Construction from the planner-rank
+intrinsic classification is one exhaustive `match` returning an optional
+catalog entry, never a guard followed by an independently written payload.
+Unclassified roles reject. A successful D41 admission retains its complete
+settlement content for later physical-child replay; a commitment alone is not
+replayable evidence.
+
 Publishing an executable is a subsequent product operation that stages and
 replays the retained image bytes; installation is a separate authority-bearing
 operation again. The ordinary source-to-native path uses the same Psi consumer
@@ -197,19 +205,21 @@ visibility; a bodyless boundary machine, bounded row, or later selection cannot
 synthesize that identity. Its checked or external satisfier is resolved by the
 same exact provider-plan machinery as a trait requirement.
 
-D29 boundary-operator semantic coverage enters Terminal only after final
-specialization has closed every checked demand. The source-free row retains
-the exact requirement coordinate, ordered tagged type/const application,
-strong selected-plan identity, concrete semantic realization, and one role-
-tagged specialized-body, nongeneric-body, compiler-intrinsic, or external-
-authority payload. Terminal replay recomputes the application and role-
-specific commitment; it never reconstructs either from source spellings,
-arity, compact fingerprints, or optional fields. Empty telescopes retain one
-canonical empty application. Open applications, unsupported binder categories,
-and zero-commitment bootstrap lowering reject authoritative publication.
+D29 boundary-operator demand enters Terminal only after final specialization
+has closed every checked application. The source-free demand retains the exact
+checked occurrence, requirement coordinate, and ordered tagged type/const
+application. Its strong selected-plan identity, concrete semantic realization,
+and role-tagged specialized-body, nongeneric-body, compiler-intrinsic, or
+external-authority payload remain in the exact companion bound to the Terminal
+product. Coverage replay rejoins both; it never reconstructs either from source
+spellings, arity, compact fingerprints, or optional fields. An empty telescope
+is one canonical empty application for an operator whose telescope has length
+zero. It never stands for an ordinary boundary-trait machine, which has no
+telescope construct. Open applications, unsupported binder categories, and
+zero-commitment bootstrap lowering reject authoritative publication.
 
-D32 owns the physical continuation of each executable D29 row. A schema-
-derived plan may enter Terminal only when its carrier and validator live at
+D32 owns the physical continuation of each executable boundary occurrence. A
+schema-derived plan may enter Terminal only when its carrier and validator live at
 `representations` rank or below without backend-owned types and its content is
 independently reconstructible before assignment or emission. Assigned homes,
 final call placement, relocation, and emitted bytes remain later facts.
@@ -218,16 +228,20 @@ projection retains its canonical identity rather than minting a successor
 Terminal.
 
 Each surviving boundary-operation occurrence receives exactly one physical
-child in `NativeArtifact`. Equal applications may share one semantic parent
-row, but their optimized-operation identities and children remain distinct.
-Each child binds the domain-separated identities of both its canonical
-Terminal D29 parent and its surviving optimized operation, then retains the
-target, selection, assignment, relocation, and emitted-span joins. Native
-replay derives the surviving occurrence set from the published validated
-projection. Missing, duplicate, stale, substituted, or padded children reject;
-a verified eliminated occurrence needs no child. A byte digest,
-provider-plan fingerprint, asserted application string, or selected-dispatch
-rewrite alone establishes no physical coverage.
+child in `NativeArtifact`. Its role-tagged `PhysicalChildParent` is either an
+`OperatorApplicationCoverageRef` to reconstructible D29 coverage or a retained
+and replayed D41 `BoundaryTraitSettlement`. The latter reuses
+`BoundaryExecutionBinding`; `CompilerBuiltinExecution`, not the planner's
+intrinsic classification, enters its commitment. Equal D29 applications may
+share one semantic parent, but optimized-operation identities and children
+remain distinct. Each child binds the domain-separated identities of its
+parent and surviving optimized operation, then retains the target, selection,
+assignment, relocation, and emitted-span joins. Native replay derives the
+surviving occurrence set from the published validated projection. Missing,
+duplicate, stale, substituted, padded, or role-swapped children reject; a
+verified eliminated occurrence needs no child. A byte digest, provider-plan
+fingerprint, asserted application string, or selected-dispatch rewrite alone
+establishes no physical coverage.
 
 ## The cut
 
