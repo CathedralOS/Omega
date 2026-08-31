@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/unqualified/named-receiver callable and field/index/slice projection facts, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q10/Q11 diagnostics, complete D36 continuation/state and D37 body/control premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/unqualified/named-receiver callable and field/index/slice projection facts, D37 scalar, argument-`never`, and let/assignment/assert relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q10/Q11/Q12 diagnostics, complete D36 continuation/state and the remaining D37 postfix/control/return/terminal premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1324,6 +1324,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
       runtime. Missing sibling facts manufacture neither a relation nor a
       parent result. The Gamma admission gate covers source formation only;
       executable controls remain dependency-blocked on the real compiler edge.
+    - [x] Generalize the complete-result value-use branch across scalar
+      operators and ordinary statement relations, and retain the explicitly
+      anchored argument-terminal branch.
+      Unary/binary type joins now wait for every `i32` value fact while
+      independently retaining resultless and exact-call `never` failures.
+      Every authored application argument independently retains its explicitly
+      anchored `never` failure before callee resolution/admission and even when
+      arity fails. Let initialization and `assert` compare
+      only complete values at the initializer/asserted-expression anchor;
+      assignment independently checks the left value/place category and right
+      value category, then compares the right value with the retained storage
+      type only when both premises exist. This preserves zero-extended `u8`
+      reads while admitting `i32` establishment into a `u8` place, derives no
+      secondary mismatch from an unresolved or non-place left side, and keeps
+      exact candidate deduplication. Postfix-statement admission, return and
+      transition relations, and terminal flow remain open. The Gamma gate
+      establishes source formation only until the real compiler edge exists.
+    - [ ] **OWNER-BLOCKED — Q12 RESULTLESS ARGUMENT ANCHOR.** D37 requires a
+      resultless call used as an argument to contribute `TypeMismatch`
+      independently of callee admission and arity, but does not assign its
+      coordinate. The application start collides with `ArityMismatch` and
+      would turn ordinary invalid source into `InternalFailure`; the argument
+      start is plausible but not yet authoritative. Retain the explicitly
+      anchored `never` argument branch and no resultless-argument candidate
+      until Q12 settles the anchor.
   - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
     once and retain a non-place immutable full-range view without allocation,

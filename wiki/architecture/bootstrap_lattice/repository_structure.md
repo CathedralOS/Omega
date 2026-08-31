@@ -71,11 +71,13 @@ The committed tree still has two important gaps:
   resolution, scalar/aggregate value-place facts, one generalized callable
   ledger with direct-qualified, settled grouped/unqualified, named-data
   receiver, and sealed-boundary receiver results, positive receiver-scoped
-  `self`, settled field/index/slice projection failures, D38's source fact
+  `self`, settled field/index/slice projection failures, D37 scalar and
+  argument-`never` category joins and let/assignment/assert relations, D38's source fact
   relation, and symbolic Alpha encoding.
   Remaining Q4-blocked entry diagnostics, Q10 state-transfer spelling, Q11
-  invalid-`self`, D36 continuation/state classification, D37 premise-DAG and
-  remaining place/statement/control/terminal closure, D38 lowering/executable
+  invalid-`self`, Q12 resultless-argument anchoring, D36 continuation/state
+  classification, and D37 remaining postfix-statement/control/return/terminal
+  closure, D38 lowering/executable
   controls, body/control checking, D34 physical storage refusal, lowering, tape
   publication, and refinement are still open.
   The restricted Delta-written native compiler prototype was also deleted: it

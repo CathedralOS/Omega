@@ -53,11 +53,14 @@ compilers and must not both be called “the Delta compiler.”
   qualified applications, grouped/unqualified machine applications in settled
   non-continuation contexts, positive receiver-scoped `self`, named-data
   receiver applications, exact sealed-`Console` receiver applications, and
-  settled field/index/slice projection failures, and symbolic Alpha encoding.
+  settled field/index/slice projection failures, D37 scalar and argument-
+  `never` category joins and let/assignment/assert relations, and symbolic
+  Alpha encoding.
   Remaining final body/control checking, Q4 entry diagnostics, D36
   continuation/state classification including Q10's state-transfer spelling,
-  Q11's invalid-`self` diagnostic, the remaining D37 place/statement/control/
-  terminal premise DAG, D38 executable controls, storage realization/lowering,
+  Q11's invalid-`self` diagnostic, Q12's resultless-argument anchor, the
+  remaining D37 postfix-statement/control/return/terminal premise DAG, D38
+  executable controls, storage realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact
   yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
