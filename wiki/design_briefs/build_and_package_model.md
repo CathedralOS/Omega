@@ -1089,11 +1089,12 @@ join is absent.
 
 Provider selection also determines executable TCB provenance. Static selection
 of an opaque in-process realization contributes a known executable entry even
-though source reach is unchanged; selecting an isolated realization contributes
-an endpoint instead. A package that fixes such a selection exports that
-dependency transitively to every consuming artifact. A checked wrapper may
-narrow its API but cannot erase the selected implementation's evidence,
-execution scope, or containment guarantees.
+though source reach is unchanged; selecting an externally isolated realization
+contributes a disclosed endpoint and its admitted execution requirements
+instead. A package that fixes such a selection exports that dependency
+transitively to every consuming artifact. A checked wrapper may narrow its API
+but cannot erase the selected implementation's evidence, execution scope, or
+externally admitted containment requirements.
 
 The artifact manifest separates known entries from completeness. Known entries
 record static versus Omega-mediated runtime origin. An uncontained opaque
@@ -2607,6 +2608,16 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v104/canonical row v62 admits a caller const binder in the same
+exact closed-conformance contract-argument lane. The selected argument must
+rejoin the owning callable telescope and is encoded by alpha-normalized binder
+ordinal. Projection still recloses the complete authored conformance
+application and compares it with the exact checked call-occurrence row, so
+renaming the binder preserves review identity while selecting another binder
+changes it and retained-occurrence substitution rejects. Named or structured
+const values, and lifetime, machine, or proposition parameters remain
+fail-closed in this lane. Canonical-row recovery remains v15.
+
 Package review v103/canonical row v61 extends the checked closed-conformance
 contract-argument lane to a declaration telescope containing exact type
 arguments and parser-canonical integer-literal const arguments. The row retains
@@ -2699,7 +2710,8 @@ The unified lock artifact records the resolved closure:
   fingerprint;
 - build observation ceilings, realized classes, and replay receipts;
 - record-replay and source-rebuildability verdicts;
-- boundary/provider trust receipts;
+- exact boundary/provider external-execution disclosures and root-owned
+  admission decisions;
 - accepted proof/grant identities; and
 - component/build contract identities needed for reproducibility.
 

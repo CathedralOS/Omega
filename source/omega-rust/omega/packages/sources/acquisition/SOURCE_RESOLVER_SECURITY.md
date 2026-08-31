@@ -221,10 +221,11 @@ process-count limits. These controls are execution mechanisms, not canonical
 evidence rows. Universal networked resolution claims neither aggregate
 transport-byte accounting nor direct endpoint confinement.
 
-These controls substantially bound hostile input, but an ordinary user-mode
-package manager cannot promise that the host filesystem will never report disk
-exhaustion. A quota-backed cache or stronger host sandbox may add that property
-without changing source identity. Disk-full, process-launch, network, and host
+These controls bound retained source inputs and the concrete resources enforced
+by the selected backend, but an ordinary user-mode package manager cannot
+promise that the host filesystem will never report disk exhaustion. A
+quota-backed cache or stronger host sandbox may add that property without
+changing source identity. Disk-full, process-launch, network, and host
 credential failures remain ordinary resolution failures.
 
 ## Platform execution mechanisms

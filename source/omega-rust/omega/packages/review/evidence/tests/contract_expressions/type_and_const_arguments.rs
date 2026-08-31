@@ -1023,43 +1023,94 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
-fn review_rejects_forwarded_const_binders_in_closed_contract_conformances() {
+fn review_alpha_normalizes_forwarded_const_binders_in_closed_contract_conformances() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub trait Ranked {}
-pub data Card {}
-pub FieldOrder<Element, const Rank: u64>: Element satisfies Ranked {}
-pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 { 0 }
-boundary machine trusted<const Rank: u64>() -> u64
-ensures result == tag<Card, FieldOrder<Card, Rank>>();
+    let original = TempPackage::new();
+    let renamed = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |left: &str, right: &str, selected: &str| {
+        format!(
+            r#"pub trait Ranked {{}}
+pub data Card {{}}
+pub FieldOrder<Element, const Rank: u64>: Element satisfies Ranked {{}}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 {{ 0 }}
+boundary machine trusted<const {left}: u64, const {right}: u64>() -> u64
+ensures result == tag<Card, FieldOrder<Card, {selected}>>();
 "#,
-    );
-    package.write(
-        "build.omg",
-        r#"target windows_x86_64 { }
+        )
+    };
+    original.write("main.omg", &source("Left", "Right", "Left"));
+    renamed.write("main.omg", &source("First", "Second", "First"));
+    changed.write("main.omg", &source("Left", "Right", "Right"));
+    let build = r#"target windows_x86_64 { }
 target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
-"#,
-    );
-    let checked = compile_to_checked_with_packages(
-        &package.0.join("main.omg"),
-        Some(target),
-        package_inputs(&package.0),
-    )
-    .expect("forwarded-const conformance contract argument should check");
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("a forwarded const binder is outside the closed literal cohort");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.message.contains(
-            "outside the lifetime-free cohort with type parameters and integer-literal const parameters",
+"#;
+    for package in [&original, &renamed, &changed] {
+        package.write("build.omg", build);
+    }
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
         )
-    }));
+        .expect("forwarded-const conformance contract argument should check");
+        project_checked_package_review(&checked)
+            .expect("a forwarded const binder has an exact closed-conformance review row")
+    };
+    let review = project(&original);
+    let renamed = project(&renamed);
+    let changed = project(&changed);
+    let trusted = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted")
+        .expect("trusted boundary callable");
+    let [contract] = trusted.contracts() else {
+        panic!("one trusted contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [
+        PackageReviewContractStaticArgument::Type(_),
+        PackageReviewContractStaticArgument::ConformanceApplication { arguments, .. },
+    ] = static_arguments.as_slice()
+    else {
+        panic!("type and closed-conformance static arguments")
+    };
+    assert!(matches!(
+        arguments.as_slice(),
+        [
+            PackageReviewContractStaticArgument::Type(_),
+            PackageReviewContractStaticArgument::GenericConstBinder(0),
+        ]
+    ));
+    assert_eq!(
+        review.canonical_review_bytes().unwrap(),
+        renamed.canonical_review_bytes().unwrap(),
+        "renaming the forwarded const binder must preserve review identity",
+    );
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "selecting another forwarded const binder must change review identity",
+    );
 }
 
 #[test]

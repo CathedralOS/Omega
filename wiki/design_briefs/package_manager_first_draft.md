@@ -1326,8 +1326,8 @@ provenance:
 - declared reach, exact checked-body transitive reach, preselection concrete
   reach, and build observations for the build machine;
 - authority `uses`, `stores`, `acquires`, `returns`, and `derives` rows;
-- exact provider requirements, selected realizations, origins, trust classes,
-  containment, and executable TCB entries;
+- exact provider requirements, selected realizations, origins, disclosed
+  execution scope, root-owned admissions, and executable TCB entries;
 - routed qualifications and accepted boundary evidence;
 - proof-kernel verdicts, accepted opaque claims, and open/deferred obligations;
 - installation-bound rows; and
@@ -2137,9 +2137,10 @@ grammar and byte escaping prevent source from forging renderer structure, but
 cannot prevent semantic prompt injection in code under review. Model invocation
 now has a runner-neutral advisory boundary: fixed system instructions remain
 separate from bounded rendered evidence; the package library chooses no model
-and supplies no ambient network authority. The runner streams response bytes
-into an Omega-owned sink enforcing the caller-supplied output ceiling. Only the
-exact canonical result envelope
+and supplies no package-derived network capability. Any network or credential
+authority already available to the runner is operator policy. The runner
+streams response bytes into an Omega-owned sink enforcing the caller-supplied
+output ceiling. Only the exact canonical result envelope
 with one of two tokens—`recommend_audit` or `no_additional_audit`—is accepted,
 without prose. The recommendation is monotone: it may add audit, but cannot
 suppress compiler recommendations, alter blockers, prove an audit, resolve
