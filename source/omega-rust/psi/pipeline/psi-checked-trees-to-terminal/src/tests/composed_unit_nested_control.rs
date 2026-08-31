@@ -26,6 +26,28 @@ fn checked_nested_control() -> CheckedTrees {
     )
 }
 
+fn checked_depth_three_nested_control() -> CheckedTrees {
+    checked_source(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::enter(first: bool, second: bool, third: bool) {
+                transition first { true -> middle(second, third) _ -> outer_no() }
+                state middle(second: bool, third: bool) {
+                    transition second { true -> inner(third) _ -> middle_no() }
+                }
+                state inner(third: bool) {
+                    transition third { true -> yes() _ -> no() }
+                }
+                state yes() { Host::exit(1); }
+                state no() { Host::exit(2); }
+                state middle_no() { Host::exit(3); }
+                state outer_no() { Host::exit(4); }
+            }
+        "#,
+    )
+}
+
 #[test]
 fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
     let checked = checked_nested_control();
@@ -155,4 +177,76 @@ fn nested_control_deduplicates_one_internal_target_after_five_root_blocks() {
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("nested internal-call module verifies");
+}
+
+#[test]
+fn lowers_three_frontiers_with_recursive_scalar_suffix_handoffs() {
+    let checked = checked_depth_three_nested_control();
+    let lowered = lower_machine(&checked, "Root::enter").expect("depth-three nested control");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("depth-three boundary graph emits one machine")
+    };
+    assert_eq!(machine.parameters.len(), 3);
+    assert_eq!(machine.blocks.len(), 7);
+    assert_eq!(machine.blocks[1].parameters.len(), 2);
+    assert_eq!(machine.blocks[2].parameters.len(), 1);
+    for index in 0..3 {
+        let Terminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+        } = &machine.blocks[index].terminator
+        else {
+            panic!("each control block is conditional")
+        };
+        let parameters = if index == 0 {
+            &machine.parameters
+        } else {
+            &machine.blocks[index].parameters
+        };
+        assert_eq!(*condition, parameters[0].id);
+        assert_eq!(
+            when_true.arguments,
+            parameters[1..]
+                .iter()
+                .map(|parameter| parameter.id)
+                .collect::<Vec<_>>()
+        );
+        assert!(when_false.arguments.is_empty());
+    }
+    for leaf in &machine.blocks[3..] {
+        assert!(matches!(
+            leaf.operations.last(),
+            Some(Operation {
+                kind: OperationKind::BoundaryCall { .. },
+                ..
+            })
+        ));
+    }
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("depth-three nested module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn depth_three_nested_control_rejects_suffix_reordering() {
+    let mut checked = checked_depth_three_nested_control();
+    let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
+        &mut checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].terminator
+    else {
+        unreachable!()
+    };
+    when_true.scalar_arguments.swap(0, 1);
+    assert!(matches!(
+        lower_machine(&checked, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
 }

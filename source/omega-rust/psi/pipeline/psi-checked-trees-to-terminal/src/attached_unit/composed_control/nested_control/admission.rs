@@ -1,10 +1,9 @@
-//! Independent two-frontier topology, scalar handoff, and leaf replay.
+//! Independent finite decision-chain topology and scalar-suffix replay.
 
 use super::*;
 
 pub(super) struct AdmittedNested<'a> {
-    pub(super) entry: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
-    pub(super) dispatch: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    pub(super) controls: &'a [psi_checked_trees::CheckedComposedUnitControlStatePlan],
     pub(super) leaf_calls: super::super::admission::AdmittedComposedUnit<'a>,
 }
 
@@ -12,43 +11,48 @@ pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plan: &'a psi_checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedNested<'a>, LoweringError> {
-    let [entry, dispatch, inner_true, inner_false, outer_false] = plan.states.as_slice() else {
-        return unsupported("nested composed Unit control requires exactly five states");
-    };
+    if plan.states.len() < 5 || plan.states.len() % 2 == 0 {
+        return unsupported("nested composed Unit control requires an odd five-state minimum");
+    }
+    let control_count = (plan.states.len() - 1) / 2;
+    let (controls, leaves) = plan.states.split_at(control_count);
     if !plan.body_qualifications.is_empty()
-        || [entry, dispatch].iter().any(|state| {
+        || controls.iter().any(|state| {
             !state.structural_parameters.is_empty()
                 || !state.entry_claims.is_empty()
                 || !state.operations.is_empty()
         })
-        || !exact_parameters(entry, &[0, 1])
-        || !exact_parameters(dispatch, &[0])
+        || controls
+            .iter()
+            .enumerate()
+            .any(|(index, state)| !exact_parameters(state, control_count - index))
     {
         return unsupported("nested composed Unit controls escaped exact scalar custody");
     }
-    let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        guard: entry_guard,
-        when_true: to_dispatch,
-        when_false: to_outer_false,
-    } = &entry.terminator
-    else {
-        return unsupported("nested composed Unit entry is not conditional");
-    };
-    let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        guard: dispatch_guard,
-        when_true: to_inner_true,
-        when_false: to_inner_false,
-    } = &dispatch.terminator
-    else {
-        return unsupported("nested composed Unit dispatch is not conditional");
-    };
-    validate_parameter_guard(entry_guard, 0)?;
-    validate_parameter_guard(dispatch_guard, 0)?;
-    validate_edge(to_dispatch, 0, dispatch.state, Some((1, 0)))?;
-    validate_edge(to_outer_false, 1, outer_false.state, None)?;
-    validate_edge(to_inner_true, 0, inner_true.state, None)?;
-    validate_edge(to_inner_false, 1, inner_false.state, None)?;
-    let leaves = [inner_true, inner_false, outer_false];
+    for index in 0..control_count {
+        let CheckedComposedUnitControlTerminatorPlan::Conditional {
+            guard,
+            when_true,
+            when_false,
+        } = &controls[index].terminator
+        else {
+            return unsupported("nested composed Unit chain contains a non-conditional control");
+        };
+        validate_parameter_guard(guard, 0)?;
+        let final_control = index + 1 == control_count;
+        let true_target = if final_control {
+            leaves[0].state
+        } else {
+            controls[index + 1].state
+        };
+        validate_edge(
+            when_true,
+            0,
+            true_target,
+            (!final_control).then_some(control_count - index - 1),
+        )?;
+        validate_edge(when_false, 1, leaves[control_count - index].state, None)?;
+    }
     for leaf in leaves {
         super::super::admission::validate_leaf(leaf)?;
         validate_empty_leaf(leaf)?;
@@ -64,7 +68,7 @@ pub(super) fn admit<'a>(
     }
     super::super::admission::validate_contract(checked, plan)?;
     let attachment = super::super::admission::exact_attachment(checked, plan)?;
-    let leaf_refs = [inner_true, inner_false, outer_false];
+    let leaf_refs = leaves.iter().collect::<Vec<_>>();
     let (boundaries, internal_targets) = super::super::admission::admit_leaf_targets(
         checked,
         plan.machine,
@@ -74,11 +78,10 @@ pub(super) fn admit<'a>(
         &plan.provider_attachment_requirements,
     )?;
     Ok(AdmittedNested {
-        entry,
-        dispatch,
+        controls,
         leaf_calls: super::super::admission::AdmittedComposedUnit {
-            entry,
-            leaves: leaf_refs.into_iter().collect(),
+            entry: &controls[0],
+            leaves: leaf_refs,
             boundaries,
             internal_targets,
             custody: super::super::custody::ComposedCustody::Empty,
@@ -88,15 +91,15 @@ pub(super) fn admit<'a>(
 
 fn exact_parameters(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
-    positions: &[u32],
+    expected: usize,
 ) -> bool {
-    state.scalar_parameters.len() == positions.len()
+    state.scalar_parameters.len() == expected
         && state
             .scalar_parameters
             .iter()
-            .zip(positions)
-            .all(|(parameter, position)| {
-                parameter.source_position == *position
+            .enumerate()
+            .all(|(index, parameter)| {
+                parameter.source_position == u32::try_from(index).unwrap_or(u32::MAX)
                     && parameter.primitive_type == PrimitiveType::Bool
             })
 }
@@ -119,15 +122,19 @@ fn validate_edge(
     edge: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
     ordinal: u32,
     target: psi_symbols::SymbolHandle,
-    scalar_map: Option<(u32, u32)>,
+    forwarded_count: Option<usize>,
 ) -> Result<(), LoweringError> {
-    let scalar_matches = match (scalar_map, edge.scalar_arguments.as_slice()) {
+    let scalar_matches = match (forwarded_count, edge.scalar_arguments.as_slice()) {
         (None, []) => true,
-        (Some((source, target)), [argument]) => {
-            argument.argument_ordinal == 0
-                && argument.source_scalar_parameter_index == source
-                && argument.target_scalar_parameter_index == target
-                && argument.primitive_type == PrimitiveType::Bool
+        (Some(count), arguments) if arguments.len() == count => {
+            arguments.iter().enumerate().all(|(index, argument)| {
+                argument.argument_ordinal == u32::try_from(index).unwrap_or(u32::MAX)
+                    && argument.source_scalar_parameter_index
+                        == u32::try_from(index + 1).unwrap_or(u32::MAX)
+                    && argument.target_scalar_parameter_index
+                        == u32::try_from(index).unwrap_or(u32::MAX)
+                    && argument.primitive_type == PrimitiveType::Bool
+            })
         }
         _ => false,
     };

@@ -61,3 +61,61 @@ fn composes_nested_boolean_control_with_one_scalar_handoff() {
         ));
     }
 }
+
+#[test]
+fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root {}
+        machine Root::enter(first: bool, second: bool, third: bool) {
+            transition first { true -> middle(second, third) _ -> outer_no() }
+            state middle(second: bool, third: bool) {
+                transition second { true -> inner(third) _ -> middle_no() }
+            }
+            state inner(third: bool) {
+                transition third { true -> yes() _ -> no() }
+            }
+            state yes() { Host::exit(1); }
+            state no() { Host::exit(2); }
+            state middle_no() { Host::exit(3); }
+            state outer_no() { Host::exit(4); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("three conditional frontiers should compose recursively");
+    assert_eq!(plan.states.len(), 7);
+    for (index, expected_arguments) in [2, 1, 0].into_iter().enumerate() {
+        let control = &plan.states[index];
+        assert_eq!(control.scalar_parameters.len(), 3 - index);
+        let psi_checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+            when_true,
+            ..
+        } = &control.terminator
+        else {
+            panic!("every control state remains conditional")
+        };
+        assert_eq!(when_true.scalar_arguments.len(), expected_arguments);
+        for (argument_index, argument) in when_true.scalar_arguments.iter().enumerate() {
+            assert_eq!(
+                argument.source_scalar_parameter_index,
+                (argument_index + 1) as u32
+            );
+            assert_eq!(
+                argument.target_scalar_parameter_index,
+                argument_index as u32
+            );
+        }
+    }
+    for leaf in &plan.states[3..] {
+        assert!(matches!(
+            leaf.operations.as_slice(),
+            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+        ));
+    }
+}
