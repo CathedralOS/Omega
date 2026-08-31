@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar value/place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics, Q5 callable ambiguity, and Q6 dependent-diagnostic composition; complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar value/place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 dependent-diagnostic composition, implement D36 callable shape, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1057,9 +1057,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     following milestone closes top-level declaration and whole-program syntax.
   - [x] Implement the complete top-level D17 grammar: boundary traits and their
     machine signatures, record fields and sum cases with optional payloads,
-    qualified and unqualified machine declarations, exact `& mut self`
-    receiver forms, optional returns, and machine bodies. All member and
-    declaration lists are tail-built then restored to source order. The
+    qualified and unqualified machine declarations, the then-current shared
+    `& mut self` receiver parser, optional returns, and machine bodies. D36 now
+    narrows receivers to qualified declarations and requires a parser update.
+    All member and declaration lists are tail-built then restored to source
+    order. The
     whole-program entry preserves lexical-phase priority, rejects an empty
     source at its extent, requires at least one declaration, and consumes the
     exact source through trivia to EOF. `delta_parse_program_syntax` now parses
@@ -1185,8 +1187,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     machine-local state lookups consume those rows without numeric node IDs or
     a second flattened syntax tree. Structural type equality compares nominal
     names and semantic array lengths, and a neutral final-phase bucket retains
-    every reason tied at the smallest coordinate until Q4/Q5/Q6 settle
-    composition. The foundation type-checks through the real Gamma frontend;
+    every reason tied at the smallest coordinate until Q4/Q5 settle final-phase
+    composition. D36 separately requires the earlier callable collision census.
+    The foundation type-checks through the real Gamma frontend;
     it claims no completed body judgment or behavioral execution.
   - [x] **IMPLEMENTATION — DELTA ORDERED LOCAL RESOLUTION.** Retain the exact
     machine parameter, state parameter, `let`, or transition-binder declaration
@@ -1216,17 +1219,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
     remain in the body/control task. The Gamma frontend type-checks the complete
     source; executable semantics remain dependency-blocked on the real Gamma
     compiler edge.
-  - [ ] **OWNER-BLOCKED — Q5 DELTA RECEIVER/CALLABLE AMBIGUITY.** Do not assign
-    a type to unqualified `&mut self`, or choose between a same-spelled
-    constructor and qualified machine by expected type, arity, or traversal.
-    Q5 blocks only those cases; retain both callable lookups and continue every
-    unambiguous body/control judgment.
-  - [ ] **OWNER-BLOCKED — Q6 DELTA DEPENDENT-DIAGNOSTIC COMPOSITION.** The
+  - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Split machine parsing so
+    only an owner-qualified declaration accepts `&mut self`; an unqualified
+    `&` rejects as `UnexpectedToken` at that byte. Extend the D22/D24 census
+    with one owner-local callable registry containing every sum case and
+    qualified machine, independent of payload/parameter arity, and report the
+    later collision as `DuplicateName`. Keep fields outside that cross-kind
+    registry. Require authored parentheses for every machine application,
+    including zero parameters, while preserving the bare-qualified-expression
+    distinction. Resolve one callable identity before arity, expected type,
+    statement, or control context. Retain separate constructor/machine catalog
+    rows after the census; do not use lookup order to choose one.
+  - [ ] **OWNER-BLOCKED — Q5 DELTA DEPENDENT-DIAGNOSTIC COMPOSITION.** The
     closed rejection set and earliest-coordinate phase rule do not say whether
     an enclosing operator/call/place/statement may contribute its own
     `TypeMismatch`, `ArityMismatch`, or `InvalidPlace` while a required child
     judgment is absent or already erroneous. Retain independent child facts and
-    suppress dependent parent candidates for now; Q6 blocks only final
+    suppress dependent parent candidates for now; Q5 blocks only final
     candidate composition, not continued resolution and typing of complete
     subtrees.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After

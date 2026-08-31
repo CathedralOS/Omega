@@ -99,9 +99,10 @@ data_member    := IDENT ":" type ";"
                 | "case" IDENT payload? ";"
 payload        := "(" parameters? ")"
 
-machine_decl   := "machine" qualified_name "(" receiver_and_params? ")"
+machine_decl   := "machine" IDENT "(" parameters? ")"
                   return_type? machine_body
-qualified_name := IDENT | IDENT "::" IDENT
+                | "machine" IDENT "::" IDENT "(" receiver_and_params? ")"
+                  return_type? machine_body
 receiver_and_params
                := receiver ("," parameters)? | parameters
 receiver       := "&" "mut" "self"
@@ -168,6 +169,15 @@ only as the operand spelling of `-2147483648`; every other integer token must be
 within nonnegative `i32` range. Binary levels associate left. Postfix and unary
 bind more tightly than every binary level.
 
+Only an owner-qualified machine declaration may carry `&mut self`. An
+unqualified declaration parses ordinary parameters only, so `&` in its input
+list is `UnexpectedToken` at that byte. Every machine application has an
+authored argument list, including `()` for a zero-parameter machine. The
+qualified primary retains the distinction between bare `Owner::name` and
+`Owner::name()`; a bare machine identity is neither a first-class value nor a
+machine application and is `TypeMismatch` at the qualified expression's first
+byte in an ordinary expression.
+
 The checker classifies a postfix expression by its resolved declaration. A
 `place` may contain only field and single-index suffixes rooted at `self`, a
 parameter, or a local. A `call` must end in a resolved machine application. A
@@ -222,6 +232,15 @@ candidate by smallest packed coordinate in the same collection phase.
 Classification requires one unique owner identity. A boundary/data owner
 collision contributes `DuplicateName`; qualified bodies under that ambiguous
 spelling contribute no inferred owner-kind failure.
+
+Within one data owner, every sum case and qualified machine also participates
+in one callable-name registry. Equal `(owner, name)` spellings are
+`DuplicateName` at the later case or machine declaration's first byte,
+regardless of payload or parameter arity. Fields do not participate in this
+cross-kind registry because field access is position-distinguished; the
+existing field/case member collision rule remains unchanged. This callable
+check occurs during the same complete census and competes with every other
+`DuplicateName` and `InvalidBoundary` candidate by packed coordinate.
 
 Delta v1 permits no active local shadowing. Machine parameters are active
 throughout the invocation. A state parameter is active only in that state body.
@@ -397,6 +416,15 @@ machines with those names.
 Calls bind value parameters and, where declared, one mutable receiver. All
 effects are committed before return. Recursion and state cycles are permitted;
 Delta v1 does not require a termination annotation.
+
+Callable identity resolves before arity or type checking. Because declaration
+collection rejects a case/qualified-machine spelling collision, an accepted
+`Owner::name(...)` has at most one callable meaning. Statement position,
+expected result type, argument arity, and declaration order never select a
+constructor or machine. A uniquely resolved constructor is not a call
+statement or control target. An unqualified state and machine that both match
+one transition continuation reject as `InvalidControlTarget` at that
+continuation expression's first byte.
 
 A resultless machine may `return;` or fall off a reachable block. A
 value-returning machine must `return expression;` on every reachable normal

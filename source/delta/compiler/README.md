@@ -39,14 +39,15 @@ through the current Gamma frontend gate.
 
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
-receiver forms, states, and exact nonempty whole-program exhaustion.
-Remaining body/control checking, AST-to-symbolic-Alpha lowering, `main`, and
-final publication remain implementation gaps. Q4 blocks promotion of the
-incomplete entry-diagnostic judgment. D31's profile-independent structural
-type-formation judgment is now implemented; its physical storage realization
-remains later than complete checking, with D34 now fixing its over-`Int` demand
-representation. The existing source is therefore not yet a compiler edge and
-no validation may describe it as one.
+receiver forms, states, and exact nonempty whole-program exhaustion, but the
+parser predates D36's qualified-only receiver restriction. Remaining D36
+syntax/census enforcement, body/control checking, AST-to-symbolic-Alpha
+lowering, `main`, and final publication remain implementation gaps. Q4 blocks
+promotion of the incomplete entry-diagnostic judgment. D31's profile-
+independent structural type-formation judgment is now implemented; its
+physical storage realization remains later than complete checking, with D34
+now fixing its over-`Int` demand representation. The existing source is
+therefore not yet a compiler edge and no validation may describe it as one.
 
 D22 fixes the collection phase's namespaces and ordinary local rules. D24
 completes the collector contract for transition-arm binders and exact
@@ -85,10 +86,11 @@ keeps members, cases, bodies, and states inside their original AST owner. It
 classifies qualified machine owners without numeric node IDs, provides exact
 owner/machine/member/state lookups, and compares types structurally using
 nominal name equality and semantic array lengths. Constructor and qualified-
-machine lookup remain deliberately separate, and an unqualified receiver stays
-ownerless: Q5 must settle those ambiguous cases before the checker may select a
-public result. A neutral minimum-coordinate bucket retains all tied final-phase
-reasons rather than choosing by traversal or DCOUT order.
+machine lookup remain structurally distinct after D36's census rejects any
+shared owner/name callable spelling. An unqualified receiver is now a syntax
+rejection rather than an ownerless catalog row. A neutral minimum-coordinate
+bucket retains all tied final-phase reasons rather than choosing by traversal
+or DCOUT order.
 
 Ordered local resolution then walks every expression-bearing entry, state, and
 transition position. Machine parameters remain active across the invocation;
@@ -119,15 +121,15 @@ claim final acceptance.
 ## Contract-derived conformance plan
 
 This is the compact case matrix for the eventual adjacent executable gate. It
-derives from D17, D22, D24, and `LANGUAGE.md`; it is not an unrun corpus and records
-no execution evidence. Cases become executable only through the real
-Gamma-written compiler and its selected D19 adapter.
+derives from D17, D22, D24, D36, and `LANGUAGE.md`; it is not an unrun corpus
+and records no execution evidence. Cases become executable only through the
+real Gamma-written compiler and its selected D19 adapter.
 
 | Area | Positive controls | Negative controls and exact obligation |
 | --- | --- | --- |
 | Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
-| Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
-| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
+| Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
+| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let/transition binder; same-owner case/qualified-machine callable collision regardless of arity; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
 | Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; complete scalar and sum transitions | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
@@ -143,6 +145,8 @@ D22 rows already settled by the third line include these discriminator pairs:
   and data owners may not;
 - `parse` and `Owner::parse` are distinct machine identities, while two exact
   owner/name pairs conflict;
+- every case and qualified machine under one data owner shares the D36 callable
+  spelling registry, while fields remain outside that cross-kind check;
 - fields and cases share their data-owner member scope, but a member and bare
   local may share a spelling;
 - machine parameters conflict in the entry and every state body; state
@@ -180,14 +184,19 @@ demand without taking a Gamma trap.
 Resolution-catalog, local-resolution, and scalar-fact controls remain planned,
 not claimed execution: forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
-distinct qualified/unqualified machines, constructor/machine collision
-preservation, state-name reuse across separate machines, parameter and ordered
-let visibility, `UseBeforeInitialization` versus `UnknownName`, entry/state
+distinct qualified/unqualified machines, D36 case/machine collision rejection,
+mandatory parentheses on zero-parameter machine calls, state-name reuse across
+separate machines, parameter and ordered let visibility,
+`UseBeforeInitialization` versus `UnknownName`, entry/state
 isolation, arm-local binder visibility, exact same-start postfix separation,
-and literal/read/group/arithmetic value/place facts. Q5 decides only the two
-ambiguous consumers; the catalog must never erase either identity in advance.
-Q6 totals which dependent parent candidates exist when a child has no complete
-fact.
+and literal/read/group/arithmetic value/place facts. Constructor and machine
+rows remain structurally distinct after the census establishes one callable
+spelling; no body context, arity, or expected type may select between colliding
+declarations. Controls cover both declaration orders, nullary and payload
+cases, a same-spelled field/qualified-machine positive case, an unqualified
+receiver at its `&`, explicit `()` on a zero-parameter machine, and a bare
+machine identity as `TypeMismatch` in an ordinary expression. Q5 totals which
+dependent parent candidates exist when a child has no complete fact.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
