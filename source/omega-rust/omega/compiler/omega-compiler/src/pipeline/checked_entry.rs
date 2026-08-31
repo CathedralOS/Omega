@@ -20,6 +20,7 @@ pub struct CheckedCompilation {
     source_file_count: usize,
     subsystem: u16,
     package_subject: Option<omega_package_compilation::PackageCompilationSubject>,
+    base_source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
@@ -61,6 +62,7 @@ impl PartialEq for CheckedCompilation {
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
             && self.package_subject == other.package_subject
+            && self.base_source_consumption_commitment == other.base_source_consumption_commitment
             && self.exact_toolchain_sources == other.exact_toolchain_sources
             && self.generated_source_custody == other.generated_source_custody
             && self.own_generated_sources == other.own_generated_sources
@@ -129,6 +131,16 @@ impl CheckedCompilation {
             Some(subject) => Some(subject.source_consumption_commitment()),
             None => None,
         }
+    }
+
+    /// Canonical commitment to the exact package-aware source closure admitted
+    /// before this activation executed its selected build machine. Own
+    /// generated source is absent; imported dependency-generated bundles are
+    /// already part of this base.
+    pub const fn base_source_consumption_commitment(
+        &self,
+    ) -> Option<super::PackageSourceConsumptionCommitment> {
+        self.base_source_consumption_commitment
     }
 
     /// Canonical package/source subject derived from the final checked source
@@ -554,6 +566,72 @@ struct CheckedFrontend {
     build_source_id: Option<psi_source::SourceId>,
 }
 
+/// One activation-local D18 checkpoint admitted before any authored build code
+/// executes.
+///
+/// The coherent base frontend, exact prepared build projection, reach and
+/// authority verdicts, package declaration verdict, and transitional syntax
+/// needed by the still-open extension lowerer stay coupled across execution.
+struct AdmittedBuildCheckpoint {
+    frontend: CheckedFrontend,
+    admitted_build: crate::pipeline::build_config::AdmittedBuildProgram,
+    package_authority_verdict:
+        Option<crate::pipeline::package_declaration_admission::AuthoredDeclarationAuthorityVerdict>,
+    transitional_final_syntax: crate::pipeline::source_assembly::AssembledSyntax,
+}
+
+struct ExecutedBuildCheckpoint {
+    frontend: CheckedFrontend,
+    computed_build_config: crate::pipeline::build_config::ComputedBuildConfig,
+    package_authority_verdict:
+        Option<crate::pipeline::package_declaration_admission::AuthoredDeclarationAuthorityVerdict>,
+    selected_build_identity: Option<(psi_source::SourceSpan, String)>,
+    transitional_final_syntax: crate::pipeline::source_assembly::AssembledSyntax,
+}
+
+impl AdmittedBuildCheckpoint {
+    fn execute(self) -> Result<ExecutedBuildCheckpoint, Vec<Diagnostic>> {
+        let selected_build_symbol = self.admitted_build.selected_build_machine_symbol();
+        let selected_build_identity = selected_build_symbol
+            .map(|symbol| -> Result<_, Vec<Diagnostic>> {
+                let source_span = self
+                    .frontend
+                    .typed
+                    .symbols
+                    .symbol_source_span(symbol)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "selected build machine has no exact authored source occurrence",
+                        )]
+                    })?;
+                let callable_identity = self
+                    .admitted_build
+                    .selected_build_machine_callable_identity()
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "selected build machine has no admitted callable identity",
+                        )]
+                    })?
+                    .to_owned();
+                Ok((source_span, callable_identity))
+            })
+            .transpose()?;
+        let computed_build_config = self.admitted_build.execute()?;
+        if computed_build_config.selected_build_machine_symbol != selected_build_symbol {
+            return Err(vec![Diagnostic::error(
+                "build execution returned a selected symbol different from its admitted checkpoint",
+            )]);
+        }
+        Ok(ExecutedBuildCheckpoint {
+            frontend: self.frontend,
+            computed_build_config,
+            package_authority_verdict: self.package_authority_verdict,
+            selected_build_identity,
+            transitional_final_syntax: self.transitional_final_syntax,
+        })
+    }
+}
+
 fn lower_checked_frontend(
     mut syntax: crate::pipeline::source_assembly::AssembledSyntax,
     target_name: Option<&str>,
@@ -642,13 +720,16 @@ fn compile_to_checked_inner_with_replay(
     let mut generated_source_custody = syntax.generated_source_custody.clone();
     let frozen_syntax = syntax.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, &mut timings)?;
-    if let Some(package_inputs) = package_inputs {
-        crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
+    let package_authority_verdict = if let Some(package_inputs) = package_inputs {
+        Some(crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
             &frontend.typed,
             package_inputs,
+            &generated_source_custody,
             &mut timings,
-        )?;
-    }
+        )?)
+    } else {
+        None
+    };
     if let Some(replay_record) = replay_record {
         let expected_source_metadata = package_inputs
             .map(|inputs| {
@@ -717,35 +798,27 @@ fn compile_to_checked_inner_with_replay(
         build_machine_filesystem_scope =
             build_machine_filesystem_scope.with_replay(filesystem_replay);
     }
-    let computed_build_config = crate::pipeline::build_config::compute_build_config(
+    let admitted_build = crate::pipeline::build_config::admit_build_program(
         &frontend.typed,
         frontend.build_source_id,
         &build_machine_filesystem_scope,
         evaluation_sponsor.as_ref(),
         selected_target_profile,
     )?;
-    let prepass_build_identity = computed_build_config
-        .selected_build_machine_symbol
-        .map(|symbol| -> Result<_, Vec<Diagnostic>> {
-            let source_span = frontend
-                .typed
-                .symbols
-                .symbol_source_span(symbol)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected build machine has no exact authored source occurrence",
-                    )]
-                })?;
-            let name = frontend
-                .typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == symbol)
-                .map(|machine| machine.name.as_str().to_owned())
-                .ok_or_else(|| vec![Diagnostic::error("selected build machine disappeared")])?;
-            Ok((source_span, name))
-        })
-        .transpose()?;
+    let ExecutedBuildCheckpoint {
+        frontend: executed_frontend,
+        computed_build_config,
+        package_authority_verdict,
+        selected_build_identity: prepass_build_identity,
+        transitional_final_syntax: frozen_syntax,
+    } = (AdmittedBuildCheckpoint {
+        frontend,
+        admitted_build,
+        package_authority_verdict,
+        transitional_final_syntax: frozen_syntax,
+    })
+    .execute()?;
+    frontend = executed_frontend;
     let own_generated_sources = computed_build_config.generated_sources.clone();
     let selected_build_machine_symbol = if computed_build_config.generated_sources.is_empty() {
         computed_build_config.selected_build_machine_symbol
@@ -779,7 +852,7 @@ fn compile_to_checked_inner_with_replay(
             Some(package_inputs),
             &mut timings,
         )?;
-        let Some((source_span, name)) = prepass_build_identity else {
+        let Some((source_span, callable_identity)) = prepass_build_identity else {
             return Err(vec![Diagnostic::error(
                 "generated-source handoff has no selected build machine to rebind",
             )]);
@@ -789,9 +862,11 @@ fn compile_to_checked_inner_with_replay(
             .machines()
             .iter()
             .filter(|machine| {
-                machine.name.as_str() == name
-                    && frontend.typed.symbols.symbol_source_span(machine.symbol)
-                        == Some(source_span)
+                frontend.typed.symbols.symbol_source_span(machine.symbol) == Some(source_span)
+                    && frontend
+                        .typed
+                        .normalized_machine_overload_identity(machine)
+                        .is_some_and(|identity| identity.identity() == callable_identity)
             })
             .map(|machine| machine.symbol)
             .collect::<Vec<_>>();
@@ -990,6 +1065,9 @@ fn compile_to_checked_inner_with_replay(
         source_file_count,
         subsystem,
         package_subject,
+        base_source_consumption_commitment: package_authority_verdict
+            .as_ref()
+            .map(|verdict| verdict.base_source_consumption_commitment()),
         exact_toolchain_sources,
         generated_source_custody,
         own_generated_sources,

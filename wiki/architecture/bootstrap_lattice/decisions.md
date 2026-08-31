@@ -456,10 +456,17 @@ paths, order, source count, and package custody remain unchanged. The compiler
 now binds the selected exact build-machine symbol to the identity of its
 prepared program. Both primary execution and filesystem replay consume that
 unforgeable entry through symbol-only interpreter lookup; a token from another
-preparation rejects even when the arena-local symbol value collides. The
-compiler still performs the full final frontend rebuild; retaining the
-admitted base checkpoint through final checking and deleting that rebuild and
-its nominal rebind remain the next D18 continuation.
+preparation rejects even when the arena-local symbol value collides. The build
+evaluator now returns an opaque admitted-program carrier that owns this
+prepared program and entry together with its reach plans, authority verdict,
+initial `Build` snapshot, target inputs, filesystem scope, and sponsor. Checked
+orchestration retains that carrier beside the coherent base frontend, package
+authority/source-consumption verdict, and frozen transitional syntax, then
+consumes the carrier and verifies its returned exact symbol. The compiler still
+performs the full final frontend rebuild; its transitional rebind now requires
+the exact source occurrence and normalized callable identity rather than a
+name. Continuing final checking from the retained base and deleting that
+rebuild/rebind remain the next D18 continuation.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between

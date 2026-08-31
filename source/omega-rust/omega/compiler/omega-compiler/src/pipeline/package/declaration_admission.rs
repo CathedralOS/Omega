@@ -5,11 +5,35 @@ use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionT
 use psi_source::SourceOrigin;
 use psi_symbols::SymbolKind;
 
+/// Opaque proof that the exact pre-build package source closure passed the
+/// authored-declaration authority gate.
+///
+/// The retained commitment belongs to the base frontend before this
+/// activation appends any own generated source. Construction stays private so
+/// build orchestration cannot pair an authority verdict with a different
+/// source closure.
+pub(super) struct AuthoredDeclarationAuthorityVerdict {
+    base_source_consumption_commitment:
+        omega_package_compilation::PackageSourceConsumptionCommitment,
+}
+
+impl AuthoredDeclarationAuthorityVerdict {
+    pub(super) const fn base_source_consumption_commitment(
+        &self,
+    ) -> omega_package_compilation::PackageSourceConsumptionCommitment {
+        self.base_source_consumption_commitment
+    }
+}
+
 pub(super) fn validate_authored_declaration_selections_before_build(
     typed: &psi_typed_trees::TypedTrees,
     packages: &PackageCompilationInputs,
+    generated_source_custody: &[(
+        psi_source::SourceId,
+        omega_build_output::PackageGeneratedSource,
+    )],
     timings: &mut crate::pipeline::timing::CompileTimings,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<AuthoredDeclarationAuthorityVerdict, Vec<Diagnostic>> {
     // Package build execution can carry filesystem and other boundary
     // authority. Check the frozen ordinary source graph first; the ordinary
     // final checked pass repeats this gate after any explicit generated-source
@@ -18,7 +42,15 @@ pub(super) fn validate_authored_declaration_selections_before_build(
         typed.clone(),
         timings,
     )?;
-    validate_authored_declaration_selections(&checked, packages)
+    validate_authored_declaration_selections(&checked, packages)?;
+    let base = omega_package_compilation::derive_package_compilation_subject(
+        &checked,
+        packages,
+        generated_source_custody,
+    )?;
+    Ok(AuthoredDeclarationAuthorityVerdict {
+        base_source_consumption_commitment: base.source_consumption_commitment(),
+    })
 }
 
 pub(super) fn validate_authored_declaration_selections(
