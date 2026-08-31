@@ -56,29 +56,10 @@ runtime_emitter_source() {
     '/^; ---- direct Alpha payload and fixup substrate/,/^; This is the eventual expression dispatcher/p' \
     gamma_compiler.beta
 }
-{
-  sed -n '1,$p' gamma_compiler.beta
-  printf '%s\n' \
-    '' \
-    'proc main() {' \
-    '    let accepted = frontend_check_main()' \
-    '    state checked { to yes when (accepted == 1)  return word[2097056] % 253 + 2 }' \
-    '    state yes { return 1 }' \
-    '}'
-} | "$T/bc.exe" > "$T/tc.tape" || {
-  echo "bc(gamma_compiler.beta + frontend gate entry) failed"
-  exit 1
-}
-stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
-
-# Observe the private D30/D33 admission judgment without constructing GCOUT or
-# either application adapter. The fixed 21-byte record is gate-private:
-# status/profile/kind/code/space, then u32 coordinate/limit/requested/source len.
-{
-  sed -n '1,$p' gamma_compiler.beta
+private_outcome_probe_entry() {
   printf '%s\n' \
     'proc main() {' \
-    '    let status = admit_gcreq()' \
+    "    let status = $1()" \
     '    let coordinate = word[2096824]' \
     '    let limit = word[2096816]' \
     '    let requested = word[2096808]' \
@@ -108,11 +89,42 @@ stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
     '        return 0' \
     '    }' \
     '}'
+}
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    '' \
+    'proc main() {' \
+    '    let accepted = frontend_check_main()' \
+    '    state checked { to yes when (accepted == 1)  return word[2097056] % 253 + 2 }' \
+    '    state yes { return 1 }' \
+    '}'
+} | "$T/bc.exe" > "$T/tc.tape" || {
+  echo "bc(gamma_compiler.beta + frontend gate entry) failed"
+  exit 1
+}
+stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
+
+# Observe the private D30/D33 admission judgment without constructing GCOUT or
+# either application adapter. The fixed 21-byte record is gate-private:
+# status/profile/kind/code/space, then u32 coordinate/limit/requested/source len.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  private_outcome_probe_entry admit_gcreq
 } | "$T/bc.exe" > "$T/gcreq-admission.tape" || {
   echo "bc(gamma_compiler.beta + GCREQ admission probe) failed"
   exit 1
 }
 stamp_seed "$T/gcreq-admission.tape" "$SEED" "$T/gcreq-admission.exe" >/dev/null 2>&1
+
+{
+  sed -n '1,$p' gamma_compiler.beta
+  private_outcome_probe_entry frontend_check_main
+} | "$T/bc.exe" > "$T/gcout-frontend.tape" || {
+  echo "bc(gamma_compiler.beta + private GCOUT frontend probe) failed"
+  exit 1
+}
+stamp_seed "$T/gcout-frontend.tape" "$SEED" "$T/gcout-frontend.exe" >/dev/null 2>&1
 
 # Exercise the private live-local boundary through a real checked `let` without
 # materializing 65,536 distinct active names (whose duplicate scan is
@@ -2525,6 +2537,46 @@ stamp_seed "$T/match-metadata.tape" "$SEED" "$T/match-metadata.exe" >/dev/null 2
 stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
+# Pin Q2's measured retained call-row pressure without adding a production
+# entry or adapter. Thirty-one appended references exactly fill 1,024 rows;
+# the thirty-second must be the Beta compiler's canonical adjacent refusal.
+for gamma_call_probe_count in 31 32; do
+  {
+    sed -n '1,$p' gamma_compiler.beta
+    printf '%s\n' 'proc main() {'
+    awk -v n="$gamma_call_probe_count" 'BEGIN {
+      for (i = 0; i < n; i++) print "    source_byte_allowed(0)"
+    }'
+    printf '%s\n' '    return 0' '}'
+  } | "$T/bc.exe" > "$T/call-rows-$gamma_call_probe_count.out"
+  gamma_call_probe_status=$?
+  case "$gamma_call_probe_count" in
+    31) gamma_call_probe_status_31=$gamma_call_probe_status ;;
+    32) gamma_call_probe_status_32=$gamma_call_probe_status ;;
+  esac
+done
+gamma_call_probe_size=$(wc -c < "$T/call-rows-32.out" | tr -d ' ')
+gamma_call_probe_kind=$(od -An -tu1 -j 8 -N 1 "$T/call-rows-32.out" | tr -d ' ')
+gamma_call_probe_space=$(od -An -tu1 -j 9 -N 1 "$T/call-rows-32.out" | tr -d ' ')
+gamma_call_probe_code=$(od -An -tx1 -j 12 -N 4 "$T/call-rows-32.out" | tr -d ' \n')
+gamma_call_probe_limit=$(od -An -tx1 -j 24 -N 8 "$T/call-rows-32.out" | tr -d ' \n')
+gamma_call_probe_requested=$(od -An -tx1 -j 32 -N 8 "$T/call-rows-32.out" | tr -d ' \n')
+if [ "$gamma_call_probe_status_31" = 0 ] &&
+   [ "$gamma_call_probe_status_32" = 2 ] &&
+   [ "$gamma_call_probe_size" = 40 ] &&
+   [ "$gamma_call_probe_kind" = 2 ] &&
+   [ "$gamma_call_probe_space" = 1 ] &&
+   [ "$gamma_call_probe_code" = 09000000 ] &&
+   [ "$gamma_call_probe_limit" = 0004000000000000 ] &&
+   [ "$gamma_call_probe_requested" = 0104000000000000 ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL Gamma retained call rows: exact=$gamma_call_probe_status_31 adjacent=$gamma_call_probe_status_32 frame=$gamma_call_probe_size/$gamma_call_probe_kind/$gamma_call_probe_space/$gamma_call_probe_code/$gamma_call_probe_limit/$gamma_call_probe_requested"
+fi
+unset gamma_call_probe_count gamma_call_probe_status gamma_call_probe_status_31 gamma_call_probe_status_32
+unset gamma_call_probe_size gamma_call_probe_kind gamma_call_probe_space
+unset gamma_call_probe_code gamma_call_probe_limit gamma_call_probe_requested
 d19_schema_case() { # source expected-status description
   gcreq_text 1 "$1" | "$T/d19-schema.exe" > "$T/d19-schema.out"
   d19_schema_status=$?
@@ -2913,22 +2965,36 @@ gcreq_expected() { # status profile kind code space coordinate limit requested s
   gcreq_emit_u32le "$8"
   gcreq_emit_u32le "$9"
 }
-check_gcreq() { # name request-file status profile kind code space coordinate limit requested source-length
-  gcreq_case=$1
-  gcreq_request=$2
-  shift 2
-  gcreq_expected "$@" > "$T/$gcreq_case.expected"
+check_private_outcome() { # probe name request-file status profile kind code space coordinate limit requested source-length
+  private_probe=$1
+  private_case=$2
+  private_request=$3
+  shift 3
+  private_stem=$private_probe-$private_case
+  gcreq_expected "$@" > "$T/$private_stem.expected"
   set +e
-  "$T/gcreq-admission.exe" < "$gcreq_request" > "$T/$gcreq_case.actual"
-  gcreq_status=$?
-  if [ "$gcreq_status" = 0 ] && cmp -s "$T/$gcreq_case.expected" "$T/$gcreq_case.actual"; then
+  "$T/$private_probe.exe" < "$private_request" > "$T/$private_stem.actual"
+  private_status=$?
+  if [ "$private_status" = 0 ] && cmp -s "$T/$private_stem.expected" "$T/$private_stem.actual"; then
     PASS=$((PASS+1))
   else
     FAIL=$((FAIL+1))
-    echo "  FAIL GCREQ $gcreq_case: probe status $gcreq_status"
-    echo "    expected: $(od -An -tx1 -v "$T/$gcreq_case.expected" | tr -d ' \n')"
-    echo "    actual:   $(od -An -tx1 -v "$T/$gcreq_case.actual" | tr -d ' \n')"
+    echo "  FAIL $private_probe $private_case: probe status $private_status"
+    echo "    expected: $(od -An -tx1 -v "$T/$private_stem.expected" | tr -d ' \n')"
+    echo "    actual:   $(od -An -tx1 -v "$T/$private_stem.actual" | tr -d ' \n')"
   fi
+}
+check_gcreq() { check_private_outcome gcreq-admission "$@"; }
+check_frontend_gcout() { check_private_outcome gcout-frontend "$@"; }
+gcout_case() { # name source reason coordinate
+  gcout_case_name=$1
+  gcout_case_source=$2
+  gcout_case_reason=$3
+  gcout_case_coordinate=$4
+  gcout_case_length=$(printf '%s' "$gcout_case_source" | wc -c | tr -d ' ')
+  gcreq_text 1 "$gcout_case_source" > "$T/gcout-$gcout_case_name.req"
+  check_frontend_gcout "$gcout_case_name" "$T/gcout-$gcout_case_name.req" \
+    0 1 1 "$gcout_case_reason" 1 "$gcout_case_coordinate" 0 0 "$gcout_case_length"
 }
 
 # D30/D33 request admission: header precedence, complete profile selection,
@@ -2965,6 +3031,66 @@ gcreq_header 1 4194304 > "$T/gcreq-source-exact.req"
 dd if=/dev/zero bs=1048576 count=4 2>/dev/null | tr '\000' 'x' >> "$T/gcreq-source-exact.req"
 check_gcreq source-exact "$T/gcreq-source-exact.req" 0 1 0 0 0 0 0 0 4194304
 unset gcreq_valid_source gcreq_valid_length
+
+# Ordinary Gamma rejection codes 4..18 retain one exact source coordinate.
+gcout_source='junk'
+gcout_case invalid-syntax "$gcout_source" 4 0
+gcout_prefix='(def main () Int '
+gcout_source="${gcout_prefix}9223372036854775808)"
+gcout_coordinate=$(($(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ') + 18))
+gcout_case integer-range "$gcout_source" 5 "$gcout_coordinate"
+gcout_prefix='(data T (A)) (data '
+gcout_source="${gcout_prefix}T (B)) (def main () Int 0)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case duplicate-type "$gcout_source" 6 "$gcout_coordinate"
+gcout_prefix='(data A (X)) (data B ('
+gcout_source="${gcout_prefix}X)) (def main () Int 0)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case duplicate-constructor "$gcout_source" 7 "$gcout_coordinate"
+gcout_prefix='(def f () Int 0) (def '
+gcout_source="${gcout_prefix}f () Int 1) (def main () Int 0)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case duplicate-function "$gcout_source" 8 "$gcout_coordinate"
+gcout_prefix='(def main ((x Int) ('
+gcout_source="${gcout_prefix}x Int)) Int x)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case active-local-conflict "$gcout_source" 9 "$gcout_coordinate"
+gcout_prefix='(data Pair (Pair Int Int)) (def main ((p Pair)) Int (match p ((Pair x '
+gcout_source="${gcout_prefix}x) x)))"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case duplicate-pattern "$gcout_source" 10 "$gcout_coordinate"
+gcout_prefix='(def main ((value '
+gcout_source="${gcout_prefix}Missing)) Int 0)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case unknown-type "$gcout_source" 11 "$gcout_coordinate"
+gcout_prefix='(def main () Int '
+gcout_source="${gcout_prefix}Missing)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case unknown-constructor "$gcout_source" 12 "$gcout_coordinate"
+gcout_prefix='(def main () Int ('
+gcout_source="${gcout_prefix}missing))"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_coordinate=$((gcout_coordinate - 1))
+gcout_case unknown-function "$gcout_source" 13 "$gcout_coordinate"
+gcout_prefix='(def main () Int '
+gcout_source="${gcout_prefix}missing)"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case unknown-local "$gcout_source" 14 "$gcout_coordinate"
+gcout_prefix='(def main () Int '
+gcout_source="${gcout_prefix}(bytes_empty))"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case type-mismatch "$gcout_source" 15 "$gcout_coordinate"
+gcout_prefix='(def f ((x Int)) Int x) (def main () Int '
+gcout_source="${gcout_prefix}(f))"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case arity-mismatch "$gcout_source" 16 "$gcout_coordinate"
+gcout_prefix='(data Choice (A) (B)) (def main ((value Choice)) Int '
+gcout_source="${gcout_prefix}(match value (A 0) (A 1) (B 2)))"
+gcout_coordinate=$(printf '%s' "$gcout_prefix" | wc -c | tr -d ' ')
+gcout_case duplicate-match-case "$gcout_source" 17 "$gcout_coordinate"
+gcout_source="${gcout_prefix}(match value (A 0)))"
+gcout_case nonexhaustive-match "$gcout_source" 18 "$gcout_coordinate"
+unset gcout_source gcout_prefix gcout_coordinate
 
 # phase 1 — Int + typed functions
 tc '(def add ((a Int) (b Int)) Int (+ a b)) (def main () Int (add 2 3))' 1 'well-typed'
