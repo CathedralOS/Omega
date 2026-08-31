@@ -4313,12 +4313,16 @@ preheader jump, true and false header outcomes, decrement backedge, and return,
 with current-schedule ceilings `1, 3, 3, 3, 1`. Whole-roster replay binds
 terminal identity, schedule, machine, start block, edge, empty current
 preconditions, and ceiling, and rejects omission, duplication, reordering,
-semantic drift, schedule drift, or a wider rank carrier. This is
-non-authorizing analysis/PCC evidence: it is neither a whole-entry theorem nor
-execution, native, installation, composition, or bulk-charge authority.
-Its row and catalog types are not accepted by the acyclic installation binders.
-Acyclic segment authority is unchanged. Tail calls and relevant-precondition
-refinements require later vertical slices.
+semantic drift, schedule drift, or a wider rank carrier. A distinct
+non-clonable installed correspondence may bind that complete roster to the
+exact Terminal identity, ranked machine, emitted function offset, frozen code,
+artifact, installed-code context, and selected entry; replay rejects a foreign
+occurrence, artifact, or entry. This remains non-authorizing analysis/PCC
+evidence: it is neither a whole-entry theorem nor execution, composition,
+bulk-charge, runtime-meter, root, or publication authority. Its row and catalog
+types are not accepted by the acyclic segment or whole-entry composition
+binders. Acyclic segment authority is unchanged. Tail calls and
+relevant-precondition refinements require later vertical slices.
 
 The general resource report treats a derived cyclic component as one semantic
 subject. Its structured absence-of-bound verdict names the

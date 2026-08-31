@@ -92,6 +92,55 @@ pub struct InstalledSegmentFuelCatalog {
     entry: EntryStubId,
 }
 
+/// Complete ranked-countdown safe-point partition bound to one exact installed
+/// function occurrence.
+///
+/// This carrier is deliberately distinct from [`InstalledSegmentFuelCatalog`]:
+/// ranked rows are block-local per-traversal facts, not acyclic path-segment
+/// ceilings, and cannot enter whole-entry or provider fuel composition. The
+/// binding is non-authorizing PCC/report evidence only.
+#[derive(Debug, PartialEq, Eq)]
+pub struct InstalledRankedCountdownSafePointFuelCatalog {
+    segments: psi_terminal_fixed_fuel::ValidatedRankedCountdownSafePointFuelSegments,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+}
+
+impl InstalledRankedCountdownSafePointFuelCatalog {
+    pub const fn psi(&self) -> psi_terminal_codec::TerminalPsiIdentity {
+        self.segments.terminal_psi()
+    }
+
+    pub const fn machine(&self) -> psi_core::MachineId {
+        self.segments.machine()
+    }
+
+    pub fn segments(&self) -> &[psi_terminal_fixed_fuel::RankedCountdownSafePointFuelCertificate] {
+        self.segments.certificates()
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    fn matches_installed_entry(&self, installed_code: &InstalledCode, entry: EntryStubId) -> bool {
+        self.entry == entry
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+    }
+}
+
 impl InstalledSegmentFuelCatalog {
     pub const fn psi(&self) -> psi_terminal_codec::TerminalPsiIdentity {
         self.segments.terminal_psi()
@@ -306,6 +355,70 @@ pub fn validate_installed_segment_fuel_catalog(
     if !binding.matches_installed_entry(installed_code, entry) {
         return Err(ExternalRootDiagnostic(
             "terminal fixed-fuel segment catalog does not bind the selected installed code and function entry"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Bind the exact verifier-sealed ranked-countdown safe-point roster to one
+/// installed function occurrence.
+///
+/// The retained rows remain per-traversal facts. This operation grants no
+/// whole-entry ceiling, provider-composition input, bulk charge, runtime meter,
+/// execution, root-admission, or publication authority.
+pub fn bind_installed_ranked_countdown_safe_point_fuel_catalog<TerminalArtifact: ObjectEvidence>(
+    segments: psi_terminal_fixed_fuel::ValidatedRankedCountdownSafePointFuelSegments,
+    artifact: &TerminalArtifact,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<InstalledRankedCountdownSafePointFuelCatalog, ExternalRootDiagnostic> {
+    if segments.terminal_psi() != artifact.psi() {
+        return Err(ExternalRootDiagnostic(
+            "ranked-countdown safe-point catalog does not name the terminal artifact's semantic identity"
+                .into(),
+        ));
+    }
+    if segments.certificates().iter().any(|certificate| {
+        certificate.terminal_psi() != segments.terminal_psi()
+            || certificate.schedule() != segments.schedule()
+            || certificate.machine() != segments.machine()
+            || !certificate.relevant_preconditions().is_empty()
+    }) {
+        return Err(ExternalRootDiagnostic(
+            "ranked-countdown safe-point catalog contains a row outside its exact semantic partition"
+                .into(),
+        ));
+    }
+    let function_offset = artifact
+        .function_text_offset(segments.machine())
+        .ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "ranked-countdown safe-point catalog machine is not present in the emitted artifact"
+                    .into(),
+            )
+        })?;
+    bind_terminal_function(artifact, installed_code, entry, function_offset)?;
+    Ok(InstalledRankedCountdownSafePointFuelCatalog {
+        segments,
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+    })
+}
+
+/// Replay the exact installed occurrence retained by a ranked-countdown
+/// safe-point catalog without converting it into executable or compositional
+/// authority.
+pub fn validate_installed_ranked_countdown_safe_point_fuel_catalog(
+    binding: &InstalledRankedCountdownSafePointFuelCatalog,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+) -> Result<(), ExternalRootDiagnostic> {
+    if !binding.matches_installed_entry(installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "ranked-countdown safe-point catalog does not bind the selected installed code and function entry"
                 .into(),
         ));
     }

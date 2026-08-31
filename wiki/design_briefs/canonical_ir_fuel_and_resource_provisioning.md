@@ -590,9 +590,14 @@ with current-schedule ceilings `1, 3, 3, 3, 1`. Independent whole-roster replay
 binds terminal identity, schedule, machine, start block, edge, empty current
 preconditions, and ceiling. Omission, duplication, reordering, semantic or
 schedule drift, and a wider rank carrier reject. This catalog is neither a
-whole-entry theorem nor execution, native, installation, composition, or
-bulk-charge authority; its row and catalog types are not accepted by the
-acyclic installation binders. Acyclic segment checking is not widened.
+whole-entry theorem nor execution, composition, or bulk-charge authority. A
+distinct non-clonable installed correspondence now binds the complete roster
+to one exact Terminal identity, ranked machine, emitted function offset,
+frozen installed-code context, artifact, and selected entry. That carrier is
+PCC/report evidence only and rejects occurrence, artifact, or entry
+substitution; it grants no runtime meter, execution, root, or publication
+authority. Its row and catalog types are not accepted by the acyclic segment or
+whole-entry composition binders. Acyclic segment checking is not widened.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
 irreducible semantic dependency has an exact versioned node in a closed trust
