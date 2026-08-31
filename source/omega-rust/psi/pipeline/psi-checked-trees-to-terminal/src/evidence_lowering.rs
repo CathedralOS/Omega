@@ -335,7 +335,17 @@ fn lower_and_install_payloadless_guarded_call_evidence(
     plan: &psi_checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
     lowered: &mut LoweredTerminalPsi,
 ) -> Result<(), LoweringError> {
-    let term_ids = lower_payloadless_guarded_call_term_ids(checked, plan)?;
+    let provisional_term_ids = lower_payloadless_guarded_call_term_ids(checked, plan)?;
+    let (_provisional_declarations, provisional_applications, provisional_declaration_ids) =
+        lower_proposition_vocabulary(checked, &provisional_term_ids)?;
+    let provisional_evidence_terms = lower_evidence_terms(
+        checked,
+        plan.machine,
+        &provisional_declaration_ids,
+        &provisional_applications,
+        provisional_term_ids,
+    )?;
+    let term_ids = canonical_payloadless_guarded_call_term_ids(provisional_evidence_terms)?;
     let (declarations, applications, declaration_ids) =
         lower_proposition_vocabulary(checked, &term_ids)?;
     let evidence_terms = lower_evidence_terms(
@@ -620,11 +630,18 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             .collect::<Vec<_>>();
         match (&selection.tail_use, selected_consumers.as_slice()) {
             (None, []) => {}
-            (Some(use_), [(call, [argument])])
+            (Some(use_), [(call, arguments)])
                 if call.target_state_symbol == use_.target_state
-                    && argument.source == selection.selected_term
-                    && argument.parameter == use_.parameter
-                    && u32::try_from(argument.lane_position).ok() == Some(use_.input_position) => {}
+                    && arguments.len() == plan.selected_evidence.len()
+                    && usize::try_from(use_.input_position)
+                        .ok()
+                        .and_then(|position| arguments.get(position))
+                        .is_some_and(|argument| {
+                            argument.source == selection.selected_term
+                                && argument.parameter == use_.parameter
+                                && u32::try_from(argument.lane_position).ok()
+                                    == Some(use_.input_position)
+                        }) => {}
             _ => {
                 return unsupported(
                     "guarded selected evidence use did not rejoin its checked tail requirement",
@@ -683,9 +700,10 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                 let [parameter] = target.structural_parameters.as_slice() else {
                     return unsupported("guarded selected evidence target parameter is not exact");
                 };
-                if !target.contract.requires.is_empty() {
+                if usize::try_from(use_.input_position).ok() != Some(target.contract.requires.len())
+                {
                     return unsupported(
-                        "guarded selected evidence target requirement is duplicated",
+                        "guarded selected evidence target requirement order drifted",
                     );
                 }
                 target
@@ -797,6 +815,42 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             ))
     });
     Ok(())
+}
+
+fn canonical_payloadless_guarded_call_term_ids(
+    provisional: LoweredEvidenceTerms,
+) -> Result<Vec<Option<EvidenceTermId>>, LoweringError> {
+    let mut declarations = provisional.declarations;
+    declarations.sort_by(|left, right| {
+        (left.proposition, &left.interface, left.id).cmp(&(
+            right.proposition,
+            &right.interface,
+            right.id,
+        ))
+    });
+    let remapped = declarations
+        .iter()
+        .enumerate()
+        .map(|(position, declaration)| {
+            Ok((
+                declaration.id,
+                EvidenceTermId::new(dense_identity(position)?)
+                    .expect("dense evidence term identity is nonzero"),
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
+    provisional
+        .term_ids
+        .into_iter()
+        .map(|id| {
+            id.map(|id| {
+                remapped.get(&id).copied().ok_or(LoweringError::Unsupported(
+                    "guarded payloadless evidence term lost its canonical identity",
+                ))
+            })
+            .transpose()
+        })
+        .collect()
 }
 
 fn lower_payloadless_guarded_call_term_ids(

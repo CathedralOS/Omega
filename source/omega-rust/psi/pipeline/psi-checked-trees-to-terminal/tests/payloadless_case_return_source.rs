@@ -169,6 +169,37 @@ const SELECTED_WITNESS_TAIL_USE_SOURCE: &str = r#"
     }
 "#;
 
+const TWO_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
+    trait Evidence {}
+    data Outcome [copy] { case Success; case Failure; }
+    proposition accepted(value: Outcome) evidence Evidence;
+    proposition trusted(value: Outcome) evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    data Root {}
+
+    machine Root::produce() -> Outcome
+    ensures Outcome::Success -> { first: accepted(result); second: trusted(result); }
+    ensures Outcome::Failure -> { sibling: accepted(result); }
+    {
+        first = ConcreteEvidence;
+        second = ConcreteEvidence;
+        Outcome::Success
+    }
+
+    machine Root::caller() -> Outcome {
+        let saved: Outcome = Root::produce();
+        transition saved {
+            Outcome::Success { ; first: local_first, second: local_second }
+                -> finish(saved; local_first, local_second)
+            Outcome::Failure { } -> saved
+        }
+        state finish(value: Outcome) -> Outcome
+        requires needed_first: accepted(value)
+        requires needed_second: trusted(value)
+        { value }
+    }
+"#;
+
 #[test]
 fn selected_witness_tail_use_is_canonical_and_runtime_free() {
     let checked = checked(SELECTED_WITNESS_TAIL_USE_SOURCE);
@@ -308,6 +339,136 @@ fn selected_witness_tail_use_is_canonical_and_runtime_free() {
     assert!(
         psi_checked_trees_to_terminal::lower_machine(&omitted_checked_use, "Root::caller").is_err()
     );
+}
+
+#[test]
+fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
+    let checked = checked(TWO_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let caller_symbol = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("caller"))
+        .unwrap()
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(caller_symbol)
+        .expect("the exact two-witness tail use has a checked plan");
+    let [first_plan, second_plan] = plan.selected_evidence.as_slice() else {
+        panic!("two selected checked rows")
+    };
+    assert_ne!(first_plan.selected_term, second_plan.selected_term);
+    assert_eq!(first_plan.tail_use.as_ref().unwrap().input_position, 0);
+    assert_eq!(second_plan.tail_use.as_ref().unwrap().input_position, 1);
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::caller")
+        .expect("the exact two-witness tail use lowers");
+    let module = &lowered.semantic_module;
+    let [caller, _callee, target] = module.machines.as_slice() else {
+        panic!("caller, producer, and proof-visible tail target remain canonical")
+    };
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        panic!("the producer call remains structural")
+    };
+    let [first, second] = selected_evidence.as_slice() else {
+        panic!("two selected Terminal rows")
+    };
+    assert_ne!(first.output, second.output);
+    let [first_use] = first.uses.as_slice() else {
+        panic!("one use of the first selected row")
+    };
+    let [second_use] = second.uses.as_slice() else {
+        panic!("one use of the second selected row")
+    };
+    assert_eq!(
+        (first.expected_use_count, second.expected_use_count),
+        (1, 1)
+    );
+    assert_eq!(
+        (first_use.input_position, second_use.input_position),
+        (0, 1)
+    );
+    assert_eq!(first_use.target, target.id);
+    assert_eq!(second_use.target, target.id);
+    assert_eq!(first_use.source, first.output);
+    assert_eq!(second_use.source, second.output);
+    assert_eq!(
+        target.contract.requires,
+        [
+            psi_core::Proposition::Atom(first_use.target_requirement),
+            psi_core::Proposition::Atom(second_use.target_requirement),
+        ]
+    );
+    assert!(target.blocks[0].operations.is_empty());
+
+    let bytes = encode_module(module).expect("two selected-witness rows encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let verified = psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("both independent tail requirements replay");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, module.entry)
+            .expect("proof-only uses do not add fuel")
+            .ceiling_units(),
+        4
+    );
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
+            .expect("two-witness artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(4);
+    assert!(matches!(
+        execution.resume(&mut meter).expect("artifact completes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+    ));
+
+    let mutate = |mut module: psi_terminal::TerminalModule,
+                  change: fn(&mut [psi_terminal::OutcomeSpecificCallEvidence])| {
+        let OperationKind::CallStructural {
+            selected_evidence, ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            unreachable!()
+        };
+        change(selected_evidence);
+        assert!(psi_terminal_verifier::validate_module(&module).is_err());
+    };
+    mutate(module.clone(), |rows| {
+        let first_position = rows[0].uses[0].input_position;
+        rows[0].uses[0].input_position = rows[1].uses[0].input_position;
+        rows[1].uses[0].input_position = first_position;
+    });
+    mutate(module.clone(), |rows| {
+        rows[1].uses[0].input_position = rows[0].uses[0].input_position;
+    });
+    mutate(module.clone(), |rows| {
+        rows[1].output = rows[0].output;
+        rows[1].uses[0].source = rows[0].output;
+    });
+    mutate(module.clone(), |rows| rows.swap(0, 1));
+    mutate(module.clone(), |rows| {
+        rows[1].uses[0].target_requirement = rows[0].uses[0].target_requirement;
+    });
+    mutate(module.clone(), |rows| {
+        rows[1].guard.result_case = rows[0].guard.result_case;
+        rows[1].position = 0;
+    });
+
+    let mut missing_argument = module.clone();
+    missing_argument.machines[2].contract.requires.pop();
+    assert!(psi_terminal_verifier::validate_module(&missing_argument).is_err());
+    let mut extra_argument = module.clone();
+    let extra = extra_argument.machines[2].contract.requires[0].clone();
+    extra_argument.machines[2].contract.requires.push(extra);
+    assert!(psi_terminal_verifier::validate_module(&extra_argument).is_err());
 }
 
 #[test]

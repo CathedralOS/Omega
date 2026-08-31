@@ -705,19 +705,20 @@ omission stays fact-only. Lowering canonicalizes those selections by guarded
 callee-row coordinate, emits the exact two-machine closure, retains sibling
 guarded rows and producer provenance on the callee, and rejoins each selected
 row to a distinct caller-local term without changing the four-unit runtime.
-The next bounded rung permits one selected whole-result guarded term to be used
-once as the sole named `requires` input of one direct tail state in the matching
-payloadless arm. Terminal retains that tail as an independently resolvable
-third machine with one structural parameter, one exact requirement, and an
-identity structural return, while the selected-use row binds its machine,
-input position, proposition applications, evidence terms, and caller/target
-places. Format 42 / vocabulary 45 reject omission, duplication, redirection,
-interface drift, and tail-shape drift. The tail remains outside the runtime
-entry graph, so interpretation and fixed fuel retain the existing four-unit
-saved-result path. Payload projections, multiple or partial-result
-substitutions, multiple evidence arguments or uses, later invalidation, erased
-proof-output linkage, wider structural calls, and tagged-sum target lowering
-remain outside this bounded source rung.
+The next bounded rung permits one or two distinct selected whole-result guarded
+terms to be used once each as dense ordered named `requires` inputs of one
+direct tail state in the matching payloadless arm. Terminal retains that tail
+as an independently resolvable third machine with one structural parameter,
+the exact ordered requirements, and an identity structural return, while one
+selected-use row per term binds its machine, input position, proposition
+applications, evidence terms, and caller/target places. Format 42 / vocabulary
+45 reject omission, duplication, reordering, redirection, interface drift, and
+tail-shape drift. The tail remains outside the runtime entry graph, so
+interpretation and fixed fuel retain the existing four-unit saved-result path.
+Payload projections, multiple or partial-result substitutions, three-or-more
+evidence arguments, repeated term use, later invalidation, erased proof-output
+linkage, wider structural calls, and tagged-sum target lowering remain outside
+this bounded source rung.
 The current producer serializes forwarded terms as dense module-local
 identities over the exact proposition application and a structured canonical
 carrierless interface; the verifier requires each witness application to carry

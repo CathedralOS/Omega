@@ -414,6 +414,7 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                         || !strictly_increasing(
                             binding.validity.interface_dependencies.iter().copied(),
                         )
+                        || !strictly_increasing(binding.uses.iter().cloned())
                 }) =>
                 {
                     return Err(CodecError::NonCanonicalOrder(

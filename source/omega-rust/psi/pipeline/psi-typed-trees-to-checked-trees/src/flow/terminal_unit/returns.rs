@@ -495,9 +495,7 @@ fn build_payloadless_guarded_call_return_machine(
         let [parameter] = program.state_parameters(tail_state) else {
             return None;
         };
-        let [contract] = program.state_contracts(tail_state) else {
-            return None;
-        };
+        let contracts = program.state_contracts(tail_state);
         let [StatementNode::Expression(returned)] = program
             .statement_table
             .statements(tail_state.statement_nodes)
@@ -518,8 +516,11 @@ fn build_payloadless_guarded_call_return_machine(
         if parameter.is_const
             || parameter.is_mutable
             || parameter.is_self
-            || !matches!(contract.kind, SignatureContractKind::Requires)
-            || contract.binding.is_none()
+            || !(1..=2).contains(&contracts.len())
+            || contracts.iter().any(|contract| {
+                !matches!(contract.kind, SignatureContractKind::Requires)
+                    || contract.binding.is_none()
+            })
             || program.normalized_type_identity(tail_state.return_type)
                 != program.normalized_type_identity(state.return_type)
             || !returned_parameter
@@ -588,7 +589,7 @@ fn build_payloadless_guarded_call_return_machine(
                     program.statement_table.expression_handles(*arguments),
                     [argument] if expression_is_saved(*argument, statement_index)
                 )
-                && evidence_arguments.len() == 1 =>
+                && (1..=2).contains(&evidence_arguments.len()) =>
             {
                 tail_arm = Some(statement_index);
             }
@@ -687,11 +688,13 @@ fn build_payloadless_guarded_call_return_machine(
             }
         }
         (Some(tail_state), Some(tail_statement_index)) => {
-            if flow_calls.len() != 2 || selected_evidence.len() != 1 {
+            if flow_calls.len() != 2 || !(1..=2).contains(&selected_evidence.len()) {
                 return None;
             }
-            let selection = selected_evidence.first_mut()?;
-            if selection.arm_statement_index != u32::try_from(tail_statement_index).ok()? {
+            if selected_evidence
+                .windows(2)
+                .any(|pair| pair[0].selected_term == pair[1].selected_term)
+            {
                 return None;
             }
             let tail_flow_call = flow_calls.iter().find(|call| {
@@ -705,34 +708,44 @@ fn build_payloadless_guarded_call_return_machine(
                 tail_statement_index,
                 tail_flow_call.call_ordinal,
             )?;
-            let [requirement] = facts
+            let requirements = facts
                 .proof
                 .contract_fact_refs
-                .span_or_empty(tail_contract_call.requires)
-            else {
-                return None;
-            };
-            let [argument] = facts
+                .span_or_empty(tail_contract_call.requires);
+            let arguments = facts
                 .proof
                 .contract_evidence_arguments
-                .span_or_empty(tail_contract_call.evidence_arguments)
-            else {
-                return None;
-            };
-            let requirement = facts.proof.contract_facts.get(requirement.fact);
-            if tail_flow_call.has_receiver
-                || tail_contract_call.target_state_symbol != tail_state.symbol
-                || argument.source != selection.selected_term
-                || argument.lane_position != 0
-                || requirement.evidence_term != Some(argument.parameter)
+                .span_or_empty(tail_contract_call.evidence_arguments);
+            if requirements.len() != selected_evidence.len()
+                || arguments.len() != selected_evidence.len()
             {
                 return None;
             }
-            selection.tail_use = Some(CheckedPayloadlessGuardedCallEvidenceUsePlan {
-                target_state: tail_state.symbol,
-                input_position: 0,
-                parameter: argument.parameter,
-            });
+            if tail_flow_call.has_receiver
+                || tail_contract_call.target_state_symbol != tail_state.symbol
+            {
+                return None;
+            }
+            for (input_position, ((selection, requirement), argument)) in selected_evidence
+                .iter_mut()
+                .zip(requirements)
+                .zip(arguments)
+                .enumerate()
+            {
+                let requirement = facts.proof.contract_facts.get(requirement.fact);
+                if selection.arm_statement_index != u32::try_from(tail_statement_index).ok()?
+                    || argument.source != selection.selected_term
+                    || argument.lane_position != input_position
+                    || requirement.evidence_term != Some(argument.parameter)
+                {
+                    return None;
+                }
+                selection.tail_use = Some(CheckedPayloadlessGuardedCallEvidenceUsePlan {
+                    target_state: tail_state.symbol,
+                    input_position: u32::try_from(input_position).ok()?,
+                    parameter: argument.parameter,
+                });
+            }
         }
         _ => return None,
     }
