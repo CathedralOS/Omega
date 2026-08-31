@@ -10,7 +10,7 @@ pub(in crate::attached_unit::composed_control) fn emit_leaf(
     next_edge: &mut u64,
 ) -> Result<(Block, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let mut operations = OperationBuffer::new(*next_operation - 1);
-    emit_call_operation(state, targets, &mut operations)?;
+    emit_call_operation(&state.operations[0], targets, &mut operations)?;
     *next_operation = operations.next_identity;
     Ok((
         Block {
@@ -27,7 +27,7 @@ pub(in crate::attached_unit::composed_control) fn emit_leaf(
 }
 
 pub(in crate::attached_unit::composed_control) fn emit_call_operation(
-    state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
     targets: &[super::super::catalogs::LoweredComposedInternalTarget],
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
@@ -36,7 +36,7 @@ pub(in crate::attached_unit::composed_control) fn emit_call_operation(
         structural_arguments,
         claim_transfers,
         ..
-    } = &state.operations[0]
+    } = operation
     else {
         return unsupported("composed internal operation is not a Unit call");
     };

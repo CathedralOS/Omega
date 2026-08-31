@@ -103,7 +103,8 @@ effect leaves. Its typed producer has a small coordinator over `topology`,
 `operations`, and `assembly`; its consumer retains the parallel `admission`,
 `operations`, and `emission` split. The topology/admission rungs own graph
 classification and independent reachability/cycle walks; the operation rungs
-own the exact pre-terminator sequence and preserve effect-before-branch order.
+own the exact finite pre-terminator sequence and preserve effect-before-branch
+source order.
 Balanced, right-deep, convergent, and call-prefixed shapes do not receive
 sibling routes.
 The nested

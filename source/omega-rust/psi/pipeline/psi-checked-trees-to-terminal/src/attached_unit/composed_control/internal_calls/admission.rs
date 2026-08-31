@@ -6,6 +6,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     checked: &'a CheckedTrees,
     root: psi_symbols::SymbolHandle,
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
     plans: &'a psi_checked_trees::CheckedUnitEffectPlans,
     targets: &mut Vec<(&'a psi_checked_trees::CheckedUnitEffectMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
@@ -17,7 +18,7 @@ pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
         service_reach,
         structural_arguments,
         claim_transfers,
-    } = &state.operations[0]
+    } = operation
     else {
         unreachable!("internal leaf shape was validated")
     };

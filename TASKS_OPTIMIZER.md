@@ -147,21 +147,23 @@ decision. Only true language-semantic questions belong in
    rejoins each guard, transition argument expression, and structural-cleanup
    target against checked facts before dynamically assigning block parameters
    and identities. Scalar reordering, guard or target corruption, and forged
-   convergence fail closed; verifier and codec replay pass. One exact
+   convergence fail closed; verifier and codec replay pass. An exact
    qualification-free operation prefix is now admitted without adding a route:
-   a control may make one parameterless internal Unit call before its two
-   transitions. The checked coordinate shifts both guard and edge ordinals,
-   target admission rejoins the ordinary target plan and transitive closure,
-   and Terminal emission preserves call-before-branch order. Coordinate drift
-   rejects; verifier and codec replay pass. Producer and consumer each name a
-   small `operations` rung. The producer descends through an 18-line
-   `nested_control` entrance into 311-line `topology`, 44-line `operations`,
-   and 75-line `assembly` rungs; the 16-line consumer entrance retains separate
-   295-line `admission`, 34-line `operations`, and 231-line `emission` rungs. No
-   topology-specific sibling was added. The next bounded widening is a finite
-   sequence of empty-custody internal Unit calls; boundary-call prefixes remain
-   separate until their source-call and provider replay are explicit. This is
-   engineering, not an owner language decision. A smaller recurring custody
+   a control may make a finite ordered sequence of parameterless internal Unit
+   calls before its two transitions. Checked coordinates shift both guard and
+   edge ordinals, target admission rejoins every ordinary target plan and
+   transitive closure, and Terminal emission preserves call-before-branch
+   source order. One- and two-call canaries pass verifier and codec replay;
+   coordinate drift and operation reordering reject. Producer and consumer
+   each name a small `operations` rung. The producer descends through an
+   18-line `nested_control` entrance into 319-line `topology`, 39-line
+   `operations`, and 75-line `assembly` rungs; the 16-line consumer entrance
+   retains separate 295-line `admission`, 37-line `operations`, and 231-line
+   `emission` rungs. No
+   topology-specific sibling was added. The next bounded widening is an exact
+   parameterless boundary-call prefix; it remains separate until source-call
+   occurrences and provider replay are explicit. This is engineering, not an
+   owner language decision. A smaller recurring custody
    class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
