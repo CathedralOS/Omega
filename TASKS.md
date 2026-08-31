@@ -11304,8 +11304,21 @@ checked-result arithmetic decision listed below.
   ceiling bound the plural producer and consumer. Shallower, deeper,
   recursive, array-mediated, or direct-sum-coexisting paths still reject, as
   does target-dependent placement at every layer.
+  The complete plural depth-four fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Second -> First -> Middle -> Leaf -> direct sums` chains. Its
+  compact report retains the outer whole-record layout once and one exact row
+  per outer occurrence; each row owns the unchanged plural depth-three report
+  for that occurrence. The non-clone carrier composes the corresponding plural
+  depth-three carriers, preserves repeated nominal occurrences separately,
+  rebuilds every nested zero-padded image in authored order, replays layouts
+  and occurrence identities hash-free, and performs one final atomic copy. A
+  shared memoized bounded walk and global leaf-occurrence ceiling cover the
+  entire cohort. Paths deeper than four records, recursive or array-mediated
+  paths, direct-sum coexistence, and target-dependent placement remain
+  rejected; the existing shallower APIs remain unchanged.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  three records, plural paths deeper than three records, mixed common-field/case
+  four records, plural paths deeper than four records, mixed common-field/case
   shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
