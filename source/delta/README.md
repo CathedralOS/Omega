@@ -59,9 +59,9 @@ compilers and must not both be called “the Delta compiler.”
   settled field/index/slice projection failures, D37 scalar and argument-
   `never` category joins, let/assignment/assert and explicit-return relations,
   first-following-statement terminal flow, and symbolic Alpha encoding.
-  Remaining final body/control checking, Q3-blocked entry diagnostics, Q8
-  bare-state-transfer spelling, Q9 invalid-`self` diagnostic, Q10
-  resultless-argument anchor, the Q11-blocked exit/falloff judgment,
+  Remaining final body/control checking, Q3-blocked entry diagnostics, Q7
+  bare-state-transfer spelling, Q8 invalid-`self` diagnostic, Q9
+  resultless-argument anchor, the Q10-blocked exit/falloff judgment,
   transition subject/pattern/binder and remaining D37 control/terminal premise
   DAG, D38
   executable controls, storage realization/lowering,

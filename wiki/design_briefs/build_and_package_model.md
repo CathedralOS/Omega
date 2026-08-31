@@ -191,65 +191,34 @@ projectable; hiding them behind arbitrary machine control flow rejects. Ordinary
 build behavior such as provider selection and root binding remains evaluated
 Omega code after graph closure.
 
-Target-conditioned dependencies reuse ordinary Omega control flow rather than a
-second dependency API. The author branches on immutable, source-visible
-`builder.target` and writes the same `depend` or `depend_as` call in an exact
-profile arm:
+Dependencies are unconditional, directly projectable build rows. Graph-forming
+control flow on `builder.target`, `depend_when`, and `depend_as_when` is
+retired. The package manager never executes or statically interprets a build
+machine's state graph to discover package edges, and it publishes no
+`common + by_profile` dependency map. Alias uniqueness is checked over the one
+declared dependency set.
+
+Platform implementation variation ordinarily stays inside packages as
+target-scoped declarations. A consumer depends on one stable package such as
+`std`; selection of that package's Linux, Windows, macOS, or firmware machines
+happens when the invocation filters the source closure to one exact target.
+Target-qualified application entries are likewise flat unconditional build
+facts:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.depend(Source::Path { location: "../portable" });
-    transition builder.target {
-        TargetProfile::WindowsX86_64 -> windows(builder)
-        TargetProfile::LinuxX86_64 -> linux(builder)
-        TargetProfile::MacosArm64 -> macos(builder)
-        _ -> portable(builder)
-    }
-
-    state windows(builder: &mut Build) {
-        builder.depend_as("native_api", Source::Path { location: "../win32" });
-    }
+    builder.application("app");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 ```
 
-The package manager still does not execute this machine. It statically walks
-the finite state graph and emits
-`ProjectedDependencies { common, by_profile }`. Unconditional transitions may
-factor the graph; exact `transition builder.target` arms constrain a column;
-nested exact constraints intersect; shared states contribute to every exact
-profile that reaches them; separate arms naming the same profile merge; cycles
-close by graph fixpoint. Each authored dependency occurrence projects once. A
-dependency is `common` only when an authorized path reaches it without crossing
-a target partition.
-
-A dependency occurrence rejects if it is unreachable, if any path to it crosses
-a transition on another runtime subject, or if any path reaches it through the
-`_` target arm. Mixed authorized and tainted paths reject too: a safe path does
-not cleanse a dynamic one. Wildcard arms remain valid for ordinary build
-behavior but may not introduce dependency edges. This restriction purchases a
-stable invariant: adding a profile to the target catalog never changes any
-existing dependency column or silently grants the new profile an edge. Removing
-or renaming a referenced profile is correspondingly a catalog compatibility
-event.
-
-Rejection retains both the dependency source span and the transition/arm path
-that tainted it. A wildcard diagnostic identifies the `_` arm and directs the
-author to hoist a genuinely common edge above the target partition or replace
-the wildcard with exact profile arms. Runtime-subject and mixed-path failures
-likewise name the transition that made static graph authority impossible.
-
-The active request set for profile `P` is `common + by_profile[P]`. Alias
-uniqueness is checked over that set: mutually exclusive exact-profile columns
-may reuse an alias, while a common alias conflicts with the same alias in every
-column. No `DependencyCondition`, `depend_when`, condition string, or evaluated
-manifest path is introduced.
-
-The landed projector owns each authored request once and stores common/profile
-membership as occurrence indices. It closes unconditional and exact target
-paths by fixpoint, retains stable identities for exactly the referenced
-profiles, and rejects wildcard, runtime-subject, mixed, unreachable, and
-profile-less-resolution cases. Active-set alias checking, profile-aware closure
-resolution, review identity, and lock sections remain downstream work.
+If a concrete future customer cannot be expressed by a package containing
+target-scoped declarations and genuinely requires a target-specific dependency
+edge, the added surface must be an unconditional row naming one exact target,
+analogous to `roots.bind`. It must not restore dependency discovery through
+control flow. No such spelling or `by_profile` carrier is reserved in advance.
 
 ```omega
 machine build(builder: &mut Build) {
@@ -545,12 +514,15 @@ data Build {
 ```
 
 `target` is the one exact profile supplied immutably by the build invocation.
-Build source may inspect it but cannot assign, substitute, or multiply it. A
-CLI `Host` convenience is resolved to one concrete profile before semantic
-build evaluation; `Host` is never retained as artifact identity. Building four
-targets means four activations and four artifacts. A fat or universal artifact
-requires its own explicit target profile rather than several selections in one
-activation.
+Build source cannot branch dependency discovery on it, assign it, substitute
+it, or multiply it. A CLI `Host` convenience is resolved to one concrete
+profile before semantic build evaluation; `Host` is never retained as artifact
+identity. Building four targets means four independently filtered activations
+and four committed Psi/PCC subjects. Declaring four targets does not place all
+four in one invocation's Psi. A matrix-checking mode may enumerate and check
+all four without physically realizing any of them. A fat or universal artifact
+is an explicit envelope over separately committed subjects, not several
+unresolved target branches in one Terminal module.
 
 This is the durable projection, not a claim that the source-visible activation
 handle serializes every ephemeral facet it exposes. In particular, its source
@@ -566,13 +538,15 @@ levels. During the experimental phase only the root package's authoritative
 enable optimization. The optimizer architecture defines the vocabulary,
 identity, fail-closed behavior, and eventual manifest projection.
 
-Hosted versus freestanding, subsystem/image format, default providers, calling
-policies, fault supply, and resource supply belong to the selected target
-profile. They are not repeated as independently mutable booleans or enums in
-each build. In-source `target ... {}` blocks and `builder.target = ...` are
-transitional syntax to remove. Target choice belongs to the invocation;
-target-qualified slot and provider bindings remain ordinary authored build
-data.
+Hosted versus freestanding, default providers, calling policies, fault supply,
+and resource supply belong to the selected target profile. They are not
+repeated as independently mutable booleans or enums in each build. Target
+declarations own target identity plus `host` and `boundary` policy. Image and
+graph facts remain in the build machine: application/package role, roots,
+dependencies, generated outputs, subsystem/image choice, and provider
+selections do not move into target blocks. Target choice belongs to the
+invocation; target-qualified root and provider bindings remain ordinary
+authored build data, and assignment to `builder.target` remains invalid.
 
 ### Requested target and target admissibility
 
@@ -2631,8 +2605,8 @@ The unified lock artifact records the resolved closure:
   explicit package/application role, and exact `PackageInstance` values;
 - source acquisition requests, explicit `Root`/`Named` package selections,
   resolved member-path custody, and resolved commit/tree/content identities;
-- requester-local alias edges and the package's complete statically projected
-  `{ common, by_profile }` dependency-request map;
+- requester-local alias edges and the package's complete unconditional
+  dependency-request set;
 - per-subject obligation-semantics and evidence-schema identities;
 - exact certificate provenance, re-derived discharge results, and transitive
   open obligations;

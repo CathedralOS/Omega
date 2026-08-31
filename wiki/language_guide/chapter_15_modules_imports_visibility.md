@@ -66,20 +66,20 @@ A workspace is a catalog rather than a combined dependency graph. Multiple
 application members are multiple independently selectable roots. Selecting one
 does not pull in the others or package members it cannot reach.
 
-The one graph-forming control-flow exception is an exact branch on immutable
-`builder.target`. Authors use ordinary `depend` and `depend_as` calls in states
-reached by exact `TargetProfile` arms; Omega does not add `depend_when` or string
-conditions. The package manager statically projects the complete finite state
-graph into `common` edges plus one column per referenced profile. It follows
-unconditional transitions, intersects nested exact target constraints, and
-merges shared states without executing the build machine.
+Dependencies are unconditional, directly projectable build rows. Omega has no
+graph-forming branch on `builder.target`, `depend_when`, `depend_as_when`, or
+string condition. The package manager never executes or statically interprets
+build-machine control flow to discover package edges, and the workspace lock
+records the one declared dependency set.
 
-A dependency reached through a transition on another runtime value, a `_`
-target arm, a mixed safe/dynamic path, or no path rejects. In particular,
-wildcards may control ordinary build behavior but cannot add dependencies. Thus
-adding a new target profile never changes an existing package's projected map.
-The workspace lock keeps independently resolved profile closures; requesting a
-missing locked profile fails rather than silently fetching it.
+Target declarations own target identity plus host and boundary policy. The
+build machine owns roots, dependencies, generated outputs, subsystem/image
+facts, and provider selections. Platform implementation variation ordinarily
+uses target-scoped declarations inside packages; applications bind entries with
+flat unconditional `roots.bind(target::ProgramEntry, entry)` rows. One build
+invocation filters and checks one exact target closure. An all-target check
+repeats that operation independently for every declared target and does not
+place multiple target branches in one Terminal Psi subject.
 
 `PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
 the canonical repository namespace and

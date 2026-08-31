@@ -1636,6 +1636,91 @@ check. Native float lowering remains ordinary float lowering; the retained
 correspondence lets the proof certificate establish that the selected runtime
 operation refines its authored mathematical contract.
 
+## D41 — Native realization resumes authority after standalone Terminal Psi
+
+Terminal Psi is a complete publishable compilation product, not an in-process
+checkpoint. Its representation and semantic vocabulary remain target-neutral.
+A producer may stop after PCC and publish the canonical Terminal module; a
+later interpreter or native lowerer may consume it on another machine under a
+different authority. The ordinary source-to-native compiler uses that same
+consumer boundary rather than receiving a semantic or authority shortcut.
+
+A distributable Psi product may bind a target-constrained realization proposal
+beside the target-neutral Terminal module. Selected provider-plan facts,
+external-binding requirements, requested target/profile identity, and other
+build-owned realization inputs are demands and constraints, not authority.
+They must either be carried canonically in the product envelope or supplied by
+an exact strongly bound companion; unbound host objects are never part of a
+portable lowering contract. A proposal may be as narrow as one Windows or
+machine-specific configuration. The receiving consumer independently accepts
+that exact proposal using its local target catalog, installation admissions,
+foreign-binding custody, and invocation policy, or rejects it. Rejection means
+that this consumer cannot realize the valid Psi product; it is not retroactive
+source or Terminal invalidity.
+
+Compiler-owned target builtins use the consuming lowerer's trusted target
+catalog. They do not implement `ProviderExecutionEvidence`, mint installation
+receipts, or derive authority from compact report fingerprints. The exact
+Terminal requirement and selected compiler-intrinsic proposal join a closed
+structural catalog identity and target in a role-tagged native settlement.
+Installed and foreign implementations remain a disjoint role and retain their
+real admitted provider-execution custody. A normalized realization-machine
+spelling may remain diagnostic or pre-closure provenance, but after checked
+selection it cannot select native lowering in place of the structural catalog
+identity.
+
+Native emission publishes D32's occurrence-specific physical child bound to
+the exact Terminal semantic parent and surviving optimized occurrence. The
+child, not a self-issued pre-lowering hash, retains target lowering, assignment,
+relocation, and emitted-byte custody. D39 remains orthogonal: selecting and
+emitting `exit_group` cannot manufacture the source-semantic
+`ExternalTerminate` completion kind.
+
+The current `CompilerIntrinsicSettlementEvidence` adapter violates this split:
+it derives compact coordinates solely from compiler-owned inputs and presents
+them through `ProviderExecutionEvidence`. It is retired rather than ratified or
+extended.
+
+## D42 — Target variation is flat, selected, and independently checked
+
+Target declarations own target identity plus their `host` and `boundary`
+policy. The authoritative `build(builder: &mut Build)` machine owns application
+and package role, roots, dependencies, generated outputs, subsystem/image
+facts, provider selections, and other build decisions. Moving roots,
+dependencies, or subsystem back into target blocks would reverse this
+deliberate ownership split.
+
+Graph-forming control flow on `builder.target` is retired. So are
+`depend_when` and `depend_as_when`. Dependencies are unconditional static build
+rows in the current language; target-qualified entry bindings are unconditional
+flat rows such as `roots.bind(target::ProgramEntry, Main::main)`. The package
+manager never interprets a build-machine state graph to discover edges, and no
+`common + by_profile` dependency projection or mixed/wildcard-path authority
+exists. The `ProjectedDependencies::by_profile` carrier and its fixture-only
+producers are removed with the retired syntax rather than retained as
+live-looking scaffolding.
+
+Platform implementation variation belongs to target-scoped declarations and
+target-owned packages. For one invocation, the compiler selects one exact
+target, filters to that target's declaration closure before resolution and
+typing, evaluates the corresponding flat build facts, and publishes at most
+that target's Terminal Psi/PCC subject. Merely declaring support for Linux,
+Windows, macOS, or another profile does not place every profile in one build's
+Psi.
+
+An all-target checking mode enumerates the declared target set and forms,
+checks, and proves each target closure independently. It may stop before native
+realization, allowing CI to detect stale platform source without possessing
+each platform's deployment authority. Semantically different closures publish
+distinct committed Psi subjects. Exact byte-identical Terminal/PCC products may
+be storage-deduplicated, but no unresolved target branch enters Psi and no one
+target's authority realizes another's proposal.
+
+If a concrete future customer requires a target-specific dependency edge, it
+must use an explicit unconditional target-qualified build row, analogous to
+`roots.bind`, and not arbitrary control flow or a target-block image fact. No
+such syntax is reserved before that customer exists.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

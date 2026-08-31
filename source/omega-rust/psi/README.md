@@ -1,8 +1,10 @@
 # Psi Compiler Workspace
 
 Psi owns Omega-file parsing and all target-neutral language semantics through
-the immutable terminal-Psi module. Crates under this directory must not depend
-on Omega backend, target, ABI, storage, instruction, object, or installation
+the immutable terminal-Psi module. That module is a publishable compilation
+product: an interpreter or native lowerer may consume it later under separate
+realization authority. Crates under this directory must not depend on Omega
+backend, target, ABI, storage, instruction, object, or installation
 representations.
 
 Frontend ownership has migrated completely: Omega consumes Psi-owned source

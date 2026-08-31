@@ -215,72 +215,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
 
-## Q4 — Settle compiler-owned native builtins without fake package evidence
-
-### Context
-
-Terminal Psi retains bodyless boundary requirements and native lowering
-correctly rejects any requirement with no exact realization. The native
-realization API currently admits every boundary through a
-`NativeProviderSettlement` carrying `ProviderExecutionEvidence`, including
-compiler-owned target operations such as the standard console exit operation.
-The production compiler driver passes an empty settlement list. Consequently,
-ordinary rooted native compilation reaches target lowering and fails with
-`MissingBoundarySettlement`, including canaries whose checked in-module
-provider dispatch is otherwise complete.
-
-Package-installed or foreign provider code genuinely needs admitted execution
-custody. A compiler-owned target builtin is different: the compiler/backend is
-the implementation authority, and no package build or external execution was
-audited. Minting a package-style execution receipt for it would make the type
-system appear satisfied without adding an independent fact.
-
-### Problem statement
-
-Decide how compiler-owned target builtins enter native boundary settlement
-without pretending they carry package-installation evidence. The decision must
-retain exact requirement, selected ProviderPlan row, target, lowering identity,
-and emitted-artifact custody while preserving the stronger evidence requirement
-for installed and foreign providers.
-
-### Current code state
-
-Current `main` violates this boundary. The compiler constructs
-`CompilerIntrinsicSettlementEvidence`, derives four self-issued hash
-coordinates, implements package-style `ProviderExecutionEvidence` for that
-compiler-owned value, and feeds it through `NativeProviderSettlement`. Those
-coordinates establish no installation, external audit, or independent
-execution fact; they only restate compiler-owned inputs. Treat this lane as
-unratified and do not extend it while Q4 is open.
-
-### Proposed solution
-
-Give compiler-owned builtin bindings a distinct native settlement lane. The
-backend derives the exact builtin realization from the selected ProviderPlan
-row and native target, rejects unknown or duplicate mappings, and retains that
-compiler/target identity in the native artifact as a TCB fact—not as
-`ProviderExecutionEvidence`. Keep `NativeProviderSettlement` and admitted
-execution evidence for package-installed and foreign implementations only.
-
-This makes the authority honest: the compiler can prove which builtin it
-selected and emitted, but does not claim an external audit or installation
-event occurred.
-
-### Alternates
-
-- Acceptable: have target selection produce a first-class
-  `CompilerBuiltinSettlement` before native realization, provided it remains a
-  separate evidence class and is rejoined to the exact selected plan and
-  target during lowering.
-- Acceptable: model compiler builtins as part of the trusted target profile
-  rather than as provider executions, if the profile retains the same exact
-  requirement-to-lowering mapping.
-- Tempting but wrong: fabricate an object implementing
-  `ProviderExecutionEvidence`, special-case the console call by source name or
-  numeric boundary ID, globally permit unresolved boundaries, or require users
-  to install/audit code that is actually shipped inside the compiler backend.
-
-## Q5 — Retire resolver execution custody that adds no source guarantee
+## Q4 — Retire resolver execution custody that adds no source guarantee
 
 ### Context
 
@@ -354,7 +289,7 @@ production protocol.
   unused sandbox executable to remain unchanged, or forbid an operator's
   HTTPS-to-SSH rewrite while claiming host Git configuration is inherited.
 
-## Q6 — Keep carrier cleanup out of opaque semantic ownership
+## Q5 — Keep carrier cleanup out of opaque semantic ownership
 
 ### Context
 
@@ -404,7 +339,7 @@ resource-owning representation protocol.
   treat an ABI copy as semantic copying, or publish a D26 demand before the
   lifecycle join is complete.
 
-## Q7 — Define the closed terminal-authority classification policy
+## Q6 — Define the closed terminal-authority classification policy
 
 ### Context
 
@@ -467,7 +402,7 @@ missing leaves, and unclassified physical operations.
   unknown means harmless; or map every binding beneath a service to that
   service's permitted class set.
 
-## Q8 — Fix the zero-parameter Delta state-transfer spelling
+## Q7 — Fix the zero-parameter Delta state-transfer spelling
 
 ### Context
 
@@ -503,7 +438,7 @@ before arity rather than letting zero arity select a meaning.
   declaration has matching arity, or let source order choose state versus
   machine.
 
-## Q9 — Assign invalid Delta `self` diagnostics
+## Q8 — Assign invalid Delta `self` diagnostics
 
 ### Context
 
@@ -537,7 +472,7 @@ place; receiver mutability is therefore not guessed from use.
 - Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
   recovery receiver, or defer the failure until a later field/call suffix.
 
-## Q10 — Anchor a resultless Delta call used as an argument
+## Q9 — Anchor a resultless Delta call used as an argument
 
 ### Context
 
@@ -582,7 +517,7 @@ value-use expression rather than moving the anchor to the callee.
   failed, choose an anchor by traversal order, or manufacture a value/error
   type for the resultless call.
 
-## Q11 — Total Delta block exits and machine continuations
+## Q10 — Total Delta block exits and machine continuations
 
 ### Context
 

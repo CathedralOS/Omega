@@ -79,7 +79,7 @@ classifier plus complete index/slice joins now retain settled projection
 failures and resultless/`never` categories without manufacturing relations from
 missing sibling facts. Scalar operators retain complete category branches;
 application arguments retain their explicitly anchored `never` branch while
-Q10 blocks the resultless anchor. Let/assignment/assert relations consume only
+Q9 blocks the resultless anchor. Let/assignment/assert relations consume only
 their complete value/place premises and preserve storage `u8` establishment.
 Explicit terminal and arm returns consume the enclosing machine return type
 with D37's exact absence/value anchors. A private statement-flow relation
@@ -101,13 +101,13 @@ publication, and refinement are open implementation work. Q3 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
 case/machine collision census, direct qualified applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
-only Q8's bare-state spelling and Q9's invalid-`self` diagnostic remain from
-that category boundary. Q10's resultless-argument anchor, transition
+only Q7's bare-state spelling and Q8's invalid-`self` diagnostic remain from
+that category boundary. Q9's resultless-argument anchor, transition
 subject/pattern/binder rules, and reachability remain open. D37's
 field/index/slice projection failures, scalar categories,
 argument-`never` branch, let/assignment/assert and explicit-return relations,
 and first-following-statement terminal flow are implemented;
-Q11 blocks explicit terminals after `never`, forbidden falloff, machine-call
+Q10 blocks explicit terminals after `never`, forbidden falloff, machine-call
 continuation exit behavior, and the complete reachability judgment; its
 remaining control and terminal-flow composition remains open. D38
 settles the place-
