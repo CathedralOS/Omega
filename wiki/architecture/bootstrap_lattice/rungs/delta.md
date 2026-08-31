@@ -61,7 +61,7 @@ lookups without flattening the AST again. Candidate selection covers array
 length, shape, placement, unknown owners, and recursive value cycles by exact
 source coordinate. Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
-incomplete entry-diagnostic judgment, and Q6 blocks only unqualified receivers
+incomplete entry-diagnostic judgment, and Q5 blocks only unqualified receivers
 and constructor/machine collisions. D34 has settled physical storage refusal;
 its implementation additionally waits on the final nonaliasing map.
 

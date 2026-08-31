@@ -1041,11 +1041,12 @@ must be fused above every dependent closure or mediated by a selected service.
 An indexed provider requirement is one schema rather than one ambient slot per
 type application. In particular, `ResidentContentTransfer<P, T>` is selected
 through one ordinary provider binding. The provider may implement the generic
-requirement or publish the exact supported application family. A concrete
-artifact records every normalized application it uses; a separately compiled
-generic library exports symbolic applications over its own parameters. Final
-composition substitutes reachable arguments, reconstructs the closed demanded
-application set, and rejects unless the selected provider covers every member.
+requirement or offer the exact supported application family as a candidate.
+A concrete artifact records every normalized application it uses; a separately
+compiled generic library exports symbolic applications over its own parameters.
+Final composition substitutes reachable arguments, reconstructs the closed demanded
+application set, and rejects unless it independently reconstructs that the
+selected role-specific realization covers every member.
 Installation records the exact concrete applications and issuance occurrences
 it admits.
 
@@ -1055,26 +1056,16 @@ only when distinct applications genuinely require independent provider
 selection. Otherwise type indices refine one selected provider's obligation;
 they do not multiply deployment choices or require ambient conformance search.
 
-The implementation foundation now models that closure without granting
-authority. Exact package-qualified schema identity and arity, concrete and
-artifact-qualified symbolic demands, exact substitutions, and a generic or
-exact-family provider coverage assertion are retained inside one selected
-provider closure and close canonically against its exact plan. Reordering or
-duplicate demand cannot change the result, while unresolved or unused
-substitutions, schema/arity/plan drift, and missing exact-family members reject.
-The result retains the selected provider closure, plan, concrete applications,
-and complete coverage assertion, but it neither derives the demand or coverage
-total from verified artifacts nor binds an issuance occurrence. Those
-derivation, composition, and installation joins remain open. Native realization
-retains the selected closure's compact compatibility report identity and a
-domain-separated SHA-256 commitment beside the source-free provider-plan
-projection. The commitment covers the exact plans, execution scope, indexed
-coverage, opaque executable admissions, and installation-reach resolutions.
-Component-candidate replay independently recomputes it from the complete
-source-selected facts and requires both the commitment and report-coordinate
-drift check to match. Consequently a compact-collision substitution, coverage
-change, or resolved-reach change cannot pass merely because the projected plan
-rows are unchanged; this replay is still non-authorizing.
+D35 retires the implementation foundation that represented this closure with
+arity, normalized strings, substitutions, and a provider-authored generic or
+exact-family assertion. Its canonical closure and hashes never established a
+checked realization. D29's tagged compiler-derived applications now own
+demand; final specialization must independently rejoin the selected role-
+specific realization before issuing coverage. Selected provider plans,
+execution scope, opaque executable admissions, and installation-reach
+resolutions remain retained on their own merits, but no indexed-coverage field
+or compact identity participates in their commitment while the complete D29
+join is absent.
 
 Provider selection also determines executable TCB provenance. Static selection
 of an opaque in-process realization contributes a known executable entry even
@@ -3125,20 +3116,14 @@ checked closure, inherited requirement substitution, public review, and
 canonical encoding. Binder renames are stable and another ordinal is a different
 public conformance. Package review consumes the already-resolved mapping and
 never repeats application-site inference.
-Review v87 and canonical row v45 extend each selected boundary-operator family
-coordinate with static-telescope application coverage. A non-generic
-coordinate carries an explicit non-generic atom. A generic coordinate rejoins
-one exact indexed-application row already attached to the same selected plan,
-schema, package owner, and arity; package review independently checks canonical
-ordering and encodes every normalized structural argument beside the compact
-application report coordinate. Missing, stale, duplicate, cross-coordinate,
-reordered, and arity-drifting evidence rejects. Generic coverage has no review
-variant until the compiler retains proof that the selected realization is
-genuinely generic, and this structural row remains non-authorizing. This is the
-pre-D29 scaffold: its arity/string application is not authoritative production
-coverage. A later review/canonical revision must consume D29's compiler-derived
-typed type/const application and role-specific realization commitment; it may
-not reinterpret the v87 row as that evidence.
+Review v87 and canonical row v45 introduced a selected boundary-operator
+family application field using a non-generic atom or normalized arity/string
+applications. D35 retires that field in review v97 / row v55 because its
+provider assertion was not independently reconstructible coverage. Current-
+version recovery rejects the older vocabulary; no current compatibility row or
+legacy parser reconstructs it. Future application evidence must consume D29's
+compiler-derived tagged type/const demand and role-specific realization
+commitment rather than reinterpret the v87 row.
 Review v63 and canonical row v21 admit selected generic-conformance
 applications in public generic bounds. The row retains the exact
 package-qualified conformance declaration, alpha-normalized lifetime

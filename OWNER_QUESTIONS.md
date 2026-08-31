@@ -272,67 +272,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   reason-code order to break ties, classify a malformed present entry as
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
-
-## Q5 — Delete the provider-asserted indexed-application coverage scaffold
-
-### Context
-
-D29 requires every boundary-operator coverage row to come from a checked use's
-ordered tagged application and an independently replayed selected realization.
-The compiler now retains closed type/const applications with exact binder
-coordinates, structural type custody, canonical const values, and declared
-const carriers. Final symbolic substitution and role-specific realization
-replay remain unfinished.
-
-An older `omega-effects` subsystem instead models an indexed schema by a
-display identity plus arity, models every concrete argument as a normalized
-string, and lets a provider attach generic or exact asserted coverage. It adds
-report fingerprints, closure/substitution machinery, selected-plan custody,
-package-review projection, and a canonical review row that describes those
-strings as applications “covered by a selected operator realization.” Its own
-documentation concedes that it is non-authorizing pre-D29 scaffolding. The
-closure function and every producer of asserted coverage are currently used
-only by tests; production package review is a consumer waiting for rows that
-no production compiler path issues.
-
-### Problem statement
-
-Decide whether this provider-authored coverage model has any independent
-product requirement worth preserving after D29. As written, it cannot prove
-its named claim: matching an asserted string tuple to a selected plan does not
-establish binder category, exact type/const identity, checked realization,
-admission, or executable coverage. Extending it alongside D29 would create two
-application identities and invite the weaker one to be mistaken for security
-evidence.
-
-### Proposed solution
-
-Delete the provider-asserted indexed-application coverage field and its
-arity/string schema, concrete argument, substitution, closure, fingerprint,
-provider-selection rejoin, and package-review “ExactApplications” surfaces.
-Retain no compatibility row in canonical package evidence. Project
-compiler-derived D29 applications as non-authorizing demand when that is useful
-to final specialization, and introduce the word and type `coverage` only where
-the compiler can also reconstruct the selected role-specific realization.
-Generic provider-family package review remains fail-closed until that complete
-join lands.
-
-### Alternates
-
-- Acceptable: keep a small explicitly demand-only substitution utility if a
-  real final-composition customer exists, but use D29's tagged arguments and
-  artifact-qualified binders; do not attach it to providers or canonicalize it
-  as coverage.
-- Acceptable: move an arity/string topology model entirely into test fixtures
-  if tests still need malformed-order and substitution cases after production
-  deletion.
-- Tempting but wrong: preserve the subsystem because its hashes and rejection
-  tests look security-sensitive, add a stronger digest around its strings, or
-  compare provider assertions with compiler demand and rename equality
-  “coverage.” None establishes that the selected realization implements the
-  demanded application.
-
-## Q6 — Total Delta receiver and callable ambiguity
+## Q5 — Total Delta receiver and callable ambiguity
 
 ### Context
 

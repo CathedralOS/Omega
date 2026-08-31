@@ -1224,11 +1224,11 @@ unsupported arities, aliases, bodyless/externalized realizations, generics,
 lifetimes, and evidence drift remain fail-closed. This lane makes no Terminal
 or native-realization claim. Authored override of a same-path overloaded
 operator family is atomic: package review retains the canonical coordinate set,
-selected nominal provider, complete per-coordinate mapping, and generic or
-exact-application coverage. Adding a family coordinate invalidates an
-incomplete recorded override. The projection never substitutes an overload
-display name, declaration order, or a runtime-layout-only type identity for
-this contract surface.
+selected nominal provider, complete per-coordinate mapping, and independently
+reconstructed exact-application coverage. Adding a family coordinate
+invalidates an incomplete recorded override. The projection never substitutes
+an overload display name, declaration order, or a runtime-layout-only type
+identity for this contract surface.
 
 Production exact package applications remain fail-closed until D29 is
 implemented. A checked use owns an ordered type/const application; const

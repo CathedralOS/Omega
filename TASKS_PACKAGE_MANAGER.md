@@ -61,7 +61,7 @@ stop the item on one precise owner question before adding machinery.
     return-only, or unresolved applications remain demand work rather than
     being mislabeled concrete. Remaining work is artifact-qualified symbolic
     demand and final substitution, role-specific realization replay, D32's
-    optimized-projection-to-physical-child join, and replacement of the
+    optimized-projection-to-physical-child join, and D35's deletion of the
     provisional arity/string coverage identity. The
     physical child must bind its exact Terminal parent and surviving optimized
     operation occurrence, and the complete child set must match the derived
@@ -349,9 +349,15 @@ explicitly.
   under D28; package evidence must never substitute declaration order, display
   signatures, ordinals, authored assertions, bootstrap lowering, or
   reach-selected subsets.
-  Removal or retention of the non-authorizing provider-asserted arity/string
-  scaffold is owner-blocked on `OWNER_QUESTIONS.md` Q5; do not extend that
-  scaffold while the question is open.
+  D35 retires the non-authorizing provider-asserted arity/string scaffold.
+  Delete its effects model, selected-plan attachment and fingerprints,
+  planning rejoin, package-review `NonGeneric` / `ExactApplications` field and
+  encoding, and obsolete fixtures. Advance package-review schema 96 -> 97 and
+  row schema 54 -> 55; current recovery rejects older vocabularies and retains
+  no legacy parser or record row. Rewrite any still-useful malformed-order and
+  substitution cases against D29's tagged arguments. Keep D27's independent
+  device-operation scaffold, but rename provider-authored `Coverage` there to
+  `Claim` or `Candidate`.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external

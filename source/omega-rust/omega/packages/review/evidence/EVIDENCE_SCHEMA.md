@@ -63,6 +63,13 @@ coverage, and the canonical exact-coordinate-to-plan mapping. Independent
 single-coordinate selections are not inferred into a family. Exact static
 application coverage is schema v87 / row v45.
 
+D35 retires that provider-asserted arity/string field. The implementation
+migration advances review schema 96 to 97 and row schema 54 to 55, removes both
+the `NonGeneric` and `ExactApplications` variants, and keeps recovery current-
+version-only. No current record or compatibility parser may reinterpret the
+v87 field as D29 coverage; D29 requires compiler-derived tagged demand joined
+to an independently rechecked role-specific realization.
+
 Installation-bound selected-provider rows retain the exact published service
 ceiling and the exact checked realization reach beneath their existing
 package-qualified requirement and realization identities. Projection rejoins

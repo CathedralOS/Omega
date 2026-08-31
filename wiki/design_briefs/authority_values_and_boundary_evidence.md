@@ -1045,9 +1045,11 @@ report identities; compatibility compares retained field and case structure
 even when compact schema reports match.
 
 The residual identity-named inventory applies the same classification. Psi
-schema FNVs, indexed-provider application/coverage/closure summaries, task-plan
-entry/layout/calling summaries, UEFI layout summaries, and foreign-locator
-summaries use explicit report, compatibility, or discriminator vocabulary.
+schema FNVs, task-plan entry/layout/calling summaries, UEFI layout summaries,
+and foreign-locator summaries use explicit report, compatibility, or
+discriminator vocabulary. D35 deletes the indexed-provider application,
+coverage, and closure summaries rather than preserving reports for a retired
+schema.
 Checked operator uses retain the selected `ProviderPlanDigest` beside their
 compact plan report and dispatch joins both. Callback binder/requirement and
 native-parameter catalogs reconstruct exact retained requirements and reject

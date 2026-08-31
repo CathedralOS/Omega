@@ -759,13 +759,11 @@ Remaining:
   ambiguous, or provider-missing coordinates reject the whole selection.
   Package review now rejoins that complete declaration-family selection to the
   exact provider, target, selection authority, and coordinate-to-plan mapping.
-  Exact-application coverage now reuses the indexed-provider closure carrier:
-  each generic coordinate retains its static-telescope arity, rejoins one
-  selected-plan coverage row, canonicalizes exact normalized applications, and
-  carries their structural arguments through package review and canonical
-  encoding. Missing, stale, duplicate, cross-coordinate, reordered, and
-  arity-drifting rows reject; generic coverage claims remain fail-closed.
-  D29 now fixes the production replacement: checked uses retain tagged
+  D35 retires the indexed-provider arity/string closure carrier, its selected-
+  plan attachment and fingerprints, and its package-review `NonGeneric` /
+  `ExactApplications` encoding. Provider assertions are claims, not coverage;
+  equality with compiler demand cannot establish a realization. D29 fixes the
+  production path: checked uses retain tagged
   type/const demands, const values normalize in their declared carrier,
   generic artifacts export only symbolic demand, and final specialization
   issues coverage after the selected checked-body, intrinsic, or exact
