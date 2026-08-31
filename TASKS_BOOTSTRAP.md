@@ -1230,17 +1230,25 @@ code, discover a closure, manufacture proof premises, or decide admission.
       resolution, leave bounds as runtime traps, emit no dependent invalid-
       projection candidates, and postpone `.as_slice` under Q6. Exact field
       custody and result facts remain recoverable by constructor plus span.
-  - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Split machine parsing so
-    only an owner-qualified declaration accepts `&mut self`; an unqualified
-    `&` rejects as `UnexpectedToken` at that byte. Extend the D22/D24 census
-    with one owner-local callable registry containing every sum case and
-    qualified machine, independent of payload/parameter arity, and report the
-    later collision as `DuplicateName`. Keep fields outside that cross-kind
-    registry. Require authored parentheses for every machine application,
-    including zero parameters, while preserving the bare-qualified-expression
-    distinction. Resolve one callable identity before arity, expected type,
-    statement, or control context. Retain separate constructor/machine catalog
-    rows after the census; do not use lookup order to choose one.
+  - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Enforce D36 without
+    merging the retained constructor and machine catalog rows or choosing a
+    callable by lookup order, arity, expected type, statement context, or
+    control context.
+    - [x] Split machine-input parsing by the already parsed name shape. Only an
+      owner-qualified declaration accepts `&mut self`; an unqualified `&`
+      rejects directly as `UnexpectedToken` at that byte.
+    - [x] Extend the complete D22/D24 candidate census with an allocation-free
+      owner-local case/qualified-machine comparison, independent of payload or
+      parameter arity. It excludes fields and unqualified machines, admits a
+      machine to the registry only through one uniquely resolved data owner,
+      anchors a collision at the later case or machine declaration, and merges
+      it with every `DuplicateName`/`InvalidBoundary` candidate by packed
+      coordinate. The accepted catalog remains source-shaped and separate.
+    - [ ] Require authored parentheses for every machine application,
+      including zero parameters, while preserving the bare-qualified-expression
+      distinction. Resolve one callable identity before arity, expected type,
+      statement, or control context; a bare resolved machine is `TypeMismatch`
+      at the qualified expression start.
   - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
     independent child candidate, but derive a parent success or rejection only
     after every fact consumed by that rule resolves. Implement the callable/
