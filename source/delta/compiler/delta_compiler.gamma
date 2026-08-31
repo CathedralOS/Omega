@@ -541,27 +541,27 @@
   (NoDeltaResolvedFieldReference)
   (OneDeltaResolvedFieldReference DeltaDeclaration DeltaDataMember))
 
-; Qualified callable custody is retained before context, arity, or argument
-; typing. Constructor and machine identities stay distinct after D36's census;
-; the expression row gives lowering exact source authority without repeating a
+; Callable custody is retained before context, arity, or argument typing.
+; Constructor and machine identities stay distinct after D36's census; the
+; expression row gives lowering exact source authority without repeating a
 ; preferred-order catalog lookup.
-(data DeltaResolvedQualifiedCallable
+(data DeltaResolvedCallable
   (DeltaResolvedConstructorCallable DeltaDeclaration DeltaDataMember)
-  (DeltaResolvedDataMachineCallable DeltaDeclaration DeltaDeclaration))
+  (DeltaResolvedDataMachineCallable DeltaDeclaration DeltaDeclaration)
+  (DeltaResolvedUnqualifiedMachineCallable DeltaDeclaration))
 
-(data DeltaResolvedQualifiedCallableReference
-  (DeltaResolvedQualifiedCallableReferenceSyntax DeltaExpression
-    DeltaResolvedQualifiedCallable))
+(data DeltaResolvedCallableReference
+  (DeltaResolvedCallableReferenceSyntax DeltaExpression
+    DeltaResolvedCallable))
 
-(data DeltaResolvedQualifiedCallableReferenceList
-  (NoDeltaResolvedQualifiedCallableReferences)
-  (MoreDeltaResolvedQualifiedCallableReferences
-    DeltaResolvedQualifiedCallableReference
-    DeltaResolvedQualifiedCallableReferenceList))
+(data DeltaResolvedCallableReferenceList
+  (NoDeltaResolvedCallableReferences)
+  (MoreDeltaResolvedCallableReferences DeltaResolvedCallableReference
+    DeltaResolvedCallableReferenceList))
 
-(data DeltaResolvedQualifiedCallableReferenceLookup
-  (NoDeltaResolvedQualifiedCallableReference)
-  (OneDeltaResolvedQualifiedCallableReference DeltaResolvedQualifiedCallable))
+(data DeltaResolvedCallableReferenceLookup
+  (NoDeltaResolvedCallableReference)
+  (OneDeltaResolvedCallableReference DeltaResolvedCallable))
 
 (data DeltaOptionalPlaceType
   (NoDeltaPlaceType)
@@ -592,13 +592,23 @@
   (DeltaArgumentsIncomplete)
   (DeltaArgumentsTypeMismatch))
 
+; Grammar-selected expression use is semantic. In particular, a call head,
+; discarded postfix statement, and transition continuation cannot share one
+; Boolean "not a value" bucket: D36 assigns them different callable namespaces
+; and category failures before arity or argument typing.
+(data DeltaExpressionUse
+  (DeltaOrdinaryExpressionUse)
+  (DeltaCallHeadExpressionUse)
+  (DeltaPostfixStatementExpressionUse)
+  (DeltaTransitionContinuationExpressionUse))
+
 ; The scan carries the immutable catalog context, accumulates custody and
 ; expression facts in reverse dependency order, and retains the same neutral
 ; final-phase candidate bucket established by the catalog.
 (data DeltaLocalResolutionScan
   (DeltaLocalResolutionScanSyntax DeltaResolutionCatalog
     DeltaResolvedLocalReferenceList DeltaResolvedFieldReferenceList
-    DeltaResolvedQualifiedCallableReferenceList DeltaTypedExpressionList
+    DeltaResolvedCallableReferenceList DeltaTypedExpressionList
     DeltaFinalCandidate))
 
 (data DeltaLocalBlockScan
@@ -607,7 +617,7 @@
 (data DeltaLocallyResolvedProgram
   (DeltaLocallyResolvedProgramSyntax DeltaCatalogedProgram
     DeltaResolvedLocalReferenceList DeltaResolvedFieldReferenceList
-    DeltaResolvedQualifiedCallableReferenceList DeltaTypedExpressionList
+    DeltaResolvedCallableReferenceList DeltaTypedExpressionList
     DeltaFinalCandidate))
 
 (data DeltaLocalResolutionOutcome
@@ -4802,30 +4812,28 @@
             (OneDeltaResolvedFieldReference owner member)
             (delta_find_resolved_field_reference target rest)))))))
 
-(def delta_reverse_resolved_qualified_callable_references
-  ((input DeltaResolvedQualifiedCallableReferenceList)
-   (output DeltaResolvedQualifiedCallableReferenceList))
-  DeltaResolvedQualifiedCallableReferenceList
+(def delta_reverse_resolved_callable_references
+  ((input DeltaResolvedCallableReferenceList)
+   (output DeltaResolvedCallableReferenceList))
+  DeltaResolvedCallableReferenceList
   (match input
-    (NoDeltaResolvedQualifiedCallableReferences output)
-    ((MoreDeltaResolvedQualifiedCallableReferences item rest)
-      (delta_reverse_resolved_qualified_callable_references rest
-        (MoreDeltaResolvedQualifiedCallableReferences item output)))))
+    (NoDeltaResolvedCallableReferences output)
+    ((MoreDeltaResolvedCallableReferences item rest)
+      (delta_reverse_resolved_callable_references rest
+        (MoreDeltaResolvedCallableReferences item output)))))
 
-(def delta_find_resolved_qualified_callable_reference
+(def delta_find_resolved_callable_reference
   ((target DeltaExpression)
-   (references DeltaResolvedQualifiedCallableReferenceList))
-  DeltaResolvedQualifiedCallableReferenceLookup
+   (references DeltaResolvedCallableReferenceList))
+  DeltaResolvedCallableReferenceLookup
   (match references
-    (NoDeltaResolvedQualifiedCallableReferences
-      NoDeltaResolvedQualifiedCallableReference)
-    ((MoreDeltaResolvedQualifiedCallableReferences item rest)
+    (NoDeltaResolvedCallableReferences NoDeltaResolvedCallableReference)
+    ((MoreDeltaResolvedCallableReferences item rest)
       (match item
-        ((DeltaResolvedQualifiedCallableReferenceSyntax expressionValue
-          callable)
+        ((DeltaResolvedCallableReferenceSyntax expressionValue callable)
           (if (delta_expressions_same_identity target expressionValue)
-            (OneDeltaResolvedQualifiedCallableReference callable)
-            (delta_find_resolved_qualified_callable_reference target rest)))))))
+            (OneDeltaResolvedCallableReference callable)
+            (delta_find_resolved_callable_reference target rest)))))))
 
 (def delta_reverse_typed_expressions ((input DeltaTypedExpressionList)
   (output DeltaTypedExpressionList)) DeltaTypedExpressionList
@@ -4926,17 +4934,16 @@
           fields)
         callables types candidate))))
 
-(def delta_local_scan_add_qualified_callable_reference
+(def delta_local_scan_add_callable_reference
   ((expressionValue DeltaExpression)
-   (callable DeltaResolvedQualifiedCallable)
+   (callable DeltaResolvedCallable)
    (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match scan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables types
       candidate)
       (DeltaLocalResolutionScanSyntax catalog references fields
-        (MoreDeltaResolvedQualifiedCallableReferences
-          (DeltaResolvedQualifiedCallableReferenceSyntax expressionValue
-            callable)
+        (MoreDeltaResolvedCallableReferences
+          (DeltaResolvedCallableReferenceSyntax expressionValue callable)
           callables)
         types candidate))))
 
@@ -5067,13 +5074,42 @@
           (delta_local_scan_add_value expressionValue typeValue
             NoDeltaPlaceType scan))))))
 
+; Every admitted machine spelling converges here after identity and category
+; resolution. Arity depends on the callable plus authored argument count; the
+; sibling argument-type join additionally waits for every complete value fact.
+(def delta_local_scan_admitted_machine_application ((source Bytes)
+  (expressionValue DeltaExpression) (arguments DeltaExpressionList)
+  (machineDeclaration DeltaDeclaration) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match machineDeclaration
+    ((DeltaBoundaryDeclaration start end name machines) scan)
+    ((DeltaDataDeclaration start end name members) scan)
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      (let parameters (delta_machine_input_parameters inputs)
+        (if (eq (delta_expression_list_count arguments)
+          (delta_parameter_list_count parameters))
+          (match scan
+            ((DeltaLocalResolutionScanSyntax catalog references fields
+              callables types candidate)
+              (match (delta_argument_types_join source arguments parameters
+                types 0)
+                (DeltaArgumentsCompatible
+                  (delta_local_scan_add_machine_result expressionValue
+                    returnType scan))
+                (DeltaArgumentsIncomplete scan)
+                (DeltaArgumentsTypeMismatch
+                  (delta_local_scan_add_candidate TypeMismatch
+                    (delta_expression_start expressionValue) scan)))))
+          (delta_local_scan_add_candidate ArityMismatch
+            (delta_expression_start expressionValue) scan))))))
+
 (def delta_local_scan_constructor_application ((source Bytes)
   (expressionValue DeltaExpression) (ownerName DeltaName)
   (arguments DeltaOptionalArguments) (ownerDeclaration DeltaDeclaration)
   (caseValue DeltaDataMember) (valueContext Int)
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (let identityScan
-    (delta_local_scan_add_qualified_callable_reference expressionValue
+    (delta_local_scan_add_callable_reference expressionValue
       (DeltaResolvedConstructorCallable ownerDeclaration caseValue) scan)
     (if valueContext
       (let parameters (delta_constructor_parameters caseValue)
@@ -5102,7 +5138,7 @@
   (ownerDeclaration DeltaDeclaration) (machineDeclaration DeltaDeclaration)
   (valueContext Int) (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (let identityScan
-    (delta_local_scan_add_qualified_callable_reference expressionValue
+    (delta_local_scan_add_callable_reference expressionValue
       (DeltaResolvedDataMachineCallable ownerDeclaration machineDeclaration)
       scan)
     (match machineDeclaration
@@ -5121,25 +5157,8 @@
                 (delta_local_scan_add_candidate TypeMismatch
                   (delta_expression_start expressionValue) identityScan)
                 identityScan)
-              (let parameters (delta_machine_input_parameters inputs)
-                (if (eq (delta_expression_list_count values)
-                  (delta_parameter_list_count parameters))
-                  (match identityScan
-                    ((DeltaLocalResolutionScanSyntax catalog references fields
-                      callables types candidate)
-                      (match (delta_argument_types_join source values parameters
-                        types 0)
-                        (DeltaArgumentsCompatible
-                          (delta_local_scan_add_machine_result expressionValue
-                            returnType identityScan))
-                        (DeltaArgumentsIncomplete identityScan)
-                        (DeltaArgumentsTypeMismatch
-                          (delta_local_scan_add_candidate TypeMismatch
-                            (delta_expression_start expressionValue)
-                            identityScan)))))
-                  (delta_local_scan_add_candidate ArityMismatch
-                    (delta_expression_start expressionValue)
-                    identityScan))))))))))
+              (delta_local_scan_admitted_machine_application source
+                expressionValue values machineDeclaration identityScan))))))))
 
 (def delta_local_scan_wrong_qualified_callable_kind
   ((expressionValue DeltaExpression) (valueContext Int)
@@ -5205,6 +5224,107 @@
                         (NoDeltaCatalogDataMember
                           (delta_local_scan_add_candidate UnknownName
                             (delta_name_start memberName) scan))))))))))))))
+
+; Parentheses do not create a distinct callable identity. The outer
+; application remains the custody/result key while this allocation-free view
+; exposes only the grammar-selected core head.
+(def delta_call_head_core ((expressionValue DeltaExpression)) DeltaExpression
+  (match expressionValue
+    ((DeltaGroupedExpression start end inner) (delta_call_head_core inner))
+    ((DeltaIntegerExpression start end literal) expressionValue)
+    ((DeltaCharacterExpression start end literal) expressionValue)
+    ((DeltaStringExpression start end literal) expressionValue)
+    ((DeltaTrueExpression start end) expressionValue)
+    ((DeltaFalseExpression start end) expressionValue)
+    ((DeltaSelfExpression start end) expressionValue)
+    ((DeltaNameExpression start end name) expressionValue)
+    ((DeltaQualifiedExpression start end owner name arguments) expressionValue)
+    ((DeltaFieldExpression start end base field) expressionValue)
+    ((DeltaCallExpression start end base arguments) expressionValue)
+    ((DeltaIndexExpression start end base indexValue) expressionValue)
+    ((DeltaSliceExpression start end base low high) expressionValue)
+    ((DeltaNegateExpression start end operand) expressionValue)
+    ((DeltaBinaryExpression start end operator operatorStart operatorEnd
+      left right) expressionValue)))
+
+; Statement and continuation syntax may group a complete application. Callable
+; custody stays on that exact application rather than being copied onto every
+; group wrapper; category consumers normalize through the same group view.
+(def delta_find_resolved_callable_reference_normalized
+  ((target DeltaExpression) (references DeltaResolvedCallableReferenceList))
+  DeltaResolvedCallableReferenceLookup
+  (delta_find_resolved_callable_reference (delta_call_head_core target)
+    references))
+
+(def delta_expression_use_admits_unqualified_machine
+  ((useValue DeltaExpressionUse)) Int
+  (match useValue
+    (DeltaOrdinaryExpressionUse 1)
+    (DeltaCallHeadExpressionUse 1)
+    (DeltaPostfixStatementExpressionUse 1)
+    ; State and unqualified-machine lookup must be joined before either is
+    ; admitted for a continuation.
+    (DeltaTransitionContinuationExpressionUse 0)))
+
+(def delta_local_scan_unqualified_machine_application ((source Bytes)
+  (expressionValue DeltaExpression) (callBase DeltaExpression)
+  (arguments DeltaExpressionList) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (useValue DeltaExpressionUse)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (if (delta_expression_use_admits_unqualified_machine useValue)
+    (match (delta_call_head_core callBase)
+      ((DeltaNameExpression start end name)
+        (match scan
+          ((DeltaLocalResolutionScanSyntax catalog references fields callables
+            types candidate)
+            (match catalog
+              ((DeltaResolutionCatalogSyntax rows)
+                (match (delta_catalog_find_unqualified_machine source name rows)
+                  ((OneDeltaCatalogMachine machineDeclaration)
+                    (delta_local_scan_admitted_machine_application source
+                      expressionValue arguments machineDeclaration
+                      (delta_local_scan_add_callable_reference expressionValue
+                        (DeltaResolvedUnqualifiedMachineCallable
+                          machineDeclaration)
+                        scan)))
+                  (NoDeltaCatalogMachine
+                    (let localScan
+                      (delta_resolve_local_value_name source
+                        (DeltaNameExpression start end name) name active pending
+                        scan)
+                      (match localScan
+                        ((DeltaLocalResolutionScanSyntax nextCatalog
+                          nextReferences nextFields nextCallables nextTypes
+                          nextCandidate)
+                          (match (delta_find_expression_result
+                            (DeltaNameExpression start end name) nextTypes)
+                            (NoDeltaExpressionResult localScan)
+                            ((OneDeltaExpressionResult resultValue)
+                              (match resultValue
+                                ((DeltaValueExpressionResult typeValue
+                                  placeType)
+                                  (delta_local_scan_add_candidate TypeMismatch
+                                    (delta_expression_start expressionValue)
+                                    localScan))
+                                (DeltaResultlessExpressionResult localScan)
+                                (DeltaNeverExpressionResult
+                                  localScan))))))))))))))
+      ((DeltaGroupedExpression start end inner) scan)
+      ((DeltaIntegerExpression start end literal) scan)
+      ((DeltaCharacterExpression start end literal) scan)
+      ((DeltaStringExpression start end literal) scan)
+      ((DeltaTrueExpression start end) scan)
+      ((DeltaFalseExpression start end) scan)
+      ((DeltaSelfExpression start end) scan)
+      ((DeltaQualifiedExpression start end owner name argumentsValue) scan)
+      ((DeltaFieldExpression start end base field) scan)
+      ((DeltaCallExpression start end base innerArguments) scan)
+      ((DeltaIndexExpression start end base indexValue) scan)
+      ((DeltaSliceExpression start end base low high) scan)
+      ((DeltaNegateExpression start end operand) scan)
+      ((DeltaBinaryExpression start end operator operatorStart operatorEnd
+        left right) scan))
+    scan))
 
 (def delta_resolve_local_value_name ((source Bytes)
   (expressionValue DeltaExpression) (name DeltaName)
@@ -5442,8 +5562,13 @@
             ((DeltaValueExpressionResult typeValue placeType)
               (delta_local_scan_add_candidate TypeMismatch
                 (delta_expression_start expressionValue) scan))
-            (DeltaResultlessExpressionResult scan)
-            (DeltaNeverExpressionResult scan)))))))
+            (DeltaResultlessExpressionResult
+              (delta_local_scan_add_candidate TypeMismatch
+                (delta_expression_start expressionValue) scan))
+            (DeltaNeverExpressionResult
+              (delta_local_scan_add_candidate InvalidTerminal
+                (delta_expression_start (delta_call_head_core base))
+                scan))))))))
 
 (def delta_local_scan_index_fact ((expressionValue DeltaExpression)
   (base DeltaExpression) (indexValue DeltaExpression)
@@ -5589,15 +5714,31 @@
                 (DeltaResultlessExpressionResult scan)
                 (DeltaNeverExpressionResult scan)))))))))
 
-; `valueContext` selects whether the outer direct name or field selector is an
-; ordinary value. Normal value positions pass one. Direct or grouped call/
-; control heads pass zero because those names/selectors belong to later
-; callable/state resolution. Every nested operand, argument, base, or bound
-; remains an ordinary value position.
+(def delta_expression_use_resolves_local_value ((useValue DeltaExpressionUse))
+  Int
+  (match useValue
+    (DeltaOrdinaryExpressionUse 1)
+    (DeltaCallHeadExpressionUse 0)
+    (DeltaPostfixStatementExpressionUse 0)
+    (DeltaTransitionContinuationExpressionUse 0)))
+
+(def delta_expression_use_checks_qualified_value
+  ((useValue DeltaExpressionUse)) Int
+  (match useValue
+    (DeltaOrdinaryExpressionUse 1)
+    ; A qualified call head must first distinguish `(Owner::name)(args)` from
+    ; `(Owner::name(...))(args)`; D36's remaining normalized-head path owns it.
+    (DeltaCallHeadExpressionUse 0)
+    (DeltaPostfixStatementExpressionUse 0)
+    (DeltaTransitionContinuationExpressionUse 0)))
+
+; Every nested operand, argument, receiver, index, and bound is an ordinary
+; value position. Only the exact outer name/selector retains the grammar-
+; selected call, statement, or continuation namespace.
 (def delta_resolve_local_expression_context ((source Bytes)
   (expressionValue DeltaExpression) (active DeltaLocalBindingList)
   (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan)
-  (valueContext Int))
+  (useValue DeltaExpressionUse))
   DeltaLocalResolutionScan
   (match expressionValue
     ((DeltaIntegerExpression start end literal)
@@ -5617,7 +5758,7 @@
         (delta_expression_i32_type expressionValue) NoDeltaPlaceType scan))
     ((DeltaSelfExpression start end) scan)
     ((DeltaNameExpression start end name)
-      (if valueContext
+      (if (delta_expression_use_resolves_local_value useValue)
         (delta_resolve_local_value_name source expressionValue name active
           pending scan)
         scan))
@@ -5625,20 +5766,22 @@
       (match arguments
         (NoDeltaArguments
           (delta_local_scan_qualified_callable_fact source expressionValue
-            owner name arguments valueContext scan))
+            owner name arguments
+            (delta_expression_use_checks_qualified_value useValue) scan))
         ((SomeDeltaArguments openStart closeEnd values)
           (delta_local_scan_qualified_callable_fact source expressionValue
-            owner name arguments valueContext
+            owner name arguments
+            (delta_expression_use_checks_qualified_value useValue)
             (delta_resolve_local_expression_list source values active pending
               scan)))))
     ((DeltaGroupedExpression start end inner)
       (delta_local_scan_propagate_result expressionValue inner
         (delta_resolve_local_expression_context source inner active pending
-          scan valueContext)))
+          scan useValue)))
     ((DeltaFieldExpression start end base member)
       (let nextScan
         (delta_resolve_local_expression source base active pending scan)
-        (if valueContext
+        (if (delta_expression_use_resolves_local_value useValue)
           (delta_local_scan_field_fact source expressionValue base member
             nextScan)
           nextScan)))
@@ -5646,9 +5789,13 @@
       (let childScan
         (delta_resolve_local_expression_list source arguments active pending
           (delta_resolve_local_expression_context source base active pending
-            scan 0))
-        (delta_local_scan_reject_value_call expressionValue base
-          (delta_local_scan_call_head_as_slice_fact source base childScan))))
+            scan DeltaCallHeadExpressionUse))
+        (let contextualScan
+          (delta_local_scan_call_head_as_slice_fact source base childScan)
+          (delta_local_scan_unqualified_machine_application source
+            expressionValue base arguments active pending useValue
+            (delta_local_scan_reject_value_call expressionValue base
+              contextualScan)))))
     ((DeltaIndexExpression start end base indexValue)
       (delta_local_scan_index_fact expressionValue base indexValue
         (delta_resolve_local_expression source indexValue active pending
@@ -5673,16 +5820,20 @@
   (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
   (delta_resolve_local_expression_context source expressionValue active
-    pending scan 1))
+    pending scan DeltaOrdinaryExpressionUse))
 
-; A continuation or neutral postfix statement may denote a state or machine.
-; Its direct bare spelling remains for that grammar-selected namespace pass.
-(def delta_resolve_local_control_expression ((source Bytes)
+(def delta_resolve_local_postfix_statement_expression ((source Bytes)
   (expressionValue DeltaExpression) (active DeltaLocalBindingList)
   (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
   (delta_resolve_local_expression_context source expressionValue active
-    pending scan 0))
+    pending scan DeltaPostfixStatementExpressionUse))
+
+(def delta_resolve_local_transition_continuation_expression ((source Bytes)
+  (expressionValue DeltaExpression) (active DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (delta_resolve_local_expression_context source expressionValue active
+    NoDeltaLocalBindings scan DeltaTransitionContinuationExpressionUse))
 
 (def delta_resolve_local_statement_expressions ((source Bytes)
   (statementValue DeltaStatement) (active DeltaLocalBindingList)
@@ -5696,8 +5847,8 @@
         (delta_resolve_local_expression source placeValue active pending
           scan)))
     ((DeltaPostfixStatement start end expressionValue)
-      (delta_resolve_local_control_expression source expressionValue active
-        pending scan))
+      (delta_resolve_local_postfix_statement_expression source expressionValue
+        active pending scan))
     ((DeltaAssertStatement start end expressionValue)
       (delta_resolve_local_expression source expressionValue active pending
         scan))))
@@ -5741,8 +5892,8 @@
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match continuation
     ((DeltaExpressionContinuation start end expressionValue)
-      (delta_resolve_local_control_expression source expressionValue active
-        NoDeltaLocalBindings scan))
+      (delta_resolve_local_transition_continuation_expression source
+        expressionValue active scan))
     ((DeltaReturnContinuation start end expressionValue)
       (delta_resolve_local_optional_expression source expressionValue active
         NoDeltaLocalBindings scan))))
@@ -5855,7 +6006,7 @@
                           catalog
                           NoDeltaResolvedLocalReferences
                           NoDeltaResolvedFieldReferences
-                          NoDeltaResolvedQualifiedCallableReferences
+                          NoDeltaResolvedCallableReferences
                           NoDeltaTypedExpressions candidate))
                         ((DeltaLocalResolutionScanSyntax finalCatalog
                           references fields callables types finalCandidate)
@@ -5864,9 +6015,8 @@
                               NoDeltaResolvedLocalReferences)
                             (delta_reverse_resolved_field_references fields
                               NoDeltaResolvedFieldReferences)
-                            (delta_reverse_resolved_qualified_callable_references
-                              callables
-                              NoDeltaResolvedQualifiedCallableReferences)
+                            (delta_reverse_resolved_callable_references callables
+                              NoDeltaResolvedCallableReferences)
                             (delta_reverse_typed_expressions types
                               NoDeltaTypedExpressions)
                             finalCandidate))))))))))))))

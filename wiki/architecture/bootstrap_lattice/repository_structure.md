@@ -68,11 +68,12 @@ The committed tree still has two important gaps:
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
   D36's qualified-only receiver parser and case/machine collision census, D31
   structural type formation, a source-backed resolution catalog, ordered local
-  resolution, scalar/aggregate value-place facts, direct qualified-callable
-  custody/results, and symbolic Alpha encoding.
+  resolution, scalar/aggregate value-place facts, one generalized callable
+  ledger with direct-qualified and settled grouped/unqualified results, D38's
+  source fact relation, and symbolic Alpha encoding.
   Remaining Q4-blocked entry diagnostics, D36 application classification,
-  D37/D38 premise-DAG/`.as_slice` enforcement, body/control checking, D34
-  physical storage refusal, lowering, tape publication, and refinement are
+  D37 premise-DAG and D38 lowering/executable controls, body/control checking,
+  D34 physical storage refusal, lowering, tape publication, and refinement are
   still open.
   The restricted Delta-written native compiler prototype was also deleted: it
   was neither that compiler nor the full Omega closure `D` and had no
