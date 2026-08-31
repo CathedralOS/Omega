@@ -453,6 +453,188 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_exact_specialized_generic_checked_body_application() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericMath {}
+pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+pub data GenericProvider {}
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+
+pub machine exercise(value: i32) -> i32 {
+    GenericMath::identity(value)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("generic boundary use should select and specialize its checked provider");
+    let review = project_checked_package_review(&checked)
+        .expect("closed generic application should project with specialized-body custody");
+    let public_provider = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "GenericProvider::identity")
+        .expect("authored generic provider remains a public callable");
+    assert_eq!(public_provider.type_parameters().len(), 1);
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact specialized boundary application")
+    };
+    let PackageReviewBoundaryApplication::Exact(arguments) = application.application() else {
+        panic!("generic operator use retains a nonempty exact application")
+    };
+    let [
+        PackageReviewBoundaryApplicationArgument::Type {
+            binder_ordinal,
+            type_identity,
+        },
+    ] = arguments.as_slice()
+    else {
+        panic!("identity application retains one type argument")
+    };
+    assert_eq!(*binder_ordinal, 0);
+    assert!(type_identity.canonical().contains("i32"));
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
+    );
+    let PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
+        realization_template,
+        realization_machine,
+        realization_state,
+        specialization_commitment,
+        realization_contract_commitment,
+    } = application.realization()
+    else {
+        panic!("application has specialized checked-body payload")
+    };
+    assert_eq!(realization_template.path(), "GenericProvider::identity");
+    assert!(
+        realization_machine
+            .path()
+            .starts_with("GenericProvider::identity$specialized$")
+    );
+    assert!(
+        realization_state
+            .path()
+            .contains("GenericProvider::identity")
+    );
+    assert_ne!(*specialization_commitment, [0; 32]);
+    assert_ne!(*realization_contract_commitment, [0; 32]);
+    assert!(
+        !review
+            .canonical_review_bytes()
+            .expect("canonical review")
+            .is_empty()
+    );
+}
+
+#[test]
+fn review_projects_distinct_specialized_generic_checked_body_applications() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericMath {}
+pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+pub data GenericProvider {}
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+
+pub machine exercise_i32(value: i32) -> i32 {
+    GenericMath::identity(value)
+}
+
+pub machine exercise_u64(value: u64) -> u64 {
+    GenericMath::identity(value)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("two concrete uses should specialize one generic checked provider twice");
+    let review = project_checked_package_review(&checked)
+        .expect("each closed generic application should retain its own specialization");
+    let applications = review.boundary_application_realizations();
+    assert_eq!(applications.len(), 2);
+    let mut type_identities = applications
+        .iter()
+        .map(|application| {
+            let PackageReviewBoundaryApplication::Exact(arguments) = application.application()
+            else {
+                panic!("generic application must be nonempty")
+            };
+            let [PackageReviewBoundaryApplicationArgument::Type { type_identity, .. }] =
+                arguments.as_slice()
+            else {
+                panic!("identity application retains one type argument")
+            };
+            type_identity.canonical().to_owned()
+        })
+        .collect::<Vec<_>>();
+    type_identities.sort();
+    assert!(
+        type_identities
+            .iter()
+            .any(|identity| identity.contains("i32"))
+    );
+    assert!(
+        type_identities
+            .iter()
+            .any(|identity| identity.contains("u64"))
+    );
+    let mut specialization_commitments = applications
+        .iter()
+        .map(|application| {
+            let PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
+                specialization_commitment,
+                ..
+            } = application.realization()
+            else {
+                panic!("generic application must retain specialized-body custody")
+            };
+            *specialization_commitment
+        })
+        .collect::<Vec<_>>();
+    specialization_commitments.sort();
+    specialization_commitments.dedup();
+    assert_eq!(specialization_commitments.len(), 2);
+}
+
+#[test]
 fn review_accepts_generic_checked_provider_with_weaker_property_demand() {
     let Some(target) = host_target_name() else {
         return;
@@ -568,6 +750,151 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     };
     assert_eq!(realization.coordinate(), declaration.coordinate());
     assert!(review.boundary_application_realizations().is_empty());
+}
+
+#[test]
+fn review_projects_exact_const_specialized_checked_body_application() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data ConstMath {}
+pub boundary operator ConstMath::identity<const Count: u64>(
+    value: [u8; Count]
+) -> [u8; Count];
+pub data ConstProvider {}
+pub machine ConstProvider::identity<const Length: u64>(
+    value: [u8; Length]
+) -> [u8; Length]
+satisfies ConstMath::identity
+{ value }
+
+pub machine exercise(value: [u8; 4]) -> [u8; 4] {
+    ConstMath::identity(value)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("const-generic boundary use should specialize its checked provider");
+    let review = project_checked_package_review(&checked)
+        .expect("closed const application should project with specialized-body custody");
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact const-specialized boundary application")
+    };
+    let PackageReviewBoundaryApplication::Exact(arguments) = application.application() else {
+        panic!("const-generic operator use retains a nonempty exact application")
+    };
+    let [
+        PackageReviewBoundaryApplicationArgument::Const {
+            binder_ordinal,
+            declared_carrier,
+            value_type,
+            value_encoding,
+        },
+    ] = arguments.as_slice()
+    else {
+        panic!("identity application retains one const argument")
+    };
+    assert_eq!(*binder_ordinal, 0);
+    assert!(declared_carrier.canonical().contains("u64"));
+    let expected = psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
+    assert_eq!(value_type, &expected.type_name);
+    assert_eq!(value_encoding, &expected.encoding);
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
+    );
+    assert!(
+        !review
+            .canonical_review_bytes()
+            .expect("canonical review")
+            .is_empty()
+    );
+}
+
+#[test]
+fn specialized_checked_body_review_rejects_tampered_application_and_commitment() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericMath {}
+pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+pub data GenericProvider {}
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+
+pub machine exercise(value: i32) -> i32 {
+    GenericMath::identity(value)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("generic boundary fixture should compile");
+
+    let mut substituted_application = checked.clone();
+    let specialization = substituted_application
+        .typed
+        .machine_specializations
+        .iter_mut()
+        .find(|specialization| !specialization.operator_realizations.is_empty())
+        .expect("generic provider specialization");
+    let psi_typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+        binder_symbol, ..
+    } = &mut specialization.operator_realizations[0].arguments[0]
+    else {
+        panic!("fixture retains one type application")
+    };
+    *binder_symbol = psi_symbols::SymbolHandle::invalid();
+    assert!(
+        project_checked_package_review(&substituted_application).is_err(),
+        "review must independently reject a substituted retained application"
+    );
+
+    let mut stale_commitment = checked;
+    let specialization = stale_commitment
+        .typed
+        .machine_specializations
+        .iter_mut()
+        .find(|specialization| !specialization.operator_realizations.is_empty())
+        .expect("generic provider specialization");
+    specialization.commitment =
+        psi_typed_trees::typed_trees::MachineSpecializationCommitment::from_digest([0xa5; 32]);
+    assert!(
+        project_checked_package_review(&stale_commitment).is_err(),
+        "review must independently reject a stale specialization commitment"
+    );
 }
 
 #[test]

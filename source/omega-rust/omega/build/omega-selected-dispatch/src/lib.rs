@@ -21,6 +21,8 @@ pub use float_intrinsic::{
 pub use intrinsic_review::retain_selected_compiler_intrinsic_review_identities;
 pub use operator_adapter::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
+    CheckedSpecializedOperatorApplicationRealization,
     derive_checked_nongeneric_operator_application_realizations,
+    derive_checked_specialized_operator_application_realizations,
     settle_selected_operator_adapter_dispatch, validate_selected_operator_terminal_custody,
 };

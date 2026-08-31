@@ -44,6 +44,7 @@ psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+psi-validation = { path = "../../../psi/semantics/psi-validation" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

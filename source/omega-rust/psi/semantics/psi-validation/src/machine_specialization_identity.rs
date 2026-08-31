@@ -10,6 +10,37 @@ use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
 use sha2::{Digest, Sha256};
 
+/// Rejoin a ProviderPlan's split checked-adapter identity to the exact
+/// package-qualified template identity retained before specialization.
+pub fn machine_specialization_matches_template_identity(
+    typed: &psi_typed_trees::TypedTrees,
+    specialization: &psi_typed_trees::typed_trees::MachineSpecialization,
+    machine_identity: &str,
+    machine_package_identity: Option<psi_core::PackageKeyIdentity>,
+) -> bool {
+    if typed
+        .symbols
+        .symbol_package_identity(specialization.template)
+        != machine_package_identity
+    {
+        return false;
+    }
+    let path = typed.symbols.display_path(specialization.template, "::");
+    let declaration = match machine_package_identity {
+        Some(package) => {
+            let mut owner = String::with_capacity(package.digest().len() * 2);
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            for byte in package.digest() {
+                owner.push(char::from(HEX[usize::from(byte >> 4)]));
+                owner.push(char::from(HEX[usize::from(byte & 0x0f)]));
+            }
+            format!("package:{owner}::{path}")
+        }
+        None => format!("unmanaged::{path}"),
+    };
+    specialization.normalized_template_identity == format!("{declaration}|{machine_identity}")
+}
+
 /// Recompute one retained specialization commitment from checked custody.
 ///
 /// The returned digest is deliberately representation-neutral. Callers compare
@@ -152,6 +183,12 @@ pub fn recompute_checked_machine_specialization_commitment(
     for commitment in &conformance_commitments {
         bytes.extend(commitment);
     }
+    let operator_realization_bytes = crate::canonical_closed_operator_realization_bytes(
+        &checked.typed,
+        specialization.instance,
+        &specialization.operator_realizations,
+    )?;
+    encode_bytes(&operator_realization_bytes, &mut bytes);
     match &specialization.accepted_template_commitment {
         Some(commitment) => {
             bytes.push(1);
@@ -161,7 +198,7 @@ pub fn recompute_checked_machine_specialization_commitment(
     }
 
     let mut strong = Sha256::new();
-    strong.update(b"omega.machine-specialization.v1\0");
+    strong.update(b"omega.machine-specialization.v2\0");
     strong.update(bytes);
     Ok(strong.finalize().into())
 }

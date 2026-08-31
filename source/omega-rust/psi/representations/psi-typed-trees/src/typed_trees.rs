@@ -282,6 +282,12 @@ pub struct MachineSpecialization {
     /// different telescopes are distinct even though `conformance_arguments`
     /// contains the same package-scoped declaration symbol.
     pub conformance_applications: Vec<ClosedConformanceApplication>,
+    /// Exact operator requirements realized by this concrete checked-body
+    /// specialization. Each row is reconstructed from the substituted entry
+    /// signature and retains the declaration-ordered closed application; it
+    /// is distinct from provider-authored conformance arguments and from
+    /// checked use-site demand.
+    pub operator_realizations: Vec<crate::operator::ClosedOperatorRealizationApplication>,
     /// The normalized authored template identity captured before in-place
     /// substitution consumes its generic parameter declarations.
     pub template_contract_report_fingerprint: u64,

@@ -1267,8 +1267,8 @@ invalidates an incomplete recorded override. The projection never substitutes
 an overload display name, declaration order, or a runtime-layout-only type
 identity for this contract surface.
 
-Production exact package applications remain fail-closed until D29 is
-implemented. A checked use owns an ordered type/const application; const
+Production exact package applications now implement D29's local named checked-
+body cohort. A checked use owns an ordered type/const application; const
 identity is its canonical evaluated value in the declared carrier. Generic
 artifacts may export typed symbolic demands, but coverage exists only after
 final substitution closes every binder and rejoins the exact selected plan.
@@ -1281,9 +1281,14 @@ trait machine has no telescope and never uses that value. Bootstrap lowering
 cannot publish authoritative coverage.
 Under D28, every emitted artifact retains this finite exact set even if a future
 checked generic body proves universal semantic selection coverage. No such
-checked generic operator realization exists today, so generic coverage remains
-deliberately unrepresented; provider assertions and one successful
-specialization grant nothing.
+universal checked generic operator realization exists today; provider
+assertions and one successful specialization grant nothing. The implemented
+cohort instead derives each local direct named call-root application (including
+normalized unit statements), preserves the authored generic provider, clones
+one private specialization per distinct application, and replays its exact
+plan, specialization, and checked-body contract in package review. Nested
+calls, symbolic cross-artifact, fixed-token generic, external generic,
+Terminal-companion, and native physical coverage remain fail-closed.
 
 D32 keeps semantic evidence separate from native physical realization. The
 immutable canonical Terminal artifact feeds a validated optimization

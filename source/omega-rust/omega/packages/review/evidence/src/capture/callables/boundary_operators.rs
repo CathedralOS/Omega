@@ -108,20 +108,35 @@ pub(super) fn validate_selected_boundary_operator_checked_adapter(
         .typed
         .symbols
         .symbol_package_identity(machine.symbol);
+    let selected_identity_matches = match &row.binding {
+        omega_effects::provider_plan::ProviderBinding::CheckedAdapter {
+            machine_identity,
+            machine_package_identity,
+        } if *machine_package_identity == expected_package => {
+            machine_identity == &expected_machine_identity
+                || compilation
+                    .typed
+                    .machine_specializations
+                    .iter()
+                    .filter(|specialization| specialization.instance == machine.symbol)
+                    .any(|specialization| {
+                        psi_validation::machine_specialization_matches_template_identity(
+                            &compilation.typed,
+                            specialization,
+                            machine_identity,
+                            *machine_package_identity,
+                        )
+                    })
+        }
+        _ => false,
+    };
     if retained.plan != **plan
         || *requirement_symbol != operator.symbol
         || *realization_symbol != machine.symbol
         || method.requirement_owner != slot
         || method.requirement_identity != slot
         || row.requirement_identity != slot
-        || !matches!(
-            &row.binding,
-            omega_effects::provider_plan::ProviderBinding::CheckedAdapter {
-                machine_identity,
-                machine_package_identity,
-            } if machine_identity == &expected_machine_identity
-                && *machine_package_identity == expected_package
-        )
+        || !selected_identity_matches
     {
         return Err(vec![Diagnostic::error(format!(
             "selected boundary-operator ProviderPlan `{}` does not join exact operator `{slot}` to checked adapter `{}`",

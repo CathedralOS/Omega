@@ -11,7 +11,8 @@ use crate::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 mod applications;
 
 pub use applications::{
-    ClosedOperatorApplicationArgument, closed_operator_application_for_operands,
+    ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
+    closed_operator_application_for_operands, closed_operator_realization_application,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -287,6 +288,48 @@ pub fn resolve_satisfied_checked_operator<'program>(
     requirement: &str,
 ) -> Option<&'program OperatorDefinition> {
     resolve_satisfied_operator(program, machine, namespace, requirement, false)
+}
+
+/// Resolve a concrete generic checked-body specialization through the exact
+/// closed operator application retained by authoritative monomorphization.
+///
+/// This is deliberately separate from [`resolve_satisfied_checked_operator`]:
+/// the latter proves the authored generic declaration relation, while this
+/// path proves one closed specialization and returns its retained application
+/// for category/bounds/commitment replay.
+pub fn resolve_specialized_checked_operator_application<'program>(
+    program: &'program TypedTrees,
+    machine: &'program crate::machine::Machine,
+    namespace: &str,
+    requirement: &str,
+) -> Option<(
+    &'program OperatorDefinition,
+    &'program ClosedOperatorRealizationApplication,
+)> {
+    let mut specializations = program
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.instance == machine.symbol);
+    let specialization = specializations.next()?;
+    if specializations.next().is_some() {
+        return None;
+    }
+    let mut rows = specialization
+        .operator_realizations
+        .iter()
+        .filter_map(|row| {
+            let operator = declaration_by_symbol(program, row.requirement_symbol)?;
+            operator_path_matches(operator, program, namespace, requirement)
+                .then_some((operator, row))
+        });
+    let (operator, retained) = rows.next()?;
+    if rows.next().is_some()
+        || closed_operator_realization_application(program, machine, operator).as_ref()
+            != Some(retained)
+    {
+        return None;
+    }
+    Some((operator, retained))
 }
 
 fn resolve_satisfied_operator<'program>(

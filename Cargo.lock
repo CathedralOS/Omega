@@ -1190,6 +1190,7 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
+ "psi-validation",
  "sha2",
 ]
 
@@ -1322,6 +1323,7 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
+ "psi-validation",
 ]
 
 [[package]]

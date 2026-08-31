@@ -320,7 +320,7 @@ struct ExactSpecializationEncoder(Sha256);
 impl ExactSpecializationEncoder {
     fn new() -> Self {
         let mut digest = Sha256::new();
-        digest.update(b"omega.task-specialization.sha256.v1\0");
+        digest.update(b"omega.task-specialization.sha256.v2\0");
         Self(digest)
     }
 
@@ -335,6 +335,11 @@ impl ExactSpecializationEncoder {
     fn string(&mut self, value: &str) {
         self.length(value.len());
         self.0.update(value.as_bytes());
+    }
+
+    fn bytes(&mut self, value: &[u8]) {
+        self.length(value.len());
+        self.0.update(value);
     }
 
     fn strings(&mut self, values: &[String]) {
@@ -434,6 +439,17 @@ impl ExactSpecializationEncoder {
             }
             self.digest(application.commitment.as_bytes());
         }
+        let operator_realizations = psi_validation::canonical_closed_operator_realization_bytes(
+            &program.typed,
+            specialization.instance,
+            &specialization.operator_realizations,
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "task specialization has invalid retained operator realizations: {error}"
+            ))]
+        })?;
+        self.bytes(&operator_realizations);
         Ok(())
     }
 

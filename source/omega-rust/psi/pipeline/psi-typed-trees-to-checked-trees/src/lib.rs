@@ -32,7 +32,26 @@ pub fn typed_operator_has_no_authored_selection(
 pub fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lowerer::lower_typed_trees(program)
+    lowerer::lower_typed_trees(program, &[])
+}
+
+/// One Omega-selected generic checked body that must be specialized for the
+/// exact closed applications of its boundary-operator requirement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedGenericOperatorProviderSpecialization {
+    pub requirement_operator: psi_symbols::SymbolHandle,
+    pub realization_machine: psi_symbols::SymbolHandle,
+}
+
+/// Lower with exact selected generic operator providers supplied by the
+/// orchestration owner. Psi derives applications from authored uses and uses
+/// ordinary authoritative specialization; the request carries no application
+/// strings, capability assertions, or provider-selection policy.
+pub fn lower_typed_trees_with_selected_generic_operator_providers(
+    program: psi_typed_trees::TypedTrees,
+    selected: &[SelectedGenericOperatorProviderSpecialization],
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lowerer::lower_typed_trees(program, selected)
 }
 
 /// Exact compiler-owned join from one authored operator use to the checked

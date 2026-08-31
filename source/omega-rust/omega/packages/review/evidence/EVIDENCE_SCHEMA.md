@@ -1,8 +1,24 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 116 and row schema version 74. This file
+The canonical review schema is version 117 and row schema version 75. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v117 / row v75 admits actual selected named type/const-generic boundary-
+operator applications backed by checked Omega bodies. Omega supplies only the
+exact selected requirement/provider symbols; Psi independently derives each
+closed application from the authored operands and clones a private concrete
+machine through ordinary authoritative specialization. The authored generic
+provider remains intact as public API. Each canonical row retains the ordered
+package-qualified type or canonical const application, selected-plan digest,
+generic template, concrete machine/state, specialization commitment, and
+machine-contract commitment. Distinct applications retain distinct
+specializations; equal applications deduplicate only at semantic review.
+Replay independently reconstructs the application, template identity,
+specialization commitment, and checked realization contract. Open, missing,
+duplicate, substituted, stale, or category/carrier-changing rows reject.
+Fixed-token generic, lifetime, static-machine, proposition, external generic,
+symbolic cross-artifact, Terminal, and native physical coverage remain closed.
 
 Schema v116 / row v74 retains the atomic evaluated-import receipt beside each
 normalized locator: exact producer package/callable/closure, evaluator
@@ -18,9 +34,9 @@ identity and no duplicate mapping is encoded. Categories and const carriers
 remain exact. Provider type-property requirements may weaken the requirement
 telescope but never strengthen it. Arity, parameter, and result drift reject.
 Lifetime, static-machine, proposition, fixed-token generic, and external
-generic realizations remain closed. This declaration evidence grants no
-generic application coverage; D29 still requires each compiler-derived demand
-to rejoin one independently checked final specialization.
+generic realizations remain closed. This declaration evidence alone grants no
+generic application coverage; v117 adds the first exact selected checked-body
+application join.
 
 Schema v114 / row v72 adds D29's exact compiler-intrinsic realization role for
 actual monomorphic boundary-operator applications. The application rejoins its

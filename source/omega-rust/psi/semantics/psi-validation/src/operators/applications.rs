@@ -23,6 +23,214 @@ pub struct ValidatedBoundaryOperatorApplication {
     pub arguments: Vec<ValidatedBoundaryOperatorApplicationArgument>,
 }
 
+/// Canonically encode and independently replay every exact closed operator
+/// realization retained by one concrete machine specialization.
+///
+/// Rows are a semantic set and sort by their complete canonical encoding. The
+/// retained set must equal the operator `satisfies` edges on the concrete
+/// machine, and every row must freshly reconstruct from its substituted entry
+/// signature before any commitment consumer can use it.
+pub fn canonical_closed_operator_realization_bytes(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    retained: &[psi_typed_trees::operator::ClosedOperatorRealizationApplication],
+) -> Result<Vec<u8>, &'static str> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .ok_or("operator realization specialization lost its concrete machine")?;
+    let expected = program
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter_map(|conformance| {
+            psi_typed_trees::operator::declaration_by_symbol(
+                program,
+                conformance.requirement_symbol,
+            )
+            .map(|operator| (conformance.requirement_symbol, operator))
+        })
+        .collect::<Vec<_>>();
+    if expected.len() != retained.len() {
+        return Err("operator realization specialization has incomplete retained coverage");
+    }
+
+    let mut rows = Vec::with_capacity(retained.len());
+    for (requirement_symbol, operator) in expected {
+        let matching = retained
+            .iter()
+            .filter(|row| row.requirement_symbol == requirement_symbol)
+            .collect::<Vec<_>>();
+        let [row] = matching.as_slice() else {
+            return Err("operator realization specialization has missing or duplicate exact rows");
+        };
+        let reconstructed = psi_typed_trees::operator::closed_operator_realization_application(
+            program, machine, operator,
+        )
+        .ok_or("operator realization specialization no longer matches its concrete signature")?;
+        if **row != reconstructed {
+            return Err("operator realization specialization mismatches fresh reconstruction");
+        }
+
+        let parameters = program.operator_type_parameters(operator);
+        if parameters.len() != row.arguments.len() {
+            return Err("operator realization specialization mismatches its static telescope");
+        }
+        let mut bytes = Vec::new();
+        encode_application_text(
+            &operator_symbol_identity(program, requirement_symbol),
+            &mut bytes,
+        );
+        bytes.extend((row.arguments.len() as u64).to_le_bytes());
+        for (ordinal, (parameter, argument)) in parameters.iter().zip(&row.arguments).enumerate() {
+            bytes.extend((ordinal as u64).to_le_bytes());
+            match (&parameter.kind, argument) {
+                (
+                    TypeParameterKind::Type,
+                    ClosedOperatorApplicationArgument::Type {
+                        binder_symbol,
+                        type_reference,
+                    },
+                ) if *binder_symbol == parameter.symbol && type_reference.is_valid() => {
+                    bytes.push(0);
+                    encode_application_text(
+                        program
+                            .package_qualified_type_identity(*type_reference)
+                            .as_str(),
+                        &mut bytes,
+                    );
+                }
+                (
+                    TypeParameterKind::Const {
+                        type_reference: expected_carrier,
+                    },
+                    ClosedOperatorApplicationArgument::Const {
+                        binder_symbol,
+                        declared_carrier,
+                        value,
+                    },
+                ) if *binder_symbol == parameter.symbol
+                    && *declared_carrier == *expected_carrier =>
+                {
+                    crate::type_references::validate_exact_const_identity(
+                        program,
+                        *declared_carrier,
+                        value,
+                    )
+                    .map_err(|_| {
+                        "operator realization specialization has an invalid canonical const value"
+                    })?;
+                    bytes.push(1);
+                    encode_application_text(
+                        program
+                            .package_qualified_type_identity(*declared_carrier)
+                            .as_str(),
+                        &mut bytes,
+                    );
+                    encode_application_text(&value.type_name, &mut bytes);
+                    encode_application_text(&value.encoding, &mut bytes);
+                }
+                _ => {
+                    return Err(
+                        "operator realization specialization mismatches binder category or identity",
+                    );
+                }
+            }
+        }
+        rows.push(bytes);
+    }
+    rows.sort();
+    if rows.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("operator realization specialization has duplicate canonical rows");
+    }
+    let mut bytes = Vec::new();
+    bytes.extend((rows.len() as u64).to_le_bytes());
+    for row in rows {
+        bytes.extend((row.len() as u64).to_le_bytes());
+        bytes.extend(row);
+    }
+    Ok(bytes)
+}
+
+/// Compare one checked D29 use demand with one independently retained closed
+/// realization by semantic identity rather than private type-table handles.
+pub fn checked_operator_application_matches_realization(
+    program: &TypedTrees,
+    demand: &psi_checked_trees::CheckedBoundaryOperatorApplicationDemand,
+    realization: &psi_typed_trees::operator::ClosedOperatorRealizationApplication,
+) -> bool {
+    demand.requirement_symbol == realization.requirement_symbol
+        && demand.arguments.len() == realization.arguments.len()
+        && demand
+            .arguments
+            .iter()
+            .zip(&realization.arguments)
+            .enumerate()
+            .all(
+                |(ordinal, (demand_argument, realization))| match (demand_argument, realization) {
+                    (
+                        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                            binder_owner,
+                            binder_ordinal,
+                            binder_symbol,
+                            type_reference,
+                        },
+                        ClosedOperatorApplicationArgument::Type {
+                            binder_symbol: realization_binder,
+                            type_reference: realization_type,
+                        },
+                    ) => {
+                        *binder_owner == demand.requirement_symbol
+                            && usize::try_from(*binder_ordinal).ok() == Some(ordinal)
+                            && *binder_symbol == *realization_binder
+                            && program.package_qualified_type_identity(*type_reference)
+                                == program.package_qualified_type_identity(*realization_type)
+                    }
+                    (
+                        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+                            binder_owner,
+                            binder_ordinal,
+                            binder_symbol,
+                            declared_carrier,
+                            value,
+                        },
+                        ClosedOperatorApplicationArgument::Const {
+                            binder_symbol: realization_binder,
+                            declared_carrier: realization_carrier,
+                            value: realization_value,
+                        },
+                    ) => {
+                        *binder_owner == demand.requirement_symbol
+                            && usize::try_from(*binder_ordinal).ok() == Some(ordinal)
+                            && *binder_symbol == *realization_binder
+                            && program.package_qualified_type_identity(*declared_carrier)
+                                == program.package_qualified_type_identity(*realization_carrier)
+                            && value == realization_value
+                    }
+                    _ => false,
+                },
+            )
+}
+
+fn operator_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {
+    let path = program.symbols.display_path(symbol, "::");
+    let Some(package) = program.symbols.symbol_package_identity(symbol) else {
+        return format!("unmanaged::{path}");
+    };
+    let mut owner = String::with_capacity(package.digest().len() * 2);
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for byte in package.digest() {
+        owner.push(char::from(HEX[usize::from(byte >> 4)]));
+        owner.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    format!("package:{owner}::{path}")
+}
+
+fn encode_application_text(value: &str, bytes: &mut Vec<u8>) {
+    bytes.extend((value.len() as u64).to_le_bytes());
+    bytes.extend(value.as_bytes());
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedBoundaryOperatorApplicationArgument {
     Type {

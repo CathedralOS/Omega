@@ -25,6 +25,18 @@ pub enum ClosedOperatorApplicationArgument {
     },
 }
 
+/// One concrete checked-body realization of an exact operator requirement.
+///
+/// The requirement owns the binder telescope. Argument order therefore
+/// retains declaration ordinal, while each argument retains the exact binder
+/// symbol/category and structural type or canonical const custody needed for
+/// independent replay after generic specialization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClosedOperatorRealizationApplication {
+    pub requirement_symbol: SymbolHandle,
+    pub arguments: Vec<ClosedOperatorApplicationArgument>,
+}
+
 /// Derive one complete closed type/const application for an operator use from
 /// the same operand unification used by spelling resolution. Lifetime,
 /// machine, and proposition binders remain fail-closed until their exact
@@ -111,6 +123,89 @@ pub fn closed_operator_application_for_operands(
         })
         .collect::<Option<Vec<_>>>()?;
     Some(application)
+}
+
+/// Reconstruct one specialized machine's exact closed realization of an
+/// operator requirement from its concrete entry signature.
+///
+/// Operand types derive the application; the result may corroborate those
+/// bindings but never fill a return-only binder. Parameter modes and the
+/// substituted result are checked here so retaining this row cannot turn a
+/// merely same-arity machine into a realization.
+pub fn closed_operator_realization_application(
+    program: &TypedTrees,
+    machine: &crate::machine::Machine,
+    operator: &OperatorDefinition,
+) -> Option<ClosedOperatorRealizationApplication> {
+    let state = program.machine_states(machine).first()?;
+    let actual_parameters = program.state_parameters(state);
+    let required_parameters = program.operator_parameters(operator);
+    if actual_parameters.len() != required_parameters.len()
+        || actual_parameters
+            .iter()
+            .zip(required_parameters)
+            .any(|(actual, required)| {
+                actual.is_self != required.is_self
+                    || actual.is_const != required.is_const
+                    || actual.is_mutable != required.is_mutable
+            })
+    {
+        return None;
+    }
+
+    let operand_types = actual_parameters
+        .iter()
+        .map(|parameter| Some(parameter.type_reference))
+        .collect::<Vec<_>>();
+    let arguments = closed_operator_application_for_operands(program, operator, &operand_types)?;
+
+    if state.return_type.is_valid() != operator.return_type.is_valid() {
+        return None;
+    }
+    if state.return_type.is_valid() {
+        let mut type_bindings = arguments
+            .iter()
+            .filter_map(|argument| match argument {
+                ClosedOperatorApplicationArgument::Type {
+                    binder_symbol,
+                    type_reference,
+                } => Some((*binder_symbol, *type_reference)),
+                ClosedOperatorApplicationArgument::Const { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        let mut const_bindings = arguments
+            .iter()
+            .filter_map(|argument| match argument {
+                ClosedOperatorApplicationArgument::Const {
+                    binder_symbol,
+                    value,
+                    ..
+                } => Some(OperatorConstBinding {
+                    symbol: *binder_symbol,
+                    value: value.clone(),
+                }),
+                ClosedOperatorApplicationArgument::Type { .. } => None,
+            })
+            .collect::<Vec<_>>();
+        if !type_reference_matches_with_policy(
+            program,
+            state.return_type,
+            operator.return_type,
+            None,
+            program.operator_type_parameters(operator),
+            &mut type_bindings,
+            &mut const_bindings,
+            false,
+        ) || !declared_domain_constraints_match(program, state.return_type, operator.return_type)
+        {
+            return None;
+        }
+    }
+
+    Some(ClosedOperatorRealizationApplication {
+        requirement_symbol: operator.symbol,
+        arguments,
+    })
 }
 
 fn closed_boundary_application_type(

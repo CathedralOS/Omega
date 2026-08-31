@@ -12,6 +12,7 @@ use omega_effects::provider_plan::{
     ServiceProgressSubject,
 };
 
+use super::super::declarations::encode_type_identity;
 use super::identity::encode_nominal;
 
 pub(crate) fn encode_provider(
@@ -83,8 +84,7 @@ pub(crate) fn encode_boundary_application_realization_key(
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &realization.operator_declaration)?;
     encoder.string(&realization.requirement_identity)?;
-    encode_boundary_application(encoder, realization.application);
-    Ok(())
+    encode_boundary_application(encoder, &realization.application)
 }
 
 pub(crate) fn encode_boundary_application_realization(
@@ -104,6 +104,20 @@ pub(crate) fn encode_boundary_application_realization(
             encode_nominal(encoder, realization_state)?;
             encoder.fixed_bytes(realization_contract_commitment);
         }
+        PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
+            realization_template,
+            realization_machine,
+            realization_state,
+            specialization_commitment,
+            realization_contract_commitment,
+        } => {
+            encoder.byte(2);
+            encode_nominal(encoder, realization_template)?;
+            encode_nominal(encoder, realization_machine)?;
+            encode_nominal(encoder, realization_state)?;
+            encoder.fixed_bytes(specialization_commitment);
+            encoder.fixed_bytes(realization_contract_commitment);
+        }
         PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {
             encoder.byte(1);
             encode_compiler_intrinsic_execution(encoder, execution)?;
@@ -114,11 +128,40 @@ pub(crate) fn encode_boundary_application_realization(
 
 fn encode_boundary_application(
     encoder: &mut Encoder,
-    application: PackageReviewBoundaryApplication,
-) {
-    encoder.byte(match application {
-        PackageReviewBoundaryApplication::Empty => 0,
-    });
+    application: &PackageReviewBoundaryApplication,
+) -> Result<(), PackageReviewEncodingError> {
+    match application {
+        PackageReviewBoundaryApplication::Empty => encoder.byte(0),
+        PackageReviewBoundaryApplication::Exact(arguments) => {
+            encoder.byte(1);
+            encoder.sequence(arguments, |encoder, argument| {
+                match argument {
+                    crate::record::PackageReviewBoundaryApplicationArgument::Type {
+                        binder_ordinal,
+                        type_identity,
+                    } => {
+                        encoder.byte(0);
+                        encoder.u32(*binder_ordinal);
+                        encode_type_identity(encoder, type_identity)?;
+                    }
+                    crate::record::PackageReviewBoundaryApplicationArgument::Const {
+                        binder_ordinal,
+                        declared_carrier,
+                        value_type,
+                        value_encoding,
+                    } => {
+                        encoder.byte(1);
+                        encoder.u32(*binder_ordinal);
+                        encode_type_identity(encoder, declared_carrier)?;
+                        encoder.string(value_type)?;
+                        encoder.string(value_encoding)?;
+                    }
+                }
+                Ok(())
+            })?;
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn encode_compiler_intrinsic_execution(

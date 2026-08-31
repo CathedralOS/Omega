@@ -47,9 +47,10 @@ stop the item on one precise owner question before adding machinery.
     and external package-review edge identity. Add repeated-binder, reordered/
     unused-private-binder stability, distinct-partition, checked/external
     equality, missing/foreign-binder, and zero-copy result-borrow canaries;
-  - finish D29's artifact-qualified symbolic demand and final substitution,
-    role-specific checked-realization replay, and D32's exact optimized-
-    projection-to-physical-child join. Each physical child must bind its exact
+  - finish D29's artifact-qualified symbolic demand/final substitution for
+    separately compiled generic artifacts and unsupported operator categories,
+    then D32's exact optimized-projection-to-physical-child join. Each physical
+    child must bind its exact
     role-tagged `PhysicalChildParent` and surviving optimized operation
     occurrence; the complete child set must equal the derived surviving set.
     D29 parents reference reconstructible operator coverage; D41 parents retain
@@ -65,17 +66,15 @@ stop the item on one precise owner question before adding machinery.
   rederived closed execution identity. It carries no checked-body fields and
   makes no Terminal/native or generic-coverage claim.
 
-  Generic checked provider declarations now retain their exact positional
-  type/const telescope relation on the existing operator realization edge.
-  Categories and const carriers remain exact; provider type-property demands
-  may weaken the requirement but never strengthen it. This is declaration
-  evidence only. Actual generic uses remain in D29's
-  demand-and-final-specialization work: a concrete use currently specializes
-  the checked provider while leaving its open `satisfies` edge attached, so
-  validation correctly rejects the resulting false declaration relation. The
-  specialization must instead retain and rejoin the exact closed requirement
-  application. Lifetime, static-machine, proposition, fixed-token generic, and
-  external generic realizations remain fail-closed.
+  Selected direct named type/const-generic checked-body call roots now complete
+  the local semantic D29 join, including unit statements normalized to those
+  roots. Omega supplies the selected requirement/provider symbols; Psi derives
+  closed applications from authored operands, preserves the public generic
+  template, clones one private authoritative specialization per distinct
+  application, and package review replays exact application, plan,
+  specialization, and machine-contract custody. Nested calls, lifetime,
+  static-machine, proposition, fixed-token generic, external generic, symbolic
+  cross-artifact, Terminal, and D32 physical realization remain fail-closed.
 
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
@@ -357,12 +356,13 @@ explicitly.
   its whole package. Candidate review designations remain non-authoritative;
   accepted bindings come only from consumer policy.
 
-- [ ] Complete generic and non-empty exact-application coverage for
-  **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Derive concrete static applications
-  from checked uses, retain D29's normalized tagged type/const bindings, close
-  artifact-qualified symbolic demands during final specialization, recheck the
-  selected role-specific semantic realization, attach rows to production
-  selected plans, and add compiler-to-update tests. Then implement D32's exact
+- [ ] Complete the remaining generic exact-application work for
+  **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic
+  demands during final composition; specialize nested named calls; add explicit
+  replay for any admitted lifetime, static-machine, proposition,
+  fixed-token-generic, or external-generic role; and carry the complete
+  semantic companion into Terminal.
+  Then implement D32's exact
   native physical children over the validated optimized projection, including
   the role-tagged D29/D41 `PhysicalChildParent`, complete D41 settlement
   retention and replay, per-occurrence parent bindings, and

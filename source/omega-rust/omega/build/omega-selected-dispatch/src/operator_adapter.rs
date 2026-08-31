@@ -7,12 +7,17 @@
 //! compiler intrinsics remain in `float_intrinsic_dispatch`.
 
 mod application_realization;
+mod specialized_application_realization;
 mod spelled;
 mod unit;
 
 pub use application_realization::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
     derive_checked_nongeneric_operator_application_realizations,
+};
+pub use specialized_application_realization::{
+    CheckedSpecializedOperatorApplicationRealization,
+    derive_checked_specialized_operator_application_realizations,
 };
 
 use omega_effects::provider_plan::ProviderBinding;
@@ -438,7 +443,8 @@ pub(super) fn resolve_checked_adapter_for_operator(
     }
 
     let ProviderBinding::CheckedAdapter {
-        machine_identity, ..
+        machine_identity,
+        machine_package_identity,
     } = &row.binding
     else {
         return Ok(None);
@@ -450,8 +456,94 @@ pub(super) fn resolve_checked_adapter_for_operator(
             plan.name,
         )));
     }
-    let provider =
-        omega_provider_planning::plans::exact_checked_adapter(&checked.typed, plan, row)?;
+    let applications = checked
+        .facts
+        .operators
+        .boundary_applications
+        .iter()
+        .filter(|application| {
+            application.requirement_symbol == operator.symbol
+                && matches!(
+                    application.site,
+                    psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                        expression: retained_expression,
+                        ..
+                    } if retained_expression == expression
+                )
+        })
+        .collect::<Vec<_>>();
+    let application = match applications.as_slice() {
+        [application] => Some(*application),
+        [] => None,
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "selected checked-operator use at expression {expression:?} retains {} exact application demands; expected at most one",
+                applications.len(),
+            )));
+        }
+    };
+    let direct_provider =
+        omega_provider_planning::plans::exact_checked_adapter(&checked.typed, plan, row);
+    let specialized = checked
+        .typed
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            psi_validation::machine_specialization_matches_template_identity(
+                &checked.typed,
+                specialization,
+                machine_identity,
+                *machine_package_identity,
+            ) && specialization
+                .operator_realizations
+                .iter()
+                .any(|realization| {
+                    realization.requirement_symbol == operator.symbol
+                        && application.is_some_and(|application| {
+                            specialized_application_realization::applications_match(
+                                checked,
+                                application,
+                                realization,
+                            )
+                        })
+                })
+        })
+        .filter_map(|specialization| {
+            checked
+                .typed
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == specialization.instance)
+        })
+        .filter(|machine| {
+            checked
+                .typed
+                .symbols
+                .symbol_package_identity(machine.symbol)
+                == *machine_package_identity
+        })
+        .collect::<Vec<_>>();
+    let requires_specialization =
+        application.is_some_and(|application| !application.arguments.is_empty());
+    let provider = if requires_specialization {
+        let [provider] = specialized.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "selected checked-operator adapter `{machine_identity}` resolves to {} exact specializations for one application",
+                specialized.len(),
+            )));
+        };
+        *provider
+    } else {
+        match direct_provider {
+            Ok(provider) => provider,
+            Err(direct_error) => {
+                let [provider] = specialized.as_slice() else {
+                    return Err(direct_error);
+                };
+                *provider
+            }
+        }
+    };
     if provider.attached_data.as_ref().map(|owner| owner.as_str())
         != Some(plan.provider_type.as_str())
     {
@@ -485,13 +577,20 @@ pub(super) fn resolve_checked_adapter_for_operator(
                 && conformance.name.as_str() == namespace.as_str()
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some(requirement.as_str())
-                && psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                && (psi_typed_trees::operator::resolve_satisfied_checked_operator(
                     &checked.typed,
                     provider,
                     namespace.as_str(),
                     requirement.as_str(),
                 )
                 .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                    || psi_typed_trees::operator::resolve_specialized_checked_operator_application(
+                        &checked.typed,
+                        provider,
+                        namespace.as_str(),
+                        requirement.as_str(),
+                    )
+                    .is_some_and(|(resolved, _)| resolved.symbol == operator.symbol))
         })
         .count();
     if conformances != 1 {
