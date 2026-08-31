@@ -10863,7 +10863,7 @@ Owner: `wiki/design_briefs/float_semantics.md`.
 
 Remaining F7 work:
 
-- wire ordinary build/source selection and compiler lowering into the admitted
+- wire compiler lowering into the ordinary build-selected, admitted
   feature-qualified x86-64 FMA carrier, or add a checked binary32/binary64
   software implementation;
 - complete the wider proof/`Real` connection under N6/N8.
@@ -10886,11 +10886,17 @@ realizations. Only its consuming object builder may advance retained FMA
 custody into executable-image construction, where admission, profile, target,
 slot, requirement, bytes, and final image replay are rejoined. The ordinary
 object builder still rejects feature-requiring FMA without an explicit profile,
-and the mechanics-only builder remains non-executable. Source/build selection
-of this opt-in deployment feature set, ordinary compiler lowering into the
-admitted carrier, and native differential execution receipts remain engineering
-work; generic Linux/Windows x86-64 semantics remain SSE2 baseline until that
-explicit deployment input is selected.
+and the mechanics-only builder remains non-executable. Ordinary exact-target
+`build.omg` evaluation now exposes a closed `Baseline`/`AvxFma3` deployment
+selection, validates the compiler-owned field and enum identities, binds the
+selection to the invocation's exact x86 profile, and retains the admitted
+provider on `CheckedCompilation`; targetless, non-x86, and cross-profile paths
+fail closed. This selection replays only the fixed semantic cancellation
+vectors and is not native execution evidence. Source ProviderPlan selection,
+ordinary compiler lowering into the retained admission, and native differential
+execution receipts remain engineering work; generic Linux/Windows x86-64
+semantics remain SSE2 baseline unless that explicit deployment input is
+selected.
 
 The generic Linux and Windows x86-64 baselines now retain target-specific
 semantic-edge suites. Each checked half pins the exact 36 nearest arithmetic,

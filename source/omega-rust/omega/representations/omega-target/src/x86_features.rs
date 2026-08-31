@@ -234,6 +234,34 @@ pub struct AdmittedX86ScalarFmaProvider {
 }
 
 impl AdmittedX86ScalarFmaProvider {
+    /// Admit one exact compiler-retained deployment claim for the canonical
+    /// scalar FMA feature pair.
+    ///
+    /// This constructor replays the fixed semantic cancellation vectors used
+    /// by the source-free custody seam. It does not execute the selected
+    /// target, inspect the compiler host, or manufacture a native execution
+    /// receipt. Native differential execution remains separate evidence.
+    pub fn from_deployment_claim(
+        profile: TargetProfile,
+        features: &[X86TargetFeature],
+    ) -> Result<Self, X86ScalarFmaAdmissionError> {
+        let requirement = X86FeatureRequirement::scalar_fma(profile)
+            .ok_or(X86ScalarFmaAdmissionError::UnsupportedProfile(profile))?;
+        let deployment = X86DeploymentFeatures::scalar_fma(profile, features)?;
+        let differential_receipts = X86ScalarFmaSlot::ALL.map(|slot| {
+            let (operand_bits, fused_result_bits, multiply_then_add_result_bits) =
+                differential_vector(slot);
+            X86ScalarFmaDifferentialReceipt::admit(
+                slot,
+                operand_bits,
+                fused_result_bits,
+                multiply_then_add_result_bits,
+            )
+            .expect("closed scalar FMA semantic vector must remain canonical")
+        });
+        Self::admit(requirement, deployment, differential_receipts)
+    }
+
     pub fn admit(
         requirement: X86FeatureRequirement,
         deployment: X86DeploymentFeatures,
@@ -553,6 +581,40 @@ mod tests {
         assert_ne!(
             admit(TargetProfile::LinuxX64).identity(),
             admit(TargetProfile::WindowsX64).identity()
+        );
+    }
+
+    #[test]
+    fn deployment_claim_factory_is_profile_bound_and_not_host_inferred() {
+        let linux = AdmittedX86ScalarFmaProvider::from_deployment_claim(
+            TargetProfile::LinuxX64,
+            &X86_SCALAR_FMA_REQUIRED_FEATURES,
+        )
+        .unwrap();
+        let windows = AdmittedX86ScalarFmaProvider::from_deployment_claim(
+            TargetProfile::WindowsX64,
+            &X86_SCALAR_FMA_REQUIRED_FEATURES,
+        )
+        .unwrap();
+
+        assert!(linux.has_canonical_identity());
+        assert!(windows.has_canonical_identity());
+        assert_ne!(linux.identity(), windows.identity());
+        assert_eq!(
+            AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                TargetProfile::LinuxX64,
+                &[X86TargetFeature::Avx],
+            ),
+            Err(X86ScalarFmaAdmissionError::MissingExactFeatureSet)
+        );
+        assert_eq!(
+            AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                TargetProfile::LinuxArm64,
+                &X86_SCALAR_FMA_REQUIRED_FEATURES,
+            ),
+            Err(X86ScalarFmaAdmissionError::UnsupportedProfile(
+                TargetProfile::LinuxArm64
+            ))
         );
     }
 }
