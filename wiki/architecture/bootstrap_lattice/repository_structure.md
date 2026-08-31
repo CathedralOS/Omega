@@ -72,18 +72,18 @@ The committed tree still has two important gaps:
   ledger with direct-qualified, settled grouped/unqualified, named-data
   receiver, and sealed-boundary receiver results plus postfix-statement
   category admission, separate resolved/complete explicit-state custody and
-  state/machine collision rejection, positive receiver-scoped
-  `self`, settled field/index/slice projection failures, D37 scalar and
+  state/machine collision rejection, transition subject/resolved-case/complete-
+  binder custody and retained sum coverage, positive receiver-scoped `self`,
+  settled field/index/slice projection failures, D37 scalar and
   argument-`never` category joins, let/assignment/assert and explicit-return
   relations, first-following-statement terminal flow, D38's source fact
   relation, and symbolic Alpha encoding.
   Remaining Q3-blocked entry diagnostics, Q7 state-transfer spelling, Q8
   invalid-`self`, Q9 resultless-argument anchoring, Q10 block-exit totality,
-  transition subject/pattern/binder and reachability checking, and D37
-  remaining terminal closure, D38
-  lowering/executable
-  controls, body/control checking, D34 physical storage refusal, lowering, tape
-  publication, and refinement are still open.
+  Q11 transition-pattern/coverage diagnostics, reachability checking, and D37
+  remaining terminal closure, D38 lowering/executable controls, body/control
+  checking, D34 physical storage refusal, lowering, tape publication, and
+  refinement are still open.
   The restricted Delta-written native compiler prototype was also deleted: it
   was neither that compiler nor the full Omega closure `D` and had no
   economical unit-level adaptation into either owner.

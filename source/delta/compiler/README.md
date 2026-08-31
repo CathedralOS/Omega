@@ -44,7 +44,10 @@ exhaustion. D36's declaration syntax and cross-kind callable census are now
 implemented. Direct-qualified, unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
-are retained separately, while bare states and the remaining body/control
+are retained separately. Transition subjects, resolved patterns, typed payload
+binders, and sum coverage now have separate exact custody; resolved semantic
+pattern identities make later duplicate checking reconstructable without
+claiming its unsettled ordering. Bare states and the remaining body/control
 judgments stay with the rest of D37's premise-DAG composition.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
@@ -174,8 +177,8 @@ a successful `never` result remains input to the later block-flow judgment.
 The bare head and outer application intentionally retain distinct exact-AST
 callable rows; lowering must query the exact application row and must not treat
 every ledger row as an executable call.
-Bare state spelling and the wider transition judgment remain open as described
-below.
+Bare state spelling and the remaining transition judgments stay open as
+described below.
 
 Explicit transition applications now join the enclosing machine's state
 namespace with the global unqualified-machine namespace before arity or
@@ -190,8 +193,20 @@ only in this exact control syntax. Constructors, bare machine selectors,
 static receiver spellings, and complete field/scalar values receive category
 failures before dependent checking; same-spelled authored fields remain fields
 without call syntax. Q7 leaves only a state-only bare spelling open, while Q10
-separately owns machine-continuation exit effects. Subject/pattern/binder and
-reachability checking remain later body/control work.
+separately owns machine-continuation exit effects and reachability.
+
+Each complete transition subject is retained once as scalar `i32` or one exact
+nominal sum owner after the ordinary result category relation. Pattern
+resolution is source-shaped and independent across arms: scalar selectors have
+semantic `i32` identity, qualified cases retain exact owner/member custody, and
+payload arity plus subject-owner compatibility gates complete pattern custody.
+Only a complete case pattern supplies positional payload types and places to
+its D24 binder locals; `u8` payloads therefore read as `i32` while retaining
+their storage type. Resolved-but-incomplete patterns retain no guessed
+category, arity, or duplicate candidate. Every continuation remains
+independently checked, and each sum transition retains complete, missing, or
+unresolved coverage. Q11 owns the total negative pattern/coverage premise DAG,
+including duplicate and wildcard ordering and the missing-coverage coordinate.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
