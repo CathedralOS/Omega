@@ -135,16 +135,17 @@ stop the item on one precise owner question before adding machinery.
   availability and consumer-demand row kinds. Availability rejoins the opaque
   declaration and ordinary public
   conformance/carrier rows without accepting a consumer choice. Emit demand
-  only for an actual runtime by-value use, promoting the currently private
-  `BoundaryOpaqueRepresentationUse` structure instead of reconstructing it
-  from the aggregate calling-plan digest. Retain the exact boundary requirement
-  application, opaque declaration, named conformance or compiler-owned target-
-  semantics application, carrier, selected immutable producer source, closed
-  shape graph, physical movement/finalization plan, target/representation
-  version, evidence origin, closed-conformance commitment, and complete
-  boundary-plan commitment. Keep selecting-build occurrence/source custody as
-  provenance outside ABI comparison. Checked carrier derivation is recheckable
-  evidence; foreign representation supply remains a disclosed admission.
+  only for an actual runtime by-value use, consuming the exact retained
+  `BoundaryOpaqueRepresentationUse` and validated calling-plan realization
+  rather than reconstructing either from an aggregate digest. Rejoin the exact
+  boundary requirement application, opaque declaration, named conformance or
+  compiler-owned target-semantics application, carrier, selected immutable
+  producer source, closed shape graph, physical movement/finalization plan,
+  target/representation version, evidence origin, closed-conformance
+  commitment, and complete boundary-plan commitment. Keep selecting-build
+  occurrence/source custody as provenance outside ABI comparison. Checked
+  carrier derivation is recheckable evidence; foreign representation supply
+  remains a disclosed admission.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 

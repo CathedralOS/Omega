@@ -30,3 +30,10 @@ consumer demand created by an actual by-value use. The selecting build source
 is provenance rather than ABI identity; independently compiled artifacts
 compare strong application commitments at their real by-value composition
 edges.
+
+`CheckedCompilation` now retains every exact validated boundary calling-plan
+realization. Its materialized signature exposes the compiler-derived
+`BoundaryOpaqueRepresentationUse` rows for actual by-value crossings, while an
+unused selection remains absent from that use list. This closes compiler
+custody only: package review must still rejoin each symbol to canonical nominal
+identity and publish the complete D26 availability/demand rows.
