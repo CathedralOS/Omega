@@ -571,11 +571,11 @@ One further represented acyclic, non-generic, case-free record may now occur on
 that spine when its canonical fixed representation is nonzero. Its authored
 projection preserves both enclosing field identities before the direct erased
 leaves and reuses the exact root plan entry for represented-sibling diagnostics.
-Third and fourth represented record levels are also live under the same
+Third, fourth, and fifth represented record levels are also live under the same
 restrictions. Their projections preserve every enclosing identity, and
 bounded, memoized descendant replay fails closed when an unsupported deeper
 shape could hide erased custody. This is ordinary conformance checking only; a
-fifth represented record level, zero-layout wrappers, arrays, generic,
+sixth represented record level, zero-layout wrappers, arrays, generic,
 case-dependent, planless,
 and establishment-operation custody remain open.
 
