@@ -44,6 +44,7 @@ pub(super) fn lower_straight_line(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
         provenance,
         operation: returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?,
     })

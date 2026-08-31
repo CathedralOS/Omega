@@ -42,6 +42,13 @@ pub enum AssignmentError {
         parameter_index: usize,
     },
     ExpressionStackFrameNotEncodable,
+    UnitScalarFrameNotEncodable,
+    UnitScalarHomeNotEncodable(ValueId),
+    UnitScalarCallCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    UnitScalarCallSourceMismatch(ValueId),
     ExpressionRegisterCannotHoldParameter {
         value: ValueId,
         register: MachineRegister,

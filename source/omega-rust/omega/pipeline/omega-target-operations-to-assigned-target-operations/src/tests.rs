@@ -705,6 +705,7 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
         target,
         entry: MachineId::new(1).unwrap(),
         functions: vec![TargetFunction {
+            fixed_integer_scalar_abi: None,
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -757,6 +758,7 @@ fn expression_plan(
         target,
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
+            fixed_integer_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -822,6 +824,7 @@ fn boolean_cleanup_plan(target: NativeTarget) -> TargetOperationPlan {
         target,
         entry: MachineId::new(1).unwrap(),
         functions: vec![TargetFunction {
+            fixed_integer_scalar_abi: None,
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: TerminalPsiProvenance {

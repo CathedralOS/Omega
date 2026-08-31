@@ -10,7 +10,9 @@ pub(super) use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
 };
-pub(super) use omega_calling_conventions::{ValueLocation, ValueShape};
+pub(super) use omega_calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
+};
 pub(super) use omega_installation_evidence::{
     InstalledProviderCompletionClaimSource, InstalledProviderUnitCallEvidence,
     ProviderInstallationEvidence,
@@ -19,7 +21,7 @@ pub(super) use omega_target::NativeTarget;
 pub(super) use omega_target_operations::{
     BoundaryRealization, BoundarySettlementBinding, MachineRegister, ScalarParameterLocation,
     TargetBooleanControl, TargetBooleanExpression, TargetIntegerExpression, TargetOperation,
-    TargetUnitOperation,
+    TargetUnitOperation, TargetUnitScalarArgumentSource,
 };
 pub(super) use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -32,6 +34,7 @@ pub(super) use psi_terminal::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };
 
+mod fixed_integer_scalar_abi;
 mod native_boundaries;
 mod parameter_translation_fixture;
 mod ranked_countdown;
@@ -57,6 +60,7 @@ mod translation_validation_wrapping_integer_add_parameters;
 mod translation_validation_wrapping_integer_multiply_parameters;
 mod translation_validation_wrapping_integer_subtract_parameters;
 mod unit_and_settlements;
+mod unit_scalar_calls;
 
 pub(super) fn identity() -> TerminalPsiIdentity {
     TerminalPsiIdentity {

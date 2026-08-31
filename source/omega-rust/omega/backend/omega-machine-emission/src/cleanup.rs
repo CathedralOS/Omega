@@ -62,6 +62,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
         &AssignedFunction {
             machine: function.machine,
             attachment: function.attachment,
+            fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
             provenance: function.provenance.clone(),
             operation: scalar.clone(),
         },
@@ -473,6 +474,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
     Ok(MachineCodeFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
         provenance: function.provenance.clone(),
         bytes: emitted.bytes,
         x86_scalar_fma: Vec::new(),
@@ -483,6 +485,9 @@ pub(super) fn emit_boolean_control_with_cleanup(
         internal_calls: emitted.internal_calls,
         foreign_calls: Vec::new(),
         internal_unit_calls: emitted.internal_unit_calls,
+        internal_unit_scalar_calls: Vec::new(),
+        unit_scalar_homes: Vec::new(),
+        unit_integer_constants: Vec::new(),
         unit_affine_cleanup: None,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: emitted.cleanups,

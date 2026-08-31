@@ -9,9 +9,11 @@ use super::structural_layout::{
 
 mod boundary_call;
 mod return_unit;
+mod scalar_call;
 
 use boundary_call::lower_boundary_call;
 use return_unit::lower_unit_return;
+use scalar_call::{KnownUnitInteger, insert_known_unit_integer, lower_scalar_call};
 
 pub(super) fn lower_unit_function(
     function: &AbstractFunction,
@@ -24,6 +26,7 @@ pub(super) fn lower_unit_function(
         (MachineId, OperationId, BoundaryMachineId),
         InstalledProviderUnitCallEvidence,
     >,
+    fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
 ) -> Result<TargetFunction, LoweringError> {
     if !function.parameters.is_empty() {
         return Err(LoweringError::UnitFunctionHasScalarParameters(
@@ -101,6 +104,7 @@ pub(super) fn lower_unit_function(
         BTreeMap::<PlaceId, (OperationId, StructuralTypeDeclaration, Vec<u8>)>::new();
     let mut integer_constants =
         BTreeMap::<ValueId, (OperationId, IntegerType, IntegerValue)>::new();
+    let mut scalar_values = BTreeMap::<ValueId, KnownUnitInteger>::new();
     let mut nonreturning_boundary = false;
     for operation in &function.operations {
         if returned {
@@ -421,6 +425,23 @@ pub(super) fn lower_unit_function(
                 });
                 provenance.operations.push(*psi_operation);
             }
+            AbstractOperation::Call { .. } => {
+                if nonreturning_boundary {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                lower_scalar_call(
+                    operation,
+                    function,
+                    target,
+                    functions,
+                    fixed_integer_scalar_abis,
+                    &mut scalar_values,
+                    &mut operations,
+                    &mut provenance,
+                )?;
+            }
             AbstractOperation::PortWrite {
                 psi_operation,
                 service,
@@ -470,14 +491,28 @@ pub(super) fn lower_unit_function(
                 scalar_type: ScalarType::Integer(scalar_type),
                 value,
             } => {
-                if nonreturning_boundary
-                    || integer_constants
-                        .insert(*result, (*psi_operation, *scalar_type, *value))
-                        .is_some()
-                {
+                if nonreturning_boundary {
                     return Err(LoweringError::UnsupportedOperationInUnitFunction(
                         function.machine,
                     ));
+                }
+                if !scalar_type.admits(*value) {
+                    return Err(LoweringError::IntegerConstantOutsideType(*result));
+                }
+                insert_known_unit_integer(
+                    &mut scalar_values,
+                    *result,
+                    KnownUnitInteger::Immediate {
+                        defining_operation: *psi_operation,
+                        scalar_type: *scalar_type,
+                        value: *value,
+                    },
+                )?;
+                if integer_constants
+                    .insert(*result, (*psi_operation, *scalar_type, *value))
+                    .is_some()
+                {
+                    return Err(LoweringError::DuplicateValue(*result));
                 }
                 operations.push(TargetUnitOperation::IntegerConstant {
                     psi_operation: *psi_operation,
@@ -488,7 +523,6 @@ pub(super) fn lower_unit_function(
                 provenance.operations.push(*psi_operation);
             }
             AbstractOperation::Crash { .. }
-            | AbstractOperation::Call { .. }
             | AbstractOperation::CallStructuralScalar { .. }
             | AbstractOperation::CallStructural { .. }
             | AbstractOperation::IntegerConstant { .. }
@@ -540,6 +574,7 @@ pub(super) fn lower_unit_function(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
         provenance,
         operation: TargetOperation::UnitBody(TargetUnitBody {
             structural_types: structural_types

@@ -25,15 +25,19 @@ mod boundary_settlement_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
 mod fingerprint_codec;
+mod fixed_integer_scalar_abi_codec;
 mod function_affine_cleanup_codec;
 mod function_codec;
 mod function_parameter_codec;
 mod function_stack_codec;
 mod installation_header_codec;
+mod installed_unit_scalar_transport;
 mod internal_unit_call_codec;
+mod internal_unit_scalar_call_codec;
 mod port_effect_codec;
 mod provider_execution_codec;
 mod provider_plan_codec;
+mod scalar_call_plan_codec;
 mod semantic_code_attribution_codec;
 mod structural_argument_codec;
 mod structural_case_codec;
@@ -43,6 +47,7 @@ mod structural_return_codec;
 mod structural_scalar_codec;
 mod structural_signature_codec;
 mod trivial_affine_local_codec;
+mod unit_scalar_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
@@ -51,7 +56,13 @@ use function_codec::{decode_functions, encode_functions};
 use installation_header_codec::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
 };
+use installed_unit_scalar_transport::{
+    installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
+};
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
+use internal_unit_scalar_call_codec::{
+    decode_internal_unit_scalar_calls, encode_internal_unit_scalar_calls,
+};
 use port_effect_codec::{decode_port_effects, encode_port_effects};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use semantic_code_attribution_codec::{
@@ -63,9 +74,9 @@ use structural_return_codec::{decode_structural_returns, encode_structural_retur
 use structural_scalar_codec::{
     decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
 };
-use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
+use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 45;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 46;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -197,6 +208,7 @@ pub struct InstallationRecord {
     functions: Vec<InstalledFunction>,
     structural_returns: Vec<InstalledStructuralReturn>,
     internal_unit_calls: Vec<InstalledInternalUnitCall>,
+    internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -245,6 +257,10 @@ impl InstallationRecord {
         &self.internal_unit_calls
     }
 
+    pub fn internal_unit_scalar_calls(&self) -> &[InstalledInternalUnitScalarCall] {
+        &self.internal_unit_scalar_calls
+    }
+
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
         &self.semantic_code_attribution
     }
@@ -266,6 +282,7 @@ impl InstallationRecord {
 pub struct InstalledFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
     pub text_offset: usize,
     pub byte_count: usize,
     /// Stack facts recomputed from exact target instructions at object
@@ -282,6 +299,8 @@ pub struct InstalledFunction {
     pub ranked_u32_countdown: bool,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
+    pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
+    pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     /// Canonical true-before-false DFS cleanup leaves for the exact bounded
@@ -304,6 +323,13 @@ pub struct InstalledInternalUnitCall {
     pub machine: MachineId,
     pub text_offset: usize,
     pub custody: omega_machine_code::InternalUnitCallRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledInternalUnitScalarCall {
+    pub machine: MachineId,
+    pub text_offset: usize,
+    pub custody: omega_machine_code::InternalUnitScalarCallRecord,
 }
 
 /// Build the canonical installation record for an emitted image.
@@ -458,6 +484,7 @@ where
             .iter()
             .map(|function| InstalledFunction {
                 machine: function.machine,
+                fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
                 unit_stack: function.unit_stack,
@@ -468,6 +495,8 @@ where
                 ranked_u32_countdown: function.ranked_u32_countdown.is_some(),
                 unit_parameters: function.unit_parameters.clone(),
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
+                unit_scalar_homes: function.unit_scalar_homes.clone(),
+                unit_integer_constants: function.unit_integer_constants.clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
                 scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
                 scalar_control_affine_cleanups: function
@@ -506,6 +535,21 @@ where
                         custody,
                     }
                 })
+            })
+            .collect(),
+        internal_unit_scalar_calls: image
+            .functions()
+            .iter()
+            .flat_map(|function| {
+                function
+                    .internal_unit_scalar_calls
+                    .iter()
+                    .cloned()
+                    .map(|custody| InstalledInternalUnitScalarCall {
+                        machine: function.machine,
+                        text_offset: function.text_offset + custody.code_offset,
+                        custody,
+                    })
             })
             .collect(),
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
@@ -662,6 +706,8 @@ pub fn encode_installation_record(
         .map_err(|_| InstallationError::TooManyStructuralReturns)?;
     let internal_unit_call_count = u32::try_from(record.internal_unit_calls.len())
         .map_err(|_| InstallationError::TooManyInternalUnitCalls)?;
+    let internal_unit_scalar_call_count = u32::try_from(record.internal_unit_scalar_calls.len())
+        .map_err(|_| InstallationError::TooManyInternalUnitScalarCalls)?;
     let semantic_code_attribution_count = u32::try_from(record.semantic_code_attribution.len())
         .map_err(|_| InstallationError::TooManySemanticCodeAttributions)?;
     let port_effect_count = u32::try_from(record.port_effects.len())
@@ -695,6 +741,11 @@ pub fn encode_installation_record(
         internal_unit_call_count,
         &record.internal_unit_calls,
     )?;
+    encode_internal_unit_scalar_calls(
+        &mut bytes,
+        internal_unit_scalar_call_count,
+        &record.internal_unit_scalar_calls,
+    )?;
     encode_semantic_code_attributions(
         &mut bytes,
         semantic_code_attribution_count,
@@ -720,6 +771,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let functions = decode_functions(&mut reader)?;
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
+    let internal_unit_scalar_calls = decode_internal_unit_scalar_calls(&mut reader)?;
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
@@ -737,6 +789,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         functions,
         structural_returns,
         internal_unit_calls,
+        internal_unit_scalar_calls,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
@@ -791,6 +844,22 @@ pub fn validate_installation_record(
                     })
                 })
                 .collect::<Vec<_>>()
+        || record.internal_unit_scalar_calls
+            != image
+                .functions()
+                .iter()
+                .flat_map(|function| {
+                    function
+                        .internal_unit_scalar_calls
+                        .iter()
+                        .cloned()
+                        .map(|custody| InstalledInternalUnitScalarCall {
+                            machine: function.machine,
+                            text_offset: function.text_offset + custody.code_offset,
+                            custody,
+                        })
+                })
+                .collect::<Vec<_>>()
         || record.functions.len() != image.functions().len()
         || record
             .functions
@@ -799,6 +868,7 @@ pub fn validate_installation_record(
             .any(|(installed, emitted)| {
                 installed.machine != emitted.machine
                     || installed.attachment != emitted.attachment
+                    || installed.fixed_integer_scalar_abi != emitted.fixed_integer_scalar_abi
                     || installed.text_offset != emitted.text_offset
                     || installed.byte_count != emitted.byte_count
                     || installed.unit_stack != emitted.unit_stack
@@ -809,6 +879,8 @@ pub fn validate_installation_record(
                     || installed.ranked_u32_countdown != emitted.ranked_u32_countdown.is_some()
                     || installed.unit_parameters != emitted.unit_parameters
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
+                    || installed.unit_scalar_homes != emitted.unit_scalar_homes
+                    || installed.unit_integer_constants != emitted.unit_integer_constants
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
                     || installed.scalar_affine_cleanup != emitted.scalar_affine_cleanup
                     || !installed_scalar_control_cleanups_match_object(
@@ -950,8 +1022,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.scalar_control_affine_cleanups.is_empty()
                 && function.scalar_structural_parameters.is_empty()
                 && function.scalar_structural_parameter_homes.is_empty()
+                && function.fixed_integer_scalar_abi.is_none()
+                && function.unit_scalar_homes.is_empty()
+                && function.unit_integer_constants.is_empty()
                 && record.structural_returns.is_empty()
                 && record.internal_unit_calls.is_empty()
+                && record.internal_unit_scalar_calls.is_empty()
                 && record.port_effects.is_empty()
                 && record.boundary_settlements.is_empty()
                 && record.semantic_code_attribution.len() == 9
@@ -960,6 +1036,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .iter()
                     .all(|row| row.machine == function.machine));
         if !installed_stack_facts_are_canonical(function, &attachments)
+            || !installed_function_scalar_transport_is_canonical(function, record.target)
             || !ranked_body_is_exclusive
             || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
@@ -1418,6 +1495,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         .iter()
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
+    validate_installed_unit_scalar_calls(record, &function_by_machine)?;
     let mut previous_return = None;
     for installed in &record.structural_returns {
         let function = function_by_machine.get(&installed.machine).ok_or(
@@ -2568,8 +2646,14 @@ pub enum InstallationError {
     TooManyStackCallFacts,
     TooManyStructuralReturns,
     TooManyInternalUnitCalls,
+    TooManyInternalUnitScalarCalls,
     TooManyInternalUnitCallArguments,
+    TooManyInternalUnitScalarCallArguments,
     TooManyInternalUnitCallClaims,
+    TooManyScalarCallPlanValues,
+    TooManyScalarCallPlanRegisters,
+    TooManyUnitScalarHomes,
+    TooManyUnitIntegerConstants,
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
@@ -2592,11 +2676,13 @@ pub enum InstallationError {
     FunctionOffsetNotRepresentable,
     StructuralReturnOffsetNotRepresentable,
     InternalUnitCallOffsetNotRepresentable,
+    InstalledScalarOffsetNotRepresentable,
     SemanticCodeAttributionOffsetNotRepresentable,
     PortEffectOffsetNotRepresentable,
     ZeroFunctionIdentity,
     ZeroStructuralReturnIdentity(&'static str),
     ZeroInternalUnitCallIdentity,
+    ZeroInstalledScalarIdentity,
     InvalidStructuralMultiplicity(u8),
     InvalidStructuralAccess(u8),
     UnsupportedStructuralReturnShape,
@@ -2613,6 +2699,17 @@ pub enum InstallationError {
     ZeroSemanticCodeAttributionIdentity(&'static str),
     InvalidSemanticCodeSiteTag(u8),
     InvalidCallSiteOwnerTag(u8),
+    InvalidScalarCallingPolicyTag(u8),
+    InvalidScalarEntryControlTag(u8),
+    InvalidScalarCallPlanRegister {
+        class: u8,
+        index: u8,
+    },
+    UnsupportedScalarCallPlan,
+    UnsupportedInstalledFixedIntegerType,
+    InvalidInstalledIntegerSignTag(u8),
+    InvalidInstalledIntegerValueTag(u8),
+    InvalidInstalledScalarSourceTag(u8),
     InvalidBoundaryRealizationTag,
     InvalidCleanupActionTag(u8),
     ZeroPortEffectIdentity(&'static str),
@@ -2625,6 +2722,7 @@ pub enum InstallationError {
     StructuralReturnMachineMissing(MachineId),
     InvalidStructuralReturn(MachineId),
     InvalidInternalUnitCall(MachineId),
+    InvalidInternalUnitScalarCall(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),
     SemanticCodeAttributionMachineMissing(MachineId),
@@ -2708,6 +2806,7 @@ mod resource_tests {
         InstalledFunction {
             machine: MachineId::new(1).expect("function"),
             attachment: None,
+            fixed_integer_scalar_abi: None,
             text_offset: 24,
             byte_count: 16,
             unit_stack: Some(crate::ObjectUnitStack {
@@ -2729,6 +2828,8 @@ mod resource_tests {
             ranked_u32_countdown: false,
             unit_parameters: Vec::new(),
             unit_parameter_homes: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),

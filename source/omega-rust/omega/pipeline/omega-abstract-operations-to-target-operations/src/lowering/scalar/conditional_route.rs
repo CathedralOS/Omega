@@ -68,6 +68,7 @@ pub(super) fn lower_conditional(
             return Ok(Some(TargetFunction {
                 machine: function.machine,
                 attachment: function.attachment,
+                fixed_integer_scalar_abi: None,
                 provenance: conditional_provenance(function, lowered.operations, lowered.edges),
                 operation: TargetOperation::ScalarReturnWithCleanup {
                     scalar: Box::new(TargetOperation::ReturnBooleanSharedConvergence {
@@ -98,6 +99,7 @@ pub(super) fn lower_conditional(
         return Ok(Some(TargetFunction {
             machine: function.machine,
             attachment: function.attachment,
+            fixed_integer_scalar_abi: None,
             provenance: conditional_provenance(function, lowered.operations, lowered.edges),
             operation: TargetOperation::BooleanControlWithCleanup {
                 control: lowered.control,

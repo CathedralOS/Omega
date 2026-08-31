@@ -56,6 +56,7 @@ fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
         TargetFunction {
             machine,
             attachment: None,
+            fixed_integer_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![constant_operation],
                 edges: vec![return_edge],

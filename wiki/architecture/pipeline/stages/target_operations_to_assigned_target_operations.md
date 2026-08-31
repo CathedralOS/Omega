@@ -23,6 +23,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - `assignment/{placement,control,expressions}/` owns physical-location checks,
   nested control assignment, expression frames, typed expression trees, and
   independent parameter-location discovery.
+- `assignment/function/unit.rs` replays attached-Unit scalar-call plans and
+  sources, reduces each argument to an exact register or outgoing-stack
+  destination, and assigns one ordered, non-reused eight-byte result home after
+  the structural parameter-home prefix.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is
@@ -47,6 +51,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - Must not own object encoding, final bytes, semantic validation, proof discharge, or borrow checking.
 - Must keep register/stack assignment policy here instead of leaking it backward into target operation construction.
 - Must preserve target operation ordering unless a later allocator explicitly owns reordering.
+- The bounded O0 attached-Unit scalar lane does not reuse result homes; reuse is
+  a later allocator decision requiring its own liveness evidence.
 
 ## Known Gaps
 

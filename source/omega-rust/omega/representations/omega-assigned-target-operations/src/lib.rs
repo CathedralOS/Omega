@@ -34,6 +34,7 @@ pub struct AssignedOperationPlan {
 pub struct AssignedFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub operation: AssignedOperation,
 }
@@ -247,6 +248,59 @@ pub struct AssignedAggregateCopy {
     pub destination: ValuePlacement,
 }
 
+/// Durable physical home assigned to one fixed-width integer value produced
+/// by a scalar call in an attached Unit body.
+///
+/// `byte_offset` is relative to the function's allocated Unit frame. Machine
+/// emission independently reconstructs the complete structural-plus-scalar
+/// frame and rejects a stale, overlapping, or substituted home.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssignedUnitScalarHome {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub shape: ValueShape,
+    pub byte_offset: u32,
+}
+
+/// Exact physical source of one attached-Unit scalar-call argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignedUnitScalarArgumentSource {
+    IntegerImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    Home(AssignedUnitScalarHome),
+}
+
+impl AssignedUnitScalarArgumentSource {
+    pub const fn source_value(self) -> ValueId {
+        match self {
+            Self::IntegerImmediate { source_value, .. } => source_value,
+            Self::Home(home) => home.source_value,
+        }
+    }
+
+    pub const fn scalar_type(self) -> IntegerType {
+        match self {
+            Self::IntegerImmediate { scalar_type, .. } => scalar_type,
+            Self::Home(home) => home.scalar_type,
+        }
+    }
+}
+
+/// One positional scalar argument after durable-home assignment. The complete
+/// ABI placement remains explicit; it is not reconstructed from register
+/// ordinals during emission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedUnitScalarCallArgument {
+    pub parameter_index: u32,
+    pub source: AssignedUnitScalarArgumentSource,
+    pub destination: AssignedCallDestination,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedUnitOperation {
     EstablishByteSequenceLiteral {
@@ -272,6 +326,16 @@ pub enum AssignedUnitOperation {
         result: Option<ScalarType>,
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
+    },
+    /// One real in-module fixed-width integer call in an attached Unit body.
+    /// The result home survives subsequent call-register clobbers and is the
+    /// only accepted source for a later scalar-call argument.
+    ScalarCall {
+        psi_operation: OperationId,
+        callee: MachineId,
+        call_plan: CallPlan,
+        result_home: AssignedUnitScalarHome,
+        arguments: Vec<AssignedUnitScalarCallArgument>,
     },
     NormalizedForeignCall {
         psi_operation: OperationId,

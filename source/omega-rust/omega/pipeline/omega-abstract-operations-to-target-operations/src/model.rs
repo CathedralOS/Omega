@@ -70,6 +70,7 @@ pub enum LoweringError {
     FunctionHasNoReturn(MachineId),
     FunctionResultMismatch(MachineId),
     FunctionResultKindMismatch(MachineId),
+    FixedIntegerScalarAbiPlanMissingResult(MachineId),
     UnitFunctionHasScalarParameters(MachineId),
     UnitFunctionNotStraightLine(MachineId),
     UnitOperationInScalarFunction {
@@ -112,6 +113,22 @@ pub enum LoweringError {
     },
     UnsupportedStructuralReturnPlacement(MachineId),
     UnitCallTargetKindMismatch(MachineId),
+    UnitScalarCallRequiresAttachedMachine {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    UnitScalarCallTargetShapeUnsupported(MachineId),
+    UnitScalarCallTargetPublishesServices(MachineId),
+    UnitScalarCallIntegerTypeUnsupported(ValueId),
+    UnitScalarCallResultTypeMismatch {
+        callee: MachineId,
+        result: ValueId,
+    },
+    UnitScalarCallResultPlacementUnsupported {
+        callee: MachineId,
+        result: ValueId,
+    },
+    UnitScalarCallTargetAbiMismatch(MachineId),
     StructuralCallArgumentCountMismatch {
         callee: MachineId,
         expected: usize,

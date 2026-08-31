@@ -8,6 +8,7 @@ mod function;
 mod provider_evidence;
 mod ranked_countdown;
 mod scalar;
+mod scalar_abi;
 mod shared;
 mod structural;
 pub(super) mod structural_layout;

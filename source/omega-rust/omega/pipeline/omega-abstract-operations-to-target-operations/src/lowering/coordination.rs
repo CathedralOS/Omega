@@ -1,4 +1,5 @@
 use super::function::lower_function;
+use super::scalar_abi::derive_fixed_integer_scalar_function_abi;
 use super::shared::*;
 
 pub(crate) fn lower_to_target_operations_with_settlements(
@@ -32,6 +33,12 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .iter()
         .map(|function| (function.machine, function))
         .collect::<BTreeMap<_, _>>();
+    let mut fixed_integer_scalar_abis = BTreeMap::new();
+    for function in &plan.functions {
+        if let Some(abi) = derive_fixed_integer_scalar_function_abi(function, target)? {
+            fixed_integer_scalar_abis.insert(function.machine, abi);
+        }
+    }
     let structural_types = plan
         .structural_types
         .iter()
@@ -187,15 +194,19 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             .functions
             .iter()
             .map(|function| {
-                lower_function(
+                let mut lowered = lower_function(
                     function,
                     target,
                     &functions_by_machine,
+                    &fixed_integer_scalar_abis,
                     &structural_types,
                     &boundary_machines,
                     &settlements_by_boundary,
                     &installed_by_call,
-                )
+                )?;
+                lowered.fixed_integer_scalar_abi =
+                    fixed_integer_scalar_abis.get(&function.machine).cloned();
+                Ok::<TargetFunction, LoweringError>(lowered)
             })
             .collect::<Result<Vec<_>, _>>()?,
     })

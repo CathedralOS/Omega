@@ -7,6 +7,9 @@ use psi_core::{MachineId, StructuralTypeId};
 
 use super::{
     InstallationError, InstalledFunction, Reader, decode_boolean,
+    fixed_integer_scalar_abi_codec::{
+        decode_fixed_integer_scalar_abi, encode_fixed_integer_scalar_abi,
+    },
     function_affine_cleanup_codec::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups, encode_unit_affine_cleanup,
@@ -18,6 +21,10 @@ use super::{
     },
     function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
     push_u32, push_u64,
+    unit_scalar_codec::{
+        decode_unit_integer_constants, decode_unit_scalar_homes, encode_unit_integer_constants,
+        encode_unit_scalar_homes,
+    },
 };
 
 pub(super) fn encode_functions(
@@ -50,8 +57,11 @@ pub(super) fn encode_functions(
         bytes.push(u8::from(function.unit_body));
         bytes.push(u8::from(function.ranked_u32_countdown));
         bytes.extend_from_slice(&[0; 2]);
+        encode_fixed_integer_scalar_abi(bytes, function.fixed_integer_scalar_abi.as_ref())?;
         encode_parameter_records(bytes, &function.unit_parameters)?;
         encode_parameter_homes(bytes, &function.unit_parameter_homes)?;
+        encode_unit_scalar_homes(bytes, &function.unit_scalar_homes)?;
+        encode_unit_integer_constants(bytes, &function.unit_integer_constants)?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
@@ -121,11 +131,15 @@ pub(super) fn decode_functions(
         if reader.take(2)? != [0; 2] {
             return Err(InstallationError::NonzeroReservedField);
         }
+        let fixed_integer_scalar_abi = decode_fixed_integer_scalar_abi(reader)?;
         let unit_parameters = decode_unit_parameter_records(reader)?;
         let unit_parameter_homes = decode_unit_parameter_homes(reader)?;
+        let unit_scalar_homes = decode_unit_scalar_homes(reader)?;
+        let unit_integer_constants = decode_unit_integer_constants(reader)?;
         functions.push(InstalledFunction {
             machine,
             attachment,
+            fixed_integer_scalar_abi,
             text_offset,
             byte_count,
             unit_stack,
@@ -136,6 +150,8 @@ pub(super) fn decode_functions(
             ranked_u32_countdown,
             unit_parameters,
             unit_parameter_homes,
+            unit_scalar_homes,
+            unit_integer_constants,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {
