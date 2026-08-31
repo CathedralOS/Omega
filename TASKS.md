@@ -9778,11 +9778,22 @@ reach or trust, and private proof improvements do not change public identity.
   validation, and installation replay retain the common length-thirteen root
   and exact twelve-operation/one-edge fuel ordinals. Missing, reordered,
   redirected-root, wrong-length, index, cleanup-order, and artifact mutations
-  reject; `[T; 14]` and wider prefixes remain fail closed without runtime
+  reject; other prefix drift remains fail closed without runtime liveness state
+  or a loop.
+
+  The next bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 14]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]` and ordinary cleanup
+  `[12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Checked production, Terminal
+  verification, codec and interpretation, machine emission, object/image
+  validation, and installation replay retain the common length-fourteen root
+  and exact thirteen-operation/one-edge fuel ordinals. Missing, reordered,
+  redirected-root, wrong-length, index, cleanup-order, and artifact mutations
+  reject; `[T; 15]` and wider prefixes remain fail closed without runtime
   liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 13]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 14]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content

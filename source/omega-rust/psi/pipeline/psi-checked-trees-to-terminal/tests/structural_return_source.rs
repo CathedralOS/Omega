@@ -404,6 +404,28 @@ const UNIT_AFFINE_THIRTEEN_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_FOURTEEN_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 14];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+        values[7] = Empty {};
+        values[8] = Empty {};
+        values[9] = Empty {};
+        values[10] = Empty {};
+        values[11] = Empty {};
+        values[12] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -709,6 +731,11 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             12_usize,
             13_u64,
         ),
+        (
+            UNIT_AFFINE_FOURTEEN_CONSTRUCTION_PREFIX_SOURCE,
+            13_usize,
+            14_u64,
+        ),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -717,7 +744,11 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
         let checked = lower_typed_trees(typed).expect("check");
         let lowered =
             psi_checked_trees_to_terminal::lower_machine(&checked, "Root::cleanup_prefix")
-                .expect("wider construction prefix lowering");
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "construction prefix of length {prefix_length} failed to lower: {error:?}"
+                    )
+                });
         let machine = &lowered.semantic_module.machines[0];
         let locals = machine
             .structural_places
