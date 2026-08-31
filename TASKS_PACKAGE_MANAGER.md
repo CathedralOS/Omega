@@ -41,7 +41,8 @@ stop the item on one precise owner question before adding machinery.
   - proposition/evidence static arguments, forwarded or symbolic const
     arguments, and non-data nested static applications whose
     structural witness is not retained by its owning typed or checked
-    representation;
+    representation. Direct named public integer and Boolean const values are
+    complete; this remaining symbolic lane does not include them;
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand and installation-issuance joins;

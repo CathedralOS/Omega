@@ -6,6 +6,7 @@ use crate::capture::semantics::types::missing_exact_toolchain_type_owner;
 use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
+use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -392,12 +393,19 @@ pub(crate) fn project_static_argument(
                     "whose selected const has no admitted canonical public value",
                 ));
             };
-            let Some(value) = canonical_integer_value(encoding) else {
-                return Err(rejected(
-                    "whose selected const is not a canonical integer value",
-                ));
+            if let Some(value) = canonical_integer_value(encoding) {
+                return Ok(PackageReviewContractStaticArgument::ConstInteger(value));
+            }
+            return match decode_canonical_const_value(encoding) {
+                Some(DecodedCanonicalConstValue::Boolean(value))
+                    if exact_boolean_type(compilation, declaration.declared_type) =>
+                {
+                    Ok(PackageReviewContractStaticArgument::ConstBoolean(value))
+                }
+                _ => Err(rejected(
+                    "whose selected const is not a supported canonical value for its exact declared carrier",
+                )),
             };
-            return Ok(PackageReviewContractStaticArgument::ConstInteger(value));
         }
         return Err(rejected(
             "from a forwarded or symbolic const not yet represented by package review",
@@ -430,31 +438,39 @@ pub(crate) fn project_static_argument(
 /// encoding. The encoder is length-delimited, so this never interprets source
 /// text or a diagnostic display as semantic identity.
 fn canonical_integer_value(encoding: &str) -> Option<String> {
-    let mut rest = encoding.strip_prefix("integer")?;
-    let type_name = take_framed_piece(&mut rest)?;
-    if !matches!(
-        type_name,
-        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
-    ) {
+    let DecodedCanonicalConstValue::Integer { type_name, value } =
+        decode_canonical_const_value(encoding)?
+    else {
         return None;
-    }
-    let value = take_framed_piece(&mut rest)?;
-    if !rest.is_empty() || value.parse::<i128>().ok()?.to_string() != value {
-        return None;
-    }
-    Some(value.to_owned())
+    };
+    canonical_integer_type_name(type_name.as_str()).then(|| value.to_string())
 }
 
-fn take_framed_piece<'a>(rest: &mut &'a str) -> Option<&'a str> {
-    let separator = rest.find(':')?;
-    let length = rest[..separator].parse::<usize>().ok()?;
-    let payload = &rest[separator + 1..];
-    if payload.len() < length || !payload.is_char_boundary(length) {
-        return None;
-    }
-    let (piece, tail) = payload.split_at(length);
-    *rest = tail;
-    Some(piece)
+fn decode_canonical_const_value(encoding: &str) -> Option<DecodedCanonicalConstValue> {
+    CanonicalConstValue::new("", encoding, "").decode_encoding()
+}
+
+fn canonical_integer_type_name(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
+    )
+}
+
+fn exact_boolean_type(
+    compilation: &CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } = compilation
+        .typed
+        .type_reference_table
+        .type_reference(type_reference)
+    else {
+        return false;
+    };
+    name.as_str() == "bool"
+        && compilation.typed.symbols.builtin_type_atom(*symbol)
+            == Some(psi_symbols::BuiltinTypeAtom::Bool)
 }
 
 #[cfg(test)]
