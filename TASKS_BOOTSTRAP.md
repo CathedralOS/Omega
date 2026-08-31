@@ -620,12 +620,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adjacent source capacity, trailing input, and exact-end precedence over an
     invalid source byte without adding request-specific non-builtin helpers.
   - [ ] Complete the semantic `GCOUT` judgment behind the retained private
-    outcome fields. Replace the remaining one-bit resource and emission
-    results with normative resource/internal codes, retain every profile-schema
-    `(reason, coordinate)` candidate for codes 19/20/21, apply D33's total
-    ordering, check each code against the selected profile, and gate the four
-    embedded TSV projections. This is implementation work independent of Q2's
-    adapter-call capacity ruling.
+    outcome fields. Retain every profile-schema `(reason, coordinate)` candidate
+    for codes 19/20/21, apply D33's total ordering, add the remaining
+    internal classes 1/5/6 when their producers exist, check each code against
+    the selected profile, and gate the four embedded TSV projections. This is
+    implementation work independent of Q2's adapter-call capacity ruling.
     - [x] Retain ordinary Gamma rejection codes 4 through 18 at their decisive
       source coordinate. Parsing records syntax and integer-range failures;
       declaration resolution distinguishes duplicate type, constructor, and
@@ -634,6 +633,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
       function/local identities, type and arity mismatches, duplicate match
       cases, and nonexhaustive matches. A private frontend-outcome probe pins
       every code while all existing positive/negative behavior remains green.
+    - [x] Retain compiler-resource codes 2 through 12 and the implemented
+      emitter-internal classes 2 through 4. Every frontend allocation producer
+      now supplies its exact Gamma coordinate, limit, and adjacent request;
+      emitter payload, label, and fixup exhaustion supplies the ruled
+      payload/internal-row coordinate spaces; and metadata, label/fixup, and
+      replay contradictions map from the existing sticky emitter judgment.
+      Fourteen projection cases cover every resource plus the three present
+      internal classes, while the existing exact/adjacent gates continue to
+      exercise the real producer sites. Code 1 remains canonical GCREQ source
+      exhaustion; remaining internal classes 1/5/6 do not yet have producers.
   - [x] Preserve D30's generated resource identity at the sealed-input seam.
     The emitted reader now transfers input-extent and heap-extent failures to
     distinct adapter-owned terminals while containment remains independent;

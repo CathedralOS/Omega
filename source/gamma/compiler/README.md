@@ -156,13 +156,15 @@ oversized declaration before body work, requires the exact admitted body and
 EOF, and only then validates Gamma source bytes. It retains the selected
 profile and private outcome kind/code/space/coordinate/limit/requested fields.
 
-The ordinary frontend now also retains every closed rejection class from
+The ordinary frontend retains every closed rejection class from
 `invalid_syntax` (4) through `nonexhaustive_match` (18) at its decisive Gamma
-source coordinate. The remaining semantic work is to replace private resource
-and emission results with public resource/internal judgments, retain and order
-schema codes 19/20/21, check the embedded tables, emit the two PC-zero adapters,
-and publish no canonical artifact until the projections and exact/adjacent
-gates agree.
+source coordinate. Frontend exhaustion retains resource codes 2 through 9;
+the emitter projects label, fixup, and payload exhaustion to codes 10 through
+12 and its present metadata, label/fixup, and replay contradictions to internal
+classes 2 through 4. The remaining semantic work is to retain and order schema
+codes 19/20/21, add internal classes 1/5/6 with their eventual
+producers, check all embedded tables, emit the two PC-zero adapters, and publish
+no canonical artifact until the projections and exact/adjacent gates agree.
 
 ## D30 physical application profiles
 
@@ -399,9 +401,10 @@ D20's declaration/binder resolver, source joins, and profile-neutral
 whole-function label/body emission are implemented. D19's exact source-owned
 schemas and reason-code bijection, D30's physical profile facts, and D33's
 canonical request ingress are implemented. Ordinary rejection codes 3 through
-18 are retained with their exact request/source coordinates. Resource,
-schema, and internal GCOUT diagnosis, both adapters, and final publication
-still gate the tape. No incomplete slice
+18 and compiler-resource codes 1 through 12 are retained with their exact
+coordinates and quantitative fields; emitter-internal classes 2 through 4 are
+also retained. Schema diagnosis, remaining internal classes,
+both adapters, and final publication still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.
