@@ -3,74 +3,20 @@ use std::path::PathBuf;
 
 mod optimization_rollback;
 mod production_manifest;
+mod terminal_product;
 pub use optimization_rollback::OptimizationRollbackReceipt;
 pub use production_manifest::{
     ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
+};
+pub use terminal_product::{
+    RetainedTerminalArtifact, TerminalCompilerBuiltinProposal, TerminalNativeRealizationProposal,
 };
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output
 /// publication. The compatibility name remains while callers migrate from the
 /// former legacy `EmissionPlan + EmittedProgram` payload.
 pub use omega_native_artifact::NativeArtifact as RetainedNativeArtifact;
-
-/// Canonical Terminal artifact coupled to every exact checked callback
-/// placement that crossed its production boundary.
-///
-/// Callback rows remain target-owned compiler evidence rather than Terminal-
-/// Psi vocabulary. Keeping them in the same retained product prevents an
-/// artifact-only consuming escape from silently discarding the sidecar. This
-/// carrier grants no registration, invocation, address, or lifetime authority.
-#[derive(Debug)]
-pub struct RetainedTerminalArtifact {
-    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-    callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
-}
-
-impl RetainedTerminalArtifact {
-    /// Couples structurally valid rows to an artifact without reconstructing
-    /// their checked-compilation provenance. The compiler's private product
-    /// route supplies that provenance and preserves its checked row order.
-    pub fn new(
-        artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-        callback_placements: Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
-    ) -> Result<Self, &'static str> {
-        let retained = Self {
-            artifact,
-            callback_placements,
-        };
-        retained.validate()?;
-        Ok(retained)
-    }
-
-    pub const fn artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
-    }
-
-    pub fn callback_placements(&self) -> &[omega_backend_plan::BoundNominalCallbackPlacement] {
-        &self.callback_placements
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        psi_terminal_codec::CanonicalTerminalArtifact,
-        Vec<omega_backend_plan::BoundNominalCallbackPlacement>,
-    ) {
-        (self.artifact, self.callback_placements)
-    }
-
-    pub fn validate(&self) -> Result<(), &'static str> {
-        self.artifact
-            .validate()
-            .map_err(|_| "retained Terminal product contains an invalid canonical artifact")?;
-        for placement in &self.callback_placements {
-            omega_backend_plan::validate_bound_nominal_callback_placement(placement)
-                .map_err(|_| "retained Terminal product contains an invalid callback placement")?;
-        }
-        Ok(())
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
@@ -775,6 +721,11 @@ impl CompileReport {
         artifact: RetainedTerminalArtifact,
         production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
+        if artifact.native_realization_proposal().is_none() {
+            return Err(
+                "compiler report requires the Terminal product's native realization proposal",
+            );
+        }
         artifact
             .validate()
             .map_err(|_| "compiler report received an invalid retained Terminal product")?;

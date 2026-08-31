@@ -85,13 +85,14 @@ stop the item on one precise owner question before adding machinery.
   occurrence-specific physical-child binding rather than adding pre-lowering
   fingerprints.
 
-  Make the standalone Psi product sufficient for an independent realization
-  consumer: selected provider-plan facts, external-binding requirements, and
-  the requested target/profile proposal must be canonical product sections or
-  an exact strongly bound companion, never hidden `CheckedCompilation` state.
-  Add a reload canary that discards all frontend objects, decodes only the
-  published Psi product plus an independently supplied `NativeRealizationRequest`,
-  and either reproduces the native result or rejects an unavailable proposal.
+  The first standalone-product lane now retains the selected provider-plan
+  facts, external-binding requirements, target/profile, ProgramEntry, and
+  compiler-builtin proposals as one exact companion to the canonical Terminal
+  artifact. Its reload canary destroys frontend custody and realizes Linux ELF
+  using only that retained product plus independently supplied proof admission
+  and optimization inputs. Keep this carrier complete as additional native
+  proposal classes land; do not regress to hidden `CheckedCompilation` state
+  or replace its full structures with compact report fingerprints.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Add D26 consumer demand only for an
   actual runtime by-value use, consuming the exact retained
@@ -227,8 +228,10 @@ stop the item on one precise owner question before adding machinery.
   reached the pinned repositories but found the remote fixture contents stale
   against the current local language fixtures; synchronize and repin all
   changed mirrors, then rerun the complete lane. Unavailable credentials must
-  remain an explicit ignored/blocked environment condition, never a fallback
-  to a different transport or fabricated success.
+  remain an explicit ignored/blocked environment condition; the fixture
+  harness must not replace the authored request after failure or fabricate
+  success. Effective HTTPS/SSH routing remains ordinary host Git policy under
+  D43.
 
 ## P7 — Cross-system package work
 
