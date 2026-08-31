@@ -11,6 +11,17 @@ use operation::lower_operation;
 use ordinary::lower_ordinary_machine;
 use terminator::lower_terminator;
 
+type StructuralLiteral<'a> = (
+    &'a psi_terminal::StructuralPlaceDeclaration,
+    u32,
+    psi_core::StructuralTypeId,
+);
+type LoweredAffineLocal = (
+    OperationId,
+    psi_terminal::StructuralPlaceDeclaration,
+    psi_terminal::StructuralTypeDeclaration,
+);
+
 pub(super) fn lower_machine(
     module: &psi_terminal::TerminalModule,
     machine: &TerminalMachine,

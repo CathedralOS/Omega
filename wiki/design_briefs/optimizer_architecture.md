@@ -224,6 +224,15 @@ Verified optimizer admission remains at
 `omega-psi-to-abstract-operations/src/optimization/mod.rs`; the seed split does
 not create a second verifier or catalog.
 
+Target-neutral operation projection follows one visible chain:
+`lowering/mod.rs` admits and orders the verified module,
+`lowering/machine.rs` selects ordinary or structural machine lowering, and
+`lowering/machine/operation/mod.rs` exhaustively routes every ordinary
+`OperationKind` into an exact semantic family leaf before performing the sole
+abstract-operation append. This nested entrance is projection only; artifact
+admission remains above it, and it introduces neither an optimizer catalog nor
+a second verification boundary.
+
 Within a crate, follow semantic rungs rather than filename prefixes:
 
 ```text
