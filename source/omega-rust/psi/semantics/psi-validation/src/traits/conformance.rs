@@ -525,6 +525,21 @@ fn validate_machine_top_level_requirement_conformance(
         &generic_types,
         diagnostics,
     );
+    for (index, (required, actual)) in required_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .enumerate()
+    {
+        if matches!(
+            (&required.kind, &actual.kind),
+            (TypeParameterKind::Type, TypeParameterKind::Type)
+        ) && type_parameter_demands_stronger_properties(required, actual)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} static parameter {index} demands stronger type properties"
+            )));
+        }
+    }
     let mut type_bindings = required_type_parameters
         .iter()
         .zip(actual_type_parameters)
@@ -686,6 +701,15 @@ fn nominal_type_symbol(program: &TypedTrees, handle: TypeReferenceHandle) -> Opt
         }
         _ => None,
     }
+}
+
+fn type_parameter_demands_stronger_properties(
+    required: &psi_typed_trees::data::TypeParameter,
+    actual: &psi_typed_trees::data::TypeParameter,
+) -> bool {
+    (actual.bounds.multiplicity != psi_language_semantics::Multiplicity::Affine
+        && required.bounds.multiplicity != actual.bounds.multiplicity)
+        || actual.bounds.carry.is_some() && actual.bounds.carry != required.bounds.carry
 }
 
 fn validate_top_level_requirement_effect_ceiling(
@@ -2108,13 +2132,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     {
         match (&required.kind, &actual.kind) {
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
-                if (actual.bounds.multiplicity
-                    == psi_language_semantics::Multiplicity::Unrestricted
-                    && required.bounds.multiplicity
-                        != psi_language_semantics::Multiplicity::Unrestricted)
-                    || actual.bounds.carry.is_some()
-                        && actual.bounds.carry != required.bounds.carry
-                {
+                if type_parameter_demands_stronger_properties(required, actual) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` does not satisfy trait `{}` machine `{}`: callable generic parameter {} demands stronger type properties",
                         machine.name, trait_definition.name, requirement.name, index

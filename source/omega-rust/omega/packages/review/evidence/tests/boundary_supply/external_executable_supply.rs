@@ -1,6 +1,72 @@
 use crate::support::*;
 
 #[test]
+fn review_projects_bounded_type_telescope_in_top_level_external_supply() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericSurface {}
+pub data GenericProvider {}
+
+pub boundary requirement GenericSurface::identity<Element [copy]>(value: Element) -> Element;
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+    satisfies GenericSurface::identity
+    via Binding::DllImport("omega-generic", "identity");
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("bounded generic top-level external supply should check");
+    let review = project_checked_package_review(&checked)
+        .expect("bounded generic top-level external supply should project exactly");
+
+    let [supply] = review.external_executable_supply() else {
+        panic!("one bounded external executable-supply row")
+    };
+    let [static_parameter] = supply.signature().static_parameters() else {
+        panic!("one exact external static parameter")
+    };
+    let properties = static_parameter
+        .type_properties()
+        .expect("ordinary type static parameter");
+    assert_eq!(
+        properties.multiplicity(),
+        psi_language_semantics::Multiplicity::Affine
+    );
+    assert_eq!(properties.carry(), None);
+    let [requirement_parameter] = supply
+        .top_level_requirement_signature()
+        .expect("exact top-level requirement signature")
+        .static_parameters()
+    else {
+        panic!("one exact requirement static parameter")
+    };
+    assert_eq!(
+        requirement_parameter
+            .type_properties()
+            .expect("ordinary requirement type parameter")
+            .multiplicity(),
+        psi_language_semantics::Multiplicity::Unrestricted
+    );
+}
+
+#[test]
 fn review_projects_unselected_type_and_lifetime_generic_top_level_external_supply() {
     let Some(target) = host_target_name() else {
         return;
@@ -60,7 +126,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             supply.signature().lifetime_parameter_count(),
             lifetime_count
         );
-        assert_eq!(supply.signature().type_parameter_count(), type_count);
+        assert_eq!(supply.signature().static_parameters().len(), type_count);
         for authored_binder in ["Element", "Value", "input", "borrow"] {
             assert!(
                 !supply.callable().path().contains(authored_binder)
@@ -140,7 +206,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     };
     assert_eq!(supply.callable().path(), "LinuxCompletion::complete");
     assert_eq!(supply.signature().lifetime_parameter_count(), 0);
-    assert_eq!(supply.signature().type_parameter_count(), 0);
+    assert!(supply.signature().static_parameters().is_empty());
     assert_eq!(supply.signature().parameters().len(), 1);
     assert_eq!(
         supply.binding(),
@@ -167,7 +233,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert_eq!(selected_row.requirement(), requirement);
     assert!(matches!(
         supply.requirement(),
-        PackageReviewExternalRequirement::TopLevelRequirement(identity)
+        PackageReviewExternalRequirement::TopLevelRequirement { identity, .. }
             if identity == requirement
     ));
 

@@ -58,7 +58,7 @@ pub enum PackageReviewDataKind {
 /// Closed package-evidence carrier for declaration multiplicity and movement
 /// policy. The language semantics remain explicit without retaining a typed-
 /// tree declaration node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDataProperties {
     pub(crate) multiplicity: psi_language_semantics::Multiplicity,
     pub(crate) carry: Option<psi_language_semantics::CarryPolicy>,

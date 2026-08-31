@@ -1,6 +1,85 @@
 use crate::support::*;
 
 #[test]
+fn generic_top_level_external_supply_rejects_post_check_stronger_property_bounds() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericSurface {}
+pub data GenericProvider {}
+pub boundary requirement GenericSurface::identity<Element>(value: Element) -> Element;
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+    satisfies GenericSurface::identity
+    via Binding::DllImport("omega-generic", "identity");
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("generic top-level external supply should check");
+    let realization_telescope = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "GenericProvider::identity")
+        .expect("external realization")
+        .type_parameters;
+    for multiplicity in [
+        psi_language_semantics::Multiplicity::Unrestricted,
+        psi_language_semantics::Multiplicity::Linear,
+    ] {
+        let parameter = &mut checked
+            .typed
+            .data_type_parameters
+            .span_mut(realization_telescope)
+            .expect("realization static telescope")[0];
+        parameter.bounds.multiplicity = multiplicity;
+        parameter.bounds.carry = None;
+
+        let diagnostics = project_checked_package_review(&checked)
+            .expect_err("post-check stronger provider multiplicity bound must reject");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("GenericProvider::identity")
+                    && diagnostic.message.contains("stronger type properties")
+            }),
+            "unexpected diagnostics for {multiplicity:?}: {diagnostics:?}",
+        );
+    }
+
+    let parameter = &mut checked
+        .typed
+        .data_type_parameters
+        .span_mut(realization_telescope)
+        .expect("realization static telescope")[0];
+    parameter.bounds.multiplicity = psi_language_semantics::Multiplicity::Affine;
+    parameter.bounds.carry = Some(psi_language_semantics::CarryPolicy::STRICT);
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("post-check stronger provider carry bound must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("GenericProvider::identity")
+                && diagnostic.message.contains("stronger type properties")
+        }),
+        "unexpected diagnostics for carry bound: {diagnostics:?}",
+    );
+}
+
+#[test]
 fn generic_top_level_external_supply_rejects_post_check_lifetime_telescope_drift() {
     let Some(target) = host_target_name() else {
         return;

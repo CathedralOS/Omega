@@ -2621,6 +2621,17 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v108/canonical row v66 replaces the external realization's
+static-parameter count with an ordered structural telescope and retains the
+independently projected top-level requirement signature in the same supply
+key. Each currently admitted ordinary type parameter retains its exact
+multiplicity and carry-property bounds on both sides. Bounded realizations are
+revalidated against the requirement from retained typed custody; a provider
+that gains a stronger bound rejects, while an accepted weakening still
+preserves both exact telescopes and changes external-supply identity. Const,
+machine, proposition, and conformance-bound static forms remain fail-closed.
+Canonical-row recovery remains v15.
+
 Package review v107/canonical row v65 admits unselected external executable-
 supply disclosure for a public top-level requirement and realization with
 compiler-validated ordinary type parameters carrying default properties and
