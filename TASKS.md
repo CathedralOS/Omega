@@ -7427,6 +7427,24 @@ Owners:
   weakening the independent-prefix assertions. This is an implementation task,
   not a language-design block, and the measurement does not authorize deleting
   the test, broadening Alpha tape, or introducing a speculative arena rewrite.
+  The first measured repair is complete but does not close this target.
+  Correlated exact-multiply production now discovers an exact cited or semantic
+  quotient candidate before attempting its factor-sign proof; unrelated
+  multiplies no longer launch an affine/cast search for evidence that no
+  candidate can consume. On the same debug test product, instrumented Terminal
+  proof production fell from approximately 174s to 101s for the 74-parameter
+  mixed-shift owner and from 253s to 157s for the mixed nominal owner. Candidate
+  and citation order, serialized proof shape, and kernel replay are unchanged.
+  The remaining repeated add/subtract/cast endpoint search is still
+  unforgivably slow and remains an open implementation target.
+  The default-stack failure exposed by the nominal owner is independently
+  repaired at both recursive frontend boundaries. Syntax-to-resolved and
+  resolved-to-typed binary expression recursion now cross thin
+  dispatcher/helper pairs instead of retaining either stage's large nonbinary
+  lowering frame at every left-associated node. Focused 128-leaf Boolean-chain
+  regressions resolve and type on the ordinary test stack, and the unchanged
+  mixed nominal owner now passes there as well; increasing the stack or
+  weakening the original owner is not the fix.
   Sample refresh no longer multiplies its machine-wide outer fan-out by a full
   backend worker pool per sample: each independent compile now owns one inner
   worker and uses `OutputOnly`, because the command consumes only the runnable

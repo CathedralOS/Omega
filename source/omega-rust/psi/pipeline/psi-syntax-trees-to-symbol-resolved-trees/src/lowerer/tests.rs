@@ -5829,3 +5829,18 @@ fn trait_operator_requirement_retains_fixed_token_after_resolution() {
         Some("<")
     );
 }
+
+#[test]
+fn deep_left_associated_boolean_expression_resolves_on_the_default_test_stack() {
+    let expression = std::iter::repeat_n("enabled", 128)
+        .collect::<Vec<_>>()
+        .join(" && ");
+    let source =
+        format!("data Root {{}} machine Root::measure(enabled: bool) -> bool {{ {expression} }}");
+    let tokens = Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize deep expression");
+    let syntax = parse_syntax_trees(&tokens).expect("parse deep expression");
+
+    lower_syntax_trees(&syntax).expect("resolve deep expression on the default test stack");
+}

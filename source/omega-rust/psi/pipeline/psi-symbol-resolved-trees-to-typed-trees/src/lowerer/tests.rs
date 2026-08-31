@@ -11,6 +11,17 @@ fn lower_source(source: &str) -> Result<psi_typed_trees::TypedTrees, psi_diagnos
 }
 
 #[test]
+fn deep_left_associated_boolean_expression_types_on_the_default_test_stack() {
+    let expression = std::iter::repeat_n("enabled", 128)
+        .collect::<Vec<_>>()
+        .join(" && ");
+    let source =
+        format!("data Root {{}} machine Root::measure(enabled: bool) -> bool {{ {expression} }}");
+
+    lower_source(&source).expect("type deep expression on default test stack");
+}
+
+#[test]
 fn exact_quoted_bytes_land_as_an_owned_fixed_u8_array() {
     let typed = lower_source(
         r#"

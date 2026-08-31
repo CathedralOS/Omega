@@ -3914,7 +3914,12 @@ producer-serialized `IntegerAffineBound` routes. Multiplication's direct form
 carries four ordered operand endpoints and the checker recomputes the four
 unbounded mathematical corner products. Its correlated form carries the
 authored factor-sign and carrier-endpoint quotient comparison, with a strictly
-earlier literal landing when that endpoint is a value. Producer-only
+earlier literal landing when that endpoint is a value. Producer search first
+establishes that an exact cited or semantic quotient candidate exists before
+reconstructing the factor-sign bound. That structural filter
+changes no candidate/citation order or proof shape; it only prevents unrelated
+multiplications from producing evidence that no correlated witness can consume.
+Producer-only
 target-bounded custody may compose an affine/shift suffix with an existing cast
 or exact-remainder range certificate; verification checks only the serialized
 witness. The operation's own result equation is never eligible evidence.
