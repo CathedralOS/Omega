@@ -872,6 +872,10 @@ fn checked_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment])
     checked_nonempty_field_path(fields)
 }
 
+fn checked_single_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    matches!(path, [CheckedUnitStructuralPathSegment::FixedIndex(_)])
+}
+
 fn place_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
     let Some((psi_facts::PlaceSegment::FixedIndex { .. }, fields)) = path.split_last() else {
         return false;
@@ -916,9 +920,11 @@ pub(super) fn ordinary_projected_call_is_supported(
 
     let field_path = checked_nonempty_field_path(&arguments[0].path);
     let literal_indexed_field_path = checked_literal_indexed_field_path(&arguments[0].path);
-    let write_only_subloan_path = (field_path || literal_indexed_field_path)
-        && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
-        && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
+    let single_literal_index_path = checked_single_literal_index_path(&arguments[0].path);
+    let write_only_subloan_path =
+        (field_path || literal_indexed_field_path || single_literal_index_path)
+            && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
+            && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
     if field_path && !allow_field_path_projection && !write_only_subloan_path {
         return false;
     }

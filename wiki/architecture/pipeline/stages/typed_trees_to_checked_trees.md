@@ -118,7 +118,11 @@ Must own:
   A direct checked-call argument may retain one exact `Field`-only write-only
   subloan when the existing common-field leaf referee and the one-parameter,
   single-state checked Unit call shape both hold. This does not admit general
-  projected expression formation or reusable local-reference aliases.
+  projected expression formation or reusable local-reference aliases. The same
+  call shape now accepts one direct write-only literal fixed-array parameter
+  root projected by exactly one in-bounds literal `FixedIndex` to an
+  unrestricted non-Atomic primitive element; checked and Terminal replay retain
+  that complete one-segment path.
   Recursively literal fixed arrays whose ultimate elements are unrestricted
   primitive scalars or eligible material nongeneric, invariant-free `[copy]`
   records or sums admit whole replacement, static length metadata, and literal

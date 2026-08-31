@@ -91,17 +91,119 @@ fn exact_literal_indexed_write_only_subloan_is_forwardable() {
 }
 
 #[test]
-fn wider_indexed_write_only_subloans_remain_fenced() {
+fn exact_direct_root_literal_indexed_write_only_subloan_is_forwardable() {
+    lower_typed_trees(typed(
+        r#"
+            machine replace(value: &write u16) {
+                value = 7;
+            }
+
+            machine forward(values: &write [u16; 2]) {
+                replace(&write values[1]);
+            }
+        "#,
+    ))
+    .expect("one exact literal index may narrow a direct write-only fixed-array root");
+}
+
+#[test]
+fn direct_root_write_only_subloan_keeps_wider_index_shapes_fenced() {
     for (name, source) in [
         (
-            "direct root index",
+            "runtime index",
+            r#"
+                machine replace(value: &write u16) {}
+                machine forward(values: &write [u16; 2], index: u64) {
+                    replace(&write values[index]);
+                }
+            "#,
+        ),
+        (
+            "range",
+            r#"
+                machine replace(value: &write [u16; 1]) {}
+                machine forward(values: &write [u16; 2]) {
+                    replace(&write values[0..1]);
+                }
+            "#,
+        ),
+        (
+            "out of bounds",
             r#"
                 machine replace(value: &write u16) {}
                 machine forward(values: &write [u16; 2]) {
+                    replace(&write values[2]);
+                }
+            "#,
+        ),
+        (
+            "second index",
+            r#"
+                machine replace(value: &write u16) {}
+                machine forward(values: &write [[u16; 2]; 2]) {
+                    replace(&write values[0][0]);
+                }
+            "#,
+        ),
+        (
+            "nested array element",
+            r#"
+                machine replace(value: &write [u16; 2]) {}
+                machine forward(values: &write [[u16; 2]; 2]) {
                     replace(&write values[0]);
                 }
             "#,
         ),
+        (
+            "record element",
+            r#"
+                data Leaf [copy] { value: u16; }
+                machine replace(value: &write Leaf) {}
+                machine forward(values: &write [Leaf; 2]) {
+                    replace(&write values[0]);
+                }
+            "#,
+        ),
+        (
+            "local array alias",
+            r#"
+                machine replace(value: &write u16) {}
+                machine forward(values: &write [u16; 2]) {
+                    let alias: &write [u16; 2] = &write values;
+                    replace(&write alias[1]);
+                }
+            "#,
+        ),
+        (
+            "zero-length array",
+            r#"
+                machine replace(value: &write u16) {}
+                machine forward(values: &write [u16; 0]) {
+                    replace(&write values[0]);
+                }
+            "#,
+        ),
+        (
+            "atomic element",
+            r#"
+                machine replace(value: &write AtomicU32) {}
+                machine forward(values: &write [AtomicU32; 2]) {
+                    replace(&write values[0]);
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("forms `&write` from an unsupported projection"),
+            "{name} unexpectedly crossed the direct-root literal-index subloan gate: {rendered}"
+        );
+    }
+}
+
+#[test]
+fn wider_indexed_write_only_subloans_remain_fenced() {
+    for (name, source) in [
         (
             "runtime index",
             r#"

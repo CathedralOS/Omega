@@ -16,6 +16,7 @@ struct WriteOnlyRoot {
     symbol: SymbolHandle,
     name: String,
     referee: TypeReferenceHandle,
+    is_parameter: bool,
 }
 
 pub(crate) fn validate_checked_write_only_slice(
@@ -42,6 +43,7 @@ pub(crate) fn validate_checked_write_only_slice(
                         symbol: parameter.symbol,
                         name: parameter.name.as_str().to_owned(),
                         referee: *referee,
+                        is_parameter: true,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -68,6 +70,7 @@ pub(crate) fn validate_checked_write_only_slice(
                             symbol: local.symbol,
                             name: local.name.as_str().to_owned(),
                             referee: *referee,
+                            is_parameter: false,
                         })
                     }),
             );
@@ -640,12 +643,12 @@ fn write_only_element_assignment_index(
     }
 }
 
-/// Admit one exact literal element below an already-admitted common-field
-/// path only at the direct checked-call boundary. The ordinary element-place
-/// judgment remains the authority for fixed-array shape and bounds; this
-/// wrapper deliberately excludes direct roots, dynamic indices, ranges, and a
-/// second array projection.
-fn write_only_literal_indexed_record_field_subloan(
+/// Admit one exact literal primitive element of either a direct fixed-array
+/// root or an already-admitted common-field path only at the direct checked-call
+/// boundary. The ordinary element-place judgment remains the authority for
+/// fixed-array shape and bounds; this wrapper deliberately excludes dynamic
+/// indices, ranges, aggregate elements, and a second array projection.
+fn write_only_literal_indexed_direct_call_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
     roots: &[WriteOnlyRoot],
@@ -653,8 +656,11 @@ fn write_only_literal_indexed_record_field_subloan(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return false;
     };
-    let Some(collection_type) = write_only_record_field_type(program, indexed.collection, roots)
-    else {
+    let collection_type = direct_write_only_root(program, indexed.collection, roots)
+        .filter(|root| root.is_parameter)
+        .map(|root| root.referee)
+        .or_else(|| write_only_record_field_type(program, indexed.collection, roots));
+    let Some(collection_type) = collection_type else {
         return false;
     };
     let Some((element_type, _)) =
@@ -738,7 +744,7 @@ fn validate_call_argument(
     if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
         && borrow.access == ReferenceAccess::WriteOnly
         && (write_only_record_field_assignment(program, borrow.target, roots)
-            || write_only_literal_indexed_record_field_subloan(program, borrow.target, roots))
+            || write_only_literal_indexed_direct_call_subloan(program, borrow.target, roots))
     {
         // This milestone admits the exact projected subloan only at the direct
         // checked-call argument boundary. It does not create a reusable local

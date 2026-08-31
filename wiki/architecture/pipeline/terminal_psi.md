@@ -508,7 +508,12 @@ subloan. The verifier replays its ordered path, structural type, and access and
 treats it as a claim-free non-transferring subloan rather than an owned linear
 projection; malformed path, target type/access, source access, qualification,
 arity, or provider substitution rejects. Reusable local or re-entrant reborrow
-authority does not follow. The verifier also rejects widening, target
+authority does not follow. One direct write-only literal fixed-array parameter
+root may now instead carry exactly one in-bounds literal `FixedIndex` to an
+unrestricted non-Atomic primitive element. The verifier independently rejoins
+the array shape, bounds, element type, multiplicity, and write-only access;
+dynamic, range, second-index, aggregate-element, and nested-array paths remain
+absent. The verifier also rejects widening, target
 disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
 Terminal format 42/vocabulary 45 retains one executable direct whole-root
