@@ -44,6 +44,7 @@ pub(super) fn exact_construction_prefix(cleanup: &UnitAffineCleanupRecord) -> bo
         8 => 9,
         9 => 10,
         10 => 11,
+        11 => 12,
         _ => return false,
     };
     construction_locals.len() == cleanup.locals.len()

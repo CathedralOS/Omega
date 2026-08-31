@@ -128,6 +128,25 @@ const TENTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const ELEVENTH_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 12];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+        values[7] = Empty {};
+        values[8] = Empty {};
+        values[9] = Empty {};
+        values[10] = Empty {};
+    }
+"#;
+
 #[test]
 fn construction_prefix_reaches_native_image_and_installation_custody() {
     for (source, prefix_length) in [
@@ -140,6 +159,7 @@ fn construction_prefix_reaches_native_image_and_installation_custody() {
         (EIGHTH_CONSTRUCTION_PREFIX_SOURCE, 8_usize),
         (NINTH_CONSTRUCTION_PREFIX_SOURCE, 9_usize),
         (TENTH_CONSTRUCTION_PREFIX_SOURCE, 10_usize),
+        (ELEVENTH_CONSTRUCTION_PREFIX_SOURCE, 11_usize),
     ] {
         let checked = checked(source);
         let terminal = psi_checked_trees_to_terminal::produce_terminal_artifact(

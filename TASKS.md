@@ -3751,9 +3751,13 @@ Remaining:
   codec, verifier, fuel, interpreter, and per-prefix mutation replay covers all
   four ordered field identities. A fifth bounded rung now admits exactly five
   enclosing acyclic relevant record fields before that sole mixed occurrence,
-  with the same replay covering all five ordered field identities. Six or more
-  enclosing fields, case-payload or mixed-under-mixed placement, two mixed
-  sibling fields, direct projected mixed comparisons, recursive cycles,
+  with the same replay covering all five ordered field identities. A sixth
+  bounded rung now admits exactly six enclosing acyclic relevant record fields
+  before that sole mixed occurrence, with the same whole-root equality,
+  inequality, Unit-call rebasing, codec, verifier, fuel, interpreter, and
+  per-prefix mutation replay covering all six ordered field identities. Seven
+  or more enclosing fields, case-payload or mixed-under-mixed placement, two
+  mixed sibling fields, direct projected mixed comparisons, recursive cycles,
   address and erased payload equality, and runtime sum layout remain fenced.
   Semantic codec format 33 / vocabulary
   35, proof-bundle v19, and installation-record v40 retain the structural
@@ -9068,9 +9072,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to fourteen unary, binary, primitive-cast,
+  call producers in up to fifteen unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  fifteenth direct scalar shell remains fenced; aggregate fields and projected
+  sixteenth direct scalar shell remains fenced; aggregate fields and projected
   concrete record, selected-case, or fixed-array literals retain their
   separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9114,7 +9118,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a fifteenth direct scalar computed shell,
+  aggregate/literal computed shell, a sixteenth direct scalar computed shell,
   other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
@@ -9583,11 +9587,22 @@ reach or trust, and private proof improvements do not change public identity.
   installation replay retain the common length-eleven root and exact ten-
   operation/one-edge fuel ordinals. Missing, reordered, redirected-root,
   wrong-length, index, cleanup-order, and artifact mutations reject;
-  `[T; 12]` and wider prefixes remain fail closed without runtime liveness state
-  or a loop.
+  other prefix drift remains fail closed without runtime liveness state or a
+  loop.
+
+  The next bounded construction-prefix successor is now closed. The same exact
+  carrier admits `[T; 12]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` and ordinary cleanup
+  `[10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Checked production, Terminal
+  verification, codec and interpretation, machine emission, object/image
+  validation, and installation replay retain the common length-twelve root and
+  exact eleven-operation/one-edge fuel ordinals. Missing, reordered,
+  redirected-root, wrong-length, index, cleanup-order, and artifact mutations
+  reject; `[T; 13]` and wider prefixes remain fail closed without runtime
+  liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 6]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 11]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 12]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
