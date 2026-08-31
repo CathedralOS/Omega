@@ -50,11 +50,12 @@ compilers and must not both be called “the Delta compiler.”
   case/machine collision registry, D31 structural type formation, the source-
   backed resolution catalog, ordered local-value resolution, exact scalar and
   aggregate value/place facts, direct qualified-callable custody/results, and
-  symbolic Alpha encoding. Remaining final
-  body/control checking, Q4 entry diagnostics, D36 application classification,
-  D37 premise-DAG and D38 `.as_slice` enforcement, storage realization,
-  lowering, `main`, and publication are incomplete, so it exposes no compiler
-  artifact yet.
+  symbolic Alpha encoding. Remaining final body/control checking, Q4 entry
+  diagnostics, D36 application classification, D37 premise-DAG completion,
+  D38 executable controls, storage realization/lowering, `main`, and publication
+  are incomplete, so it exposes no compiler artifact yet. The
+  current fact pass does enforce D38's contextual receiver/result relation and
+  separate array-view extra-call rejection.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
 tree, including the restricted Delta-written Darwin compiler prototype, are

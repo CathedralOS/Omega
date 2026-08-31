@@ -1284,6 +1284,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     view, as `TypeMismatch` at the postfix start. Keep authored fields named
     `as_slice` ordinary and treat a following `()` as a separate call suffix.
     Pin a computed-index receiver plus the D38/D37 nested-failure controls.
+    - [x] Implement the source-backed expression-fact relation: exact contextual
+      spelling, ordinary authored-record-field precedence,
+      place-array-to-non-place-view production, unsupported-receiver and
+      array-temporary anchors, premise silence for unresolved receivers, and
+      the separately rejected array-view call suffix (including grouped call
+      heads). The recursive expression walk continues to visit the receiver
+      once; the contextual relation introduces no field custody, allocation,
+      copy, bounds candidate, or trap. Named field-versus-receiver-machine call
+      heads remain with D36 rather than being selected by D38.
+    - [ ] Once the remaining D36/D37 call, place, and statement relations plus
+      lowering are present, execute the place-array, computed-index, view,
+      non-place-array, extra-call, authored-field, and nested-failure controls;
+      verify emitted Alpha realizes the full-range view without reevaluating or
+      copying its receiver.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
     complete body/control checking and the final nonaliasing generated-program
     map exist, derive its selected static-storage limit and expand only

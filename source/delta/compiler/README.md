@@ -42,9 +42,11 @@ D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D36's declaration syntax and cross-kind callable census are now
 implemented; qualified-expression application classification remains with
-body/control checking, including D37's premise-DAG composition and D38's
-`.as_slice` relation. AST-to-symbolic-Alpha lowering, `main`, and final
-publication remain
+body/control checking, including the rest of D37's premise-DAG composition.
+D38's source-backed `.as_slice` receiver/result facts and separate extra-call
+rejection for the resulting array view are implemented; their lowering and
+executable controls remain.
+AST-to-symbolic-Alpha lowering, `main`, and final publication remain
 implementation gaps. Q4 blocks promotion of the incomplete entry-diagnostic
 judgment. D31's profile-independent structural type-formation judgment is now
 implemented; its
@@ -155,9 +157,11 @@ while a consumed child premise is absent. Direct qualified-callable arity is a
 sibling judgment and can therefore coexist with an independently failing
 argument, while result typing waits for complete compatible values. Negative
 projection, relational, place, general-call, resultless-use, and `never`-flow
-candidates still require the remaining D37 premise DAG. D38 owns the accepted
-receiver and result for `.as_slice`; D37 fixes how its failure candidates
-compose. This foundation does not claim final acceptance.
+candidates still require the remaining D37 premise DAG. The fact pass now
+implements D38's accepted receiver/result, exact contextual failures, and
+`array.as_slice()` value-call rejection; D37 still fixes how the remaining
+nested failure candidates compose. This foundation does not claim final
+acceptance or runtime realization.
 
 ## Contract-derived conformance plan
 
