@@ -6,9 +6,10 @@ use crate::assignment::shared::{
 use omega_assigned_target_operations::AssignedOperation;
 use omega_target::NativeTarget;
 use omega_target_operations::{TargetFunction, TargetOperation, TerminalPsiProvenance};
-use psi_core::{OperationId, PlaceId, StructuralTypeId};
+use psi_core::{ObligationId, OperationId, PlaceId, StructuralTypeId};
 use psi_terminal::{
-    SemanticFingerprint, StructuralPathSegment, TerminalPsiIdentity, VocabularyMarker,
+    CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, StructuralPathSegment,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 
 #[test]
@@ -59,6 +60,11 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
                         destination: call_plan.parameters[0].clone(),
                     }],
                     claim_transfers: Vec::new(),
+                    requirement_obligations: vec![ObligationId::new(1).unwrap()],
+                    crash_continuations: vec![CrashRouteBucket {
+                        cause: CrashCause::Trap,
+                        alternatives: vec![CrashRouteGuard::Truth],
+                    }],
                 }],
             }),
         }],
@@ -68,8 +74,22 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
     let AssignedOperation::UnitBody(body) = &assigned.functions[0].operation else {
         panic!("Unit body")
     };
-    let AssignedUnitOperation::Call { copies, .. } = &body.operations[0] else {
+    let AssignedUnitOperation::Call {
+        copies,
+        requirement_obligations,
+        crash_continuations,
+        ..
+    } = &body.operations[0]
+    else {
         panic!("Unit call")
     };
     assert_eq!(copies[0].path, path);
+    assert_eq!(requirement_obligations, &[ObligationId::new(1).unwrap()]);
+    assert_eq!(
+        crash_continuations,
+        &[CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }]
+    );
 }

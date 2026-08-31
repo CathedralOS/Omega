@@ -273,6 +273,8 @@ pub(crate) fn scalar_call_unit() -> PsiOptimizationUnit {
                         scalar_type,
                         callee,
                         arguments: vec![argument],
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::Return {
                         psi_edge: id(311, EdgeId::new),
@@ -450,6 +452,8 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                             access: psi_terminal::StructuralAccess::Owned,
                         }],
                         claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(339, EdgeId::new),

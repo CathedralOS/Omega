@@ -7,7 +7,9 @@ mod model;
 mod shared;
 mod validation;
 
-pub use identity::selected_instruction_plan_identity;
+pub use identity::{
+    selected_instruction_plan_identity, selected_instruction_plan_identity_v11_legacy,
+};
 pub use model::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
 };

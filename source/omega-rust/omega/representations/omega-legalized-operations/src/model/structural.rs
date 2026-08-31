@@ -76,6 +76,8 @@ pub struct LegalizedCallUnit {
     pub callee: MachineId,
     pub arguments: Vec<LegalizedCallUnitArgument>,
     pub claim_transfers: Vec<ClaimTransfer>,
+    pub requirement_obligations: Vec<ObligationId>,
+    pub crash_continuations: Vec<CrashRouteBucket>,
     pub fuel: Vec<FuelSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,

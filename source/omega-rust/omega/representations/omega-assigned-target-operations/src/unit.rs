@@ -9,7 +9,7 @@ use psi_core::{
     ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralPathSegment,
+    ClaimTransfer, CompletionReceipt, CrashRouteBucket, StructuralArgument, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
@@ -128,6 +128,8 @@ pub enum AssignedUnitOperation {
         result: Option<ScalarType>,
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// One real in-module fixed-width integer call in an attached Unit body.
     /// The result home survives subsequent call-register clobbers and is the
@@ -138,6 +140,8 @@ pub enum AssignedUnitOperation {
         call_plan: CallPlan,
         result_home: AssignedUnitScalarHome,
         arguments: Vec<AssignedUnitScalarCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     NormalizedForeignCall {
         psi_operation: OperationId,

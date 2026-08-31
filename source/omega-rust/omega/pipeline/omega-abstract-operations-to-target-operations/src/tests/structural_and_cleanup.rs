@@ -69,6 +69,11 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
                             path: Vec::new(),
                         }],
                         claim_transfers: Vec::new(),
+                        requirement_obligations: vec![ObligationId::new(70).unwrap()],
+                        crash_continuations: vec![CrashRouteBucket {
+                            cause: CrashCause::Trap,
+                            alternatives: vec![CrashRouteGuard::Truth],
+                        }],
                     },
                     AbstractOperation::Return {
                         psi_edge: EdgeId::new(70).unwrap(),
@@ -129,6 +134,8 @@ fn whole_root_structural_call_retains_direct_scalar_return_abi() {
             callee,
             structural_parameters,
             arguments,
+            requirement_obligations,
+            crash_continuations,
             ..
         } = &lowered.functions[0].operation
         else {
@@ -140,6 +147,14 @@ fn whole_root_structural_call_retains_direct_scalar_return_abi() {
         assert_eq!(arguments.len(), 1);
         assert!(arguments[0].path.is_empty());
         assert_eq!(arguments[0].source_byte_offset, 0);
+        assert_eq!(requirement_obligations, &[ObligationId::new(70).unwrap()]);
+        assert_eq!(
+            crash_continuations,
+            &[CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Truth],
+            }]
+        );
     }
 }
 
@@ -326,6 +341,8 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                         callee: helper,
                         structural_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     return_unit(8),
                 ],
@@ -491,6 +508,8 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
         callee: helper,
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
     let mut plan = AbstractOperationPlan {
         psi: identity(),
@@ -566,6 +585,8 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
             callee: helper,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
     );
     lower_to_target_operations(&plan, NativeTarget::linux_x64())

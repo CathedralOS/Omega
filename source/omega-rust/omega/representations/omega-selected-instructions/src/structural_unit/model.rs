@@ -2,10 +2,10 @@ use omega_calling_conventions::CallPlan;
 use omega_optimization_unit::{EffectLink, OwnershipEvent};
 use omega_register_model::{RegisterConstraintKey, RegisterUnitId};
 use omega_target_operations::{MachineRegister, TerminalPsiProvenance};
-use psi_core::{BlockId, EdgeId, MachineId, OperationId, ServiceId};
+use psi_core::{BlockId, EdgeId, MachineId, ObligationId, OperationId, ServiceId};
 use psi_terminal::{
-    ClaimTransfer, EntryClaim, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration,
+    ClaimTransfer, CrashRouteBucket, EntryClaim, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration,
 };
 
 use crate::{
@@ -101,6 +101,8 @@ pub struct SelectedStructuralUnitCallInstruction {
     pub callee_call_plan: CallPlan,
     pub arguments: Vec<SelectedStructuralUnitCallArgument>,
     pub claim_transfers: Vec<ClaimTransfer>,
+    pub requirement_obligations: Vec<ObligationId>,
+    pub crash_continuations: Vec<CrashRouteBucket>,
     pub layout: SelectedMicrosoftX64OwnedIndirectPairLayout,
     /// One target-injected, zero-explicit-operand call constraint. Its
     /// implicit state is copied into this atomic row so later traversal cannot

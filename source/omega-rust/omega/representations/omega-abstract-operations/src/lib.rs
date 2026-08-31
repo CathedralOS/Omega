@@ -317,6 +317,8 @@ pub enum AbstractOperation {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     CallStructuralScalar {
         psi_operation: OperationId,
@@ -324,6 +326,8 @@ pub enum AbstractOperation {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// One verifier-approved structural-result call. The result place and
     /// returned-claim correspondence remain semantic custody; target lowering
@@ -361,6 +365,8 @@ pub enum AbstractOperation {
         scalar_type: ScalarType,
         callee: MachineId,
         arguments: Vec<ValueId>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     IntegerConstant {
         psi_operation: OperationId,

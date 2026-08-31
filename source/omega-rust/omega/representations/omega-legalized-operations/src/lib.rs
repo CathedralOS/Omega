@@ -10,7 +10,9 @@ mod identity;
 mod model;
 mod validation;
 
-pub use identity::legalized_operation_plan_identity;
+pub use identity::{
+    legalized_operation_plan_identity, legalized_operation_plan_identity_v9_legacy,
+};
 pub use model::*;
 
 #[cfg(test)]

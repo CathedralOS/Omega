@@ -59,6 +59,8 @@ fn attached_scalar_chain() -> AbstractOperationPlan {
                         scalar_type,
                         callee: scalar_machine,
                         arguments: vec![ValueId::new(10).unwrap()],
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::Call {
                         psi_operation: OperationId::new(12).unwrap(),
@@ -66,6 +68,8 @@ fn attached_scalar_chain() -> AbstractOperationPlan {
                         scalar_type,
                         callee: scalar_machine,
                         arguments: vec![ValueId::new(11).unwrap()],
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(1).unwrap(),

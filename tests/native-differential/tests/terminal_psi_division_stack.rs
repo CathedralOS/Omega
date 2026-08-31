@@ -507,6 +507,8 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                         psi_operation: operation_id(3),
                         source_value: value_id(1),
                         callee: machine_id(2),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                         arguments: vec![TargetCallArgument {
                             scalar_type: psi_core::ScalarType::Boolean,
                             location: argument_location,
@@ -535,6 +537,8 @@ fn conditional_call_argument_division_plan(target: NativeTarget) -> TargetOperat
                                 psi_operation: operation_id(5),
                                 source_value: value_id(5),
                                 callee: machine_id(3),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                                 arguments: vec![TargetCallArgument {
                                     scalar_type: psi_core::ScalarType::Integer(scalar_type),
                                     location: argument_location,
@@ -749,6 +753,8 @@ fn division_argument_plan(target: NativeTarget) -> TargetOperationPlan {
                         psi_operation: operation_id(2),
                         source_value: value_id(1),
                         callee: machine_id(2),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                         arguments: vec![TargetCallArgument {
                             scalar_type: psi_core::ScalarType::Integer(scalar_type),
                             location: ScalarParameterLocation::Register(argument_register),

@@ -29,6 +29,8 @@ pub(crate) fn assign(
         claim_transfers,
         returned_claim_transfers,
         returned_claims,
+        requirement_obligations,
+        crash_continuations,
     } = operation
     else {
         unreachable!("structural-result assignment receives its exact carrier")
@@ -118,6 +120,8 @@ pub(crate) fn assign(
         claim_transfers: claim_transfers.clone(),
         returned_claim_transfers: returned_claim_transfers.clone(),
         returned_claims: returned_claims.clone(),
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
     })
 }
 

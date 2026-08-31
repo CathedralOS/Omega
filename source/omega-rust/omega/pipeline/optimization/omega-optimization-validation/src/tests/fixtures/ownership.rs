@@ -134,6 +134,8 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                             access: psi_terminal::StructuralAccess::Owned,
                         }],
                         claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(4_860, EdgeId::new),
@@ -204,6 +206,8 @@ pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
             access: psi_terminal::StructuralAccess::Owned,
         }],
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
     let residual = |index| {
         psi_terminal::TerminalAffineCleanupAction::DiscardResidual(

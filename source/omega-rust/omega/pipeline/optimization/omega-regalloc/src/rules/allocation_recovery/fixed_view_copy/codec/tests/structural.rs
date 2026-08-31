@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. V5 structural-payload and envelope custody.
+//! Optimizer module role: stage group. Structural-payload and envelope custody.
 
 use omega_calling_conventions::{
     CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet,
@@ -13,7 +13,8 @@ use omega_selected_instructions::{
     SelectedStructuralUnitFunction, SelectedStructuralUnitIndirectBinding,
     SelectedStructuralUnitReturn,
 };
-use psi_core::{BlockId, EdgeId, MachineId, OperationId};
+use psi_core::{BlockId, EdgeId, MachineId, ObligationId, OperationId};
+use psi_terminal::{CrashCause, CrashRouteBucket, CrashRouteGuard};
 use sha2::{Digest, Sha256};
 
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan, FixedViewCopyPolicy};
@@ -107,6 +108,11 @@ fn structural_function() -> SelectedStructuralUnitFunction {
                 input: 10,
                 output: 11,
             },
+            requirement_obligations: vec![ObligationId::new(43).unwrap()],
+            crash_continuations: vec![CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Truth],
+            }],
             ownership: Vec::new(),
         }),
         terminator: SelectedStructuralUnitReturn {
@@ -141,7 +147,7 @@ fn transformed_identity_offset(encoded: &[u8]) -> usize {
 }
 
 #[test]
-fn artifact_v5_round_trips_structural_functions_and_both_call_plans() {
+fn artifact_v6_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.transformed
         .structural_unit_functions
@@ -150,7 +156,25 @@ fn artifact_v5_round_trips_structural_functions_and_both_call_plans() {
 }
 
 #[test]
-fn artifact_v5_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
+fn artifact_v5_decodes_with_empty_semantic_call_rows() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    plan.transformed
+        .structural_unit_functions
+        .push(structural_function());
+
+    let encoded = super::super::encode_v5(&plan);
+    let mut expected = plan;
+    let call = expected.transformed.structural_unit_functions[0]
+        .call
+        .as_mut()
+        .unwrap();
+    call.requirement_obligations.clear();
+    call.crash_continuations.clear();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), expected);
+}
+
+#[test]
+fn artifact_v6_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.transformed
         .structural_unit_functions

@@ -7,6 +7,8 @@ pub(super) fn lower_call(
     scalar_type: ScalarType,
     callee: MachineId,
     arguments: &[ValueId],
+    requirement_obligations: &[psi_core::ObligationId],
+    crash_continuations: &[psi_terminal::CrashRouteBucket],
     values: &BTreeMap<ValueId, KnownScalar>,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -69,6 +71,8 @@ pub(super) fn lower_call(
             source_value: result,
             callee,
             arguments,
+            requirement_obligations: requirement_obligations.to_vec(),
+            crash_continuations: crash_continuations.to_vec(),
         }),
         ScalarType::Integer(scalar_type) => KnownScalar::Integer {
             scalar_type,
@@ -77,6 +81,8 @@ pub(super) fn lower_call(
                 source_value: result,
                 callee,
                 arguments,
+                requirement_obligations: requirement_obligations.to_vec(),
+                crash_continuations: crash_continuations.to_vec(),
             }),
         },
     })

@@ -20,6 +20,8 @@ pub(crate) fn replay_structural_call(
         structural_arguments,
         target_arguments,
         claim_transfers,
+        requirement_obligations,
+        crash_continuations,
         expected_source,
         expected_ownership,
     ) = match (target_call, abstract_call) {
@@ -29,16 +31,22 @@ pub(crate) fn replay_structural_call(
                 callee: target_callee,
                 arguments: target_arguments,
                 claim_transfers: target_transfers,
+                requirement_obligations: target_requirements,
+                crash_continuations: target_crash_continuations,
             },
             AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
                 structural_arguments,
                 claim_transfers,
+                requirement_obligations,
+                crash_continuations,
             },
         ) if target_operation == psi_operation
             && target_callee == callee
-            && target_transfers == claim_transfers =>
+            && target_transfers == claim_transfers
+            && target_requirements == requirement_obligations
+            && target_crash_continuations == crash_continuations =>
         {
             (
                 *psi_operation,
@@ -46,6 +54,8 @@ pub(crate) fn replay_structural_call(
                 structural_arguments,
                 target_arguments,
                 claim_transfers,
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
                 omega_legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit,
                 OwnershipEvent::ClaimTransfer(
                     claim_transfers
@@ -101,6 +111,8 @@ pub(crate) fn replay_structural_call(
                 structural_arguments,
                 target_arguments,
                 target_transfers,
+                &[] as &[psi_core::ObligationId],
+                &[] as &[psi_terminal::CrashRouteBucket],
                 omega_legalized_operations::LegalizedCallUnitSource::InstalledProvider {
                     boundary: *boundary,
                     provider: provider.clone(),
@@ -129,6 +141,8 @@ pub(crate) fn replay_structural_call(
         || proposed.operation != psi_operation
         || proposed.callee != callee
         || proposed.claim_transfers != *claim_transfers
+        || proposed.requirement_obligations != requirement_obligations
+        || proposed.crash_continuations != crash_continuations
         || proposed.fuel != optimized_call.fuel
         || proposed.effect != optimized_call.effect
         || proposed.ownership != optimized_call.ownership

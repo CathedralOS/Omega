@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Straight-line scalar lowering lifecycle and its exact operation routes.
 
+mod call;
 mod exit;
 mod integer_arithmetic;
 mod integer_conversion;

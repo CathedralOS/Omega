@@ -11,11 +11,11 @@ use psi_core::{
     ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, ProviderCandidateConformance,
-    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, CrashRouteBucket,
+    ProviderCandidateConformance, StructuralArgument, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -498,6 +498,8 @@ pub enum TargetUnitOperation {
         callee: MachineId,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// One service-free, in-module fixed-width integer call inside an attached
     /// Unit body. The complete ABI plan identifies the transient result and
@@ -509,6 +511,8 @@ pub enum TargetUnitOperation {
         call_plan: CallPlan,
         result_home: TargetUnitScalarHomeRequirement,
         arguments: Vec<TargetUnitScalarCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// One bodyless boundary occurrence projected through an opaque admitted
     /// installation into an exact checked Unit provider call. The original
@@ -585,6 +589,8 @@ pub enum TargetOperation {
         structural_parameters: Vec<TargetStructuralParameter>,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// One exact whole-root structural call whose direct ABI result is returned
     /// unchanged by the caller.
@@ -602,6 +608,8 @@ pub enum TargetOperation {
         claim_transfers: Vec<ClaimTransfer>,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         returned_claims: Vec<ClaimId>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// A scalar return plus the exact structural cleanup frontier that runs
     /// after result materialization and before native return teardown.
@@ -802,6 +810,8 @@ pub enum TargetBooleanExpression {
         source_value: ValueId,
         callee: MachineId,
         arguments: Vec<TargetCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     Immediate {
         source_value: ValueId,
@@ -941,6 +951,8 @@ pub enum TargetIntegerExpression {
         source_value: ValueId,
         callee: MachineId,
         arguments: Vec<TargetCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     Immediate {
         source_value: ValueId,

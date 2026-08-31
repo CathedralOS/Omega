@@ -5,6 +5,8 @@ use crate::tests::fixtures::structural_call::structural_call_fixture;
 use crate::{legalize_target_operations, select_instructions};
 use omega_isa_x86_64::X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR;
 use omega_selected_instructions::SelectedInstructionId;
+use psi_core::ObligationId;
+use psi_terminal::{CrashCause, CrashRouteBucket, CrashRouteGuard};
 
 #[test]
 fn structural_call_and_terminal_callee_are_produced_and_replayed() {
@@ -13,7 +15,21 @@ fn structural_call_and_terminal_callee_are_produced_and_replayed() {
         .expect("one whole-root call and its structural callee legalize");
     assert!(legalized.plan().unit_functions.is_empty());
     assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
-    assert!(legalized.plan().structural_unit_functions[0].call.is_some());
+    let legalized_call = legalized.plan().structural_unit_functions[0]
+        .call
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        legalized_call.requirement_obligations,
+        [ObligationId::new(1).unwrap()]
+    );
+    assert_eq!(
+        legalized_call.crash_continuations,
+        [CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }]
+    );
     assert!(legalized.plan().structural_unit_functions[1].call.is_none());
     assert_eq!(
         legalized.plan().structural_unit_functions[0].recipe,
@@ -42,6 +58,11 @@ fn structural_call_and_terminal_callee_are_produced_and_replayed() {
         X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
     );
     assert!(call.arguments.len() == 2 && !call.implicit_uses.is_empty());
+    assert_eq!(
+        call.requirement_obligations,
+        legalized_call.requirement_obligations
+    );
+    assert_eq!(call.crash_continuations, legalized_call.crash_continuations);
     assert_eq!(caller.terminator.instruction.id, SelectedInstructionId(1));
     assert!(caller.terminator.instruction.operands.is_empty());
     assert!(selected.plan().structural_unit_functions[1].call.is_none());

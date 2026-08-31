@@ -9,8 +9,14 @@ use crate::{
 use super::{
     copy::{decode_copy, encode_copy},
     primitives::{Cursor, length},
-    selected::{decode_selected_plan_v4, decode_selected_plan_v5, encode_selected_plan_v5},
+    selected::{
+        decode_selected_plan_v4, decode_selected_plan_v5, decode_selected_plan_v6,
+        encode_selected_plan_v6,
+    },
 };
+
+#[cfg(test)]
+use super::selected::encode_selected_plan_v5;
 
 pub(super) struct DecodedContent {
     pub(super) plan: FixedViewCopyPlan,
@@ -18,7 +24,7 @@ pub(super) struct DecodedContent {
     pub(super) transformed_payload_matches: bool,
 }
 
-fn encode_prefix(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+fn encode_prefix(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan, legacy_identity: bool) {
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
@@ -34,23 +40,33 @@ fn encode_prefix(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
     for copy in &plan.copies {
         encode_copy(bytes, copy);
     }
-    bytes.extend_from_slice(
-        &omega_target_operations_to_selected_instructions::selected_instruction_plan_identity(
+    let transformed = if legacy_identity {
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
             &plan.transformed,
         )
-        .bytes(),
-    );
+    } else {
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity(
+            &plan.transformed,
+        )
+    };
+    bytes.extend_from_slice(&transformed.bytes());
 }
 
 #[cfg(test)]
 pub(super) fn encode_v4(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(bytes, plan);
+    encode_prefix(bytes, plan, true);
     super::selected::encode_selected_plan_v4(bytes, &plan.transformed);
 }
 
+#[cfg(test)]
 pub(super) fn encode_v5(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
-    encode_prefix(bytes, plan);
+    encode_prefix(bytes, plan, true);
     encode_selected_plan_v5(bytes, &plan.transformed);
+}
+
+pub(super) fn encode_v6(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+    encode_prefix(bytes, plan, false);
+    encode_selected_plan_v6(bytes, &plan.transformed);
 }
 
 struct DecodedPrefix {
@@ -113,6 +129,14 @@ pub(super) fn decode_v5(
 ) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     let prefix = decode_prefix(cursor)?;
     let decoded = decode_selected_plan_v5(cursor)?;
+    finish(prefix, decoded.plan, decoded.payload_matches)
+}
+
+pub(super) fn decode_v6(
+    cursor: &mut Cursor<'_>,
+) -> Result<DecodedContent, FixedViewCopyDecodeError> {
+    let prefix = decode_prefix(cursor)?;
+    let decoded = decode_selected_plan_v6(cursor)?;
     finish(prefix, decoded.plan, decoded.payload_matches)
 }
 

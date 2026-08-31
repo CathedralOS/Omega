@@ -55,6 +55,15 @@ the entire program. Selected rules may fold exact incoming immediates or choose
 equivalent target forms, but must preserve operation, edge, trap, provenance,
 and fuel identities.
 
+Ordinary, Unit, structural-scalar, and structural-result calls retain their
+ordered requirement-obligation and crash-continuation rosters from Terminal
+projection through abstract, target, and temporary assigned operations. The
+structural Unit selected route carries the same rows through legalized V10 and
+selected V12 identities and independent replay. Machine emission consumes the
+semantic carrier but does not duplicate it into runtime effects or machine
+bytes; selected instruction identity and source-operation custody bind the last
+semantic boundary.
+
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common
 condition context and selects exactly one row from its adjacent seven-row
@@ -103,7 +112,7 @@ source-shape constraints, non-authoritative structural cost, and independent
 validator kind. `source/matchers/` walks that catalog to recognize a form;
 `replay/validators/` reconstructs membership without calling producer code.
 Removing a row disables the form, and missing or ambiguous recipe lookup fails
-closed. The Unit recipe families are retained in the V9 legalized-plan
+closed. The Unit recipe families are retained in the V10 legalized-plan
 identity. Structural selected-form validation separately reconstructs ABI
 layout and call constraints without importing selection construction helpers.
 
@@ -127,6 +136,13 @@ root and copy-constraint custody, work and budget replay, leaf-local or
 shared-entry policy reconstruction, and exact application/comparison. Its
 validated receipt therefore represents reconstructed copy insertion, not
 producer self-attestation.
+
+Its public artifact is V6. V4 remains decode-only and byte-pinned without a
+structural roster; V5 retains the structural roster but decodes call proof and
+crash rows as empty. V6 encodes those rows canonically through the shared
+Terminal crash-route codec, binds them in selected V12 and fixed-view V4
+semantic identities, and authenticates the complete payload in the outer
+envelope.
 
 The current transition-free, spill-free home stage is a deterministic
 constraint-graph allocator. Distinct use/definition ties form quotient

@@ -15,9 +15,9 @@ use psi_core::{
     OperationId, PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ByteSequenceCarrier, EntryClaim, ProviderCandidateConformance,
-    ProviderUnitRefinement, ProviderUnitSignature, SemanticFingerprint, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    BoundaryMachineDeclaration, ByteSequenceCarrier, CrashCause, CrashRouteBucket, CrashRouteGuard,
+    EntryClaim, ProviderCandidateConformance, ProviderUnitRefinement, ProviderUnitSignature,
+    SemanticFingerprint, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[test]
@@ -68,6 +68,50 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
 }
 
 #[test]
+fn call_identity_binds_requirement_and_crash_rosters_independently() {
+    let mut baseline =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::Call {
+        psi_operation: id(1, OperationId::new),
+        result: id(1, ValueId::new),
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        callee: id(2, MachineId::new),
+        arguments: Vec::new(),
+        requirement_obligations: vec![id(1, ObligationId::new)],
+        crash_continuations: vec![CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }],
+    };
+    baseline.identity = recompute_psi_optimization_unit_identity(&baseline);
+
+    let mut requirement_drift = baseline.clone();
+    let AbstractOperation::Call {
+        requirement_obligations,
+        ..
+    } = &mut requirement_drift.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    requirement_obligations[0] = id(2, ObligationId::new);
+    requirement_drift.identity = recompute_psi_optimization_unit_identity(&requirement_drift);
+    assert_ne!(baseline.identity, requirement_drift.identity);
+
+    let mut crash_drift = baseline.clone();
+    let AbstractOperation::Call {
+        crash_continuations,
+        ..
+    } = &mut crash_drift.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    crash_continuations[0].cause = CrashCause::Abort;
+    crash_drift.identity = recompute_psi_optimization_unit_identity(&crash_drift);
+    assert_ne!(baseline.identity, crash_drift.identity);
+}
+
+#[test]
 fn canonical_operation_identity_bytes_are_stable() {
     let scalar = reconstruct_psi_optimization_unit_seed(
         &plan(),
@@ -82,16 +126,16 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            179, 226, 48, 219, 48, 203, 191, 154, 226, 66, 236, 5, 237, 81, 33, 125, 7, 203,
-            136, 35, 69, 16, 142, 106, 166, 140, 56, 38, 196, 156, 179, 44,
+            131, 153, 80, 214, 161, 245, 68, 97, 64, 197, 125, 106, 187, 155, 218, 54, 109, 166,
+            195, 182, 199, 122, 24, 102, 67, 49, 44, 81, 88, 138, 97, 183,
         ],
         "integer-constant and scalar-return operation tags and fields are stable",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            228, 250, 12, 7, 164, 92, 154, 250, 81, 83, 112, 231, 145, 242, 107, 109, 169, 14,
-            231, 108, 238, 14, 152, 4, 222, 41, 246, 56, 145, 69, 207, 25,
+            219, 159, 65, 192, 30, 216, 49, 35, 87, 153, 132, 6, 200, 125, 74, 50, 125, 83, 61, 73,
+            14, 61, 180, 224, 34, 64, 129, 197, 75, 238, 111, 147,
         ],
         "write-only structural storage and unit-return operation tags and fields are stable",
     );

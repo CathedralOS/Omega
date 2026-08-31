@@ -4521,6 +4521,7 @@ fn wide_flat_nominal_affine_cleanup_executes_and_is_installed_on_all_targets() {
                 callee,
                 structural_arguments,
                 claim_transfers,
+                ..
             } => {
                 assert!(structural_arguments.is_empty());
                 assert!(claim_transfers.is_empty());

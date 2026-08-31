@@ -1,6 +1,6 @@
 use omega_calling_conventions::ValuePlacement;
 use psi_core::{ClaimId, EdgeId, IntegerType, OperationId, PlaceId, StructuralFieldId, ValueId};
-use psi_terminal::{CrashCause, CrashPredicateTerm};
+use psi_terminal::{CrashCause, CrashPredicateTerm, CrashRouteBucket};
 
 use crate::{
     AssignedCallArgument, AssignedIntegerExpression, AssignedScalarLocation, ExpressionFrame,
@@ -13,6 +13,8 @@ pub enum AssignedBooleanExpression {
         source_value: ValueId,
         callee: psi_core::MachineId,
         arguments: Vec<AssignedCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     Immediate {
         source_value: ValueId,

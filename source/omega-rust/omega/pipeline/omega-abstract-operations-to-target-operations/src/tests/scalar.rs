@@ -78,10 +78,24 @@ fn direct_calls_retain_stack_locations_from_the_callee_call_plan() {
         else {
             panic!("caller must return its call result")
         };
-        let TargetIntegerExpression::Call { arguments, .. } = expression else {
+        let TargetIntegerExpression::Call {
+            arguments,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } = expression
+        else {
             panic!("caller result must remain a direct call")
         };
         assert_eq!(arguments[8].location, expected);
+        assert_eq!(requirement_obligations, &[ObligationId::new(700).unwrap()]);
+        assert_eq!(
+            crash_continuations,
+            &[CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Truth],
+            }]
+        );
     }
 }
 
@@ -733,6 +747,11 @@ fn direct_call_plan(parameter_count: usize) -> AbstractOperationPlan {
                             .iter()
                             .map(|parameter| parameter.value)
                             .collect(),
+                        requirement_obligations: vec![ObligationId::new(700).unwrap()],
+                        crash_continuations: vec![CrashRouteBucket {
+                            cause: CrashCause::Trap,
+                            alternatives: vec![CrashRouteGuard::Truth],
+                        }],
                     },
                     AbstractOperation::Return {
                         psi_edge: EdgeId::new(1).expect("caller return"),

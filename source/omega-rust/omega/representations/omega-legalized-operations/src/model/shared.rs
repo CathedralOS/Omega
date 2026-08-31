@@ -16,7 +16,7 @@ pub(super) use psi_core::{
     ObligationId, OperationId, ServiceId, ValueId,
 };
 pub(super) use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, EntryClaim, ProviderCandidateConformance, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashRouteBucket, EntryClaim, ProviderCandidateConformance,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, TerminalPsiIdentity,
 };

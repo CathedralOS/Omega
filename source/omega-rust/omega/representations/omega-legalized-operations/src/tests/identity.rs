@@ -131,6 +131,23 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
     assert_identity_drift(identity, &corrupted);
 
     let mut corrupted = plan.clone();
+    corrupted.structural_unit_functions[0]
+        .call
+        .as_mut()
+        .expect("call")
+        .requirement_obligations[0] = psi_core::ObligationId::new(2).unwrap();
+    assert_identity_drift(identity, &corrupted);
+
+    let mut corrupted = plan.clone();
+    corrupted.structural_unit_functions[0]
+        .call
+        .as_mut()
+        .expect("call")
+        .crash_continuations[0]
+        .cause = psi_terminal::CrashCause::Abort;
+    assert_identity_drift(identity, &corrupted);
+
+    let mut corrupted = plan.clone();
     let OwnershipEvent::ClaimTransfer(claims) = &mut corrupted.structural_unit_functions[0]
         .call
         .as_mut()

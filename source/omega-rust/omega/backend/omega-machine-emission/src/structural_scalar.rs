@@ -22,6 +22,8 @@ pub(super) fn emit(
         structural_parameters,
         copies,
         claim_transfers,
+        requirement_obligations,
+        crash_continuations,
         ..
     } = operation
     else {
@@ -39,6 +41,8 @@ pub(super) fn emit(
                     result: Some(*scalar_type),
                     copies: copies.clone(),
                     claim_transfers: claim_transfers.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    crash_continuations: crash_continuations.clone(),
                 },
                 AssignedUnitOperation::Return {
                     psi_edge: *psi_edge,

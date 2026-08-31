@@ -6,6 +6,7 @@ use super::structural_types::*;
 pub(super) fn encode_structural_unit_function(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralUnitFunction,
+    retain_call_contract: bool,
 ) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_id(
@@ -75,6 +76,17 @@ pub(super) fn encode_structural_unit_function(
             for transfer in &call.claim_transfers {
                 bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
                 bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
+            }
+            if retain_call_contract {
+                encode_ids(
+                    bytes,
+                    call.requirement_obligations.iter().map(|value| value.get()),
+                );
+                let crash_routes =
+                    psi_terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
+                        .expect("verified legalized call crash continuations remain canonical");
+                encode_len(bytes, crash_routes.len());
+                bytes.extend_from_slice(&crash_routes);
             }
             encode_fuel(bytes, &call.fuel);
             encode_effect(bytes, call.effect);

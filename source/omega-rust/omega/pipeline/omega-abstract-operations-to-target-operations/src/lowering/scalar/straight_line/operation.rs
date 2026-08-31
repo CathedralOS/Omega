@@ -62,25 +62,8 @@ pub(super) fn lower_operation(
                 function.machine,
             ));
         }
-        AbstractOperation::Call {
-            psi_operation,
-            result,
-            scalar_type,
-            callee,
-            arguments,
-        } => {
-            let value = lower_call(
-                *psi_operation,
-                *result,
-                *scalar_type,
-                *callee,
-                arguments,
-                &values,
-                target,
-                functions,
-            )?;
-            insert_value(&mut values, *result, value)?;
-            provenance.operations.push(*psi_operation);
+        AbstractOperation::Call { .. } => {
+            call::lower(operation, target, functions, values, provenance)?
         }
         AbstractOperation::IntegerConstant {
             psi_operation,

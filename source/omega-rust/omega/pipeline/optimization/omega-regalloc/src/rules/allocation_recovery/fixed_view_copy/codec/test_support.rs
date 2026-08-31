@@ -1,0 +1,30 @@
+//! Legacy artifact encoders used only to pin decode compatibility.
+
+use crate::FixedViewCopyPlan;
+
+use super::{LEGACY_V4_VERSION, LEGACY_V5_VERSION, MAGIC, content, envelope::v5_identity};
+use crate::rules::allocation_recovery::fixed_view_copy::identity::fixed_view_copy_identity_v3_legacy;
+
+pub(super) fn encode_v4(plan: &FixedViewCopyPlan) -> Vec<u8> {
+    assert!(
+        plan.transformed.structural_unit_functions.is_empty(),
+        "the legacy V4 selected payload cannot represent structural Unit functions"
+    );
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(MAGIC);
+    encoded.extend_from_slice(&LEGACY_V4_VERSION.to_le_bytes());
+    encoded.extend_from_slice(&fixed_view_copy_identity_v3_legacy(plan).bytes());
+    content::encode_v4(&mut encoded, plan);
+    encoded
+}
+
+pub(super) fn encode_v5(plan: &FixedViewCopyPlan) -> Vec<u8> {
+    let mut content = Vec::new();
+    content::encode_v5(&mut content, plan);
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(MAGIC);
+    encoded.extend_from_slice(&LEGACY_V5_VERSION.to_le_bytes());
+    encoded.extend_from_slice(&v5_identity(plan, &content));
+    encoded.extend_from_slice(&content);
+    encoded
+}

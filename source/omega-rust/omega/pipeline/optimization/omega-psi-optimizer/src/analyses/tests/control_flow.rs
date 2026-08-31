@@ -118,6 +118,8 @@ fn call_graph_marks_mutual_recursion() {
             callee: second.machine,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         }),
     );
     second.blocks[0].nodes.insert(
@@ -127,6 +129,8 @@ fn call_graph_marks_mutual_recursion() {
             callee: first.machine,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         }),
     );
     let unit = unit(vec![first, second], b"calls");

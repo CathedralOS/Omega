@@ -7,14 +7,14 @@ use omega_abstract_operations::{
 use omega_optimization_unit::PsiOptimizationUnit;
 use omega_target_operations::TargetOperationPlan;
 use psi_core::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, MachineId, OperationId, PlaceId,
-    ScalarType, StructuralFieldId, StructuralTypeId,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, MachineId, ObligationId, OperationId,
+    PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
 };
 use psi_terminal::{
-    BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralArgument,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalPsiIdentity, VocabularyMarker,
+    BindingRelevance, CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 use std::sync::Arc;
 
@@ -106,6 +106,11 @@ pub(in crate::tests) fn structural_call_fixture() -> (
                             })
                             .collect(),
                         claim_transfers: Vec::new(),
+                        requirement_obligations: vec![ObligationId::new(1).unwrap()],
+                        crash_continuations: vec![CrashRouteBucket {
+                            cause: CrashCause::Trap,
+                            alternatives: vec![CrashRouteGuard::Truth],
+                        }],
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: caller_return,

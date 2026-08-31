@@ -42,11 +42,15 @@ pub(super) fn assign_expression(
             source_value,
             callee,
             arguments,
+            requirement_obligations,
+            crash_continuations,
         } => Ok(AssignedIntegerExpression::Call {
             psi_operation: *psi_operation,
             source_value: *source_value,
             callee: *callee,
             arguments: assign_call_arguments(arguments, locations, architecture, next_spill)?,
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
         }),
         TargetIntegerExpression::Immediate {
             source_value,

@@ -8,6 +8,8 @@ pub(super) fn assign(
     call_plan: &omega_calling_conventions::CallPlan,
     result: omega_target_operations::TargetUnitScalarHomeRequirement,
     arguments: &[omega_target_operations::TargetUnitScalarCallArgument],
+    requirement_obligations: &[psi_core::ObligationId],
+    crash_continuations: &[psi_terminal::CrashRouteBucket],
     preceding_operations: &[TargetUnitOperation],
     target: NativeTarget,
     assigned_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
@@ -176,6 +178,8 @@ pub(super) fn assign(
         call_plan: call_plan.clone(),
         result_home,
         arguments: assigned_arguments,
+        requirement_obligations: requirement_obligations.to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
     })
 }
 

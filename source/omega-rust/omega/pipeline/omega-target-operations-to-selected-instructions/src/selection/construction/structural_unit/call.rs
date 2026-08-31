@@ -69,6 +69,8 @@ pub(super) fn build(
                     })
                     .collect(),
                 claim_transfers: call.claim_transfers.clone(),
+                requirement_obligations: call.requirement_obligations.clone(),
+                crash_continuations: call.crash_continuations.clone(),
                 layout,
                 constraint: row.key,
                 implicit_uses: row.implicit_uses.clone(),

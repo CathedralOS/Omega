@@ -196,6 +196,8 @@ pub(super) fn validate_structural_unit_function(
                 || selected_call.callee_call_plan != callee.call_plan
                 || !arguments_match
                 || selected_call.claim_transfers != source_call.claim_transfers
+                || selected_call.requirement_obligations != source_call.requirement_obligations
+                || selected_call.crash_continuations != source_call.crash_continuations
                 || selected_call.layout != layout
                 || selected_call.constraint != row.key
                 || selected_call.implicit_uses != row.implicit_uses

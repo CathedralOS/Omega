@@ -228,12 +228,16 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             scalar_type: dummy_result.scalar_type,
             callee,
             arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
         AbstractOperation::CallUnit {
             psi_operation: id(710, OperationId::new),
             callee,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
         AbstractOperation::CallStructuralScalar {
             psi_operation: id(711, OperationId::new),
@@ -241,6 +245,8 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             callee,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
         AbstractOperation::CallStructural {
             psi_operation: id(712, OperationId::new),
@@ -490,12 +496,16 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             scalar_type: ScalarType::Boolean,
             callee,
             arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
         AbstractOperation::CallUnit {
             psi_operation: id(723, OperationId::new),
             callee,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
         AbstractOperation::CallStructuralScalar {
             psi_operation: id(724, OperationId::new),
@@ -506,6 +516,8 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             callee,
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
         AbstractOperation::CallStructural {
             psi_operation: id(726, OperationId::new),

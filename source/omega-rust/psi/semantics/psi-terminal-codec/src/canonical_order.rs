@@ -559,7 +559,7 @@ fn validate_parameter_order(
     Ok(())
 }
 
-fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
+pub(super) fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
     !routes.windows(2).any(|pair| pair[0].cause >= pair[1].cause)
         && routes.iter().all(|bucket| {
             !bucket.alternatives.is_empty()
@@ -572,7 +572,9 @@ fn crash_routes_are_canonical(routes: &[CrashRouteBucket]) -> bool {
         })
 }
 
-fn validate_crash_route_predicates(routes: &[CrashRouteBucket]) -> Result<(), CodecError> {
+pub(super) fn validate_crash_route_predicates(
+    routes: &[CrashRouteBucket],
+) -> Result<(), CodecError> {
     for predicate in routes
         .iter()
         .flat_map(|bucket| &bucket.alternatives)

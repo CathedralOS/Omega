@@ -8,10 +8,10 @@ use psi_core::{
     ScalarType, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, CrashRouteBucket,
+    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 use crate::{
@@ -35,6 +35,8 @@ pub enum AssignedOperation {
         structural_parameters: Vec<TargetStructuralParameter>,
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     ReturnStructuralCall {
         psi_edge: EdgeId,
@@ -50,6 +52,8 @@ pub enum AssignedOperation {
         claim_transfers: Vec<ClaimTransfer>,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         returned_claims: Vec<ClaimId>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     ScalarReturnWithCleanup {
         scalar: Box<AssignedOperation>,

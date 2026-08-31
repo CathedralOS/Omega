@@ -35,7 +35,9 @@ pub(in crate::lowering) fn lower_direct_return(
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
-            ..
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence: _,
         },
         AbstractOperation::ReturnStructural {
             psi_edge,
@@ -229,6 +231,8 @@ pub(in crate::lowering) fn lower_direct_return(
             claim_transfers: claim_transfers.clone(),
             returned_claim_transfers: returned_claim_transfers.clone(),
             returned_claims: returned_claims.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
         },
     }))
 }

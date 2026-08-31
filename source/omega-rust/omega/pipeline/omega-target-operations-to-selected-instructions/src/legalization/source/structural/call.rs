@@ -19,6 +19,8 @@ pub(crate) fn derive_structural_call(
         structural_arguments,
         target_arguments,
         claim_transfers,
+        requirement_obligations,
+        crash_continuations,
         source,
         expected_ownership,
     ) = match (target_call, abstract_call) {
@@ -28,16 +30,22 @@ pub(crate) fn derive_structural_call(
                 callee: target_callee,
                 arguments: target_arguments,
                 claim_transfers: target_transfers,
+                requirement_obligations: target_requirements,
+                crash_continuations: target_crash_continuations,
             },
             AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
                 structural_arguments,
                 claim_transfers,
+                requirement_obligations,
+                crash_continuations,
             },
         ) if target_operation == psi_operation
             && target_callee == callee
-            && target_transfers == claim_transfers =>
+            && target_transfers == claim_transfers
+            && target_requirements == requirement_obligations
+            && target_crash_continuations == crash_continuations =>
         {
             (
                 *psi_operation,
@@ -45,6 +53,8 @@ pub(crate) fn derive_structural_call(
                 structural_arguments,
                 target_arguments,
                 claim_transfers,
+                requirement_obligations.as_slice(),
+                crash_continuations.as_slice(),
                 omega_legalized_operations::LegalizedCallUnitSource::AuthoredCallUnit,
                 OwnershipEvent::ClaimTransfer(
                     claim_transfers
@@ -100,6 +110,8 @@ pub(crate) fn derive_structural_call(
                 structural_arguments,
                 target_arguments,
                 target_transfers,
+                &[] as &[psi_core::ObligationId],
+                &[] as &[psi_terminal::CrashRouteBucket],
                 omega_legalized_operations::LegalizedCallUnitSource::InstalledProvider {
                     boundary: *boundary,
                     provider: provider.clone(),
@@ -169,7 +181,9 @@ pub(crate) fn derive_structural_call(
         operation: psi_operation,
         callee,
         arguments,
-        claim_transfers: claim_transfers.clone(),
+        claim_transfers: claim_transfers.to_vec(),
+        requirement_obligations: requirement_obligations.to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
         fuel: optimized_call.fuel.clone(),
         effect: optimized_call.effect,
         ownership: optimized_call.ownership.clone(),

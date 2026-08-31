@@ -28,6 +28,8 @@ pub(super) fn emit(
         claim_transfers,
         returned_claim_transfers,
         returned_claims,
+        requirement_obligations,
+        crash_continuations,
     } = operation
     else {
         unreachable!("structural-result emission receives its exact carrier")
@@ -72,6 +74,8 @@ pub(super) fn emit(
                     result: None,
                     copies: copies.clone(),
                     claim_transfers: claim_transfers.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    crash_continuations: crash_continuations.clone(),
                 },
                 AssignedUnitOperation::Return {
                     psi_edge: *psi_edge,

@@ -24,7 +24,19 @@ use crate::rules::allocation_recovery::fixed_view_copy::codec::{
     values::{decode_constraint_key, encode_constraint_key},
 };
 
-pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &SelectedStructuralUnitCallInstruction) {
+pub(super) fn encode_call_v5(bytes: &mut Vec<u8>, call: &SelectedStructuralUnitCallInstruction) {
+    encode_call(bytes, call, false);
+}
+
+pub(super) fn encode_call_v6(bytes: &mut Vec<u8>, call: &SelectedStructuralUnitCallInstruction) {
+    encode_call(bytes, call, true);
+}
+
+fn encode_call(
+    bytes: &mut Vec<u8>,
+    call: &SelectedStructuralUnitCallInstruction,
+    retain_contract: bool,
+) {
     bytes.extend_from_slice(&call.id.0.to_le_bytes());
     encode_call_source(bytes, &call.source);
     bytes.extend_from_slice(&call.operation.get().to_le_bytes());
@@ -40,6 +52,17 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &SelectedStructuralUnitCall
         bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
         bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
     }
+    if retain_contract {
+        length(bytes, call.requirement_obligations.len());
+        for obligation in &call.requirement_obligations {
+            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+        }
+        let crash_continuations =
+            psi_terminal_codec::encode_crash_route_buckets(&call.crash_continuations)
+                .expect("verified selected call crash continuations remain canonical");
+        length(bytes, crash_continuations.len());
+        bytes.extend_from_slice(&crash_continuations);
+    }
     encode_layout(bytes, call.layout);
     encode_constraint_key(bytes, call.constraint);
     encode_u16s(bytes, call.implicit_uses.iter().map(|unit| unit.0));
@@ -50,8 +73,21 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, call: &SelectedStructuralUnitCall
     encode_ownership(bytes, &call.ownership);
 }
 
-pub(super) fn decode_call(
+pub(super) fn decode_call_v5(
     cursor: &mut Cursor<'_>,
+) -> Result<SelectedStructuralUnitCallInstruction, FixedViewCopyDecodeError> {
+    decode_call(cursor, false)
+}
+
+pub(super) fn decode_call_v6(
+    cursor: &mut Cursor<'_>,
+) -> Result<SelectedStructuralUnitCallInstruction, FixedViewCopyDecodeError> {
+    decode_call(cursor, true)
+}
+
+fn decode_call(
+    cursor: &mut Cursor<'_>,
+    retain_contract: bool,
 ) -> Result<SelectedStructuralUnitCallInstruction, FixedViewCopyDecodeError> {
     let id = SelectedInstructionId(cursor.u32()?);
     let source = decode_call_source(cursor)?;
@@ -72,6 +108,20 @@ pub(super) fn decode_call(
             argument_index: cursor.u32()?,
         });
     }
+    let (requirement_obligations, crash_continuations) = if retain_contract {
+        let requirement_count = cursor.length()?;
+        let mut requirements = Vec::with_capacity(requirement_count.min(cursor.remaining()));
+        for _ in 0..requirement_count {
+            requirements.push(decode_id(cursor, psi_core::ObligationId::new)?);
+        }
+        let crash_length = cursor.length()?;
+        let crash_continuations =
+            psi_terminal_codec::decode_crash_route_buckets(cursor.take(crash_length)?)
+                .map_err(|_| FixedViewCopyDecodeError::InvalidCrashContinuations)?;
+        (requirements, crash_continuations)
+    } else {
+        (Vec::new(), Vec::new())
+    };
     Ok(SelectedStructuralUnitCallInstruction {
         id,
         source,
@@ -81,6 +131,8 @@ pub(super) fn decode_call(
         callee_call_plan,
         arguments,
         claim_transfers,
+        requirement_obligations,
+        crash_continuations,
         layout: decode_layout(cursor)?,
         constraint: decode_constraint_key(cursor)?,
         implicit_uses: decode_u16s(cursor)?

@@ -112,6 +112,8 @@ fn scalar_transport_plan() -> TargetOperationPlan {
                                 },
                                 placement: call_plan.parameters[0].clone(),
                             }],
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
                         },
                         TargetUnitOperation::Return {
                             psi_edge: EdgeId::new(1).expect("caller return"),
