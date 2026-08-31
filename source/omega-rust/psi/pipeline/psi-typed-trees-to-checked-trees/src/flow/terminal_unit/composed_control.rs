@@ -3,6 +3,7 @@
 use super::*;
 
 mod assembly;
+mod custody;
 mod guards;
 mod leaves;
 mod topology;

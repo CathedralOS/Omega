@@ -1761,12 +1761,12 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
         (
             typed.join("composed_control.rs"),
             30,
-            &["assembly", "guards", "leaves", "topology"][..],
+            &["assembly", "custody", "guards", "leaves", "topology"][..],
         ),
         (
             terminal.join("composed_control.rs"),
             30,
-            &["admission", "catalogs", "emission"][..],
+            &["admission", "catalogs", "custody", "emission"][..],
         ),
     ] {
         let source = std::fs::read_to_string(&entrance)
@@ -1787,6 +1787,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
         }
     }
     assert!(typed.join("providers.rs").is_file());
+    assert!(terminal.join("claims.rs").is_file());
     assert!(terminal.join("provider_attachments.rs").is_file());
 }
 

@@ -5,6 +5,7 @@ use psi_checked_trees::{
 
 mod calls;
 mod cleanup;
+mod composed_claims;
 mod returns;
 mod shared_convergence;
 

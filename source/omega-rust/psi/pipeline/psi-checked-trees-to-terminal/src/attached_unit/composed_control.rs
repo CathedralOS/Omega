@@ -7,6 +7,7 @@ use super::*;
 
 mod admission;
 mod catalogs;
+mod custody;
 mod emission;
 
 use admission::admit_composed_unit_control;

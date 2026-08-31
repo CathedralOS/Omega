@@ -8,6 +8,7 @@ use super::*;
 
 mod call_closure;
 mod catalog;
+mod claims;
 mod composed_control;
 mod parameters;
 mod provider_attachments;
@@ -32,6 +33,7 @@ use catalog::{
     lower_unit_services, lower_unit_structural_domains, lower_unit_structural_types,
     require_valid_service_row,
 };
+use claims::lower_unit_entry_claims;
 pub(super) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(super) use parameters::lower_contract_service_ceiling;
@@ -483,50 +485,12 @@ pub(super) fn lower_attached_unit_closure_including(
             &domain_ids,
             &mut next_place,
         )?;
-        let mut claims = Vec::with_capacity(plan.entry_claims.len());
-        let mut claim_bindings = Vec::with_capacity(plan.entry_claims.len());
         // ClaimId is machine-local; unrelated closure members must not shift
         // this machine's canonical claim namespace.
-        let mut next_claim = 1_u64;
-        for claim in &plan.entry_claims {
-            if claim.carry != CarryPolicy::STRICT {
-                return unsupported("Unit entry claim has a non-default carry policy");
-            }
-            let parameter = parameters
-                .get(usize::try_from(claim.parameter_index).map_err(|_| {
-                    LoweringError::Unsupported("Unit entry claim parameter index exceeds usize")
-                })?)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit entry claim has an invalid parameter index",
-                ))?;
-            let PermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source: psi_language_semantics::PermissionEventSource::StateEntry,
-                ..
-            } = claim.claim_identity
-            else {
-                return unsupported("Unit entry claim is not an exact checked state-entry claim");
-            };
-            if machine_symbol != plan.machine || state_symbol != plan.state {
-                return unsupported("Unit entry claim belongs to another checked state");
-            }
-            if claim_bindings
-                .iter()
-                .any(|(identity, _)| *identity == claim.claim_identity)
-            {
-                return unsupported("Unit entry claim identity is duplicated");
-            }
-            let id = claim_id(allocate_dense(&mut next_claim)?);
-            claims.push(EntryClaim {
-                claim: id,
-                input: parameter.place,
-                path: lower_structural_path(&claim.path),
-            });
-            claim_bindings.push((claim.claim_identity, id));
-        }
+        let claims =
+            lower_unit_entry_claims(plan.machine, plan.state, &plan.entry_claims, &parameters)?;
         lowered_machine_parameters.push((*machine_symbol, parameters));
-        lowered_claims.push((*machine_symbol, claims, claim_bindings));
+        lowered_claims.push((*machine_symbol, claims.entry_claims, claims.source_claims));
     }
 
     let lowered_machine_runtime_requirements = closure

@@ -88,6 +88,16 @@ owns no optimization selection, catalog, proposal, or optimized stage result.
 Image publication needs one coherent publication architecture boundary; one
 special-case lane is not an optimizer root.
 
+The prerequisite composed-Unit carrier follows the same navigational shape.
+Its typed-to-checked `composed_control.rs` entrance coordinates `topology`,
+`custody`, `guards`, `leaves`, and `assembly`; its checked-to-Terminal entrance
+coordinates `admission`, independent `custody` replay, `catalogs`, and
+`emission`. Shared state-entry claim construction lives at the honest
+`attached_unit/claims.rs` ancestor rather than in either control-flow route.
+Focused source and replay tests live in `composed_claims.rs` and
+`composed_unit_claims.rs`, so extending the carrier does not grow the legacy
+call or structural-control matrices.
+
 ## Rule-owning stage entrances
 
 One stage entrance consumes selections. One adjacent catalog owns exact
