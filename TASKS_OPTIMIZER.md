@@ -29,10 +29,10 @@ decision. Only true language-semantic questions belong in
    scalar-call Terminal-byte golden, and its exact published fingerprint are
    repaired for Terminal format 42/vocabulary 45; the complete 128-test source
    and four-test call native-differential suites are green. The broader
-   no-fail-fast audit next needs the stale compact-identity and top-level-target
-   architecture inventories repaired, the 537-line projection leaf classified
-   against its 525-line ratchet, and the access-plan/build-output canaries
-   isolated from the recent provider-application changes.
+   no-fail-fast audit's stale compact-identity and generated-target inventories
+   are repaired, and the 537-line package-review projection leaf now has a
+   semantic taxonomy below its ratchet. The access-plan, build-output, and
+   source-custody canaries still need isolation from recent provider changes.
 
 ## P0 — Source navigation and taxonomy
 
@@ -144,8 +144,14 @@ decision. Only true language-semantic questions belong in
   leaf is 322 lines. Exact policies, obligations that the abstract model can
   carry, diagnostics, structural declaration order, and output order are
   unchanged.
+- [x] Replace the 726-line post-allocation construction leaf with a 76-line
+  plan-assembly coordinator over root custody, ordinary functions, structural-
+  Unit functions, physical operand construction, exact alternative selection,
+  and focused fixtures. Its largest leaf is 151 lines; the public
+  `post_allocation/mod.rs` remains the sole producer-to-validator entrance and
+  no rule catalog or execution boundary was duplicated.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 18 remain at 600-749
+  has no production-classified leaves at 750+ lines; 17 remain at 600-749
   lines.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,

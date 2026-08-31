@@ -212,6 +212,13 @@ does not yet fully satisfy this contract.
   plans, and the candidate contract. Its largest leaf is 169 lines; candidate
   construction remains at its separate executable entrance, and neutral
   canonical writers prevent the model from depending on its candidate codec.
+- Post-allocation machine-plan construction now has a 76-line coordinator that
+  admits the complete identity-root set, constructs ordinary and structural-
+  Unit functions through separate leaves, and performs the sole final plan
+  assembly and identity assignment. Physical operand footprints and exact
+  alternative applicability have their own leaves; focused fixtures mirror
+  alternative selection. The existing `post_allocation/mod.rs` remains the
+  only executable producer-to-independent-validator entrance.
 - Optimization-unit seed reconstruction now has a 67-line plan/function/
   identity entrance over ordered function assembly, provenance, scalar
   dataflow, control flow, facts, and structural custody. Its largest leaf is
@@ -237,7 +244,7 @@ does not yet fully satisfy this contract.
   constants/relations, conversion, bitwise, shift, and arithmetic leaves. The
   router performs the sole abstract-operation append, so every routed Terminal
   operation yields exactly one output. Its largest leaf is 322 lines.
-- No production-classified leaf remains at 750+ lines; 18 governed production
+- No production-classified leaf remains at 750+ lines; 17 governed production
   leaves remain at 600-749 lines.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
