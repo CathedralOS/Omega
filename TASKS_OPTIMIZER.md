@@ -41,6 +41,9 @@ decision. Only true language-semantic questions belong in
    vocabulary 46 provider, codec-ledger, publication, and image-fingerprint
    canaries green. The reviewed no-selection goldens changed only semantic and
    proof sections; object and image bytes stayed identical on all four targets.
+   The native differential admitted-provider test now consumes the current
+   tagged boundary-execution carrier and is green 1/1, so it no longer blocks
+   compilation of the remaining workspace gate.
    The same audit still classifies the broad 1,258-case language canary at 114
    passes / 1,144 native-production closure failures, predominantly missing
    checked transitive machine plans or exact selected program entries, with a
