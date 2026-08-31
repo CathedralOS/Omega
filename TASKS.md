@@ -3824,7 +3824,9 @@ Remaining:
   a deployment-scoped admission rather than contaminating the reusable artifact
   seal. Render every verdict with source/artifact subjects, semantics versions,
   profile, and disclosed artifact/deployment admissions; never emit an
-  unqualified `verified` label.
+  unqualified `verified` label. The first canonical Terminal profile schema and
+  its compiler-versus-deployment partition require owner Q6; do not substitute
+  an opaque hash of current Rust verifier inputs for that semantic ruling.
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace the current trusted Rust fusion of
   artifact traversal and algebraic reduction with the settled two-part closure.
   A total low-rung generator consumes canonical terminal-Psi bytes, validates
