@@ -113,7 +113,10 @@ decision. Only true language-semantic questions belong in
    provenance accounting lives with phi translation, and all three traversal
    families name their dependencies directly. The local obligation-free rule
    consumes the shared effect query instead of duplicating it, and a
-   family-wide guard rejects regression.
+   family-wide guard rejects regression. SCCP Boolean-result constant
+   evaluation now descends through five exact rule entrances over separate
+   model, typed-evaluation, and proposal leaves; the remaining integer
+   constant-evaluation identities still need the same exact-rule treatment.
 
 ## P0 — Source navigation and taxonomy
 
@@ -320,6 +323,11 @@ decision. Only true language-semantic questions belong in
   interval evaluation mechanics sit at the nearest evidence-family ancestor,
   the 39-row pass roster is unchanged, and mirrored tests descend by evidence
   family and catalog custody.
+- [x] Replace SCCP's mixed 246-line Boolean-result constant-evaluation leaf
+  with five exact executable entrances over a stage-group map, closed kind
+  model, typed evaluation, and proposal assembly. The 39-row pass roster and
+  canonical identities are unchanged; mirrored tests separate Boolean and
+  integer results and pin Boolean-rule catalog positions 25-29.
 
 ## P1 — Opt-in, catalogs, and compatibility firewall
 

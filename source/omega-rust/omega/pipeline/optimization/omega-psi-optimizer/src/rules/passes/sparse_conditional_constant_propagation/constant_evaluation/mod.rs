@@ -19,7 +19,7 @@ use omega_optimization_core::{
 
 use crate::rules::passes::SCCP_PASS_NAME;
 
-fn integer_evaluation_contract(
+fn constant_evaluation_contract(
     rule_name: &[u8],
     safety_class: OptimizationSafetyClass,
 ) -> OptimizationRuleContract {

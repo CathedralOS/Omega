@@ -78,6 +78,26 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/boolean_not_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/boolean_equal_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_equal_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_less_than_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/integer_less_or_equal_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_equal_range_constant/mod.rs",
         coordination_marker: "fn propose(",
     },

@@ -51,5 +51,5 @@ fn binary_contract(
     rule_name: &[u8],
     safety: omega_optimization_core::OptimizationSafetyClass,
 ) -> omega_optimization_core::OptimizationRuleContract {
-    super::super::integer_evaluation_contract(rule_name, safety)
+    super::super::constant_evaluation_contract(rule_name, safety)
 }
