@@ -1,0 +1,272 @@
+//! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
+
+use psi_checked_trees::{
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+};
+
+use crate::attached_unit::lower_attached_unit_closure;
+use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
+use crate::payloadless_case_return::lower_payloadless_case_return_machine;
+use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
+use crate::scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
+use crate::scalar_graph_lowering::lower_scalar_graph_machine;
+use crate::structural_call_return::lower_structural_call_return_machine;
+use crate::structural_return::lower_structural_return_machine;
+use crate::structural_scalar_return::{
+    lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
+};
+use crate::structural_unit_control::lower_structural_unit_control_machine;
+use crate::unit_cleanup::{
+    lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
+};
+use crate::{LoweredTerminalPsi, LoweringError};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SelectedMachineRoute {
+    GuardedPayloadlessCallReturn {
+        target_machine: psi_symbols::SymbolHandle,
+    },
+    TraitOperatorScalarReturn {
+        realization_machine: psi_symbols::SymbolHandle,
+    },
+    StructuralScalarReturn,
+    NominalAffineUnitCleanup,
+    PartialAffineUnitCleanup,
+    BoundaryScalarReturn,
+    StructuralCallReturn,
+    PayloadlessCaseReturn,
+    StructuralReturn,
+    StructuralUnitControl,
+    AttachedUnit,
+    ScalarGraph,
+}
+
+pub(super) struct LoweredSelectedMachine {
+    pub(super) terminal: LoweredTerminalPsi,
+    pub(super) route: SelectedMachineRoute,
+}
+
+pub(super) fn select_terminal_machine<'checked>(
+    checked: &'checked CheckedTrees,
+    machine_name: &str,
+) -> Result<&'checked CheckedTerminalMachineSelection, LoweringError> {
+    let mut matches = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|machine| machine.name == machine_name);
+    let selection = matches
+        .next()
+        .ok_or_else(|| LoweringError::MachineNotFound(machine_name.to_owned()))?;
+    if matches.next().is_some() {
+        return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
+    }
+    Ok(selection)
+}
+
+fn routed_machine(
+    terminal: Result<LoweredTerminalPsi, LoweringError>,
+    route: SelectedMachineRoute,
+) -> Result<LoweredSelectedMachine, LoweringError> {
+    Ok(LoweredSelectedMachine {
+        terminal: terminal?,
+        route,
+    })
+}
+
+fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
+    Err(LoweringError::Unsupported(message))
+}
+
+pub(super) fn lower_selected_machine(
+    checked: &CheckedTrees,
+    selection: &CheckedTerminalMachineSelection,
+) -> Result<LoweredSelectedMachine, LoweringError> {
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("guarded payloadless call return requires an attached signature");
+        }
+        return routed_machine(
+            lower_payloadless_guarded_call_return_machine(checked, plan),
+            SelectedMachineRoute::GuardedPayloadlessCallReturn {
+                target_machine: plan.target_machine,
+            },
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .trait_operator_for_machine(selection.machine)
+    {
+        return routed_machine(
+            lower_trait_operator_scalar_return_machine(checked, plan),
+            SelectedMachineRoute::TraitOperatorScalarReturn {
+                realization_machine: plan.realization_machine,
+            },
+        );
+    }
+    // A result-bearing structural plan owns both the scalar result and its
+    // post-result cleanup. It must win over overlapping Unit-only cleanup.
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural scalar return plan requires an attached signature");
+        }
+        return routed_machine(
+            lower_structural_scalar_return_machine(checked, plan),
+            SelectedMachineRoute::StructuralScalarReturn,
+        );
+    }
+    let mut nominal_matches = checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+        .iter()
+        .filter(|plan| plan.machine.machine == selection.machine);
+    if let Some(plan) = nominal_matches.next() {
+        if nominal_matches.next().is_some() {
+            return unsupported("nominal affine Unit cleanup plan is duplicated");
+        }
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("nominal affine Unit cleanup requires an attached signature");
+        }
+        return routed_machine(
+            lower_nominal_affine_unit_cleanup_machine(checked, plan),
+            SelectedMachineRoute::NominalAffineUnitCleanup,
+        );
+    }
+    let mut partial_matches = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .machines
+        .iter()
+        .filter(|plan| plan.machine.machine == selection.machine);
+    if let Some(plan) = partial_matches.next() {
+        if partial_matches.next().is_some() {
+            return unsupported("partial affine Unit cleanup plan is duplicated");
+        }
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("partial affine Unit cleanup requires an attached signature");
+        }
+        return routed_machine(
+            lower_partial_affine_unit_cleanup_machine(checked, plan),
+            SelectedMachineRoute::PartialAffineUnitCleanup,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_boundary_scalar_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("result-bearing boundary custody requires an attached signature");
+        }
+        return routed_machine(
+            lower_boundary_scalar_return_machine(checked, plan),
+            SelectedMachineRoute::BoundaryScalarReturn,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural call result transfer requires an attached signature");
+        }
+        return routed_machine(
+            lower_structural_call_return_machine(checked, plan),
+            SelectedMachineRoute::StructuralCallReturn,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .payloadless_case_for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported(
+                "payloadless structural case return requires an attached signature",
+            );
+        }
+        return routed_machine(
+            lower_payloadless_case_return_machine(checked, plan),
+            SelectedMachineRoute::PayloadlessCaseReturn,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural result transfer requires an attached signature");
+        }
+        return routed_machine(
+            lower_structural_return_machine(checked, plan),
+            SelectedMachineRoute::StructuralReturn,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("structural Unit control plan requires an attached signature");
+        }
+        return routed_machine(
+            lower_structural_unit_control_machine(checked, plan),
+            SelectedMachineRoute::StructuralUnitControl,
+        );
+    }
+    match selection.signature {
+        CheckedTerminalSignatureEligibility::Eligible => {}
+        CheckedTerminalSignatureEligibility::Attached => {
+            return routed_machine(
+                lower_attached_unit_closure(checked, selection.machine),
+                SelectedMachineRoute::AttachedUnit,
+            );
+        }
+        CheckedTerminalSignatureEligibility::Unsupported => {
+            return unsupported(
+                "machine signature is outside the current terminal-Psi source slice",
+            );
+        }
+    }
+
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(selection.machine)
+        .ok_or(LoweringError::Unsupported(
+            "machine has no source-independent checked scalar control plan",
+        ))?;
+    let closure = checked_scalar_call_closure(checked, selection.machine)?;
+    let terminal = if closure.len() == 1 {
+        lower_scalar_graph_machine(checked, selection.machine, graph)
+    } else {
+        lower_scalar_call_closure(checked, &closure)
+    };
+    routed_machine(terminal, SelectedMachineRoute::ScalarGraph)
+}

@@ -780,6 +780,13 @@ is named a report fingerprint and remains report/index data only. Erasing the
 proof rows leaves runtime parameter/result shape, storage, operations, and fixed
 fuel unchanged.
 
+Static-requirement evidence does not select the executable lowering family.
+Checked-to-Terminal dispatch first selects the exact retained structural,
+cleanup, attached-Unit, or scalar plan and returns that route as typed data.
+Only an actually selected attached-Unit route may use static dispatch evidence
+when reconstructing its source-machine closure. A proof row therefore cannot
+preempt a more specific executable plan or redirect its operations.
+
 Outcome
 guards expose selectors only in applicable arms.
 A selected generic conformance is already closed before Terminal Psi: its

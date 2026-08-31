@@ -435,6 +435,35 @@ fn structural_unit_control_lowers_exact_transfer_and_edge_cleanup() {
 }
 
 #[test]
+fn static_requirement_evidence_does_not_preempt_exact_structural_unit_control() {
+    let mut checked = hard_root_checked_fixture();
+    install_structural_unit_control_fixture(&mut checked);
+    let root = SymbolHandle::from_arena_index(1);
+    checked
+        .facts
+        .proof
+        .proof_output_calls
+        .append(psi_checked_trees::ProofOutputCallFact {
+            caller_machine_symbol: root,
+            static_requirement_dispatch: Some(
+                psi_checked_trees::StaticRequirementDispatchFact::default(),
+            ),
+            ..Default::default()
+        });
+
+    let selection = select_terminal_machine(&checked, "example::Root::enter")
+        .expect("fixture has one selected root");
+    let routed = lower_selected_machine(&checked, selection)
+        .expect("retained structural control wins before attached-Unit fallback");
+
+    assert_eq!(routed.route, SelectedMachineRoute::StructuralUnitControl);
+    let [machine] = routed.terminal.semantic_module.machines.as_slice() else {
+        panic!("the exact structural route lowers one machine")
+    };
+    assert_eq!(machine.blocks.len(), 2);
+}
+
+#[test]
 fn structural_unit_conditional_lowers_independent_transfer_cleanup_frontiers() {
     let mut checked = hard_root_checked_fixture();
     install_structural_unit_conditional_fixture(&mut checked);
