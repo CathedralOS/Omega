@@ -1,11 +1,8 @@
-use crate::declarations::dependencies::read::active_aliases::{
-    ActiveDependencyAliasError, validate_active_alias_uniqueness,
+use crate::declarations::dependencies::read::aliases::{
+    DependencyAliasError, validate_alias_uniqueness,
 };
 use crate::declarations::roles::BuildDeclaration;
 use crate::declarations::{AliasName, PackageName};
-use omega_target::{TargetProfile, TargetProfileIdentity};
-
-pub const TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION: u32 = 1;
 
 /// Package selection inside one acquired repository source.
 ///
@@ -32,179 +29,36 @@ pub enum DependencySourceRequest {
     },
 }
 
-/// Exact dependency column for one compiler-owned deployment profile.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetDependencyColumn {
-    profile: TargetProfile,
-    occurrence_indices: Vec<usize>,
-}
-
-impl TargetDependencyColumn {
-    pub(crate) fn new(profile: TargetProfile, occurrence_indices: Vec<usize>) -> Self {
-        Self {
-            profile,
-            occurrence_indices,
-        }
-    }
-
-    pub const fn profile(&self) -> TargetProfile {
-        self.profile
-    }
-
-    pub fn occurrence_indices(&self) -> &[usize] {
-        &self.occurrence_indices
-    }
-}
-
-/// Versioned identity of the exact target cases consulted by projection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TargetDependencyConditionSchema {
-    version: u32,
-    referenced_profile_identities: Vec<TargetProfileIdentity>,
-}
-
-impl TargetDependencyConditionSchema {
-    pub const fn version(&self) -> u32 {
-        self.version
-    }
-
-    pub fn referenced_profile_identities(&self) -> &[TargetProfileIdentity] {
-        &self.referenced_profile_identities
-    }
-}
-
-/// Complete target-independent result of projecting one build state graph.
-///
-/// `occurrences` owns each authored request exactly once. Common/profile
-/// membership is retained only as occurrence indices, so editing and
-/// resolution views cannot drift between parallel request copies.
+/// The one ordered set of unconditional direct dependency rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectedDependencies {
-    occurrences: Vec<DependencySourceRequest>,
-    common_occurrence_indices: Vec<usize>,
-    by_profile: Vec<TargetDependencyColumn>,
-    condition_schema: TargetDependencyConditionSchema,
+    authored_dependencies: Vec<DependencySourceRequest>,
 }
 
 impl ProjectedDependencies {
-    pub(super) fn new(
-        occurrences: Vec<DependencySourceRequest>,
-        common_occurrence_indices: Vec<usize>,
-        by_profile: Vec<TargetDependencyColumn>,
-        referenced_profile_identities: Vec<TargetProfileIdentity>,
-    ) -> Self {
-        Self::from_retained_parts(
-            occurrences,
-            common_occurrence_indices,
-            by_profile,
-            TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION,
-            referenced_profile_identities,
-        )
-    }
-
-    pub(crate) fn from_retained_parts(
-        occurrences: Vec<DependencySourceRequest>,
-        common_occurrence_indices: Vec<usize>,
-        by_profile: Vec<TargetDependencyColumn>,
-        condition_schema_version: u32,
-        referenced_profile_identities: Vec<TargetProfileIdentity>,
-    ) -> Self {
-        Self {
-            occurrences,
-            common_occurrence_indices,
-            by_profile,
-            condition_schema: TargetDependencyConditionSchema {
-                version: condition_schema_version,
-                referenced_profile_identities,
-            },
-        }
-    }
-
-    pub fn common_occurrence_indices(&self) -> &[usize] {
-        &self.common_occurrence_indices
-    }
-
-    pub fn common(&self) -> impl Iterator<Item = &DependencySourceRequest> {
-        self.common_occurrence_indices
-            .iter()
-            .map(|index| &self.occurrences[*index])
-    }
-
-    pub fn by_profile(&self) -> &[TargetDependencyColumn] {
-        &self.by_profile
-    }
-
-    pub const fn condition_schema(&self) -> &TargetDependencyConditionSchema {
-        &self.condition_schema
-    }
-
     pub fn authored_dependencies(&self) -> &[DependencySourceRequest] {
-        &self.occurrences
+        &self.authored_dependencies
     }
 
-    pub fn for_profile(
+    pub fn into_authored_dependencies(self) -> Vec<DependencySourceRequest> {
+        self.authored_dependencies
+    }
+
+    /// Validate requester-local aliases after every selected package name is
+    /// known. Names follow [`Self::authored_dependencies`] order.
+    pub fn validate_aliases(
         &self,
-        profile: TargetProfile,
-    ) -> impl Iterator<Item = &DependencySourceRequest> {
-        let profile_indices = self
-            .by_profile
-            .iter()
-            .find(|column| column.profile == profile)
-            .map(|column| column.occurrence_indices.as_slice())
-            .unwrap_or_default();
-        self.common_occurrence_indices
-            .iter()
-            .chain(profile_indices)
-            .map(|index| &self.occurrences[*index])
-    }
-
-    /// Authored occurrence positions active for one exact target profile.
-    ///
-    /// The positions, rather than copied requests, preserve the complete
-    /// target-independent projection for later identity work.
-    pub fn occurrence_indices_for_profile(
-        &self,
-        profile: TargetProfile,
-    ) -> impl Iterator<Item = usize> + '_ {
-        let profile_indices = self
-            .by_profile
-            .iter()
-            .find(|column| column.profile == profile)
-            .map(|column| column.occurrence_indices.as_slice())
-            .unwrap_or_default();
-        self.common_occurrence_indices
-            .iter()
-            .chain(profile_indices)
-            .copied()
-    }
-
-    pub fn has_target_conditions(&self) -> bool {
-        !self.by_profile.is_empty()
-    }
-
-    /// Validate requester-local aliases after the selected package names for
-    /// one exact active request set are known.
-    ///
-    /// `selected_package_names` follows [`Self::for_profile`] order. Inactive
-    /// columns need not be acquired merely to discover their package names.
-    pub fn validate_active_aliases(
-        &self,
-        profile: TargetProfile,
         selected_package_names: &[PackageName],
-    ) -> Result<(), ActiveDependencyAliasError> {
-        validate_active_alias_uniqueness(self, profile, selected_package_names)
+    ) -> Result<(), DependencyAliasError> {
+        validate_alias_uniqueness(self, selected_package_names)
     }
 }
 
 impl From<Vec<DependencySourceRequest>> for ProjectedDependencies {
-    fn from(occurrences: Vec<DependencySourceRequest>) -> Self {
-        let common_occurrence_indices = (0..occurrences.len()).collect();
-        Self::new(
-            occurrences,
-            common_occurrence_indices,
-            Vec::new(),
-            Vec::new(),
-        )
+    fn from(authored_dependencies: Vec<DependencySourceRequest>) -> Self {
+        Self {
+            authored_dependencies,
+        }
     }
 }
 

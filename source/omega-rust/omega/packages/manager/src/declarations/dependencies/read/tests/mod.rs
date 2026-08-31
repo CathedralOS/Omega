@@ -1,8 +1,8 @@
-mod active_aliases;
+mod aliases;
 mod extraction;
 mod policy;
 mod requests;
-mod target_conditions;
+mod static_projection;
 
 use super::{
     DependencyProjectionError, DependencySourceRequest, extract_dependency_projection,
