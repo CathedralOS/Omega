@@ -39,10 +39,13 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - non-identical conformance-bound external refinements, lifetime-parameterized
-    external trait realizations, generic external boundary-operator
-    realizations, and the remaining selected provider-demand and installation-
-    issuance joins;
+  - non-identical conformance-bound external refinements, generic external
+    boundary-operator realizations, and the remaining selected provider-demand
+    and installation-issuance joins;
+  - **OWNER-BLOCKED — Bind lifetime arguments on exact machine requirement
+    realizations** in `OWNER_QUESTIONS.md` before admitting lifetime-
+    parameterized external trait realizations. The current machine edge retains
+    no target-trait lifetime application, and package review must not infer one;
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact

@@ -546,3 +546,78 @@ security evidence beyond its per-target results.
   from target-scoped machine rows, iterate `TargetProfile::ALL`, choose an
   arbitrary bootstrap target to discover the set, or emit an aggregate
   proof/audit receipt from repeated compiler success.
+
+## Q10 — Bind lifetime arguments on exact machine requirement realizations
+
+### Context
+
+Omega admits lifetime-parameterized traits and uses complete explicit target-
+trait applications on name-first whole conformances. Those applications retain
+alpha-normalized ordinals into the conformance's lifetime telescope and survive
+package review because they remain part of semantic identity after runtime
+lifetime erasure.
+
+An exact machine edge instead spells `satisfies Trait::requirement`. Its syntax,
+symbol-resolved tree, and typed `TraitConformance` retain trait type arguments
+but no target-trait lifetime arguments. Compiler signature matching explicitly
+ignores reference lifetimes. A checked or external machine can consequently
+name a requirement from a lifetime-parameterized trait without retaining which
+application it realizes. Package review currently rejects this form rather than
+guessing.
+
+A credible boundary customer is an external driver or foreign callback whose
+trait requirement borrows a caller-owned view for one declared lifetime. Its
+opaque executable-supply row must bind the exact borrowed interface selected by
+source; runtime erasure does not make distinct borrow contracts interchangeable.
+
+### Problem statement
+
+Choose whether exact machine requirement realizations support lifetime-
+parameterized traits. If they do, define:
+
+1. how source supplies the complete target-trait lifetime application;
+2. how every argument maps into the realizing machine's lifetime telescope;
+3. how that mapping substitutes through requirement signature and contract
+   checking instead of being ignored; and
+4. whether checked and external exact-requirement edges share one semantic and
+   package-review identity.
+
+This must settle in the language and compiler before package review can admit
+the external form. A review-only field would have no independently checked fact
+to carry.
+
+### Proposed solution
+
+Use the same complete trait-application spelling already owned by whole
+conformances:
+
+```omega
+machine read_external<'scope, Item>(value: &'scope Item)
+    satisfies Reads<'scope, Item>::read
+    via Binding::DllImport("driver", "read");
+```
+
+Add the complete target-trait lifetime application to machine `satisfies`
+syntax and every compiler representation that owns the edge. Require one
+argument per trait lifetime parameter, require each argument to name an in-
+scope realizing-machine lifetime binder, and retain its declaration-order
+ordinal. Revalidate that exact mapping while substituting the trait requirement
+signature and contracts. Checked and external realizations use the same edge;
+package review appends the alpha-normalized lifetime ordinals to the existing
+trait/requirement/type-argument identity and continues to treat the external
+binding as opaque supply rather than proof of implementation correctness.
+
+### Alternates
+
+- Acceptable: infer the mapping from every lifetime-bearing signature and
+  contract occurrence only if the compiler proves one unique complete mapping
+  and rejects unconstrained or ambiguous trait lifetimes. This is less
+  consistent with Omega's existing explicit whole-conformance application.
+- Acceptable: declare lifetime-parameterized traits permanently ineligible for
+  exact machine requirement edges. Such foreign behavior must then use a
+  lifetime-free checked adapter, and the package-manager projection item should
+  be deleted rather than left as deferred evidence work.
+- Tempting but wrong: erase lifetime arguments because they erase at runtime,
+  admit every application under the same trait/requirement row, infer identity
+  from parameter names or rendered types during package review, or add an
+  unchecked review-only lifetime field.
