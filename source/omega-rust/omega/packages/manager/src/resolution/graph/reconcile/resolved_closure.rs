@@ -106,17 +106,12 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
             let custody = closure
                 .custody(requester_key)
                 .expect("every validated graph package has source custody");
-            let active_occurrences = custody
-                .projected_dependencies()
-                .occurrence_indices_for_profile(closure.target_profile)
-                .collect::<Vec<_>>();
-            debug_assert_eq!(requester.dependencies().len(), active_occurrences.len());
+            debug_assert_eq!(requester.dependencies().len(), custody.dependency_requests().len());
             requester
                 .dependencies()
                 .iter()
                 .enumerate()
-                .map(move |(active_index, dependency)| {
-                    let dependency_index = active_occurrences[active_index];
+                .map(move |(dependency_index, dependency)| {
                     let request = &custody.dependency_requests()[dependency_index];
                     let selected = closure
                         .graph
@@ -194,12 +189,8 @@ impl ResolvedPackageSourceClosure {
             let custody = self
                 .custody(&requester)
                 .expect("validated graph package retains source custody");
-            let active_occurrences = custody
-                .projected_dependencies()
-                .occurrence_indices_for_profile(self.target_profile)
-                .collect::<Vec<_>>();
-            for (active_index, dependency) in node.dependencies().iter().enumerate() {
-                let dependency_index = active_occurrences[active_index];
+            debug_assert_eq!(node.dependencies().len(), custody.dependency_requests().len());
+            for (dependency_index, dependency) in node.dependencies().iter().enumerate() {
                 if !visited.insert(dependency.target().clone()) {
                     continue;
                 }
