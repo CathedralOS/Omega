@@ -3332,6 +3332,17 @@ checked closure, inherited requirement substitution, public review, and
 canonical encoding. Binder renames are stable and another ordinal is a different
 public conformance. Package review consumes the already-resolved mapping and
 never repeats application-site inference.
+
+D55 extends the same explicit source application and checking judgment to one
+machine's exact `satisfies Trait<...>::requirement` edge, but deliberately does
+not reuse the conformance's public identity normalization. The compiler retains
+raw ordinals into the realizing machine telescope for signature and contract
+substitution. The reviewed edge instead first-occurrence-normalizes those
+ordinals in target-trait parameter order, publishing only the equality partition
+among trait lifetimes. Reordered, renamed, or newly inserted unused realizer
+binders are therefore stable, while `[0,0]` and `[0,1]` remain distinct borrow
+contracts. Checked and external supply share this edge identity; opaque supply
+does not become proof of the external implementation.
 Review v87 and canonical row v45 introduced a selected boundary-operator
 family application field using a non-generic atom or normalized arity/string
 applications. D35 retires that field in review v97 / row v55 because its
@@ -3468,8 +3479,11 @@ The conformance declaration is package-owned; its public subject and trait may
 come from a direct dependency.
 Exact requirement-local `satisfies` edges remain authored selections even
 though they do not mint a whole conformance. Trait edges retain the exact trait
-and result-dispatch-selected requirement; operator edges retain the exact
-signature-selected overload. The realizing machine's interface exposure
+application and result-dispatch-selected requirement; operator edges retain the
+exact signature-selected overload. A lifetime-parameterized trait application
+is complete in source and retains raw machine-binder ordinals for checking, but
+its edge identity contains their D55 normalized equality partition rather than
+private realizer binder order. The realizing machine's interface exposure
 governs both rows. Identity settles before checked, boundary, accepted, or
 external supply policy, so rejecting one association cannot erase or substitute
 the declaration the source selected.

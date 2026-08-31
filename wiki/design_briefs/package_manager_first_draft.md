@@ -1005,6 +1005,15 @@ checked closure, inherited requirement substitution, public review, and
 canonical encoding. Binder renames are stable and another ordinal is a different
 public conformance. Package review consumes the already-resolved mapping and
 never repeats application-site inference.
+
+D55 applies the same explicit source syntax and validation to one machine's
+exact `satisfies Trait<...>::requirement` edge while using a different public
+normal form. Raw ordinals into the realizing machine telescope remain checked
+substitution custody. Review first-occurrence-normalizes them in target-trait
+parameter order and retains only the equality partition: implementation binder
+renames, reordering, and unused-binder insertion are stable, while `[0,0]` and
+`[0,1]` remain different borrow contracts. Checked and external realizations
+share that edge identity, and opaque external supply remains non-proof.
 Review v63 and canonical row v21 admit selected generic-conformance
 applications in public generic bounds. The row retains the exact
 package-qualified conformance declaration, alpha-normalized lifetime
@@ -1116,8 +1125,10 @@ proof-static trait parameters reject closed instead of producing partial
 identity.
 Exact requirement-local `satisfies` edges remain authored selections even
 though they do not mint a whole conformance. Trait edges retain the exact trait
-and result-dispatch-selected requirement; operator edges retain the exact
-signature-selected overload. The realizing machine's interface exposure
+application and result-dispatch-selected requirement; operator edges retain the
+exact signature-selected overload. Lifetime-parameterized trait edges retain
+raw machine-binder ordinals for checking and the D55 normalized equality
+partition for public identity. The realizing machine's interface exposure
 governs both rows. Identity settles before checked, boundary, accepted, or
 external supply policy, and downstream consumers cross-check the retained
 symbol instead of reselecting by spelling.

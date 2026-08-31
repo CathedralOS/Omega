@@ -274,9 +274,11 @@ machine hardware_acquire(...)
 This bare exact-requirement edge participates in provider selection and other
 requirement-local mechanisms. It never creates a whole conformance, satisfies a
 whole-trait bound, or licenses `dyn`. Clause order is signature, exact
-`satisfies Trait::requirement`, `terminates [by ...]`, ordinary contracts, then
-the checked body. An irreducible external realization uses `via <Binding>;`
-instead of a body.
+`satisfies Trait<...>::requirement`, `terminates [by ...]`, ordinary contracts,
+then the checked body. An irreducible external realization uses `via
+<Binding>;` instead of a body. A target trait with lifetime parameters requires
+the complete explicit lifetime application here; runtime erasure never licenses
+omission.
 
 An optional `as Name` on those exact edges groups related rows without making
 `Name` independently selectable. A generic algorithm requiring
@@ -342,6 +344,44 @@ This keeps machine identity clean:
 - `Self` inside the trait requirement binds to `Player`.
 - The compiler checks that the params, return type, service reach, direct
   synchronous invocation ceiling, and obligations match the trait requirement.
+
+A lifetime-parameterized target trait uses the same lifetimes-first angle list
+as a whole conformance:
+
+```omega
+pub trait Reads<'view, Item> {
+    machine read(value: &'view Item) -> &'view [u8];
+}
+
+boundary machine read_external<'scope, Item>(
+    value: &'scope Item
+) -> &'scope [u8]
+    satisfies Reads<'scope, Item>::read
+    via DriverBindings::read();
+```
+
+Every target-trait lifetime argument is present and names an in-scope lifetime
+binder of the realizing machine. The checked edge retains the raw ordinal into
+that machine telescope so requirement signatures and contracts can substitute
+the actual binder. Repetition is valid: `Pair<'x, 'x>` deliberately maps two
+trait lifetimes to one realizer lifetime.
+
+The public requirement-edge identity does not expose the realizing machine's
+binder numbering. It first-occurrence-normalizes the raw vector in trait-
+parameter order: raw `[1,1]` becomes `[0,0]`, raw `[1,0]` becomes `[0,1]`, and
+raw `[4,2,4]` becomes `[0,1,0]`. This records which trait lifetimes coincide
+while remaining stable under implementation binder renaming, reordering, and
+unused-binder insertion. A public machine's own callable telescope remains its
+direct-call identity; that is separate from the normalized `satisfies` edge.
+
+Checked and external exact realizations use the same edge identity. A foreign
+binding remains opaque implementation supply, not proof that its code honors
+the retained borrow contract. Application identity is never inferred from
+signature occurrences. Omega currently has no lifetime constant such as
+`'static`; each lifetime argument must name an active binder. A future lifetime
+constant would still be supplied explicitly for every declared trait lifetime
+slot, while a lifetime fixed directly inside a trait requirement and absent
+from its telescope supplies no argument.
 
 Post-signature clauses should compose with the rest of Omega's contract surface.
 

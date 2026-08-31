@@ -2365,6 +2365,64 @@ configuration may own an operational matrix, including cross-compiling several
 profiles on one host, without promoting that matrix into language or package
 identity.
 
+## D55 — Exact requirement edges declare their lifetime application
+
+A checked or external machine realizing one exact trait requirement writes the
+complete target-trait application in its `satisfies` clause. Lifetime arguments
+precede other static arguments in the existing angle list:
+
+```omega
+machine read_external<'scope, Item>(value: &'scope Item) -> &'scope [u8]
+    satisfies Reads<'scope, Item>::read
+    via Binding::DllImport("driver", "read");
+```
+
+The compiler carries those lifetime arguments through syntax, symbol-resolved,
+typed, checked, provider, and package-review custody. It reuses the existing
+whole-conformance judgment: argument count equals the target trait's lifetime
+telescope, every argument names an in-scope binder in the realizing machine's
+lifetime telescope, and the raw declaration-order ordinal vector substitutes
+through the exact requirement signature, inherited requirements, contracts,
+and evidence requirements. Repeated ordinals are valid; mapping two trait
+lifetimes to one realizer lifetime is a legitimate application rather than a
+duplicate or malformed mapping.
+
+The raw ordinal vector is compiler-internal checking material, not the public
+edge identity. The realization edge exposes the trait requirement rather than
+the implementation's binder numbering. Its canonical identity scans the raw
+vector in trait-parameter order and numbers each distinct realizer binder by
+first occurrence. Thus `[0,0]` and `[1,1]` both normalize to `[0,0]`, while
+`[0,1]`, `[1,0]`, and `[4,2]` normalize to `[0,1]`; `[4,2,4]` normalizes to
+`[0,1,0]`. This retains exactly the equality partition among target-trait
+lifetimes and is stable under private binder renaming, reordering, and insertion
+of unused machine lifetime binders.
+
+That normalization applies to the exact requirement edge regardless of the
+realizing machine's visibility. A public machine's direct callable application
+may separately use its declared telescope as public callable identity. The
+machine application and its `satisfies` edge are different identities for
+different consumers; package review must not publish raw realizer ordinals as
+the requirement-edge key.
+
+Checked and irreducible external realizations use this same semantic edge and
+canonical lifetime partition. Distinct partitions remain distinct opaque
+supply rows even when runtime signatures and `via` bindings are physically
+identical. The external row identifies the promised borrow contract but does
+not prove the foreign implementation obeys it. The motivating prospective
+customer is a zero-copy parser, driver, or callback whose result view borrows
+from caller-owned input; a lifetime-free adapter would have to copy and cannot
+preserve that relationship.
+
+Lifetime application is declared rather than inferred from the realizing
+machine signature or contracts. Incidental signature edits therefore cannot
+change or ambiguate edge identity. Runtime erasure likewise does not erase the
+source contract. Omega currently has no lifetime constant such as `'static`:
+every target-trait lifetime argument names an active binder. If lifetime
+constants are later added, every declared trait lifetime slot remains explicit
+and the argument identity becomes a closed binder-or-constant sum; a lifetime
+fixed directly in a trait requirement and absent from its telescope requires no
+application argument.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

@@ -39,10 +39,14 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - **OWNER-BLOCKED — Bind lifetime arguments on exact machine requirement
-    realizations** in `OWNER_QUESTIONS.md` before admitting lifetime-
-    parameterized external trait realizations. The current machine edge retains
-    no target-trait lifetime application, and package review must not infer one;
+  - **IMPLEMENTATION — D55 exact-requirement lifetime applications:** parse the
+    complete target-trait application on machine `satisfies`, thread raw
+    realizer-binder ordinals through resolved/typed/checked custody, reuse the
+    whole-conformance arity/in-telescope/substitution judgment, and publish only
+    the first-occurrence-normalized trait-lifetime equality partition in checked
+    and external package-review edge identity. Add repeated-binder, reordered/
+    unused-private-binder stability, distinct-partition, checked/external
+    equality, missing/foreign-binder, and zero-copy result-borrow canaries;
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact

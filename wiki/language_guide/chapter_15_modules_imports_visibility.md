@@ -430,10 +430,13 @@ A public domain therefore cannot authorize a private trait or requirement;
 private same-package domains may use private routes normally.
 
 A nominal callable machine-parameter contract such as `where machine Selected
-satisfies Trait::requirement` likewise authors both exact selections. The
-complete trait path and requirement token inherit the enclosing declaration's
+satisfies Trait::requirement`, and an exact realization spelled `satisfies
+Trait<...>::requirement`, likewise author both exact selections. The complete
+trait application and requirement token inherit the enclosing declaration's
 interface exposure, including exported boundary machines, and each selected
-declaration must be directly authorized and visible there. Nested machine-
+declaration must be directly authorized and visible there. On an exact
+realization, raw machine-lifetime binders remain checking custody while the
+public edge exposes only their normalized equality partition. Nested machine-
 parameter contracts follow the same rule; generic nesting does not hide a
 transitive or private requirement.
 
