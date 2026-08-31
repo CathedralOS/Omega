@@ -138,7 +138,8 @@ pub struct ForeignCallRelocation {
     pub call_plan: omega_calling_conventions::CallPlan,
     /// Canonically ordered evaluated literal arguments materialized before
     /// the unresolved native procedure-call placeholder. The bounded native
-    /// carrier admits at most four register-resident arguments.
+    /// carrier admits the target's complete register-resident fixed-integer
+    /// argument bank.
     pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.

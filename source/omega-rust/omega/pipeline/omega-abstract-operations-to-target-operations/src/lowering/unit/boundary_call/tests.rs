@@ -233,43 +233,62 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
         );
     }
 
-    let five_parameter_declaration = declaration(boundary, vec![ScalarType::Integer(i32_type); 5]);
-    for (target, expected_fifth_register) in [
-        (NativeTarget::linux_x64(), MachineRegister::X86R8),
-        (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(4)),
+    for (target, register_count, expected_last_register) in [
+        (NativeTarget::linux_x64(), 6, MachineRegister::X86R9),
+        (NativeTarget::linux_arm64(), 8, MachineRegister::Aarch64X(7)),
     ] {
-        let five_plan = entry_plan(target, &[i32_type; 5]);
-        let five_arguments = lower_normalized_foreign_scalar_arguments(
+        let parameter_types = vec![i32_type; register_count];
+        let parameter_declaration = declaration(
             boundary,
-            &five_parameter_declaration,
-            &[source; 5],
-            &five_plan,
+            vec![ScalarType::Integer(i32_type); register_count],
+        );
+        let plan = entry_plan(target, &parameter_types);
+        let arguments = lower_normalized_foreign_scalar_arguments(
+            boundary,
+            &parameter_declaration,
+            &vec![source; register_count],
+            &plan,
             &constants,
         )
-        .expect("five register-resident literal arguments");
+        .expect("the complete register-resident literal argument bank");
         assert_eq!(
-            five_arguments
+            arguments
                 .iter()
                 .map(|argument| argument.parameter_index)
                 .collect::<Vec<_>>(),
-            vec![0, 1, 2, 3, 4]
+            (0..u32::try_from(register_count).unwrap()).collect::<Vec<_>>()
         );
         assert!(matches!(
-            five_arguments[4].placement.locations.as_slice(),
-            [ValueLocation::Register { register, .. }] if *register == expected_fifth_register
+            arguments[register_count - 1].placement.locations.as_slice(),
+            [ValueLocation::Register { register, .. }] if *register == expected_last_register
         ));
-    }
 
-    let six_parameter_declaration = declaration(boundary, vec![ScalarType::Integer(i32_type); 6]);
-    let six_plan = entry_plan(NativeTarget::linux_x64(), &[i32_type; 6]);
-    assert!(
-        lower_normalized_foreign_scalar_arguments(
+        let first_stack_count = register_count + 1;
+        let first_stack_declaration = declaration(
             boundary,
-            &six_parameter_declaration,
-            &[source; 6],
-            &six_plan,
-            &constants,
-        )
-        .is_err()
-    );
+            vec![ScalarType::Integer(i32_type); first_stack_count],
+        );
+        let first_stack_plan = entry_plan(target, &vec![i32_type; first_stack_count]);
+        assert!(matches!(
+            first_stack_plan
+                .call
+                .parameters
+                .last()
+                .unwrap()
+                .locations
+                .as_slice(),
+            [ValueLocation::Stack { .. }]
+        ));
+        assert!(
+            lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &first_stack_declaration,
+                &vec![source; first_stack_count],
+                &first_stack_plan,
+                &constants,
+            )
+            .is_err(),
+            "the first stack-resident literal remains fenced on {target:?}",
+        );
+    }
 }

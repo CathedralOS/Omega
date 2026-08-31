@@ -215,98 +215,85 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         .is_err()
     );
 
-    let four_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![ValueShape::integer(4, 4); 4],
-            result: None,
-        },
-    )
-    .unwrap()
-    .plan()
-    .clone();
-    let four_arguments = (0..4)
-        .map(
-            |index| omega_target_operations::NormalizedForeignScalarArgument {
-                source_value: argument.source_value,
-                scalar_type: argument.scalar_type,
-                immediate: argument.immediate,
-                parameter_index: index,
-                placement: four_plan.call.parameters[index as usize].clone(),
+    for (target, register_count, expected_last_register) in [
+        (NativeTarget::linux_x64(), 6, MachineRegister::X86R9),
+        (NativeTarget::linux_arm64(), 8, MachineRegister::Aarch64X(7)),
+    ] {
+        let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4); register_count],
+                result: None,
             },
         )
-        .collect::<Vec<_>>();
-    assert_eq!(
-        assign_normalized_foreign_scalar_arguments_for_plan(
-            &four_plan,
-            target,
-            &four_arguments,
-            &preceding,
-        ),
-        Ok(four_arguments.clone())
-    );
+        .unwrap()
+        .plan()
+        .clone();
+        let arguments = (0..register_count)
+            .map(
+                |index| omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: argument.source_value,
+                    scalar_type: argument.scalar_type,
+                    immediate: argument.immediate,
+                    parameter_index: u32::try_from(index).unwrap(),
+                    placement: plan.call.parameters[index].clone(),
+                },
+            )
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            arguments[register_count - 1].placement.locations.as_slice(),
+            [ValueLocation::Register { register, .. }] if *register == expected_last_register
+        ));
+        assert_eq!(
+            assign_normalized_foreign_scalar_arguments_for_plan(
+                &plan, target, &arguments, &preceding,
+            ),
+            Ok(arguments)
+        );
 
-    let five_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![ValueShape::integer(4, 4); 5],
-            result: None,
-        },
-    )
-    .unwrap()
-    .plan()
-    .clone();
-    let five_arguments = (0..5)
-        .map(
-            |index| omega_target_operations::NormalizedForeignScalarArgument {
-                source_value: argument.source_value,
-                scalar_type: argument.scalar_type,
-                immediate: argument.immediate,
-                parameter_index: index,
-                placement: five_plan.call.parameters[index as usize].clone(),
+        let first_stack_count = register_count + 1;
+        let first_stack_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4); first_stack_count],
+                result: None,
             },
         )
-        .collect::<Vec<_>>();
-    assert_eq!(
-        assign_normalized_foreign_scalar_arguments_for_plan(
-            &five_plan,
-            target,
-            &five_arguments,
-            &preceding,
-        ),
-        Ok(five_arguments)
-    );
-
-    let six_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![ValueShape::integer(4, 4); 6],
-            result: None,
-        },
-    )
-    .unwrap()
-    .plan()
-    .clone();
-    let six_arguments = (0..6)
-        .map(
-            |index| omega_target_operations::NormalizedForeignScalarArgument {
-                source_value: argument.source_value,
-                scalar_type: argument.scalar_type,
-                immediate: argument.immediate,
-                parameter_index: index,
-                placement: six_plan.call.parameters[index as usize].clone(),
-            },
-        )
-        .collect::<Vec<_>>();
-    assert!(
-        assign_normalized_foreign_scalar_arguments_for_plan(
-            &six_plan,
-            target,
-            &six_arguments,
-            &preceding,
-        )
-        .is_err()
-    );
+        .unwrap()
+        .plan()
+        .clone();
+        assert!(matches!(
+            first_stack_plan
+                .call
+                .parameters
+                .last()
+                .unwrap()
+                .locations
+                .as_slice(),
+            [ValueLocation::Stack { .. }]
+        ));
+        let first_stack_arguments = (0..first_stack_count)
+            .map(
+                |index| omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: argument.source_value,
+                    scalar_type: argument.scalar_type,
+                    immediate: argument.immediate,
+                    parameter_index: u32::try_from(index).unwrap(),
+                    placement: first_stack_plan.call.parameters[index].clone(),
+                },
+            )
+            .collect::<Vec<_>>();
+        assert!(
+            assign_normalized_foreign_scalar_arguments_for_plan(
+                &first_stack_plan,
+                target,
+                &first_stack_arguments,
+                &preceding,
+            )
+            .is_err(),
+            "the first stack-resident literal remains fenced on {target:?}",
+        );
+    }
 
     let (_, mut wrong_policy_argument, preceding) = fixture(target);
     let wrong_policy_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(

@@ -259,8 +259,8 @@ pub struct NormalizedForeignCallBinding {
 /// One occurrence-specific fixed-width integer literal materialized for an
 /// evaluated normalized foreign call. The source identity and mathematical
 /// literal remain bound to the exact ordered placement selected by the
-/// evaluated boundary call plan. The bounded native carrier admits at most four
-/// register-resident rows.
+/// evaluated boundary call plan. The bounded native carrier admits the target's
+/// complete register-resident fixed-integer argument bank.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedForeignScalarArgument {
     pub source_value: ValueId,
