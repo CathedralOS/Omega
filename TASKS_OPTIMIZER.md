@@ -265,8 +265,9 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Nineteen abstract-to-target families, selected incoming
-  u12 folds, current machine substitutions, structural-Unit encoding, resolved
+  machine-rule family. Twenty abstract-to-target families, including
+  proof-bearing parameterized exact integer addition, selected incoming u12
+  folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
@@ -328,6 +329,10 @@ decision. Only true language-semantic questions belong in
   error/receipt, corruption, and optimized-custody leaves. Their common
   arithmetic carrier and whole-roster ABI/provenance replay are shared at the
   nearest multi-consumer ancestor.
+- [x] Add an independent proof-bearing exact-add parameter translation family.
+  Its distinct catalog row reconstructs source and ABI custody without calling
+  lowering, retains the exact overflow-obligation identity in its receipt, and
+  rejects wrapping/saturating substitution and independent obligation drift.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and
