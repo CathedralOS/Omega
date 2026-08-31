@@ -4,6 +4,10 @@
 //! module is the compiler-owned decoder that keeps that open policy surface
 //! behind the closed normalized-plan validator.
 
+mod opaque_representations;
+
+pub use opaque_representations::BoundaryOpaqueRepresentationUse;
+
 use omega_calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallbackBinderRequirement,
     CallbackMaterialization, CallbackMaterializationContext, CallbackRequirementId, CallingPolicy,
@@ -44,7 +48,7 @@ struct BoundarySignatureInstance<'a> {
     bindings: Vec<TraitTypeBinding>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BoundaryValueClass {
     Integer,
     Float,
@@ -53,28 +57,20 @@ enum BoundaryValueClass {
     Record { first_field: u16, field_count: u16 },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BoundaryValueShape {
     class: BoundaryValueClass,
     byte_size: u16,
     alignment: u16,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct BoundaryValueField {
     shape: u16,
     byte_offset: u16,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BoundaryOpaqueRepresentationUse {
-    opaque: psi_symbols::SymbolHandle,
-    carrier: psi_symbols::SymbolHandle,
-    application_report_fingerprint: u64,
-    application_commitment: [u8; 32],
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterializedBoundarySignature {
     owner_requirement_identity: String,
     native_target: NativeTarget,
@@ -87,6 +83,23 @@ pub struct MaterializedBoundarySignature {
     native_parameters: Vec<BoundaryNativeParameter>,
     direct_callback_parameters: Vec<BoundaryDirectCallbackParameter>,
     result: Option<u16>,
+}
+
+impl MaterializedBoundarySignature {
+    pub fn owner_requirement_identity(&self) -> &str {
+        &self.owner_requirement_identity
+    }
+
+    pub const fn native_target(&self) -> NativeTarget {
+        self.native_target
+    }
+
+    /// Compiler-derived opaque representations actually used by value while
+    /// materializing this exact boundary signature. An unused build selection
+    /// is deliberately absent.
+    pub fn opaque_representation_uses(&self) -> &[BoundaryOpaqueRepresentationUse] {
+        &self.opaque_representations
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -482,7 +495,7 @@ fn classified_boundary_shape(
 /// Typed trees retain only the semantic key and fingerprint. Concrete ABI,
 /// register, and stack choices stay beside the native/provider pipeline that
 /// consumes them.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
     pub boundary_trait: psi_symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,

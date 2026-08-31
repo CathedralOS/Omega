@@ -745,7 +745,42 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         INTERRUPT_REPRESENTATION_BUILD,
     );
     let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
-    retained_interrupt_representation(&checked);
+    let selection = retained_interrupt_representation(&checked);
+    let demanded_realizations = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .filter(|realization| {
+            realization
+                .materialized_signature
+                .opaque_representation_uses()
+                .iter()
+                .any(|use_| use_.opaque() == selection.opaque())
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !demanded_realizations.is_empty(),
+        "the by-value boundary crossing must retain its exact representation use"
+    );
+    assert!(demanded_realizations.iter().all(|realization| {
+        realization
+            .materialized_signature
+            .opaque_representation_uses()
+            .iter()
+            .filter(|use_| use_.opaque() == selection.opaque())
+            .all(|use_| {
+                use_.carrier() == selection.carrier()
+                    && use_.application_report_fingerprint()
+                        == selection.application().report_fingerprint
+                    && use_.application_commitment()
+                        == selection.application().commitment.as_bytes()
+            })
+            && realization.replayed_validated_application().is_ok_and(
+                |(_, report_fingerprint, commitment)| {
+                    report_fingerprint == realization.report_fingerprint
+                        && commitment == realization.commitment
+                },
+            )
+    }));
 
     let timer = checked
         .typed
@@ -1109,6 +1144,15 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
     let selected = compile_to_checked(&selected, None)
         .expect("an unused valid selection remains activation policy");
     let selected_application = retained_interrupt_representation(&selected).application();
+    assert!(
+        selected
+            .boundary_calling_plan_realizations()
+            .iter()
+            .all(|realization| realization
+                .materialized_signature
+                .opaque_representation_uses()
+                .is_empty())
+    );
 
     let alternate_build = INTERRUPT_REPRESENTATION_BUILD
         .replace("PicAckRepresentation", "AlternatePicAckRepresentation");

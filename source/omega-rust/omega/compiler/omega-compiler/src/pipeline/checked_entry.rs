@@ -33,6 +33,8 @@ pub struct CheckedCompilation {
     selected_build_machine_identity: Option<String>,
     opaque_representation_selections:
         Vec<omega_representation_planning::OpaqueRepresentationSelection>,
+    boundary_calling_plan_realizations:
+        Vec<omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
     optimization_selections: omega_optimization_core::OptimizationSelections,
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
@@ -70,6 +72,7 @@ impl PartialEq for CheckedCompilation {
             && self.selected_build_machine_symbol == other.selected_build_machine_symbol
             && self.selected_build_machine_identity == other.selected_build_machine_identity
             && self.opaque_representation_selections == other.opaque_representation_selections
+            && self.boundary_calling_plan_realizations == other.boundary_calling_plan_realizations
             && self.optimization_selections == other.optimization_selections
             && self.optimization_selection_identity == other.optimization_selection_identity
             && self.optimization_report == other.optimization_report
@@ -242,6 +245,16 @@ impl CheckedCompilation {
         &self,
     ) -> &[omega_representation_planning::OpaqueRepresentationSelection] {
         &self.opaque_representation_selections
+    }
+
+    /// Exact validated boundary calling-plan realizations retained while the
+    /// typed declaration graph and selected opaque representations still
+    /// coexisted. This is compiler custody for downstream reconstruction; its
+    /// presence does not itself publish a package ABI or admission row.
+    pub fn boundary_calling_plan_realizations(
+        &self,
+    ) -> &[omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization] {
+        &self.boundary_calling_plan_realizations
     }
 
     /// Exact named optimizations selected by the authoritative root build.
@@ -986,6 +999,7 @@ fn compile_to_checked_inner_with_replay(
         selected_build_machine_symbol,
         selected_build_machine_identity,
         opaque_representation_selections,
+        boundary_calling_plan_realizations,
         optimization_selections,
         optimization_selection_identity,
         optimization_report,

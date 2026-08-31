@@ -3361,9 +3361,12 @@ owned mechanism as dangerous and blocking.
 The first compiler-custody checkpoint retains the complete validated
 activation-wide opaque-representation selection collection in the checked
 compilation, including an unused selection and its selecting-machine/source
-provenance. That retention does not itself publish producer availability,
-consumer demand, or physical ABI evidence: package review remains `Unbound`
-until the complete D26 row can rejoin the independent shape, movement, and
+provenance. Checked compilation also retains every exact validated boundary
+calling-plan realization and exposes its compiler-derived opaque uses; an
+unused selection does not appear in those use rows. That retention does not
+itself publish producer availability, consumer demand, or physical ABI
+evidence: package review remains `Unbound` until the complete D26 row can
+rejoin canonical nominal identity with the independent shape, movement, and
 boundary-plan commitments described above.
 
 Accepted propositions, boundary/provider guarantees, authority establishment,

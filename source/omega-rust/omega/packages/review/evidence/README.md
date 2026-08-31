@@ -27,9 +27,10 @@ only as `Unbound`. D26's implementation task extends that incomplete
 projection with separate producer-availability and consumer-demand rows.
 Availability accepts no consumer choice; demand is owned by the selecting
 consumer and exists only
-for an actual runtime by-value crossing. The implementation must promote the
-retained structured opaque use rather than attempt to recover declarations or
-carrier identity from the aggregate calling-plan commitment.
+for an actual runtime by-value crossing. Checked compilation now retains the
+validated calling-plan realizations and their structured opaque uses; capture
+must consume that custody rather than recover declarations or carrier identity
+from the aggregate calling-plan commitment.
 
 ## Capture
 
