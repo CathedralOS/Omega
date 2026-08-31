@@ -29,6 +29,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute.rs",
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
+        "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

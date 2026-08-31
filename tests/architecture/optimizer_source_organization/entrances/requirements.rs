@@ -957,3 +957,16 @@ pub(super) const REQUIRED_LEGALIZATION_SOURCE_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/operation_projection.rs",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/fuel.rs",
 ];
+
+/// The immutable rewrite vocabulary descends through semantic carriers rather
+/// than accumulating every plan, witness, identity, and contract in one leaf.
+pub(super) const REQUIRED_REWRITE_MODEL_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/mod.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/canonical_encoding.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/foundations.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/scalar_evaluation.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/sccp.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/cfg_rewrite_plans.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/scalar_rewrite_plans.rs",
+    "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/contracts.rs",
+];
