@@ -124,8 +124,9 @@ pub use filesystem_replay::{
     FilesystemOutputHardLinkReplayRecord, FilesystemOutputLockReplayRecord,
     FilesystemOutputSymlinkReplayRecord, FilesystemOutputTreeEntryReplayRecord,
     FilesystemSourceDirectoryReadChainReplayRecord, FilesystemSourceDirectoryReadReplayRecord,
-    FilesystemSourceReadLinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES,
-    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
+    FilesystemSourceReadLinkReplayRecord, FilesystemSourceWriteRefusalReplayRecord,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_ABSENT_REMOVES, MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORIES,
+    MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DIRECTORY_RETAINED_PATH_BYTES,
     MAX_FILESYSTEM_REPLAY_OUTPUT_DUPLICATES, MAX_FILESYSTEM_REPLAY_OUTPUT_LOCK_PAIRS,
     MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
@@ -140,7 +141,8 @@ use filesystem_replay::{
     output_hard_link_record_from_attempt, output_lock_attempts, output_lock_record_from_attempts,
     output_logical_handle_identities, output_symlink_attempt, output_symlink_record_from_attempt,
     source_attempts_use_root, source_directory_chain_attempts, source_directory_chain_is_exact,
-    source_read_link_attempt, source_read_link_attempt_is_exact,
+    source_read_link_attempt, source_read_link_attempt_is_exact, source_write_refusal_attempt,
+    source_write_refusal_attempt_is_exact, source_write_refusal_record_from_attempt,
     unknown_input_handle_failure_attempt_is_exact, validate_observed_output_tree_records,
     validate_output_duplicate_replay, validate_output_lock_replay,
 };
@@ -2561,6 +2563,16 @@ impl FilesystemReplay {
         if self
             .attempts
             .get(attempt_index)
+            .is_some_and(source_write_refusal_attempt_is_exact)
+        {
+            // This is a compiler-owned grant-policy result, not an Output
+            // operation. Replay verifies its prepared Source coordinate and
+            // injects the exact refusal without granting a virtual write.
+            return false;
+        }
+        if self
+            .attempts
+            .get(attempt_index)
             .is_some_and(unknown_input_handle_failure_attempt_is_exact)
             || ordered_native_error_state_attempt_is_replayed(&self.attempts, attempt_index)
             || ordered_descriptor_error_state_attempt_is_replayed(&self.attempts, attempt_index)
@@ -2576,9 +2588,10 @@ impl FilesystemReplay {
     /// Whether this replay contains any Output-rooted operation, including a
     /// failure-only sequence that leaves no final staged-tree entry.
     pub fn has_output_attempts(&self) -> bool {
-        self.attempts
-            .iter()
-            .any(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
+        self.attempts.iter().any(|attempt| {
+            !source_write_refusal_attempt_is_exact(attempt)
+                && filesystem_output_attempt_tag(attempt.operation_tag())
+        })
     }
 
     pub fn from_source_input_observations(
@@ -2619,11 +2632,10 @@ impl FilesystemReplay {
 
     /// Reconstruct all exact Output entries in authored operation order.
     pub fn output_entries(&self) -> Vec<FilesystemOutputTreeEntryReplayRecord> {
-        let Some(output_start) = self
-            .attempts
-            .iter()
-            .position(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
-        else {
+        let Some(output_start) = self.attempts.iter().position(|attempt| {
+            !source_write_refusal_attempt_is_exact(attempt)
+                && filesystem_output_attempt_tag(attempt.operation_tag())
+        }) else {
             return Vec::new();
         };
         if self.attempts[output_start..]
@@ -2693,6 +2705,51 @@ impl FilesystemReplay {
         })
     }
 
+    /// Validate the exact compiler-policy denial of one attempted create
+    /// through a compiler-issued Source root.
+    pub fn from_source_write_refusal_observations(
+        observations: &EvaluationObservations,
+    ) -> Result<Self, String> {
+        if observations.filesystem_operation_schema_version()
+            != FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION
+        {
+            return Err("filesystem replay observation schema is not current".to_owned());
+        }
+        if !observations.build_included_sources().is_empty() {
+            return Err(
+                "filesystem replay refused Source write cannot hand off generated sources"
+                    .to_owned(),
+            );
+        }
+        if !observations.build_log().is_empty() {
+            return Err(
+                "filesystem replay refused Source write cannot carry BuildLog output".to_owned(),
+            );
+        }
+        let [attempt] = observations.filesystem_operation_attempts() else {
+            return Err("filesystem replay requires exactly one refused Source write".to_owned());
+        };
+        source_write_refusal_record_from_attempt(attempt)?;
+        validate_filesystem_replay_size(std::slice::from_ref(attempt))?;
+        Ok(Self {
+            attempts: std::sync::Arc::from([attempt.clone()]),
+            expected_included_sources: std::sync::Arc::from([]),
+        })
+    }
+
+    /// Construct the exact refused Source-write replay from typed compiler
+    /// coordinates.
+    pub fn from_source_write_refusal_record(
+        record: FilesystemSourceWriteRefusalReplayRecord,
+    ) -> Result<Self, String> {
+        let attempt = source_write_refusal_attempt(record);
+        validate_filesystem_replay_size(std::slice::from_ref(&attempt))?;
+        Ok(Self {
+            attempts: std::sync::Arc::from([attempt]),
+            expected_included_sources: std::sync::Arc::from([]),
+        })
+    }
+
     /// Validate an optional observed Source-input prefix followed by one or
     /// more exact Output entries, plus an exact ordered subset of explicit
     /// generated-source handoffs. A present Source prefix retains the same
@@ -2709,7 +2766,10 @@ impl FilesystemReplay {
         validate_filesystem_replay_size(attempts)?;
         let output_start = attempts
             .iter()
-            .position(|attempt| filesystem_output_attempt_tag(attempt.operation_tag()))
+            .position(|attempt| {
+                !source_write_refusal_attempt_is_exact(attempt)
+                    && filesystem_output_attempt_tag(attempt.operation_tag())
+            })
             .ok_or_else(|| {
                 "bounded filesystem replay requires one or more exact Output operations".to_owned()
             })?;

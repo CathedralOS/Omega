@@ -46,6 +46,7 @@ fn exact_read_link_shape() -> AttemptShape<'static> {
         output: None,
         retired: Vec::new(),
         refusal_count: 0,
+        refusals: Vec::new(),
     }
 }
 

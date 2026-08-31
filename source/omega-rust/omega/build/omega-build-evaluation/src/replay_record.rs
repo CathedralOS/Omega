@@ -49,6 +49,8 @@ mod read_link_tests;
 mod read_links;
 #[cfg(test)]
 mod source_directory_tests;
+#[cfg(test)]
+mod source_write_refusal_tests;
 mod symlinks;
 
 use descriptor_error_state_failures::{
@@ -96,7 +98,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 53;
+const VERSION: u16 = 54;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -461,6 +463,27 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
                 "filesystem replay source inputs exceed retained replay policy",
             )
         });
+    }
+    if operation_suffix_start == 0 && shapes.len() == 1 && shapes[0].operation == 1 {
+        validate_source_write_refusal_shape(&shapes[0])?;
+        let [rooted] = shapes[0].rooted_paths.as_slice() else {
+            unreachable!("validated refused Source write has one rooted path")
+        };
+        let record = psi_checked_interpreter::FilesystemSourceWriteRefusalReplayRecord::new(
+            crate::BUILD_SOURCE_ROOT_IDENTITY,
+            clone_bytes(rooted.bytes)?,
+        )
+        .map_err(|_| {
+            BuildFilesystemReplayRecordError::new(
+                "filesystem replay refused Source write could not be rehydrated",
+            )
+        })?;
+        return psi_checked_interpreter::FilesystemReplay::from_source_write_refusal_record(record)
+            .map_err(|_| {
+                BuildFilesystemReplayRecordError::new(
+                    "filesystem replay refused Source write exceeds retained replay policy",
+                )
+            });
     }
     if shapes.len() - operation_suffix_start == 2
         && unknown_descriptor_failure_with_errno_shapes_are_exact(&shapes[operation_suffix_start..])
@@ -1455,6 +1478,13 @@ struct ShapeAuthorizedPath<'a> {
     bytes: &'a [u8],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ShapeRefusal {
+    ordinal: u8,
+    access: u8,
+    reason: u8,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct AttemptShape<'a> {
     operation: u16,
@@ -1478,6 +1508,7 @@ struct AttemptShape<'a> {
     output: Option<ShapeLogicalOutput>,
     retired: Vec<u64>,
     refusal_count: usize,
+    refusals: Vec<ShapeRefusal>,
 }
 
 fn decode_attempt<'a>(
@@ -1696,10 +1727,16 @@ fn decode_attempt<'a>(
         retired.push(decoder.nonzero_u64()?);
     }
     let refusal_count = decoder.count()?;
+    let mut refusals = Vec::new();
+    refusals.try_reserve_exact(refusal_count).map_err(|_| {
+        BuildFilesystemReplayRecordError::new("replay grant-refusal allocation failed")
+    })?;
     for _ in 0..refusal_count {
-        let _ = decoder.byte()?;
-        let _ = decoder.tag(1, "invalid filesystem grant-access tag")?;
-        let _ = decoder.tag(3, "invalid filesystem grant-refusal tag")?;
+        refusals.push(ShapeRefusal {
+            ordinal: decoder.byte()?,
+            access: decoder.tag(1, "invalid filesystem grant-access tag")?,
+            reason: decoder.tag(3, "invalid filesystem grant-refusal tag")?,
+        });
     }
     Ok(AttemptShape {
         operation,
@@ -1723,6 +1760,7 @@ fn decode_attempt<'a>(
         output,
         retired,
         refusal_count,
+        refusals,
     })
 }
 
@@ -1890,6 +1928,10 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
+        if cursor == 0 && shapes.len() == 1 && shapes[cursor].operation == 1 {
+            validate_source_write_refusal_shape(&shapes[cursor])?;
+            return Ok(());
+        }
         if shapes.len() - cursor == 2
             && unknown_descriptor_failure_with_errno_operations(&shapes[cursor..])
         {
@@ -2144,6 +2186,50 @@ fn validate_first_rung(
                     )
                 })?;
         }
+    }
+    Ok(())
+}
+
+fn validate_source_write_refusal_shape(
+    attempt: &AttemptShape<'_>,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let [rooted] = attempt.rooted_paths.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay refused Source write has no unique rooted path",
+        ));
+    };
+    if attempt.operation != 1
+        || attempt.provider != 2
+        || attempt.result != ShapeResult::Scalar(-1)
+        || attempt.post_error != 13
+        || attempt.scalars.as_slice() != [(1, ShapeScalar::I32(438))]
+        || rooted.ordinal != 0
+        || rooted.root != 0
+        || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(rooted.bytes, false)
+        || attempt.refusals.as_slice()
+            != [ShapeRefusal {
+                ordinal: 0,
+                access: 1,
+                reason: 1,
+            }]
+        || !attempt.byte_operands.is_empty()
+        || !attempt.path_like_operands.is_empty()
+        || attempt.returned_path_count != 0
+        || !attempt.returned_paths.is_empty()
+        || !attempt.observed_regions.is_empty()
+        || !attempt.metadata.is_empty()
+        || !attempt.mutable_byte_resolutions.is_empty()
+        || !attempt.mutable_i64_resolutions.is_empty()
+        || !attempt.mutable_bytes.is_empty()
+        || !attempt.mutable_i64s.is_empty()
+        || !attempt.authorized_paths.is_empty()
+        || !attempt.inputs.is_empty()
+        || attempt.output.is_some()
+        || !attempt.retired.is_empty()
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay refused Source write is internally inconsistent",
+        ));
     }
     Ok(())
 }
@@ -3391,6 +3477,7 @@ mod first_rung_validation_tests {
             output: None,
             retired: Vec::new(),
             refusal_count: 0,
+            refusals: Vec::new(),
         }
     }
 

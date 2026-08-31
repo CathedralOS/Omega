@@ -4391,8 +4391,27 @@ fn canonical_source_root_cannot_be_used_for_writes() {
     let [create] = observations.filesystem_operation_attempts() else {
         panic!("source-root write must retain one attempted create")
     };
+    assert_eq!(observations.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        observations.filesystem_replay_verdict().disposition(),
+        BuildFilesystemReplayDisposition::Complete
+    );
+    assert_eq!(
+        create.observation_class(),
+        omega_build_evaluation::BuildFilesystemOperationObservationClass::Receipted
+    );
     assert_eq!(create.result(), BuildFilesystemOperationResult::Scalar(-1));
     assert_eq!(create.post_error(), 13);
+    assert_eq!(
+        create.scalar_operands()[0].value(),
+        BuildFilesystemScalarOperandValue::I32(438)
+    );
+    let [rooted] = create.rooted_path_operand_resolutions() else {
+        panic!("source-root write must retain one rooted input coordinate")
+    };
+    assert_eq!(rooted.operand_ordinal(), 0);
+    assert_eq!(rooted.root(), BuildFilesystemRoot::Source);
+    assert_eq!(rooted.relative_path(), b"blocked.bin");
     assert!(create.authorized_paths().is_empty());
     let [refusal] = create.grant_refusals() else {
         panic!("source-root write must retain its refused path")
@@ -4402,6 +4421,12 @@ fn canonical_source_root_cannot_be_used_for_writes() {
         refusal.reason(),
         BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
     );
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(&observations, limits)
+        .expect("refused Source write replay record must encode")
+        .expect("complete refused Source write replay must retain restart custody");
+    recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+        .expect("refused Source write replay record must recover canonically");
     assert!(!project.join("blocked.bin").exists());
     let _ = std::fs::remove_dir_all(&project);
 }
