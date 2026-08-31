@@ -158,6 +158,13 @@ fragment, object, and callable stages sit above that taxonomy. Adding another
 recovery rule therefore adds a source leaf and catalog disposition, not a new
 publication vertical.
 
+Fixed-view-copy insertion has two visible executable boundaries:
+`fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
+while `fixed_view_copy/validate/mod.rs` independently admits root and
+constraint custody, replays work and budget, reconstructs the exact leaf-local
+or shared-entry transformation, compares the complete selected result, and
+issues the receipt. The validator never calls `compute`.
+
 Fixed-view-copy artifacts use one small version-admitting codec entrance.
 Legacy V4 remains decode-only and byte-stable, with no structural-function
 roster. V5 descends through a scalar selected-plan leaf and a structural

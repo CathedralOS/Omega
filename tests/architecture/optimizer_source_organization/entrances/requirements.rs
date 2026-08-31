@@ -729,6 +729,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/mod.rs",
         coordination_marker: "pub fn materialize_fixed_view_copies",
     },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/mod.rs",
+        coordination_marker: "pub fn validate_fixed_view_copies",
+    },
 ];
 
 pub(crate) fn is_required_coordination_entrance(path: &str) -> bool {
@@ -755,6 +759,20 @@ pub(super) const REQUIRED_FIXED_VIEW_COPY_CODEC_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/calling.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/declarations.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/structural/settlements.rs",
+];
+
+/// Independent fixed-view-copy admission descends from one ordered validation
+/// join through explicit root, constraint, work, policy, destination, and
+/// selected-plan replay responsibilities.
+pub(super) const REQUIRED_FIXED_VIEW_COPY_VALIDATION_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/roots.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/copy_constraint.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/usage.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/transformation.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/leaf_destination.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/shared_entry.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/apply.rs",
 ];
 
 /// The optimization-manifest entrance routes directly to one leaf per stable

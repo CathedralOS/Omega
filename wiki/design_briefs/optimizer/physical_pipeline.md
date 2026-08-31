@@ -122,6 +122,12 @@ interference, allowed views, ABI constraints, clobbers, and spill legality.
 Home assignment, copy insertion, spilling, coalescing, and bounded
 rematerialization are separately validated decisions.
 
+Fixed-view-copy validation descends from one small independent join through
+root and copy-constraint custody, work and budget replay, leaf-local or
+shared-entry policy reconstruction, and exact application/comparison. Its
+validated receipt therefore represents reconstructed copy insertion, not
+producer self-attestation.
+
 The current transition-free, spill-free home stage is a deterministic
 constraint-graph allocator. Distinct use/definition ties form quotient
 vertices whose domains are the intersection of every member's legal views.
