@@ -168,6 +168,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "fixed-view-copy validation",
             REQUIRED_FIXED_VIEW_COPY_VALIDATION_LEAVES,
         ),
+        (
+            "Terminal operation lowering",
+            REQUIRED_TERMINAL_OPERATION_LOWERING_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

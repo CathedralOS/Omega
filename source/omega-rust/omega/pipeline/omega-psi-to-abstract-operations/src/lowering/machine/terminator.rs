@@ -8,11 +8,7 @@ pub(super) fn lower_terminator(
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
     result: Option<psi_terminal::ValueDeclaration>,
-    lowered_unit_affine_locals: &[(
-        OperationId,
-        psi_terminal::StructuralPlaceDeclaration,
-        psi_terminal::StructuralTypeDeclaration,
-    )],
+    lowered_unit_affine_locals: &[LoweredAffineLocal],
     retain_payloadless_for_optimization: bool,
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {

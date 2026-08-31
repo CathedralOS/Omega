@@ -122,6 +122,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         coordination_marker: "pub(super) fn lower_machine",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",
+        coordination_marker: "pub(super) fn lower_operation",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/lib.rs",
         coordination_marker: "pub fn project_optimization_run",
     },
@@ -773,6 +777,21 @@ pub(super) const REQUIRED_FIXED_VIEW_COPY_VALIDATION_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/leaf_destination.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/shared_entry.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/apply.rs",
+];
+
+/// Ordinary Terminal operations pass through one wildcard-free family router
+/// before exact semantic leaves construct their one abstract operation.
+pub(super) const REQUIRED_TERMINAL_OPERATION_LOWERING_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/structural_establishment.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/calls.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/boolean.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/integer_constants_and_relations.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/integer_conversion.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/integer_bitwise.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/shifts.rs",
+    "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/arithmetic.rs",
 ];
 
 /// The optimization-manifest entrance routes directly to one leaf per stable

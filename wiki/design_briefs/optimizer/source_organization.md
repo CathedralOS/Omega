@@ -173,7 +173,7 @@ does not yet fully satisfy this contract.
   compare/receipt join; independent GVN keys descend by total,
   proof-certified, and compatible-policy vocabulary. The former 1,457-line
   structural-catalog test matrix now mirrors six production validation families.
-- All 301 governed module maps are source-locally classified: 165 executable
+- All 302 governed module maps are source-locally classified: 166 executable
   entrances, 14 crate maps, and 122 stage groups. The guard exhaustively checks
   those roles and the real coordination marker of every executable entrance.
 - The transformation ledger now descends from a 92-line custody-validation
@@ -232,7 +232,12 @@ does not yet fully satisfy this contract.
   leaf destination, shared-entry, and selected-plan application leaves. Its
   largest leaf is 193 lines; replay remains independent from the producer and
   rejection precedence is unchanged.
-- No production-classified leaf remains at 750+ lines; 19 governed production
+- Terminal-operation projection now has a 96-line wildcard-free executable
+  router over structural establishment, calls, effects, Boolean, integer
+  constants/relations, conversion, bitwise, shift, and arithmetic leaves. The
+  router performs the sole abstract-operation append, so every routed Terminal
+  operation yields exactly one output. Its largest leaf is 322 lines.
+- No production-classified leaf remains at 750+ lines; 18 governed production
   leaves remain at 600-749 lines.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.

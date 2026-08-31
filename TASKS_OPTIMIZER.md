@@ -24,8 +24,10 @@ decision. Only true language-semantic questions belong in
 4. [x] Repair the four stale optimization-pipeline proof fixtures whose exact
    add/subtract goals are still represented by `KernelDerived(Truth)`. Use
    checked certificate-derived proofs; do not weaken proof admission.
-5. [ ] Finish workspace validation and rollout canaries before promoting any
-   rule beyond explicit opt-in.
+5. [>] Finish workspace validation and rollout canaries before promoting any
+   rule beyond explicit opt-in. Two native-differential canaries are currently
+   red on the unmodified baseline: the canonical-nonzero divide/remainder
+   reducer expectation and the scalar-call Terminal-byte golden fixture.
 
 ## P0 — Source navigation and taxonomy
 
@@ -63,7 +65,7 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
-- [x] Audit all 301 governed `lib.rs`/`mod.rs` files and explicitly classify
+- [x] Audit all 302 governed `lib.rs`/`mod.rs` files and explicitly classify
   each at its source as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall. The
@@ -130,8 +132,15 @@ decision. Only true language-semantic questions belong in
   selected-plan application leaves. Its largest leaf is 193 lines;
   independent replay and rejection precedence are unchanged, and validation
   does not call the producer.
+- [x] Replace the 733-line Terminal-operation match with a 96-line wildcard-free
+  executable router over structural establishment, calls, effects, Boolean,
+  integer constants/relations, conversions, bitwise operations, shifts, and
+  arithmetic leaves. The router performs the sole output append; its largest
+  leaf is 322 lines. Exact policies, obligations that the abstract model can
+  carry, diagnostics, structural declaration order, and output order are
+  unchanged.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 19 remain at 600-749
+  has no production-classified leaves at 750+ lines; 18 remain at 600-749
   lines.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
@@ -173,6 +182,12 @@ decision. Only true language-semantic questions belong in
   u12 folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
+- [ ] Extend abstract call operations and downstream identities/codecs/lowering
+  to retain Terminal `requirement_obligations` for ordinary, Unit, structural-
+  scalar, and boundary calls, plus `crash_continuations` for ordinary, Unit,
+  and structural-scalar calls. Current Terminal verification reconstructs
+  these nonempty rows, but the corresponding abstract variants cannot carry
+  them; add nonempty custody and mutation tests with the model extension.
 - [x] Add fixed-view-copy v5 as a versioned envelope and structural selected
   subtree. Public encoding emits v5; decoding accepts v4/v5; v4 bytes and
   rejection order remain pinned. V5 authenticates the exact selected-plan
