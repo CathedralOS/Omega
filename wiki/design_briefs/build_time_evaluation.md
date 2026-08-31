@@ -463,8 +463,22 @@ complete cohort. Paths deeper than five records, recursion, arrays containing
 sums, enclosing direct sums, and target-dependent placement remain rejected;
 every shallower API keeps its exact boundary.
 
+The complete plural depth-six fixed-depth rung admits a nonempty
+authored-order set of
+`Outer -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
+chains. Its compact report retains the outer whole-record plan once and one
+exact row per outer occurrence; each row owns the unchanged plural depth-five
+report for that occurrence. A distinct non-clone carrier composes those
+depth-five carriers, keeps repeated nominal occurrences distinct, rebuilds
+every nested zero-padded image in authored order, replays all layouts and
+occurrence identities hash-free, and performs one final atomic copy. One shared
+memoized bounded reachability walk and global leaf-occurrence ceiling cover the
+complete cohort. Paths deeper than six records, recursion, arrays containing
+sums, enclosing direct sums, and target-dependent placement remain rejected;
+every shallower API keeps its exact boundary.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-plural paths deeper than five records, paths deeper than five records, mixed
+plural paths deeper than six records, paths deeper than six records, mixed
 common-field/case shapes, and sums whose all-case geometry requires a target
 capsule remain later rungs. The same NaN, reference, slice, Text, dynamic,
 atomic, and non-copy fences remain in force.

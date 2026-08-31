@@ -103,13 +103,13 @@ remain excluded; no child placement is flattened or exposed as programmable
 tag placement.
 
 Subsequent independent fixed-depth reports extend that same composition through
-the complete plural depth-three, depth-four, and depth-five cohorts. The deepest
-live form is
-`Outer -> Third -> Second -> First -> Middle -> Leaf -> direct sums`: each outer
-occurrence owns the unchanged depth-four report and non-clone carrier, repeated
-nominal occurrences remain distinct, and projection plus replay share one
-memoized bounded walk and one global leaf ceiling. Every nested image is rebuilt
-from zero padding before one atomic outer copy. Deeper, recursive,
+the complete plural depth-three, depth-four, depth-five, and depth-six cohorts.
+The deepest live form is
+`Outer -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
+each outer occurrence owns the unchanged depth-five report and non-clone
+carrier, repeated nominal occurrences remain distinct, and projection plus
+replay share one memoized bounded walk and one global leaf ceiling. Every nested
+image is rebuilt from zero padding before one atomic outer copy. Deeper, recursive,
 array-mediated, direct-sum-coexisting, and target-dependent paths remain
 excluded, while each shallower API preserves its own exact depth boundary.
 
