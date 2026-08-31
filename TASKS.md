@@ -9182,8 +9182,14 @@ compiler concept is introduced.
   provider-plan, selected-plan, package-review, trust-report, and manifest
   identity atomically. PE emission rejects this distinct object-format case;
   Mach-O realization remains fail closed until it consumes the structural row
-  directly. Next make ordinary source binding evaluation produce exact
-  PE-by-name, PE-by-ordinal, versioned-ELF, and Mach-O locators, then supply
+  directly. The first ordinary-source carrier rung is now live: `via` retains
+  one exact typed producer-call expression through syntax, resolution, and
+  typing without fabricating an import identity, while the legacy closed
+  string binding remains explicitly segregated. Validation currently admits
+  only one resolved receiverless, body-bearing, non-generic, zero-parameter
+  producer call. Next install the compiler-owned `Binding` vocabulary,
+  hermetically evaluate that exact producer, and normalize its result to
+  PE-by-name, PE-by-ordinal, versioned-ELF, or Mach-O before supplying
   target-policy rows for admitted imports. Only then replace the blessed
   filename table with the exact service/schema permission table and binding-
   derived containment. String-backed imports never enter accepted
@@ -10667,6 +10673,16 @@ boundary without its corresponding checked law.
 
   The dependency-light locator foundation is implemented in `omega-target`
   with compatibility reexports from `omega-effects`.
+  Ordinary `via` syntax now has a distinct expression carrier through parsed,
+  resolved, and typed conformances. The machine supply category explicitly
+  permits an external realization whose evaluated binding has not yet been
+  installed, and package review fails closed on that state. The first admitted
+  expression shape is one exact receiverless zero-argument producer call with
+  no runtime, machine, evidence, quotient, or private-layout argument lane;
+  non-call expressions, unresolved targets, generic/bodyless producers, and
+  producers with parameters reject. This rung does not yet provide the
+  compiler-owned `DllImport`/`Binding` source declarations, execute the
+  producer, decode its value, or retain the evaluation/provenance receipt.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
   `PeByOrdinal`, `ElfVersioned`, and `MachODylibSymbol` candidates, rejecting
   empty/NUL coordinates, zero PE ordinals, UEFI/PE conflation, non-Linux

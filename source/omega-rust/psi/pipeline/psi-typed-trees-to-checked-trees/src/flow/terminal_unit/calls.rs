@@ -278,6 +278,9 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
     let MachineSupplyMode::ExternalRealization { binding, mechanism } = machine.supply_mode else {
         return None;
     };
+    let (Some(binding), Some(mechanism)) = (binding, mechanism) else {
+        return None;
+    };
     if mechanism != psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic
         || program.external_bindings.identity(binding)
             != Some(&psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic)

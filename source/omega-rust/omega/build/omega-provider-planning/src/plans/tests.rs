@@ -363,6 +363,69 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 }
 
 #[test]
+fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
+    let source = r#"
+        boundary trait Process {
+            machine exit(code: i32);
+        }
+
+        machine exit_leaf(code: i32)
+        satisfies Process::exit
+        via Binding::DllImport("retained-library", "retained-symbol");
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize external binding");
+    let syntax =
+        psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse external binding");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve external binding");
+    let mut typed =
+        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type external binding");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "exit_leaf")
+        .expect("external leaf");
+    let psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        binding: Some(binding),
+        mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Import),
+    } = machine.supply_mode
+    else {
+        panic!("legacy external binding must begin fully installed")
+    };
+
+    typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "exit_leaf")
+        .expect("external leaf")
+        .supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        binding: Some(binding),
+        mechanism: None,
+    };
+    assert!(
+        derive_satisfies_plans(&typed, None).is_empty(),
+        "an installed binding without its mechanism must not derive a provider plan",
+    );
+
+    typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "exit_leaf")
+        .expect("external leaf")
+        .supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        binding: Some(binding),
+        mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Syscall),
+    };
+    assert!(
+        derive_satisfies_plans(&typed, None).is_empty(),
+        "a mechanism that disagrees with the interned binding must not derive a provider plan",
+    );
+}
+
+#[test]
 fn provider_derivation_retains_every_exact_external_realization_symbol() {
     let source = r#"
         boundary trait Pair {

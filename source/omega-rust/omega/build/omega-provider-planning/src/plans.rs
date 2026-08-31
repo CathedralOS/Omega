@@ -1128,15 +1128,13 @@ pub fn derive_satisfies_plans_with_provenance(
             };
             let binding_kind = match (machine.supply_mode, clause.external_binding) {
                 (
-                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                        binding: supply_binding,
-                        ..
-                    },
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
                     Some(conformance_binding),
-                ) if supply_binding == conformance_binding => {
-                    let Some(binding) = exact_external_binding_identity(
+                ) => {
+                    let Some(binding) = exact_installed_external_binding_identity(
                         typed,
                         machine,
+                        conformance_binding,
                         clause.name.as_str(),
                         requirement.as_str(),
                     ) else {
@@ -1335,15 +1333,13 @@ fn derive_top_level_requirement_plans_with_provenance(
                     }
                 }
                 (
-                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                        binding: supply_binding,
-                        ..
-                    },
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
                     Some(conformance_binding),
-                ) if !machine.body_is_present && supply_binding == conformance_binding => {
-                    let Some(binding) = exact_external_binding_identity(
+                ) if !machine.body_is_present => {
+                    let Some(binding) = exact_installed_external_binding_identity(
                         typed,
                         machine,
+                        conformance_binding,
                         clause.name.as_str(),
                         clause
                             .requirement
@@ -1512,15 +1508,13 @@ fn derive_boundary_operator_plans_with_provenance(
             };
             let binding = match (machine.supply_mode, clause.external_binding) {
                 (
-                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                        binding: supply_binding,
-                        ..
-                    },
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
                     Some(conformance_binding),
-                ) if supply_binding == conformance_binding => {
-                    let Some(binding) = exact_external_binding_identity(
+                ) => {
+                    let Some(binding) = exact_installed_external_binding_identity(
                         typed,
                         machine,
+                        conformance_binding,
                         clause.name.as_str(),
                         requirement.as_str(),
                     ) else {
@@ -1753,6 +1747,27 @@ fn exact_external_binding_identity<'typed>(
         return None;
     }
     typed.external_bindings.identity(binding)
+}
+
+fn exact_installed_external_binding_identity<'typed>(
+    typed: &'typed TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    conformance_binding: psi_language_semantics::ExternalBindingId,
+    trait_name: &str,
+    requirement_name: &str,
+) -> Option<&'typed psi_language_semantics::ExternalBindingIdentity> {
+    let psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        binding: Some(supply_binding),
+        mechanism: Some(supply_mechanism),
+    } = machine.supply_mode
+    else {
+        return None;
+    };
+    if supply_binding != conformance_binding {
+        return None;
+    }
+    let binding = exact_external_binding_identity(typed, machine, trait_name, requirement_name)?;
+    (binding.mechanism() == supply_mechanism).then_some(binding)
 }
 
 fn external_provider_binding(
@@ -2220,8 +2235,8 @@ fn exact_top_level_external_realization<'typed>(
         })
         .filter(|machine| {
             let psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                binding: supply_binding,
-                ..
+                binding: Some(supply_binding),
+                mechanism: Some(supply_mechanism),
             } = machine.supply_mode
             else {
                 return false;
@@ -2239,6 +2254,9 @@ fn exact_top_level_external_realization<'typed>(
                     let Some(binding) = typed.external_bindings.identity(supply_binding) else {
                         return false;
                     };
+                    if binding.mechanism() != supply_mechanism {
+                        return false;
+                    }
                     external_provider_binding(
                         binding,
                         &plan.provider_type,

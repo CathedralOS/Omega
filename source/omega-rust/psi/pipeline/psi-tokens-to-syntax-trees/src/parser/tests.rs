@@ -728,6 +728,57 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
 }
 
 #[test]
+fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
+    let source = r#"
+        boundary trait Kernel32Requirements {
+            machine write_file();
+        }
+
+        machine write_file_binding() -> i32 {
+            0
+        }
+
+        machine kernel32_write_file()
+        satisfies Kernel32Requirements::write_file
+        via write_file_binding();
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("ordinary via call should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "kernel32_write_file" =>
+            {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("external leaf machine");
+    let clause = parsed
+        .items
+        .satisfies_clauses(machine.satisfies)
+        .first()
+        .expect("satisfies clause");
+    assert!(
+        clause.via.is_none(),
+        "ordinary calls are not bootstrap bindings"
+    );
+    assert!(matches!(
+        parsed.expressions.expression(clause.via_expression),
+        psi_syntax_trees::expression::ExpressionNode::Call(_)
+    ));
+    let via_source_span = clause
+        .via_keyword_source_span
+        .expect("ordinary via expression retains exact keyword custody");
+    let via_start = source.find("via").expect("authored `via`");
+    assert_eq!(via_source_span.span.start, via_start);
+    assert_eq!(via_source_span.span.end, via_start + "via".len());
+}
+
+#[test]
 fn rejects_legacy_named_compiler_intrinsic_payload() {
     let source = r#"
         boundary trait Console {

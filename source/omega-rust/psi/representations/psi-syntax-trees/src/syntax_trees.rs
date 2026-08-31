@@ -481,6 +481,11 @@ impl SyntaxTrees {
                     requirement: clause.requirement,
                     alias: clause.alias,
                     via: clause.via,
+                    via_expression: clause
+                        .via_expression
+                        .is_valid()
+                        .then(|| this.copy_expression_handle(other, clause.via_expression))
+                        .unwrap_or_else(crate::expression::ExpressionHandle::invalid),
                     via_keyword_source_span: clause.via_keyword_source_span,
                 },
                 |this, clause| this.items.append_satisfies_clause(clause),

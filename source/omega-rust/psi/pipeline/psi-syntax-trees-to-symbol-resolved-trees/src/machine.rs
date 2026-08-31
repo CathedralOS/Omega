@@ -80,6 +80,11 @@ pub(crate) fn lower_machine_into(
             .iter()
             .find_map(|clause| clause.via.as_ref())
             .map(external_binding_identity);
+        let has_via_expression = syntax_trees
+            .items
+            .satisfies_clauses(machine.satisfies)
+            .iter()
+            .any(|clause| clause.via_expression.is_valid());
         if machine.is_top_level_boundary_requirement {
             psi_language_semantics::MachineSupplyMode::TopLevelRequirement
         } else if machine.bodyless && machine.boundary {
@@ -102,15 +107,18 @@ pub(crate) fn lower_machine_into(
             } else {
                 psi_language_semantics::MachineSupplyMode::Boundary
             }
-        } else if let (true, Some(identity)) = (machine.bodyless, via_binding) {
-            let mechanism = identity.mechanism();
-            psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                binding: lowerer
-                    .symbol_resolved_trees
-                    .external_bindings
-                    .intern(identity),
-                mechanism,
-            }
+        } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
+            let (binding, mechanism) = via_binding
+                .map(|identity| {
+                    let mechanism = identity.mechanism();
+                    let binding = lowerer
+                        .symbol_resolved_trees
+                        .external_bindings
+                        .intern(identity);
+                    (Some(binding), Some(mechanism))
+                })
+                .unwrap_or((None, None));
+            psi_language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism }
         } else if machine.boundary {
             psi_language_semantics::MachineSupplyMode::Boundary
         } else {
@@ -491,6 +499,12 @@ fn lower_machine_trait_conformances(
                 .external_bindings
                 .intern(external_binding_identity(binding))
         });
+        let via_expression = clause
+            .via_expression
+            .is_valid()
+            .then(|| lower_expression_into_table(lowerer, syntax_trees, clause.via_expression))
+            .transpose()?
+            .unwrap_or_else(psi_symbol_resolved_trees::expression::ExpressionHandle::invalid);
         lowerer
             .symbol_resolved_trees
             .tables
@@ -505,6 +519,7 @@ fn lower_machine_trait_conformances(
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),
                     external_binding,
+                    via_expression,
                     external_binding_source_span: clause.via_keyword_source_span,
                 },
             );

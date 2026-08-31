@@ -181,7 +181,9 @@ pub(crate) fn validate_external_leaf_native_shapes(
     for conformance in program
         .machine_trait_conformances(machine)
         .iter()
-        .filter(|conformance| conformance.external_binding.is_some())
+        .filter(|conformance| {
+            conformance.external_binding.is_some() || conformance.via_expression.is_valid()
+        })
     {
         // Compiler intrinsics are not
         // foreign ABI leaves: they select a
@@ -192,7 +194,9 @@ pub(crate) fn validate_external_leaf_native_shapes(
         if matches!(
             machine.supply_mode,
             psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+                mechanism: Some(
+                    psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+                ),
                 ..
             }
         ) {
@@ -245,6 +249,93 @@ pub(crate) fn validate_external_leaf_native_shapes(
                 "result",
             ));
         }
+    }
+}
+
+/// The first ordinary `via` evaluation rung is deliberately narrow: one
+/// receiverless direct invocation of one exact zero-argument producer. Psi
+/// validates that invocation shape and exact producer selection; Omega later
+/// validates the compiler-owned `Binding` return vocabulary and normalizes its
+/// object-format locator.
+pub(crate) fn validate_external_via_expression(
+    program: &TypedTrees,
+    machine: &Machine,
+    conformance: &psi_typed_trees::machine::TraitConformance,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let expression = conformance.via_expression;
+    if !expression.is_valid() {
+        return;
+    }
+    let source_span = program.expression_table.source_span(expression);
+    let psi_typed_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(expression)
+    else {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "external realization `{}` must use one direct zero-argument machine call after `via`",
+                machine.name
+            ))
+            .with_source_span(source_span),
+        );
+        return;
+    };
+    let has_value_arguments = !program
+        .expression_table
+        .expression_handles(call.arguments)
+        .is_empty();
+    let invalid_call_shape = call.receiver.is_valid()
+        || has_value_arguments
+        || !call.machine_arguments.is_empty()
+        || !call.evidence_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+        || !call.target_symbol.is_valid();
+    if invalid_call_shape {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "external realization `{}` must use one exact receiverless zero-argument machine call after `via`",
+                machine.name
+            ))
+            .with_source_span(source_span),
+        );
+        return;
+    }
+
+    let producers = program
+        .machines()
+        .iter()
+        .filter_map(|producer| {
+            program
+                .machine_states(producer)
+                .iter()
+                .find(|state| state.symbol == call.target_symbol)
+                .map(|state| (producer, state))
+        })
+        .collect::<Vec<_>>();
+    let [(producer, state)] = producers.as_slice() else {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "external realization `{}` does not select one exact `via` producer machine",
+                machine.name
+            ))
+            .with_source_span(source_span),
+        );
+        return;
+    };
+    if !producer.body_is_present
+        || !producer.lifetime_parameters.is_empty()
+        || !program.machine_type_parameters(producer).is_empty()
+        || !program.state_parameters(state).is_empty()
+    {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "external realization `{}` selects `via` producer `{}`, but the first evaluated-binding rung requires one body-bearing, non-generic, zero-parameter machine",
+                machine.name, producer.name
+            ))
+            .with_source_span(source_span),
+        );
     }
 }
 
@@ -1611,7 +1702,7 @@ fn validate_machine_operator_conformance(
         return true;
     }
 
-    if conformance.external_binding.is_none() {
+    if conformance.external_binding.is_none() && !conformance.via_expression.is_valid() {
         crate::contract_entailment::check_operator_contract_conformance(
             program,
             machine,

@@ -54,6 +54,12 @@ pub(super) fn project_callable_conformances(
                     conformances.len()
                 ))]);
             }
+            let (Some(binding), Some(mechanism)) = (binding, mechanism) else {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed external callable `{}` has not installed its evaluated binding",
+                    machine.name
+                ))]);
+            };
             let Some(identity) = compilation.external_bindings.identity(binding) else {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed external callable `{}` has no exact binding-table identity",
