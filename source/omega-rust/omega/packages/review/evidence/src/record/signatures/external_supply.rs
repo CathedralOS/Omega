@@ -51,9 +51,9 @@ impl PackageReviewExternalCallableParameter {
 }
 
 /// Self-contained callable shape for executable code supplied outside Omega.
-/// The static count currently represents only ordinary, unbounded type
-/// parameters; projection rejects richer static telescopes until their exact
-/// structure has a stable carrier here.
+/// The static count currently represents only ordinary type parameters with
+/// default properties; projection rejects richer static telescopes until their
+/// exact structure has a stable carrier here.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewExternalCallableSignature {
     pub(crate) lifetime_parameter_count: usize,

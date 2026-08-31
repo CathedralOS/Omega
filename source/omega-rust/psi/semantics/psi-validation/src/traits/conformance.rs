@@ -640,6 +640,40 @@ fn validate_machine_top_level_requirement_conformance(
     );
 }
 
+/// Recheck one exact top-level requirement realization from retained typed
+/// custody. Later compiler-owned consumers use this after successful checking
+/// so a substituted requirement or provider telescope cannot inherit the
+/// earlier verdict.
+pub fn revalidate_top_level_requirement_realization(
+    program: &TypedTrees,
+    machine: &Machine,
+    requirement: &Machine,
+    conformance: &psi_typed_trees::machine::TraitConformance,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    if requirement.supply_mode != psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+        || conformance.symbol != requirement.symbol
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` does not retain one exact top-level boundary requirement realization",
+            machine.name
+        )));
+    } else {
+        validate_machine_top_level_requirement_conformance(
+            program,
+            machine,
+            requirement,
+            conformance,
+            &mut diagnostics,
+        );
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 fn nominal_type_symbol(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { referee, .. } => nominal_type_symbol(program, *referee),
