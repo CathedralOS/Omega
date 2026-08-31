@@ -66,8 +66,9 @@ The committed tree still has two important gaps:
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
-  D31 structural type formation, a source-backed resolution catalog, and
-  symbolic Alpha encoding. Remaining Q4-blocked entry diagnostics, Q5
+  D31 structural type formation, a source-backed resolution catalog, ordered
+  local resolution, and symbolic Alpha encoding. Remaining Q4-blocked entry
+  diagnostics, Q5
   receiver/callable ambiguity, body/control checking, D34 physical storage
   refusal, lowering, tape publication, and refinement are still open. The
   restricted

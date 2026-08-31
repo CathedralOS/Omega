@@ -86,8 +86,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests | implement D30's physical profiles, emit adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 callable ambiguity, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 callable ambiguity, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -863,7 +863,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     gate retains a real exact-maximum compiler tape with representative source,
     named lemmas, normalization, scratch, simultaneous outer maxima, balanced
     arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
-    tapes reproduce exactly; the current consolidated Gamma gate is 205/205
+    tapes reproduce exactly; the current consolidated Gamma gate is 206/206
     after replacing five redundant full-source compiler variants with one
     whole-function emitter. Ordinary density work remains useful but is no
     longer a condition for the retired V1 ceiling.
@@ -968,7 +968,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   duplicate checker source, and keep `interp.beta` only as a bounded semantic
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
   compiler source is an accepted compiler artifact. The retained compiler gate
-  passes 201 cases spanning 97 frontend discriminators, direct emitter and
+  passes 206 cases spanning 98 frontend discriminators, direct emitter and
   containment probes, checked `Int` and compact-`Bytes` runtime paths, 37
   source-to-code cases, source-derived ordinary/tail call, constructor, and
   local/let/match payloads, repeated byte-identical reconstruction, frame/algebraic
@@ -1180,6 +1180,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     every reason tied at the smallest coordinate until Q4/Q5 settle
     composition. The foundation type-checks through the real Gamma frontend;
     it claims no completed body judgment or behavioral execution.
+  - [x] **IMPLEMENTATION — DELTA ORDERED LOCAL RESOLUTION.** Retain the exact
+    machine parameter, state parameter, `let`, or transition-binder declaration
+    behind every valid bare local-value reference. Each entry and state body
+    precollects only its own pending lets, checks an initializer before moving
+    that binder into the active environment, resets entry locals before every
+    state, and adds arm binders only to their own continuation. A current or
+    later let yields `UseBeforeInitialization`; a genuinely absent value name
+    yields `UnknownName`, both at the reference start. Direct call and control
+    heads remain for their grammar-selected namespaces, while every nested
+    argument, operand, and place expression is visited. Resolution rows remain
+    in source order and are recoverable by exact expression offset; one neutral
+    candidate bucket collects all failures without promoting a rejection. The
+    complete source type-checks through the Gamma frontend. Exact behavioral
+    vectors remain planned until the real Gamma compiler edge can execute them.
   - [ ] **OWNER-BLOCKED — Q5 DELTA RECEIVER/CALLABLE AMBIGUITY.** Do not assign
     a type to unqualified `&mut self`, or choose between a same-spelled
     constructor and qualified machine by expected type, arity, or traversal.

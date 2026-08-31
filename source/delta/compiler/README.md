@@ -13,7 +13,8 @@ representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
 census, complete D31 structural type formation, a source-backed resolution
-catalog, and pure final symbolic-Alpha encoder. It validates every source byte
+catalog, ordered local-value resolution, and pure final symbolic-Alpha encoder.
+It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
 Gamma values with exact source spans rather than byte-rope records or numeric
@@ -70,8 +71,9 @@ so `data X {}` is concretely a zero-field record, plus all direct data-
 containment edges. Recursion checks each edge with a visited-owner graph walk,
 marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. The winning candidate is
-now promoted after successful census. Body/control checking remains the next
-semantic phase. Entry facts may be retained alongside it, but Q4 must total
+now promoted after successful census. Expression typing and the remaining
+body/control judgments are the next semantic phase. Entry facts may be retained
+alongside them, but Q4 must total
 their reasons, anchors, and ties before the shared final-phase candidate is
 promoted.
 
@@ -84,6 +86,18 @@ machine lookup remain deliberately separate, and an unqualified receiver stays
 ownerless: Q5 must settle those ambiguous cases before the checker may select a
 public result. A neutral minimum-coordinate bucket retains all tied final-phase
 reasons rather than choosing by traversal or DCOUT order.
+
+Ordered local resolution then walks every expression-bearing entry, state, and
+transition position. Machine parameters remain active across the invocation;
+state parameters and lets remain body-local; entry locals never leak into a
+state; and transition binders exist only in their own continuation. Each body
+precollects its pending lets without granting visibility, so a current or later
+let reference contributes `UseBeforeInitialization` while a genuinely absent
+value name contributes `UnknownName`. Successful references retain their exact
+parameter, let statement, or pattern/binder declaration and can be recovered by
+the expression's source offset. Direct callable and control heads remain for
+their grammar-selected namespace pass. This is durable identity custody for
+typing and lowering, not a partial acceptance judgment.
 
 ## Contract-derived conformance plan
 
@@ -145,10 +159,13 @@ refusals require `requested > limit` and publish no tape. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Gamma trap.
 
-Resolution-catalog controls remain planned, not claimed execution: forward data
+Resolution-catalog and local-resolution controls remain planned, not claimed
+execution: forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
 distinct qualified/unqualified machines, constructor/machine collision
-preservation, and state-name reuse across separate machines. Q5 decides only
+preservation, state-name reuse across separate machines, parameter and ordered
+let visibility, `UseBeforeInitialization` versus `UnknownName`, entry/state
+isolation, and arm-local binder visibility. Q5 decides only
 the two ambiguous consumers; the catalog must never erase either identity in
 advance.
 
