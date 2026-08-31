@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. MOVN proposal computation and deterministic selection.
+//! Optimizer module role: executable entrance. MOVN proposal computation and deterministic selection.
 //!
 //! This join admits source roots, constructs the retained baseline roster,
 //! runs the bounded scan-and-commit selector, and seals the resulting plan

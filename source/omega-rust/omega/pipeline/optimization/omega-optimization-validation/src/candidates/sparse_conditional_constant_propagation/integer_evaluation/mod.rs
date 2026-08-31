@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Independent integer-evaluation reconstruction by operation shape.
+//! Optimizer module role: executable entrance. Independent integer-evaluation reconstruction by operation shape.
 //!
 //! The parent SCCP validator enters here after candidate-level custody checks.
 //! Unary operations are recognized first because they own their operand-fact

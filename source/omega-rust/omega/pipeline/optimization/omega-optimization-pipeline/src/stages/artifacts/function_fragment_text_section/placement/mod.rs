@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Fragment placement route map.
+//! Optimizer module role: executable entrance. Fragment placement route map.
 //!
 //! This entrance admits the exact fragment source shape, then dispatches to
 //! ordinary relocation-free placement or structural-Unit call resolution.

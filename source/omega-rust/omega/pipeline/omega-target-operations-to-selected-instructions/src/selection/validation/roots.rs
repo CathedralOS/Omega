@@ -1,0 +1,80 @@
+use super::super::constraints::require_key_rows;
+use super::super::shared::*;
+
+pub(super) fn validate_initial_roots(
+    target: &LegalizedOperationPlan,
+    constraints: &SelectedSelectionConstraints,
+    physical: &ValidatedPhysicalRegisterModel,
+    catalog: &ValidatedRegisterConstraintCatalog,
+    plan: &SelectedInstructionPlan,
+) -> Result<(), SelectedInstructionError> {
+    if target.psi != plan.psi
+        || target.target != plan.target
+        || target.entry != plan.entry
+        || target.fuel_schedule != plan.fuel_schedule
+        || physical.model().architecture != target.target.architecture
+        || catalog.architecture() != target.target.architecture
+    {
+        return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
+    }
+    if target.functions.len() + target.unit_functions.len() != plan.functions.len()
+        || target.structural_unit_functions.len() != plan.structural_unit_functions.len()
+    {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    let mut expected_machines = target
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .chain(
+            target
+                .unit_functions
+                .iter()
+                .map(|function| function.machine),
+        )
+        .collect::<Vec<_>>();
+    expected_machines.sort_unstable();
+    if plan
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .ne(expected_machines)
+    {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    let expected_fixed_inputs = target
+        .functions
+        .iter()
+        .map(|source| {
+            1 + usize::from(matches!(
+                source.when_true.value,
+                SourceLeafValue::EntryParameter { .. }
+            ))
+        })
+        .sum::<usize>();
+    if constraints.fixed_inputs.len() != expected_fixed_inputs {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    require_key_rows(constraints.keys, catalog)
+}
+
+pub(super) fn validate_structural_roster(
+    target: &LegalizedOperationPlan,
+    plan: &SelectedInstructionPlan,
+) -> Result<(), SelectedInstructionError> {
+    let mut expected_structural_machines = target
+        .structural_unit_functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<Vec<_>>();
+    expected_structural_machines.sort_unstable();
+    if plan
+        .structural_unit_functions
+        .iter()
+        .map(|function| function.machine)
+        .ne(expected_structural_machines)
+    {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    Ok(())
+}

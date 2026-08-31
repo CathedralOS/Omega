@@ -1,0 +1,168 @@
+use super::super::RequiredCoordinationEntrance;
+
+pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/mod.rs",
+        coordination_marker: "pub(super) fn replay_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-legalized-operations/src/validation/mod.rs",
+        coordination_marker: "impl LegalizedCallUnit",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/mod.rs",
+        coordination_marker: "impl FixedViewCopyPlan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/selected/mod.rs",
+        coordination_marker: "fn decode_selected_plan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate.rs",
+        coordination_marker: "pub fn validate_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/compute.rs",
+        coordination_marker: "pub(crate) fn compute_terminal_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/validate/mod.rs",
+        coordination_marker: "pub fn validate_liveness",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/mod.rs",
+        coordination_marker: "compute::compute_terminal_register_homes(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute/mod.rs",
+        coordination_marker: "compute_function(index, legality, ranges, physical)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/validate/mod.rs",
+        coordination_marker: "replay::validate_function(function_index, actual, legality, ranges, physical)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/post_allocation_manifest/mod.rs",
+        coordination_marker: "pub fn project_post_allocation_optimization_manifest",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/mod.rs",
+        coordination_marker: "pub fn assign_registers",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/mod.rs",
+        coordination_marker: "pub(super) fn assign_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/mod.rs",
+        coordination_marker: "pub(super) fn assign",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/unit/foreign_call/mod.rs",
+        coordination_marker: "pub(super) fn assign",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations/src/assignment/function/operation_routes.rs",
+        coordination_marker: "pub(super) fn assign_operation",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/mod.rs",
+        coordination_marker: "pub(crate) fn derive_source_function_rosters",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",
+        coordination_marker: "pub(super) fn derive_leaf",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/structural/mod.rs",
+        coordination_marker: "pub(super) fn derive_source_structural_unit_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
+        coordination_marker: "pub(crate) fn replay_terminal_legalized_plan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/structural/mod.rs",
+        coordination_marker: "pub(super) fn replay_structural_unit_function",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/mod.rs",
+        coordination_marker: "pub(super) fn replay_leaf",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/mod.rs",
+        coordination_marker: "pub fn select_instructions",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/mod.rs",
+        coordination_marker: "pub(super) fn build_plan",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/mod.rs",
+        coordination_marker: "let body = catalog::build(&context)?",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/structural_unit/mod.rs",
+        coordination_marker: "let call = call::build(function, source, plan, layout, keys, catalog)?",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/structural_unit/mod.rs",
+        coordination_marker: "pub(super) fn reconstruct_structural_unit_contract",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold/mod.rs",
+        coordination_marker: "compute::compute_terminal_literal_fold(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold/compute/mod.rs",
+        coordination_marker: "derive_function_folds(selected, recovery, &rows)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/selected_lowering/literal_fold/validate/mod.rs",
+        coordination_marker: "reconstruct_literal_fold(selected, recovery, &rows)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/pressure_rematerialization/mod.rs",
+        coordination_marker: "pub fn rematerialize_selected_active_resident",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/mod.rs",
+        coordination_marker: "pub fn validate_selected_instructions",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/mod.rs",
+        coordination_marker: "pub(super) fn validate_selected_blocks",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_choice/mod.rs",
+        coordination_marker: "pub fn choose_spill_victims",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocation_legality/mod.rs",
+        coordination_marker: "pub fn analyze_allocation_legality",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocator_availability/mod.rs",
+        coordination_marker: "pub fn materialize_allocator_availability",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/mod.rs",
+        coordination_marker: "pub fn analyze_live_ranges",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/mod.rs",
+        coordination_marker: "pub fn analyze_liveness",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/recovery_classification/mod.rs",
+        coordination_marker: "pub fn classify_pressure_recovery",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/mod.rs",
+        coordination_marker: "pub fn materialize_fixed_view_copies",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate/mod.rs",
+        coordination_marker: "pub fn validate_fixed_view_copies",
+    },
+];

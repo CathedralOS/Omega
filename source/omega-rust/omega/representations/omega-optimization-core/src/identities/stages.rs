@@ -1,0 +1,20 @@
+canonical_identity!(
+    PrePhysicalOptimizationManifestIdentity,
+    b"omega.pre-physical-optimization-manifest-identity.v2\0"
+);
+canonical_identity!(
+    PostAllocationOptimizationManifestIdentity,
+    b"omega.post-allocation-optimization-manifest-identity.v1\0"
+);
+canonical_identity!(
+    SelectedLoweringOptimizationCompletionIdentity,
+    b"omega.selected-lowering-optimization-completion-identity.v1\0"
+);
+canonical_identity!(
+    FunctionRelativeOptimizationRealizationManifestIdentity,
+    b"omega.function-relative-optimization-realization-manifest-identity.v1\0"
+);
+canonical_identity!(
+    OptimizedAbstractPlanProjectionIdentity,
+    b"omega.optimized-abstract-plan-projection-identity.v2\0"
+);

@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Exact function-fragment emission routes.
+//! Optimizer module role: executable entrance. Exact function-fragment emission routes.
 //!
 //! This map keeps each source custody route visible, then joins ordinary or
 //! structural fragment construction to canonical statistics and manifest sealing.

@@ -1,0 +1,7 @@
+//! Named semantic ladders below the executable coordination seams.
+
+pub(super) mod machine;
+pub(super) mod pipeline_native;
+pub(super) mod psi;
+pub(super) mod selection_allocation;
+pub(super) mod translation;

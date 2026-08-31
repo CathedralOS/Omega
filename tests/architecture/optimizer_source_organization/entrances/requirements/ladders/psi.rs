@@ -1,0 +1,95 @@
+use super::super::SemanticLadder;
+
+pub(crate) const LADDERS: &[SemanticLadder] = &[
+    SemanticLadder {
+        family: "optimization manifest",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/codec.rs",
+            "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/decision.rs",
+            "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/error.rs",
+            "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/fact_reference.rs",
+            "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/pass.rs",
+            "source/omega-rust/omega/representations/omega-optimization-core/src/manifest/work_usage.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "optimization-unit identity encoding",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/calls_and_effects.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/control.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/scalar.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/scalar_shapes.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/operation_encoding/structural.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/identity/carrier_encoding.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "SCCP validation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_candidate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/integer_candidate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/observation.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "independent GVN expression keys",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/total.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/proof_certified.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/global_value_numbering/expression_keys/compatible_policy.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "transformation ledger",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/model.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/error.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/validation.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/mod.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/encoding.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/decoding.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/codec/cursor.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/tests.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "rewrite model",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/mod.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/canonical_encoding.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/foundations.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/scalar_evaluation.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/sccp.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/cfg_rewrite_plans.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/scalar_rewrite_plans.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model/contracts.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "optimization-unit seed construction",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/mod.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/function.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/provenance.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/scalar_dataflow.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/control_flow.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/facts.rs",
+            "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/structural_custody.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "control-flow merge mechanics",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/adjacent.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/adjacent_accounting.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/non_adjacent.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/non_adjacent_accounting.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/substitutions.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/merge_boundary_ownership.rs",
+        ],
+    },
+];

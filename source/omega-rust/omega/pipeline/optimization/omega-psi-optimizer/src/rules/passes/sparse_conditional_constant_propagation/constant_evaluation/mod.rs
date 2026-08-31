@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Exact constant-evaluation rule-family entrance.
+//! Optimizer module role: stage group. Exact constant-evaluation rule-family map.
 //!
 //! Boolean rewrites and integer rewrites are separate semantic families. The
 //! integer entrance descends again into binary arithmetic, exact casts, unary
