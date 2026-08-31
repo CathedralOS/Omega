@@ -244,7 +244,16 @@ does not yet fully satisfy this contract.
   constants/relations, conversion, bitwise, shift, and arithmetic leaves. The
   router performs the sole abstract-operation append, so every routed Terminal
   operation yields exactly one output. Its largest leaf is 322 lines.
-- No production-classified leaf remains at 750+ lines; 17 governed production
+- Recovery classification now has an 86-line compute coordinator over exact
+  policy admission, function/victim classification, immediate eligibility,
+  and checked work usage. Its semantic model is separate from the V3
+  persistence protocol, all leaves are below 600 lines, and the existing
+  analysis entrance still owns the compute-to-independent-validation join.
+- X86 branch relaxation now has a 51-line computation coordinator over
+  production, independent replay, shared branch inspection, reflow, work
+  admission, and canonical artifact assembly. Its existing stage entrance and
+  adjacent catalog remain the only execution and exact-enablement owners.
+- No production-classified leaf remains at 750+ lines; 14 governed production
   leaves remain at 600-749 lines.
 - Eleven broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.

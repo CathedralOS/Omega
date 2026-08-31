@@ -5,8 +5,6 @@ mod compute;
 mod error;
 mod identity;
 mod model;
-#[cfg(test)]
-mod tests;
 mod validation;
 
 pub(crate) use catalog::x86_rel8_selected;

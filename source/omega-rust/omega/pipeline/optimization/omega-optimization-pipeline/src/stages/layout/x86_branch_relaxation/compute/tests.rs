@@ -16,10 +16,12 @@ use crate::{
 };
 
 use super::{
-    compute::{
-        charge, inspect_production_branch, reflow_production_functions, reflow_replay_functions,
-        replay_inspect_branch,
-    },
+    branch_inspection::{inspect_production_branch, replay_inspect_branch},
+    reflow::{reflow_production_functions, reflow_replay_functions},
+    work::charge,
+};
+
+use super::super::{
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
     identity::{RevisionRoots, artifact_identity, revision_identity},
     model::{
