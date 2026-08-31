@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar/aggregate value-place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics, settle Q6 `.as_slice` receiver validity, implement D36/D37 callable and premise-DAG rules, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar/aggregate value-place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics, implement D36/D37/D38 callable, premise-DAG, and `.as_slice` rules, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1228,8 +1228,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
       complete array/view ranges as non-place views. Every present index/bound
       must have a complete `i32` fact. Keep receiver-call selectors out of field
       resolution, leave bounds as runtime traps, emit no dependent invalid-
-      projection candidates, and postpone `.as_slice` under Q6. Exact field
-      custody and result facts remain recoverable by constructor plus span.
+      projection candidates, and leave `.as_slice` to D38 implementation.
+      Exact field custody and result facts remain recoverable by constructor
+      plus span.
   - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Enforce D36 without
     merging the retained constructor and machine catalog rows or choosing a
     callable by lookup order, arity, expected type, statement context, or
@@ -1259,12 +1260,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     a failing argument, inadmissible constructor continuation plus arguments,
     resultless/`never` value use, projection failures, and every statement
     relation without an error type or traversal-dependent suppression.
-  - [ ] **OWNER-BLOCKED — Q6 DELTA `.as_slice` RECEIVER VALIDITY.** Array-to-
-    view conversion is required, but D17 does not say whether applying
-    `.as_slice` to an already immutable view is valid identity conversion or an
-    invalid member application. Do not assign that postfix a fact until Q6
-    settles the accepted receiver set; D37 already fixes invalid-form
-    diagnostics.
+  - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
+    contextual postfix only on a place-valued fixed array. Evaluate the receiver
+    once and retain a non-place immutable full-range view without allocation,
+    copying, a bounds check, or a trap. Reject an array temporary as
+    `InvalidPlace` at the receiver and every other complete type, including a
+    view, as `TypeMismatch` at the postfix start. Keep authored fields named
+    `as_slice` ordinary and treat a following `()` as a separate call suffix.
+    Pin a computed-index receiver plus the D38/D37 nested-failure controls.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
     complete body/control checking and the final nonaliasing generated-program
     map exist, derive its selected static-storage limit and expand only

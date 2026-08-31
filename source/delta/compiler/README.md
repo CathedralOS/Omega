@@ -42,10 +42,12 @@ D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D36's declaration syntax and cross-kind callable census are now
 implemented; qualified-expression application classification remains with
-body/control checking, including D37's premise-DAG composition. AST-to-
-symbolic-Alpha lowering, `main`, and final publication remain implementation
-gaps. Q4 blocks promotion of the incomplete entry-diagnostic judgment. D31's
-profile-independent structural type-formation judgment is now implemented; its
+body/control checking, including D37's premise-DAG composition and D38's
+`.as_slice` relation. AST-to-symbolic-Alpha lowering, `main`, and final
+publication remain
+implementation gaps. Q4 blocks promotion of the incomplete entry-diagnostic
+judgment. D31's profile-independent structural type-formation judgment is now
+implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
 therefore not yet a compiler edge and no validation may describe it as one.
@@ -127,15 +129,15 @@ produce a place. Array/view `.len` is non-place `i32`, and complete range
 slices produce a non-place immutable view. Present indexes and bounds require
 complete `i32` facts, but bounds remain runtime `Bounds` checks rather than
 static folding. A field selector used as a receiver-call head remains untouched
-for callable resolution. Record fields literally named `len` remain ordinary
-fields because contextual array/view members are selected only after base-type
-classification.
+for callable resolution. Record fields literally named `len` or `as_slice`
+remain ordinary fields because contextual array/view members are selected only
+after base-type classification.
 
 The positive fact pass already follows D37 by producing no parent fact or
 dependent diagnostic while a consumed child premise is absent. Negative
 projection, relational, place, resultless, and `never` candidates still require
-the complete D37 premise DAG. Q6 owns only the accepted receiver set for
-`.as_slice`; D37 already fixes the excluded-receiver failure rule. Call,
+the complete D37 premise DAG. D38 owns the accepted receiver and result for
+`.as_slice`; D37 fixes how its failure candidates compose. Call,
 receiver, constructor, transition-binder, resultless, and `never` facts remain
 with the corresponding body/control implementation. This foundation does not
 claim final acceptance.
@@ -143,7 +145,7 @@ claim final acceptance.
 ## Contract-derived conformance plan
 
 This is the compact case matrix for the eventual adjacent executable gate. It
-derives from D17, D22, D24, D36, D37, and `LANGUAGE.md`; it is not an unrun
+derives from D17, D22, D24, D36, D37, D38, and `LANGUAGE.md`; it is not an unrun
 corpus and records no execution evidence. Cases become executable only through
 the real Gamma-written compiler and its selected D19 adapter.
 
@@ -213,7 +215,12 @@ separate machines, parameter and ordered let visibility,
 isolation, arm-local binder visibility, exact same-start postfix separation,
 literal/read/group/arithmetic facts, record-field custody, `u8` read/place
 splitting, array-place versus immutable-view indexing, every optional slice-
-bound shape, `.len`, and call-head selector nonclassification. Constructor and
+bound shape, `.len`, and call-head selector nonclassification. D38 adds a
+place-valued fixed array and computed `array[i()].as_slice` positive case;
+view `.as_slice` as `TypeMismatch`; a non-place array result as `InvalidPlace`;
+the parsed extra-call form `array.as_slice()` as `TypeMismatch`; an ordinary
+record field named `as_slice`; and `f().as_slice = x` producing only the inner
+receiver `InvalidPlace` under premise closure. Constructor and
 machine rows remain structurally distinct after the census establishes one
 callable spelling; no body context, arity, or expected type may select between
 colliding declarations. Controls cover both declaration orders, nullary and
@@ -223,7 +230,7 @@ a bare machine identity as `TypeMismatch` in an ordinary expression. D37
 premise-DAG controls include unresolved callee versus place checking,
 wrong arity alongside an independently failing argument, resultless/`never`
 value use, projection reason/anchors, and exact let/assignment/assert/return
-relations. Q6 totals only `.as_slice` receiver validity.
+relations. D38 totals `.as_slice` receiver validity and once-evaluation.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,

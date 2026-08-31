@@ -22,6 +22,9 @@ anchors, and profile-owned bounded-witness static-storage refusal.
 D37 fixes body/control candidate dependency as a complete premise DAG,
 including value/place/resultless/`never` joins and exact relational/projection
 anchors.
+D38 fixes `.as_slice` as a once-evaluated, allocation-free full view of a
+place-valued fixed array; views and non-place array temporaries are not accepted
+receivers.
 
 ## Canonical edges
 
@@ -48,9 +51,9 @@ compilers and must not both be called “the Delta compiler.”
   backed resolution catalog, ordered local-value resolution, exact scalar and
   aggregate value/place facts, and symbolic Alpha encoding. Remaining final
   body/control checking, Q4 entry diagnostics, D36 application classification,
-  D37 premise-DAG enforcement, Q6 `.as_slice` receiver validity, storage
-  realization, lowering, `main`, and publication are incomplete, so it exposes
-  no compiler artifact yet.
+  D37 premise-DAG and D38 `.as_slice` enforcement, storage realization,
+  lowering, `main`, and publication are incomplete, so it exposes no compiler
+  artifact yet.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
 tree, including the restricted Delta-written Darwin compiler prototype, are

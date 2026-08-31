@@ -18,7 +18,9 @@ least one of these holds and the normative contract is revised explicitly:
 
 - deterministic byte input and artifact/diagnostic output;
 - explicit process termination and failure;
-- finite nominal data, sums, records, arrays, and bounded views;
+- finite nominal data, sums, records, arrays, and bounded views, including the
+  allocation-free D38 adapter from a place-valued fixed array to its full
+  immutable view;
 - zero-field records and positive fixed-array lengths with target capacity kept
   outside language validity;
 - profile-owned static-storage refusal with an exact-or-bounded canonical
