@@ -50,8 +50,9 @@ compilers and must not both be called “the Delta compiler.”
   case/machine collision registry, D31 structural type formation, the source-
   backed resolution catalog, ordered local-value resolution, exact scalar and
   aggregate value/place facts, one generalized callable ledger, direct
-  qualified applications, grouped/unqualified machine applications in settled
-  non-continuation contexts, positive receiver-scoped `self`, named-data
+  qualified applications, grouped/unqualified machine applications and
+  discarded postfix-statement category admission in settled non-continuation
+  contexts, positive receiver-scoped `self`, named-data
   receiver applications, exact sealed-`Console` receiver applications, and
   settled field/index/slice projection failures, D37 scalar and argument-
   `never` category joins and let/assignment/assert relations, and symbolic
@@ -59,7 +60,7 @@ compilers and must not both be called “the Delta compiler.”
   Remaining final body/control checking, Q4 entry diagnostics, D36
   continuation/state classification including Q10's state-transfer spelling,
   Q11's invalid-`self` diagnostic, Q12's resultless-argument anchor, the
-  remaining D37 postfix-statement/control/return/terminal premise DAG, D38
+  remaining D37 control/return/terminal premise DAG, D38
   executable controls, storage realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact
   yet. The

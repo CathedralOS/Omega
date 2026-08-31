@@ -160,8 +160,20 @@ inferred to have a receiver. Same-spelled record fields fall back to ordinary
 field custody and the general value-call failure, while call syntax selects a
 same-spelled machine and an invalid case/machine collision selects neither.
 Chained resultless/`never` receivers retain their category/terminal failures.
-Full continuation/state admission remains with the wider body/control
-judgment.
+Grouped bare-qualified call heads now transfer machine custody to the exact
+outer application; a completed constructor or machine application followed by
+another suffix remains an ordinary noncallable base. Discarded postfix
+statements carry their outer anchor through grouping and select an unqualified
+machine before local fallback. Only exact machine custody with authored
+application syntax is category-admitted. Constructors, bare machines, known
+qualified fields/boundary members, and complete noncallable values fail before
+arity/type checking; an admitted machine with a missing result gains no
+dependent mismatch. Value/resultless machine results may be discarded, while
+a successful `never` result remains input to the later block-flow judgment.
+The bare head and outer application intentionally retain distinct exact-AST
+callable rows; lowering must query the exact application row and must not treat
+every ledger row as an executable call.
+Full continuation/state admission remains with the wider body/control judgment.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
@@ -198,9 +210,8 @@ relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into
 `u8` storage without treating its zero-extended read type as the place type.
-Postfix-statement category admission, remaining call/control context, return,
-and terminal-flow candidates still require the rest of the D37 premise DAG.
-The fact pass now
+Remaining transition/control context, return, and terminal-flow candidates
+still require the rest of the D37 premise DAG. The fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining
 nested failure candidates compose. This foundation does not claim final
