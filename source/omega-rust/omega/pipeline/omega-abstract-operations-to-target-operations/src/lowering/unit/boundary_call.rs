@@ -433,7 +433,7 @@ fn lower_normalized_foreign_scalar_arguments(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
-    if declaration.scalar_parameters.len() > 3 {
+    if declaration.scalar_parameters.len() > 4 {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
     let scalar_parameter_shapes = declaration

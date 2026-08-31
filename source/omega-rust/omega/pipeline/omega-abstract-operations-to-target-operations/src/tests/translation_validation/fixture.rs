@@ -59,7 +59,6 @@ pub(super) fn literal_plan(functions: Vec<AbstractFunction>) -> AbstractOperatio
         },
         entry: functions[0].machine,
         structural_types: Vec::new(),
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions,
