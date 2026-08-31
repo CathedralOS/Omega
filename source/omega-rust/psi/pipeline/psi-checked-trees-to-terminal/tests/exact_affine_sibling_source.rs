@@ -67,6 +67,29 @@ const SEVEN_DEFINITION_SOURCE: &str = r#"
     }
 "#;
 
+const EIGHT_DEFINITION_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::divide_and_remainder_after_eight_definitions(token: Token, root: i8) -> bool
+    requires -7i8 <= root, root <= 119i8
+    {
+        let first: i8 = root + 1i8;
+        let second: i8 = first + 1i8;
+        let third: i8 = second + 1i8;
+        let fourth: i8 = third + 1i8;
+        let fifth: i8 = fourth + 1i8;
+        let sixth: i8 = fifth + 1i8;
+        let seventh: i8 = sixth + 1i8;
+        let divisor: i8 = seventh + 1i8;
+        let quotient: i8 = 6i8 / divisor;
+        let remainder: i8 = 6i8 % divisor;
+        quotient <= 6i8 && remainder <= 6i8
+    }
+"#;
+
 const AFFINE_CAST_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -206,6 +229,7 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
     source: &str,
     machine_name: &str,
     definition_count: usize,
+    exact_operation_count: usize,
 ) {
     let tokens = Lexer::new(source)
         .tokenize()
@@ -226,49 +250,57 @@ fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
     let [root] = entry.parameters.as_slice() else {
         panic!("entry retains one scalar root")
     };
-    let (exact_divide, exact_divisor) = entry
+    let exact_operations = entry
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .find_map(|operation| match operation.kind {
+        .filter_map(|operation| match operation.kind {
             OperationKind::ExactIntegerDivide {
+                right, obligation, ..
+            }
+            | OperationKind::ExactIntegerRemainder {
                 right, obligation, ..
             } => Some((obligation, right)),
             _ => None,
         })
-        .expect("source retains one exact divide");
-    let evidence = lowered
-        .proof_bundle
-        .evidence
-        .iter()
-        .find(|evidence| evidence.obligation == exact_divide)
-        .expect("bounded-definition exact divide has evidence");
-    let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
-        panic!("the exact divide uses the canonical certificate route")
-    };
-    let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = &certificate.proof.rule else {
-        panic!("the bounded-definition divisor selects the signed positive-divisor arm")
-    };
-    let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
-        panic!("the positive-divisor arm retains its affine custody")
-    };
-    assert_eq!(witness.root, ScalarTerm::value(root.id, root.scalar_type),);
-    assert_eq!(
-        witness.target,
-        ScalarTerm::value(exact_divisor, root.scalar_type),
-    );
-    assert_eq!(
-        witness.definition_axioms,
-        (0..definition_count)
-            .map(|index| 2 * index + 1)
-            .collect::<Vec<_>>(),
-    );
-    assert_eq!(
-        witness.literal_axioms,
-        (0..definition_count)
-            .map(|index| Some(2 * index))
-            .collect::<Vec<_>>(),
-    );
+        .collect::<Vec<_>>();
+    assert_eq!(exact_operations.len(), exact_operation_count);
+    for (obligation, divisor) in &exact_operations {
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == *obligation)
+            .expect("bounded-definition exact operation has evidence");
+        let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
+            panic!("the exact operation uses the canonical certificate route")
+        };
+        let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = &certificate.proof.rule
+        else {
+            panic!("the bounded-definition divisor selects the signed positive-divisor arm")
+        };
+        let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
+            panic!("the positive-divisor arm retains its affine custody")
+        };
+        assert_eq!(witness.root, ScalarTerm::value(root.id, root.scalar_type),);
+        assert_eq!(
+            witness.target,
+            ScalarTerm::value(*divisor, root.scalar_type),
+        );
+        assert_eq!(
+            witness.definition_axioms,
+            (0..definition_count)
+                .map(|index| 2 * index + 1)
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(
+            witness.literal_axioms,
+            (0..definition_count)
+                .map(|index| Some(2 * index))
+                .collect::<Vec<_>>(),
+        );
+    }
+    let exact_divide = exact_operations[0].0;
 
     let verified = psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -354,6 +386,7 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         SIX_DEFINITION_SOURCE,
         "Root::divide_after_six_definitions",
         6,
+        1,
     );
 }
 
@@ -363,6 +396,17 @@ fn seven_definition_affine_divisor_crosses_source_codec_and_independent_verifica
         SEVEN_DEFINITION_SOURCE,
         "Root::divide_after_seven_definitions",
         7,
+        1,
+    );
+}
+
+#[test]
+fn eight_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
+    definition_affine_divisor_crosses_source_codec_and_independent_verification(
+        EIGHT_DEFINITION_SOURCE,
+        "Root::divide_and_remainder_after_eight_definitions",
+        8,
+        2,
     );
 }
 

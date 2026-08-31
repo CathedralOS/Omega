@@ -3441,7 +3441,7 @@ retains tag 12 and canonically encodes the aligned optional indices; the
 registered calculus is v16 and the Rust kernel v8, with the affine and cast
 checkers included in both trust-graph source
 sets.
-The first bounded producer family uses the rule for one to seven prior signed
+The first bounded producer family uses the rule for one to eight prior signed
 fixed affine definitions whose exact retained root bound maps directly to a
 canonical safe-divisor arm. Reconstruction and production enumerate shortest
 words first and advance only prefixes accepted by the affine witness checker;
@@ -3449,9 +3449,9 @@ within each depth, semantic-axiom indices remain strictly ordered. The kernel
 independently checks continuity, algebra, the mapped conclusion, and
 accepted-premise custody. Missing root custody, incomplete, reversed,
 redirected, or stale words, wrong targets, and noncanonical mapped arms reject.
-The seven-definition successor changes only that fixed producer-enumeration
+The eight-definition successor changes only that fixed producer-enumeration
 ceiling. Proof-bundle v19, registered calculus v16, Rust kernel v8, and logical
-and fixed-fuel accounting remain unchanged: the seven source arithmetic
+and fixed-fuel accounting remain unchanged: the eight source arithmetic
 operations retain their ordinary charges, while certificate replay adds no
 executable units.
 Root custody may now also use one exact prior landed literal or value-alias
@@ -3465,7 +3465,7 @@ transitivity; equality facts stay in ledger order, while bound and second-leg
 indexes use their exact value endpoint. A missing bound, equality, or order
 leg, unsafe or mistyped literal, identity, non-value, disconnected, redirected,
 cross-carrier, or same-citation join rejects. Three-or-more-alias or
-three-or-more-leg root reconstruction, words of eight
+three-or-more-leg root reconstruction, words of nine
 or more definitions, joins, cast/shift compositions, and correlated results
 remain trusted-reducer work; neither complete exact row changes trust.
 An exact mapped affine bound may also close to the canonical arm through one
@@ -3476,7 +3476,7 @@ kernel rechecks the exact affine conclusion and the enclosing transitivity
 certificate. A nonclosed, mistyped, redirected, or weaker bridge rejects, and
 no variable-endpoint or cited-fact search is added.
 Affine completion now lives in dedicated, side-local `affine_custody` modules.
-Production and verification independently own the fixed seven-definition
+Production and verification independently own the fixed eight-definition
 witness frontier, exact mapped bound, and optional closed relaxation; no
 authority is shared.
 Affine evidence selection now lives in dedicated, side-local
@@ -3771,7 +3771,7 @@ post-boundary completion, while side-local `affine_custody/mapped` modules own
 exact pre-boundary mapping to a requested target. The parents retain ordinary
 root completion. Definition and literal citation order, strict inequalities,
 mapped propositions, proof shapes, rejection behavior, and the fixed
-seven-definition frontier are unchanged; reconstruction still derives and
+eight-definition frontier are unchanged; reconstruction still derives and
 checks its mapped proposition independently.
 
 Pre-boundary affine mapping now also separates target candidate enumeration
@@ -3780,14 +3780,14 @@ from per-witness completion. Independent producer and verifier
 literal-axiom boundary checks, validate the witness, and construct or replay
 the exact mapped bound. Their `mapped` parents keep the requested-target and
 definition-word order. Proof bytes, rejection within each candidate, and the
-fixed seven-definition frontier are unchanged.
+fixed eight-definition frontier are unchanged.
 
 Post-boundary affine custody now mirrors that responsibility split.
 Independent producer and verifier `affine_custody/boundary/completion` modules
 retain the strict definition and literal-axiom boundary checks and delegate an
 eligible witness to their own ordinary affine-custody completion. Their
 `boundary` parents keep goal-target and definition-word order. Proof bytes,
-rejection within each candidate, and the fixed seven-definition frontier are
+rejection within each candidate, and the fixed eight-definition frontier are
 unchanged.
 
 Affine-witness candidate coordination now separates goal-target enumeration
@@ -3806,7 +3806,7 @@ row, preserves row order and both equality orientations, and accepts exactly
 one same-carrier Value-to-signed-literal match. The `literals` parents retain
 definition-word replay, arithmetic-step orientation, sibling position, and
 target completion. Witness bytes, missing/late/redirected/ambiguous rejection,
-and the fixed seven-definition frontier are unchanged.
+and the fixed eight-definition frontier are unchanged.
 
 One landed affine-sibling definition step is now decoded by independent
 producer and verifier `affine_custody/frontier/prefix/literals/step` modules.
