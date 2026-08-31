@@ -151,6 +151,7 @@ pub(crate) fn check(audit: &mut Audit) {
             "legalization source leaves",
             REQUIRED_LEGALIZATION_SOURCE_LEAVES,
         ),
+        ("rewrite model", REQUIRED_REWRITE_MODEL_LEAVES),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

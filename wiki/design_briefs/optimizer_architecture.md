@@ -186,6 +186,15 @@ source/omega-rust/omega/
       omega-optimization-pipeline/    # cross-stage custody and compiler routes
 ```
 
+Within `omega-optimization-unit`, `rewrite/model/mod.rs` is the non-executable
+vocabulary map over source/provenance sites, scalar witnesses and constant
+facts, SCCP snapshots, CFG and scalar patches, and the candidate contract.
+`rewrite/candidate/mod.rs` remains the sole construction and admission
+entrance; splitting the vocabulary does not create another optimizer stage or
+catalog. Primitive identity writers live in the neutral sibling
+`rewrite/canonical_encoding.rs`, consumed by both fact identities and the
+candidate codec without a model-to-codec dependency cycle.
+
 Within a crate, follow semantic rungs rather than filename prefixes:
 
 ```text

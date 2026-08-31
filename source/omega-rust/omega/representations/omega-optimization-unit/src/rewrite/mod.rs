@@ -1,8 +1,9 @@
 //! Optimizer module role: stage group. Immutable Psi rewrite candidate taxonomy.
 //!
 //! `model` owns atomic plans and independent witnesses, `candidate` owns
-//! construction and invariant-preserving access, and `codec` owns canonical
-//! candidate identity encoding. Callers never observe a partially built plan.
+//! construction and invariant-preserving access, `canonical_encoding` owns
+//! model-neutral primitive writers, and `codec` owns candidate identity
+//! encoding. Callers never observe a partially built plan.
 
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet,
@@ -20,6 +21,7 @@ use crate::{
 };
 
 mod candidate;
+mod canonical_encoding;
 mod codec;
 mod model;
 
