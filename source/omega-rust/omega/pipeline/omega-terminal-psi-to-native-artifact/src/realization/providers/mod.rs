@@ -2,6 +2,7 @@
 //! then admit the exact checked-provider installation retained by the plan.
 
 mod adapters;
+mod compiler_builtins;
 mod installation;
 mod settlements;
 
@@ -27,6 +28,8 @@ pub(crate) fn admit_native_providers<'request>(
     request: &NativeRealizationRequest<'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let (settlements, executions) = settlements::settle_provider_executions(input, request)?;
+    let mut settlements = settlements;
+    settlements.extend(compiler_builtins::settle_compiler_builtins(input, request)?);
     let installation = installation::admit_checked_provider_installation(
         input,
         semantic_bytes,

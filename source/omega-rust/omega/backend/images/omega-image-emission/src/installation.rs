@@ -76,7 +76,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 46;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 47;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -446,15 +446,19 @@ where
     let required_executions = image
         .boundary_settlements()
         .iter()
-        .map(|installed| {
-            let execution = installed.settlement.provider_execution;
-            (
+        .filter_map(|installed| {
+            let omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(execution) =
+                installed.settlement.execution
+            else {
+                return None;
+            };
+            Some((
                 execution.provider_plan_report_identity,
                 execution.provider_execution_report_identity,
                 execution.provider_execution_report_fingerprint,
                 execution.normalized_root_report_identity,
                 execution.boundary_contract_report_fingerprint,
-            )
+            ))
         })
         .collect::<std::collections::BTreeSet<_>>();
     if reported_executions != required_executions {
@@ -950,11 +954,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
     let required = record
         .boundary_settlements
         .iter()
-        .map(|settlement| {
-            settlement
-                .settlement
-                .provider_execution
-                .provider_plan_report_identity
+        .filter_map(|settlement| {
+            let omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(execution) =
+                settlement.settlement.execution
+            else {
+                return None;
+            };
+            Some(execution.provider_plan_report_identity)
         })
         .collect::<std::collections::BTreeSet<_>>();
     if !required.is_subset(&selected) {
@@ -2711,6 +2717,7 @@ pub enum InstallationError {
     InvalidInstalledIntegerValueTag(u8),
     InvalidInstalledScalarSourceTag(u8),
     InvalidBoundaryRealizationTag,
+    InvalidBoundaryExecutionTag,
     InvalidCleanupActionTag(u8),
     ZeroPortEffectIdentity(&'static str),
     ZeroSettlementIdentity(&'static str),

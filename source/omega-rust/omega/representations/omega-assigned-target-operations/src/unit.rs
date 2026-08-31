@@ -155,7 +155,7 @@ pub enum AssignedUnitOperation {
     BoundarySettlement {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        execution: omega_target_operations::BoundaryExecutionBinding,
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,
         arguments: Vec<StructuralArgument>,

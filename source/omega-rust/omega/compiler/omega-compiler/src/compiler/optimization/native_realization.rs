@@ -25,27 +25,21 @@ pub(super) fn realize(
     )?;
     let demanded_intrinsics =
         crate::compiler::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
-    let intrinsic_evidence =
-        crate::compiler::intrinsic_settlements::derive_compiler_intrinsic_settlement_evidence(
+    let intrinsic_proposals =
+        crate::compiler::intrinsic_settlements::derive_compiler_intrinsic_settlement_proposals(
             checked,
             &demanded_intrinsics,
         )?;
     let selected_plans = checked.selected_provider_plans().plans();
-    let intrinsic_settlements = intrinsic_evidence
+    let compiler_builtins = intrinsic_proposals
         .iter()
-        .map(|evidence| {
-            let realization = match evidence.execution {
-                omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
-                    omega_target_operations::LinuxExitGroupI32Realization.into()
-                }
-                _ => unreachable!("native intrinsic evidence admits only cataloged boundary realizations"),
-            };
-            omega_terminal_psi_to_native_artifact::NativeProviderSettlement {
-                provider_execution: evidence,
-                provider_plan: &selected_plans[evidence.plan_index],
-                realization,
-            }
-        })
+        .map(
+            |proposal| omega_terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
+                requirement_identity: &proposal.requirement_identity,
+                provider_plan: &selected_plans[proposal.plan_index],
+                execution: proposal.execution,
+            },
+        )
         .collect::<Vec<_>>();
     let calling_plans = admission
         .program_entry
@@ -65,7 +59,8 @@ pub(super) fn realize(
             optimization_selections,
             selected_provider_plans: checked.selected_provider_plans(),
             external_binding_rows: checked.external_binding_rows(),
-            settlements: &intrinsic_settlements,
+            settlements: &[],
+            compiler_builtins: &compiler_builtins,
         },
     )
 }

@@ -1,53 +1,21 @@
-//! Compiler-owned native settlements for closed intrinsic catalog entries.
+//! Target-constrained proposals for compiler-owned native builtins.
 //!
 //! Provider selection and checked intrinsic review establish the exact
 //! declaration/target identity. This module performs the later executable
 //! projection: only compiler-intrinsic requirements actually called by the
-//! canonical Terminal artifact receive native execution evidence.
+//! canonical Terminal artifact receive a structural proposal. The consuming
+//! lowerer independently accepts it through its local target catalog.
 
 use crate::pipeline::CheckedCompilation;
-use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;
 use psi_diagnostics::Diagnostic;
-use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 #[derive(Debug)]
-pub(super) struct CompilerIntrinsicSettlementEvidence {
-    requirement_identity: String,
-    provider_plan_report_identity: u64,
-    provider_execution_report_identity: u64,
-    provider_execution_report_fingerprint: u64,
-    normalized_root_report_identity: u64,
-    boundary_contract_report_fingerprint: u64,
+pub(super) struct CompilerIntrinsicSettlementProposal {
+    pub(super) requirement_identity: String,
     pub(super) plan_index: usize,
-    pub(super) execution: CompilerIntrinsicExecutionIdentity,
-}
-
-impl ProviderExecutionEvidence for CompilerIntrinsicSettlementEvidence {
-    fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
-
-    fn provider_plan_report_identity(&self) -> u64 {
-        self.provider_plan_report_identity
-    }
-
-    fn provider_execution_report_identity(&self) -> u64 {
-        self.provider_execution_report_identity
-    }
-
-    fn provider_execution_report_fingerprint(&self) -> u64 {
-        self.provider_execution_report_fingerprint
-    }
-
-    fn normalized_root_report_identity(&self) -> u64 {
-        self.normalized_root_report_identity
-    }
-
-    fn boundary_contract_report_fingerprint(&self) -> u64 {
-        self.boundary_contract_report_fingerprint
-    }
+    pub(super) execution: omega_target_operations::CompilerBuiltinExecution,
 }
 
 pub(super) fn demanded_boundary_identities(
@@ -79,10 +47,10 @@ pub(super) fn demanded_boundary_identities(
     Ok(demanded)
 }
 
-pub(super) fn derive_compiler_intrinsic_settlement_evidence(
+pub(super) fn derive_compiler_intrinsic_settlement_proposals(
     checked: &CheckedCompilation,
     demanded_boundaries: &BTreeSet<String>,
-) -> Result<Vec<CompilerIntrinsicSettlementEvidence>, Vec<Diagnostic>> {
+) -> Result<Vec<CompilerIntrinsicSettlementProposal>, Vec<Diagnostic>> {
     let plans = checked.selected_provider_plans().plans();
     let provenance = checked.selected_provider_provenance();
     if plans.len() != provenance.len() {
@@ -124,7 +92,7 @@ pub(super) fn derive_compiler_intrinsic_settlement_evidence(
                     })
             })
             .collect::<Vec<_>>();
-        let [(plan_index, plan, retained, row, execution)] = matches.as_slice() else {
+        let [(plan_index, plan, retained, _row, execution)] = matches.as_slice() else {
             if !matches.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
                     "Terminal boundary `{requirement}` resolves to {} selected compiler-intrinsic rows",
@@ -151,26 +119,10 @@ pub(super) fn derive_compiler_intrinsic_settlement_evidence(
             )));
             continue;
         }
-        let coordinates = settlement_report_coordinates(
-            plan.identity_digest().as_bytes(),
-            requirement,
-            match &row.binding {
-                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } => {
-                    machine
-                }
-                _ => unreachable!("filtered compiler-intrinsic row"),
-            },
-            *execution,
-        );
-        evidence.push(CompilerIntrinsicSettlementEvidence {
+        evidence.push(CompilerIntrinsicSettlementProposal {
             requirement_identity: requirement.clone(),
-            provider_plan_report_identity: plan.report_fingerprint(),
-            provider_execution_report_identity: coordinates[0],
-            provider_execution_report_fingerprint: coordinates[1],
-            normalized_root_report_identity: coordinates[2],
-            boundary_contract_report_fingerprint: coordinates[3],
             plan_index: *plan_index,
-            execution: *execution,
+            execution: omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
         });
     }
     if diagnostics.is_empty() {
@@ -178,35 +130,4 @@ pub(super) fn derive_compiler_intrinsic_settlement_evidence(
     } else {
         Err(diagnostics)
     }
-}
-
-fn settlement_report_coordinates(
-    plan_digest: &[u8; 32],
-    requirement: &str,
-    realization: &str,
-    execution: CompilerIntrinsicExecutionIdentity,
-) -> [u64; 4] {
-    std::array::from_fn(|coordinate| {
-        let mut hash = Sha256::new();
-        hash.update(b"omega.compiler-intrinsic-provider-execution.v1\0");
-        hash.update([coordinate as u8]);
-        hash.update(plan_digest);
-        hash.update((requirement.len() as u64).to_le_bytes());
-        hash.update(requirement.as_bytes());
-        hash.update((realization.len() as u64).to_le_bytes());
-        hash.update(realization.as_bytes());
-        hash.update([match execution {
-            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => 0,
-            CompilerIntrinsicExecutionIdentity::BuiltinFunction(_) => 1,
-            CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. } => 2,
-            CompilerIntrinsicExecutionIdentity::NamedFloatNegation(_) => 3,
-            CompilerIntrinsicExecutionIdentity::NamedFloatConversion { .. } => 4,
-        }]);
-        let digest: [u8; 32] = hash.finalize().into();
-        u64::from_le_bytes(
-            digest[..8]
-                .try_into()
-                .expect("SHA-256 prefix is eight bytes"),
-        )
-    })
 }

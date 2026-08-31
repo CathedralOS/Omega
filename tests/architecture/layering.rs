@@ -1041,6 +1041,37 @@ fn compiler_executable_review_identity_stays_retired() {
 }
 
 #[test]
+fn compiler_builtins_never_masquerade_as_provider_execution_evidence() {
+    let root = workspace_root();
+    let settlements = std::fs::read_to_string(root.join(
+        "source/omega-rust/omega/compiler/omega-compiler/src/compiler/intrinsic_settlements.rs",
+    ))
+    .expect("read compiler intrinsic proposals");
+    for retired in [
+        "CompilerIntrinsicSettlementEvidence",
+        "settlement_report_coordinates",
+        "omega.compiler-intrinsic-provider-execution",
+        "impl ProviderExecutionEvidence",
+    ] {
+        assert!(
+            !settlements.contains(retired),
+            "compiler intrinsic proposals must not restore retired provider authority `{retired}`"
+        );
+    }
+
+    let target = std::fs::read_to_string(root.join(
+        "source/omega-rust/omega/representations/omega-target-operations/src/lib.rs",
+    ))
+    .expect("read target-operation execution roles");
+    assert!(target.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
+    let physical = std::fs::read_to_string(root.join(
+        "source/omega-rust/omega/representations/omega-machine-code/src/lib.rs",
+    ))
+    .expect("read machine-code execution roles");
+    assert!(physical.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
+}
+
+#[test]
 fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");

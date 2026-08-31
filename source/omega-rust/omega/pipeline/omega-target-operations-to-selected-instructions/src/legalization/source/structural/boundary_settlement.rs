@@ -13,7 +13,7 @@ pub(crate) fn derive_boundary_settlement(
     let TargetUnitOperation::BoundarySettlement {
         psi_operation: target_operation,
         boundary: target_boundary,
-        provider_execution,
+        execution,
         realization: omega_target_operations::BoundaryRealization::ClaimCompletionOnly(realization),
         scalar_arguments,
         arguments: target_arguments,
@@ -21,6 +21,11 @@ pub(crate) fn derive_boundary_settlement(
         completion_claim_sources: target_sources,
         completion_receipts: target_receipts,
     } = target
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let omega_target_operations::BoundaryExecutionBinding::AdmittedProvider(provider_execution) =
+        execution
     else {
         return Err(Error::UnsupportedSourceShape { function });
     };

@@ -328,7 +328,9 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 boundary_settlements: vec![BoundarySettlementRecord {
                     psi_operation: settlement_operation,
                     boundary,
-                    provider_execution: provider.into(),
+                    execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                        provider.into(),
+                    ),
                     realization: BoundaryRealization::LinuxExitGroupI32(
                         LinuxExitGroupI32Realization,
                     ),
@@ -549,7 +551,9 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                 BoundarySettlementRecord {
                     psi_operation: write_operation,
                     boundary: write_boundary,
-                    provider_execution: binding(&write_provider).into(),
+                    execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                        binding(&write_provider).into(),
+                    ),
                     realization: omega_target_operations::LinuxWriteLineRealization.into(),
                     scalar_arguments: Vec::new(),
                     arguments: vec![structural_argument.clone()],
@@ -576,7 +580,9 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                 BoundarySettlementRecord {
                     psi_operation: exit_operation,
                     boundary: exit_boundary,
-                    provider_execution: binding(&exit_provider).into(),
+                    execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                        binding(&exit_provider).into(),
+                    ),
                     realization: LinuxExitGroupI32Realization.into(),
                     scalar_arguments: vec![exit_argument],
                     arguments: Vec::new(),
@@ -2206,7 +2212,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "7e9fde1a95dba94c7522ca481745f5906b3875c76e80f841cc21f048b7580ebd"
+        "8b2b89fcdeb75ba831ffb11558d55744bb0d3591f7e81b8c0285773ff562748b"
     );
 
     let mut changed_plan = plan;
@@ -2440,7 +2446,9 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             boundary_settlements: vec![BoundarySettlementRecord {
                 psi_operation: settlement_operation,
                 boundary,
-                provider_execution: provider_execution.into(),
+                execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                    provider_execution.into(),
+                ),
                 realization: realization.into(),
                 scalar_arguments: Vec::new(),
                 arguments: Vec::new(),

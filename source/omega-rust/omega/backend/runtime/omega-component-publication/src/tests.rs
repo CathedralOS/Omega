@@ -329,7 +329,9 @@ fn terminal_image(
             boundary_settlements: vec![BoundarySettlementRecord {
                 psi_operation: operation,
                 boundary: BoundaryMachineId::new(1).expect("boundary"),
-                provider_execution: provider.into(),
+                execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                    provider.into(),
+                ),
                 realization: BoundaryRealization::LinuxExitGroupI32(LinuxExitGroupI32Realization),
                 scalar_arguments: vec![BoundaryScalarArgument {
                     source_value: psi_core::ValueId::new(1).expect("value"),

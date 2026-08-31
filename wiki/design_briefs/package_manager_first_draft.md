@@ -2308,6 +2308,14 @@ Terminal component. Its artifact manifest retains a separate ledger fingerprint,
 and replay lowering consumes semantic, ledger, and proof sections in that order.
 It is not whole-package evidence or lock authority.
 
+Compiler-owned native builtins are not package provider executions. The first
+complete lane rejoins a demanded Linux `exit_group(i32)` proposal to one exact
+selected intrinsic row, one Terminal boundary, and the consuming lowerer's
+local ELF catalog. Physical custody retains the closed role
+`CompilerBuiltin(LinuxExitGroupI32)` through image and installation framing
+while provider-execution reports remain empty. Installed and foreign
+implementations continue through their separate admitted-provider role.
+
 Dependency evidence composes transitively. Each subject retains its own
 obligation-semantics identity. Checked obligations compose upward. Missing or
 unproved obligations also compose upward as open rows, never as a producer's

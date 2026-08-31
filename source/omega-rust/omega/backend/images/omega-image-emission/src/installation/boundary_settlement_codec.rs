@@ -4,13 +4,13 @@
 //! validation, and admission replay. This child composes the exact row bytes.
 
 use omega_machine_code::{
-    BoundaryByteSequenceArgumentRecord, BoundaryResultRecord, BoundarySettlementRecord,
-    CompletionProviderCustodyBinding,
+    BoundaryByteSequenceArgumentRecord, BoundaryExecutionRecord, BoundaryResultRecord,
+    BoundarySettlementRecord, CompletionProviderCustodyBinding,
 };
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
-    DirectPortReadU8Realization, LinuxExitGroupI32Realization, LinuxWriteLineRealization,
-    MetadataOnlyPortRealization,
+    CompilerBuiltinExecution, DirectPortReadU8Realization, LinuxExitGroupI32Realization,
+    LinuxWriteLineRealization, MetadataOnlyPortRealization,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
@@ -41,7 +41,7 @@ pub(super) fn encode_boundary_settlements(
         push_u64(bytes, installed.machine.get());
         push_u64(bytes, settlement.psi_operation.get());
         push_u64(bytes, settlement.boundary.get());
-        encode_provider_execution(bytes, settlement.provider_execution);
+        encode_boundary_execution(bytes, settlement.execution);
         match settlement.realization {
             BoundaryRealization::MetadataOnlyPort(realization) => {
                 bytes.push(0);
@@ -216,7 +216,7 @@ pub(super) fn decode_boundary_settlements(
         let boundary = BoundaryMachineId::new(reader.u64()?).ok_or(
             InstallationError::ZeroSettlementIdentity("BoundaryMachineId"),
         )?;
-        let provider_execution = decode_provider_execution(reader)?;
+        let execution = decode_boundary_execution(reader)?;
         let realization_tag = reader.u8()?;
         let effect_operation = reader.u64()?;
         let service = reader.u64()?;
@@ -402,7 +402,7 @@ pub(super) fn decode_boundary_settlements(
             settlement: BoundarySettlementRecord {
                 psi_operation,
                 boundary,
-                provider_execution,
+                execution,
                 realization,
                 scalar_arguments,
                 arguments,
@@ -419,4 +419,30 @@ pub(super) fn decode_boundary_settlements(
         });
     }
     Ok(boundary_settlements)
+}
+
+fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRecord) {
+    match execution {
+        BoundaryExecutionRecord::AdmittedProvider(execution) => {
+            bytes.push(0);
+            encode_provider_execution(bytes, execution);
+        }
+        BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::LinuxExitGroupI32) => {
+            bytes.push(1);
+        }
+    }
+}
+
+fn decode_boundary_execution(
+    reader: &mut Reader<'_>,
+) -> Result<BoundaryExecutionRecord, InstallationError> {
+    match reader.u8()? {
+        0 => Ok(BoundaryExecutionRecord::AdmittedProvider(
+            decode_provider_execution(reader)?,
+        )),
+        1 => Ok(BoundaryExecutionRecord::CompilerBuiltin(
+            CompilerBuiltinExecution::LinuxExitGroupI32,
+        )),
+        _ => Err(InstallationError::InvalidBoundaryExecutionTag),
+    }
 }

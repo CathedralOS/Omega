@@ -129,7 +129,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             target,
             &[omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement {
                 boundary,
-                provider_execution: &evidence,
+                execution: omega_abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(&evidence),
                 realization: omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign),
             }],
         )

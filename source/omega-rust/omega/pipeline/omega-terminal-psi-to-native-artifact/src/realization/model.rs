@@ -59,6 +59,15 @@ pub struct NativeProviderSettlement<'execution> {
     pub realization: NativeBoundaryRealization<'execution>,
 }
 
+/// Target-constrained compiler-builtin proposal consumed by the local native
+/// lowerer. This carries no provider execution or installation receipt.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeCompilerBuiltinSettlement<'execution> {
+    pub requirement_identity: &'execution str,
+    pub provider_plan: &'execution omega_effects::provider_plan::ProviderPlan,
+    pub execution: omega_target_operations::CompilerBuiltinExecution,
+}
+
 /// Complete build-owned inputs for one target-native realization. Keeping
 /// these coupled prevents callers from accidentally carrying entry, target,
 /// optimization, and provider custody through separate positional channels.
@@ -71,6 +80,7 @@ pub struct NativeRealizationRequest<'request> {
     pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],
+    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
 }
 
 /// Compatibility-preserving result for the receipt-requiring native path.

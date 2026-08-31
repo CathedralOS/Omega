@@ -4,13 +4,18 @@ use omega_target_operations::BoundarySettlementRealization;
 use psi_core::{BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId};
 
 /// One boundary realization sourced from a validated, admitted provider
-/// execution. Callers supply the exact target mechanism but cannot substitute
-/// a secondary provider-plan identity.
+/// execution or the consuming lowerer's closed compiler-builtin catalog.
 #[derive(Debug, Clone)]
 pub struct AdmittedBoundarySettlement<'execution> {
     pub boundary: BoundaryMachineId,
-    pub provider_execution: &'execution dyn omega_installation_evidence::ProviderExecutionEvidence,
+    pub execution: AdmittedBoundaryExecution<'execution>,
     pub realization: BoundarySettlementRealization,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AdmittedBoundaryExecution<'execution> {
+    Provider(&'execution dyn omega_installation_evidence::ProviderExecutionEvidence),
+    CompilerBuiltin(omega_target_operations::CompilerBuiltinExecution),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

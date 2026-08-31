@@ -45,8 +45,19 @@ pub(super) fn validate_completion_custody(
     ) {
         return Err(CompletionCustodyError::InvalidReceiptCustody);
     }
+    if matches!(
+        settlement.execution,
+        omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+            omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+        )
+    ) && !matches!(
+        settlement.realization,
+        omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_)
+    ) {
+        return Err(CompletionCustodyError::InvalidProviderCustody);
+    }
     if derive_completion_provider_custody(
-        settlement.provider_execution,
+        settlement.execution,
         &settlement.completion_claim_sources,
         &settlement.completion_receipts,
     )
@@ -167,7 +178,7 @@ mod tests {
         let provider_execution = omega_machine_code::ProviderExecutionRecord::new(1, 2, 3, 4, 5)
             .expect("provider execution");
         let completion_provider_custody = derive_completion_provider_custody(
-            provider_execution,
+            omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(provider_execution),
             &completion_claim_sources,
             &completion_receipts,
         )
@@ -175,7 +186,9 @@ mod tests {
         BoundarySettlementRecord {
             psi_operation: psi_core::OperationId::new(1).expect("operation"),
             boundary: psi_core::BoundaryMachineId::new(1).expect("boundary"),
-            provider_execution,
+            execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                provider_execution,
+            ),
             realization: omega_target_operations::BoundaryRealization::MetadataOnlyPort(
                 omega_target_operations::MetadataOnlyPortRealization {
                     effect_operation: psi_core::OperationId::new(2).expect("effect operation"),
@@ -353,6 +366,15 @@ mod tests {
             .provider_plan_report_identity = 9;
         assert_eq!(
             validate_completion_custody(&invalid_provider),
+            Err(CompletionCustodyError::InvalidProviderCustody)
+        );
+
+        let mut role_substitution = settlement(Vec::new(), Vec::new(), Vec::new());
+        role_substitution.execution = omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+            omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+        );
+        assert_eq!(
+            validate_completion_custody(&role_substitution),
             Err(CompletionCustodyError::InvalidProviderCustody)
         );
     }

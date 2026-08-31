@@ -15,8 +15,8 @@ pub use callback_custody::{
     realize_native_artifact_with_callback_custody,
 };
 pub use model::{
-    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationRequest,
-    SettledNativeArtifact,
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+    NativeRealizationRequest, SettledNativeArtifact,
 };
 
 use crate::entry_settlement::validate_native_program_entry_settlement;

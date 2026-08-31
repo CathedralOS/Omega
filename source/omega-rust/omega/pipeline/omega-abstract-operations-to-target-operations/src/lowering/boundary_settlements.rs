@@ -116,7 +116,7 @@ pub(super) fn lower_linux_exit_group_i32(
             psi_operation: *psi_operation,
             nominal_return_edge: *nominal_return_edge,
             boundary: *boundary,
-            provider_execution: binding.provider_execution,
+            execution: binding.execution,
             realization,
             argument: BoundaryScalarArgument {
                 source_value: *constant_result,

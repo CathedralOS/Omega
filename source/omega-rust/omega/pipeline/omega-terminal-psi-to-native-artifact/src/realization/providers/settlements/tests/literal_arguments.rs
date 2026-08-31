@@ -182,7 +182,7 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
             target,
             &[omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement {
                 boundary,
-                provider_execution: &evidence,
+                execution: omega_abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(&evidence),
                 realization: omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign),
             }],
         )
@@ -325,8 +325,12 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
         let [call] = machine_code.functions[0].foreign_calls.as_slice() else {
             panic!("one retained foreign call")
         };
-        let [first_argument, second_argument, third_argument, fourth_argument] =
-            call.scalar_arguments.as_slice()
+        let [
+            first_argument,
+            second_argument,
+            third_argument,
+            fourth_argument,
+        ] = call.scalar_arguments.as_slice()
         else {
             panic!("four retained machine arguments")
         };

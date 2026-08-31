@@ -13,8 +13,9 @@ use omega_abstract_operations::RankedU32CountdownCustody;
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
-    ProviderExecutionBinding, TargetStructuralParameter, TerminalPsiProvenance,
+    BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument, CallSiteOwner,
+    CompilerBuiltinExecution, CompletionClaimSource, ProviderExecutionBinding,
+    TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -273,7 +274,7 @@ pub struct BoundaryResultRecord {
 pub struct BoundarySettlementRecord {
     pub psi_operation: OperationId,
     pub boundary: BoundaryMachineId,
-    pub provider_execution: ProviderExecutionRecord,
+    pub execution: BoundaryExecutionRecord,
     pub realization: BoundaryRealization,
     /// Ordered scalar inputs consumed by executable boundary code. Metadata-
     /// only settlements retain an empty list; native realizations retain the
@@ -337,11 +338,36 @@ pub struct CompletionProviderCustodyBinding {
     pub provider_execution: ProviderExecutionRecord,
 }
 
+/// Source-free physical custody for one realized boundary execution role.
+/// Compiler builtins remain structural catalog identities and never acquire
+/// provider-execution report coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryExecutionRecord {
+    AdmittedProvider(ProviderExecutionRecord),
+    CompilerBuiltin(CompilerBuiltinExecution),
+}
+
+impl From<BoundaryExecutionBinding> for BoundaryExecutionRecord {
+    fn from(binding: BoundaryExecutionBinding) -> Self {
+        match binding {
+            BoundaryExecutionBinding::AdmittedProvider(execution) => {
+                Self::AdmittedProvider(execution.into())
+            }
+            BoundaryExecutionBinding::CompilerBuiltin(execution) => {
+                Self::CompilerBuiltin(execution)
+            }
+        }
+    }
+}
+
 pub fn derive_completion_provider_custody(
-    provider_execution: ProviderExecutionRecord,
+    execution: BoundaryExecutionRecord,
     sources: &[CompletionClaimSource],
     receipts: &[CompletionReceipt],
 ) -> Option<Vec<CompletionProviderCustodyBinding>> {
+    let BoundaryExecutionRecord::AdmittedProvider(provider_execution) = execution else {
+        return (sources.is_empty() && receipts.is_empty()).then(Vec::new);
+    };
     receipts
         .iter()
         .map(|receipt| {

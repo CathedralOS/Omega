@@ -137,6 +137,31 @@ pub struct ProviderExecutionBinding {
     boundary_contract_report_fingerprint: u64,
 }
 
+/// One compiler-owned target mechanism accepted by the consuming lowerer's
+/// closed catalog. This is structural target custody, not an installed
+/// provider execution or a compact authority coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompilerBuiltinExecution {
+    LinuxExitGroupI32,
+}
+
+/// Closed execution roles for a realized Terminal boundary.
+///
+/// Installed and foreign implementations retain their admitted provider
+/// execution. Compiler-owned target builtins instead retain the exact local
+/// catalog identity accepted by the consuming lowerer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryExecutionBinding {
+    AdmittedProvider(ProviderExecutionBinding),
+    CompilerBuiltin(CompilerBuiltinExecution),
+}
+
+impl From<ProviderExecutionBinding> for BoundaryExecutionBinding {
+    fn from(binding: ProviderExecutionBinding) -> Self {
+        Self::AdmittedProvider(binding)
+    }
+}
+
 impl ProviderExecutionBinding {
     /// Non-authoritative data projection. Production lowering obtains these
     /// fields from `omega_external_roots::ProviderExecution`; constructing a
@@ -347,7 +372,7 @@ pub struct BoundaryByteSequenceArgument {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundarySettlementBinding {
     pub boundary: BoundaryMachineId,
-    pub provider_execution: ProviderExecutionBinding,
+    pub execution: BoundaryExecutionBinding,
     pub realization: BoundarySettlementRealization,
 }
 
@@ -521,7 +546,7 @@ pub enum TargetUnitOperation {
     BoundarySettlement {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        execution: BoundaryExecutionBinding,
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,
         arguments: Vec<StructuralArgument>,
@@ -597,7 +622,7 @@ pub enum TargetOperation {
         psi_operation: OperationId,
         source_value: ValueId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        execution: BoundaryExecutionBinding,
         realization: DirectPortReadU8Realization,
         arguments: Vec<StructuralArgument>,
         completion_claim_sources: Vec<CompletionClaimSource>,
@@ -614,7 +639,7 @@ pub enum TargetOperation {
         psi_operation: OperationId,
         nominal_return_edge: EdgeId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        execution: BoundaryExecutionBinding,
         realization: LinuxExitGroupI32Realization,
         argument: BoundaryScalarArgument,
         completion_claim_sources: Vec<CompletionClaimSource>,

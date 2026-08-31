@@ -72,7 +72,7 @@ pub(in crate::tests) fn claim_completion_settlement_fixture() -> (
         omega_target_operations::TargetUnitOperation::BoundarySettlement {
             psi_operation,
             boundary,
-            provider_execution:
+            execution:
                 omega_target_operations::ProviderExecutionBinding::from_execution_record(
                     omega_target_operations::ProviderPlanReportIdentity::new(seed).unwrap(),
                     seed + 1,
@@ -80,7 +80,8 @@ pub(in crate::tests) fn claim_completion_settlement_fixture() -> (
                     seed + 3,
                     seed + 4,
                 )
-                .unwrap(),
+                .unwrap()
+                .into(),
             realization: omega_target_operations::ClaimCompletionOnlyRealization.into(),
             scalar_arguments: Vec::new(),
             arguments: vec![argument],
