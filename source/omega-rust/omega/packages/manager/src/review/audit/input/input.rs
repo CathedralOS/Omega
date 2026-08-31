@@ -104,7 +104,7 @@ impl PackageSourceReviewInput {
 }
 
 fn deterministic_decision_recommends_audit(decision: &PackageTriageDecision) -> bool {
-    decision.disposition() == PackageTriageDisposition::AdmittedWithAuditRecommended
+    decision.disposition() == PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
         || decision.reasons().iter().any(|reason| {
             matches!(
                 reason,

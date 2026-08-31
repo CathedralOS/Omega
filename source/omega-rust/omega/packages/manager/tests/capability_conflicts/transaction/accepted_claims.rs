@@ -131,7 +131,7 @@ ensures result == 1;
             &BTreeSet::new(),
         )
         .disposition(),
-        PackageTriageDisposition::Admitted,
+        PackageTriageDisposition::NoReviewBlocker,
         "an unchanged accepted baseline remains visible without blanket reapproval"
     );
 }

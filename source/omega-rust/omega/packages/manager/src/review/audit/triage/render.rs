@@ -109,8 +109,10 @@ const fn saturating_add(left: usize, right: usize) -> usize {
 
 const fn disposition_token(disposition: PackageTriageDisposition) -> &'static str {
     match disposition {
-        PackageTriageDisposition::Admitted => "admitted",
-        PackageTriageDisposition::AdmittedWithAuditRecommended => "admitted_with_audit_recommended",
+        PackageTriageDisposition::NoReviewBlocker => "no_review_blocker",
+        PackageTriageDisposition::NoReviewBlockerWithAuditRecommended => {
+            "no_review_blocker_with_audit_recommended"
+        }
         PackageTriageDisposition::BlockedMissingAdmissionBaseline => {
             "blocked_missing_admission_baseline"
         }

@@ -229,8 +229,8 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         let initial_disposition = match *package {
             "axiom-ledger" => PackageTriageDisposition::BlockedCapabilityChange,
             "generated-table" | "file-journal" | "process-exit" | "remote-journal"
-            | "opaque-carrier" => PackageTriageDisposition::AdmittedWithAuditRecommended,
-            _ => PackageTriageDisposition::Admitted,
+            | "opaque-carrier" => PackageTriageDisposition::NoReviewBlockerWithAuditRecommended,
+            _ => PackageTriageDisposition::NoReviewBlocker,
         };
         assert_eq!(
             initial_root.disposition(),
@@ -263,7 +263,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .source_patches()
                 .iter()
                 .any(|patch| patch.candidate_key() == closure.graph().root()),
-            initial_disposition != PackageTriageDisposition::Admitted,
+            initial_disposition != PackageTriageDisposition::NoReviewBlocker,
             "{package} initial source packet follows compiler-derived audit policy"
         );
         let rendered_initial = initial_review
@@ -283,9 +283,9 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         assert_eq!(
             unchanged_root.disposition(),
             if retained_dangerous_authority {
-                PackageTriageDisposition::AdmittedWithAuditRecommended
+                PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
             } else {
-                PackageTriageDisposition::Admitted
+                PackageTriageDisposition::NoReviewBlocker
             },
             "{package} unchanged source triage"
         );
@@ -310,7 +310,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .expect("unavailable-source triage retains exact root package");
         assert_eq!(
             unavailable_root.disposition(),
-            PackageTriageDisposition::AdmittedWithAuditRecommended,
+            PackageTriageDisposition::NoReviewBlockerWithAuditRecommended,
             "{package} missing old source must recommend standalone candidate audit"
         );
         let unavailable_review = assemble_update_source_review(

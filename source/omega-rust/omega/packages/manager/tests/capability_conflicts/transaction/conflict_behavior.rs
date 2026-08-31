@@ -217,7 +217,7 @@ end_root_policy_resolution\n",
             &BTreeSet::new()
         )
         .disposition(),
-        PackageTriageDisposition::AdmittedWithAuditRecommended
+        PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
     );
 
     write_package(

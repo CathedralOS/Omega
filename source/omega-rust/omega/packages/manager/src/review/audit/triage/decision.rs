@@ -19,8 +19,8 @@ use super::render::{self, TriageRenderError};
 /// evidence nor proof that a human or model audited source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageTriageDisposition {
-    Admitted,
-    AdmittedWithAuditRecommended,
+    NoReviewBlocker,
+    NoReviewBlockerWithAuditRecommended,
     BlockedMissingAdmissionBaseline,
     BlockedCapabilityChange,
     BlockedProvenanceChange,
@@ -91,7 +91,7 @@ impl CompilerReviewTriage {
             .iter()
             .map(PackageTriageDecision::disposition)
             .max()
-            .unwrap_or(PackageTriageDisposition::Admitted)
+            .unwrap_or(PackageTriageDisposition::NoReviewBlocker)
     }
 
     /// Render bounded, fixed-vocabulary evidence suitable for an advisory
@@ -121,9 +121,9 @@ pub fn triage_initial_install(candidate: &CompilerIssuedPackageReviewSet) -> Com
                     disposition: if blocking {
                         PackageTriageDisposition::BlockedCapabilityChange
                     } else if recommendation {
-                        PackageTriageDisposition::AdmittedWithAuditRecommended
+                        PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
                     } else {
-                        PackageTriageDisposition::Admitted
+                        PackageTriageDisposition::NoReviewBlocker
                     },
                     reasons,
                 }
@@ -319,14 +319,14 @@ fn decide_update<B: PackageReviewEvidence>(
             PackageTriageDisposition::BlockedProvenanceChange
         }
         (Some(baseline), Some(candidate)) => {
-            let mut disposition = PackageTriageDisposition::Admitted;
+            let mut disposition = PackageTriageDisposition::NoReviewBlocker;
             if baseline.whole_review_commitment()
                 != PackageReviewEvidence::whole_review_commitment(candidate)
             {
                 reasons.push(PackageTriageReason::CapabilityOrApiChanged);
                 disposition = match changed_review_risk(baseline, candidate) {
                     Some(PackageReviewCanonicalRowRisk::AuditRecommended) => {
-                        PackageTriageDisposition::AdmittedWithAuditRecommended
+                        PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
                     }
                     Some(
                         PackageReviewCanonicalRowRisk::Blocking
@@ -346,12 +346,12 @@ fn decide_update<B: PackageReviewEvidence>(
             {
                 reasons.push(PackageTriageReason::BuildObservationChanged);
                 disposition =
-                    disposition.max(PackageTriageDisposition::AdmittedWithAuditRecommended);
+                    disposition.max(PackageTriageDisposition::NoReviewBlockerWithAuditRecommended);
             }
             if unavailable_baseline_sources.contains(baseline.key()) {
                 reasons.push(PackageTriageReason::BaselineSourceUnavailable);
                 disposition =
-                    disposition.max(PackageTriageDisposition::AdmittedWithAuditRecommended);
+                    disposition.max(PackageTriageDisposition::NoReviewBlockerWithAuditRecommended);
             }
             let representation_changed = row_family_changed(
                 baseline,
@@ -360,7 +360,7 @@ fn decide_update<B: PackageReviewEvidence>(
             );
             if append_candidate_audit_reasons(candidate, representation_changed, &mut reasons) {
                 disposition =
-                    disposition.max(PackageTriageDisposition::AdmittedWithAuditRecommended);
+                    disposition.max(PackageTriageDisposition::NoReviewBlockerWithAuditRecommended);
             }
             disposition
         }
@@ -371,9 +371,9 @@ fn decide_update<B: PackageReviewEvidence>(
             if blocking {
                 PackageTriageDisposition::BlockedCapabilityChange
             } else if recommendation {
-                PackageTriageDisposition::AdmittedWithAuditRecommended
+                PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
             } else {
-                PackageTriageDisposition::Admitted
+                PackageTriageDisposition::NoReviewBlocker
             }
         }
         (Some(_), None) => {

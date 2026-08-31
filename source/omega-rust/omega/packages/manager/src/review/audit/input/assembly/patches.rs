@@ -71,7 +71,7 @@ fn source_patch_required(decision: &PackageTriageDecision, initial: bool) -> boo
         return false;
     }
     if initial {
-        return decision.disposition() != PackageTriageDisposition::Admitted;
+        return decision.disposition() != PackageTriageDisposition::NoReviewBlocker;
     }
     decision.reasons().iter().any(|reason| {
         matches!(
@@ -80,6 +80,6 @@ fn source_patch_required(decision: &PackageTriageDecision, initial: bool) -> boo
                 | PackageTriageReason::BaselineSourceUnavailable
                 | PackageTriageReason::SourceLineageChanged
         ) || (matches!(reason, PackageTriageReason::NewTransitivePackage)
-            && decision.disposition() != PackageTriageDisposition::Admitted)
+            && decision.disposition() != PackageTriageDisposition::NoReviewBlocker)
     })
 }
