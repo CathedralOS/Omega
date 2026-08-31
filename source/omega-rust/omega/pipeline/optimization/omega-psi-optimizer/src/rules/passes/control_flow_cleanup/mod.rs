@@ -8,12 +8,11 @@ use omega_optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use omega_optimization_unit::{
-    AdjacentBlockMergeRewrite, ConstantConditionalRewrite, LinearEmptyBlockRewrite, NodeLocation,
+    AdjacentBlockMergeRewrite, ConstantConditionalRewrite, NodeLocation,
     NonAdjacentBlockMergeRewrite, OwnershipFrontierSite, OwnershipFrontierWitness,
-    OwnershipFrontierWitnessRow, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
-    ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, ScalarSubstitution, SharedJumpFusionRewrite,
-    UnreachablePrivateMachinesRewrite,
+    OwnershipFrontierWitnessRow, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
+    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
+    ScalarSubstitution, SharedJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
 };
 use psi_core::{BlockId, MachineId};
 
