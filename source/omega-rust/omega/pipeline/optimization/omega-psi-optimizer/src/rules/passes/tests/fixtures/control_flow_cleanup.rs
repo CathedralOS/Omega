@@ -28,6 +28,7 @@ pub(crate) fn propagated_block_parameter_unit(constant: bool) -> PsiOptimization
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -231,6 +232,7 @@ pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -312,6 +314,7 @@ pub(crate) fn path_qualified_empty_block_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -414,6 +417,7 @@ pub(crate) fn shared_terminal_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -506,6 +510,7 @@ pub(crate) fn adjacent_conditional_merge_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -714,6 +719,7 @@ pub(crate) fn non_adjacent_merge_unit(target_before_predecessor: bool) -> PsiOpt
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -759,6 +765,7 @@ pub(crate) fn constant_conditional_same_target_unit(constant: bool) -> PsiOptimi
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -839,6 +846,7 @@ pub(crate) fn redundant_block_parameter_unit(redundant: bool) -> PsiOptimization
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

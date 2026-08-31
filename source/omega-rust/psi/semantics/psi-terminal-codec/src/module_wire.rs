@@ -13,8 +13,9 @@ use psi_terminal::{
     FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
     ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
     ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    ServiceDeclaration, StaticRequirementDispatch, StructuralContentProjection,
-    StructuralDomainDeclaration, TerminalModule, TerminalRootServiceReach, VocabularyMarker,
+    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
+    StructuralDomainDeclaration, TerminalModule, TerminalPlacedViewInput, TerminalRootServiceReach,
+    VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -92,6 +93,40 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         for service in &dependency.upper_bound {
             writer.id(*service);
         }
+    }
+    writer.len("placed-view inputs", module.placed_view_inputs.len())?;
+    for input in &module.placed_view_inputs {
+        writer.id(input.machine);
+        writer.u32(input.position);
+        writer.string(
+            "placed-view source machine identity",
+            &input.source_machine_identity,
+        )?;
+        writer.string(
+            "placed-view source state identity",
+            &input.source_state_identity,
+        )?;
+        writer.string(
+            "placed-view source parameter identity",
+            &input.source_parameter_identity,
+        )?;
+        writer.u8(match input.access {
+            StructuralAccess::Owned => 1,
+            StructuralAccess::SharedBorrow => 2,
+            StructuralAccess::MutableBorrow => 3,
+            StructuralAccess::WriteOnlyBorrow => 4,
+        });
+        writer.boolean(input.binding_is_const);
+        writer.boolean(input.binding_is_mutable);
+        writer.string("placed-view identity", &input.view_identity)?;
+        writer.string("placed-view policy identity", &input.policy_identity)?;
+        writer.string(
+            "placed-view policy-plan machine identity",
+            &input.policy_plan_machine_identity,
+        )?;
+        writer.string("placed-view schema identity", &input.schema_identity)?;
+        writer.u64(input.placement_report_fingerprint);
+        writer.bytes(&input.placement_commitment);
     }
     writer.len("boundary machines", module.boundary_machines.len())?;
     for declaration in &module.boundary_machines {
@@ -355,6 +390,31 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             upper_bound: decode_ids(reader, "ServiceId")?,
         })
     })?;
+    let placed_view_inputs = decode_counted(reader, |reader| {
+        Ok(TerminalPlacedViewInput {
+            machine: reader.id("MachineId")?,
+            position: reader.u32()?,
+            source_machine_identity: reader.string("placed-view source machine identity")?,
+            source_state_identity: reader.string("placed-view source state identity")?,
+            source_parameter_identity: reader.string("placed-view source parameter identity")?,
+            access: match reader.u8()? {
+                1 => StructuralAccess::Owned,
+                2 => StructuralAccess::SharedBorrow,
+                3 => StructuralAccess::MutableBorrow,
+                4 => StructuralAccess::WriteOnlyBorrow,
+                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
+            },
+            binding_is_const: reader.boolean()?,
+            binding_is_mutable: reader.boolean()?,
+            view_identity: reader.string("placed-view identity")?,
+            policy_identity: reader.string("placed-view policy identity")?,
+            policy_plan_machine_identity: reader
+                .string("placed-view policy-plan machine identity")?,
+            schema_identity: reader.string("placed-view schema identity")?,
+            placement_report_fingerprint: reader.u64()?,
+            placement_commitment: reader.array()?,
+        })
+    })?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let float_meaning_projections = decode_counted(reader, |reader| {
@@ -562,6 +622,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             concrete: concrete_root_service_reach,
             installation_dependencies: installation_reach_dependencies,
         },
+        placed_view_inputs,
         boundary_machines,
         provider_candidates,
         float_meaning_projections,

@@ -81,6 +81,7 @@ pub(crate) fn scalar_local_cse_unit(proof_certified: bool) -> PsiOptimizationUni
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -226,6 +227,7 @@ pub(crate) fn scalar_dominator_gvn_unit(proof_certified: bool) -> PsiOptimizatio
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -329,6 +331,7 @@ pub(crate) fn diamond_dominator_gvn_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -460,6 +463,7 @@ pub(crate) fn sibling_only_gvn_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -705,6 +709,7 @@ pub(crate) fn phi_translated_gvn_fixture(
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

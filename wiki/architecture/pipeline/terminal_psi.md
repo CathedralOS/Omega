@@ -4046,6 +4046,18 @@ marker. They use fixed-width little-endian counts, stable nonzero identities,
 full-width integer payloads, and closed sum tags. The format favors auditability
 over density.
 
+Current format 43 / vocabulary 46 additionally retains closure-wide direct
+entry-reference inputs whose type is a source-derived `Placed<P, T>` view. Each
+canonical row binds the Terminal machine and parameter position to hermetic
+source machine/state/parameter, policy, producing-plan-machine, and schema
+identities; a canonical policy/schema-derived view identity; exact access and
+binding modes; a non-authoritative compact report
+coordinate; and the validated placement plan's domain-separated canonical
+layout/access/reach commitment. Representation validation rejects missing
+machines, owned access, non-hermetic identities, zero report coordinates or
+commitments, duplicates, and noncanonical order. This custody row grants no
+runtime storage, accessor, provider, physical-address, or ABI authority.
+
 Unordered semantic sets are strictly sorted by stable identity or canonical
 bytes and reject duplicates; symmetric terms use the same canonical ordering.
 Execution-significant sequences—parameters, operations, and jump arguments—

@@ -461,6 +461,7 @@ fn provider_module() -> TerminalModule {
             concrete: vec![service],
             installation_dependencies: Vec::new(),
         },
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: REQUIREMENT.into(),

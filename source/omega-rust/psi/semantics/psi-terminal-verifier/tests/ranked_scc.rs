@@ -58,6 +58,7 @@ fn ranked_countdown_with_width(bits: u16) -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

@@ -6307,8 +6307,22 @@ Remaining:
   chained, dynamic-receiver, unresolved-generic, non-checked-supply, and
   unresolved-machine-parameter shapes keep failing closed. Carry the settled
   `Placed<P, T>` non-runtime-field input paths and per-outcome dispositions
-  through checked and terminal representations. Relevance does not invent a
-  runtime carrier or public ABI for otherwise non-layoutable types.
+  through checked and terminal representations. The first bounded checked
+  input carrier is live for one direct concrete entry reference: it retains
+  exact machine/state/parameter position and identity, reference access,
+  binding mode, synthesized view, policy, producing `Policy::plan` machine,
+  schema, and the complete validated placement rather than its compact report
+  fingerprint. Value-form and subordinate-state inputs remain fenced, and no
+  runtime storage, accessor, provider, or ABI authority is created. The same
+  bounded row now crosses Terminal through hermetic machine/state/parameter,
+  policy, producing-plan-machine, and schema identities, a canonical
+  policy/schema-derived view identity, plus the plan's
+  domain-separated canonical layout/access/reach commitment and compact report
+  coordinate. Canonical codec order and independent representation validation
+  reject missing machines, duplicates, reordering, noncanonical hermetic or
+  derived identities, owned access, and zero commitments. Per-outcome
+  dispositions remain open. Relevance does not invent a runtime carrier or
+  public ABI for otherwise non-layoutable types.
 - **EFFECTFUL-TYPED-COMPUTATION:** specify the value/computation judgments
   connecting effectful machines to the future typed proof calculus. Treat both
   migrations as staged semantic work, not prerequisites for extending the

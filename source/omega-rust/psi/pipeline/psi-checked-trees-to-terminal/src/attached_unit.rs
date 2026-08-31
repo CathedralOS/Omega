@@ -582,6 +582,24 @@ pub(super) fn lower_attached_unit_closure_including(
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut placed_view_inputs = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .filter(|input| {
+            machine_ids
+                .iter()
+                .any(|(symbol, _)| *symbol == input.machine)
+        })
+        .map(|input| {
+            lower_placed_view_input(
+                checked,
+                input,
+                lookup_machine_id(&machine_ids, input.machine)?,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    placed_view_inputs.sort();
     let scalar_requirement_counts = prepared_scalar_machines
         .iter()
         .map(|machine| {
@@ -1741,6 +1759,7 @@ pub(super) fn lower_attached_unit_closure_including(
             structural_domains,
             services,
             root_service_reach,
+            placed_view_inputs,
             boundary_machines,
             provider_candidates,
             float_meaning_projections: Vec::new(),

@@ -16,6 +16,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         psi,
         entry: machine,
         structural_types: Vec::new(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
             id: boundary,
             identity: requirement.into(),

@@ -101,6 +101,7 @@ fn installed_provider_plan() -> (
                 }],
             },
         }],
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "ProgramEntry::enter".into(),
@@ -248,6 +249,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
         psi: identity(),
         entry: machine,
         structural_types: Vec::new(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "Console::exit_process(i32)->Unit".into(),
@@ -400,6 +402,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
         psi: identity(),
         entry: machine,
         structural_types: vec![byte_declaration.clone()],
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![
             BoundaryMachineDeclaration {
                 id: write_boundary,

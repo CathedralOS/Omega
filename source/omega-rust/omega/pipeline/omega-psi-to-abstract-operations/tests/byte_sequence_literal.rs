@@ -68,6 +68,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: "test::write_line".into(),

@@ -602,3 +602,15 @@ Remaining compiler and language work:
 - policy selection through generics; and
 - channel/store compatibility-demand checking over published schemas, codec
   plans, historical shapes, and migrations.
+
+The first checked non-runtime input-path carrier is bounded to a direct concrete
+entry reference to `Placed<P, T>`. It retains the exact entry and parameter
+coordinate, reference/binding mode, synthesized view, policy, producing plan
+machine, schema, and complete validated placement. Terminal retains the same
+closure coordinate through hermetic declaration identities, a canonical
+policy/schema-derived view identity, and the placement plan's domain-separated
+canonical layout/access/reach commitment; codec and verifier
+replay reject missing-machine, duplicate, reordered, malformed, or
+zero-commitment rows, while canonical artifact identity binds every retained
+identity string. The carrier grants no runtime or access authority. Value-form
+and subordinate-state inputs and per-outcome dispositions remain fail-closed.

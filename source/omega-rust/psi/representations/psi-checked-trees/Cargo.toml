@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 psi-arena = { path = "../../foundation/psi-arena" }
+psi-access-plans = { path = "../../foundation/psi-access-plans" }
 psi-core = { path = "../../foundation/psi-core" }
 psi-effects = { path = "../psi-effects" }
 psi-facts = { path = "../psi-facts" }

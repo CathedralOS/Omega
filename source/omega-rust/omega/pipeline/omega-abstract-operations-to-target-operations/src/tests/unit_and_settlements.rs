@@ -26,6 +26,7 @@ fn write_only_primitive_store_stops_at_explicit_physical_lowering_fence() {
             identity: "test::i32".into(),
             shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
         }],
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -142,6 +143,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
         psi: identity(),
         entry: root,
         structural_types,
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -378,6 +380,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 },
             },
         ],
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "InterruptAcknowledgement::complete".into(),
@@ -661,6 +664,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
                 ],
             },
         }],
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "Extent::settle".into(),
