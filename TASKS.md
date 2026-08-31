@@ -1493,6 +1493,20 @@ Remaining:
   runtime stack address, stack storage, environment admission, or private-stack
   authority is granted.
 
+  The first address-free target-runtime adapter composition carrier is now
+  live. It consumes the private-ledger physical readiness, its exact four-term
+  same-stack budget, and the production optimized semantic entry contract.
+  The join independently replays the receiver-free Microsoft-x64
+  `ProgramStorageEntry::enter(Image, InitialStorage) -> Unit` plan, retains its
+  strong calling-plan commitment and source-signature identity, requires the
+  semantic contract's paired physical plan to equal the exact target-owned
+  arrival contract, and rejects physical/semantic requirement conflation or
+  root-order drift while returning every input for retry. The carrier remains
+  non-clone and exposes no firmware input, `Extent`, root, or invocation
+  authority. Exact producer evidence for the four WCSU coordinates, generated
+  physical shell and checked-adapter realization, provider/root establishment,
+  semantic installation, invocation, and status mapping remain open.
+
   The next provider/adapter composition edge is design-settled. Implement one
   exact target-runtime bootstrap adapter satisfying
   `UefiPhysicalEntry::enter`; the generated shell invokes it, while `build.omg`

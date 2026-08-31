@@ -8,12 +8,16 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use omega_calling_conventions::{CallSignature, CallingPolicy, validate_boundary_entry_plan};
 use omega_program_entry_plan::{
-    exact_uefi_x64_physical_boundary_entry_plan, ProgramEntryPhysicalContractPlan,
+    OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
+    ProgramEntryPhysicalContractPlan, ProgramEntrySourceReceiverSignature,
+    ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
+    ProgramStorageEntryRootRole, exact_uefi_x64_physical_boundary_entry_plan,
 };
 use omega_target::{
-    plan_uefi_system_table_native_layout, TargetProfile, ValidatedUefiSystemTableHeaderIntegrity,
-    ValidatedUefiSystemTableNativeLayout,
+    TargetProfile, ValidatedUefiSystemTableHeaderIntegrity, ValidatedUefiSystemTableNativeLayout,
+    plan_uefi_system_table_native_layout,
 };
 
 use crate::{
@@ -1003,6 +1007,237 @@ pub fn plan_uefi_application_bootstrap_same_stack_budget(
     })
 }
 
+/// Exact address-free composition of the target-fixed UEFI physical arrival
+/// and the build-selected semantic `ProgramStorageEntry::enter` continuation.
+///
+/// This is the first retained target-runtime adapter carrier. It owns the
+/// private physical-arrival custody, the exact four-term same-stack plan, and
+/// the independently checked semantic entry contract. It does not claim that
+/// a physical shell was emitted or invoked, that the stack contributors have
+/// acquired derivation evidence, or that either semantic root exists yet.
+#[must_use = "UEFI bootstrap adapter composition retains physical and semantic entry custody"]
+pub struct UefiApplicationBootstrapAdapterComposition<'occurrence> {
+    readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
+    same_stack_budget: UefiApplicationBootstrapSameStackBudgetPlan,
+    semantic_entry: OptimizedProgramStorageSemanticEntryContract,
+    semantic_calling_plan_commitment: [u8; 32],
+}
+
+impl std::fmt::Debug for UefiApplicationBootstrapAdapterComposition<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("UefiApplicationBootstrapAdapterComposition")
+            .field("ledger", &self.ledger_id())
+            .field("physical_invocation", &self.physical_invocation())
+            .field(
+                "physical_requirement_identity",
+                &self.physical_requirement_identity(),
+            )
+            .field(
+                "semantic_requirement_identity",
+                &self.semantic_requirement_identity(),
+            )
+            .field(
+                "semantic_source_signature_identity",
+                &self.semantic_entry.source_signature_identity(),
+            )
+            .field(
+                "required_entry_stack_bytes",
+                &self.same_stack_budget.required_entry_stack_bytes(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl UefiApplicationBootstrapAdapterComposition<'_> {
+    pub const fn ledger_id(&self) -> UefiApplicationBootstrapLedgerId {
+        self.readiness.ledger_id()
+    }
+
+    pub const fn physical_invocation(&self) -> UefiPhysicalInvocationId {
+        self.readiness.physical_invocation()
+    }
+
+    pub fn physical_requirement_identity(&self) -> &str {
+        self.readiness.physical_requirement_identity()
+    }
+
+    pub fn semantic_requirement_identity(&self) -> &str {
+        self.semantic_entry.requirement_identity()
+    }
+
+    pub const fn semantic_source_signature_identity(&self) -> ProgramEntrySourceSignatureIdentity {
+        self.semantic_entry.source_signature_identity()
+    }
+
+    pub const fn same_stack_budget(&self) -> &UefiApplicationBootstrapSameStackBudgetPlan {
+        &self.same_stack_budget
+    }
+
+    pub const fn semantic_calling_plan_commitment(&self) -> &[u8; 32] {
+        &self.semantic_calling_plan_commitment
+    }
+}
+
+/// Recoverable adapter-composition rejection. No failure drops either the
+/// physical arrival, stack plan, or semantic entry contract.
+#[derive(Debug)]
+#[must_use = "UEFI adapter-composition rejection retains every composition input"]
+pub struct UefiApplicationBootstrapAdapterCompositionError<'occurrence> {
+    readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
+    same_stack_budget: UefiApplicationBootstrapSameStackBudgetPlan,
+    semantic_entry: OptimizedProgramStorageSemanticEntryContract,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl<'occurrence> UefiApplicationBootstrapAdapterCompositionError<'occurrence> {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
+        UefiApplicationBootstrapSameStackBudgetPlan,
+        OptimizedProgramStorageSemanticEntryContract,
+        ExternalRootDiagnostic,
+    ) {
+        (
+            self.readiness,
+            self.same_stack_budget,
+            self.semantic_entry,
+            self.diagnostic,
+        )
+    }
+}
+
+impl std::fmt::Display for UefiApplicationBootstrapAdapterCompositionError<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for UefiApplicationBootstrapAdapterCompositionError<'_> {}
+
+/// Consume physical readiness, its exact same-stack plan, and one checked
+/// semantic entry into the first address-free UEFI bootstrap-adapter carrier.
+///
+/// The join independently validates the semantic call plan and exact root
+/// order, then requires its paired physical contract to be byte-for-byte the
+/// contract already retained beneath the private firmware-ledger readiness.
+pub fn compose_uefi_application_bootstrap_adapter<'occurrence>(
+    readiness: UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,
+    same_stack_budget: UefiApplicationBootstrapSameStackBudgetPlan,
+    semantic_entry: OptimizedProgramStorageSemanticEntryContract,
+) -> Result<
+    UefiApplicationBootstrapAdapterComposition<'occurrence>,
+    Box<UefiApplicationBootstrapAdapterCompositionError<'occurrence>>,
+> {
+    let reject = |readiness, same_stack_budget, semantic_entry, message: &'static str| {
+        Err(Box::new(UefiApplicationBootstrapAdapterCompositionError {
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            diagnostic: ExternalRootDiagnostic(message.into()),
+        }))
+    };
+
+    if !same_stack_budget.matches_exact_adapter_readiness(&readiness) {
+        return reject(
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            "UEFI bootstrap adapter stack plan belongs to different physical readiness custody",
+        );
+    }
+    if semantic_entry.target() != omega_target::NativeTarget::uefi_x64()
+        || semantic_entry.target_slot() != readiness.arrival.physical_contract.target_slot()
+        || semantic_entry.physical_disposition()
+            != OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1
+        || semantic_entry.physical_contract() != &readiness.arrival.physical_contract
+        || !semantic_entry
+            .physical_contract()
+            .matches_exact_uefi_x64_physical_contract()
+    {
+        return reject(
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            "UEFI bootstrap adapter semantic entry does not retain the exact physical arrival contract",
+        );
+    }
+    if semantic_entry.physical_contract().requirement_identity()
+        == semantic_entry.requirement_identity()
+        || semantic_entry.source_signature().receiver()
+            != &ProgramEntrySourceReceiverSignature::Free
+        || semantic_entry.source_signature().result() != ProgramEntrySourceResultSignature::Unit
+    {
+        return reject(
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            "UEFI bootstrap adapter conflates its physical and semantic entry surfaces",
+        );
+    }
+    let [image, initial_storage] = semantic_entry.roots();
+    if image.role() != ProgramStorageEntryRootRole::Image
+        || image.parameter_index() != 0
+        || initial_storage.role() != ProgramStorageEntryRootRole::InitialStorage
+        || initial_storage.parameter_index() != 1
+    {
+        return reject(
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            "UEFI bootstrap adapter semantic roots are not exact Image then InitialStorage",
+        );
+    }
+    let semantic_signature = CallSignature {
+        parameters: vec![image.shape(), initial_storage.shape()],
+        result: None,
+    };
+    let semantic_plan = match validate_boundary_entry_plan(
+        semantic_entry.semantic_boundary_entry_plan().clone(),
+        &semantic_signature,
+    ) {
+        Ok(plan) => plan,
+        Err(_) => {
+            return reject(
+                readiness,
+                same_stack_budget,
+                semantic_entry,
+                "UEFI bootstrap adapter semantic calling plan failed independent replay",
+            );
+        }
+    };
+    if semantic_plan.plan().call.policy != CallingPolicy::MicrosoftX64
+        || semantic_plan.plan().call.parameters.len() != 2
+        || semantic_plan.plan().call.result.is_some()
+        || semantic_plan.contract_report_fingerprint()
+            != semantic_entry.semantic_calling_plan_report_fingerprint()
+        || semantic_plan.contract_report_fingerprint()
+            == readiness
+                .arrival
+                .physical_contract
+                .calling_plan_report_fingerprint()
+    {
+        return reject(
+            readiness,
+            same_stack_budget,
+            semantic_entry,
+            "UEFI bootstrap adapter semantic and physical ABI identities are not distinct and exact",
+        );
+    }
+
+    Ok(UefiApplicationBootstrapAdapterComposition {
+        readiness,
+        same_stack_budget,
+        semantic_entry,
+        semantic_calling_plan_commitment: semantic_plan.contract_commitment_digest(),
+    })
+}
+
 /// Recoverable readiness rejection retaining the complete physical arrival.
 #[derive(Debug)]
 #[must_use = "UEFI adapter-readiness rejection retains physical-arrival custody"]
@@ -1209,17 +1444,28 @@ fn reject_physical_arrival_join<'occurrence>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_calling_conventions::{MachineRegister, ValueLocation};
+    use omega_calling_conventions::{
+        MachineRegister, ValueLocation, ValueShape, evaluate_ordinary_boundary_entry_plan,
+    };
+    use omega_effects::provider_plan::{
+        BoundaryCallingPlanCommitment, ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod,
+        ServiceSchema,
+    };
     use omega_program_entry_plan::{
+        ProgramEntrySourceExtentValueLayout, SelectedProgramEntrySourceSignature,
+        SelectedProgramStorageEntryPlan, UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY,
+        UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, UEFI_X64_STATUS_TYPE_IDENTITY,
+        UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
+        bind_optimized_program_storage_semantic_entry_contract,
         exact_uefi_x64_physical_boundary_entry_plan,
         exact_uefi_x64_physical_contract_package_source_digest,
-        UEFI_X64_IMAGE_HANDLE_TYPE_IDENTITY, UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
-        UEFI_X64_STATUS_TYPE_IDENTITY, UEFI_X64_SYSTEM_TABLE_REFERENCE_TYPE_IDENTITY,
     };
     use omega_target::{
-        validate_uefi_system_table_occurrence, ProgramEntryPhysicalContractPackage,
-        UEFI_SYSTEM_TABLE_SIGNATURE,
+        ProgramEntryPhysicalContractPackage, UEFI_SYSTEM_TABLE_SIGNATURE,
+        validate_uefi_system_table_occurrence,
     };
+    use psi_language_semantics::{CarryPolicy, DomainPredicateBody};
+    use psi_symbols::SymbolHandle;
 
     const REVISION: u32 = (2 << 16) | 100;
 
@@ -1327,6 +1573,115 @@ mod tests {
         physical_contract(UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY, |_| {})
     }
 
+    fn semantic_entry_contract(
+        physical_contract: ProgramEntryPhysicalContractPlan,
+    ) -> OptimizedProgramStorageSemanticEntryContract {
+        const REQUIREMENT: &str = "ProgramStorageEntry::enter#uefi-bootstrap";
+        const IMAGE_TYPE: &str = "Extent in Granted#image";
+        const STORAGE_TYPE: &str = "Extent in Granted#initial-storage";
+        const EXTENT_CARRIER: &str = "named(name(Extent))";
+        const GRANTED_DOMAIN: &str = "Extent::Granted";
+
+        let extent = ValueShape::integer(16, 8);
+        let field = ValueShape::integer(8, 8);
+        let semantic = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![extent, extent],
+                result: None,
+            },
+        )
+        .unwrap();
+        let claim = |parameter_index| ServiceEntryClaim {
+            parameter_index,
+            carrier_identity: EXTENT_CARRIER.into(),
+            domain: GRANTED_DOMAIN.into(),
+            predicate_body: DomainPredicateBody::Present,
+            effective_carry: CarryPolicy::STRICT,
+            authority_flow: ServiceEntryAuthorityFlow::Accepts,
+        };
+        let method = ServiceMethod {
+            name: "enter".into(),
+            requirement_owner: "ProgramStorageEntry".into(),
+            requirement_identity: REQUIREMENT.into(),
+            parameter_count: 2,
+            parameter_type_identities: vec![IMAGE_TYPE.into(), STORAGE_TYPE.into()],
+            entry_claims: vec![claim(0), claim(1)],
+            calling_plan_report_fingerprint: Some(semantic.contract_report_fingerprint()),
+            calling_plan_commitment: Some(BoundaryCallingPlanCommitment::from_digest(
+                semantic.contract_commitment_digest(),
+            )),
+            ..Default::default()
+        };
+        let slot = TargetProfile::UefiX64.program_entry_slot();
+        let selected = SelectedProgramStorageEntryPlan::from_target_slot(
+            slot,
+            ServiceSchema {
+                trait_name: slot.boundary_schema.unwrap().into(),
+                methods: vec![method],
+                ..Default::default()
+            },
+            REQUIREMENT.into(),
+        )
+        .unwrap()
+        .with_physical_contract(physical_contract)
+        .unwrap();
+        let extent_layout = |base| {
+            ProgramEntrySourceExtentValueLayout::from_checked_record(
+                SymbolHandle::from_arena_index(base),
+                SymbolHandle::from_arena_index(base + 1),
+                0,
+                field,
+                SymbolHandle::from_arena_index(base + 2),
+                8,
+                field,
+                extent,
+            )
+            .unwrap()
+        };
+        let source = SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            slot,
+            SymbolHandle::from_arena_index(1),
+            SymbolHandle::from_arena_index(2),
+            "Bootstrap::continue".into(),
+            "continue".into(),
+            "Bootstrap::continue#uefi".into(),
+            ProgramEntrySourceReceiverSignature::Free,
+            vec![
+                SelectedProgramEntrySourceSignature::visible_parameter(
+                    ProgramStorageEntryRootRole::Image,
+                    0,
+                    IMAGE_TYPE.into(),
+                    extent,
+                    extent_layout(10),
+                    false,
+                    false,
+                ),
+                SelectedProgramEntrySourceSignature::visible_parameter(
+                    ProgramStorageEntryRootRole::InitialStorage,
+                    1,
+                    STORAGE_TYPE.into(),
+                    extent,
+                    extent_layout(20),
+                    false,
+                    false,
+                ),
+            ],
+        )
+        .unwrap();
+        bind_optimized_program_storage_semantic_entry_contract(
+            omega_target::NativeTarget::uefi_x64(),
+            &selected,
+            &source,
+            semantic.plan(),
+        )
+        .unwrap()
+    }
+
+    fn exact_semantic_entry_contract() -> OptimizedProgramStorageSemanticEntryContract {
+        semantic_entry_contract(exact_physical_contract())
+    }
+
     fn adapter_readiness<'a>(
         ledger: &mut UefiApplicationFirmwareLedger<'a>,
         bytes: &'a [u8],
@@ -1411,12 +1766,14 @@ mod tests {
             .unwrap();
         assert_eq!(released.ledger, ledger.ledger_id());
         ledger.begin_firmware_return().unwrap();
-        assert!(ledger
-            .acquire_boot_services_phase_lease(id(
-                15,
-                UefiBootServicesPhaseLeaseId::from_normalized_identity
-            ))
-            .is_err());
+        assert!(
+            ledger
+                .acquire_boot_services_phase_lease(id(
+                    15,
+                    UefiBootServicesPhaseLeaseId::from_normalized_identity
+                ))
+                .is_err()
+        );
     }
 
     #[test]
@@ -1476,6 +1833,151 @@ mod tests {
         assert_eq!(exact_boundary.required_entry_stack_bytes(), 128 * 1024);
         assert_eq!(exact_boundary.remaining_entry_stack_bytes(), 0);
 
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn adapter_composition_retains_exact_physical_semantic_and_stack_custody() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(210);
+        let readiness = adapter_readiness(&mut ledger, &bytes, 213);
+        let budget = plan_uefi_application_bootstrap_same_stack_budget(
+            &readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(
+                4 * 1024,
+                8 * 1024,
+                96 * 1024,
+                16 * 1024,
+            ),
+        )
+        .unwrap();
+        let adapter = compose_uefi_application_bootstrap_adapter(
+            readiness,
+            budget,
+            exact_semantic_entry_contract(),
+        )
+        .unwrap();
+
+        assert_eq!(adapter.ledger_id(), ledger.ledger_id());
+        assert_eq!(adapter.physical_invocation(), ledger.physical_invocation());
+        assert_eq!(
+            adapter.physical_requirement_identity(),
+            UEFI_X64_PHYSICAL_REQUIREMENT_IDENTITY,
+        );
+        assert_eq!(
+            adapter.semantic_requirement_identity(),
+            "ProgramStorageEntry::enter#uefi-bootstrap",
+        );
+        assert_ne!(
+            adapter.physical_requirement_identity(),
+            adapter.semantic_requirement_identity(),
+        );
+        assert_eq!(
+            adapter.same_stack_budget().required_entry_stack_bytes(),
+            124 * 1024,
+        );
+        assert_ne!(
+            adapter.semantic_source_signature_identity().bytes(),
+            [0; 32]
+        );
+        assert_ne!(adapter.semantic_calling_plan_commitment(), &[0; 32]);
+        assert_ne!(
+            adapter.semantic_calling_plan_commitment(),
+            &exact_uefi_x64_physical_boundary_entry_plan().contract_commitment_digest(),
+        );
+
+        let UefiApplicationBootstrapAdapterComposition { readiness, .. } = adapter;
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn adapter_composition_rejects_cross_ledger_stack_plan_and_returns_retry_inputs() {
+        let first_bytes = valid_occurrence(120);
+        let second_bytes = valid_occurrence(120);
+        let mut first_ledger = ledger(220);
+        let mut second_ledger = ledger(220);
+        let first_readiness = adapter_readiness(&mut first_ledger, &first_bytes, 223);
+        let second_readiness = adapter_readiness(&mut second_ledger, &second_bytes, 223);
+        let first_budget = plan_uefi_application_bootstrap_same_stack_budget(
+            &first_readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(4096, 8192, 98304, 16384),
+        )
+        .unwrap();
+
+        let error = compose_uefi_application_bootstrap_adapter(
+            second_readiness,
+            first_budget,
+            exact_semantic_entry_contract(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("different physical readiness")
+        );
+        let (second_readiness, first_budget, semantic_entry, _) = error.into_parts();
+        assert!(!first_budget.matches_exact_adapter_readiness(&second_readiness));
+
+        let UefiApplicationBootstrapAdapterInvocationReadiness {
+            arrival: second_arrival,
+            ..
+        } = second_readiness;
+        let UefiApplicationPhysicalArrival {
+            system_table: second_table,
+            ..
+        } = second_arrival;
+        second_ledger
+            .release_lifecycle_scoped_system_table(second_table)
+            .unwrap();
+
+        let adapter = compose_uefi_application_bootstrap_adapter(
+            first_readiness,
+            first_budget,
+            semantic_entry,
+        )
+        .unwrap();
+        let UefiApplicationBootstrapAdapterComposition { readiness, .. } = adapter;
+        let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
+        let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
+        first_ledger
+            .release_lifecycle_scoped_system_table(system_table)
+            .unwrap();
+    }
+
+    #[test]
+    fn adapter_composition_rejects_noncanonical_physical_contract_in_semantic_entry() {
+        let bytes = valid_occurrence(120);
+        let mut ledger = ledger(230);
+        let readiness = adapter_readiness(&mut ledger, &bytes, 233);
+        let budget = plan_uefi_application_bootstrap_same_stack_budget(
+            &readiness,
+            UefiApplicationBootstrapSameStackDemandComponents::new(4096, 8192, 98304, 16384),
+        )
+        .unwrap();
+        let semantic_entry = semantic_entry_contract(physical_contract(
+            "UefiPhysicalEntry::enter#lookalike",
+            |_| {},
+        ));
+
+        let error = compose_uefi_application_bootstrap_adapter(readiness, budget, semantic_entry)
+            .unwrap_err();
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("exact physical arrival contract"),
+        );
+        let (readiness, budget, _, _) = error.into_parts();
+        assert!(budget.matches_exact_adapter_readiness(&readiness));
         let UefiApplicationBootstrapAdapterInvocationReadiness { arrival, .. } = readiness;
         let UefiApplicationPhysicalArrival { system_table, .. } = arrival;
         ledger
@@ -1739,6 +2241,42 @@ mod tests {
             "adapter readiness must implement only report-only Debug",
         );
 
+        let composition = item_block(
+            source,
+            "pub struct UefiApplicationBootstrapAdapterComposition<'occurrence>",
+        );
+        let compact_composition = composition
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect::<String>();
+        assert_eq!(
+            compact_composition,
+            "pubstructUefiApplicationBootstrapAdapterComposition<'occurrence>{readiness:UefiApplicationBootstrapAdapterInvocationReadiness<'occurrence>,same_stack_budget:UefiApplicationBootstrapSameStackBudgetPlan,semantic_entry:OptimizedProgramStorageSemanticEntryContract,semantic_calling_plan_commitment:[u8;32],}"
+        );
+        let composition_impl = item_block(
+            source,
+            "impl UefiApplicationBootstrapAdapterComposition<'_>",
+        );
+        assert_eq!(
+            public_method_names(composition_impl),
+            [
+                "ledger_id",
+                "physical_invocation",
+                "physical_requirement_identity",
+                "semantic_requirement_identity",
+                "semantic_source_signature_identity",
+                "same_stack_budget",
+                "semantic_calling_plan_commitment",
+            ]
+        );
+        assert_eq!(
+            compact_source
+                .matches("forUefiApplicationBootstrapAdapterComposition<'_>{")
+                .count(),
+            1,
+            "adapter composition must implement only report-only Debug",
+        );
+
         for forbidden in [
             "psi_extents::Extent",
             "pub fn raw_",
@@ -1749,6 +2287,8 @@ mod tests {
             "impl Into<UefiImageHandleProvenance",
             "impl From<UefiApplicationPhysicalArrival",
             "impl Into<UefiApplicationPhysicalArrival",
+            "impl From<UefiApplicationBootstrapAdapterComposition",
+            "impl Into<UefiApplicationBootstrapAdapterComposition",
         ] {
             assert!(
                 !source.contains(forbidden),
@@ -1797,10 +2337,12 @@ mod tests {
             exact_physical_contract(),
         )
         .unwrap_err();
-        assert!(error
-            .diagnostic()
-            .0
-            .contains("different physical invocation"));
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("different physical invocation")
+        );
         let (_image_handle, system_table, _contract, _) = error.into_parts();
         exact
             .release_lifecycle_scoped_system_table(system_table)
@@ -1960,10 +2502,12 @@ mod tests {
         let (integrity, provenance, lease) = inputs(&mut exact, &bytes, 43, 44);
         let error = join_lifecycle_scoped_uefi_system_table(&foreign, integrity, provenance, lease)
             .unwrap_err();
-        assert!(error
-            .diagnostic()
-            .0
-            .contains("different physical invocation"));
+        assert!(
+            error
+                .diagnostic()
+                .0
+                .contains("different physical invocation")
+        );
         let (integrity, provenance, lease, _) = error.into_parts();
         let scoped =
             join_lifecycle_scoped_uefi_system_table(&exact, integrity, provenance, lease).unwrap();
