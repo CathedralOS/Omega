@@ -29,6 +29,15 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.insert(node)
     }
 
+    /// Append one child without extending the parent's frozen contiguous
+    /// child range. Callers must retain the returned handle in a companion
+    /// index and include it in lookup explicitly.
+    pub fn insert_supplemental_child(&mut self, parent: Handle<T>, mut node: T) -> Handle<T> {
+        node.set_parent(parent);
+        node.set_children(HandleSpan::empty());
+        self.nodes.insert(node)
+    }
+
     /// Populate one freshly generated parent's child range. The parent must
     /// not already own children; this deliberately does not mutate authored
     /// ranges or attempt non-contiguous append.
