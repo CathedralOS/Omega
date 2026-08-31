@@ -6,6 +6,7 @@ mod assembly;
 mod custody;
 mod guards;
 mod leaves;
+mod nested_control;
 mod prefixed_control;
 mod topology;
 
@@ -22,6 +23,7 @@ pub(super) fn build_checked_composed_unit_control_machines(
         .filter_map(|machine| {
             assembly::build(program, facts, shapes, boundaries, machine)
                 .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
+                .or_else(|| nested_control::build(program, facts, shapes, boundaries, machine))
         })
         .collect()
 }

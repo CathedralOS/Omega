@@ -7,6 +7,7 @@ mod calls;
 mod cleanup;
 mod composed_claims;
 mod composed_internal_calls;
+mod composed_nested_control;
 mod composed_prefixed_control;
 mod composed_transitive_internal_calls;
 mod returns;

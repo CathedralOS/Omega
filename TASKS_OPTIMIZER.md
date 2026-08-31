@@ -126,9 +126,21 @@ decision. Only true language-semantic questions belong in
    complete at the shared leaf boundary: provider-requirement collection and
    checked-to-Terminal leaf-target admission now consume honest slices rather
    than two-element arrays, while the existing whole-root linear custody proof
-   remains deliberately exact to two arms. Next admit the second conditional
-   frontier rather than another depth-specific graph. This is engineering, not
-   an owner language decision. A smaller recurring custody class leaves
+   remains deliberately exact to two arms. The second conditional frontier is
+   now complete as its own `nested_control` route: an outer guard retains two
+   Boolean machine inputs, transfers the second as a distinct inner-dispatch
+   block parameter on one arm, and selects an outer leaf on the other; the
+   inner guard selects two more leaves. Producer and consumer independently
+   rejoin all four edges and three effect leaves. Boundary and deduplicated
+   internal-call leaf canaries verify and replay through the codec, while
+   outer-handoff and inner-target corruption fail closed. The stage entrances
+   remain 29 and 30 lines; the producer logic is one 295-line named leaf, and
+   the 15-line nested consumer entrance names separate 165-line `admission`
+   and 193-line `emission` rungs. Next replace
+   the exact two-frontier shape with a bounded recursive conditional-tree
+   carrier rather than adding another topology-specific sibling. This is
+   engineering, not an owner language decision. A smaller recurring custody
+   class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine
