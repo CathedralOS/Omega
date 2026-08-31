@@ -2,9 +2,10 @@
 
 use psi_terminal::{
     CrashCause, StructuralAccess, StructuralMultiplicity, TerminalModule,
-    TerminalObservationSchema, TerminalTraceCrashSiteRow, TerminalTraceResultSchema,
-    TerminalTraceRootRow, TerminalTraceScalarSchema, TerminalTraceStructuralSchema,
-    TerminalTraceV1Profile, TerminalTraceValueComparison, VocabularyMarker,
+    TerminalObservationSchema, TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
+    TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Profile,
+    TerminalTraceValueComparison, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     TerminalTraceV1ReconstructionError,
@@ -18,6 +19,9 @@ use crate::{CodecError, terminal_psi_identity};
 const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v1";
 const ROOT_ROW_TAG: u8 = 1;
 const CRASH_ROW_TAG: u8 = 2;
+const ORDINARY_EVENT_ROW_TAG: u8 = 3;
+const BOUNDARY_CALL_EVENT_TAG: u8 = 1;
+const PORT_WRITE_EVENT_TAG: u8 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalTraceV1ProfileCodecError {
@@ -33,9 +37,10 @@ pub enum TerminalTraceV1ProfileCodecError {
     InvalidStructuralAccess(u8),
     InvalidResultTag(u8),
     InvalidCrashCause(u8),
+    InvalidOrdinaryEventKind(u8),
     NonCanonicalStructuralQualifications,
     NonCanonicalCrashSiteOrder,
-    UnsupportedOrdinaryExternalEventRows(u32),
+    NonCanonicalOrdinaryEventOrder,
     UnsupportedExternalTerminationRows(u32),
     TrailingBytes(usize),
     NonCanonicalEncoding,
@@ -98,6 +103,7 @@ pub fn reconstruct_canonical_terminal_trace_v1_profile(
         module_identity,
         root: rows.root,
         crash_sites: rows.crash_sites,
+        ordinary_events: rows.ordinary_events,
     })
 }
 
@@ -167,10 +173,10 @@ pub fn decode_terminal_trace_v1_profile(
     }
 
     let ordinary_count = reader.count()?;
-    if ordinary_count != 0 {
-        return Err(
-            TerminalTraceV1ProfileCodecError::UnsupportedOrdinaryExternalEventRows(ordinary_count),
-        );
+    let mut ordinary_events = Vec::with_capacity(ordinary_count as usize);
+    for _ in 0..ordinary_count {
+        require_row_tag(&mut reader, "ordinary event", ORDINARY_EVENT_ROW_TAG)?;
+        ordinary_events.push(decode_ordinary_event(&mut reader)?);
     }
     let external_termination_count = reader.count()?;
     if external_termination_count != 0 {
@@ -194,6 +200,7 @@ pub fn decode_terminal_trace_v1_profile(
         },
         root,
         crash_sites,
+        ordinary_events,
     };
     validate_profile(&profile)?;
     if encode_raw(&profile)? != bytes {
@@ -227,9 +234,14 @@ fn encode_raw(
         });
     }
 
-    // D39 fixes these groups and their order. This first internal-only rung
-    // encodes their explicit empty counts rather than omitting them.
-    writer.u32(0);
+    writer.len("trace ordinary events", profile.ordinary_events.len())?;
+    for event in &profile.ordinary_events {
+        writer.u8(ORDINARY_EVENT_ROW_TAG);
+        encode_ordinary_event(&mut writer, event)?;
+    }
+
+    // D39 fixes this later group and its order. This bounded rung encodes its
+    // explicit empty count rather than omitting it.
     writer.u32(0);
     Ok(writer.finish())
 }
@@ -247,7 +259,14 @@ fn encode_root(
     for schema in &root.structural_inputs {
         encode_structural_schema(writer, schema)?;
     }
-    match &root.result {
+    encode_result_schema(writer, &root.result)
+}
+
+fn encode_result_schema(
+    writer: &mut Writer,
+    result: &TerminalTraceResultSchema,
+) -> Result<(), TerminalTraceV1ProfileCodecError> {
+    match result {
         TerminalTraceResultSchema::Unit => writer.u8(1),
         TerminalTraceResultSchema::Scalar(schema) => {
             writer.u8(2);
@@ -273,16 +292,102 @@ fn decode_root(
     let structural_inputs = (0..structural_count)
         .map(|_| decode_structural_schema(reader))
         .collect::<Result<_, _>>()?;
-    let result = match reader.u8()? {
-        1 => TerminalTraceResultSchema::Unit,
-        2 => TerminalTraceResultSchema::Scalar(decode_scalar_schema(reader)?),
-        3 => TerminalTraceResultSchema::Structural(decode_structural_schema(reader)?),
-        tag => return Err(TerminalTraceV1ProfileCodecError::InvalidResultTag(tag)),
-    };
+    let result = decode_result_schema(reader)?;
     Ok(TerminalTraceRootRow {
         entry,
         scalar_inputs,
         structural_inputs,
+        result,
+    })
+}
+
+fn decode_result_schema(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalTraceResultSchema, TerminalTraceV1ProfileCodecError> {
+    Ok(match reader.u8()? {
+        1 => TerminalTraceResultSchema::Unit,
+        2 => TerminalTraceResultSchema::Scalar(decode_scalar_schema(reader)?),
+        3 => TerminalTraceResultSchema::Structural(decode_structural_schema(reader)?),
+        tag => return Err(TerminalTraceV1ProfileCodecError::InvalidResultTag(tag)),
+    })
+}
+
+fn encode_ordinary_event(
+    writer: &mut Writer,
+    event: &TerminalTraceOrdinaryEventRow,
+) -> Result<(), TerminalTraceV1ProfileCodecError> {
+    writer.id(event.machine);
+    writer.id(event.block);
+    writer.id(event.operation);
+    match &event.kind {
+        TerminalTraceOrdinaryEventKind::BoundaryCall {
+            boundary,
+            boundary_identity,
+        } => {
+            writer.u8(BOUNDARY_CALL_EVENT_TAG);
+            writer.id(*boundary);
+            writer.string("trace boundary identity", boundary_identity)?;
+        }
+        TerminalTraceOrdinaryEventKind::PortWrite {
+            service,
+            service_identity,
+        } => {
+            writer.u8(PORT_WRITE_EVENT_TAG);
+            writer.id(*service);
+            writer.string("trace service identity", service_identity)?;
+        }
+    }
+    writer.len("trace event scalar arguments", event.scalar_arguments.len())?;
+    for schema in &event.scalar_arguments {
+        encode_scalar_schema(writer, *schema);
+    }
+    writer.len(
+        "trace event structural arguments",
+        event.structural_arguments.len(),
+    )?;
+    for schema in &event.structural_arguments {
+        encode_structural_schema(writer, schema)?;
+    }
+    encode_result_schema(writer, &event.result)
+}
+
+fn decode_ordinary_event(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalTraceOrdinaryEventRow, TerminalTraceV1ProfileCodecError> {
+    let machine = reader.id("trace event machine")?;
+    let block = reader.id("trace event block")?;
+    let operation = reader.id("trace event operation")?;
+    let kind = match reader.u8()? {
+        BOUNDARY_CALL_EVENT_TAG => TerminalTraceOrdinaryEventKind::BoundaryCall {
+            boundary: reader.id("trace event boundary")?,
+            boundary_identity: reader.string("trace boundary identity")?,
+        },
+        PORT_WRITE_EVENT_TAG => TerminalTraceOrdinaryEventKind::PortWrite {
+            service: reader.id("trace event service")?,
+            service_identity: reader.string("trace service identity")?,
+        },
+        tag => {
+            return Err(TerminalTraceV1ProfileCodecError::InvalidOrdinaryEventKind(
+                tag,
+            ));
+        }
+    };
+    let scalar_count = reader.count()?;
+    let scalar_arguments = (0..scalar_count)
+        .map(|_| decode_scalar_schema(reader))
+        .collect::<Result<_, _>>()?;
+    let structural_count = reader.count()?;
+    let structural_arguments = (0..structural_count)
+        .map(|_| decode_structural_schema(reader))
+        .collect::<Result<_, _>>()?;
+    let result = decode_result_schema(reader)?;
+    Ok(TerminalTraceOrdinaryEventRow {
+        machine,
+        block,
+        operation,
+        kind,
+        scalar_arguments,
+        structural_arguments,
         result,
     })
 }
@@ -437,6 +542,21 @@ fn validate_profile(
     {
         return Err(TerminalTraceV1ProfileCodecError::NonCanonicalCrashSiteOrder);
     }
+    for event in &profile.ordinary_events {
+        for schema in &event.structural_arguments {
+            validate_structural_schema(schema)?;
+        }
+        if let TerminalTraceResultSchema::Structural(schema) = &event.result {
+            validate_structural_schema(schema)?;
+        }
+    }
+    if profile
+        .ordinary_events
+        .windows(2)
+        .any(|rows| ordinary_event_site_key(&rows[0]) >= ordinary_event_site_key(&rows[1]))
+    {
+        return Err(TerminalTraceV1ProfileCodecError::NonCanonicalOrdinaryEventOrder);
+    }
     Ok(())
 }
 
@@ -444,6 +564,16 @@ fn crash_site_key(
     row: &TerminalTraceCrashSiteRow,
 ) -> (psi_core::MachineId, psi_core::BlockId, psi_core::EdgeId) {
     (row.machine, row.block, row.edge)
+}
+
+fn ordinary_event_site_key(
+    row: &TerminalTraceOrdinaryEventRow,
+) -> (
+    psi_core::MachineId,
+    psi_core::BlockId,
+    psi_core::OperationId,
+) {
+    (row.machine, row.block, row.operation)
 }
 
 fn validate_structural_schema(
@@ -462,14 +592,18 @@ fn validate_structural_schema(
 #[cfg(test)]
 mod tests {
     use psi_core::{
-        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, ScalarType,
-        StructuralDomainId, StructuralTypeId,
+        BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId,
+        OperationId, PlaceId, ScalarType, ServiceId, StructuralDomainId, StructuralPlaceKind,
+        StructuralTypeId, ValueId,
     };
     use psi_terminal::{
-        Block, CrashRouteBucket, CrashRouteGuard, MachineContract, StructuralAccess,
-        StructuralMultiplicity, TerminalMachine, TerminalMachineResult, TerminalModule,
-        TerminalPsiIdentity, TerminalTraceScalarSchema, TerminalTraceStructuralSchema,
-        TerminalTraceValueComparison, Terminator,
+        Block, BoundaryMachineDeclaration, CrashRouteBucket, CrashRouteGuard, MachineContract,
+        Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralAccess,
+        StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+        StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+        TerminalMachine, TerminalMachineResult, TerminalModule, TerminalPsiIdentity,
+        TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceValueComparison,
+        Terminator, ValueDeclaration,
     };
 
     use super::*;
@@ -541,6 +675,153 @@ mod tests {
         )
     }
 
+    fn ordinary_event_module() -> TerminalModule {
+        let mut module = unit_module();
+        let service = id(1, ServiceId::new);
+        let boundary = id(1, BoundaryMachineId::new);
+        let flag = id(1, ValueId::new);
+        let byte = id(2, ValueId::new);
+        let first_type = id(1, StructuralTypeId::new);
+        let second_type = id(2, StructuralTypeId::new);
+        let first_place = id(1, PlaceId::new);
+        let second_place = id(2, PlaceId::new);
+        let u8_type =
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 test type"));
+        module.structural_types = vec![
+            StructuralTypeDeclaration {
+                id: first_type,
+                identity: "Console::Message".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: second_type,
+                identity: "Console::Context".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ];
+        module.services = vec![ServiceDeclaration {
+            id: service,
+            identity: "PortIo::write-byte".into(),
+            parents: Vec::new(),
+        }];
+        module.root_service_reach.concrete = vec![service];
+        module.boundary_machines = vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "Console::publish".into(),
+            attachment: None,
+            scalar_parameters: vec![ScalarType::Boolean, u8_type],
+            structural_parameters: vec![
+                StructuralParameterDeclaration {
+                    place: id(3, PlaceId::new),
+                    position: 0,
+                    is_self: false,
+                    structural_type: first_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                },
+                StructuralParameterDeclaration {
+                    place: id(4, PlaceId::new),
+                    position: 1,
+                    is_self: false,
+                    structural_type: second_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                },
+            ],
+            result: Some(u8_type),
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }];
+        module.machines[0].parameters = vec![
+            ValueDeclaration {
+                id: flag,
+                scalar_type: ScalarType::Boolean,
+            },
+            ValueDeclaration {
+                id: byte,
+                scalar_type: u8_type,
+            },
+        ];
+        module.machines[0].structural_parameters = vec![
+            StructuralParameterDeclaration {
+                place: first_place,
+                position: 0,
+                is_self: false,
+                structural_type: first_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            },
+            StructuralParameterDeclaration {
+                place: second_place,
+                position: 1,
+                is_self: false,
+                structural_type: second_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+            },
+        ];
+        module.machines[0].structural_places = vec![
+            StructuralPlaceDeclaration {
+                id: first_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: second_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            },
+        ];
+        module.machines[0].published_service_ceiling = vec![service];
+        module.machines[0].blocks[0].operations = vec![
+            Operation {
+                id: id(2, OperationId::new),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id(3, ValueId::new),
+                    scalar_type: u8_type,
+                }),
+                kind: OperationKind::BoundaryCall {
+                    boundary,
+                    arguments: vec![flag, byte],
+                    structural_arguments: vec![
+                        StructuralArgument {
+                            place: first_place,
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        },
+                        StructuralArgument {
+                            place: second_place,
+                            path: Vec::new(),
+                            access: StructuralAccess::SharedBorrow,
+                        },
+                    ],
+                    completion_receipts: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                },
+            },
+            Operation {
+                id: id(1, OperationId::new),
+                result: OperationResult::Unit,
+                kind: OperationKind::PortWrite {
+                    service,
+                    port: 0x3f8,
+                    value: b'X',
+                },
+            },
+        ];
+        module
+    }
+
     fn direct_profile() -> TerminalTraceV1Profile {
         TerminalTraceV1Profile {
             schema: TerminalObservationSchema::TerminalTraceV1,
@@ -555,6 +836,7 @@ mod tests {
                 result: TerminalTraceResultSchema::Unit,
             },
             crash_sites: Vec::new(),
+            ordinary_events: Vec::new(),
         }
     }
 
@@ -680,15 +962,6 @@ mod tests {
                 group: "root",
                 tag: 9,
             }),
-        ));
-
-        let mut ordinary_rows = bytes.clone();
-        let ordinary_count_offset = ordinary_rows.len() - 8;
-        ordinary_rows[ordinary_count_offset..ordinary_count_offset + 4]
-            .copy_from_slice(&1_u32.to_le_bytes());
-        assert!(matches!(
-            decode_terminal_trace_v1_profile(&ordinary_rows),
-            Err(TerminalTraceV1ProfileCodecError::UnsupportedOrdinaryExternalEventRows(1)),
         ));
 
         let mut terminal_rows = bytes.clone();
@@ -835,6 +1108,224 @@ mod tests {
         let extra_bytes = encode_terminal_trace_v1_profile(&extra).unwrap();
         assert!(matches!(
             accept_terminal_trace_v1_profile(&module, &extra_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+    }
+
+    #[test]
+    fn ordinary_event_rows_round_trip_with_exact_kinds_identities_and_schemas() {
+        let module = ordinary_event_module();
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&module)
+            .expect("ordinary-event profile reconstructs");
+        assert_eq!(
+            profile
+                .ordinary_events
+                .iter()
+                .map(|event| event.operation)
+                .collect::<Vec<_>>(),
+            [id(1, OperationId::new), id(2, OperationId::new)],
+        );
+        assert!(matches!(
+            &profile.ordinary_events[0].kind,
+            TerminalTraceOrdinaryEventKind::PortWrite {
+                service,
+                service_identity,
+            } if *service == id(1, ServiceId::new) && service_identity == "PortIo::write-byte"
+        ));
+        assert!(matches!(
+            &profile.ordinary_events[1].kind,
+            TerminalTraceOrdinaryEventKind::BoundaryCall {
+                boundary,
+                boundary_identity,
+            } if *boundary == id(1, BoundaryMachineId::new)
+                && boundary_identity == "Console::publish"
+        ));
+        assert_eq!(
+            profile.ordinary_events[1]
+                .scalar_arguments
+                .iter()
+                .map(|schema| schema.scalar_type)
+                .collect::<Vec<_>>(),
+            [
+                ScalarType::Boolean,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+            ],
+        );
+        assert_eq!(
+            profile.ordinary_events[1]
+                .structural_arguments
+                .iter()
+                .map(|schema| (schema.structural_type, schema.access))
+                .collect::<Vec<_>>(),
+            [
+                (id(1, StructuralTypeId::new), StructuralAccess::Owned),
+                (id(2, StructuralTypeId::new), StructuralAccess::SharedBorrow,),
+            ],
+        );
+        assert_eq!(
+            profile.ordinary_events[1].result,
+            TerminalTraceResultSchema::Scalar(TerminalTraceScalarSchema {
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                ),
+                comparison: TerminalTraceValueComparison::ExactSemanticValue,
+            }),
+        );
+
+        let bytes = encode_terminal_trace_v1_profile(&profile).expect("ordinary-event bytes");
+        assert_eq!(
+            decode_terminal_trace_v1_profile(&bytes).expect("ordinary-event decode"),
+            profile,
+        );
+        assert_eq!(
+            accept_terminal_trace_v1_profile(&module, &bytes)
+                .expect("module-bound ordinary-event acceptance"),
+            profile,
+        );
+    }
+
+    #[test]
+    fn ordinary_event_codec_rejects_duplicate_reordered_and_noncanonical_schemas() {
+        let module = ordinary_event_module();
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&module).unwrap();
+
+        let mut duplicate = profile.clone();
+        duplicate
+            .ordinary_events
+            .insert(1, duplicate.ordinary_events[0].clone());
+        assert!(matches!(
+            encode_terminal_trace_v1_profile(&duplicate),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalOrdinaryEventOrder),
+        ));
+        let duplicate_bytes = encode_raw(&duplicate).expect("raw duplicate canary bytes");
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&duplicate_bytes),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalOrdinaryEventOrder),
+        ));
+
+        let mut reordered = profile.clone();
+        reordered.ordinary_events.swap(0, 1);
+        assert!(matches!(
+            encode_terminal_trace_v1_profile(&reordered),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalOrdinaryEventOrder),
+        ));
+        let reordered_bytes = encode_raw(&reordered).expect("raw reordered canary bytes");
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&reordered_bytes),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalOrdinaryEventOrder),
+        ));
+
+        let mut rich = profile;
+        rich.ordinary_events[0].structural_arguments = vec![TerminalTraceStructuralSchema {
+            structural_type: id(30, StructuralTypeId::new),
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: vec![
+                id(32, StructuralDomainId::new),
+                id(31, StructuralDomainId::new),
+            ],
+            comparison: TerminalTraceValueComparison::ExactSemanticValue,
+        }];
+        assert!(matches!(
+            encode_terminal_trace_v1_profile(&rich),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalStructuralQualifications),
+        ));
+    }
+
+    #[test]
+    fn ordinary_event_codec_rejects_unknown_row_and_event_kind_tags() {
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&ordinary_event_module())
+            .expect("ordinary-event profile");
+        let bytes = encode_terminal_trace_v1_profile(&profile).expect("ordinary-event bytes");
+        let mut row_prefix = vec![ORDINARY_EVENT_ROW_TAG];
+        row_prefix.extend_from_slice(&11_u64.to_le_bytes());
+        row_prefix.extend_from_slice(&12_u64.to_le_bytes());
+        row_prefix.extend_from_slice(&1_u64.to_le_bytes());
+        let event_offset = bytes
+            .windows(row_prefix.len())
+            .position(|window| window == row_prefix)
+            .expect("first ordinary-event row prefix");
+
+        let mut unknown_row = bytes.clone();
+        unknown_row[event_offset] = 9;
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&unknown_row),
+            Err(TerminalTraceV1ProfileCodecError::InvalidRowTag {
+                group: "ordinary event",
+                tag: 9,
+            }),
+        ));
+
+        let mut unknown_kind = bytes;
+        unknown_kind[event_offset + row_prefix.len()] = 9;
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&unknown_kind),
+            Err(TerminalTraceV1ProfileCodecError::InvalidOrdinaryEventKind(
+                9
+            )),
+        ));
+    }
+
+    #[test]
+    fn module_bound_acceptance_rejects_missing_extra_and_identity_mutated_events() {
+        let module = ordinary_event_module();
+        let profile = reconstruct_canonical_terminal_trace_v1_profile(&module).unwrap();
+
+        let mut missing = profile.clone();
+        missing.ordinary_events.remove(0);
+        let missing_bytes = encode_terminal_trace_v1_profile(&missing).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &missing_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut extra = profile.clone();
+        let mut extra_row = extra.ordinary_events[1].clone();
+        extra_row.operation = id(3, OperationId::new);
+        extra.ordinary_events.push(extra_row);
+        let extra_bytes = encode_terminal_trace_v1_profile(&extra).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &extra_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut identity_mutated = profile.clone();
+        let TerminalTraceOrdinaryEventKind::BoundaryCall {
+            boundary_identity, ..
+        } = &mut identity_mutated.ordinary_events[1].kind
+        else {
+            panic!("second event must be the boundary call")
+        };
+        *boundary_identity = "Console::lookalike".into();
+        let identity_bytes = encode_terminal_trace_v1_profile(&identity_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &identity_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut service_identity_mutated = profile.clone();
+        let TerminalTraceOrdinaryEventKind::PortWrite {
+            service_identity, ..
+        } = &mut service_identity_mutated.ordinary_events[0].kind
+        else {
+            panic!("first event must be the port write")
+        };
+        *service_identity = "PortIo::lookalike".into();
+        let service_identity_bytes =
+            encode_terminal_trace_v1_profile(&service_identity_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &service_identity_bytes),
+            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
+        ));
+
+        let mut kind_mutated = profile;
+        kind_mutated.ordinary_events[1].kind = TerminalTraceOrdinaryEventKind::PortWrite {
+            service: id(1, ServiceId::new),
+            service_identity: "PortIo::write-byte".into(),
+        };
+        let kind_bytes = encode_terminal_trace_v1_profile(&kind_mutated).unwrap();
+        assert!(matches!(
+            accept_terminal_trace_v1_profile(&module, &kind_bytes),
             Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
         ));
     }

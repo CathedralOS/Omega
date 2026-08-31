@@ -1,6 +1,9 @@
 //! Typed static observation profiles reconstructed from Terminal semantics.
 
-use psi_core::{BlockId, EdgeId, MachineId, ScalarType, StructuralDomainId, StructuralTypeId};
+use psi_core::{
+    BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId, ScalarType, ServiceId,
+    StructuralDomainId, StructuralTypeId,
+};
 
 use crate::{CrashCause, StructuralAccess, StructuralMultiplicity, TerminalPsiIdentity};
 
@@ -73,24 +76,59 @@ pub struct TerminalTraceCrashSiteRow {
     pub cause: CrashCause,
 }
 
+/// The closed ordinary-event classification carried by TerminalTraceV1.
+///
+/// Module-local declaration IDs bind the event to its exact Terminal declaration;
+/// the adjacent canonical public identity prevents a consumer from having to
+/// reinterpret an artifact-local coordinate as the public event identity.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalTraceOrdinaryEventKind {
+    BoundaryCall {
+        boundary: BoundaryMachineId,
+        boundary_identity: String,
+    },
+    PortWrite {
+        service: ServiceId,
+        service_identity: String,
+    },
+}
+
+/// One statically observable ordinary external-event site.
+///
+/// The schemas describe the runtime values that a maximal semantic trace will
+/// carry. The site coordinates establish module correspondence and are not
+/// themselves trace values.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalTraceOrdinaryEventRow {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub operation: OperationId,
+    pub kind: TerminalTraceOrdinaryEventKind,
+    pub scalar_arguments: Vec<TerminalTraceScalarSchema>,
+    pub structural_arguments: Vec<TerminalTraceStructuralSchema>,
+    pub result: TerminalTraceResultSchema,
+}
+
 /// Verifier-derived rows before the canonical codec binds the module identity.
 /// This is not an independently reusable observation-profile instance.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalTraceV1Rows {
     pub root: TerminalTraceRootRow,
     pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
+    pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
 }
 
 /// First bounded `TerminalTraceV1` instance.
 ///
-/// This rung is deliberately internal-only: its canonical codec includes zero
-/// ordinary-event and terminal-external row counts, and reconstruction rejects
-/// every operation that version 1 classifies into either later group. The root
-/// and complete crash-site roster are already the normative D39 rows.
+/// This bounded rung contains the root, crash-site roster, and every ordinary
+/// `BoundaryCall` and `PortWrite` event. Its canonical codec still includes a
+/// zero terminal-external count; runtime trace values and refinement are
+/// separate later rungs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TerminalTraceV1Profile {
     pub schema: TerminalObservationSchema,
     pub module_identity: TerminalPsiIdentity,
     pub root: TerminalTraceRootRow,
     pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
+    pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
 }

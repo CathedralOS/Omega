@@ -3868,26 +3868,29 @@ Remaining:
   profile, and disclosed artifact/deployment admissions; never emit an
   unqualified `verified` label.
 
-  The first bounded D39 `TerminalTraceV1` rung is live for internal-only
-  modules. Terminal owns a typed version-1 schema, exact semantic-value
-  comparison marker, mandatory root input/result schemas, and crash-site rows.
-  The standalone canonical profile codec begins with D39's domain separator,
-  retains the schema version, exact `TerminalPsiIdentity`, explicit root/crash
-  tags and counts, and explicit zero ordinary-event and terminal-external
-  counts. Unknown versions or vocabulary, empty roots, unknown tags, malformed
-  type/comparison rows, zero module commitments, noncanonical qualification or
-  `(machine, block, edge)` crash order, duplicate crash coordinates, padding,
-  and nonzero later-row counts reject. The public module-bound acceptance path
-  first canonical-validates the Terminal module and computes its identity,
-  then compares decoded bytes exactly with verifier-derived root and complete
-  crash rows; stale or substituted modules and missing, extra, reordered, or
-  duplicate rows reject. The verifier accepts no producer fingerprint or row
-  list. Its exhaustive operation classification rejects `BoundaryCall` and
-  `PortWrite` rather than silently omitting their required version-1 events.
-  This adds no Terminal module field, operation, format, vocabulary, runtime
-  outcome, or fuel charge.
+  The first bounded D39 `TerminalTraceV1` rung now covers roots, crash sites,
+  and ordinary events. Terminal owns a typed version-1 schema, exact semantic-
+  value comparison marker, mandatory root input/result schemas, crash-site
+  rows, and canonical `BoundaryCall` and `PortWrite` rows ordered by
+  `(machine, block, operation)`. Each ordinary row retains the exact local
+  declaration ID and canonical public identity, ordered scalar and structural
+  argument schemas, and exact result schema. The standalone profile codec
+  begins with D39's domain separator, retains the schema version and exact
+  `TerminalPsiIdentity`, uses explicit root/crash/ordinary tags and counts, and
+  writes an explicit zero terminal-external count. Unknown versions,
+  vocabulary, rows, or event kinds; empty roots; malformed type/comparison
+  rows; zero module commitments; noncanonical qualification or site ordering;
+  duplicate coordinates; padding; and nonzero terminal-external counts reject.
+  Module-bound acceptance canonical-validates the module, computes its
+  identity, and compares decoded bytes exactly with verifier-derived root,
+  complete crash roster, and complete ordinary-event roster. Missing, extra,
+  reordered, identity-mutated, kind-mutated, stale, or substituted rows reject.
+  The verifier accepts no producer fingerprint or row list, and exhaustive
+  operation classification prevents future variants from silently becoming
+  internal. This adds no Terminal module field, operation, format, vocabulary,
+  runtime outcome, or fuel charge.
 
-  Continue D39 with canonical ordinary-event and terminal-external rows; exact
+  Continue D39 with canonical terminal-external rows; exact
   runtime semantic value comparison; maximal finite and infinite trace
   refinement; and checked forgetting projections before any cross-profile
   replay. Every new operation classification and any producer-supplied
