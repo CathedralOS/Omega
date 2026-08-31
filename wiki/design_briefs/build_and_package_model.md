@@ -2621,6 +2621,15 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v110/canonical row v68 retains each external callable's ordered
+structural conformance-bound telescope. Top-level requirement supply
+independently projects both telescopes and currently admits only exact
+equality; a checked provider that weakens or otherwise changes the bounds
+rejects until the compiler owns a real conformance-bound subsumption judgment.
+Bound evidence names alpha-normalize to ordinals, while subject ordinals,
+public trait identity, selected conformance applications, and structural
+arguments remain exact key material. Canonical-row recovery remains v15.
+
 Package review v109/canonical row v67 admits const parameters in external
 realization and top-level requirement signatures. Each side retains the exact
 const carrier; authored binder names alpha-normalize out of callable carrier

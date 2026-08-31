@@ -1,6 +1,7 @@
 use super::super::semantics::types::{
     project_data_properties, review_signature_type_identity_with_binders,
 };
+use crate::capture::semantics::conformances::project_conformance_bounds;
 use crate::record::{
     PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
     PackageReviewExternalStaticParameter,
@@ -15,11 +16,6 @@ pub(super) fn project_external_callable_signature(
 ) -> Result<PackageReviewExternalCallableSignature, Vec<Diagnostic>> {
     let subject = machine.name.as_str();
     let type_parameters = compilation.machine_type_parameters(machine);
-    if !machine.conformance_bounds.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{subject}` uses conformance bounds not yet represented by its executable-supply signature"
-        ))]);
-    }
     let static_parameters = type_parameters
         .iter()
         .map(|parameter| match &parameter.kind {
@@ -51,6 +47,15 @@ pub(super) fn project_external_callable_signature(
             }
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let conformance_bounds = project_conformance_bounds(
+        compilation,
+        &machine.conformance_bounds,
+        type_parameters,
+        binders,
+        &machine.lifetime_parameters,
+        "reviewed external callable",
+        subject,
+    )?;
     let Some(entry) = compilation.machine_states(machine).first() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` has no canonical entry signature"
@@ -76,6 +81,7 @@ pub(super) fn project_external_callable_signature(
     Ok(PackageReviewExternalCallableSignature {
         lifetime_parameter_count: machine.lifetime_parameters.len(),
         static_parameters,
+        conformance_bounds,
         parameters,
         return_type: review_signature_type_identity_with_binders(
             compilation,

@@ -1,6 +1,111 @@
 use crate::support::*;
 
 #[test]
+fn review_projects_exact_conformance_bound_external_telescope() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Ranked {
+    machine before(left: Self, right: Self) -> bool;
+}
+pub data BoundSurface {}
+pub data BoundProvider {}
+
+pub boundary requirement BoundSurface::identity<
+    Element,
+    RequirementOrder: Element satisfies Ranked
+>(value: Element) -> Element;
+pub machine BoundProvider::identity<
+    Value,
+    ProviderOrder: Value satisfies Ranked
+>(value: Value) -> Value
+    satisfies BoundSurface::identity
+    via Binding::DllImport("omega-bound", "identity");
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("exact conformance-bound top-level external supply should check");
+    let review = project_checked_package_review(&checked)
+        .expect("exact conformance-bound external supply should project");
+
+    let [supply] = review.external_executable_supply() else {
+        panic!("one conformance-bound external executable-supply row")
+    };
+    let [provider_bound] = supply.signature().conformance_bounds() else {
+        panic!("one provider conformance bound")
+    };
+    let [requirement_bound] = supply
+        .top_level_requirement_signature()
+        .expect("top-level requirement signature")
+        .conformance_bounds()
+    else {
+        panic!("one requirement conformance bound")
+    };
+    assert_eq!(provider_bound, requirement_bound);
+    assert_eq!(provider_bound.binder_ordinal(), Some(0));
+    assert_eq!(provider_bound.subject_parameter(), 0);
+    assert_eq!(provider_bound.trait_identity().path(), "Ranked");
+
+    let weaker_provider = TempPackage::new();
+    weaker_provider.write(
+        "main.omg",
+        r#"pub trait Ranked {
+    machine before(left: Self, right: Self) -> bool;
+}
+pub data BoundSurface {}
+pub data BoundProvider {}
+pub boundary requirement BoundSurface::identity<
+    Element,
+    RequirementOrder: Element satisfies Ranked
+>(value: Element) -> Element;
+pub machine BoundProvider::identity<Value>(value: Value) -> Value
+    satisfies BoundSurface::identity
+    via Binding::DllImport("omega-bound", "identity");
+"#,
+    );
+    weaker_provider.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &weaker_provider.0.join("main.omg"),
+        Some(target),
+        package_inputs(&weaker_provider.0),
+    )
+    .expect("the compiler currently accepts a weaker provider bound");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("package review must reject unsettled conformance-bound weakening");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not yet certify conformance-bound weakening")),
+        "unexpected diagnostics for weaker conformance bounds: {diagnostics:?}",
+    );
+}
+
+#[test]
 fn review_projects_alpha_renamed_const_telescope_in_top_level_external_supply() {
     let Some(target) = host_target_name() else {
         return;

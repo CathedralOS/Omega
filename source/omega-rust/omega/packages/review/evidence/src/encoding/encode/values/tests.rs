@@ -6,11 +6,12 @@ use crate::record::package::PackageReviewCanonicalRowSources;
 use crate::record::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCollectionViewOperation, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewDataProperties,
-    PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewExternalStaticParameter, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
+    PackageReviewConformanceBound, PackageReviewContractCallTarget,
+    PackageReviewContractExpression, PackageReviewDataProperties, PackageReviewExternalBinding,
+    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
+    PackageReviewExternalRequirement, PackageReviewExternalStaticParameter,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,
+    PackageReviewTypeIdentity,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
@@ -30,6 +31,7 @@ fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
     let unit_signature = || PackageReviewExternalCallableSignature {
         lifetime_parameter_count: 0,
         static_parameters: Vec::new(),
+        conformance_bounds: Vec::new(),
         parameters: Vec::new(),
         return_type: PackageReviewTypeIdentity {
             canonical: "unit".to_owned(),
@@ -68,6 +70,7 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
     let empty_signature = || PackageReviewExternalCallableSignature {
         lifetime_parameter_count: 0,
         static_parameters: Vec::new(),
+        conformance_bounds: Vec::new(),
         parameters: Vec::new(),
         return_type: PackageReviewTypeIdentity {
             canonical: "nominal(package:ReturnA)".to_owned(),
@@ -166,7 +169,25 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
         unreachable!("const static parameter fixture")
     };
     type_identity.canonical = "nominal(toolchain:i32)".to_owned();
-    assert_ne!(const_key, encode_key(&changed_const_telescope));
+    let changed_const_key = encode_key(&changed_const_telescope);
+    assert_ne!(const_key, changed_const_key);
+
+    let mut changed_conformance_bounds = changed_const_telescope;
+    changed_conformance_bounds
+        .signature
+        .conformance_bounds
+        .push(PackageReviewConformanceBound {
+            binder_ordinal: Some(0),
+            subject_parameter: 0,
+            selected_conformance: None,
+            selected_lifetime_arguments: Vec::new(),
+            selected_arguments: Vec::new(),
+            selected_subject: None,
+            trait_identity: nominal("Ranked"),
+            trait_lifetime_arguments: Vec::new(),
+            arguments: Vec::new(),
+        });
+    assert_ne!(changed_const_key, encode_key(&changed_conformance_bounds));
 }
 
 pub(crate) fn normalized_import_row(

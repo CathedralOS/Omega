@@ -181,7 +181,7 @@ pub struct PackageReviewTypeParameter {
 /// `None` retains a binder-free `where T satisfies Trait` requirement without
 /// fabricating evidence. The subject is the ordinal of an ordinary type
 /// parameter in the containing declaration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewConformanceBound {
     pub(crate) binder_ordinal: Option<u32>,
     pub(crate) subject_parameter: u32,

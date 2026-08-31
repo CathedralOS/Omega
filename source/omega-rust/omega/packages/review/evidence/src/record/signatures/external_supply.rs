@@ -82,12 +82,14 @@ impl PackageReviewExternalStaticParameter {
 /// Self-contained callable shape for executable code supplied outside Omega.
 /// The static telescope currently represents ordinary type parameters with
 /// their exact property bounds and const parameters with their exact carrier;
-/// projection rejects other static kinds until their exact structure has a
+/// the adjacent conformance telescope retains exact structural generic bounds.
+/// Projection rejects other static kinds until their exact structure has a
 /// stable carrier here.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewExternalCallableSignature {
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) static_parameters: Vec<PackageReviewExternalStaticParameter>,
+    pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,
     pub(crate) parameters: Vec<PackageReviewExternalCallableParameter>,
     pub(crate) return_type: PackageReviewTypeIdentity,
 }
@@ -99,6 +101,10 @@ impl PackageReviewExternalCallableSignature {
 
     pub fn static_parameters(&self) -> &[PackageReviewExternalStaticParameter] {
         &self.static_parameters
+    }
+
+    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
+        &self.conformance_bounds
     }
 
     pub fn parameters(&self) -> &[PackageReviewExternalCallableParameter] {
