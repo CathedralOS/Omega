@@ -87,7 +87,10 @@ contain one parameterless internal Unit call before its return. Independent
 admission rejoins the nested flow coordinate, state, contract fingerprint, and
 service reach, then retains and deduplicates the transitive empty target.
 Lowering emits one root, one relay, and one empty target machine; a missing or
-altered transitive plan rejects the whole route.
+altered transitive plan rejects the whole route. The admission walk is
+recursive rather than depth-coded: a depth-two relay canary produces one root,
+two relays, and one empty target while retaining the same one-call node shape
+and rejecting cycles through its active closure.
 
 The first larger acyclic composed family prefixes that conditional frontier
 with an exact scalar-only entry jump. The checked carrier records the Boolean

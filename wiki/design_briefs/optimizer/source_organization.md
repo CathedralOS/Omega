@@ -100,7 +100,9 @@ rungs: `internal_calls` owns target-plan and transitive-closure replay while
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
 after independently admitting the scalar prefix rather than copying their
-policy into a second route.
+policy into a second route. Internal-call recursion remains inside its
+`admission` leaf; adding tested closure depth does not add a depth-named module
+or another orchestration layer.
 Shared state-entry claim construction lives at the honest
 `attached_unit/claims.rs` ancestor rather than in either control-flow route.
 Focused source and replay tests live in the `composed_claims`,
