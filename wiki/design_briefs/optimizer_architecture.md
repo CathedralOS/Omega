@@ -66,6 +66,12 @@ plan. Omega preserves those strengths. It does not copy Squalr's global unsafe
 singleton, hash-map scheduling, in-place partial mutation, or implicit analysis
 invalidation.
 
+Exact names must remain visible below the catalog. Generic `rule.rs` or
+`rules.rs` leaves and parent-wide glob imports defeat that property even when
+the entrance itself is short; migrated families use exact rule directories
+with explicit dependencies and keep only genuinely shared mechanics at their
+nearest common ancestor.
+
 Each rule-owning optimizer stage therefore has exactly one small, meaningful
 entrance. "Small" is necessary but not sufficient: a short re-export wall is
 not an entrance, and a thousand-line leaf below a short `mod.rs` is not a

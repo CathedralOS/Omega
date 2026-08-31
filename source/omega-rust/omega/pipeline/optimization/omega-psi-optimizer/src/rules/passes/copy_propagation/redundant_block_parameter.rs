@@ -1,4 +1,4 @@
-//! Redundant block-parameter proposal mechanics.
+//! Exact redundant block-parameter proposal mechanics.
 
 use std::collections::BTreeSet;
 

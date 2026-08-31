@@ -11,6 +11,18 @@ pub(crate) fn check(audit: &mut Audit) {
     let source_lines = &audit.source_lines;
     let violations = &mut audit.violations;
 
+    let psi_pass_root =
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/";
+    for path in source_lines.keys().filter(|path| {
+        path.starts_with(psi_pass_root)
+            && !is_test_source(path)
+            && (path.ends_with("/rule.rs") || path.ends_with("/rules.rs"))
+    }) {
+        violations.insert(format!(
+            "Psi pass retains a generic rule leaf instead of an exact optimization name: {path}"
+        ));
+    }
+
     for obsolete in [
         "source/omega-rust/omega/representations/omega-optimization-core/src/manifest.rs",
         "source/omega-rust/omega/representations/omega-legalized-operations/src/validation/call_source.rs",

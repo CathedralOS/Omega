@@ -1,10 +1,11 @@
 //! Optimizer module role: executable entrance. Copy-propagation pass entrance.
 //!
-//! This entrance owns exact rule order; `rule` owns proposal mechanics.
+//! This entrance owns exact rule order; `redundant_block_parameter` owns the
+//! named proposal leaf.
 
-mod rule;
+mod redundant_block_parameter;
 
-pub use rule::RedundantBlockParameterRule;
+pub use redundant_block_parameter::RedundantBlockParameterRule;
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 

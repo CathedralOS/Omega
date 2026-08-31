@@ -54,8 +54,9 @@ stage/mod.rs
   -> {model, compute, validate, identity, codec, tests}.rs
 ```
 
-Every rung narrows the question. Do not introduce generic `rules.rs`,
-`helpers.rs`, or a large mixed match as the next rung.
+Every rung narrows the question. Do not introduce generic `rule.rs`,
+`rules.rs`, `helpers.rs`, or a large mixed match as the next rung. Exact rule
+implementations use the optimization name as their file or directory name.
 
 ## Compiler and optimizer-execution entrances
 
@@ -147,6 +148,11 @@ remain separate even when they share neutral canonical vocabulary.
 Tests mirror production taxonomy. Large matrices descend first by artifact or
 rule family, then by behavior such as `positive`, `source_corruption`,
 `target_corruption`, and `compatibility`.
+
+Parent module glob imports are also a navigation smell: a tiny entrance must
+not become a hidden namespace bucket for all descendants. Newly migrated exact
+rule leaves import their own dependencies explicitly; existing wildcard debt
+is removed family by family before those families grow.
 
 ## Size and cohesion ratchets
 
