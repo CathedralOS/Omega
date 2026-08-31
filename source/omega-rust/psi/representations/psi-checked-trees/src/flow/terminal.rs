@@ -680,8 +680,9 @@ pub struct CheckedPayloadlessGuardedCallEvidencePlan {
     pub selected_term: psi_arena::Handle<crate::CheckedEvidenceTerm>,
     /// True exactly for the bounded whole-result proposition substitution.
     pub substitutes_result: bool,
-    /// The one bounded proof-only use of this selected term. Runtime lowering
-    /// continues to return the saved structural result unchanged.
+    /// The one bounded proof-only use of this selected term. Up to two distinct
+    /// selected rows may each occupy one dense tail-requirement lane. Runtime
+    /// lowering continues to return the saved structural result unchanged.
     pub tail_use: Option<CheckedPayloadlessGuardedCallEvidenceUsePlan>,
 }
 

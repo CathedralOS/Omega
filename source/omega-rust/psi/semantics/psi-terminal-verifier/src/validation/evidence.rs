@@ -401,6 +401,23 @@ pub(super) fn validate_evidence_contract_lanes(
             let Some(result) = operation.result.structural() else {
                 return Err(invalid());
             };
+            let selected_uses = selected_evidence
+                .iter()
+                .flat_map(|binding| &binding.uses)
+                .collect::<Vec<_>>();
+            if let Some(first_use) = selected_uses.first()
+                && (selected_evidence.len() > 2
+                    || selected_uses.len() != selected_evidence.len()
+                    || selected_evidence
+                        .iter()
+                        .any(|binding| binding.uses.len() != 1)
+                    || selected_uses.iter().enumerate().any(|(position, use_)| {
+                        use_.target != first_use.target
+                            || u32::try_from(position).ok() != Some(use_.input_position)
+                    }))
+            {
+                return Err(invalid());
+            }
             let mut previous_coordinate = None;
             for binding in selected_evidence {
                 let coordinate = (
@@ -505,11 +522,18 @@ pub(super) fn validate_evidence_contract_lanes(
                         let [block] = target.blocks.as_slice() else {
                             return false;
                         };
-                        let [Proposition::Atom(target_requirement)] =
-                            target.contract.requires.as_slice()
+                        let Some(Proposition::Atom(target_requirement)) =
+                            usize::try_from(use_.input_position)
+                                .ok()
+                                .and_then(|position| target.contract.requires.get(position))
                         else {
                             return false;
                         };
+                        let target_uses = selected_evidence
+                            .iter()
+                            .flat_map(|candidate| &candidate.uses)
+                            .filter(|candidate| candidate.target == use_.target)
+                            .collect::<Vec<_>>();
                         let Some(target_term) = terms.get(&use_.target_term).copied() else {
                             return false;
                         };
@@ -522,8 +546,11 @@ pub(super) fn validate_evidence_contract_lanes(
                         };
                         use_.target != caller.id
                             && use_.target != callee.id
-                            && use_.input_position == 0
-                            && parameter.position == use_.input_position
+                            && parameter.position == 0
+                            && target.contract.requires.len() == target_uses.len()
+                            && target_uses.iter().enumerate().all(|(position, candidate)| {
+                                u32::try_from(position).ok() == Some(candidate.input_position)
+                            })
                             && !parameter.is_self
                             && parameter.structural_type == result.structural_type
                             && parameter.multiplicity
