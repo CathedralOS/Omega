@@ -164,6 +164,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "control-flow merge mechanics",
             REQUIRED_CONTROL_FLOW_MERGE_LEAVES,
         ),
+        (
+            "fixed-view-copy validation",
+            REQUIRED_FIXED_VIEW_COPY_VALIDATION_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {
