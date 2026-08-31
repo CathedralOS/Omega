@@ -541,13 +541,6 @@ fn residual_identity_named_compact_hashes_are_explicit_reports() {
             &["pub schema_identity: u64"][..],
         ),
         (
-            "source/omega-rust/omega/representations/omega-effects/src/indexed_provider_applications.rs",
-            &[
-                "\n    identity: u64,",
-                "pub const fn identity(&self) -> u64",
-            ][..],
-        ),
-        (
             "source/omega-rust/omega/representations/omega-effects/src/selected_provider_plans.rs",
             &["plan_by_identity"][..],
         ),

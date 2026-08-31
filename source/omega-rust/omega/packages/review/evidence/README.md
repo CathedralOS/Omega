@@ -41,6 +41,11 @@ selection, `behavior/` for operational facts, `contracts/` for checked facts,
 `semantics/` for typed identity, or `source/` for authored custody. Capture may
 construct records; records never depend back on capture.
 
+Within `contracts/expressions/`, `projection/mod.rs` retains recursive custody
+and routes value forms, operator forms, calls, and members into named semantic
+leaves. Its siblings own the narrower checked-resolution joins reused by that
+descent.
+
 ## Encoding and ledger
 
 `encoding/` owns canonical framing and bounded recovery. It consumes only

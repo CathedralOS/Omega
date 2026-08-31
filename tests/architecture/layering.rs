@@ -2290,6 +2290,9 @@ fn omega_product_uses_the_small_physical_vocabulary() {
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        // Cargo build output is ignored repository state, not a product
+        // responsibility or part of Omega's physical vocabulary.
+        .filter(|name| name != "target")
         .collect::<BTreeSet<_>>();
     let expected = BTreeSet::from([
         "backend".to_owned(),
