@@ -29,12 +29,12 @@ pub use candidate::{
 };
 pub use compare::{
     ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflict,
-    ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictError,
-    ReviewOnlyCapabilityConflictFingerprint, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyCapabilityConflictRenderError, ReviewOnlyCapabilityConflictSet,
-    ReviewOnlyPackageCapabilityConflicts, ReviewOnlyRootRoleChange,
-    ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract, ReviewSetRole,
-    compare_review_only_capabilities,
+    ReviewOnlyCapabilityConflictBaseline, ReviewOnlyCapabilityConflictChange,
+    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictFingerprint,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyCapabilityConflictRenderError,
+    ReviewOnlyCapabilityConflictSet, ReviewOnlyPackageCapabilityConflicts,
+    ReviewOnlyRootRoleChange, ReviewOnlyRootRoleComparisonError, ReviewOnlyRootRoleContract,
+    ReviewSetRole, compare_review_only_capabilities, compare_review_only_initial_capabilities,
 };
 pub use decision::{
     ReviewOnlyRootPolicyDecision, ReviewOnlyRootPolicyDirectory, ReviewOnlyRootPolicyDisposition,

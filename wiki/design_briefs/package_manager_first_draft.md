@@ -2007,12 +2007,15 @@ baseline. A completely checked package with neither blocking evidence nor
 review findings may receive the review-only result `no-review-blocker`;
 claim-free opacity alone may receive
 `no-review-blocker-with-audit-recommended`. Neither result admits the package.
-An accepted-claim row blocks for exact root-policy resolution on initial
-admission or when newly introduced, while an unchanged accepted baseline does
-not require blanket reapproval. Suspect authority, trust, executable
-introduction, dangerous contract slack, or build-host reach recommends audit;
-the exact capability, claim, compatibility, or root-policy row determines
-whether admission also blocks.
+Accepted-claim, dangerous-authority, and external-executable-supply rows block
+for exact root-policy resolution on initial admission or when a package is
+newly introduced. Their conflict baseline is explicitly empty: it carries no
+invented old resolution, source commitment, or review row. An unchanged
+accepted baseline does not require blanket reapproval. Suspect authority,
+trust, executable introduction, dangerous contract slack, or build-host reach
+recommends audit; retained dangerous authority and external executable supply
+remain audit-relevant even when unchanged. The exact capability, claim,
+compatibility, or root-policy row determines whether admission also blocks.
 
 The first review-only root-policy object requires one closed accept/reject
 decision for every exact blocking fingerprint and binds the canonical decision

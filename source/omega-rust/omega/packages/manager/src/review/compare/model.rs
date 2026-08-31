@@ -184,12 +184,47 @@ impl ReviewOnlyCapabilityConflict {
 
 /// Conflicts for one exact package identity and candidate dependency path.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReviewOnlyCapabilityConflictBaseline {
+    /// Fresh package admission has no prior resolution, source commitment, or
+    /// review row. This is an explicit empty policy baseline, not synthesized
+    /// evidence.
+    EmptyAdmission,
+    /// A locally retained review baseline for an existing package lineage.
+    RetainedReview {
+        resolution: ImmutableSourceResolution,
+        source_consumption: ReviewOnlySourceConsumptionCommitment,
+    },
+}
+
+impl ReviewOnlyCapabilityConflictBaseline {
+    pub const fn is_empty_admission(&self) -> bool {
+        matches!(self, Self::EmptyAdmission)
+    }
+
+    pub const fn resolution(&self) -> Option<&ImmutableSourceResolution> {
+        match self {
+            Self::EmptyAdmission => None,
+            Self::RetainedReview { resolution, .. } => Some(resolution),
+        }
+    }
+
+    pub const fn source_consumption(&self) -> Option<ReviewOnlySourceConsumptionCommitment> {
+        match self {
+            Self::EmptyAdmission => None,
+            Self::RetainedReview {
+                source_consumption, ..
+            } => Some(*source_consumption),
+        }
+    }
+}
+
+/// Conflicts for one exact package identity and candidate dependency path.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewOnlyPackageCapabilityConflicts {
     pub(super) key: PackageKey,
-    pub(super) baseline_resolution: ImmutableSourceResolution,
+    pub(super) baseline: ReviewOnlyCapabilityConflictBaseline,
     pub(super) candidate_resolution: ImmutableSourceResolution,
     pub(super) dependency_path: DependencyRequestPath,
-    pub(super) baseline_source_consumption: ReviewOnlySourceConsumptionCommitment,
     pub(super) candidate_source_consumption: ReviewOnlySourceConsumptionCommitment,
     pub(super) candidate_closure: ReviewOnlyCandidateClosureCommitment,
     pub(super) conflicts: Vec<ReviewOnlyCapabilityConflict>,
@@ -200,8 +235,12 @@ impl ReviewOnlyPackageCapabilityConflicts {
         &self.key
     }
 
-    pub fn baseline_resolution(&self) -> &ImmutableSourceResolution {
-        &self.baseline_resolution
+    pub const fn baseline(&self) -> &ReviewOnlyCapabilityConflictBaseline {
+        &self.baseline
+    }
+
+    pub fn baseline_resolution(&self) -> Option<&ImmutableSourceResolution> {
+        self.baseline.resolution()
     }
 
     pub fn candidate_resolution(&self) -> &ImmutableSourceResolution {
@@ -212,8 +251,10 @@ impl ReviewOnlyPackageCapabilityConflicts {
         &self.dependency_path
     }
 
-    pub const fn baseline_source_consumption(&self) -> ReviewOnlySourceConsumptionCommitment {
-        self.baseline_source_consumption
+    pub const fn baseline_source_consumption(
+        &self,
+    ) -> Option<ReviewOnlySourceConsumptionCommitment> {
+        self.baseline.source_consumption()
     }
 
     pub const fn candidate_source_consumption(&self) -> ReviewOnlySourceConsumptionCommitment {
@@ -229,11 +270,12 @@ impl ReviewOnlyPackageCapabilityConflicts {
     }
 }
 
-/// Exact row conflicts for ordinary same-lineage updates.
+/// Exact row conflicts for ordinary updates and fresh package admission.
 ///
-/// New packages, removed packages, and source-lineage replacements remain in
-/// source/provenance triage. Durable resolution is intentionally absent until
-/// accepted lock and toolchain evidence are sealed.
+/// Fresh packages expose only trust-bearing rows that require root policy;
+/// ordinary API rows have no prior compatibility contract. Removed packages
+/// and source-lineage replacement still receive separate provenance triage.
+/// Durable admission remains absent until accepted lock evidence is sealed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewOnlyCapabilityConflictSet {
     pub(super) packages: Vec<ReviewOnlyPackageCapabilityConflicts>,

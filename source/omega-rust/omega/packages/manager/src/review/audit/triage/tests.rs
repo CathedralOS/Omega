@@ -78,6 +78,10 @@ fn reason_tokens_are_fixed_and_source_text_free() {
         "accepted_claim_requires_resolution"
     );
     assert_eq!(
+        reason_token(PackageTriageReason::ExternalExecutableSupplyRequiresResolution),
+        "external_executable_supply_requires_resolution"
+    );
+    assert_eq!(
         reason_token(PackageTriageReason::RepresentationTcbIntroducedOrChanged),
         "representation_tcb_introduced_or_changed"
     );

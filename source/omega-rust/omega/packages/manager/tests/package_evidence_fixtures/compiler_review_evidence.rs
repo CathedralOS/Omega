@@ -220,6 +220,40 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .expect("root package receives compiler review material");
 
         assert_fixture_evidence(package, root_review.projection());
+        let initial_conflicts = compare_review_only_initial_capabilities(
+            &reviews,
+            &closure,
+            ReviewOnlyCapabilityConflictLimits::default(),
+        )
+        .unwrap_or_else(|error| panic!("{package} initial conflicts should close: {error}"));
+        let expected_initial_kind = match *package {
+            "axiom-ledger" => Some(PackageReviewCanonicalRowKind::AcceptedClaim),
+            "file-journal" | "remote-journal" => {
+                Some(PackageReviewCanonicalRowKind::DangerousAuthority)
+            }
+            _ => None,
+        };
+        let initial_root_conflicts = initial_conflicts
+            .packages()
+            .iter()
+            .find(|conflicts| conflicts.key() == closure.graph().root());
+        match expected_initial_kind {
+            Some(kind) => {
+                let conflicts = initial_root_conflicts
+                    .unwrap_or_else(|| panic!("{package} fresh root policy conflicts"));
+                assert!(conflicts.baseline().is_empty_admission());
+                assert!(conflicts.conflicts().iter().any(|conflict| {
+                    conflict.kind() == kind
+                        && conflict.change()
+                            == omega_package_manager::review::ReviewOnlyCapabilityConflictChange::Added
+                        && conflict.is_blocking()
+                }));
+            }
+            None => assert!(
+                initial_root_conflicts.is_none(),
+                "{package} has no fresh trust-bearing root conflict"
+            ),
+        }
         let initial_triage = triage_initial_install(&reviews);
         let initial_root = initial_triage
             .decisions()
@@ -227,9 +261,10 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .find(|decision| decision.package_name() == *package)
             .expect("initial triage retains root package");
         let initial_disposition = match *package {
-            "axiom-ledger" => PackageTriageDisposition::BlockedCapabilityChange,
-            "generated-table" | "file-journal" | "process-exit" | "remote-journal"
-            | "opaque-carrier" => PackageTriageDisposition::NoReviewBlockerWithAuditRecommended,
+            "axiom-ledger" | "file-journal" | "process-exit" | "remote-journal" => {
+                PackageTriageDisposition::BlockedCapabilityChange
+            }
+            "opaque-carrier" => PackageTriageDisposition::NoReviewBlockerWithAuditRecommended,
             _ => PackageTriageDisposition::NoReviewBlocker,
         };
         assert_eq!(
@@ -276,10 +311,8 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             .iter()
             .find(|decision| decision.package_name() == *package)
             .expect("unchanged triage retains root package");
-        let retained_dangerous_authority = matches!(
-            *package,
-            "generated-table" | "file-journal" | "process-exit" | "remote-journal"
-        );
+        let retained_dangerous_authority =
+            matches!(*package, "file-journal" | "process-exit" | "remote-journal");
         assert_eq!(
             unchanged_root.disposition(),
             if retained_dangerous_authority {

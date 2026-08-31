@@ -12,7 +12,7 @@ use omega_package_evidence::record::{
 use omega_package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n";
 
 pub(super) trait ConflictRenderOutput {
     fn push_str(&mut self, value: &str);
@@ -63,16 +63,27 @@ fn render_package(
     output.push_str("\npackage_key ");
     push_hex(output, &package.key.identity().digest());
     output.push('\n');
-    render_resolution(output, "baseline_resolution", &package.baseline_resolution);
+    match &package.baseline {
+        super::model::ReviewOnlyCapabilityConflictBaseline::EmptyAdmission => {
+            output.push_str("baseline empty_admission\n");
+        }
+        super::model::ReviewOnlyCapabilityConflictBaseline::RetainedReview {
+            resolution,
+            source_consumption,
+        } => {
+            output.push_str("baseline retained_review\n");
+            render_resolution(output, "baseline_resolution", resolution);
+            render_digest(
+                output,
+                "baseline_source_consumption",
+                &source_consumption.digest(),
+            );
+        }
+    }
     render_resolution(
         output,
         "candidate_resolution",
         &package.candidate_resolution,
-    );
-    render_digest(
-        output,
-        "baseline_source_consumption",
-        &package.baseline_source_consumption.digest(),
     );
     render_digest(
         output,

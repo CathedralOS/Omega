@@ -84,7 +84,7 @@ pub(super) fn assert_fixture_evidence(package: &str, review: &CheckedPackageRevi
         .unwrap_or_else(|| panic!("{package} intended review callable"));
 
     let expected_dangerous_authority = match package {
-        "generated-table" | "file-journal" | "remote-journal" => Some((
+        "file-journal" | "remote-journal" => Some((
             PackageReviewDangerousAuthorityClass::Filesystem,
             "FilesystemHost",
         )),
@@ -120,40 +120,16 @@ pub(super) fn assert_fixture_evidence(package: &str, review: &CheckedPackageRevi
                 .iter()
                 .find(|callable| callable.role() == PackageReviewCallableRole::Build)
                 .expect("generated-table canonical build row");
-            let [service] = build.declared_service_reach().expect("build reach ceiling") else {
-                panic!("generated-table exact build service reach")
-            };
-            assert_eq!(service.path(), "FilesystemHost");
+            assert!(build.declared_service_reach().is_none());
             assert!(matches!(
                 build.checked_service_reach(),
                 PackageReviewCheckedServiceReach::CheckedBody {
                     realized,
                     concrete,
-                } if realized.as_slice() == [service.clone()]
-                    && concrete.as_slice() == [service.clone()]
+                } if realized.is_empty() && concrete.is_empty()
             ));
-            let invocations = build
-                .declared_synchronous_invocations()
-                .expect("build invocation ceiling");
-            assert_eq!(invocations.len(), 1);
-            assert_eq!(
-                invocations[0]
-                    .service()
-                    .expect("build service invocation ceiling")
-                    .path(),
-                "FilesystemHost"
-            );
-            assert_eq!(build.realized_synchronous_invocations().len(), 1);
-            assert!(
-                build
-                    .realized_synchronous_invocations()
-                    .iter()
-                    .all(|invocation| {
-                        invocation
-                            .service()
-                            .is_some_and(|realized| realized == service)
-                    })
-            );
+            assert!(build.declared_synchronous_invocations().is_none());
+            assert!(build.realized_synchronous_invocations().is_empty());
         }
         "file-journal" => {
             let [service] = callable.declared_service_reach().expect("published reach") else {

@@ -232,7 +232,10 @@ stop the item on one precise owner question before adding machinery.
   transaction. Reopen and revalidate the accepted lock, candidate closure,
   policy file, and every decision immediately before mutation. Governance
   metadata may be deployment policy; it must not become proof that an audit
-  occurred.
+  occurred. The review-only primitive already emits exact added conflicts for
+  fresh accepted claims, dangerous authority, and external executable supply
+  against an explicit empty admission baseline; it does not synthesize old
+  resolution or evidence.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   no review blocker, no review blocker with audit recommended, blocked

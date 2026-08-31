@@ -1,18 +1,20 @@
 //! Exact row comparison, resource accounting, and closure commitments.
 
-use super::commitments::{derive_candidate_closure_commitment, derive_conflict_fingerprint};
+use super::commitments::{
+    ConflictFingerprintBaseline, derive_candidate_closure_commitment, derive_conflict_fingerprint,
+};
 use super::model::*;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
     DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure,
 };
-use crate::review::CompilerIssuedPackageReviewSet;
 use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
+use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
@@ -56,6 +58,21 @@ pub fn compare_review_only_capabilities(
     compare_review_only_capability_records(baseline.reviews(), candidate, candidate_sources, limits)
 }
 
+/// Derive exact trust-bearing conflicts for a complete candidate closure
+/// against an explicit empty admission baseline.
+pub fn compare_review_only_initial_capabilities(
+    candidate: &CompilerIssuedPackageReviewSet,
+    candidate_sources: &ResolvedPackageSourceClosure,
+    limits: ReviewOnlyCapabilityConflictLimits,
+) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
+    compare_review_only_capability_records::<CompilerIssuedPackageReview>(
+        &[],
+        candidate,
+        candidate_sources,
+        limits,
+    )
+}
+
 pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
     baseline: &[B],
     candidate: &CompilerIssuedPackageReviewSet,
@@ -76,10 +93,10 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
 
     let mut packages = Vec::new();
     packages
-        .try_reserve(baseline_by_key.len().min(candidate_by_key.len()))
+        .try_reserve(candidate_by_key.len())
         .map_err(|_| ReviewOnlyCapabilityConflictError::AllocationFailed)?;
     let mut owned_budget = OwnedConflictBudget::default();
-    for baseline_review in baseline_by_key {
+    for baseline_review in &baseline_by_key {
         let key = baseline_review.key();
         let Ok(candidate_index) = candidate_by_key.binary_search_by(|review| review.key().cmp(key))
         else {
@@ -104,7 +121,7 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
         }
         let row_conflicts = compare_rows(
             key,
-            baseline_review,
+            *baseline_review,
             candidate_review,
             &dependency_path,
             candidate_closure,
@@ -129,12 +146,14 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
         }
         packages.push(ReviewOnlyPackageCapabilityConflicts {
             key: key.clone(),
-            baseline_resolution: baseline_review.resolution().clone(),
+            baseline: ReviewOnlyCapabilityConflictBaseline::RetainedReview {
+                resolution: baseline_review.resolution().clone(),
+                source_consumption: PackageReviewEvidence::source_consumption_commitment(
+                    *baseline_review,
+                ),
+            },
             candidate_resolution: candidate_review.resolution().clone(),
             dependency_path,
-            baseline_source_consumption: PackageReviewEvidence::source_consumption_commitment(
-                baseline_review,
-            ),
             candidate_source_consumption: PackageReviewEvidence::source_consumption_commitment(
                 candidate_review,
             ),
@@ -142,6 +161,54 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
             conflicts: row_conflicts,
         });
     }
+    for candidate_review in &candidate_by_key {
+        if baseline_by_key
+            .binary_search_by(|review| review.key().cmp(candidate_review.key()))
+            .is_ok()
+        {
+            continue;
+        }
+        let key = candidate_review.key();
+        let dependency_path = candidate_sources.dependency_path(key).ok_or_else(|| {
+            ReviewOnlyCapabilityConflictError::MissingDependencyPath {
+                package: Box::new(key.clone()),
+            }
+        })?;
+        if dependency_path.steps().len() > limits.maximum_dependency_path_steps {
+            return Err(ReviewOnlyCapabilityConflictError::DependencyPathTooLong {
+                package: Box::new(key.clone()),
+                maximum_steps: limits.maximum_dependency_path_steps,
+            });
+        }
+        let row_conflicts = compare_empty_admission_rows(
+            key,
+            *candidate_review,
+            &dependency_path,
+            candidate_closure,
+            limits,
+            &mut owned_budget,
+        )?;
+        if row_conflicts.is_empty() {
+            continue;
+        }
+        if packages.len() >= limits.maximum_packages {
+            return Err(ReviewOnlyCapabilityConflictError::TooManyPackages {
+                maximum: limits.maximum_packages,
+            });
+        }
+        packages.push(ReviewOnlyPackageCapabilityConflicts {
+            key: key.clone(),
+            baseline: ReviewOnlyCapabilityConflictBaseline::EmptyAdmission,
+            candidate_resolution: candidate_review.resolution().clone(),
+            dependency_path,
+            candidate_source_consumption: PackageReviewEvidence::source_consumption_commitment(
+                *candidate_review,
+            ),
+            candidate_closure,
+            conflicts: row_conflicts,
+        });
+    }
+    packages.sort_by(|left, right| left.key.cmp(&right.key));
     Ok(ReviewOnlyCapabilityConflictSet { packages })
 }
 
@@ -382,7 +449,11 @@ fn compare_rows<B: PackageReviewEvidence, C: PackageReviewEvidence>(
         let candidate_source = candidate_row.map(|row| row.source().clone());
         let fingerprint = derive_conflict_fingerprint(
             key,
-            baseline_review,
+            ConflictFingerprintBaseline::RetainedReview {
+                resolution: baseline_review.resolution(),
+                source_consumption: baseline_review.source_consumption_commitment(),
+                whole_review: baseline_review.whole_review_commitment(),
+            },
             candidate_review,
             dependency_path,
             candidate_closure,
@@ -408,6 +479,87 @@ fn compare_rows<B: PackageReviewEvidence, C: PackageReviewEvidence>(
         });
     }
     Ok(conflicts)
+}
+
+fn compare_empty_admission_rows<C: PackageReviewEvidence>(
+    key: &PackageKey,
+    candidate_review: &C,
+    dependency_path: &DependencyRequestPath,
+    candidate_closure: ReviewOnlyCandidateClosureCommitment,
+    limits: ReviewOnlyCapabilityConflictLimits,
+    budget: &mut OwnedConflictBudget,
+) -> Result<Vec<ReviewOnlyCapabilityConflict>, ReviewOnlyCapabilityConflictError> {
+    let selected = candidate_review
+        .canonical_rows()
+        .iter()
+        .filter(|row| initial_admission_requires_root_policy(row.kind()));
+    let mut conflicts = Vec::new();
+    for row in selected {
+        budget.conflicts = budget.conflicts.saturating_add(1);
+        budget.bytes = budget
+            .bytes
+            .saturating_add(row.key_bytes().len())
+            .saturating_add(row.canonical_bytes().len());
+        if budget.conflicts > limits.maximum_conflicts {
+            return Err(ReviewOnlyCapabilityConflictError::TooManyConflicts {
+                maximum: limits.maximum_conflicts,
+            });
+        }
+        if budget.bytes > limits.maximum_changed_row_bytes {
+            return Err(ReviewOnlyCapabilityConflictError::ChangedRowBytesExceeded {
+                maximum_bytes: limits.maximum_changed_row_bytes,
+            });
+        }
+        budget.source_location_bytes = budget
+            .source_location_bytes
+            .saturating_add(source_metrics(row.source()).1);
+        if budget.source_location_bytes > limits.maximum_changed_source_location_bytes {
+            return Err(
+                ReviewOnlyCapabilityConflictError::ChangedSourceLocationBytesExceeded {
+                    maximum_bytes: limits.maximum_changed_source_location_bytes,
+                },
+            );
+        }
+        let row_key = clone_bytes(row.key_bytes())?;
+        let candidate_row = clone_bytes(row.canonical_bytes())?;
+        let candidate_source = row.source().clone();
+        let fingerprint = derive_conflict_fingerprint(
+            key,
+            ConflictFingerprintBaseline::EmptyAdmission,
+            candidate_review,
+            dependency_path,
+            candidate_closure,
+            row.kind(),
+            row.risk(),
+            ReviewOnlyCapabilityConflictChange::Added,
+            row.key_bytes(),
+            None,
+            Some(&candidate_row),
+            None,
+            Some(&candidate_source),
+        );
+        conflicts.push(ReviewOnlyCapabilityConflict {
+            kind: row.kind(),
+            risk: row.risk(),
+            change: ReviewOnlyCapabilityConflictChange::Added,
+            row_key,
+            baseline_row: None,
+            candidate_row: Some(candidate_row),
+            baseline_source: None,
+            candidate_source: Some(candidate_source),
+            fingerprint,
+        });
+    }
+    Ok(conflicts)
+}
+
+const fn initial_admission_requires_root_policy(kind: PackageReviewCanonicalRowKind) -> bool {
+    matches!(
+        kind,
+        PackageReviewCanonicalRowKind::AcceptedClaim
+            | PackageReviewCanonicalRowKind::DangerousAuthority
+            | PackageReviewCanonicalRowKind::ExternalExecutableSupply
+    )
 }
 
 fn clone_bytes(bytes: &[u8]) -> Result<Vec<u8>, ReviewOnlyCapabilityConflictError> {

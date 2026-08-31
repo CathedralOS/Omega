@@ -72,7 +72,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public const conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n"));
     assert!(rendered.contains("change changed\nkind public_const\nrisk blocking\n"));
     assert!(rendered.contains("baseline_location const_initializer package "));
     assert!(rendered.contains("candidate_location const_initializer package "));
@@ -237,7 +237,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public callable parameter conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n"));
     for (label, package_source, parameter) in [
         ("baseline", baseline_source, "baseline_value"),
         ("candidate", candidate_source, "candidate_value"),
@@ -479,7 +479,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public trait requirement conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n"));
     assert!(rendered.contains("baseline_location trait_requirement package "));
     assert!(rendered.contains("candidate_location trait_requirement package "));
 
@@ -624,7 +624,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public data member conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n"));
     assert!(rendered.contains("baseline_location data_member package "));
     assert!(rendered.contains("candidate_location data_member package "));
 

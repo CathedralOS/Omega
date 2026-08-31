@@ -10,7 +10,7 @@ use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, DependencyRequestPath,
     ResolvedPackageClosure, ResolvedPackageSourceClosure,
 };
-use crate::review::candidate::PackageReviewEvidence;
+use crate::review::candidate::{PackageReviewEvidence, ReviewOnlySourceConsumptionCommitment};
 use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner,
@@ -19,14 +19,23 @@ use omega_package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 17;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 18;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 5;
 
+pub(super) enum ConflictFingerprintBaseline<'a> {
+    EmptyAdmission,
+    RetainedReview {
+        resolution: &'a ImmutableSourceResolution,
+        source_consumption: ReviewOnlySourceConsumptionCommitment,
+        whole_review: [u8; 32],
+    },
+}
+
 #[allow(clippy::too_many_arguments)]
-pub(super) fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageReviewEvidence>(
+pub(super) fn derive_conflict_fingerprint<C: PackageReviewEvidence>(
     key: &PackageKey,
-    baseline_review: &B,
+    baseline: ConflictFingerprintBaseline<'_>,
     candidate_review: &C,
     dependency_path: &DependencyRequestPath,
     candidate_closure: ReviewOnlyCandidateClosureCommitment,
@@ -43,17 +52,24 @@ pub(super) fn derive_conflict_fingerprint<B: PackageReviewEvidence, C: PackageRe
     hash_field(&mut digest, CONFLICT_FINGERPRINT_DOMAIN);
     digest.update(CONFLICT_FINGERPRINT_VERSION.to_le_bytes());
     hash_field(&mut digest, &key.identity().digest());
-    hash_resolution(&mut digest, baseline_review.resolution());
+    match baseline {
+        ConflictFingerprintBaseline::EmptyAdmission => digest.update([0]),
+        ConflictFingerprintBaseline::RetainedReview {
+            resolution,
+            source_consumption,
+            whole_review,
+        } => {
+            digest.update([1]);
+            hash_resolution(&mut digest, resolution);
+            hash_field(&mut digest, &source_consumption.digest());
+            hash_field(&mut digest, &whole_review);
+        }
+    }
     hash_resolution(&mut digest, candidate_review.resolution());
-    hash_field(
-        &mut digest,
-        &PackageReviewEvidence::source_consumption_commitment(baseline_review).digest(),
-    );
     hash_field(
         &mut digest,
         &PackageReviewEvidence::source_consumption_commitment(candidate_review).digest(),
     );
-    hash_field(&mut digest, &baseline_review.whole_review_commitment());
     hash_field(&mut digest, &candidate_review.whole_review_commitment());
     hash_field(&mut digest, &candidate_closure.digest());
     hash_dependency_path(&mut digest, dependency_path);
