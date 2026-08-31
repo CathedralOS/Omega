@@ -364,7 +364,7 @@ pub struct ClosedConformanceApplication {
     pub declaration: psi_symbols::SymbolHandle,
     pub lifetime_arguments: Vec<String>,
     pub type_arguments: Vec<String>,
-    pub const_arguments: Vec<String>,
+    pub const_arguments: Vec<ClosedConformanceConstArgument>,
     pub machine_arguments: Vec<psi_symbols::SymbolHandle>,
     pub subject_identity: Option<String>,
     pub trait_definition: psi_symbols::SymbolHandle,
@@ -378,6 +378,23 @@ pub struct ClosedConformanceApplication {
     pub report_fingerprint: u64,
     /// Domain-separated commitment to the complete closed application.
     pub commitment: ClosedConformanceApplicationCommitment,
+}
+
+/// One exact const argument retained by a checked conformance application.
+/// Evaluated values exclude diagnostic display; caller binders retain both
+/// sides of the checked carrier match until final substitution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClosedConformanceConstArgument {
+    Evaluated {
+        parameter_carrier: types::TypeReferenceHandle,
+        declared_carrier: types::TypeReferenceHandle,
+        value: psi_language_semantics::const_value::CanonicalConstIdentity,
+    },
+    CallerBinder {
+        parameter_carrier: types::TypeReferenceHandle,
+        binder: psi_symbols::SymbolHandle,
+        binder_carrier: types::TypeReferenceHandle,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

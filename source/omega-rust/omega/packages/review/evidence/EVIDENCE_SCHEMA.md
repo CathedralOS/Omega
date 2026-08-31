@@ -1,8 +1,19 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 104 and row schema version 62. This file
+The canonical review schema is version 105 and row schema version 63. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v105 / row v63 admits selected public named scalar and structured const
+values in the exact closed-conformance contract-argument lane. Checked PSI
+retains the exact parameter and declaration carriers, display-free canonical
+value identity as one structural argument. Review independently rejoins the
+exact declaration and authored selection,
+replays that encoding against the resolved carrier, and compares the complete
+reclosed application with the exact checked call occurrence. Const names and
+diagnostic display never become value identity; missing, malformed, private,
+substituted, or post-check-drifted values reject. Lifetime, machine, and
+proposition parameters remain fail-closed in this lane.
 
 Schema v104 / row v62 admits caller const binders in the existing exact
 closed-conformance contract-argument lane. Projection requires the selected

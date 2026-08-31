@@ -2612,6 +2612,17 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v105/canonical row v63 admits selected public named scalar and
+structured const values in the same exact closed-conformance contract-argument
+lane. Checked PSI retains the exact parameter and declaration carriers,
+display-free canonical value identity as one structural argument. Review then
+independently rejoins the declaration and authored selection, replays the
+encoding against the exact resolved carrier, and compares the complete
+reclosed application with the exact checked call occurrence. Const names and
+diagnostic display are not value identity.
+Missing, malformed, private, substituted, or post-check-drifted values reject.
+Canonical-row recovery remains v15.
+
 Package review v104/canonical row v62 admits a caller const binder in the same
 exact closed-conformance contract-argument lane. The selected argument must
 rejoin the owning callable telescope and is encoded by alpha-normalized binder
