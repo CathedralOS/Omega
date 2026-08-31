@@ -46,7 +46,11 @@ pub(super) fn work_budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(128, 128, 128, 128, 16).unwrap()
 }
 
-pub(super) fn verified(module: TerminalModule, proof: ProofBundle) -> VerifiedPsiOptimizationUnit {
+pub(super) fn verified(
+    module: TerminalModule,
+    mut proof: ProofBundle,
+) -> VerifiedPsiOptimizationUnit {
+    replace_truth_placeholders_with_checked_operation_certificates(&module, &mut proof);
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
     let proof = psi_terminal_codec::encode_proof_bundle(&proof).unwrap();
     let input = omega_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
@@ -60,6 +64,81 @@ pub(super) fn verified(module: TerminalModule, proof: ProofBundle) -> VerifiedPs
         psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
     .unwrap()
+}
+
+/// Replace legacy `Truth` placeholders only when the Terminal verifier has
+/// reconstructed an exact canonical integer-operation obligation for that
+/// evidence row. The replacement is produced by the checked-tree certificate
+/// builder and is then independently admitted by the ordinary artifact path.
+fn replace_truth_placeholders_with_checked_operation_certificates(
+    module: &TerminalModule,
+    proof: &mut ProofBundle,
+) {
+    let validated = psi_terminal_verifier::validate_module(module).unwrap();
+    let questions = psi_terminal_verifier::reconstruct_operation_obligations(module).unwrap();
+    for evidence in &mut proof.evidence {
+        if evidence.route != EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth) {
+            continue;
+        }
+        let question = questions
+            .iter()
+            .find(|question| question.obligation.id == evidence.obligation)
+            .unwrap_or_else(|| {
+                panic!(
+                    "fixture Truth placeholder {} is not an operation obligation",
+                    evidence.obligation
+                )
+            });
+        assert!(
+            question.canonical_certificate,
+            "fixture Truth placeholder must name a canonical certificate goal"
+        );
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == question.owner.machine())
+            .expect("reconstructed operation owner belongs to the fixture module");
+        let context = validated.value_context(machine).unwrap();
+        let machine_parameter_values = machine
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect();
+        let certificate = psi_checked_trees_to_terminal::produce_checked_canonical_integer_proof(
+            &context,
+            &question.obligation.proposition,
+            &machine.contract.requires,
+            &question.semantic_axioms,
+            &machine_parameter_values,
+        )
+        .unwrap_or_else(|| {
+            panic!(
+                "fixture operation {} has no checked canonical proof",
+                evidence.obligation
+            )
+        });
+        evidence.route = EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: EvidenceIdentity::new(evidence.obligation.get()).unwrap(),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof: certificate,
+        });
+    }
+}
+
+pub(super) fn checked_operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
+    let obligations = psi_terminal_verifier::reconstruct_operation_obligations(module).unwrap();
+    let mut proof = ProofBundle {
+        evidence_producers: Vec::new(),
+        evidence: obligations
+            .iter()
+            .map(|question| ObligationEvidence {
+                obligation: question.obligation.id,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            })
+            .collect(),
+    };
+    replace_truth_placeholders_with_checked_operation_certificates(module, &mut proof);
+    proof
 }
 
 pub(super) fn module_with_blocks(

@@ -549,7 +549,7 @@ relation.
   reason without a version ruling, or choose whichever failure traversal
   encounters first.
 
-## Q11 — Retire compiler-executable path-byte commitments that cannot identify execution
+## Q10 — Retire compiler-executable path-byte commitments that cannot identify execution
 
 ### Context
 
@@ -603,3 +603,57 @@ toolchain under policies they actually control.
   is cheap, call equality provenance or replay safety, treat a changed digest
   as evidence invalidation without a semantic/schema delta, or present host
   executable observation as certification of compiler behavior.
+## Q11 — Decide whether boundary qualifications mint proof obligations
+
+### Context
+
+Terminal Psi gives ordinary, Unit, and structural-scalar calls proposition
+requirements paired with `ObligationId` rows. Its boundary-call shape also has
+a `requirement_obligations` field, but a boundary declaration's `requires`
+rows are `StructuralDomainRequirement`s: each says that one structural
+argument already carries one domain qualification. They are not
+`Proposition`s and have no proof conclusion to reconstruct.
+
+The verifier therefore checks boundary requirements directly against the
+caller's structural-parameter qualifications and rejects every nonempty
+boundary obligation roster as
+`BoundaryStructuralRequirementsMintObligations(OperationId)`. This is now a
+concrete publication issue: the optimizer's abstract call model must preserve
+every semantically relevant call field, but it cannot honestly preserve or
+mutate-test nonempty boundary proof IDs when Terminal assigns those IDs no
+conclusion or admission rule.
+
+### Problem statement
+
+Decide whether a boundary structural-domain requirement is:
+
+1. a qualification-only call-admission check that never mints a proof
+   obligation; or
+2. a proof-bearing requirement with an explicit proposition, obligation owner,
+   reconstruction rule, and evidence/publication path.
+
+The decision must make the Terminal boundary-call wire shape, verifier,
+optimizer projection, and native settlement agree. It must also say whether
+the existing boundary `requirement_obligations` field is reserved-empty in the
+current format or should be removed in a future version.
+
+### Proposed direction
+
+Keep boundary domain requirements qualification-only. Their authority is the
+validated structural parameter and exact domain roster, not a detached scalar
+proof ID. Require the boundary obligation vector to remain empty, preserve the
+qualification checks and identities through optimizer lowering, and remove the
+misleading field at the next Terminal format boundary. Ordinary, Unit, and
+structural-scalar call proposition obligations remain proof-bearing and are
+unaffected.
+
+### Alternates
+
+- Acceptable: introduce a first-class proposition meaning such as “argument
+  place satisfies structural domain,” provided Terminal defines its scope,
+  substitution through the exact argument path, proof admission, and native
+  publication custody before allowing a nonempty obligation roster.
+- Tempting but wrong: copy opaque obligation IDs into the optimizer merely
+  because the wire field exists, map structural qualifications to
+  `Proposition::Truth`, accept nonempty rows without reconstructing a goal, or
+  reuse ordinary scalar-call requirement logic for structural domains.

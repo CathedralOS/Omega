@@ -18,8 +18,8 @@ fn window_demo_runs_headless_to_native_exit() {
     // test, so the process-global env write cannot race another test.
     unsafe { std::env::set_var("OMEGA_INTERP_STEP_BUDGET", "100000000") };
 
-    let sample = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../samples/gui/window_demo/main.omg");
+    let sample =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples/gui/window_demo/main.omg");
     let checked = compile_to_checked(&sample, None).unwrap_or_else(|diagnostics| {
         panic!(
             "window_demo should compile for the interpreter:\n{}",

@@ -514,23 +514,8 @@ pub(super) fn live_exact_self_subtract_verified() -> VerifiedPsiOptimizationUnit
     let operand_term = ScalarTerm::value(operand, scalar_type);
     let goal = Proposition::LessOrEqual(operand_term.clone(), operand_term);
     module.machines[0].contract.requires.push(goal.clone());
-    verified(
-        module,
-        ProofBundle {
-            evidence_producers: Vec::new(),
-            evidence: vec![ObligationEvidence {
-                obligation,
-                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                    identity: EvidenceIdentity::new(1_141).unwrap(),
-                    proof_system_marker: ProofSystemMarker::CURRENT,
-                    proof: ProofNode {
-                        conclusion: goal,
-                        rule: ProofRule::Assumption { index: 0 },
-                    },
-                }),
-            }],
-        },
-    )
+    let proof = checked_operation_proof_bundle(&module);
+    verified(module, proof)
 }
 
 pub(super) fn live_exact_self_division_or_remainder_verified(

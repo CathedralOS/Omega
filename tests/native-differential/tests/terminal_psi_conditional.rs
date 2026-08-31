@@ -62,7 +62,7 @@ fn conditional_round_trips_executes_and_lowers_both_ordered_successors() {
     let identity = terminal_psi_identity(&module).expect("identity");
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "0d74ffe63ae8853ad2815d46a3a4730283706d28f7ff1f12cc188da0aa2ba225"
+        "8b04446397e4299058d606275429426f7a5cbb86f284e5c81ce6217e198482ce"
     );
     let bytes = encode_module(&module).expect("canonical bytes");
     let decoded = decode_module(&bytes).expect("decode canonical module");
@@ -791,6 +791,7 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -948,6 +949,7 @@ fn conditional_shared_tail_module() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1077,6 +1079,7 @@ fn nested_constant_conditional_module() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1222,6 +1225,7 @@ fn nested_boolean_conditional_module() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

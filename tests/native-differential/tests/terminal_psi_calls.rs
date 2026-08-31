@@ -525,6 +525,7 @@ fn scalar_call_module(scalar_type: ScalarType, constant_kind: OperationKind) -> 
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
