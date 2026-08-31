@@ -82,6 +82,12 @@ leaf rejoins the exact checked target state, contract fingerprint, service
 reach, and retained ordinary Unit plan. Lowering emits repeated calls to one
 deduplicated qualification-free empty-body target machine; it does not copy the
 target into each branch or treat a missing transitive plan as an empty body.
+That target closure now has a second exact rung: the shared leaf target may
+contain one parameterless internal Unit call before its return. Independent
+admission rejoins the nested flow coordinate, state, contract fingerprint, and
+service reach, then retains and deduplicates the transitive empty target.
+Lowering emits one root, one relay, and one empty target machine; a missing or
+altered transitive plan rejects the whole route.
 
 The first larger acyclic composed family prefixes that conditional frontier
 with an exact scalar-only entry jump. The checked carrier records the Boolean

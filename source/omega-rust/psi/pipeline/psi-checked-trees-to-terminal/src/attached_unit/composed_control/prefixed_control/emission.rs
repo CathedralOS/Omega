@@ -74,7 +74,7 @@ pub(super) fn emit(
                 )?
             }
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                super::super::internal_calls::emit_leaf(
+                super::super::internal_calls::emission::emit_leaf(
                     state,
                     *block,
                     &catalogs.internal_targets,
@@ -138,11 +138,12 @@ pub(super) fn emit(
     };
     let mut machines = vec![machine];
     let mut next_block = 5_u64;
-    machines.extend(super::super::internal_calls::emit_targets(
+    machines.extend(super::super::internal_calls::emission::emit_targets(
         checked,
         &catalogs.internal_targets,
         &catalogs.type_ids,
         &catalogs.service_ids,
+        &mut next_operation,
         &mut next_block,
         &mut next_edge,
     )?);

@@ -93,19 +93,23 @@ Its typed-to-checked `composed_control.rs` entrance coordinates `topology`,
 `custody`, `guards`, `leaves`, `assembly`, and the exact larger-graph sibling
 `prefixed_control`; its checked-to-Terminal entrance coordinates `admission`,
 independent `custody` replay, `catalogs`, `emission`, and `prefixed_control`,
-with parameterless target closure isolated in `internal_calls`. The nested
+with parameterless target closure isolated in `internal_calls`. Both nested
+consumer entrances descend through independent `admission` and `emission`
+rungs: `internal_calls` owns target-plan and transitive-closure replay while
+`prefixed_control` owns the larger source graph. The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
-independent `admission` and `emission` rungs. It reuses the ancestor catalogs
-and leaf emitters after independently admitting the scalar prefix rather than
-copying their policy into a second route.
+its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
+after independently admitting the scalar prefix rather than copying their
+policy into a second route.
 Shared state-entry claim construction lives at the honest
 `attached_unit/claims.rs` ancestor rather than in either control-flow route.
 Focused source and replay tests live in the `composed_claims`,
 `composed_internal_calls`, `composed_unit_claims`, and
 `composed_unit_internal_calls` files; the exact four-state family lives in
-`composed_prefixed_control` and `composed_unit_prefixed_control`. Extending the
-carrier therefore does not grow the legacy call or structural-control
-matrices.
+`composed_prefixed_control` and `composed_unit_prefixed_control`. The transitive
+internal target closure lives in `composed_transitive_internal_calls` and
+`composed_unit_transitive_internal_calls`. Extending the carrier therefore
+does not grow the legacy call or structural-control matrices.
 
 ## Rule-owning stage entrances
 

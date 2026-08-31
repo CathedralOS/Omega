@@ -102,7 +102,7 @@ pub(super) fn emit_composed_unit_control(
                 &mut next_operation,
                 &mut next_edge,
             )?,
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => internal_calls::emit_leaf(
+            CheckedUnitEffectOperationPlan::CallUnit { .. } => internal_calls::emission::emit_leaf(
                 state,
                 *block,
                 &catalogs.internal_targets,
@@ -173,11 +173,12 @@ pub(super) fn emit_composed_unit_control(
     };
     let mut machines = vec![machine];
     let mut next_block = 4_u64;
-    machines.extend(internal_calls::emit_targets(
+    machines.extend(internal_calls::emission::emit_targets(
         checked,
         &catalogs.internal_targets,
         &catalogs.type_ids,
         &catalogs.service_ids,
+        &mut next_operation,
         &mut next_block,
         &mut next_edge,
     )?);
