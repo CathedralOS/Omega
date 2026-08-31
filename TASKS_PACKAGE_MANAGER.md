@@ -126,6 +126,13 @@ stop the item on one precise owner question before adding machinery.
   complete in memory: a bodyless accepted claim rejoins its typed callable and
   canonical obligation row, remains explicitly `OpenRootAdmission`, and
   propagates through the exact dependency closure without producer decisions.
+  Fresh admission now rederives that obligation closure and the empty-baseline
+  conflict set together, requires a bijection between dependency-owned open
+  claims and exact added `AcceptedClaim` conflicts, and replays a complete
+  candidate-bound root policy before exposing the in-memory acceptance. A
+  rejected, missing, stale, foreign, or row-substituted policy fails; a closure
+  with no blockers gets no synthetic policy record. This still issues no
+  certificate, accepted lock, package instance, or mutation authority.
   Add another result class only with a concrete compiler-owned obligation and
   certificate route or explicit open status. Do not persist this partial lane,
   cite the standalone `psi-proof` ledger as production enforcement, or invent
@@ -180,7 +187,11 @@ stop the item on one precise owner question before adding machinery.
   occurred. The review-only primitive already emits exact added conflicts for
   fresh accepted claims, dangerous authority, and external executable supply
   against an explicit empty admission baseline; it does not synthesize old
-  resolution or evidence.
+  resolution or evidence. The in-memory fresh-admission gate now requires every
+  blocking row to have an exact accepted root decision and binds open accepted
+  claims to their own package rows. The remaining work is the accepted-lock
+  reopen/revalidation and atomic install/update transaction, not another review
+  receipt.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   no review blocker, no review blocker with audit recommended, blocked

@@ -47,6 +47,8 @@ pub use decision::{
 pub use reconstruction::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
-    CanonicalPackageReconstructionQuestionLimits, LocallyComposedPackageObligationEntry,
+    CanonicalPackageReconstructionQuestionLimits, FreshPackageRootPolicyAcceptance,
+    FreshPackageRootPolicyError, LocallyComposedPackageObligationEntry,
     LocallyComposedPackageObligationResults, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
+    bind_fresh_package_root_policy,
 };

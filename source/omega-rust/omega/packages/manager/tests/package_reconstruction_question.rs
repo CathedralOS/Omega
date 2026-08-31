@@ -8,7 +8,10 @@ use omega_package_manager::resolution::graph::{
 use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
-    LocallyComposedPackageObligationResults, compile_resolved_package_reviews,
+    FreshPackageRootPolicyError, LocallyComposedPackageObligationResults,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
+    bind_fresh_package_root_policy, compare_review_only_initial_capabilities,
+    compile_resolved_package_reviews, resolve_review_only_root_policy_decisions,
 };
 use omega_package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
@@ -147,12 +150,94 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
             .matches_resolved_and_reviews(&closure, &reviews, limits)
             .expect("fresh source and review reconstruction should succeed")
     );
+    let conflicts = compare_review_only_initial_capabilities(
+        &reviews,
+        &closure,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("derive graph-workbench fresh conflicts");
+    let accepted_decisions = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| {
+            package
+                .conflicts()
+                .iter()
+                .filter(|conflict| conflict.is_blocking())
+                .map(|conflict| {
+                    package
+                        .root_policy_decision(
+                            conflict,
+                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+                        )
+                        .expect("bind graph-workbench blocking row")
+                })
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !accepted_decisions.is_empty(),
+        "fixture exercises additional non-claim blockers"
+    );
+    let accepted_policy =
+        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
+            .expect("resolve every graph-workbench blocker");
+    let accepted = bind_fresh_package_root_policy(
+        &closure,
+        &reviews,
+        limits,
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&accepted_policy),
+    )
+    .expect("every exact graph-workbench blocker is accepted");
+    assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
+fn fresh_closure_without_blockers_needs_no_synthetic_root_policy() {
+    let temporary = temporary_root("no-root-policy");
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&root).expect("create claim-free root");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("claim-free");
+}
+"#,
+    )
+    .expect("write claim-free build");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write claim-free source");
+
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews =
+        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
+            .expect("compile claim-free package");
+    let accepted = bind_fresh_package_root_policy(
+        &closure,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        None,
+    )
+    .expect("claim-free closure needs no synthetic root policy");
+    assert!(accepted.root_policy().is_none());
+    assert!(accepted.conflicts().is_empty());
+    assert!(
+        accepted
+            .obligations()
+            .root_open_accepted_claims()
+            .next()
+            .is_none()
+    );
 
     remove_temporary_tree(&temporary);
 }
 
 #[test]
-fn dependency_open_claims_propagate_to_the_root_without_policy_decisions() {
+fn dependency_open_claims_require_exact_fresh_root_policy() {
     let temporary = temporary_root("open-claim-composition");
     let dependency = temporary.join("dependency");
     let root = temporary.join("root");
@@ -230,6 +315,109 @@ machine build(builder: &mut Build) {
         composed.question().source_closure().packages().len(),
         closure.graph().packages().len()
     );
+
+    let conflicts = compare_review_only_initial_capabilities(
+        &reviews,
+        &closure,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("derive exact fresh-admission conflicts");
+    let claim_package = conflicts
+        .packages()
+        .iter()
+        .find(|package| package.key().name().as_str() == "claim-dependency")
+        .expect("dependency owns its accepted-claim conflict");
+    let claim_conflict = claim_package
+        .conflicts()
+        .iter()
+        .find(|conflict| {
+            conflict.kind()
+                == omega_package_evidence::record::PackageReviewCanonicalRowKind::AcceptedClaim
+        })
+        .expect("fresh accepted claim is blocking");
+
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure,
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            None,
+        ),
+        Err(FreshPackageRootPolicyError::MissingRootPolicy)
+    ));
+
+    let rejected_decision = claim_package
+        .root_policy_decision(
+            claim_conflict,
+            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        )
+        .expect("bind rejection to exact accepted claim");
+    let rejected_policy =
+        resolve_review_only_root_policy_decisions(&conflicts, &[rejected_decision])
+            .expect("complete rejecting policy");
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure,
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            Some(&rejected_policy),
+        ),
+        Err(FreshPackageRootPolicyError::RejectedBlockingConflict)
+    ));
+
+    let accepted_decision = claim_package
+        .root_policy_decision(
+            claim_conflict,
+            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+        )
+        .expect("bind acceptance to exact accepted claim");
+    let accepted_policy =
+        resolve_review_only_root_policy_decisions(&conflicts, &[accepted_decision])
+            .expect("complete accepting policy");
+    let accepted = bind_fresh_package_root_policy(
+        &closure,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&accepted_policy),
+    )
+    .expect("exact fresh policy admits the open claim in memory");
+    assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    let accepted_claims = accepted
+        .obligations()
+        .root_open_accepted_claims()
+        .collect::<Vec<_>>();
+    let [(owner, _)] = accepted_claims.as_slice() else {
+        panic!("one accepted dependency claim")
+    };
+    assert_eq!(owner.name().as_str(), "claim-dependency");
+
+    std::fs::write(
+        dependency.join("main.omg"),
+        r#"boundary machine trusted_zero() -> u64
+ensures result == 1;
+"#,
+    )
+    .expect("change accepted claim");
+    let changed_closure = resolve_external_closure(&root, temporary.join("changed-cache"));
+    let changed_reviews = compile_resolved_package_reviews(
+        &changed_closure,
+        "windows_x86_64",
+        &temporary.join("changed-build"),
+    )
+    .expect("compile changed claim closure");
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &changed_closure,
+            &changed_reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            Some(&accepted_policy),
+        ),
+        Err(FreshPackageRootPolicyError::InvalidRootPolicy(_))
+    ));
 
     remove_temporary_tree(&temporary);
 }
