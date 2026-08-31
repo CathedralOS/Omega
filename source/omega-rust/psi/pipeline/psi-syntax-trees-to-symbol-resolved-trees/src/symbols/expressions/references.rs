@@ -5,7 +5,8 @@ use super::super::expression_paths::{
     resolve_expression_table_receiver_path_symbols, stamp_receiver_path_symbols_in_table,
 };
 use super::super::lookup::{
-    call_target_for_attached_data, child_symbol_by_kinds, top_level_symbol,
+    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
+    top_level_symbol_for_source,
 };
 use super::super::scope::MachineScope;
 use super::super::scoped_paths::{
@@ -68,7 +69,12 @@ fn nested_receiver_leaf_field_symbol(
     let Some(owner_type) = machine.nested_self_chain_type(&borrowed[..borrowed.len() - 1]) else {
         return SymbolHandle::invalid();
     };
-    let owner_data = top_level_symbol(symbols, SymbolKind::Data, owner_type);
+    let reference = symbols
+        .symbol_provenance_source_span(machine.symbol)
+        .unwrap_or_default();
+    let owner_data = symbols
+        .find_top_level_by_name_and_kinds_from_source(owner_type, &[SymbolKind::Data], reference)
+        .unwrap_or_else(SymbolHandle::invalid);
     if !owner_data.is_valid() {
         return SymbolHandle::invalid();
     }
@@ -88,7 +94,7 @@ fn nested_receiver_call_target_symbol(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     receiver_chain: &[String],
-    target: &str,
+    target: &psi_symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     if receiver_chain.len() < 3 {
         return SymbolHandle::invalid();
@@ -97,7 +103,7 @@ fn nested_receiver_call_target_symbol(
     let Some(leaf_type) = machine.nested_self_chain_type(&borrowed) else {
         return SymbolHandle::invalid();
     };
-    call_target_for_attached_data(symbols, leaf_type, target)
+    call_target_for_attached_data(symbols, leaf_type, target.as_str(), target.source_span())
 }
 
 pub(super) fn assign_call_symbol(
@@ -140,12 +146,8 @@ pub(super) fn assign_call_symbol(
     if !target_symbol.is_valid()
         && let Some(receiver_chain) = spelled_receiver_chain(expression_table, receiver)
     {
-        target_symbol = nested_receiver_call_target_symbol(
-            symbols,
-            machine,
-            &receiver_chain,
-            call.target.as_str(),
-        );
+        target_symbol =
+            nested_receiver_call_target_symbol(symbols, machine, &receiver_chain, &call.target);
     }
     if let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
         expression_table.expression_mut(expression)
@@ -218,17 +220,18 @@ pub(in crate::symbols) fn assign_membership_symbol(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
+    let members = expression_table.name_path_members(domain);
+    let reference_span = diagnostic_path_source_span(members);
     let domain_symbol = symbols
-        .find_child_by_name_and_kind(symbols.root(), &name, SymbolKind::Domain)
+        .find_top_level_by_name_and_kinds_from_source(&name, &[SymbolKind::Domain], reference_span)
         .unwrap_or_else(SymbolHandle::invalid);
     let (case_type_symbol, case_symbol) = if domain_symbol.is_valid() {
         (SymbolHandle::invalid(), SymbolHandle::invalid())
     } else {
-        let members = expression_table.name_path_members(domain);
         let [type_name, case_name] = members else {
             return;
         };
-        let type_symbol = top_level_symbol(symbols, SymbolKind::Data, type_name.as_str());
+        let type_symbol = top_level_symbol_for_source(symbols, SymbolKind::Data, type_name);
         let case_symbol = type_symbol
             .is_valid()
             .then(|| {
@@ -306,7 +309,7 @@ pub(in crate::symbols) fn assign_struct_literal_symbols(
     else {
         return;
     };
-    let type_symbol = top_level_symbol(symbols, SymbolKind::Data, literal.type_name.as_str());
+    let type_symbol = top_level_symbol_for_source(symbols, SymbolKind::Data, &literal.type_name);
     let case_symbol = literal.case_name.as_ref().map(|case_name| {
         if type_symbol.is_valid() {
             child_symbol_by_kinds(

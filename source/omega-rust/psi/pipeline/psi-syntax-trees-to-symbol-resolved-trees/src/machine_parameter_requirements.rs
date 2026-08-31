@@ -104,6 +104,9 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
             let rendered = name.as_str();
             let exact = if symbol.is_valid()
                 && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::State
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(name.source_span(), *symbol)
                 && !program.traits.iter().any(|definition| {
                     program
                         .trait_machine_signatures(definition.machines)
@@ -112,11 +115,13 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
                 }) {
                 *symbol
             } else {
-                resolve_rendered_requirement(program, rendered).map_err(|reason| {
-                    Diagnostic::error(format!(
-                        "trait machine requirement argument `{rendered}` {reason}"
-                    ))
-                })?
+                resolve_rendered_requirement(program, rendered, name.source_span()).map_err(
+                    |reason| {
+                        Diagnostic::error(format!(
+                            "trait machine requirement argument `{rendered}` {reason}"
+                        ))
+                    },
+                )?
             };
             let handle = psi_arena::Handle::from_parts(
                 conformance
@@ -148,6 +153,7 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
 fn resolve_rendered_requirement(
     program: &SymbolResolvedTrees,
     rendered: &str,
+    use_span: psi_source::SourceSpan,
 ) -> Result<psi_symbols::SymbolHandle, &'static str> {
     let members = rendered.split("::").collect::<Vec<_>>();
     let [trait_path @ .., requirement_name] = members.as_slice() else {
@@ -164,7 +170,9 @@ fn resolve_rendered_requirement(
             crate::signature_free_requirements::same_semantic_name(
                 definition.name.as_str(),
                 &trait_name,
-            )
+            ) && program
+                .symbols
+                .source_reference_can_see_symbol(use_span, definition.symbol)
         })
         .collect::<Vec<_>>();
     let [trait_definition] = matching_traits.as_slice() else {
@@ -173,7 +181,12 @@ fn resolve_rendered_requirement(
     let matching_requirements = program
         .trait_machine_signatures(trait_definition.machines)
         .iter()
-        .filter(|signature| signature.name.as_str() == *requirement_name)
+        .filter(|signature| {
+            signature.name.as_str() == *requirement_name
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(use_span, signature.symbol)
+        })
         .collect::<Vec<_>>();
     let [requirement] = matching_requirements.as_slice() else {
         return Err(

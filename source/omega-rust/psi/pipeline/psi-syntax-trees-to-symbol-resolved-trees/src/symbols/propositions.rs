@@ -6,10 +6,10 @@ use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_struct_literal_symbols;
-use super::lookup::{child_symbol_by_kinds, top_level_symbol_by_kinds};
-use super::targets::{
-    resolve_free_machine_entry_state_symbol, resolve_proposition_binder_argument_symbol,
+use super::lookup::{
+    child_symbol_by_kinds, top_level_symbol_by_kinds, top_level_symbol_for_source,
 };
+use super::targets::{assign_static_argument_symbols, resolve_free_machine_entry_state_symbol};
 
 pub(super) fn assign_proposition_expression_symbols(
     program: &mut psi_symbol_resolved_trees::SymbolResolvedTrees,
@@ -145,11 +145,8 @@ fn assign_expression_symbols(
             let target_symbol = if call.receiver.is_valid() {
                 SymbolHandle::invalid()
             } else {
-                let proposition = top_level_symbol_by_kinds(
-                    symbols,
-                    &[SymbolKind::Proposition],
-                    call.target.as_str(),
-                );
+                let proposition =
+                    top_level_symbol_for_source(symbols, SymbolKind::Proposition, &call.target);
                 if proposition.is_valid() {
                     proposition
                 } else {
@@ -161,18 +158,14 @@ fn assign_expression_symbols(
                     if builtin.is_valid() {
                         builtin
                     } else {
-                        resolve_free_machine_entry_state_symbol(symbols, call.target.as_str())
+                        resolve_free_machine_entry_state_symbol(symbols, &call.target)
                     }
                 }
             };
             if let ExpressionNode::Call(call) = expressions.expression_mut(expression) {
                 call.target_symbol = target_symbol;
                 for argument in &mut call.machine_arguments {
-                    argument.symbol = resolve_proposition_binder_argument_symbol(
-                        symbols,
-                        proposition_symbol,
-                        &argument.path,
-                    );
+                    assign_static_argument_symbols(symbols, proposition_symbol, argument, true);
                 }
             }
         }

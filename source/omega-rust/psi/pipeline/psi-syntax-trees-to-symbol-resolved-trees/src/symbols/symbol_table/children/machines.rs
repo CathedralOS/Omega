@@ -10,8 +10,10 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     machine_symbol: SymbolHandle,
     machine: &psi_symbol_resolved_trees::machine::Machine,
     has_sources: bool,
+    sources: Option<&psi_source::SourceMap>,
 ) {
-    let inherited_field_count = inherited_data_field_symbols(program, machine, has_sources).count();
+    let inherited_fields = inherited_data_field_symbols(program, machine, has_sources, sources);
+    let inherited_field_count = inherited_fields.len();
     let machine_children = builder.insert_children(
         machine_symbol,
         program
@@ -31,7 +33,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                     symbol_seed(SymbolKind::ConformanceParameter, binder, has_sources)
                 })
             }))
-            .chain(inherited_data_field_symbols(program, machine, has_sources))
+            .chain(inherited_fields)
             .chain(
                 program
                     .machine_owned_data(machine.owned_data)
@@ -75,15 +77,14 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
         let Some(binder_symbol) = machine_children.next() else {
             break;
         };
-        if let Some(trait_definition) = program
-            .traits
-            .iter()
-            .find(|trait_definition| trait_definition.name == bound.carrier_name)
+        if let Some(trait_definition) =
+            select_visible_trait_definition(program, &bound.carrier_name, sources)
         {
             let mut requirements = Vec::new();
             collect_evidence_requirement_closure(
                 program,
                 trait_definition,
+                sources,
                 &mut Vec::new(),
                 &mut requirements,
             );
@@ -112,31 +113,68 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
 fn collect_evidence_requirement_closure<'program>(
     program: &'program SymbolResolvedTrees,
     trait_definition: &'program psi_symbol_resolved_trees::trait_definition::TraitDefinition,
-    visited: &mut Vec<String>,
+    sources: Option<&psi_source::SourceMap>,
+    visited: &mut Vec<(String, psi_source::SourceSpan)>,
     output: &mut Vec<&'program psi_symbol_resolved_trees::signature::StateSignature>,
 ) {
-    if visited
-        .iter()
-        .any(|name| name == trait_definition.name.as_str())
-    {
+    if visited.iter().any(|(name, source_span)| {
+        name == trait_definition.name.as_str()
+            && *source_span == trait_definition.name.source_span()
+    }) {
         return;
     }
-    visited.push(trait_definition.name.as_str().to_owned());
+    visited.push((
+        trait_definition.name.as_str().to_owned(),
+        trait_definition.name.source_span(),
+    ));
     output.extend(
         program
             .trait_machine_signatures(trait_definition.machines)
             .iter(),
     );
     for parent in program.trait_requirements(trait_definition.requires) {
-        let Some(parent_trait) = program
-            .traits
-            .iter()
-            .find(|candidate| candidate.name == parent.name)
+        let Some(parent_trait) = select_visible_trait_definition(program, &parent.name, sources)
         else {
             continue;
         };
-        collect_evidence_requirement_closure(program, parent_trait, visited, output);
+        collect_evidence_requirement_closure(program, parent_trait, sources, visited, output);
     }
+}
+
+fn reference_can_see_declaration(
+    sources: Option<&psi_source::SourceMap>,
+    reference: psi_source::SourceSpan,
+    declaration: psi_source::SourceSpan,
+) -> bool {
+    sources.is_none_or(|sources| sources.reference_can_see_declaration(reference, declaration))
+}
+
+fn select_visible_trait_definition<'program>(
+    program: &'program SymbolResolvedTrees,
+    reference_name: &psi_symbol_resolved_trees::name::DiagnosticName,
+    sources: Option<&psi_source::SourceMap>,
+) -> Option<&'program psi_symbol_resolved_trees::trait_definition::TraitDefinition> {
+    let reference = reference_name.source_span();
+    let candidates = program
+        .traits
+        .iter()
+        .filter(|candidate| {
+            candidate.name == *reference_name
+                && reference_can_see_declaration(sources, reference, candidate.name.source_span())
+        })
+        .collect::<Vec<_>>();
+    candidates
+        .iter()
+        .copied()
+        .find(|candidate| candidate.name.source_span().source_id == reference.source_id)
+        .or_else(|| {
+            sources.and_then(|sources| {
+                candidates.iter().copied().find(|candidate| {
+                    !sources.resolution_strata_separate(reference, candidate.name.source_span())
+                })
+            })
+        })
+        .or_else(|| candidates.first().copied())
 }
 
 fn insert_state_symbol_children(
@@ -163,11 +201,42 @@ fn inherited_data_field_symbols<'program>(
     program: &'program SymbolResolvedTrees,
     machine: &'program psi_symbol_resolved_trees::machine::Machine,
     has_sources: bool,
-) -> impl Iterator<Item = SymbolSeed<'program>> + 'program {
-    program
+    sources: Option<&psi_source::SourceMap>,
+) -> Vec<SymbolSeed<'program>> {
+    let Some(attached) = machine.attached_data.as_ref() else {
+        return Vec::new();
+    };
+    let candidates = program
         .data_definitions
         .iter()
-        .find(|data_definition| Some(&data_definition.name) == machine.attached_data.as_ref())
+        .filter(|data_definition| {
+            data_definition.name == *attached
+                && sources.is_none_or(|sources| {
+                    sources.reference_can_see_declaration(
+                        attached.source_span(),
+                        data_definition.name.source_span(),
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    let selected = candidates
+        .iter()
+        .copied()
+        .find(|data_definition| {
+            data_definition.name.source_span().source_id == attached.source_span().source_id
+        })
+        .or_else(|| {
+            sources.and_then(|sources| {
+                candidates.iter().copied().find(|data_definition| {
+                    !sources.resolution_strata_separate(
+                        attached.source_span(),
+                        data_definition.name.source_span(),
+                    )
+                })
+            })
+        })
+        .or_else(|| candidates.first().copied());
+    selected
         .into_iter()
         .flat_map(|data_definition| program.data_members(data_definition.members).iter())
         .filter_map(move |member| match member {
@@ -176,6 +245,7 @@ fn inherited_data_field_symbols<'program>(
             }
             psi_symbol_resolved_trees::data::DataMember::Variant(_) => None,
         })
+        .collect()
 }
 
 fn local_symbol_seeds<'program>(

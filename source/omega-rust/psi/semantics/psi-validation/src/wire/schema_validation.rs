@@ -2,7 +2,7 @@ use crate::symbols::TopLevelSymbols;
 use psi_arena::HandleSpan;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use psi_typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVersion};
 
 /// Validates `wire data` protocol schemas (chapter 20): stable field numbers,
@@ -18,7 +18,12 @@ pub(crate) fn validate_wire_schemas(
     for (schema_index, schema) in program.wire_schemas().iter().enumerate() {
         if program.wire_schemas()[..schema_index]
             .iter()
-            .any(|previous| previous.name == schema.name)
+            .any(|previous| {
+                previous.name == schema.name
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, schema.symbol)
+            })
         {
             diagnostics.push(Diagnostic::error(format!(
                 "duplicate data `{}`",
@@ -303,11 +308,12 @@ fn validate_field_type_reference(
             diagnostics,
         ),
         TypeReferenceNode::Generic {
+            base_symbol,
             base_name,
             arguments,
             ..
         } => {
-            if !wire_type_resolves(program, symbols, base_name.as_str()) {
+            if !wire_type_resolves(program, symbols, *base_symbol, base_name.as_str()) {
                 push_unknown_field_type(schema, scope, field, base_name.as_str(), diagnostics);
             }
 
@@ -333,8 +339,9 @@ fn validate_field_type_reference(
                 );
             }
         }
-        TypeReferenceNode::DynamicTrait { name, .. } | TypeReferenceNode::Named { name, .. } => {
-            if !wire_type_resolves(program, symbols, name.as_str()) {
+        TypeReferenceNode::DynamicTrait { symbol, name, .. }
+        | TypeReferenceNode::Named { symbol, name } => {
+            if !wire_type_resolves(program, symbols, *symbol, name.as_str()) {
                 push_unknown_field_type(schema, scope, field, name.as_str(), diagnostics);
             }
         }
@@ -344,12 +351,19 @@ fn validate_field_type_reference(
 
 /// Wire fields may reference any resolvable program type plus sibling wire
 /// schemas (a wire message embedding another wire message).
-fn wire_type_resolves(program: &TypedTrees, symbols: &TopLevelSymbols<'_>, name: &str) -> bool {
-    symbols.has_type(name)
-        || program
-            .wire_schemas()
-            .iter()
-            .any(|schema| schema.name.as_str() == name)
+fn wire_type_resolves(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    symbol: psi_symbols::SymbolHandle,
+    name: &str,
+) -> bool {
+    symbols.has_type_symbol(symbol)
+        || PrimitiveType::from_name(name).is_some()
+        || program.wire_schemas().iter().any(|schema| {
+            schema.symbol == symbol
+                || (!program.symbols.has_source_metadata() && schema.name.as_str() == name)
+        })
+        || (!program.symbols.has_source_metadata() && symbols.has_type(name))
 }
 
 fn push_unknown_field_type(

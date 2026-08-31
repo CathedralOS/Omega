@@ -1,8 +1,8 @@
 use super::{
-    lower_syntax_trees, lower_syntax_trees_with_sources,
+    Lowerer, lower_syntax_trees, lower_syntax_trees_with_sources,
     lower_syntax_trees_with_sources_and_top_level_bindings,
 };
-use psi_source::SourceMap;
+use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_tokens_to_syntax_trees::parse_syntax_trees_with_id;
@@ -200,6 +200,200 @@ fn trait_machine_requirement_argument_resolves_one_exact_requirement() {
     assert_eq!(name.as_str(), "WindowProcedure::call");
     assert!(name.is_source_backed());
     assert_eq!(*symbol, requirement.symbol);
+}
+
+#[test]
+fn authored_trait_machine_identity_uses_the_exact_base_trait_catalog() {
+    let base = r#"
+        boundary trait WindowProcedure { machine call(value: u32); }
+        trait PrivateCallbackSlot<machine Requirement> {}
+        data WndClassLayout {}
+        Slot: WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>;
+    "#;
+    let extension = r#"
+        boundary trait WindowProcedure { machine call(value: i64); }
+        trait PrivateCallbackSlot<Requirement> {}
+        data WndClassLayout {}
+    "#;
+    let mut sources = SourceMap::default();
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("authored machine identity must use the exact base trait catalog");
+    let conformance = program
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "Slot")
+        })
+        .expect("base Slot conformance");
+    let [psi_symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
+        program.child_type_references(conformance.arguments)
+    else {
+        panic!("one named machine-identity argument")
+    };
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(*symbol)
+            .expect("source-backed requirement")
+            .source_id,
+        base_id
+    );
+}
+
+#[test]
+fn authored_quotient_paths_ignore_extension_first_declarations() {
+    let base = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier) = true;
+        trait RelationEvidence<C> {}
+        Proof: satisfies RelationEvidence<Carrier> {}
+        data Q = Carrier % equivalent
+        where equivalent satisfies RelationEvidence<Carrier> as Proof;
+    "#;
+    let extension = r#"
+        data Carrier {}
+        proposition equivalent(left: Carrier, right: Carrier) = true;
+        trait RelationEvidence<C> {}
+        Proof: satisfies RelationEvidence<Carrier> {}
+    "#;
+    let mut sources = SourceMap::default();
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("authored quotient paths must ignore extension declarations");
+    let quotient = program
+        .data_definitions
+        .iter()
+        .find(|definition| {
+            definition.name.as_str() == "Q" && definition.name.source_span().source_id == base_id
+        })
+        .and_then(|definition| definition.quotient.as_ref())
+        .expect("base quotient metadata");
+    let selection = quotient
+        .equivalence
+        .as_ref()
+        .expect("equivalence selection");
+    for symbol in [
+        quotient.relation_symbol,
+        selection.relation_symbol,
+        selection.trait_symbol,
+        selection.conformance_symbol,
+    ] {
+        assert_eq!(
+            program
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .expect("source-backed quotient selection")
+                .source_id,
+            base_id
+        );
+    }
+}
+
+#[test]
+fn authored_conformance_result_dispatch_ignores_an_extension_domain_alias() {
+    let base = r#"
+        domain i32::Left;
+        domain i32::Right;
+        data Item {}
+        trait Pick {
+            machine Self::pick(&self) -> i32 in Left;
+            machine Self::pick(&self) -> i32 in Right;
+        }
+        Selected: Item satisfies Pick {
+            machine pick(&self) -> i32 in Left { 0 }
+            machine pick(&self) -> i32 in Right { 0 }
+        }
+    "#;
+    let extension = "domain i32::Left = i32::Right;";
+    let mut sources = SourceMap::default();
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("the extension Left alias must not make both Base overloads dispatch as Right");
+    let conformance = program
+        .conformances
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "Selected")
+        })
+        .expect("Selected conformance");
+    let psi_symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+        &conformance.implementation
+    else {
+        panic!("closed conformance")
+    };
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].requirement, rows[1].requirement);
+    assert_ne!(rows[0].realization_state, rows[1].realization_state);
 }
 
 #[test]
@@ -483,6 +677,76 @@ fn resolves_top_level_requirement_provider_selection_to_exact_machine_symbol() {
         program.symbols.get(provider.symbol).kind,
         psi_symbols::SymbolKind::Data
     );
+}
+
+#[test]
+fn authored_build_selection_paths_cannot_fall_back_to_extension_declarations() {
+    let base = r#"
+        machine build(builder: &mut Build) {
+            builder.select_provider<GeneratedBoundary, GeneratedProvider>();
+            builder.select_representation<GeneratedOpaque, GeneratedRepresentation>();
+        }
+    "#;
+    let extension = r#"
+        boundary trait GeneratedBoundary { machine enter(); }
+        data GeneratedProvider {}
+        data GeneratedOpaque {}
+        trait Shape {}
+        GeneratedRepresentation: GeneratedOpaque satisfies Shape {}
+    "#;
+    let mut sources = SourceMap::default();
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax = parse_syntax_trees_with_id(extension_id, &extension_tokens)
+        .expect("parse extension source");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolved lowering retains invalid hidden build selections for diagnostics");
+    let build = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("build machine");
+    let state = program.machine_state(program.machine_state_handles(build.states)[0]);
+    let calls = program
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    for call in calls {
+        assert!(
+            call.machine_arguments
+                .iter()
+                .all(|argument| !argument.symbol.is_valid()),
+            "authored `{}` arguments must not resurrect extension declarations: {:?}",
+            call.target,
+            call.machine_arguments
+        );
+    }
 }
 
 #[test]
@@ -1997,6 +2261,67 @@ fn outcome_specific_ensures_normalizes_only_against_declared_result_sum() {
 }
 
 #[test]
+fn authored_outcome_specific_contract_uses_the_exact_base_result_sum() {
+    let base = r#"
+        data Outcome { case Success; }
+        machine choose() -> Outcome
+        ensures Outcome::Success -> { true; }
+        { Outcome::Success }
+    "#;
+    let extension = "data Outcome { case Success; case GeneratedOnly; }";
+    let mut sources = SourceMap::default();
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("authored outcome contract must retain the base result sum");
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .expect("choose machine");
+    let [contract] = program.machine_contracts(machine) else {
+        panic!("one outcome-specific contract")
+    };
+    let psi_symbol_resolved_trees::signature::SignatureContractKind::EnsuresForResultCase {
+        result_data,
+        result_case,
+    } = contract.kind
+    else {
+        panic!("outcome-specific contract kind")
+    };
+    for symbol in [result_data, result_case] {
+        assert_eq!(
+            program
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .expect("source-backed result declaration")
+                .source_id,
+            base_id
+        );
+    }
+}
+
+#[test]
 fn outcome_specific_ensures_rejects_non_sum_and_foreign_cases() {
     for (source, expected) in [
         (
@@ -2483,6 +2808,201 @@ fn captures_expression_static_type_and_machine_arguments() {
 }
 
 #[test]
+fn static_and_proof_static_arguments_obey_current_activation_resolution_strata() {
+    let base = r#"
+        trait Marker {}
+        data Box<Element> {}
+        data Item {}
+        const Limits::VALUE: u64 = 1;
+        Marked: Item satisfies Marker;
+        machine Item::work() {}
+
+        data BaseBox<Element> {}
+        data BaseItem {}
+        const BaseLimits::VALUE: u64 = 2;
+        BaseMarked: BaseItem satisfies Marker;
+        machine BaseItem::work() {}
+
+        machine sink<A, B, C, D>() {}
+        proposition prove<A, B, C, D>();
+        machine base_call() {
+            sink<Box<Item>, Limits::VALUE, Marked, Item::work>();
+        }
+        machine base_hidden_call() {
+            sink<ExtensionBox<ExtensionItem>, ExtensionLimits::VALUE, ExtensionMarked, ExtensionItem::work>();
+        }
+        proposition base_proof() =
+            prove<Box<Item>, Limits::VALUE, Marked, Item::work>();
+        proposition base_hidden_proof() =
+            prove<ExtensionBox<ExtensionItem>, ExtensionLimits::VALUE, ExtensionMarked, ExtensionItem::work>();
+    "#;
+    let extension = r#"
+        data Box<Element> {}
+        data Item {}
+        const Limits::VALUE: u64 = 3;
+        Marked: Item satisfies Marker;
+        machine Item::work() {}
+
+        data ExtensionBox<Element> {}
+        data ExtensionItem {}
+        const ExtensionLimits::VALUE: u64 = 4;
+        ExtensionMarked: ExtensionItem satisfies Marker;
+        machine ExtensionItem::work() {}
+
+        machine extension_call() {
+            sink<Box<Item>, Limits::VALUE, Marked, Item::work>();
+        }
+        machine extension_reads_base() {
+            sink<BaseBox<BaseItem>, BaseLimits::VALUE, BaseMarked, BaseItem::work>();
+        }
+        proposition extension_proof() =
+            prove<Box<Item>, Limits::VALUE, Marked, Item::work>();
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/extension.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    syntax.extend_from(
+        &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
+    );
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolve extension-first static arguments");
+
+    fn statement_arguments<'a>(
+        program: &'a psi_symbol_resolved_trees::SymbolResolvedTrees,
+        machine_name: &str,
+    ) -> &'a [psi_symbol_resolved_trees::expression::StaticMachineArgument] {
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .expect("caller machine");
+        let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+        program
+            .tables
+            .bodies
+            .statements
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                psi_symbol_resolved_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() == "sink" =>
+                {
+                    Some(call.machine_arguments.as_ref())
+                }
+                _ => None,
+            })
+            .expect("sink call")
+    }
+
+    fn proof_arguments<'a>(
+        program: &'a psi_symbol_resolved_trees::SymbolResolvedTrees,
+        proposition_name: &str,
+    ) -> &'a [psi_symbol_resolved_trees::expression::StaticMachineArgument] {
+        let proposition = program
+            .propositions
+            .iter()
+            .find(|proposition| proposition.name.as_str() == proposition_name)
+            .expect("transparent proposition");
+        let psi_symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+            proposition.body
+        else {
+            panic!("transparent proposition body")
+        };
+        let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+            program.tables.bodies.expressions.expression(proposition)
+        else {
+            panic!("proposition call")
+        };
+        &call.machine_arguments
+    }
+
+    fn assert_argument_sources(
+        program: &psi_symbol_resolved_trees::SymbolResolvedTrees,
+        arguments: &[psi_symbol_resolved_trees::expression::StaticMachineArgument],
+        expected: psi_source::SourceId,
+    ) {
+        assert_eq!(arguments.len(), 4);
+        let nested = &arguments[0]
+            .application
+            .as_ref()
+            .expect("nested data application")
+            .arguments[0];
+        for argument in arguments.iter().chain(std::iter::once(nested)) {
+            assert!(
+                argument.symbol.is_valid(),
+                "argument={argument:#?}, spans={:?}",
+                argument
+                    .path
+                    .iter()
+                    .map(|name| name.source_span())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                program
+                    .symbols
+                    .symbol_provenance_source_span(argument.symbol)
+                    .expect("selected static declaration provenance")
+                    .source_id,
+                expected,
+                "argument={argument:#?}",
+            );
+        }
+    }
+
+    assert_argument_sources(
+        &program,
+        statement_arguments(&program, "base_call"),
+        base_id,
+    );
+    assert_argument_sources(&program, proof_arguments(&program, "base_proof"), base_id);
+    assert_argument_sources(
+        &program,
+        statement_arguments(&program, "extension_call"),
+        extension_id,
+    );
+    assert_argument_sources(
+        &program,
+        proof_arguments(&program, "extension_proof"),
+        extension_id,
+    );
+    assert_argument_sources(
+        &program,
+        statement_arguments(&program, "extension_reads_base"),
+        base_id,
+    );
+
+    for arguments in [
+        statement_arguments(&program, "base_hidden_call"),
+        proof_arguments(&program, "base_hidden_proof"),
+    ] {
+        assert!(arguments.iter().all(|argument| !argument.symbol.is_valid()));
+        let nested = &arguments[0]
+            .application
+            .as_ref()
+            .expect("nested hidden data application")
+            .arguments[0];
+        assert!(!nested.symbol.is_valid());
+    }
+}
+
+#[test]
 fn resolves_named_const_static_arguments_with_exact_authored_custody() {
     let source = r#"
         pub const Limits::LIMIT: u64 = 7;
@@ -2655,6 +3175,578 @@ fn substituted_const_retains_authored_declaration_selection_custody() {
 }
 
 #[test]
+fn const_substitution_obeys_current_activation_resolution_strata() {
+    let base_source = r#"
+        const Limits::VALUE: u64 = 1;
+        const Limits::BASE_ONLY: u64 = 3;
+        machine authored_value() -> u64 { Limits::VALUE }
+    "#;
+    let extension_source = r#"
+        const Limits::VALUE: u64 = 2;
+        const Generated::ONLY: u64 = 4;
+        machine extension_reads_base() -> u64 { Limits::BASE_ONLY }
+    "#;
+    let second_extension_source =
+        "machine second_extension_reads_first() -> u64 { Generated::ONLY }";
+    let mut sources = SourceMap::default();
+    let base_source_id = sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let extension_source_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let second_extension_source_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated-second.omg"),
+            second_extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+
+    // Deliberately put the extension first: source order must not let its
+    // same-named const retarget the authored occurrence.
+    let extension_tokens = Lexer::new(extension_source)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax = parse_syntax_trees_with_id(extension_source_id, &extension_tokens)
+        .expect("parse extension");
+    let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_source_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+    let second_extension_tokens = Lexer::new(second_extension_source)
+        .tokenize()
+        .expect("tokenize second extension");
+    let second_extension_syntax =
+        parse_syntax_trees_with_id(second_extension_source_id, &second_extension_tokens)
+            .expect("parse second extension");
+    syntax.extend_from(&second_extension_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("cross-stratum duplicate consts remain separate");
+    let const_targets = program
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            let psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+                selection.target()
+            else {
+                return None;
+            };
+            (program.symbols.get(target.selected_symbol()).kind == psi_symbols::SymbolKind::Const)
+                .then(|| {
+                    (
+                        selection.source_span().source_id,
+                        program
+                            .symbols
+                            .symbol_source_span(target.selected_symbol())
+                            .expect("source-backed const")
+                            .source_id,
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(const_targets.len(), 3, "const targets={const_targets:?}");
+    assert!(const_targets.contains(&(base_source_id, base_source_id)));
+    assert!(const_targets.contains(&(extension_source_id, base_source_id)));
+    assert!(const_targets.contains(&(second_extension_source_id, extension_source_id)));
+    assert!(!const_targets.contains(&(base_source_id, extension_source_id)));
+}
+
+#[test]
+fn const_collision_walks_separate_base_from_current_activation_extension() {
+    let base_source = r#"
+        const Clash: u64 = 1;
+        const Choice::Ready: u64 = 2;
+    "#;
+    let extension_source = r#"
+        data Clash {}
+        data Choice { case Ready; }
+    "#;
+    let mut sources = SourceMap::default();
+    let base_source_id = sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let extension_source_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
+    let mut syntax = parse_syntax_trees_with_id(base_source_id, &base_tokens).expect("parse base");
+    let extension_tokens = Lexer::new(extension_source)
+        .tokenize()
+        .expect("tokenize extension");
+    let extension_syntax = parse_syntax_trees_with_id(extension_source_id, &extension_tokens)
+        .expect("parse extension");
+    syntax.extend_from(&extension_syntax);
+
+    lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("free-shadow and case collisions across strata remain separate");
+}
+
+#[test]
+fn const_collision_walks_still_reject_within_the_extension_stratum() {
+    for (left, right, expected) in [
+        (
+            "const Limits::VALUE: u64 = 1;",
+            "const Limits::VALUE: u64 = 2;",
+            "duplicate const `Limits::VALUE`",
+        ),
+        (
+            "const Clash: u64 = 1;",
+            "data Clash {}",
+            "free-floating `const Clash` collides with data `Clash`",
+        ),
+        (
+            "const Choice::Ready: u64 = 1;",
+            "data Choice { case Ready; }",
+            "collides with the case `Ready`",
+        ),
+    ] {
+        let mut sources = SourceMap::default();
+        let left_id = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("generated-left.omg"),
+                left.to_owned(),
+                PathBuf::from("."),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::CurrentActivationExtension,
+            )
+            .source_id;
+        let right_id = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("generated-right.omg"),
+                right.to_owned(),
+                PathBuf::from("."),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::CurrentActivationExtension,
+            )
+            .source_id;
+        let left_tokens = Lexer::new(left)
+            .tokenize()
+            .expect("tokenize left extension");
+        let mut syntax =
+            parse_syntax_trees_with_id(left_id, &left_tokens).expect("parse left extension");
+        let right_tokens = Lexer::new(right)
+            .tokenize()
+            .expect("tokenize right extension");
+        let right_syntax =
+            parse_syntax_trees_with_id(right_id, &right_tokens).expect("parse right extension");
+        syntax.extend_from(&right_syntax);
+
+        let diagnostics = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+            .expect_err("same-extension-stratum const collision must reject");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "expected `{expected}`, got {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn authored_memberships_and_struct_literals_ignore_extension_first_declarations() {
+    let base = r#"
+        data Token { value: u32; case Ready; }
+        domain Token::Live;
+        domain Token::Accepted
+        requires
+            self in Token::Live;
+            self in Token::Ready | Token::Ready;
+        machine make() -> Token
+        ensures result in Token::Ready
+        { Token { value: 1 } }
+    "#;
+    let extension = r#"
+        data Token { value: u32; case Ready; }
+        domain Token::Live;
+        domain Token::Accepted;
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("base membership and literal lookup must ignore extension declarations");
+    let source_of = |symbol| {
+        program
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .expect("source-backed symbol")
+            .source_id
+    };
+    let literal = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::StructLiteral(literal) => {
+                Some(literal)
+            }
+            _ => None,
+        })
+        .expect("authored struct literal");
+    assert_eq!(source_of(literal.type_symbol), base_id);
+
+    let accepted = program
+        .domain_definitions
+        .iter()
+        .find(|domain| {
+            domain.name.source_span().source_id == base_id
+                && domain.name.as_str() == "Token::Accepted"
+        })
+        .expect("base Token::Accepted");
+    let memberships = program
+        .proof_facts(accepted.facts)
+        .iter()
+        .filter_map(|fact| match fact {
+            psi_symbol_resolved_trees::domain::ProofFact::Membership(membership) => {
+                Some(membership)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(memberships.len(), 1);
+    assert!(memberships.iter().any(|membership| {
+        membership.domain_symbol.is_valid() && source_of(membership.domain_symbol) == base_id
+    }));
+    let expression_memberships = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) => {
+                Some(membership)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        expression_memberships.iter().any(|membership| {
+            membership.case_type_symbol.is_valid()
+                && source_of(membership.case_type_symbol) == base_id
+                && membership.case_symbol.is_valid()
+        }),
+        "memberships={expression_memberships:#?}"
+    );
+}
+
+#[test]
+fn authored_trait_machine_conformance_and_dynamic_assignments_ignore_extension_first() {
+    let base = r#"
+        trait Parent {}
+        trait Child: Parent {}
+        trait Bounded<Element, Evidence: Element satisfies Parent> {}
+        trait Service { machine run(); }
+        trait Marker {}
+        data Item {}
+        Primary: Item satisfies Marker {}
+        machine provider() satisfies Service::run {}
+        machine generic<Element, Evidence: Element satisfies Parent>() {}
+        machine selected<Element>() where Element satisfies Item::Primary {}
+        machine erase<'item>(item: &'item Item) -> &'item dyn Item::Primary {
+            item as &dyn Item::Primary
+        }
+    "#;
+    let extension = r#"
+        trait Parent {}
+        trait Child: Parent {}
+        trait Bounded<Element, Evidence: Element satisfies Parent> {}
+        trait Service { machine run(); }
+        trait Marker {}
+        data Item {}
+        Primary: Item satisfies Marker {}
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("authored assignments must ignore extension declarations");
+    let source_of = |symbol| {
+        program
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .expect("source-backed symbol")
+            .source_id
+    };
+    let base_trait = |name: &str| {
+        program
+            .traits
+            .iter()
+            .find(|definition| {
+                definition.name.as_str() == name
+                    && definition.name.source_span().source_id == base_id
+            })
+            .expect("base trait")
+    };
+    let child = base_trait("Child");
+    assert!(
+        program
+            .trait_requirements(child.requires)
+            .iter()
+            .all(|requirement| source_of(requirement.symbol) == base_id)
+    );
+    let bounded = base_trait("Bounded");
+    assert!(
+        bounded
+            .conformance_bounds
+            .iter()
+            .all(|bound| source_of(bound.carrier) == base_id)
+    );
+
+    for machine_name in ["generic", "selected"] {
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.name.as_str() == machine_name
+                    && machine.name.source_span().source_id == base_id
+            })
+            .expect("base bounded machine");
+        assert!(
+            machine
+                .conformance_bounds
+                .iter()
+                .all(|bound| source_of(bound.carrier) == base_id)
+        );
+    }
+    let provider = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "provider")
+        .expect("base provider");
+    assert!(
+        program
+            .machine_trait_conformances(provider.satisfies)
+            .iter()
+            .all(|satisfaction| source_of(satisfaction.symbol) == base_id)
+    );
+
+    let primary = program
+        .conformances
+        .iter()
+        .find(|conformance| conformance.trait_name.source_span().source_id == base_id)
+        .expect("base Primary conformance");
+    assert_eq!(source_of(primary.carrier_symbol), base_id);
+    assert_eq!(source_of(primary.trait_symbol), base_id);
+
+    let erase = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "erase")
+        .expect("base erase");
+    let entry = program.machine_state(program.machine_state_handles(erase.states)[0]);
+    let Some(psi_symbol_resolved_trees::types::TypeReference::Reference(reference)) =
+        &entry.return_type
+    else {
+        panic!("erase return remains a reference")
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::DynamicTrait {
+        symbol,
+        conformance,
+        ..
+    } = program.child_type_reference(reference.referee)
+    else {
+        panic!("erase referee remains dynamic")
+    };
+    assert_eq!(source_of(*symbol), base_id);
+    assert_eq!(source_of(conformance.expect("named conformance")), base_id);
+}
+
+#[test]
+fn trait_slot_catalogs_and_evidence_seeding_use_exact_trait_identity() {
+    let base = r#"
+        proposition Proven();
+        trait Parent { machine base_requirement(); }
+        trait Slot<proposition Evidence>: Parent
+        where proposition Evidence();
+        { machine base_slot(); }
+        trait BaseChild: Slot<Proven> {}
+        machine base_use<Element, Proof: Element satisfies Slot<Proven>>() {}
+    "#;
+    let extension = r#"
+        boundary trait Service { machine run(); }
+        trait Parent { machine extension_requirement(); }
+        trait Slot<machine Evidence>: Parent { machine extension_slot(); }
+        trait ExtensionChild: Slot<Service::run> {}
+        machine extension_use<Element, Proof: Element satisfies Slot<Service::run>>() {}
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("same-named trait catalogs must retain exact stratum identity");
+    let argument_kind = |arguments| {
+        let [psi_symbol_resolved_trees::types::TypeReference::Named { symbol, .. }] =
+            program.child_type_references(arguments)
+        else {
+            panic!("one named static trait argument")
+        };
+        program.symbols.get(*symbol).kind
+    };
+
+    for (name, source_id, expected_kind) in [
+        ("BaseChild", base_id, psi_symbols::SymbolKind::Proposition),
+        (
+            "ExtensionChild",
+            extension_id,
+            psi_symbols::SymbolKind::State,
+        ),
+    ] {
+        let child = program
+            .traits
+            .iter()
+            .find(|definition| {
+                definition.name.as_str() == name
+                    && definition.name.source_span().source_id == source_id
+            })
+            .expect("exact child trait");
+        let [requirement] = program.trait_requirements(child.requires) else {
+            panic!("one parameterized trait parent")
+        };
+        assert_eq!(argument_kind(requirement.arguments), expected_kind);
+    }
+
+    for (name, source_id, expected_kind, own_requirement, foreign_requirement) in [
+        (
+            "base_use",
+            base_id,
+            psi_symbols::SymbolKind::Proposition,
+            "base_requirement",
+            "extension_requirement",
+        ),
+        (
+            "extension_use",
+            extension_id,
+            psi_symbols::SymbolKind::State,
+            "extension_requirement",
+            "base_requirement",
+        ),
+    ] {
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| {
+                machine.name.as_str() == name && machine.name.source_span().source_id == source_id
+            })
+            .expect("exact bounded machine");
+        let [bound] = machine.conformance_bounds.as_slice() else {
+            panic!("one conformance bound")
+        };
+        let exact_slot = program
+            .traits
+            .iter()
+            .find(|definition| {
+                definition.name.as_str() == "Slot"
+                    && definition.name.source_span().source_id == source_id
+            })
+            .expect("exact Slot trait");
+        assert_eq!(
+            bound.carrier, exact_slot.symbol,
+            "machine={name} bound must retain exact Slot identity"
+        );
+        assert_eq!(
+            argument_kind(bound.arguments),
+            expected_kind,
+            "machine={name}, carrier={} {:?}, arguments={:?}",
+            program.symbols.name(bound.carrier),
+            program.symbols.get(bound.carrier).kind,
+            program.child_type_references(bound.arguments),
+        );
+        let binder = bound.binder.expect("evidence binder symbol");
+        let requirement_names = program
+            .symbols
+            .child_handles(binder)
+            .into_iter()
+            .flatten()
+            .map(|symbol| program.symbols.name(symbol))
+            .collect::<Vec<_>>();
+        assert!(requirement_names.contains(&own_requirement));
+        assert!(!requirement_names.contains(&foreign_requirement));
+    }
+}
+
+#[test]
 fn retains_const_declaration_visibility_after_value_substitution() {
     let source = r#"
         pub const PUBLIC_SIZE: u64 = 4;
@@ -2821,6 +3913,158 @@ fn normalizes_service_rows_from_resolved_boundary_trait_symbols() {
             .service_reach_rows
             .services(inspect.service_reach_row),
         &[readable_id],
+    );
+}
+
+#[test]
+fn authored_service_reaches_and_invokes_obey_resolution_strata() {
+    let base = r#"
+        boundary trait Shared {}
+        boundary trait BaseOnly {}
+        machine base_reach() reaches Shared {}
+        machine base_invoke() invokes Shared; {}
+    "#;
+    let extension = r#"
+        boundary trait Shared {}
+        machine extension_reach() reaches Shared {}
+        machine extension_invoke() invokes Shared; {}
+        machine extension_reads_base() reaches BaseOnly invokes BaseOnly; {}
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/services.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    syntax.extend_from(
+        &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
+    );
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolve extension-first service rows");
+
+    let service_from = |name: &str, source_id| {
+        let definition = program
+            .traits
+            .iter()
+            .find(|definition| {
+                definition.name.as_str() == name
+                    && program
+                        .symbols
+                        .symbol_provenance_source_span(definition.symbol)
+                        .is_some_and(|span| span.source_id == source_id)
+            })
+            .expect("source-specific boundary service");
+        program
+            .service_reaches
+            .id_for_symbol(definition.symbol)
+            .expect("boundary service id")
+    };
+    let base_shared = service_from("Shared", base_id);
+    let extension_shared = service_from("Shared", extension_id);
+    let base_only = service_from("BaseOnly", base_id);
+
+    let machine_services = |name: &str| {
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("service-using machine");
+        program
+            .service_reach_rows
+            .services(machine.service_reach_row)
+    };
+    assert_eq!(machine_services("base_reach"), &[base_shared]);
+    assert_eq!(machine_services("base_invoke"), &[base_shared]);
+    assert_eq!(machine_services("extension_reach"), &[extension_shared]);
+    assert_eq!(machine_services("extension_invoke"), &[extension_shared]);
+    assert_eq!(machine_services("extension_reads_base"), &[base_only]);
+}
+
+#[test]
+fn authored_base_service_names_cannot_resolve_extension_only_declarations() {
+    let extension = "boundary trait GeneratedOnly {}";
+    let hidden_reach = "machine authored() reaches GeneratedOnly {}";
+    let mut reach_sources = SourceMap::default();
+    let extension_id = reach_sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/services.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = reach_sources
+        .add(PathBuf::from("main.omg"), hidden_reach.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut reach_syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(hidden_reach).tokenize().expect("tokenize base");
+    reach_syntax.extend_from(
+        &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
+    );
+    let diagnostic = lower_syntax_trees_with_sources(&reach_syntax, Arc::new(reach_sources))
+        .expect_err("Base reaches must not resolve an extension-only service");
+    assert!(
+        diagnostic[0]
+            .message
+            .contains("machine `authored` declares unknown boundary service `GeneratedOnly`")
+    );
+
+    let hidden_invoke = "machine authored() invokes GeneratedOnly; {}";
+    let mut invoke_sources = SourceMap::default();
+    let extension_id = invoke_sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/services.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_id = invoke_sources
+        .add(PathBuf::from("main.omg"), hidden_invoke.to_owned())
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut invoke_syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(hidden_invoke).tokenize().expect("tokenize base");
+    invoke_syntax.extend_from(
+        &parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse authored base"),
+    );
+    let program = lower_syntax_trees_with_sources(&invoke_syntax, Arc::new(invoke_sources))
+        .expect("unresolved invokes remains absent from the normalized row");
+    let authored = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "authored")
+        .expect("authored machine");
+    assert!(
+        program
+            .service_reach_rows
+            .services(authored.service_reach_row)
+            .is_empty()
     );
 }
 
@@ -3498,6 +4742,50 @@ fn normalizes_authored_checked_and_boundary_requirement_routes() {
 }
 
 #[test]
+fn authored_establishment_route_cannot_use_an_extension_only_domain_constraint() {
+    let base = r#"
+        data Token { value: u64; }
+        domain Token::Issued
+        established by Issuer::issue;
+        trait Issuer {
+            machine issue(value: u64) -> Token in Later;
+        }
+    "#;
+    let extension = "domain Token::Later = Token::Issued;";
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let mut syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let extension_syntax = parse_syntax_trees_with_id(extension_id, &extension_tokens)
+        .expect("parse extension source");
+    syntax.extend_from(&extension_syntax);
+
+    let diagnostics = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect_err("an authored route must not gain authority from a hidden domain alias");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not name the domain on its exact result")),
+        "unexpected domain-establishment diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
 fn preserves_explicit_progress_profile_classification_during_resolution() {
     let source = r#"
     data SchedulerHandle {}
@@ -3682,6 +4970,53 @@ fn signature_free_overload_reports_one_declaration_and_every_affected_use() {
     assert!(
         diagnostics[1].source_span.unwrap().span.start
             < diagnostics[2].source_span.unwrap().span.start
+    );
+}
+
+#[test]
+fn authored_signature_free_requirement_ignores_current_activation_extension_overloads() {
+    let base = r#"
+        data Token { value: u64; }
+        domain Token::Issued
+        established by Issuer::issue;
+        trait Issuer {
+            machine issue(value: u64) -> Token in Issued;
+        }
+        machine register<machine Selected>()
+        where machine Selected satisfies Issuer::issue;
+        {}
+    "#;
+    let extension = r#"
+        trait Issuer {
+            machine issue(value: u64) -> Token in Issued;
+            machine issue(value: i64) -> Token in Issued;
+        }
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/extension.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            psi_source::SourceOrigin::User,
+            psi_source::SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let mut syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let extension_syntax = parse_syntax_trees_with_id(extension_id, &extension_tokens)
+        .expect("parse extension source");
+    syntax.extend_from(&extension_syntax);
+
+    lower_syntax_trees_with_sources(&syntax, Arc::new(sources)).expect(
+        "authored signature-free uses must resolve only against the retained base trait family",
     );
 }
 
@@ -4111,6 +5446,127 @@ fn resolves_qualified_attached_machine_tail_transition() {
 }
 
 #[test]
+fn attached_calls_and_qualified_transitions_obey_resolution_strata() {
+    let base = r#"
+        data Gadget {}
+        data BaseOnly {}
+        data Leaf {}
+        data Inner { leaf: Leaf; }
+        data Outer { inner: Inner; }
+        machine Gadget::work() -> i32 { 1 }
+        machine BaseOnly::work() -> i32 { 3 }
+        machine Leaf::work(&self) -> i32 { 5 }
+        machine authored_call() -> i32 { Gadget::work() }
+        machine authored_hidden_call() -> i32 { Ghost::work() }
+        machine Outer::nested_call(&self) -> i32 { self.inner.leaf.work() }
+        machine authored_transition() -> i32 {
+            transition { _ -> Gadget::work() }
+        }
+    "#;
+    let extension = r#"
+        data Gadget {}
+        data Ghost {}
+        data Leaf {}
+        machine Gadget::work() -> i32 { 2 }
+        machine Ghost::work() -> i32 { 4 }
+        machine Leaf::work(&self) -> i32 { 6 }
+        machine extension_call() -> i32 { Gadget::work() }
+        machine extension_reads_base() -> i32 { BaseOnly::work() }
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension first");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("attached-call resolution must retain stratum boundaries");
+    let source_of = |symbol| {
+        program
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .expect("source-backed symbol")
+            .source_id
+    };
+    let calls = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let base_targets = calls
+        .iter()
+        .filter(|call| call.target.source_span().source_id == base_id)
+        .map(|call| call.target_symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        base_targets
+            .iter()
+            .filter(|symbol| {
+                symbol.is_valid()
+                    && program.symbols.name(**symbol) == "work"
+                    && source_of(**symbol) == base_id
+            })
+            .count(),
+        2,
+        "qualified and nested authored calls must select Base"
+    );
+    assert!(base_targets.iter().any(|symbol| !symbol.is_valid()));
+    assert!(calls.iter().any(|call| {
+        call.target.source_span().source_id == extension_id
+            && call.target_symbol.is_valid()
+            && source_of(call.target_symbol) == extension_id
+    }));
+    assert!(calls.iter().any(|call| {
+        call.target.source_span().source_id == extension_id
+            && call.target_symbol.is_valid()
+            && source_of(call.target_symbol) == base_id
+    }));
+
+    let transition_machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "authored_transition")
+        .expect("authored transition machine");
+    let transition_state =
+        program.machine_state(program.machine_state_handles(transition_machine.states)[0]);
+    let psi_symbol_resolved_trees::statement::Statement::Transition(transition) = program
+        .state_statements(transition_state.statements)
+        .last()
+        .expect("terminal transition")
+    else {
+        panic!("authored transition remains terminal")
+    };
+    let psi_symbol_resolved_trees::statement::TransitionTarget::Named(target) = &transition.target
+    else {
+        panic!("authored qualified transition remains named")
+    };
+    assert_eq!(source_of(target.head_symbol), base_id);
+    assert_eq!(source_of(target.symbol), base_id);
+}
+
+#[test]
 fn resolves_self_parameter_type_to_machine_symbol() {
     let source = r#"
     data Main {
@@ -4182,6 +5638,175 @@ fn source_backed_names_are_used_when_sources_are_available() {
         counts.static_names > 0,
         "builtins and synthetic roots should stay static"
     );
+}
+
+#[test]
+fn lowerer_keeps_source_free_visibility_checks_permissive() {
+    let mut sources = SourceMap::default();
+    let declaration = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/extension.omg"),
+            "data Extension {}".to_owned(),
+            PathBuf::from("."),
+            None,
+            psi_source::SourceOrigin::User,
+            psi_source::SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_span(psi_source::Span::new(5, 14));
+    let lowerer = Lowerer::new(Some(Arc::new(sources)), Vec::new());
+
+    assert!(
+        lowerer
+            .source_reference_can_see_declaration(psi_source::SourceSpan::default(), declaration,)
+    );
+}
+
+#[test]
+fn authored_base_paths_and_receiverless_calls_ignore_extension_first_declarations() {
+    let base = r#"
+        data Choice {}
+        machine pick() -> i32 { 1 }
+        proposition selected(value: i32);
+        machine authored(value: Choice) -> i32 { pick() }
+        machine authored_missing() -> i32 { generated_pick() }
+        proposition authored(value: i32) = selected(value);
+        proposition authored_missing(value: i32) = generated_selected(value);
+    "#;
+    let extension = r#"
+        data Choice {}
+        machine pick() -> i32 { 2 }
+        machine generated_pick() -> i32 { 3 }
+        proposition selected(value: i32);
+        proposition generated_selected(value: i32);
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("main.omg"), base.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/extension.omg"),
+            extension.to_owned(),
+            PathBuf::from("."),
+            None,
+            psi_source::SourceOrigin::User,
+            psi_source::SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_tokens = Lexer::new(extension)
+        .tokenize()
+        .expect("tokenize extension");
+    let mut syntax = parse_syntax_trees_with_id(extension_id, &extension_tokens)
+        .expect("parse extension source");
+    let base_tokens = Lexer::new(base).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base source");
+    syntax.extend_from(&base_syntax);
+
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("base references must ignore extension-first declarations");
+    let authored = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "authored")
+        .expect("authored machine");
+    let entry = program
+        .machine_state_handles(authored.states)
+        .first()
+        .map(|handle| program.machine_state(*handle))
+        .expect("authored entry");
+    let parameter = program
+        .state_parameters(entry.parameters)
+        .first()
+        .expect("Choice parameter");
+    let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+        &parameter.type_reference
+    else {
+        panic!("Choice parameter remains nominal")
+    };
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(*symbol)
+            .expect("Choice declaration provenance")
+            .source_id,
+        base_id
+    );
+    let hidden_pick_target = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "generated_pick" =>
+            {
+                Some(call.target_symbol)
+            }
+            _ => None,
+        })
+        .expect("authored receiverless extension-only pick call");
+    assert!(!hidden_pick_target.is_valid());
+    let pick_target = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            psi_symbol_resolved_trees::expression::ExpressionNode::Call(call)
+                if call.target.as_str() == "pick" =>
+            {
+                Some(call.target_symbol)
+            }
+            _ => None,
+        })
+        .expect("authored receiverless pick call");
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(pick_target)
+            .expect("pick declaration provenance")
+            .source_id,
+        base_id
+    );
+    let authored_proposition = program
+        .propositions
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "authored")
+        .expect("authored proposition");
+    let psi_symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+        authored_proposition.body
+    else {
+        panic!("authored proposition stays transparent")
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(proposition)
+    else {
+        panic!("authored proposition body stays a call")
+    };
+    assert_eq!(
+        program
+            .symbols
+            .symbol_provenance_source_span(call.target_symbol)
+            .expect("selected proposition provenance")
+            .source_id,
+        base_id
+    );
+    let authored_missing_proposition = program
+        .propositions
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "authored_missing")
+        .expect("authored missing proposition");
+    let psi_symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+        authored_missing_proposition.body
+    else {
+        panic!("authored missing proposition stays transparent")
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        program.tables.bodies.expressions.expression(proposition)
+    else {
+        panic!("authored missing proposition body stays a call")
+    };
+    assert!(!call.target_symbol.is_valid());
 }
 
 #[test]

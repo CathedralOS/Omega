@@ -2,7 +2,7 @@ use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::lookup::{
     child_indexed_symbol_by_kinds, child_or_attached_data_child_symbol_by_kinds,
-    child_symbol_by_kinds, top_level_symbol_by_kinds,
+    child_symbol_by_kinds,
 };
 
 pub(super) fn resolve_base_symbol(
@@ -37,16 +37,18 @@ pub(super) fn resolve_base_symbol(
         return machine_child;
     }
 
-    top_level_symbol_by_kinds(
-        symbols,
-        &[
-            SymbolKind::BuiltinType,
-            SymbolKind::Data,
-            SymbolKind::Machine,
-            SymbolKind::Trait,
-        ],
-        member.as_str(),
-    )
+    symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            member.as_str(),
+            &[
+                SymbolKind::BuiltinType,
+                SymbolKind::Data,
+                SymbolKind::Machine,
+                SymbolKind::Trait,
+            ],
+            member.source_span(),
+        )
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 pub(super) fn resolve_base_indexed_symbol(

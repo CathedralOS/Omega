@@ -1,4 +1,3 @@
-use super::shared::top_level_symbol;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
@@ -81,7 +80,12 @@ impl<'program> TopLevelSymbols<'program> {
             let same_named = symbols
                 .machines
                 .iter()
-                .filter(|symbol| symbol.name == machine.name.as_str())
+                .filter(|symbol| {
+                    symbol.name == machine.name.as_str()
+                        && !program
+                            .symbols
+                            .source_scopes_separate(symbol.symbol, machine.symbol)
+                })
                 .collect::<Vec<_>>();
             let is_result_overload_family = !same_named.is_empty()
                 && program
@@ -106,32 +110,41 @@ impl<'program> TopLevelSymbols<'program> {
             symbols.machines.push(MachineSymbol {
                 name: machine.name.as_str(),
                 machine,
-                symbol: top_level_symbol(program, machine.name.as_str()),
+                symbol: machine.symbol,
             });
         }
 
         for trait_definition in program.traits() {
-            if symbols
-                .trait_definition(trait_definition.name.as_str())
-                .is_some()
-            {
+            if symbols.traits.iter().any(|previous| {
+                previous.name == trait_definition.name.as_str()
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, trait_definition.symbol)
+            }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate trait `{}`",
                     trait_definition.name
                 )));
             }
 
-            if symbols
-                .data_definition_symbol(trait_definition.name.as_str())
-                .is_valid()
-            {
+            if symbols.data_definitions.iter().any(|previous| {
+                previous.name == trait_definition.name.as_str()
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, trait_definition.symbol)
+            }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}` is declared as both data and a trait",
                     trait_definition.name
                 )));
             }
 
-            if symbols.machine(trait_definition.name.as_str()).is_some() {
+            if symbols.machines.iter().any(|previous| {
+                previous.name == trait_definition.name.as_str()
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, trait_definition.symbol)
+            }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}` is declared as both a machine and a trait",
                     trait_definition.name
@@ -141,11 +154,11 @@ impl<'program> TopLevelSymbols<'program> {
             symbols.traits.push(TraitSymbol {
                 name: trait_definition.name.as_str(),
                 trait_definition,
-                symbol: top_level_symbol(program, trait_definition.name.as_str()),
+                symbol: trait_definition.symbol,
             });
             symbols.types.push(TypeSymbol {
                 name: trait_definition.name.as_str(),
-                symbol: top_level_symbol(program, trait_definition.name.as_str()),
+                symbol: trait_definition.symbol,
             });
         }
 
@@ -158,16 +171,34 @@ impl<'program> TopLevelSymbols<'program> {
             || self.trait_symbol(name).is_valid()
     }
 
-    fn type_symbol(&self, name: &str) -> SymbolHandle {
-        self.types
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
+    pub fn has_type_symbol(&self, symbol: SymbolHandle) -> bool {
+        symbol.is_valid()
+            && (self
+                .types
+                .iter()
+                .any(|candidate| candidate.symbol == symbol)
+                || self
+                    .machines
+                    .iter()
+                    .any(|candidate| candidate.symbol == symbol)
+                || self
+                    .traits
+                    .iter()
+                    .any(|candidate| candidate.symbol == symbol))
     }
 
-    fn data_definition_symbol(&self, name: &str) -> SymbolHandle {
-        self.data_definitions
+    pub fn trait_definition_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<&'program TraitDefinition> {
+        self.traits
+            .iter()
+            .find(|candidate| candidate.symbol == symbol)
+            .map(|candidate| candidate.trait_definition)
+    }
+
+    fn type_symbol(&self, name: &str) -> SymbolHandle {
+        self.types
             .iter()
             .find(|symbol| symbol.name == name)
             .map(|symbol| symbol.symbol)

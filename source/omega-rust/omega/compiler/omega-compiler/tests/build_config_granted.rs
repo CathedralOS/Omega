@@ -4926,6 +4926,220 @@ fn generated_source_handoff_requires_custody_and_enters_one_frozen_final_pass() 
 }
 
 #[test]
+fn current_activation_generated_sources_form_one_extension_resolution_stratum() {
+    const ALPHA: &str = r#"machine choose() -> i32 { 2 }
+machine alpha_leaf() -> i32 { authored_helper() }
+machine alpha_to_beta() -> i32 { beta_leaf() }
+trait Shape {
+    machine Self::code(&self) -> i32;
+}
+data WireShared { #1 value: u8; }
+Primary: Item satisfies Shape {
+    machine code(&self) -> i32 { code }
+}
+Secondary: Item satisfies Shape {
+    machine code(&self) -> i32 { code }
+}
+"#;
+    const BETA: &str = r#"machine beta_leaf() -> i32 { authored_helper() }
+machine beta_to_alpha() -> i32 { alpha_leaf() }
+"#;
+    let (project, profile) = rooted_build_probe_project(
+        "generated-resolution-stratum",
+        r#"    let alpha: &[u8] in Path = builder.output.resolve("alpha.omg");
+    self.descriptor = self.filesystem.create(alpha, 438);
+    self.result = self.filesystem.write(self.descriptor, "machine choose() -> i32 { 2 }\nmachine alpha_leaf() -> i32 { authored_helper() }\nmachine alpha_to_beta() -> i32 { beta_leaf() }\ntrait Shape {\n    machine Self::code(&self) -> i32;\n}\ndata WireShared { #1 value: u8; }\nPrimary: Item satisfies Shape {\n    machine code(&self) -> i32 { code }\n}\nSecondary: Item satisfies Shape {\n    machine code(&self) -> i32 { code }\n}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(alpha);
+    let beta: &[u8] in Path = builder.output.resolve("beta.omg");
+    self.descriptor = self.filesystem.create(beta, 438);
+    self.result = self.filesystem.write(self.descriptor, "machine beta_leaf() -> i32 { authored_helper() }\nmachine beta_to_alpha() -> i32 { alpha_leaf() }\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(beta);"#,
+    );
+    std::fs::write(
+        project.join("main.omg"),
+        r#"trait Shape {
+    machine Self::code(&self) -> i32;
+}
+data Item { code: i32; }
+data WireShared { #1 value: u8; }
+Primary: Item satisfies Shape {
+    machine code(&self) -> i32 { self.code }
+}
+machine choose() -> i32 in Saturating { 1 as i32 in Saturating }
+machine authored_helper() -> i32 { 0 }
+machine consume(value: &dyn Shape) -> i32 { value.code() }
+machine authored_overload_call() -> i32 {
+    let selected: i32 = choose();
+    selected
+}
+machine authored_bare_conformance(item: &Item) -> i32 { consume(item) }
+"#,
+    )
+    .expect("write authored generated-resolution fixture");
+
+    let checked = compile_rooted_probe_with_sponsored_output(
+        &project,
+        profile,
+        "generated-resolution-stratum-review",
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "current-activation extension sources should compile as one resolution stratum: {diagnostics:#?}"
+        )
+    });
+
+    let source_files = checked.typed.symbols.source_files().collect::<Vec<_>>();
+    assert_eq!(source_files.len(), checked.source_file_count());
+    let generated = source_files
+        .iter()
+        .filter(|source| {
+            source.resolution_stratum
+                == psi_source::SourceResolutionStratum::CurrentActivationExtension
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(generated.len(), 2);
+    assert!(
+        generated.iter().any(|source| {
+            source.path.ends_with("alpha.omg") && source.source.as_ref() == ALPHA
+        })
+    );
+    assert!(
+        generated
+            .iter()
+            .any(|source| { source.path.ends_with("beta.omg") && source.source.as_ref() == BETA })
+    );
+    assert!(source_files.iter().all(|source| {
+        source.path.ends_with("alpha.omg")
+            || source.path.ends_with("beta.omg")
+            || source.resolution_stratum == psi_source::SourceResolutionStratum::Base
+    }));
+
+    let bundle = checked
+        .package_generated_source_bundle()
+        .expect("checked package retains exact generated-source bundle");
+    assert_eq!(bundle.sources().len(), 2);
+    assert_eq!(bundle.sources()[0].relative_path(), b"alpha.omg");
+    assert_eq!(bundle.sources()[0].bytes(), ALPHA.as_bytes());
+    assert_eq!(bundle.sources()[1].relative_path(), b"beta.omg");
+    assert_eq!(bundle.sources()[1].bytes(), BETA.as_bytes());
+    assert_eq!(
+        checked
+            .build_observation_summary()
+            .expect("generated-source build retains exact handoffs")
+            .included_source_handoffs()
+            .len(),
+        2
+    );
+
+    let call_target_strata = checked
+        .typed
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, expression)| {
+            let psi_typed_trees::expression::ExpressionNode::Call(call) = expression else {
+                return None;
+            };
+            let declaration = checked
+                .typed
+                .symbols
+                .symbol_provenance_source_span(call.target_symbol)
+                .and_then(|span| checked.typed.symbols.source_file(span))?;
+            Some((call.target.as_str(), declaration.resolution_stratum))
+        })
+        .collect::<Vec<_>>();
+    let base = psi_source::SourceResolutionStratum::Base;
+    let extension = psi_source::SourceResolutionStratum::CurrentActivationExtension;
+    assert!(
+        call_target_strata.contains(&("choose", base)),
+        "retained call targets: {call_target_strata:?}"
+    );
+    assert!(call_target_strata.contains(&("authored_helper", base)));
+    assert!(call_target_strata.contains(&("beta_leaf", extension)));
+    assert!(call_target_strata.contains(&("alpha_leaf", extension)));
+
+    let selected_shape_strata = checked
+        .typed
+        .conformances()
+        .iter()
+        .filter(|conformance| {
+            matches!(
+                checked.typed.symbols.name(conformance.symbol),
+                "Primary" | "Secondary"
+            )
+        })
+        .map(|conformance| {
+            let declaration = checked
+                .typed
+                .symbols
+                .symbol_provenance_source_span(conformance.symbol)
+                .and_then(|span| checked.typed.symbols.source_file(span))
+                .expect("source-backed conformance");
+            let selected_trait = checked
+                .typed
+                .symbols
+                .symbol_provenance_source_span(conformance.trait_symbol)
+                .and_then(|span| checked.typed.symbols.source_file(span))
+                .expect("source-backed selected Shape trait");
+            (
+                checked.typed.symbols.name(conformance.symbol),
+                declaration.resolution_stratum,
+                selected_trait.resolution_stratum,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(selected_shape_strata.contains(&("Primary", base, base)));
+    assert!(selected_shape_strata.contains(&("Primary", extension, extension)));
+    assert!(selected_shape_strata.contains(&("Secondary", extension, extension)));
+
+    checked
+        .verify_current_source_consumption()
+        .expect("authored and generated source custody remains exact");
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(
+        &project,
+        "generated-resolution-stratum-review",
+    ));
+}
+
+#[test]
+fn distinct_current_activation_extension_units_remain_one_duplicate_scope() {
+    let (project, profile) = rooted_build_probe_project(
+        "generated-extension-duplicate-scope",
+        r#"    let alpha: &[u8] in Path = builder.output.resolve("alpha.omg");
+    self.descriptor = self.filesystem.create(alpha, 438);
+    self.result = self.filesystem.write(self.descriptor, "trait ExtensionCollision {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(alpha);
+    let beta: &[u8] in Path = builder.output.resolve("beta.omg");
+    self.descriptor = self.filesystem.create(beta, 438);
+    self.result = self.filesystem.write(self.descriptor, "trait ExtensionCollision {}\n");
+    self.code = self.filesystem.close(self.descriptor);
+    builder.output.include_source(beta);"#,
+    );
+
+    let diagnostics = compile_rooted_probe_with_sponsored_output(
+        &project,
+        profile,
+        "generated-extension-duplicate-scope-review",
+    )
+    .expect_err("separate extension units must not become separate duplicate scopes");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("duplicate trait `ExtensionCollision`")),
+        "unexpected generated-extension duplicate diagnostics: {diagnostics:#?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(
+        &project,
+        "generated-extension-duplicate-scope-review",
+    ));
+}
+
+#[test]
 fn receipted_generated_source_reopens_with_source_custody_and_rejects_source_drift() {
     let (project, profile) = rooted_build_probe_project(
         "receipted-generated-source",

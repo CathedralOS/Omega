@@ -1055,6 +1055,109 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &fixed_fuel,
     )
     .expect("ranked fixed-fuel theorem replays");
+    let ranked_segments = psi_terminal_fixed_fuel::derive_ranked_countdown_safe_point_segments(
+        &fixed_fuel_verified,
+        machine.id,
+    )
+    .expect("ranked countdown has a complete safe-point partition");
+    assert_eq!(ranked_segments.len(), 5);
+    assert_eq!(
+        ranked_segments
+            .iter()
+            .map(|segment| (
+                segment.start_block(),
+                segment.end_edge(),
+                segment.ceiling_units(),
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (block_id(1), edge_id(1), 1),
+            (block_id(2), edge_id(2), 3),
+            (block_id(2), edge_id(3), 3),
+            (block_id(3), edge_id(4), 3),
+            (block_id(4), edge_id(5), 1),
+        ]
+    );
+    assert!(ranked_segments.iter().all(|segment| {
+        segment.terminal_psi() == fixed_fuel.terminal_psi()
+            && segment.schedule() == fixed_fuel.schedule()
+            && segment.machine() == machine.id
+            && segment.relevant_preconditions().is_empty()
+    }));
+    psi_terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+        &fixed_fuel_verified,
+        machine.id,
+        &ranked_segments,
+    )
+    .expect("ranked safe-point partition replays as one canonical sequence");
+    assert_eq!(
+        psi_terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+            &fixed_fuel_verified,
+            machine.id,
+            &ranked_segments[..4],
+        ),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        "an omitted ranked segment must reject"
+    );
+    let mut reordered_ranked_segments = ranked_segments.clone();
+    reordered_ranked_segments.swap(1, 2);
+    assert_eq!(
+        psi_terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+            &fixed_fuel_verified,
+            machine.id,
+            &reordered_ranked_segments,
+        ),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        "ranked conditional arms remain canonically ordered"
+    );
+    let mut duplicated_ranked_segments = ranked_segments.clone();
+    duplicated_ranked_segments[4] = ranked_segments[3].clone();
+    assert_eq!(
+        psi_terminal_fixed_fuel::validate_ranked_countdown_safe_point_segments(
+            &fixed_fuel_verified,
+            machine.id,
+            &duplicated_ranked_segments,
+        ),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        "a duplicated ranked endpoint cannot replace the return row"
+    );
+    let retained_ranked_segments =
+        psi_terminal_fixed_fuel::retain_validated_ranked_countdown_safe_point_segments(
+            &fixed_fuel_verified,
+            machine.id,
+            ranked_segments.clone(),
+        )
+        .expect("the exact ranked partition is retainable");
+    assert_eq!(
+        retained_ranked_segments.terminal_psi(),
+        fixed_fuel.terminal_psi()
+    );
+    assert_eq!(retained_ranked_segments.schedule(), fixed_fuel.schedule());
+    assert_eq!(retained_ranked_segments.machine(), machine.id);
+    assert_eq!(
+        retained_ranked_segments.certificates(),
+        ranked_segments.as_slice()
+    );
+    psi_terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+        &fixed_fuel_verified,
+        &retained_ranked_segments,
+    )
+    .expect("the retained ranked partition independently replays");
+    let directly_retained_ranked_segments =
+        psi_terminal_fixed_fuel::derive_validated_ranked_countdown_safe_point_segments(
+            &fixed_fuel_verified,
+            machine.id,
+        )
+        .expect("the complete ranked partition derives directly");
+    assert_eq!(
+        directly_retained_ranked_segments.certificates(),
+        ranked_segments.as_slice()
+    );
+    psi_terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+        &fixed_fuel_verified,
+        &directly_retained_ranked_segments,
+    )
+    .expect("the directly retained ranked partition independently replays");
     let native_verified = psi_terminal_verifier::verify_module_for_native_ranked_countdown(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -1110,6 +1213,27 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
         &fixed_fuel,
     )
     .expect("ranked certificate binds the canonical round trip");
+    psi_terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+        &decoded_fixed_fuel_verified,
+        &retained_ranked_segments,
+    )
+    .expect("ranked segment catalog binds the canonical round trip");
+    let mut drifted_identity = decoded.clone();
+    drifted_identity.structural_types[0].identity = "test::OtherToken".to_owned();
+    let drifted_fixed_fuel_verified = psi_terminal_verifier::verify_module_for_fixed_fuel(
+        &drifted_identity,
+        &decoded_proof,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("identity-drifted ranked structure remains independently valid");
+    assert_eq!(
+        psi_terminal_fixed_fuel::validate_retained_ranked_countdown_safe_point_segments(
+            &drifted_fixed_fuel_verified,
+            &retained_ranked_segments,
+        ),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::CertificateMismatch),
+        "a different terminal semantic identity cannot replay ranked segments"
+    );
     let lowered = lower_machine(&checked, "Root::countdown")
         .expect("public lowering admits the interpreter-only ranked slice");
     let semantic = psi_terminal_codec::encode_module(&lowered.semantic_module)
@@ -1328,6 +1452,13 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
 
     assert!(matches!(
         psi_terminal_fixed_fuel::derive_ranked_countdown_entry_fuel(
+            &verified,
+            lowered.semantic_module.entry,
+        ),
+        Err(psi_terminal_fixed_fuel::FixedFuelError::BoundOverflow)
+    ));
+    assert!(matches!(
+        psi_terminal_fixed_fuel::derive_ranked_countdown_safe_point_segments(
             &verified,
             lowered.semantic_module.entry,
         ),

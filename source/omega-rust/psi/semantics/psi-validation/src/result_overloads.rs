@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use psi_diagnostics::Diagnostic;
+use psi_source::SourceSpan;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{
@@ -73,6 +74,84 @@ impl MachineOverloadIndex {
     }
 }
 
+fn expression_owner_source_spans(program: &TypedTrees) -> HashMap<u32, SourceSpan> {
+    let mut owners = HashMap::new();
+    for machine in program.machines() {
+        let Some(source_span) = program.symbols.symbol_source_span(machine.symbol) else {
+            continue;
+        };
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                for root in crate::calls::statement_value_expression_roots(program, statement) {
+                    record_expression_owner(program, root, source_span, &mut owners);
+                }
+            }
+        }
+    }
+    owners
+}
+
+fn record_expression_owner(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    source_span: SourceSpan,
+    owners: &mut HashMap<u32, SourceSpan>,
+) {
+    if !expression.is_valid() || owners.contains_key(&expression.arena_index()) {
+        return;
+    }
+    owners.insert(expression.arena_index(), source_span);
+    macro_rules! visit {
+        ($child:expr) => {
+            record_expression_owner(program, $child, source_span, owners)
+        };
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in program.expression_table.expression_handles(*elements) {
+                visit!(*element);
+            }
+        }
+        ExpressionNode::Atomic(atomic) => {
+            visit!(atomic.value);
+            visit!(atomic.result);
+        }
+        ExpressionNode::Binary(binary) => {
+            visit!(binary.left);
+            visit!(binary.right);
+        }
+        ExpressionNode::Cast(cast) => visit!(cast.value),
+        ExpressionNode::Call(call) => {
+            visit!(call.receiver);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                visit!(*argument);
+            }
+        }
+        ExpressionNode::Indexed(indexed) => {
+            visit!(indexed.collection);
+            visit!(indexed.index);
+        }
+        ExpressionNode::Member(member) => visit!(member.receiver),
+        ExpressionNode::Borrow(inner) => visit!(inner.target),
+        ExpressionNode::Range(range) => {
+            visit!(range.start);
+            visit!(range.end);
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                visit!(field.value);
+            }
+        }
+        ExpressionNode::Unary(unary) => visit!(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
 /// Bind concrete named callable calls after type/domain normalization, when
 /// the expected result qualification is available. Early symbol resolution
 /// keeps binding same-named declarations to the first symbol; this pass
@@ -80,6 +159,7 @@ impl MachineOverloadIndex {
 /// or unspelled boundary-operator result overload before downstream consumers.
 pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let expected_calls = collect_expected_expression_calls(program);
+    let expression_owner_source_spans = expression_owner_source_spans(program);
     let machine_overloads = MachineOverloadIndex::new(program);
     let mut diagnostics = Vec::new();
 
@@ -97,6 +177,10 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                 program,
                 &machine_overloads,
                 call,
+                expression_owner_source_spans
+                    .get(&handle.arena_index())
+                    .copied()
+                    .unwrap_or_else(|| program.expression_table.source_span(handle)),
                 expected,
                 &mut diagnostics,
             )
@@ -121,6 +205,10 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     program,
                     &machine_overloads,
                     call,
+                    program
+                        .symbols
+                        .symbol_source_span(machine.symbol)
+                        .unwrap_or(call.source_span),
                     None,
                     &mut diagnostics,
                 ) {
@@ -270,6 +358,7 @@ fn selected_named_statement_callable_symbol(
     program: &TypedTrees,
     machine_overloads: &MachineOverloadIndex,
     call: &psi_typed_trees::statement::TableCall,
+    source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
@@ -282,6 +371,7 @@ fn selected_named_statement_callable_symbol(
             program,
             machine_overloads,
             call.target_symbol,
+            source_span,
             expected_result,
             diagnostics,
         );
@@ -294,6 +384,11 @@ fn selected_named_statement_callable_symbol(
             .operators()
             .iter()
             .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+            .filter(|operator| {
+                program
+                    .symbols
+                    .source_reference_can_see_symbol(source_span, operator.symbol)
+            })
             .filter_map(|operator| {
                 let identity = program.normalized_operator_overload_identity(operator);
                 (identity.path() == provisional_identity.path()
@@ -317,9 +412,22 @@ fn selected_named_statement_callable_symbol(
     let candidates = psi_typed_trees::operator::named_statement_call_candidates(program, call);
     if let Some(provisional) = candidates.first() {
         let provisional_identity = program.normalized_operator_overload_identity(provisional);
+        let visible_candidate_count = candidates
+            .iter()
+            .filter(|operator| {
+                program
+                    .symbols
+                    .source_reference_can_see_symbol(source_span, operator.symbol)
+            })
+            .count();
         let overloads = candidates
             .iter()
             .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+            .filter(|operator| {
+                program
+                    .symbols
+                    .source_reference_can_see_symbol(source_span, operator.symbol)
+            })
             .filter_map(|operator| {
                 let identity = program.normalized_operator_overload_identity(operator);
                 (identity.path() == provisional_identity.path()
@@ -327,7 +435,7 @@ fn selected_named_statement_callable_symbol(
                 .then_some((operator.symbol, identity))
             })
             .collect::<Vec<_>>();
-        if overloads.len() == candidates.len() {
+        if overloads.len() == visible_candidate_count {
             if let [(symbol, _)] = overloads.as_slice() {
                 return Some(*symbol);
             }
@@ -346,6 +454,7 @@ fn selected_named_statement_callable_symbol(
         program,
         machine_overloads,
         call.target_symbol,
+        source_span,
         expected_result,
         diagnostics,
     )
@@ -355,6 +464,7 @@ fn selected_named_expression_callable_symbol(
     program: &TypedTrees,
     machine_overloads: &MachineOverloadIndex,
     call: &TableCallExpression,
+    source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
@@ -367,6 +477,7 @@ fn selected_named_expression_callable_symbol(
             program,
             machine_overloads,
             call.target_symbol,
+            source_span,
             expected_result,
             diagnostics,
         );
@@ -378,6 +489,7 @@ fn selected_named_expression_callable_symbol(
             program,
             machine_overloads,
             call.target_symbol,
+            source_span,
             expected_result,
             diagnostics,
         );
@@ -389,14 +501,28 @@ fn selected_named_expression_callable_symbol(
             program,
             machine_overloads,
             call.target_symbol,
+            source_span,
             expected_result,
             diagnostics,
         );
     };
     let provisional_identity = program.normalized_operator_overload_identity(provisional);
+    let visible_candidate_count = candidates
+        .iter()
+        .filter(|operator| {
+            program
+                .symbols
+                .source_reference_can_see_symbol(source_span, operator.symbol)
+        })
+        .count();
     let overloads = candidates
         .iter()
         .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+        .filter(|operator| {
+            program
+                .symbols
+                .source_reference_can_see_symbol(source_span, operator.symbol)
+        })
         .filter_map(|operator| {
             let identity = program.normalized_operator_overload_identity(operator);
             (identity.path() == provisional_identity.path()
@@ -404,13 +530,14 @@ fn selected_named_expression_callable_symbol(
             .then_some((operator.symbol, identity))
         })
         .collect::<Vec<_>>();
-    if overloads.len() != candidates.len() {
+    if overloads.len() != visible_candidate_count {
         // Path/arity alone still spans distinct parameter overload groups.
         // Leave those calls to ordinary operand-directed resolution.
         return selected_named_callable_symbol(
             program,
             machine_overloads,
             call.target_symbol,
+            source_span,
             expected_result,
             diagnostics,
         );
@@ -443,14 +570,25 @@ fn selected_named_callable_symbol(
     program: &TypedTrees,
     machine_overloads: &MachineOverloadIndex,
     provisional_target: SymbolHandle,
+    source_span: SourceSpan,
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
     if let Some(group) = machine_overloads.group(provisional_target) {
+        let visible_overloads = group
+            .overloads
+            .iter()
+            .filter(|(symbol, _)| {
+                program
+                    .symbols
+                    .source_reference_can_see_symbol(source_span, *symbol)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         return select_overload_symbol(
             program,
             &group.provisional_identity,
-            &group.overloads,
+            &visible_overloads,
             expected_result,
             diagnostics,
             "machine",
@@ -466,6 +604,11 @@ fn selected_named_callable_symbol(
             .operators()
             .iter()
             .filter(|operator| operator.is_boundary && operator.spelling.is_none())
+            .filter(|operator| {
+                program
+                    .symbols
+                    .source_reference_can_see_symbol(source_span, operator.symbol)
+            })
             .filter_map(|operator| {
                 let identity = program.normalized_operator_overload_identity(operator);
                 (identity.path() == provisional_identity.path()
@@ -496,6 +639,11 @@ fn selected_named_callable_symbol(
     let overloads = program
         .trait_machine_signatures(trait_definition)
         .iter()
+        .filter(|requirement| {
+            program
+                .symbols
+                .source_reference_can_see_symbol(source_span, requirement.symbol)
+        })
         .filter_map(|requirement| {
             let identity = program
                 .normalized_trait_requirement_overload_identity(trait_definition, requirement);
@@ -572,11 +720,11 @@ fn collect_expected_expression_calls(
     for (_, expression) in program.expression_table.expression_entries() {
         match expression {
             ExpressionNode::StructLiteral(literal) => {
-                let Some(data_definition) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == literal.type_name.as_str())
-                else {
+                let Some(data_definition) = program.data_definitions().iter().find(|definition| {
+                    definition.symbol == literal.type_symbol
+                        || (!program.symbols.has_source_metadata()
+                            && definition.name.as_str() == literal.type_name.as_str())
+                }) else {
                     continue;
                 };
                 for field in program.expression_table.struct_fields(literal.fields) {

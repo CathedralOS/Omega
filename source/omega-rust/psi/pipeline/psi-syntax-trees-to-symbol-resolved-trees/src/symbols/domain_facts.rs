@@ -3,6 +3,7 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::expressions::assign_membership_symbol;
+use super::lookup::diagnostic_path_source_span;
 use super::targets::resolve_free_machine_entry_state_symbol;
 
 pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
@@ -29,13 +30,18 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         .constituents
                         .iter()
                         .map(|constituent| {
-                            let name = program
-                                .domain_path_members(constituent.domain)
+                            let members = program.domain_path_members(constituent.domain);
+                            let name = members
                                 .iter()
                                 .map(|member| member.as_str())
                                 .collect::<Vec<_>>()
                                 .join("::");
-                            resolve_domain_symbol(symbols, &domain_symbols, &name)
+                            resolve_domain_symbol(
+                                symbols,
+                                &domain_symbols,
+                                &name,
+                                diagnostic_path_source_span(members),
+                            )
                         })
                         .collect::<Vec<_>>()
                 })
@@ -110,14 +116,18 @@ pub(super) fn assign_domain_fact_symbols(program: &mut SymbolResolvedTrees, symb
                         &mut program.tables.bodies.expressions,
                         membership.value,
                     );
-                    let name = domain_path_members
-                        .span_or_empty(membership.domain)
+                    let members = domain_path_members.span_or_empty(membership.domain);
+                    let name = members
                         .iter()
                         .map(|member| member.as_str())
                         .collect::<Vec<_>>()
                         .join("::");
-                    membership.domain_symbol =
-                        resolve_domain_symbol(symbols, &domain_symbols, &name);
+                    membership.domain_symbol = resolve_domain_symbol(
+                        symbols,
+                        &domain_symbols,
+                        &name,
+                        diagnostic_path_source_span(members),
+                    );
                 }
                 psi_symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
                     assign_data_fact_local_symbols(
@@ -412,8 +422,7 @@ fn assign_proof_expression_symbols(
                 );
             }
             if !call.receiver.is_valid() && !call.target_symbol.is_valid() {
-                let target_symbol =
-                    resolve_free_machine_entry_state_symbol(symbols, call.target.as_str());
+                let target_symbol = resolve_free_machine_entry_state_symbol(symbols, &call.target);
                 if let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) =
                     expression_table.expression_mut(expression)
                 {
@@ -463,19 +472,25 @@ fn assign_proof_expression_symbols(
                 expression_table,
                 membership.value,
             );
-            let name = expression_table
-                .name_path_members(membership.domain)
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>()
-                .join("::");
+            let (name, reference_span) = {
+                let members = expression_table.name_path_members(membership.domain);
+                (
+                    members
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                    diagnostic_path_source_span(members),
+                )
+            };
             // Proof expressions live in the shared body-expression table, but
             // are not visited by the ordinary machine-expression resolver.
             // Assign the same exact declared-domain or Type::Case identities
             // here, at their symbol-resolution owner, before reconciling the
             // specialized domain lookup below.
             assign_membership_symbol(symbols, expression_table, membership.domain, expression);
-            let domain_symbol = resolve_domain_symbol(symbols, domain_symbols, &name);
+            let domain_symbol =
+                resolve_domain_symbol(symbols, domain_symbols, &name, reference_span);
             if let psi_symbol_resolved_trees::expression::ExpressionNode::Membership(membership) =
                 expression_table.expression_mut(expression)
             {
@@ -540,21 +555,29 @@ fn resolve_domain_symbol(
         psi_language_semantics::SemanticDomainId,
     )],
     name: &str,
+    reference: psi_source::SourceSpan,
 ) -> SymbolHandle {
     if name.contains("::") {
         return domain_symbols
             .iter()
-            .find(|(candidate, _, _)| candidate == name)
+            .find(|(candidate, symbol, _)| {
+                candidate == name && symbols.source_reference_can_see_symbol(reference, *symbol)
+            })
             .map(|(_, symbol, _)| *symbol)
             .or_else(|| {
-                symbols.find_child_by_name_and_kind(symbols.root(), name, SymbolKind::Domain)
+                symbols.find_top_level_by_name_and_kinds_from_source(
+                    name,
+                    &[SymbolKind::Domain],
+                    reference,
+                )
             })
             .unwrap_or_else(SymbolHandle::invalid);
     }
 
-    let mut matches = domain_symbols
-        .iter()
-        .filter(|(candidate, _, _)| candidate.rsplit("::").next().unwrap_or(candidate) == name);
+    let mut matches = domain_symbols.iter().filter(|(candidate, symbol, _)| {
+        candidate.rsplit("::").next().unwrap_or(candidate) == name
+            && symbols.source_reference_can_see_symbol(reference, *symbol)
+    });
     let Some((first_name, symbol, first_semantic_id)) = matches.next() else {
         return SymbolHandle::invalid();
     };

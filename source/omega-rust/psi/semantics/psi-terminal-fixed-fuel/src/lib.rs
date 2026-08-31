@@ -46,6 +46,24 @@ pub struct FixedSegmentFuelCertificate {
     ceiling_units: u64,
 }
 
+/// One block-local safe-point row for the exact verified `u32` ranked
+/// countdown.
+///
+/// This type is intentionally incompatible with [`FixedSegmentFuelCertificate`]
+/// so an analysis-only ranked row cannot enter an existing acyclic installation
+/// binding API. Construction remains private and complete-catalog validation is
+/// required before a sealed ranked catalog can exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RankedCountdownSafePointFuelCertificate {
+    terminal_psi: TerminalPsiIdentity,
+    schedule: FuelScheduleIdentity,
+    machine: MachineId,
+    start_block: BlockId,
+    end_edge: EdgeId,
+    relevant_preconditions: Vec<Proposition>,
+    ceiling_units: u64,
+}
+
 /// Complete canonical safe-point partition for one verified terminal machine.
 ///
 /// This carrier is deliberately non-clonable and has no public-field
@@ -58,6 +76,41 @@ pub struct ValidatedFixedSafePointFuelSegments {
     schedule: FuelScheduleIdentity,
     machine: MachineId,
     certificates: Vec<FixedSegmentFuelCertificate>,
+}
+
+/// Complete canonical safe-point partition for the exact verified `u32`
+/// ranked countdown.
+///
+/// This carrier is deliberately distinct from the acyclic segment catalog and
+/// from the whole-entry ranked certificate. It is non-clonable and has no
+/// public-field constructor. Its rows describe one traversal from the start of
+/// each ranked block through one exact terminating edge; they grant no
+/// execution, native-lowering, installation, composition, or bulk-charge
+/// authority.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ValidatedRankedCountdownSafePointFuelSegments {
+    terminal_psi: TerminalPsiIdentity,
+    schedule: FuelScheduleIdentity,
+    machine: MachineId,
+    certificates: Vec<RankedCountdownSafePointFuelCertificate>,
+}
+
+impl ValidatedRankedCountdownSafePointFuelSegments {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn schedule(&self) -> FuelScheduleIdentity {
+        self.schedule
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub fn certificates(&self) -> &[RankedCountdownSafePointFuelCertificate] {
+        &self.certificates
+    }
 }
 
 impl ValidatedFixedSafePointFuelSegments {
@@ -79,6 +132,36 @@ impl ValidatedFixedSafePointFuelSegments {
 }
 
 impl FixedSegmentFuelCertificate {
+    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn schedule(&self) -> FuelScheduleIdentity {
+        self.schedule
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn start_block(&self) -> BlockId {
+        self.start_block
+    }
+
+    pub const fn end_edge(&self) -> EdgeId {
+        self.end_edge
+    }
+
+    pub fn relevant_preconditions(&self) -> &[Proposition] {
+        &self.relevant_preconditions
+    }
+
+    pub const fn ceiling_units(&self) -> u64 {
+        self.ceiling_units
+    }
+}
+
+impl RankedCountdownSafePointFuelCertificate {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
         self.terminal_psi
     }
@@ -259,6 +342,136 @@ pub fn validate_ranked_countdown_entry_fuel(
 ) -> Result<(), FixedFuelError> {
     let expected = derive_ranked_countdown_entry_fuel(verified, certificate.entry)?;
     if expected != *certificate {
+        return Err(FixedFuelError::CertificateMismatch);
+    }
+    Ok(())
+}
+
+/// Derive the complete canonical per-edge safe-point partition for the exact
+/// verified `u32` ranked-countdown slice.
+///
+/// Every row starts before one ranked block's first operation and ends after
+/// one of that block's terminating edges. Conditional arms therefore have
+/// separate rows with the same block-local cost, while the covered backedge is
+/// an ordinary per-traversal row rather than authority to charge the whole
+/// loop. The existing whole-entry derivation is replayed first so wider or
+/// otherwise unsupported shapes cannot acquire segment evidence merely because
+/// one traversal fits in `u64`.
+pub fn derive_ranked_countdown_safe_point_segments(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    machine: MachineId,
+) -> Result<Vec<RankedCountdownSafePointFuelCertificate>, FixedFuelError> {
+    let module = verified.module();
+    let machine_semantics = exact_ranked_u32_machine(verified, machine)?;
+    let terminal_psi = terminal_psi_identity(module).map_err(FixedFuelError::SemanticIdentity)?;
+    let schedule = TerminalFuelSchedule::CURRENT;
+    let mut certificates = Vec::new();
+    for block in &machine_semantics.blocks {
+        let ceiling_units = block_units(block, schedule)?;
+        for end_edge in block.terminator.edges() {
+            certificates.push(RankedCountdownSafePointFuelCertificate {
+                terminal_psi,
+                schedule: schedule.identity(),
+                machine,
+                start_block: block.id,
+                end_edge,
+                relevant_preconditions: Vec::new(),
+                ceiling_units,
+            });
+        }
+    }
+    Ok(certificates)
+}
+
+/// Recompute and compare the complete ranked safe-point partition as one
+/// sequence. Missing, extra, duplicated, reordered, or stale rows reject.
+pub fn validate_ranked_countdown_safe_point_segments(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    machine: MachineId,
+    certificates: &[RankedCountdownSafePointFuelCertificate],
+) -> Result<(), FixedFuelError> {
+    let expected = derive_ranked_countdown_safe_point_segments(verified, machine)?;
+    validate_ranked_certificate_sequence(&expected, certificates)
+}
+
+fn validate_ranked_certificate_sequence(
+    expected: &[RankedCountdownSafePointFuelCertificate],
+    certificates: &[RankedCountdownSafePointFuelCertificate],
+) -> Result<(), FixedFuelError> {
+    if expected != certificates {
+        return Err(FixedFuelError::CertificateMismatch);
+    }
+    Ok(())
+}
+
+/// Validate and retain one complete ranked-countdown safe-point partition.
+pub fn retain_validated_ranked_countdown_safe_point_segments(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    machine: MachineId,
+    certificates: Vec<RankedCountdownSafePointFuelCertificate>,
+) -> Result<ValidatedRankedCountdownSafePointFuelSegments, FixedFuelError> {
+    validate_ranked_countdown_safe_point_segments(verified, machine, &certificates)?;
+    let terminal_psi =
+        terminal_psi_identity(verified.module()).map_err(FixedFuelError::SemanticIdentity)?;
+    Ok(ValidatedRankedCountdownSafePointFuelSegments {
+        terminal_psi,
+        schedule: TerminalFuelSchedule::CURRENT.identity(),
+        machine,
+        certificates,
+    })
+}
+
+/// Derive and seal the complete ranked-countdown safe-point partition.
+pub fn derive_validated_ranked_countdown_safe_point_segments(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    machine: MachineId,
+) -> Result<ValidatedRankedCountdownSafePointFuelSegments, FixedFuelError> {
+    let certificates = derive_ranked_countdown_safe_point_segments(verified, machine)?;
+    retain_validated_ranked_countdown_safe_point_segments(verified, machine, certificates)
+}
+
+/// Independently replay a retained ranked safe-point catalog against the exact
+/// fixed-fuel verifier subject.
+pub fn validate_retained_ranked_countdown_safe_point_segments(
+    verified: &VerifiedFixedFuelTerminalModule<'_>,
+    catalog: &ValidatedRankedCountdownSafePointFuelSegments,
+) -> Result<(), FixedFuelError> {
+    let terminal_psi =
+        terminal_psi_identity(verified.module()).map_err(FixedFuelError::SemanticIdentity)?;
+    validate_ranked_catalog_header(terminal_psi, catalog)?;
+    validate_ranked_countdown_safe_point_segments(verified, catalog.machine, &catalog.certificates)
+}
+
+fn exact_ranked_u32_machine<'module>(
+    verified: &'module VerifiedFixedFuelTerminalModule<'_>,
+    machine: MachineId,
+) -> Result<&'module TerminalMachine, FixedFuelError> {
+    let machine_semantics = verified
+        .module()
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == machine)
+        .ok_or(FixedFuelError::UnknownEntry(machine))?;
+    let component = machine_semantics
+        .ranked_scc
+        .as_ref()
+        .ok_or(FixedFuelError::NotRankedCountdown(machine))?;
+    derive_ranked_countdown_entry_fuel(verified, machine)?;
+    let u32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32)
+        .expect("the fixed unsigned 32-bit carrier is valid");
+    if component.rank_type != u32_type {
+        return Err(FixedFuelError::NotRankedCountdown(machine));
+    }
+    Ok(machine_semantics)
+}
+
+fn validate_ranked_catalog_header(
+    terminal_psi: TerminalPsiIdentity,
+    catalog: &ValidatedRankedCountdownSafePointFuelSegments,
+) -> Result<(), FixedFuelError> {
+    if catalog.terminal_psi != terminal_psi
+        || catalog.schedule != TerminalFuelSchedule::CURRENT.identity()
+    {
         return Err(FixedFuelError::CertificateMismatch);
     }
     Ok(())
@@ -937,3 +1150,97 @@ impl std::fmt::Display for FixedFuelError {
 }
 
 impl std::error::Error for FixedFuelError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn identity(byte: u8) -> TerminalPsiIdentity {
+        TerminalPsiIdentity {
+            vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
+            program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([byte; 32]),
+        }
+    }
+
+    #[test]
+    fn ranked_catalog_header_rejects_semantic_identity_and_schedule_drift() {
+        let expected = identity(1);
+        let mut catalog = ValidatedRankedCountdownSafePointFuelSegments {
+            terminal_psi: expected,
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            machine: MachineId::new(1).expect("nonzero machine"),
+            certificates: Vec::new(),
+        };
+        validate_ranked_catalog_header(expected, &catalog).expect("exact header matches");
+
+        catalog.terminal_psi = identity(2);
+        assert_eq!(
+            validate_ranked_catalog_header(expected, &catalog),
+            Err(FixedFuelError::CertificateMismatch)
+        );
+        catalog.terminal_psi = expected;
+        catalog.schedule = FuelScheduleIdentity::new(
+            TerminalFuelSchedule::CURRENT
+                .identity()
+                .marker()
+                .checked_add(1)
+                .expect("test schedule marker fits"),
+        )
+        .expect("test schedule marker is nonzero");
+        assert_eq!(
+            validate_ranked_catalog_header(expected, &catalog),
+            Err(FixedFuelError::CertificateMismatch)
+        );
+    }
+
+    #[test]
+    fn ranked_row_comparison_binds_every_identity_endpoint_and_ceiling() {
+        let expected = RankedCountdownSafePointFuelCertificate {
+            terminal_psi: identity(1),
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            machine: MachineId::new(1).expect("nonzero machine"),
+            start_block: BlockId::new(2).expect("nonzero block"),
+            end_edge: EdgeId::new(3).expect("nonzero edge"),
+            relevant_preconditions: Vec::new(),
+            ceiling_units: 4,
+        };
+        validate_ranked_certificate_sequence(
+            std::slice::from_ref(&expected),
+            std::slice::from_ref(&expected),
+        )
+        .expect("the exact row matches");
+
+        let mut mutations = Vec::new();
+        let mut changed = expected.clone();
+        changed.terminal_psi = identity(2);
+        mutations.push(changed);
+        let mut changed = expected.clone();
+        changed.schedule = FuelScheduleIdentity::new(2).expect("nonzero schedule");
+        mutations.push(changed);
+        let mut changed = expected.clone();
+        changed.machine = MachineId::new(2).expect("nonzero machine");
+        mutations.push(changed);
+        let mut changed = expected.clone();
+        changed.start_block = BlockId::new(3).expect("nonzero block");
+        mutations.push(changed);
+        let mut changed = expected.clone();
+        changed.end_edge = EdgeId::new(4).expect("nonzero edge");
+        mutations.push(changed);
+        let mut changed = expected.clone();
+        changed.relevant_preconditions = vec![Proposition::Truth];
+        mutations.push(changed);
+        let mut changed = expected.clone();
+        changed.ceiling_units = 5;
+        mutations.push(changed);
+
+        for mutation in mutations {
+            assert_eq!(
+                validate_ranked_certificate_sequence(
+                    std::slice::from_ref(&expected),
+                    std::slice::from_ref(&mutation),
+                ),
+                Err(FixedFuelError::CertificateMismatch)
+            );
+        }
+    }
+}

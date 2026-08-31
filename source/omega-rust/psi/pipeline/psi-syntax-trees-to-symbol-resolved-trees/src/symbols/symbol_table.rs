@@ -27,6 +27,7 @@ pub(super) fn build_symbol_table(
     const_declarations: &[crate::lowerer::PendingConstDeclaration],
 ) -> SymbolTable {
     let has_sources = sources.is_some();
+    let resolution_sources = sources.clone();
     let root_operator_names = program
         .operators
         .iter()
@@ -153,6 +154,7 @@ pub(super) fn build_symbol_table(
                 machine_symbol,
                 machine,
                 has_sources,
+                resolution_sources.as_deref(),
             );
         }
     }

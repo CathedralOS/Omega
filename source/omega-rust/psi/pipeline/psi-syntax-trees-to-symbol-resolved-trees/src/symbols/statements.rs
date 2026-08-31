@@ -34,11 +34,9 @@ pub(super) fn assign_statement_reference_symbols(
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
         let machine_type_parameters = machine.type_parameters;
-        let data_definition = machine.attached_data.as_ref().and_then(|attached_data| {
-            data_definitions
-                .iter()
-                .find(|data_definition| data_definition.name == *attached_data)
-        });
+        let data_definition = data_definitions
+            .iter()
+            .find(|data_definition| data_definition.symbol == machine.attached_data_symbol);
         let inherited_data_members = data_definition
             .map(|data_definition| data_members.span_or_empty(data_definition.members));
         let psi_symbol_resolved_trees::machine::MachineStorage {
@@ -54,6 +52,7 @@ pub(super) fn assign_statement_reference_symbols(
             symbol: machine_symbol,
             type_parameters: data_type_parameters.span_or_empty(machine_type_parameters),
             attached_data: machine.attached_data.as_ref(),
+            attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),
             data_definitions,

@@ -11,6 +11,19 @@ pub enum SourceOrigin {
     Toolchain,
 }
 
+/// Visibility stratum for source-level name resolution.
+///
+/// This is deliberately independent of [`SourceOrigin`]. A source generated
+/// by the current build activation is still user/package provenance, but its
+/// declarations must not become candidates for references authored before
+/// that activation ran.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SourceResolutionStratum {
+    #[default]
+    Base,
+    CurrentActivationExtension,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub source_id: SourceId,
@@ -25,6 +38,7 @@ pub struct SourceFile {
     /// not have an admitted package identity yet.
     pub package_identity: Option<PackageKeyIdentity>,
     pub origin: SourceOrigin,
+    pub resolution_stratum: SourceResolutionStratum,
     pub source: Arc<str>,
 }
 
@@ -75,7 +89,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use crate::{SourceFile, SourceId, SourceOrigin, Span};
+    use crate::{SourceFile, SourceId, SourceOrigin, SourceResolutionStratum, Span};
 
     #[test]
     fn source_span_carries_source_identity() {
@@ -85,6 +99,7 @@ mod tests {
             package_root: PathBuf::from("."),
             package_identity: None,
             origin: SourceOrigin::User,
+            resolution_stratum: SourceResolutionStratum::Base,
             source: Arc::from("machine main {}"),
         };
         let span = file.source_span(Span::new(8, 12));

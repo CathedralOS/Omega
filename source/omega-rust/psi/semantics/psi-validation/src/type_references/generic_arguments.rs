@@ -6,6 +6,7 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::const_value::{
     CanonicalConstIdentity, CanonicalConstValue, DecodedCanonicalConstValue,
 };
+use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{
     DataMember, MachineParameterContract, TypeParameter, TypeParameterKind,
@@ -17,6 +18,7 @@ use std::collections::HashSet;
 
 pub(super) fn validate_machine_data_argument(
     program: &TypedTrees,
+    base_symbol: SymbolHandle,
     base_name: &str,
     parameter: &TypeParameter,
     contract: &MachineParameterContract,
@@ -43,7 +45,10 @@ pub(super) fn validate_machine_data_argument(
     let generic_types = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == base_name)
+        .find(|definition| {
+            definition.symbol == base_symbol
+                || (!program.symbols.has_source_metadata() && definition.name.as_str() == base_name)
+        })
         .map(|definition| {
             program
                 .data_type_parameters(definition)
@@ -81,10 +86,11 @@ pub(super) fn machine_argument_name<'program>(
     if type_parameter_scope
         .machine_parameter(*symbol, name.as_str())
         .is_some()
-        || program
-            .machines()
-            .iter()
-            .any(|machine| machine.symbol == *symbol || machine.name.as_str() == name.as_str())
+        || program.machines().iter().any(|machine| {
+            machine.symbol == *symbol
+                || (!program.symbols.has_source_metadata()
+                    && machine.name.as_str() == name.as_str())
+        })
     {
         Some(name.as_str())
     } else {
@@ -788,16 +794,16 @@ pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value
 pub(super) fn validate_generic_argument_bounds(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
+    base_symbol: SymbolHandle,
     base_name: &str,
     arguments: psi_arena::HandleSpan<TypeReferenceHandle>,
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == base_name)
-    else {
+    let Some(definition) = program.data_definitions().iter().find(|definition| {
+        definition.symbol == base_symbol
+            || (!program.symbols.has_source_metadata() && definition.name.as_str() == base_name)
+    }) else {
         return;
     };
 

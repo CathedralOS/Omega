@@ -27,7 +27,7 @@ mod tests {
     use std::sync::Arc;
 
     use psi_core::PackageKeyIdentity;
-    use psi_source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum, SourceSpan, Span};
 
     use super::{
         SourceScopedTopLevelBinding, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable,
@@ -211,6 +211,113 @@ mod tests {
             "source-free generated names must not inherit an authored source binding",
         );
         assert!(symbols.source_scopes_separate(declarations[0], declarations[1]));
+    }
+
+    #[test]
+    fn current_activation_extension_is_invisible_to_base_but_sees_the_complete_extension() {
+        let package_identity =
+            PackageKeyIdentity::from_digest([9; 32]).expect("nonzero package identity");
+        let mut sources = SourceMap::default();
+        let base_source = sources
+            .add_with_metadata(
+                PathBuf::from("package/main.omg"),
+                String::from("Value"),
+                PathBuf::from("package"),
+                Some(package_identity),
+                SourceOrigin::User,
+            )
+            .source_id;
+        let first_extension = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("package/.omega/generated/first.omg"),
+                String::from("Value ExtensionOnly"),
+                PathBuf::from("package"),
+                Some(package_identity),
+                SourceOrigin::User,
+                SourceResolutionStratum::CurrentActivationExtension,
+            )
+            .source_id;
+        let second_extension = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("package/.omega/generated/second.omg"),
+                String::from("use"),
+                PathBuf::from("package"),
+                Some(package_identity),
+                SourceOrigin::User,
+                SourceResolutionStratum::CurrentActivationExtension,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(base_source, Span::new(0, 5))),
+                ),
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(first_extension, Span::new(0, 5))),
+                ),
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(first_extension, Span::new(6, 19))),
+                ),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let symbols = builder.finish();
+        let reference = |source_id| SourceSpan::new(source_id, Span::new(0, 1));
+
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                "Value",
+                &[SymbolKind::Data],
+                reference(base_source),
+            ),
+            Some(declarations[0]),
+        );
+        assert!(!symbols.source_reference_can_see_symbol(reference(base_source), declarations[1],));
+        assert!(
+            symbols.source_reference_can_see_symbol(reference(second_extension), declarations[0],)
+        );
+        assert!(
+            symbols.source_reference_can_see_symbol(reference(second_extension), declarations[1],)
+        );
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                "Value",
+                &[SymbolKind::Data],
+                reference(second_extension),
+            ),
+            Some(declarations[1]),
+            "an extension unit must prefer its shared extension stratum over Base",
+        );
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                "ExtensionOnly",
+                &[SymbolKind::Data],
+                reference(second_extension),
+            ),
+            Some(declarations[2]),
+        );
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                "ExtensionOnly",
+                &[SymbolKind::Data],
+                SourceSpan::default(),
+            ),
+            Some(declarations[2]),
+            "source-free focused consumers retain their permissive lookup behavior",
+        );
+        assert!(symbols.source_reference_can_see_symbol(SourceSpan::default(), declarations[1],));
+        assert!(symbols.source_scopes_separate(declarations[0], declarations[1]));
+        assert_eq!(
+            symbols.symbol_package_identity(declarations[1]),
+            Some(package_identity),
+            "resolution stratum must not alter package provenance",
+        );
     }
 
     #[test]

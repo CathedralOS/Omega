@@ -362,11 +362,16 @@ impl SymbolTable {
         reference: SourceSpan,
     ) -> Option<SymbolHandle> {
         let children = self.child_handles(self.root)?;
+        let reference_is_source_backed = reference.span.start != reference.span.end;
         let candidates = children
-            .filter(|symbol| kinds.contains(&self.get(*symbol).kind) && self.name(*symbol) == name)
+            .filter(|symbol| {
+                kinds.contains(&self.get(*symbol).kind)
+                    && self.name(*symbol) == name
+                    && (!reference_is_source_backed
+                        || self.source_reference_can_see_symbol(reference, *symbol))
+            })
             .collect::<Vec<_>>();
 
-        let reference_is_source_backed = reference.span.start != reference.span.end;
         if !reference_is_source_backed {
             return candidates.first().copied();
         }
@@ -392,6 +397,15 @@ impl SymbolTable {
             .find(|symbol| {
                 self.symbol_source_span(*symbol)
                     .is_some_and(|span| span.source_id == reference.source_id)
+            })
+            .or_else(|| {
+                self.sources.as_deref().and_then(|sources| {
+                    candidates.iter().copied().find(|symbol| {
+                        self.symbol_source_span(*symbol).is_some_and(|declaration| {
+                            !sources.resolution_strata_separate(reference, declaration)
+                        })
+                    })
+                })
             })
             .or_else(|| candidates.first().copied())
     }
@@ -424,6 +438,7 @@ impl SymbolTable {
             self.get(*symbol).kind == SymbolKind::Operator
                 && kinds.contains(&SymbolKind::Operator)
                 && self.name(*symbol) == name
+                && self.source_reference_can_see_symbol(reference, *symbol)
                 && self
                     .symbol_source_span(*symbol)
                     .is_some_and(|span| span.source_id == binding.declaration_source)
@@ -432,13 +447,9 @@ impl SymbolTable {
         family.next().map(|_| representative)
     }
 
-    /// Whether two same-spelled declarations intentionally occupy separate
-    /// source-resolution contexts established by an explicit binding.
+    /// Whether two declarations occupy separate source-resolution contexts
+    /// through the activation stratum or an explicit same-name binding.
     pub fn source_scopes_separate(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
-        let name = self.name(left);
-        if name != self.name(right) {
-            return false;
-        }
         let (Some(left_span), Some(right_span)) = (
             self.symbol_source_span(left),
             self.symbol_source_span(right),
@@ -448,11 +459,44 @@ impl SymbolTable {
         if left_span.source_id == right_span.source_id {
             return false;
         }
+        if self
+            .sources
+            .as_deref()
+            .is_some_and(|sources| sources.resolution_strata_separate(left_span, right_span))
+        {
+            return true;
+        }
+        let name = self.name(left);
+        if name != self.name(right) {
+            return false;
+        }
         self.source_scoped_top_level_bindings.iter().any(|binding| {
             binding.name.as_ref() == name
                 && (binding.declaration_source == left_span.source_id
                     || binding.declaration_source == right_span.source_id)
         })
+    }
+
+    /// Whether a source-backed reference may use this exact declaration under
+    /// the current activation's resolution-stratum boundary.
+    ///
+    /// Source-free consumers retain their existing behavior. Compiler-generated
+    /// symbols inherit the visibility of their exact authored derivation.
+    pub fn source_reference_can_see_symbol(
+        &self,
+        reference: SourceSpan,
+        symbol: SymbolHandle,
+    ) -> bool {
+        if reference.span.start == reference.span.end {
+            return true;
+        }
+        let Some(sources) = self.sources.as_deref() else {
+            return true;
+        };
+        let Some(declaration) = self.provenance_source_span(symbol) else {
+            return true;
+        };
+        sources.reference_can_see_declaration(reference, declaration)
     }
 
     pub fn find_descendant_by_path<'name>(

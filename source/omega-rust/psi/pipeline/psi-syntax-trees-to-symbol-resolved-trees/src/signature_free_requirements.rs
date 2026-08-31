@@ -35,10 +35,16 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
+    let use_span = requirement_name.source_span();
     let matching_traits = program
         .traits
         .iter()
-        .filter(|definition| same_semantic_name(definition.name.as_str(), &trait_name))
+        .filter(|definition| {
+            same_semantic_name(definition.name.as_str(), &trait_name)
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(use_span, definition.symbol)
+        })
         .collect::<Vec<_>>();
     let [trait_definition] = matching_traits.as_slice() else {
         return Err(SignatureFreeRequirementResolutionError::TraitNotUnique);
@@ -47,7 +53,12 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
     let matching_requirements = program
         .trait_machine_signatures(trait_definition.machines)
         .iter()
-        .filter(|signature| signature.name.as_str() == requirement_name.as_str())
+        .filter(|signature| {
+            signature.name.as_str() == requirement_name.as_str()
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(use_span, signature.symbol)
+        })
         .collect::<Vec<_>>();
     let [requirement] = matching_requirements.as_slice() else {
         return Err(SignatureFreeRequirementResolutionError::RequirementNotUnique);
@@ -190,7 +201,13 @@ fn collect_ambiguous_use(
     let matching_traits = program
         .traits
         .iter()
-        .filter(|definition| same_semantic_name(definition.name.as_str(), &trait_name))
+        .filter(|definition| {
+            same_semantic_name(definition.name.as_str(), &trait_name)
+                && program.symbols.source_reference_can_see_symbol(
+                    requirement_name.source_span(),
+                    definition.symbol,
+                )
+        })
         .collect::<Vec<_>>();
     let [trait_definition] = matching_traits.as_slice() else {
         return;
@@ -198,7 +215,13 @@ fn collect_ambiguous_use(
     let count = program
         .trait_machine_signatures(trait_definition.machines)
         .iter()
-        .filter(|signature| signature.name.as_str() == requirement_name.as_str())
+        .filter(|signature| {
+            signature.name.as_str() == requirement_name.as_str()
+                && program.symbols.source_reference_can_see_symbol(
+                    requirement_name.source_span(),
+                    signature.symbol,
+                )
+        })
         .count();
     if count <= 1 {
         return;

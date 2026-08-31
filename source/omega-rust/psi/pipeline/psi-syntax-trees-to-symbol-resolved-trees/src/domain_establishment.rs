@@ -231,11 +231,12 @@ fn type_reference_domain_symbols(
         let psi_symbol_resolved_trees::types::TypeConstraint::Domain(name) = constraint else {
             continue;
         };
-        for matching in program
-            .domain_definitions
-            .iter()
-            .filter(|domain| same_semantic_name(domain.name.as_str(), name.name.as_str()))
-        {
+        for matching in program.domain_definitions.iter().filter(|domain| {
+            same_semantic_name(domain.name.as_str(), name.name.as_str())
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(name.name.source_span(), domain.symbol)
+        }) {
             for atom in atomic_domain_symbols(program, matching.symbol) {
                 if !domains.contains(&atom) {
                     domains.push(atom);

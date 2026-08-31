@@ -5,7 +5,7 @@ use crate::symbols::expressions::{
     assign_expression_span_symbols, assign_statement_expression_symbols,
 };
 use crate::symbols::lookup::{
-    call_target_for_attached_data, child_symbol_by_kinds, top_level_symbol,
+    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
 };
 use crate::symbols::scope::MachineScope;
 use crate::symbols::scoped_paths::resolve_state_scoped_members;
@@ -127,10 +127,20 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             .map(|member| member.as_str())
             .collect::<Vec<_>>()
             .join("::");
-        let target_symbol =
-            call_target_for_attached_data(symbols, owner.as_str(), target_name.as_str());
+        let target_symbol = call_target_for_attached_data(
+            symbols,
+            owner.as_str(),
+            target_name.as_str(),
+            target_name.source_span(),
+        );
         if target_symbol.is_valid() {
-            named.head_symbol = top_level_symbol(symbols, SymbolKind::Data, owner.as_str());
+            named.head_symbol = symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    &owner,
+                    &[SymbolKind::Data],
+                    diagnostic_path_source_span(&path[..path.len() - 1]),
+                )
+                .unwrap_or_else(SymbolHandle::invalid);
             named.symbol = target_symbol;
             return;
         }
@@ -156,6 +166,7 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
                 symbols,
                 attached_data.as_str(),
                 target_name.as_str(),
+                target_name.source_span(),
             );
             if target_symbol.is_valid() {
                 named.head_symbol = machine.symbol;

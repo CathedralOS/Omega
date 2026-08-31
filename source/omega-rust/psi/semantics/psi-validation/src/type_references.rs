@@ -20,7 +20,7 @@ use crate::symbols::TopLevelSymbols;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{TypeParameter, TypeParameterKind};
-use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy)]
@@ -417,12 +417,16 @@ fn validate_type_reference_handle_with_context(
             );
         }
         TypeReferenceNode::Generic {
+            base_symbol,
             base_name,
             lifetime_arguments,
             arguments,
             ..
         } => {
-            if !symbols.has_type(base_name) && !type_parameter_scope.contains(base_name.as_str()) {
+            let base_resolves = symbols.has_type_symbol(*base_symbol)
+                || PrimitiveType::from_name(base_name.as_str()).is_some()
+                || (!program.symbols.has_source_metadata() && symbols.has_type(base_name));
+            if !base_resolves && !type_parameter_scope.contains(base_name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown generic type `{base_name}`"
                 )));
@@ -440,6 +444,7 @@ fn validate_type_reference_handle_with_context(
             validate_generic_argument_bounds(
                 program,
                 symbols,
+                *base_symbol,
                 base_name.as_str(),
                 *arguments,
                 type_parameter_scope,
@@ -449,10 +454,11 @@ fn validate_type_reference_handle_with_context(
             let argument_handles = program
                 .type_reference_table
                 .type_reference_handles(*arguments);
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == base_name.as_str());
+            let definition = program.data_definitions().iter().find(|definition| {
+                definition.symbol == *base_symbol
+                    || (!program.symbols.has_source_metadata()
+                        && definition.name.as_str() == base_name.as_str())
+            });
             if let Some(definition) = definition {
                 if definition.lifetime_parameters.len() != lifetime_arguments.len() {
                     diagnostics.push(Diagnostic::error(format!(
@@ -502,6 +508,7 @@ fn validate_type_reference_handle_with_context(
                         TypeParameterKind::Machine { contract } => {
                             validate_machine_data_argument(
                                 program,
+                                *base_symbol,
                                 base_name,
                                 parameter,
                                 contract,
@@ -553,13 +560,19 @@ fn validate_type_reference_handle_with_context(
             }
         }
         TypeReferenceNode::DynamicTrait {
+            symbol,
             name,
             conformance,
             conformance_carrier,
             conformance_name,
             ..
         } => {
-            let Some(trait_definition) = symbols.trait_definition(name.as_str()) else {
+            let trait_definition = symbols.trait_definition_by_symbol(*symbol).or_else(|| {
+                (!program.symbols.has_source_metadata())
+                    .then(|| symbols.trait_definition(name.as_str()))
+                    .flatten()
+            });
+            let Some(trait_definition) = trait_definition else {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown dynamic trait `{name}`"
                 )));
@@ -611,7 +624,10 @@ fn validate_type_reference_handle_with_context(
                 return;
             }
 
-            if !symbols.has_type(name) && !type_parameter_scope.contains(name.as_str()) {
+            let type_resolves = symbols.has_type_symbol(*symbol)
+                || PrimitiveType::from_name(name.as_str()).is_some()
+                || (!program.symbols.has_source_metadata() && symbols.has_type(name));
+            if !type_resolves && !type_parameter_scope.contains(name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown data type `{name}`"
                 )));

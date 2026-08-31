@@ -206,7 +206,7 @@ fn validate_signature_service_reaches(
     pending: &PendingSignatureServiceReach,
 ) -> Result<(), Diagnostic> {
     for service in &pending.authored {
-        if service_for_name(&program.symbols, services, service.as_str()).is_none() {
+        if service_for_name(&program.symbols, services, service).is_none() {
             return Err(Diagnostic::error(format!(
                 "{} state `{}` declares unknown boundary service `{service}`",
                 SignatureOwnerDisplay(&pending.owner),
@@ -240,7 +240,7 @@ fn validate_machine_service_reaches(
     is_authored: bool,
 ) -> Result<(), Diagnostic> {
     for service in authored {
-        if service_for_name(&program.symbols, services, service.as_str()).is_none() {
+        if service_for_name(&program.symbols, services, service).is_none() {
             return Err(Diagnostic::error(format!(
                 "machine `{}` declares unknown boundary service `{service}`",
                 machine.name,
@@ -282,7 +282,7 @@ fn resolve_authored_service_reach(
     let targets = authored
         .iter()
         .map(|name| {
-            let service = service_for_name(symbols, services, name.as_str()).ok_or_else(|| {
+            let service = service_for_name(symbols, services, name).ok_or_else(|| {
                 Diagnostic::error(format!(
                     "authored service-reach member `{name}` lost its exact boundary-service identity"
                 ))
@@ -323,7 +323,7 @@ fn invoked_service_ids(
             .and_then(|parameter| type_symbol(program, &parameter.type_reference))
             .and_then(|symbol| services.id_for_symbol(symbol))
             .and_then(|service| services.definition(service).map(|_| service))
-            .or_else(|| service_for_name(&program.symbols, services, invocation.as_str()));
+            .or_else(|| service_for_name(&program.symbols, services, invocation));
         if let Some(service) = service
             && !service_ids.contains(&service)
         {
@@ -493,8 +493,12 @@ fn row_for_service_ids(
 fn service_for_name(
     symbols: &SymbolTable,
     services: &ServiceReachTable,
-    name: &str,
+    name: &DiagnosticName,
 ) -> Option<ServiceReachId> {
-    let symbol = symbols.find_child_by_name_and_kind(symbols.root(), name, SymbolKind::Trait)?;
+    let symbol = symbols.find_top_level_by_name_and_kinds_from_source(
+        name.as_str(),
+        &[SymbolKind::Trait],
+        name.source_span(),
+    )?;
     services.id_for_symbol(symbol)
 }

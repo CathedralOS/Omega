@@ -1,4 +1,5 @@
 use psi_diagnostics::Diagnostic;
+use psi_source::SourceSpan;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
@@ -127,7 +128,15 @@ pub fn collect_dynamic_conformance_selections(
                     .conformances()
                     .iter()
                     .filter(|conformance| {
-                        conformance
+                        program.symbols.source_reference_can_see_symbol(
+                            program
+                                .symbols
+                                .symbol_source_span(machine.symbol)
+                                .unwrap_or_else(|| {
+                                    program.expression_table.source_span(occurrence)
+                                }),
+                            conformance.symbol,
+                        ) && conformance
                             .carrier_name()
                             .is_some_and(|carrier| carrier.as_str() == source_name)
                             && conformance.trait_name == trait_definition.name
@@ -441,6 +450,7 @@ fn validate_dynamic_call_arguments_in_statement(
             machine,
             state,
             statement_index,
+            call.source_span,
             call.target_symbol,
             &call.target,
             call.arguments,
@@ -507,6 +517,7 @@ fn validate_dynamic_call_arguments_in_expression(
                 machine,
                 state,
                 statement_index,
+                program.expression_table.source_span(expression),
                 call.target_symbol,
                 &call.target,
                 call.arguments,
@@ -549,12 +560,17 @@ fn validate_dynamic_call_arguments(
     caller: &Machine,
     caller_state: &State,
     statement_index: usize,
+    source_span: SourceSpan,
     target_symbol: psi_symbols::SymbolHandle,
     target_name: &Identifier,
     arguments: psi_arena::HandleSpan<ExpressionHandle>,
     selections: &[DynamicConformanceSelection],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let source_span = program
+        .symbols
+        .symbol_source_span(caller.symbol)
+        .unwrap_or(source_span);
     let Some(target_state) = called_state(program, target_symbol, target_name) else {
         return;
     };
@@ -632,9 +648,12 @@ fn validate_dynamic_call_arguments(
             .conformances()
             .iter()
             .filter(|conformance| {
-                conformance
-                    .carrier_name()
-                    .is_some_and(|carrier| carrier.as_str() == source_name)
+                program
+                    .symbols
+                    .source_reference_can_see_symbol(source_span, conformance.symbol)
+                    && conformance
+                        .carrier_name()
+                        .is_some_and(|carrier| carrier.as_str() == source_name)
                     && conformance.trait_name == trait_definition.name
                     && conformance.arguments.is_empty()
                     && matches!(
@@ -706,11 +725,15 @@ fn called_state<'program>(
             return program.machine_states(machine).first();
         }
     }
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.attached_data.is_none() && machine.name == *target_name)
-        .and_then(|machine| program.machine_states(machine).first())
+    (!program.symbols.has_source_metadata())
+        .then(|| {
+            program
+                .machines()
+                .iter()
+                .find(|machine| machine.attached_data.is_none() && machine.name == *target_name)
+                .and_then(|machine| program.machine_states(machine).first())
+        })
+        .flatten()
 }
 
 /// Bind every call through a typed dynamic receiver to the exact requirement

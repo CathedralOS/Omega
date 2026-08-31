@@ -113,6 +113,9 @@ fn validate_spelling_overlap(
         let overlaps = operators[..operator_index].iter().any(|previous| {
             previous.spelling == Some(spelling)
                 && operator_operand_key(program, previous) == operand_key
+                && !program
+                    .symbols
+                    .source_scopes_separate(previous.symbol, operator.symbol)
         });
 
         if overlaps {
@@ -135,7 +138,12 @@ fn validate_duplicate_operator_signatures(
         let signature = operator_signature_key(program, operator);
         let previous = operators[..operator_index]
             .iter()
-            .filter(|previous| operator_signature_key(program, previous) == signature)
+            .filter(|previous| {
+                operator_signature_key(program, previous) == signature
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, operator.symbol)
+            })
             .collect::<Vec<_>>();
         if previous.is_empty() {
             continue;

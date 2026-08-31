@@ -1,7 +1,8 @@
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::{
-    call_target_for_attached_data, child_symbol_by_kinds, top_level_symbol_by_kinds,
+    call_target_for_attached_data, child_symbol_by_kinds, diagnostic_path_source_span,
+    top_level_symbol_by_kinds, top_level_symbol_for_source,
 };
 use crate::symbols::scope::MachineScope;
 use crate::symbols::type_references::call_target_for_type_reference;
@@ -21,7 +22,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 symbols,
                 child_type_references,
                 field_type_reference,
-                target.as_str(),
+                target,
             );
             return symbol;
         }
@@ -35,7 +36,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 symbols,
                 child_type_references,
                 &parameter.type_reference,
-                target.as_str(),
+                target,
             );
             if direct.is_valid() {
                 return direct;
@@ -58,6 +59,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 symbols,
                 symbols.name(receiver_symbol),
                 target.as_str(),
+                target.source_span(),
             );
             if target_symbol.is_valid() {
                 return target_symbol;
@@ -69,12 +71,22 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         // projection in proof position and rejects runtime use.
         if matches!(receiver_kind, SymbolKind::Domain) {
             let owner = symbols.name(receiver_symbol);
-            let direct = call_target_for_attached_data(symbols, owner, target.as_str());
+            let direct = call_target_for_attached_data(
+                symbols,
+                owner,
+                target.as_str(),
+                target.source_span(),
+            );
             if direct.is_valid() {
                 return direct;
             }
             if let Some(leaf) = owner.rsplit("::").next() {
-                let leaf = call_target_for_attached_data(symbols, leaf, target.as_str());
+                let leaf = call_target_for_attached_data(
+                    symbols,
+                    leaf,
+                    target.as_str(),
+                    target.source_span(),
+                );
                 if leaf.is_valid() {
                     return leaf;
                 }
@@ -87,8 +99,12 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
             if receiver_symbol == machine.symbol
                 && let Some(attached_data) = machine.attached_data
             {
-                let target_symbol =
-                    call_target_for_attached_data(symbols, attached_data.as_str(), target.as_str());
+                let target_symbol = call_target_for_attached_data(
+                    symbols,
+                    attached_data.as_str(),
+                    target.as_str(),
+                    target.source_span(),
+                );
                 if target_symbol.is_valid() {
                     return target_symbol;
                 }
@@ -146,8 +162,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return builtin;
     }
 
-    let proposition =
-        top_level_symbol_by_kinds(symbols, &[SymbolKind::Proposition], target.as_str());
+    let proposition = top_level_symbol_for_source(symbols, SymbolKind::Proposition, target);
     if proposition.is_valid() {
         return proposition;
     }
@@ -156,7 +171,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
     // &Item) -> i32 { ... }`, called as `compute(item)`): resolve to the free
     // machine's entry state so downstream passes (contract call obligations,
     // state-call planning) see a resolved target instead of an invalid symbol.
-    resolve_free_machine_entry_state_symbol(symbols, target.as_str())
+    resolve_free_machine_entry_state_symbol(symbols, target)
 }
 
 /// The entry-state symbol of the free top-level machine named `target`, or
@@ -165,14 +180,19 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
 /// target name first.
 pub(in crate::symbols) fn resolve_free_machine_entry_state_symbol(
     symbols: &SymbolTable,
-    target: &str,
+    target: &psi_symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
-    let machine_symbol = top_level_symbol_by_kinds(symbols, &[SymbolKind::Machine], target);
+    let machine_symbol = top_level_symbol_for_source(symbols, SymbolKind::Machine, target);
     if !machine_symbol.is_valid() {
         return SymbolHandle::invalid();
     }
 
-    let named = child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target);
+    let named = child_symbol_by_kinds(
+        symbols,
+        machine_symbol,
+        &[SymbolKind::State],
+        target.as_str(),
+    );
     if named.is_valid() {
         return named;
     }
@@ -191,6 +211,7 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
     let Some((target, owner)) = path.split_last() else {
         return SymbolHandle::invalid();
     };
+    let reference = diagnostic_path_source_span(path);
     if owner.is_empty() {
         // A generic machine may forward one of its own compile-time static
         // parameters. Keep lexical bindings distinct from same-named concrete
@@ -222,24 +243,37 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         if evidence_parameter.is_valid() {
             return evidence_parameter;
         }
-        let conformance =
-            top_level_symbol_by_kinds(symbols, &[SymbolKind::Conformance], target.as_str());
+        let conformance = symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                target.as_str(),
+                &[SymbolKind::Conformance],
+                reference,
+            )
+            .unwrap_or_else(SymbolHandle::invalid);
         if conformance.is_valid() {
             return conformance;
         }
-        let constant = top_level_symbol_by_kinds(symbols, &[SymbolKind::Const], target.as_str());
+        let constant = symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                target.as_str(),
+                &[SymbolKind::Const],
+                reference,
+            )
+            .unwrap_or_else(SymbolHandle::invalid);
         if constant.is_valid() {
             return constant;
         }
-        let concrete_type = top_level_symbol_by_kinds(
-            symbols,
-            &[SymbolKind::BuiltinType, SymbolKind::Data],
-            target.as_str(),
-        );
+        let concrete_type = symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                target.as_str(),
+                &[SymbolKind::BuiltinType, SymbolKind::Data],
+                reference,
+            )
+            .unwrap_or_else(SymbolHandle::invalid);
         if concrete_type.is_valid() {
             return concrete_type;
         }
-        return resolve_free_machine_entry_state_symbol(symbols, target.as_str());
+        return resolve_free_machine_entry_state_symbol(symbols, target);
     }
 
     let owner = owner
@@ -247,15 +281,20 @@ pub(in crate::symbols) fn resolve_static_machine_argument_symbol(
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
         .join("::");
-    let constant = top_level_symbol_by_kinds(
-        symbols,
-        &[SymbolKind::Const],
-        &format!("{owner}::{}", target.as_str()),
-    );
-    if constant.is_valid() {
-        return constant;
+    let rendered = format!("{owner}::{}", target.as_str());
+    for kinds in [
+        &[SymbolKind::Const][..],
+        &[SymbolKind::Conformance][..],
+        &[SymbolKind::BuiltinType, SymbolKind::Data][..],
+    ] {
+        let declaration = symbols
+            .find_top_level_by_name_and_kinds_from_source(&rendered, kinds, reference)
+            .unwrap_or_else(SymbolHandle::invalid);
+        if declaration.is_valid() {
+            return declaration;
+        }
     }
-    call_target_for_attached_data(symbols, &owner, target.as_str())
+    call_target_for_attached_data(symbols, &owner, target.as_str(), reference)
 }
 
 /// Stamp one static argument and every declaration-owned nested application.
@@ -343,6 +382,7 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
     argument.symbol = if exact.is_valid() {
         exact
     } else {
+        let reference = argument.path.last().map(|name| name.source_span());
         symbols
             .find_descendant_by_path(
                 symbols.root(),
@@ -356,6 +396,11 @@ pub(in crate::symbols) fn assign_provider_selection_argument_symbol(
                         | SymbolKind::Data
                         | SymbolKind::BuiltinType
                 )
+            })
+            .filter(|symbol| {
+                reference.is_none_or(|reference| {
+                    symbols.source_reference_can_see_symbol(reference, *symbol)
+                })
             })
             .unwrap_or_else(SymbolHandle::invalid)
     };
@@ -390,12 +435,18 @@ pub(in crate::symbols) fn assign_representation_selection_argument_symbol(
         symbols.find_top_level_by_name_and_kinds_from_source(&rendered, kinds, name.source_span())
     });
     argument.symbol = exact.unwrap_or_else(|| {
+        let reference = argument.path.last().map(|name| name.source_span());
         symbols
             .find_descendant_by_path(
                 symbols.root(),
                 argument.path.iter().map(|member| member.as_str()),
             )
             .filter(|symbol| kinds.contains(&symbols.get(*symbol).kind))
+            .filter(|symbol| {
+                reference.is_none_or(|reference| {
+                    symbols.source_reference_can_see_symbol(reference, *symbol)
+                })
+            })
             .unwrap_or_else(SymbolHandle::invalid)
     });
 }
@@ -426,11 +477,13 @@ pub(in crate::symbols) fn resolve_proposition_binder_argument_symbol(
     if lexical.is_valid() {
         return lexical;
     }
-    let concrete_type = top_level_symbol_by_kinds(
-        symbols,
-        &[SymbolKind::BuiltinType, SymbolKind::Data],
-        target.as_str(),
-    );
+    let concrete_type = symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            target.as_str(),
+            &[SymbolKind::BuiltinType, SymbolKind::Data],
+            target.source_span(),
+        )
+        .unwrap_or_else(SymbolHandle::invalid);
     if concrete_type.is_valid() {
         return concrete_type;
     }

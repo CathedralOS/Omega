@@ -34,15 +34,14 @@ pub(super) fn assign_contract_reference_symbols(
     let child_type_references = &mut tables.declarations.child_type_references;
 
     for machine in roots.machines.iter() {
-        let data_definition = machine.attached_data.as_ref().and_then(|attached_data| {
-            data_definitions
-                .iter()
-                .find(|definition| definition.name == *attached_data)
-        });
+        let data_definition = data_definitions
+            .iter()
+            .find(|definition| definition.symbol == machine.attached_data_symbol);
         let scope = MachineScope {
             symbol: machine.symbol,
             type_parameters: data_type_parameters.span_or_empty(machine.type_parameters),
             attached_data: machine.attached_data.as_ref(),
+            attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members: data_definition
                 .map(|definition| data_members.span_or_empty(definition.members)),
             owned_data: machine_owned_data.span_or_empty(machine.owned_data),
@@ -92,6 +91,7 @@ pub(super) fn assign_contract_reference_symbols(
             symbol: trait_definition.symbol,
             type_parameters: data_type_parameters.span_or_empty(trait_definition.type_parameters),
             attached_data: None,
+            attached_data_symbol: SymbolHandle::invalid(),
             inherited_data_members: None,
             owned_data: &[],
             data_definitions,

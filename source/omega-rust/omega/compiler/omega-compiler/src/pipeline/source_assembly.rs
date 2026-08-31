@@ -94,12 +94,13 @@ pub(super) fn append_retained_generated_sources(
                 error.message
             ))]
         })?;
-        let added = Arc::make_mut(&mut assembled.sources).add_with_metadata(
+        let added = Arc::make_mut(&mut assembled.sources).add_with_metadata_and_resolution_stratum(
             logical_path.clone(),
             source.to_owned(),
             package_root.to_path_buf(),
             package_identity,
             psi_source::SourceOrigin::User,
+            psi_source::SourceResolutionStratum::CurrentActivationExtension,
         );
         debug_assert_eq!(added.source_id, source_id);
         assembled.files.push(crate::pipeline::source::SourceFile {

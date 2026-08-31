@@ -277,6 +277,17 @@ from the retained base checkpoint plus this generated extension. Rebuilding a
 second typed frontend and recovering the selected build machine only by source
 span and name is implementation debt, not the semantic model.
 
+The first maintained-Rust implementation rung labels current-activation
+generated units with a resolution stratum that is distinct from provenance.
+Imported dependency-generated bundles are still base inputs. Central symbol
+lookup, named result-overload rebinding, and conformance selection and duplicate
+checking plus downstream exact-symbol validation enforce base-to-extension
+invisibility and extension-wide precedence without changing generated-source
+custody or counts. This rung
+deliberately retains the full final frontend rebuild; continuation from the
+admitted base checkpoint and removal of the nominal build-machine rebind remain
+open.
+
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review
 orchestration compiles dependency-first and requires one bundle for every

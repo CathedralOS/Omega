@@ -39,11 +39,12 @@ use psi_syntax_trees::item::{ConstDefinition, DataMember, Item};
 
 /// Declaration-site checks, run when item lowering reaches the const.
 pub(crate) fn validate_const_definition(
+    lowerer: &crate::lowerer::Lowerer,
     syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
     if definition.scope.as_str().is_empty() {
-        free_const_shadowing_walk(syntax_trees, definition)?;
+        free_const_shadowing_walk(lowerer, syntax_trees, definition)?;
     }
 
     validate_literal_initializer(syntax_trees, definition, definition.value)?;
@@ -55,6 +56,11 @@ pub(crate) fn validate_const_definition(
                 if !std::ptr::eq(other, definition)
                     && other.scope.as_str() == definition.scope.as_str()
                     && other.name.as_str() == definition.name.as_str()
+                    && declarations_share_resolution_scope(
+                        lowerer,
+                        definition.name.source_span(),
+                        other.name.source_span(),
+                    )
                 {
                     return Err(Diagnostic::error(format!(
                         "duplicate const `{}::{}`",
@@ -64,7 +70,14 @@ pub(crate) fn validate_const_definition(
                 }
             }
             // `Type::NAME` must not shadow a case constructor of the scope type.
-            Item::Data(data) if data.name.as_str() == definition.scope.as_str() => {
+            Item::Data(data)
+                if data.name.as_str() == definition.scope.as_str()
+                    && declarations_share_resolution_scope(
+                        lowerer,
+                        definition.name.source_span(),
+                        data.name.source_span(),
+                    ) =>
+            {
                 for member in syntax_trees.items.data_members(data.members) {
                     if let DataMember::Variant(variant) = member
                         && variant.name.as_str() == definition.name.as_str()
@@ -93,6 +106,7 @@ pub(crate) fn validate_const_definition(
 /// both sites named. Conservative by design: a collision anywhere refuses,
 /// even if no bare use exists (fewer names, no silent-shadow class).
 fn free_const_shadowing_walk(
+    lowerer: &crate::lowerer::Lowerer,
     syntax_trees: &SyntaxTrees,
     definition: &ConstDefinition,
 ) -> Result<(), Diagnostic> {
@@ -107,19 +121,39 @@ fn free_const_shadowing_walk(
     for item in syntax_trees.root_items() {
         match item {
             Item::Data(data) => {
-                if data.name.as_str() == const_name {
+                if data.name.as_str() == const_name
+                    && declarations_share_resolution_scope(
+                        lowerer,
+                        definition.name.source_span(),
+                        data.name.source_span(),
+                    )
+                {
                     return collision(format!("data `{}`", data.name.as_str()));
                 }
                 for member in syntax_trees.items.data_members(data.members) {
                     match member {
-                        DataMember::Field(field) if field.name.as_str() == const_name => {
+                        DataMember::Field(field)
+                            if field.name.as_str() == const_name
+                                && declarations_share_resolution_scope(
+                                    lowerer,
+                                    definition.name.source_span(),
+                                    field.name.source_span(),
+                                ) =>
+                        {
                             return collision(format!(
                                 "field `{}` of data `{}` (bare field reads spell the field name)",
                                 field.name.as_str(),
                                 data.name.as_str(),
                             ));
                         }
-                        DataMember::Variant(variant) if variant.name.as_str() == const_name => {
+                        DataMember::Variant(variant)
+                            if variant.name.as_str() == const_name
+                                && declarations_share_resolution_scope(
+                                    lowerer,
+                                    definition.name.source_span(),
+                                    variant.name.source_span(),
+                                ) =>
+                        {
                             return collision(format!(
                                 "case `{}` of data `{}` (case constants are spelled bare)",
                                 variant.name.as_str(),
@@ -131,12 +165,24 @@ fn free_const_shadowing_walk(
                 }
             }
             Item::Machine(machine) => {
-                if machine.name.as_str() == const_name {
+                if machine.name.as_str() == const_name
+                    && declarations_share_resolution_scope(
+                        lowerer,
+                        definition.name.source_span(),
+                        machine.name.source_span(),
+                    )
+                {
                     return collision(format!("machine `{}`", machine.name.as_str()));
                 }
                 for state_handle in syntax_trees.items.state_handles(machine.states) {
                     let state = syntax_trees.items.state(*state_handle);
-                    if state.name.as_str() == const_name {
+                    if state.name.as_str() == const_name
+                        && declarations_share_resolution_scope(
+                            lowerer,
+                            definition.name.source_span(),
+                            state.name.source_span(),
+                        )
+                    {
                         return collision(format!(
                             "state `{}` of machine `{}`",
                             state.name.as_str(),
@@ -145,7 +191,13 @@ fn free_const_shadowing_walk(
                     }
                     for parameter_handle in syntax_trees.items.state_parameters(state.parameters) {
                         let parameter = syntax_trees.items.state_parameter(*parameter_handle);
-                        if parameter.name.as_str() == const_name {
+                        if parameter.name.as_str() == const_name
+                            && declarations_share_resolution_scope(
+                                lowerer,
+                                definition.name.source_span(),
+                                parameter.name.source_span(),
+                            )
+                        {
                             return collision(format!(
                                 "parameter `{}` of state `{}` in machine `{}`",
                                 parameter.name.as_str(),
@@ -158,6 +210,11 @@ fn free_const_shadowing_walk(
                         if let psi_syntax_trees::statement::StatementNode::LocalData(local) =
                             syntax_trees.statements.statement(*statement_handle)
                             && local.name.as_str() == const_name
+                            && declarations_share_resolution_scope(
+                                lowerer,
+                                definition.name.source_span(),
+                                local.name.source_span(),
+                            )
                         {
                             return collision(format!(
                                 "local `{}` in state `{}` of machine `{}`",
@@ -175,6 +232,15 @@ fn free_const_shadowing_walk(
     Ok(())
 }
 
+fn declarations_share_resolution_scope(
+    lowerer: &crate::lowerer::Lowerer,
+    left: SourceSpan,
+    right: SourceSpan,
+) -> bool {
+    lowerer.source_reference_can_see_declaration(left, right)
+        == lowerer.source_reference_can_see_declaration(right, left)
+}
+
 /// If `members` is a two-segment path naming a declared const -- or a
 /// SINGLE-segment path naming a FREE-FLOATING one (safe: the shadowing walk
 /// refused every collidable name) -- lower a fresh copy of its initializer
@@ -190,10 +256,15 @@ pub(crate) fn try_lower_const_reference(
         [name] => ("", name),
         _ => return None,
     };
+    let reference_span = const_reference_span(members);
     let definition = syntax_trees.root_items().find_map(|item| match item {
         Item::Const(definition)
             if definition.scope.as_str() == scope_str
-                && definition.name.as_str() == name.as_str() =>
+                && definition.name.as_str() == name.as_str()
+                && lowerer.source_reference_can_see_declaration(
+                    reference_span,
+                    definition.name.source_span(),
+                ) =>
         {
             Some(definition)
         }
@@ -222,7 +293,7 @@ pub(crate) fn try_lower_const_reference(
                 .pending_const_selections
                 .push(crate::lowerer::PendingConstSelection {
                     expression,
-                    source_span: const_reference_span(members),
+                    source_span: reference_span,
                     declaration_ordinal,
                     exposure,
                 });
