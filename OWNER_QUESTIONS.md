@@ -285,6 +285,11 @@ semantic result. For example, in `"text" + missing`, `UnknownName` is certain
 for the right operand while the left operand is certainly not an arithmetic
 `i32`; choosing whether the enclosing binary expression also contributes
 `TypeMismatch` can change the public winner because its coordinate is earlier.
+Even when all premises are complete, the general “offending expression or
+statement” rule does not choose `let` versus initializer, assignment versus
+right operand, or `assert` versus operand anchors for relational failures. It
+also does not total the reason/anchor for a wrong-base or nonexistent postfix
+projection.
 
 This is a product requirement, not a diagnostic test convenience: independent
 Delta compilers must return the same public `DeltaRejectReason` and coordinate
@@ -301,7 +306,9 @@ Total the body/control derivation for parent candidates when:
 3. a structural parent failure such as arity or non-place shape does not need
    the missing child result; and
 4. independent child failures and one admitted parent failure compete by
-   packed coordinate.
+   packed coordinate; and
+5. a complete relational statement or invalid projection needs one exact
+   rejection reason and expression-versus-statement anchor.
 
 ### Proposed direction
 
@@ -313,7 +320,11 @@ emit a structure-only parent failure whose rule genuinely does not consume the
 missing child result—for example, a known callable's arity mismatch or an
 intrinsically non-place postfix shape. Once admitted, parent and child
 candidates merge solely by packed coordinate; DCOUT code order and traversal
-remain irrelevant.
+remain irrelevant. Anchor expression-operator and postfix failures at the
+enclosing expression start, `InvalidPlace` at the left-side place start, and
+let/assignment/assert value-type failures at the initializer, assigned-value,
+or asserted-expression start respectively rather than at their statement
+keywords.
 
 ### Alternates
 
@@ -381,3 +392,44 @@ event occurred.
   `ProviderExecutionEvidence`, special-case the console call by source name or
   numeric boundary ID, globally permit unresolved boundaries, or require users
   to install/audit code that is actually shipped inside the compiler backend.
+
+## Q7 — Settle Delta `.as_slice` receiver validity
+
+### Context
+
+Delta needs one allocation-free conversion from a fixed array to the immutable
+`&[T]` view accepted by compiler helpers and boundary machines. D17 names
+`.as_slice` and says it returns the full view, but the surrounding paragraph
+discusses both arrays and views without stating whether an already existing
+view also owns that postfix member. The two readings accept different source
+programs; neither parser shape nor lowering convenience can decide validity.
+
+The array conversion is an independently required language capability. The
+view-on-view form adds no capability because its receiver already has the exact
+result type, but its acceptance still must be explicit so independent Delta
+compilers agree.
+
+### Problem statement
+
+Choose whether `.as_slice` is valid on:
+
+1. fixed arrays only; or
+2. both fixed arrays and immutable views as an identity conversion.
+
+Q5 separately owns the rejection reason and anchor for a receiver outside the
+accepted set.
+
+### Proposed direction
+
+Admit `.as_slice` only on a fixed array and return an immutable full-range
+`&[T]` with no assignable place. An existing `&[T]` is already the desired
+value and should be used directly; do not preserve a redundant view-on-view
+member merely because the grammar accepts arbitrary postfix names.
+
+### Alternates
+
+- Acceptable: admit the operation on both arrays and views, specifying that the
+  view form preserves the exact current bounds and evaluates its receiver once.
+- Tempting but wrong: let one compiler silently accept the redundant form,
+  infer validity from a generic field lookup, or leave it dependent on whether
+  lowering can erase the operation.

@@ -13,8 +13,8 @@ representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
 census, complete D31 structural type formation, a source-backed resolution
-catalog, ordered local-value resolution, scalar value/place facts, and pure
-final symbolic-Alpha encoder.
+catalog, ordered local-value resolution, scalar/aggregate value-place facts,
+and pure final symbolic-Alpha encoder.
 It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
@@ -105,17 +105,32 @@ the fact for its same-start base. Direct callable and control heads remain for
 their grammar-selected namespace pass. This is durable identity custody for
 typing and lowering, not a partial acceptance judgment.
 
-The same expression walk now retains the first complete scalar result facts
+The same expression walk now retains complete settled result facts
 without introducing a second recursive checker. Integer, character, and
 Boolean literals are `i32`; strings are immutable `&[u8]`; and resolved
 parameter/local reads retain both their value type and their assignable storage
 type. Reading `u8` storage will yield `i32` while preserving a `u8` place for
 the later store check. Groups preserve the complete value/place result;
 negation and every binary operator consume complete `i32` operands and produce
-a non-place `i32`. A parent receives no fact or dependent diagnostic while a
-needed child judgment is still absent. Field, index, slice, call, receiver,
-constructor, transition-binder, resultless, and `never` facts remain with the
-corresponding unresolved body/control judgments; this foundation does not
+a non-place `i32`.
+
+Named-record projection retains both the exact owner declaration and authored
+field for later ordinal/layout recovery. A field inherits a place only from a
+place-valued base, and storage `u8` reads as value `i32` without losing its
+`u8` place. Array indexes follow the same rule; immutable-view indexes never
+produce a place. Array/view `.len` is non-place `i32`, and complete range
+slices produce a non-place immutable view. Present indexes and bounds require
+complete `i32` facts, but bounds remain runtime `Bounds` checks rather than
+static folding. A field selector used as a receiver-call head remains untouched
+for callable resolution. Record fields literally named `len` remain ordinary
+fields because contextual array/view members are selected only after base-type
+classification.
+
+A parent receives no fact or dependent diagnostic while a needed child
+judgment is absent. Invalid projections likewise remain neutral until Q5 totals
+their public diagnostics. Q7 owns the accepted receiver set for `.as_slice`;
+call, receiver, constructor, transition-binder, resultless, and `never` facts
+remain with the corresponding body/control judgments. This foundation does not
 claim final acceptance.
 
 ## Contract-derived conformance plan
@@ -181,22 +196,25 @@ refusals require `requested > limit` and publish no tape. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Gamma trap.
 
-Resolution-catalog, local-resolution, and scalar-fact controls remain planned,
-not claimed execution: forward data
+Resolution-catalog, local-resolution, and expression-fact controls remain
+planned, not claimed execution: forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
 distinct qualified/unqualified machines, D36 case/machine collision rejection,
 mandatory parentheses on zero-parameter machine calls, state-name reuse across
 separate machines, parameter and ordered let visibility,
 `UseBeforeInitialization` versus `UnknownName`, entry/state
 isolation, arm-local binder visibility, exact same-start postfix separation,
-and literal/read/group/arithmetic value/place facts. Constructor and machine
-rows remain structurally distinct after the census establishes one callable
-spelling; no body context, arity, or expected type may select between colliding
-declarations. Controls cover both declaration orders, nullary and payload
-cases, a same-spelled field/qualified-machine positive case, an unqualified
-receiver at its `&`, explicit `()` on a zero-parameter machine, and a bare
-machine identity as `TypeMismatch` in an ordinary expression. Q5 totals which
-dependent parent candidates exist when a child has no complete fact.
+literal/read/group/arithmetic facts, record-field custody, `u8` read/place
+splitting, array-place versus immutable-view indexing, every optional slice-
+bound shape, `.len`, and call-head selector nonclassification. Constructor and
+machine rows remain structurally distinct after the census establishes one
+callable spelling; no body context, arity, or expected type may select between
+colliding declarations. Controls cover both declaration orders, nullary and
+payload cases, a same-spelled field/qualified-machine positive case, an
+unqualified receiver at its `&`, explicit `()` on a zero-parameter machine, and
+a bare machine identity as `TypeMismatch` in an ordinary expression. Q5 totals
+dependent/relational diagnostic composition, and Q7 totals `.as_slice`
+receiver validity.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,
