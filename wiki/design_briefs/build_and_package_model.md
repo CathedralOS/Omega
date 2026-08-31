@@ -2547,8 +2547,11 @@ one matching occurrence row, recloses the authored application, compares the
 complete checked structure, rejoins the exact public-interface conformance
 selection retained from the authored call, and projects its package-qualified
 declaration, ordered type arguments, instantiated subject, and target trait
-application. Missing, duplicate, redirected, substituted, or source-selection
-custody rejects. The compact
+application. Both the conformance declaration telescope and target-trait
+telescope must contain only type parameters with exact arity; a machine,
+const, or proposition target-trait parameter rejects rather than being
+mislabeled as a type identity. Missing, duplicate, redirected, substituted,
+or source-selection custody rejects. The compact
 report fingerprint and commitment remain local joins, not portable package
 identity. Evidence projections into executable calls, proposition parameters
 on machines, and nested machine applications remain rejected by the language;

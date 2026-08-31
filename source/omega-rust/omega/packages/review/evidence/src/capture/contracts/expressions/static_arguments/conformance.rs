@@ -179,6 +179,19 @@ pub(super) fn project_contract_conformance_application(
     if !trait_definition.is_public {
         return Err(rejected("that exposes a non-public target trait"));
     }
+    let trait_parameters = compilation.trait_type_parameters(trait_definition);
+    if trait_parameters.len() != projected.trait_arguments.len()
+        || trait_parameters.iter().any(|parameter| {
+            !matches!(
+                parameter.kind,
+                psi_typed_trees::data::TypeParameterKind::Type
+            )
+        })
+    {
+        return Err(rejected(
+            "whose target trait is outside the type-only closed cohort",
+        ));
+    }
     Ok(
         PackageReviewContractStaticArgument::ConformanceApplication {
             declaration: projected.declaration,

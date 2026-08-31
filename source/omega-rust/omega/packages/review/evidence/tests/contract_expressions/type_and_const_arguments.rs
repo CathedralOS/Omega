@@ -933,6 +933,47 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_rejects_type_erasure_of_machine_parameterized_conformance_targets() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub boundary trait Callback { machine call(value: u64) -> u64; }
+pub trait CallbackSlot<Element, machine Requirement> {}
+pub data Card {}
+pub Slot<Element>: Element satisfies CallbackSlot<Element, Callback::call> {}
+pub machine tag<Element, Evidence: Element satisfies CallbackSlot<Element, Callback::call>>() -> u64 { 0 }
+boundary machine trusted() -> u64
+ensures result == tag<Card, Slot<Card>>();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("machine-parameterized conformance contract argument should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("a machine target argument must not be mislabeled as a type");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("target trait is outside the type-only closed cohort")
+    }));
+}
+
+#[test]
 fn review_rejects_closed_contract_conformance_occurrence_drift() {
     let Some(target) = host_target_name() else {
         return;
