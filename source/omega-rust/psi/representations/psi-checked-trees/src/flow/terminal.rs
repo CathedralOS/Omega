@@ -1058,6 +1058,23 @@ pub enum CheckedUnitEffectOperationPlan {
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
         completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
     },
+    /// Evaluate the exact checked scalar machine selected for one authored
+    /// boundary-operator use and bind its result. The requirement and
+    /// realization identities are joined only by compiler-owned ProviderPlan
+    /// settlement.
+    SelectedOperatorScalarCall {
+        coordinate: CheckedUnitCallCoordinate,
+        result: CheckedUnitScalarResultBindingPlan,
+        requirement_operator: SymbolHandle,
+        provider_plan_report_fingerprint: u64,
+        provider_plan_commitment: crate::CheckedProviderPlanCommitment,
+        realization_machine: SymbolHandle,
+        realization_state: SymbolHandle,
+        realization_contract_report_fingerprint: u64,
+        realization_return_expression: CheckedScalarExpression,
+        service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedScalarExpression>,
+    },
     PortWrite {
         coordinate: CheckedUnitCallCoordinate,
         port: u16,

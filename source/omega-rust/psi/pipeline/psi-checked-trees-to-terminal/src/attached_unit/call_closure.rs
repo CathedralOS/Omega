@@ -148,6 +148,11 @@ pub(super) fn validate_unit_operation_sequence(
             | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
             CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 coordinate, result, ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                coordinate,
+                result,
+                ..
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0

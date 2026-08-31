@@ -35,6 +35,32 @@ pub fn lower_typed_trees(
     lowerer::lower_typed_trees(program)
 }
 
+/// Exact compiler-owned join from one authored operator use to the checked
+/// machine selected to realize it. Selected execution supplies these rows only
+/// after ProviderPlan settlement; ordinary checking supplies none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedOperatorUnitApplication {
+    pub expression: psi_typed_trees::expression::ExpressionHandle,
+    pub origin: psi_checked_trees::CheckedValueOrigin,
+    pub requirement_operator: psi_symbols::SymbolHandle,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    pub realization_machine: psi_symbols::SymbolHandle,
+    pub realization_state: psi_symbols::SymbolHandle,
+    pub operands: Vec<psi_typed_trees::expression::ExpressionHandle>,
+}
+
+/// Rebuild the bounded Unit-effect roster with exact selected boundary-
+/// operator applications available during planning. This is a compiler-
+/// internal phase seam, not a public checked-IR contract.
+pub fn rebuild_checked_unit_effect_plans_with_selected_operators(
+    program: &mut CheckedTrees,
+    applications: &[SelectedOperatorUnitApplication],
+) {
+    program.facts.flow.terminal_unit_effects =
+        flow::build_checked_unit_effect_plans(&program.typed, &program.facts, applications);
+}
+
 /// Rederive the complete, canonically ordered checked semantic-dependency
 /// table from the final typed program and its checked facts.
 ///

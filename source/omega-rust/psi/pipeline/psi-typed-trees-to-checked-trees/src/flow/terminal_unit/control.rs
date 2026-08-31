@@ -907,6 +907,7 @@ pub(super) fn build_checked_machine(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
+    selected_operator_applications: &[crate::SelectedOperatorUnitApplication],
 ) -> Option<CheckedUnitEffectMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -943,11 +944,23 @@ pub(super) fn build_checked_machine(
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
     );
-    let scalar_result_local = checked_unit_scalar_result_local(program, statements);
-    if scalar_result_local.is_some() && (write_only_store.is_some() || construction.is_some()) {
+    let selected_scalar_result_local = selected_operator_scalar_result_local(
+        program,
+        machine,
+        state,
+        statements,
+        selected_operator_applications,
+    );
+    let scalar_result_local = selected_scalar_result_local
+        .is_none()
+        .then(|| checked_unit_scalar_result_local(program, statements))
+        .flatten();
+    let has_scalar_result_local =
+        scalar_result_local.is_some() || selected_scalar_result_local.is_some();
+    if has_scalar_result_local && (write_only_store.is_some() || construction.is_some()) {
         return None;
     }
-    let local_count = scalar_result_local.as_ref().map_or_else(
+    let local_count = has_scalar_result_local.then_some(1).map_or_else(
         || {
             construction.as_ref().map_or_else(
                 || {
@@ -1013,10 +1026,10 @@ pub(super) fn build_checked_machine(
             return None;
         }
     }
-    let local_rows = match (scalar_result_local.as_ref(), construction) {
-        (Some(_), None) => Vec::new(),
-        (None, Some((rows, _))) => rows,
-        (None, None) => build_unit_trivial_affine_locals(
+    let local_rows = match (has_scalar_result_local, construction) {
+        (true, None) => Vec::new(),
+        (false, Some((rows, _))) => rows,
+        (false, None) => build_unit_trivial_affine_locals(
             program,
             facts,
             shapes,
@@ -1025,7 +1038,7 @@ pub(super) fn build_checked_machine(
             &binders,
             &statements[..local_count],
         )?,
-        (Some(_), Some(_)) => unreachable!("scalar and affine local lanes were separated above"),
+        (true, Some(_)) => unreachable!("scalar and affine local lanes were separated above"),
     };
     let trivial_affine_locals = local_rows
         .iter()
@@ -1055,7 +1068,16 @@ pub(super) fn build_checked_machine(
     if let Some(store) = write_only_store {
         operations.push(store);
     } else {
-        let call_offset = if let Some(result) = scalar_result_local {
+        let call_offset = if let Some((application, result)) = selected_scalar_result_local {
+            operations.push(build_selected_operator_scalar_call(
+                program,
+                facts,
+                state,
+                application,
+                result,
+            )?);
+            0
+        } else if let Some(result) = scalar_result_local {
             let call = calls.first()?;
             if call.statement_index != usize::try_from(result.statement_index).ok()?
                 || call.call_ordinal != 0
@@ -1311,10 +1333,20 @@ fn checked_provider_attachment_requirements(
     let [(field, provider_type_identity)] = provider_fields.as_slice() else {
         return provider_fields.is_empty().then(Vec::new);
     };
+    let call_operations = operations
+        .iter()
+        .filter(|operation| {
+            !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::ReturnUnit { .. }
+            )
+        })
+        .collect::<Vec<_>>();
     if field.identity.starts_with('#')
         || !structural_parameters.is_empty()
         || calls.is_empty()
-        || calls.len().checked_add(1)? != operations.len()
+        || calls.len() != call_operations.len()
     {
         return None;
     }
@@ -1350,7 +1382,6 @@ fn checked_provider_attachment_requirements(
         .map(|requirement| requirement.symbol)
         .collect::<Vec<_>>();
 
-    let call_operations = &operations[..operations.len() - 1];
     let mut requirements = Vec::with_capacity(calls.len());
     for (call, operation) in calls.iter().zip(call_operations) {
         if !provider_requirements.contains(&call.target_symbol) {

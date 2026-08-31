@@ -20,10 +20,10 @@ psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
-psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }

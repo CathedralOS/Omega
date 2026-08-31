@@ -10,6 +10,7 @@ mod call_closure;
 mod catalog;
 mod parameters;
 mod providers;
+mod selected_operator;
 
 use call_closure::{
     checked_terminal_machine_name, reject_recursive_unit_closure, unique_unit_boundary,
@@ -37,6 +38,7 @@ pub(super) use parameters::{
     validate_transfer_shape,
 };
 use providers::checked_unit_provider_candidates;
+use selected_operator::validate_selected_operator_scalar_call;
 
 fn retain_exact_checked_flow_call(
     checked: &CheckedTrees,
@@ -277,6 +279,34 @@ pub(super) fn lower_attached_unit_closure_including(
                         *target_contract_report_fingerprint,
                         *service_reach,
                         Some(result.primitive_type),
+                    )?;
+                }
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    coordinate,
+                    result,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    realization_machine,
+                    realization_state,
+                    realization_contract_report_fingerprint,
+                    service_reach,
+                    scalar_arguments,
+                    ..
+                } => {
+                    validate_selected_operator_scalar_call(
+                        checked,
+                        machine,
+                        *coordinate,
+                        *result,
+                        *requirement_operator,
+                        *provider_plan_report_fingerprint,
+                        *provider_plan_commitment,
+                        *realization_machine,
+                        *realization_state,
+                        *realization_contract_report_fingerprint,
+                        *service_reach,
+                        scalar_arguments.len(),
                     )?;
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
@@ -890,6 +920,99 @@ pub(super) fn lower_attached_unit_closure_including(
                         crash_continuations,
                     }
                 }
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    result,
+                    realization_state,
+                    realization_return_expression,
+                    scalar_arguments,
+                    ..
+                } => {
+                    if usize::try_from(result.binding_ordinal).ok()
+                        != Some(scalar_result_values.len())
+                    {
+                        return unsupported(
+                            "selected Unit operator result binding ordinal drifted from source order",
+                        );
+                    }
+                    let realization = checked
+                        .typed
+                        .machines()
+                        .iter()
+                        .flat_map(|machine| checked.typed.machine_states(machine))
+                        .find(|state| state.symbol == *realization_state)
+                        .ok_or(LoweringError::Unsupported(
+                            "selected Unit operator realization entry is absent",
+                        ))?;
+                    let parameter_types = checked
+                        .typed
+                        .state_parameters(realization)
+                        .iter()
+                        .map(|parameter| {
+                            checked
+                                .typed
+                                .primitive_type_reference(parameter.type_reference)
+                                .map(terminal_scalar_type)
+                                .transpose()
+                                .and_then(|primitive| {
+                                    primitive.ok_or(LoweringError::Unsupported(
+                                        "selected Unit operator realization has a non-scalar parameter",
+                                    ))
+                                })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if scalar_arguments.len() != parameter_types.len() {
+                        return unsupported(
+                            "selected Unit operator realization argument count drifted",
+                        );
+                    }
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let arguments = scalar_arguments
+                        .iter()
+                        .zip(&parameter_types)
+                        .map(|(argument, expected_type)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if argument.scalar_type() != *expected_type {
+                                return unsupported(
+                                    "selected Unit operator argument type disagrees with its realization",
+                                );
+                            }
+                            validate_direct_parameter_types(&argument, &source_types)?;
+                            let id = emit_direct_expression(
+                                &argument,
+                                &scalar_result_values,
+                                &mut next_value_identity,
+                                &mut operations,
+                            );
+                            Ok(ValueDeclaration {
+                                id,
+                                scalar_type: *expected_type,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let expression =
+                        lower_checked_scalar_expression(realization_return_expression)?;
+                    validate_direct_parameter_types(&expression, &parameter_types)?;
+                    let result_type = terminal_scalar_type(result.primitive_type)?;
+                    if expression.scalar_type() != result_type {
+                        return unsupported(
+                            "selected Unit operator return type disagrees with its bound result",
+                        );
+                    }
+                    let id = emit_direct_expression(
+                        &expression,
+                        &arguments,
+                        &mut next_value_identity,
+                        &mut operations,
+                    );
+                    scalar_result_values.push(ValueDeclaration {
+                        id,
+                        scalar_type: result_type,
+                    });
+                    continue;
+                }
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     target_machine,
                     scalar_arguments,
@@ -1440,7 +1563,17 @@ pub(super) fn lower_attached_unit_closure_including(
             ))
     });
 
-    Ok(LoweredTerminalPsi {
+    let requires_operation_proofs = closure.iter().any(|machine_symbol| {
+        plans.for_machine(*machine_symbol).is_some_and(|machine| {
+            machine.operations.iter().any(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                )
+            })
+        })
+    });
+    let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
             entry: machine_id(1),
@@ -1466,7 +1599,11 @@ pub(super) fn lower_attached_unit_closure_including(
             evidence: call_evidence,
         },
         debug_map: None,
-    })
+    };
+    if requires_operation_proofs {
+        finalize_operation_proofs(&mut lowered)?;
+    }
+    Ok(lowered)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

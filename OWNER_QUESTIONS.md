@@ -326,3 +326,58 @@ remain irrelevant.
 - Tempting but wrong: let compiler traversal or short-circuiting decide which
   candidates exist, suppress every parent mechanically, or emit all imaginable
   ancestors without proving their semantic premises.
+
+## Q6 — Settle compiler-owned native builtins without fake package evidence
+
+### Context
+
+Terminal Psi retains bodyless boundary requirements and native lowering
+correctly rejects any requirement with no exact realization. The native
+realization API currently admits every boundary through a
+`NativeProviderSettlement` carrying `ProviderExecutionEvidence`, including
+compiler-owned target operations such as the standard console exit operation.
+The production compiler driver passes an empty settlement list. Consequently,
+ordinary rooted native compilation reaches target lowering and fails with
+`MissingBoundarySettlement`, including canaries whose checked in-module
+provider dispatch is otherwise complete.
+
+Package-installed or foreign provider code genuinely needs admitted execution
+custody. A compiler-owned target builtin is different: the compiler/backend is
+the implementation authority, and no package build or external execution was
+audited. Minting a package-style execution receipt for it would make the type
+system appear satisfied without adding an independent fact.
+
+### Problem statement
+
+Decide how compiler-owned target builtins enter native boundary settlement
+without pretending they carry package-installation evidence. The decision must
+retain exact requirement, selected ProviderPlan row, target, lowering identity,
+and emitted-artifact custody while preserving the stronger evidence requirement
+for installed and foreign providers.
+
+### Proposed solution
+
+Give compiler-owned builtin bindings a distinct native settlement lane. The
+backend derives the exact builtin realization from the selected ProviderPlan
+row and native target, rejects unknown or duplicate mappings, and retains that
+compiler/target identity in the native artifact as a TCB fact—not as
+`ProviderExecutionEvidence`. Keep `NativeProviderSettlement` and admitted
+execution evidence for package-installed and foreign implementations only.
+
+This makes the authority honest: the compiler can prove which builtin it
+selected and emitted, but does not claim an external audit or installation
+event occurred.
+
+### Alternates
+
+- Acceptable: have target selection produce a first-class
+  `CompilerBuiltinSettlement` before native realization, provided it remains a
+  separate evidence class and is rejoined to the exact selected plan and
+  target during lowering.
+- Acceptable: model compiler builtins as part of the trusted target profile
+  rather than as provider executions, if the profile retains the same exact
+  requirement-to-lowering mapping.
+- Tempting but wrong: fabricate an object implementing
+  `ProviderExecutionEvidence`, special-case the console call by source name or
+  numeric boundary ID, globally permit unresolved boundaries, or require users
+  to install/audit code that is actually shipped inside the compiler backend.
