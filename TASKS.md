@@ -10670,9 +10670,9 @@ boundary without its corresponding checked law.
   calls to one locator share one import symbol while retaining distinct call
   sites. The first preceding production path is now closed for a
   `Unit`-returning normalized import leaf with no scalar arguments, one fixed-
-  width 8/16/32/64-bit integer literal argument, exactly two such literal
-  arguments, or exactly three such literal arguments, provided every evaluated
-  placement is register-resident. Checked compilation
+  width 8/16/32/64-bit integer literal argument, or exactly two, three, or four
+  such literal arguments, provided every evaluated placement is
+  register-resident. Checked compilation
   retains the extracted external-binding rows before consuming typed trees;
   native settlement rejoins one unique retained row to the complete selected
   `ProviderPlan`, exact selected-plan evidence, and admitted same-stack
@@ -10684,16 +10684,16 @@ boundary without its corresponding checked law.
   `Unit` stack evidence in `MachineCodeFunction::foreign_calls`. In the
   literal-bearing cases, each occurrence-specific row retains its source value,
   integer type and immediate, parameter index, evaluated register placement,
-  and exact materialization byte interval. With two or three arguments, those
-  rows and byte intervals remain in parameter order, and every interval ends
-  exactly where the next begins. Machine emission independently rejoins each
+  and exact materialization byte interval. With two through four arguments,
+  those rows and byte intervals remain in parameter order, and every interval
+  ends exactly where the next begins. Machine emission independently rejoins each
   custody row to its preceding constant and emits compact x86-64 or AArch64
   register materialization; object construction replays the complete ordered
   plan, placements, bytes, semantic call ownership, and physical stack custody
   before consuming the rows. Both Linux profiles advance from the exact native
   rejoin through target, assignment, machine, ordinary object, and the complete
   dynamic-ELF driver; stripped, reordered, or drifted source/type/value/index/
-  register/byte/plan/stack custody rejects. Runtime-derived arguments, four or
+  register/byte/plan/stack custody rejects. Runtime-derived arguments, five or
   more arguments, any stack argument, result-bearing signatures, complete
   task-stack-budget composition, optional `.gnu.hash`, and ordinary source
   `via` evaluation remain engineering work.
