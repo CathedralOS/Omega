@@ -1,8 +1,17 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 103 and row schema version 61. This file
+The canonical review schema is version 104 and row schema version 62. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v104 / row v62 admits caller const binders in the existing exact
+closed-conformance contract-argument lane. Projection requires the selected
+argument to rejoin the owning callable telescope, emits its alpha-normalized
+binder ordinal, and still compares the complete compiler-retained application
+to the independently reclosed authored occurrence. Renaming a binder therefore
+preserves review identity while selecting another binder or substituting the
+retained occurrence changes or rejects it. Named and structured const values,
+lifetime, machine, and proposition parameters remain fail-closed in this lane.
 
 Schema v103 / row v61 extends the exact closed-conformance contract-argument
 lane to declaration telescopes containing parser-canonical integer-literal

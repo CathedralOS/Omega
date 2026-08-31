@@ -39,9 +39,9 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - remaining canonical const and closed-conformance forms only where
-    successful checking retains the exact structural value, complete static
-    application, and call-occurrence witness;
+  - named or structured const values inside closed-conformance applications
+    only where successful checking retains the exact structural value,
+    complete static application, and call-occurrence witness;
   - generic or lifetime-parameterized external/top-level realizations and the
     remaining provider-demand and installation-issuance joins;
   - finish D29's artifact-qualified symbolic demand and final substitution,
