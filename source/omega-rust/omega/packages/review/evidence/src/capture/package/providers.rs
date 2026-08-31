@@ -98,11 +98,10 @@ pub(super) fn project_selected_providers(
                         compilation,
                         plan,
                         row,
-                        matches!(
-                            retained.provider.schema,
-                            omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_)
-                        ),
+                        retained.provider.schema,
                         *requirement,
+                        *realization,
+                        Some(target.target_name()),
                         *retained_execution,
                     )?,
                     installation_reach,

@@ -948,8 +948,11 @@ Supported leaves are bodyless, nongeneric, lifetime-free, and payload-bearing.
 Projection retains the normalized requirement-overload identity and
 independently rejoins exact satisfies symbols, binding, provider type, selected
 plan when present, and realization declaration. Unselected disclosure still
-implies neither selection nor audit. Compiler-intrinsic execution remains
-fenced pending closed catalog settlement; recovery remains v14.
+implies neither selection nor audit. Review v97/canonical row v55 closes the
+first compiler-intrinsic execution identity for exact selected Linux
+`Console::exit_process(i32) -> Unit`; targetless, non-Linux, wrong-symbol,
+wrong-signature, sibling, and uncatalogued intrinsic rows remain fenced.
+Recovery remains v14.
 Selected payload-bearing leaves also cross the provider-plan ABI extractor by
 the same exact top-level requirement and normalized overload. Its semantic
 `self` is the satisfier's explicit carrier argument, not an erasable trait

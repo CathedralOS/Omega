@@ -8,6 +8,7 @@ use psi_diagnostics::Diagnostic;
 
 mod driver;
 pub(crate) mod execution;
+mod intrinsic_settlements;
 mod native_checked;
 mod optimization_rollback;
 mod options;

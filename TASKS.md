@@ -835,9 +835,28 @@ Remaining:
   identity and preserves its semantic `self` carrier as the satisfier's first
   explicit foreign parameter; trait-receiver erasure cannot drop it.
   Remaining work is selected invocation replay of the installed execution and
-  era, exact generic-provider coverage, compiler-intrinsic catalog settlement,
-  and final removal of the transitional undifferentiated bodyless-machine
-  cases.
+  era, exact generic-provider coverage, the remaining compiler-intrinsic
+  catalog entries, and final removal of the transitional undifferentiated
+  bodyless-machine cases.
+
+  The first ordinary boundary-trait compiler-intrinsic catalog entry is now
+  closed end to end for Linux `Console::exit_process(i32) -> Unit`. Checked
+  settlement rejoins the exact toolchain-owned requirement and realization
+  symbols, their normalized signatures and conformance, the payloadless
+  `CompilerIntrinsic` binding, and the independently selected canonical Linux
+  profile; targetless, non-Linux, wrong-symbol, wrong-signature, and sibling
+  Console rows remain outside the catalog. Package review v97/canonical row
+  v55 retains and rederives the closed execution identity. Terminal planning
+  preserves a selected bodyless intrinsic as its exact boundary requirement
+  without granting execution authority, and the compiler projects only
+  boundary identities actually called by the canonical Terminal artifact into
+  exact selected-plan provider evidence. Both Linux x86-64 and AArch64 then
+  reuse the existing settlement-gated `exit_group` realization and retain one
+  provider execution, one boundary settlement, and an ELF NativeArtifact in a
+  product-source canary. Compiler-function publication certification remains
+  a later engineering rung; read/write Console leaves, Darwin/Windows exits,
+  source-form inference, and removal of `via Binding::CompilerIntrinsic`
+  remain open.
 
   Migrate `InterruptMaskGuard::restore`,
   `InterruptAcknowledgement::complete`, `Task::request_cancel`, and
@@ -10296,9 +10315,12 @@ boundary without its corresponding checked law.
 ### Boundary realization and evaluated binding data
 
 - **EVALUATED-FOREIGN-BINDINGS — replace the remaining string-backed import
-  bootstrap with ordinary typed compile-time values.** The intrinsic lane is
-  complete: `CompilerIntrinsic` is payloadless and exact realization symbol,
-  signature, and target select the sealed catalog entry. For imported leaves,
+  bootstrap with ordinary typed compile-time values.** The intrinsic binding
+  value shape is complete: `CompilerIntrinsic` is payloadless, while exact
+  realization symbol, signature, and target select a sealed catalog entry.
+  The first production entry and native handoff now cover Linux
+  `Console::exit_process(i32) -> Unit`; the remaining intrinsic catalog and
+  source-form migration stay open under the provider work above. For imported leaves,
   add const-generic typed object-format locator cases over ordinary fixed byte
   arrays (`PeByName`, `PeByOrdinal`, versioned ELF symbols, and later peers).
   Target-scoped ordinary machines construct complete `Binding` values; `via`

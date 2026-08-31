@@ -461,6 +461,144 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
 }
 
 #[test]
+fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
+    use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;
+
+    let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
+    let main_path = canary.join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_x86_64"))
+        .expect("Linux Console provider should compile to checked trees");
+    let (plan, retained) = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(checked.selected_provider_provenance())
+        .find(|(plan, _)| plan.schema.trait_name == "Console")
+        .expect("std Console must retain one selected provider plan");
+    let exit = plan
+        .rows
+        .iter()
+        .position(|row| row.method == "exit_process")
+        .expect("Console plan must retain exit_process");
+    assert_eq!(
+        retained.row_compiler_intrinsic_executions[exit],
+        Some(CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32),
+    );
+    let derive = |requirement, realization, target| {
+        omega_selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row(
+            &checked,
+            plan,
+            retained.provider.schema,
+            &plan.rows[exit],
+            requirement,
+            realization,
+            target,
+        )
+        .expect("exact compiler-intrinsic catalog derivation")
+    };
+    let read_byte = plan
+        .rows
+        .iter()
+        .position(|row| row.method == "read_byte")
+        .expect("Console plan must retain read_byte");
+    assert_eq!(
+        derive(
+            retained.provider.row_requirements[exit],
+            retained.provider.row_realizations[exit],
+            Some("linux_x86_64"),
+        ),
+        Some(
+            omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
+            ),
+        ),
+    );
+    for unsupported in [
+        derive(
+            retained.provider.row_requirements[read_byte],
+            retained.provider.row_realizations[exit],
+            Some("linux_x86_64"),
+        ),
+        derive(
+            retained.provider.row_requirements[exit],
+            retained.provider.row_realizations[read_byte],
+            Some("linux_x86_64"),
+        ),
+        derive(
+            retained.provider.row_requirements[exit],
+            retained.provider.row_realizations[exit],
+            Some("macos_arm64"),
+        ),
+    ] {
+        assert_eq!(
+            unsupported,
+            Some(omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Unsupported,),
+            "requirement, realization, and selected target are independent catalog authority",
+        );
+    }
+    for method in ["read_line", "read_byte", "write_byte"] {
+        let index = plan
+            .rows
+            .iter()
+            .position(|row| row.method == method)
+            .unwrap_or_else(|| panic!("Console plan must retain {method}"));
+        assert_eq!(
+            retained.row_compiler_intrinsic_executions[index], None,
+            "unsupported CompilerIntrinsic row `{method}` must remain outside the closed catalog",
+        );
+    }
+
+    let targetless = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("targetless Console provider should compile to checked trees");
+    let (targetless_plan, targetless_retained) = targetless
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(targetless.selected_provider_provenance())
+        .find(|(plan, _)| plan.schema.trait_name == "Console")
+        .expect("targetless std Console plan");
+    let targetless_exit = targetless_plan
+        .rows
+        .iter()
+        .position(|row| row.method == "exit_process")
+        .expect("targetless Console exit row");
+    assert_eq!(
+        targetless_retained.row_compiler_intrinsic_executions[targetless_exit], None,
+        "exact selected Linux target is independent catalog authority",
+    );
+}
+
+#[test]
+fn linux_console_exit_catalog_settlement_emits_elf() {
+    let canary = pass_canary("providers/adapter_satisfies_compile");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let compilation = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+            .unwrap_or_else(|diagnostics| {
+                panic!("exact Linux Console exit catalog row should compile for {target}: {diagnostics:#?}")
+            });
+        let artifact = compilation
+            .retained_native_artifact()
+            .expect("NativeArtifact compilation should retain its exact product");
+        assert!(
+            artifact.image().output().bytes.starts_with(b"\x7fELF"),
+            "selected Linux Console exit settlement must retain an ELF image for {target}",
+        );
+        let [settlement] = artifact.image().boundary_settlements() else {
+            panic!("exactly one Console exit boundary settlement for {target}")
+        };
+        assert!(matches!(
+            settlement.settlement.realization,
+            omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_),
+        ));
+        assert_eq!(
+            artifact.provider_executions().len(),
+            1,
+            "the exact selected Console exit row supplies one provider execution for {target}",
+        );
+    }
+}
+
+#[test]
 fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
     let canary = pass_canary("providers/runtime_boundary_capability_state_forwarding_exit");
     let main_path = canary.join("main.omg");

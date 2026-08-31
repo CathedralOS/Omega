@@ -150,6 +150,37 @@ fn native_report(
                 ))]
             },
         )?;
+    let terminal_module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
+        |error| {
+            vec![Diagnostic::error(format!(
+                "native-artifact intrinsic settlement could not replay canonical Terminal semantics: {error}"
+            ))]
+        },
+    )?;
+    let demanded_intrinsics =
+        super::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
+    let intrinsic_evidence =
+        super::intrinsic_settlements::derive_compiler_intrinsic_settlement_evidence(
+            checked,
+            &demanded_intrinsics,
+        )?;
+    let selected_plans = checked.selected_provider_plans().plans();
+    let intrinsic_settlements = intrinsic_evidence
+        .iter()
+        .map(|evidence| {
+            let realization = match evidence.execution {
+                omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
+                    omega_target_operations::LinuxExitGroupI32Realization.into()
+                }
+                _ => unreachable!("native intrinsic evidence admits only cataloged boundary realizations"),
+            };
+            omega_terminal_psi_to_native_artifact::NativeProviderSettlement {
+                provider_execution: evidence,
+                provider_plan: &selected_plans[evidence.plan_index],
+                realization,
+            }
+        })
+        .collect::<Vec<_>>();
     let calling_plans = selected_program_entry
         .calling_plans()
         .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
@@ -167,7 +198,7 @@ fn native_report(
             optimization_selections: rollback_settlement.effective(),
             selected_provider_plans: checked.selected_provider_plans(),
             external_binding_rows: checked.external_binding_rows(),
-            settlements: &[],
+            settlements: &intrinsic_settlements,
         },
     )?;
     CompileReport::from_retained_native_artifact(

@@ -843,6 +843,10 @@ pub(super) fn build_static_boundary_requirements(
                 .map(|(_, call)| call)
                 .filter(|call| {
                     call.target_symbol == signature.symbol
+                        || exact_compiler_intrinsic_boundary_requirement(
+                            program,
+                            call.target_symbol,
+                        ) == Some(signature.symbol)
                         || program
                             .machine_parameter_signature(call.target_symbol)
                             .is_some_and(|(_, requirement)| requirement.symbol == signature.symbol)

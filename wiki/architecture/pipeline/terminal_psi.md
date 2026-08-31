@@ -105,6 +105,16 @@ validated import/relocation evidence. Producers likewise may not encode an
 effect input as an ordinary machine return or introduce a private pre-terminal
 IR to evade this fence.
 
+The production compiler now supplies that distinct later binding for the first
+sealed ordinary intrinsic: Linux `Console::exit_process(i32) -> Unit`.
+Canonical Terminal replay preserves the exact called boundary requirement;
+selected-dispatch catalog review independently rejoins the toolchain-owned
+requirement and realization symbols, normalized signatures and conformance,
+payloadless binding, and selected Linux profile. Only then may provider evidence
+select the existing `exit_group` realization. This grants neither a sibling
+Console operation nor a Darwin or Windows realization, and retained ELF custody
+still does not imply publication without compiler-function validation evidence.
+
 ## Checked-adapter provider installation
 
 A static bodyless boundary call keeps its boundary-machine ID in terminal Psi;
