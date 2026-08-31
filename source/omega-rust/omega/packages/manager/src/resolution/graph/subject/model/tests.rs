@@ -115,6 +115,37 @@ fn root_role_is_canonical_identity_and_survives_recovery() {
 }
 
 #[test]
+fn target_profile_is_canonical_invocation_identity_and_survives_recovery() {
+    let selected = git_source("codec", "codec", 1);
+    let subject = |target_profile| {
+        CanonicalSourceClosureSubject::finish_for_target(
+            target_profile,
+            root_git_selection("https://github.com/CathedralOS/codec.git", &selected),
+            vec![selected.clone()],
+            vec![PackageSourceNavigation::Root],
+            Vec::new(),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .expect("target-specific subject")
+    };
+    let linux = subject(omega_target::TargetProfile::LinuxX64);
+    let windows = subject(omega_target::TargetProfile::WindowsX64);
+
+    assert_eq!(linux.packages(), windows.packages());
+    assert_ne!(linux.canonical_bytes(), windows.canonical_bytes());
+    assert_ne!(linux.fingerprint(), windows.fingerprint());
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover(
+            windows.canonical_bytes(),
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .expect("recover target-specific subject")
+        .target_profile(),
+        omega_target::TargetProfile::WindowsX64
+    );
+}
+
+#[test]
 fn root_git_package_selection_and_navigation_change_the_subject() {
     let selected = git_source("matrix", "workspace", 1);
     let subject = |selection, navigation| {
@@ -321,6 +352,17 @@ fn recovery_rejects_unknown_version_trailing_bytes_and_tight_limits() {
     assert!(
         CanonicalSourceClosureSubject::recover(
             &unknown_version,
+            CanonicalSourceClosureSubjectLimits::default()
+        )
+        .is_err()
+    );
+
+    let mut retired_conditional_version = subject.canonical_bytes.clone();
+    retired_conditional_version[version_offset..version_offset + 2]
+        .copy_from_slice(&(SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION - 1).to_le_bytes());
+    assert!(
+        CanonicalSourceClosureSubject::recover(
+            &retired_conditional_version,
             CanonicalSourceClosureSubjectLimits::default()
         )
         .is_err()

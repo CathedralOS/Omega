@@ -2,7 +2,6 @@
 
 mod closure;
 mod dependency;
-mod projection;
 mod root;
 mod source;
 

@@ -7,14 +7,14 @@ use super::super::{
     CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
 use super::framing::{Decoder, Encoder, decode_hex_32, encode_hex};
-use super::projection::{encode_dependency_projection, encode_target_profile};
 use super::source::{
     decode_package_key, decode_source_identity, decode_source_lineage, encode_package_key,
     encode_source_identity, encode_source_lineage,
 };
 use crate::declarations::BuildDeclarationKind;
-use crate::declarations::dependencies::read::PackageSelection;
-use crate::declarations::dependencies::read::ProjectedDependencies;
+use crate::declarations::dependencies::read::{
+    DependencySourceRequest, PackageSelection, ProjectedDependencies,
+};
 use crate::declarations::{AliasName, PackageName};
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
@@ -50,6 +50,81 @@ pub(in super::super) fn encode_subject(
         encode_dependency_selection(&mut encoder, request, limits)?;
     }
     Ok(encoder.finish())
+}
+
+fn encode_target_profile(
+    encoder: &mut Encoder,
+    profile: TargetProfile,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    encoder.bytes_bounded(
+        profile.identity().as_str().as_bytes(),
+        limits.maximum_identity_bytes,
+    )
+}
+
+pub(in super::super) fn decode_target_profile(
+    decoder: &mut Decoder<'_>,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<TargetProfile, CanonicalSourceClosureSubjectError> {
+    let identity = decoder.string(limits.maximum_identity_bytes)?;
+    TargetProfile::ALL
+        .into_iter()
+        .find(|profile| profile.identity().as_str() == identity)
+        .ok_or_else(|| CanonicalSourceClosureSubjectError::new("unknown target-profile identity"))
+}
+
+fn encode_dependency_projection(
+    encoder: &mut Encoder,
+    dependencies: &ProjectedDependencies,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    encoder.count(dependencies.authored_dependencies().len())?;
+    for request in dependencies.authored_dependencies() {
+        encode_dependency_request(
+            encoder,
+            &CanonicalDependencySourceRequest::from(request),
+            limits,
+        )?;
+    }
+    Ok(())
+}
+
+pub(in super::super) fn decode_dependency_projection(
+    decoder: &mut Decoder<'_>,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<ProjectedDependencies, CanonicalSourceClosureSubjectError> {
+    let request_count = decoder.count(limits.maximum_dependency_requests)?;
+    let mut requests = Vec::with_capacity(request_count);
+    for _ in 0..request_count {
+        requests.push(dependency_request(decode_dependency_request(
+            decoder, limits,
+        )?));
+    }
+    Ok(ProjectedDependencies::from(requests))
+}
+
+fn dependency_request(request: CanonicalDependencySourceRequest) -> DependencySourceRequest {
+    match request {
+        CanonicalDependencySourceRequest::Path {
+            explicit_alias,
+            location,
+        } => DependencySourceRequest::Path {
+            explicit_alias,
+            location,
+        },
+        CanonicalDependencySourceRequest::Git {
+            explicit_alias,
+            repository,
+            revision,
+            selection,
+        } => DependencySourceRequest::Git {
+            explicit_alias,
+            repository,
+            revision,
+            selection,
+        },
+    }
 }
 
 fn encode_root_selection(

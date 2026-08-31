@@ -163,7 +163,6 @@ impl CanonicalSourceClosureSubject {
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let limits = limits.compiler_bounded();
         validate_subject(
-            target_profile,
             &root,
             &packages,
             &package_navigations,
