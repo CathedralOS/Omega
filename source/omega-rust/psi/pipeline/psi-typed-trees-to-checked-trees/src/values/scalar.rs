@@ -327,13 +327,16 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         else {
                             continue;
                         };
-                        let target_parameters = program.state_parameters(target_state);
-                        for (argument_index, (argument, target_parameter)) in program
+                        let target_parameters = program
+                            .state_parameters(target_state)
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, parameter)| !parameter.is_self);
+                        for (argument, (target_position, target_parameter)) in program
                             .statement_table
                             .expression_handles(*arguments)
                             .iter()
                             .zip(target_parameters)
-                            .enumerate()
                         {
                             let Some(target_type) =
                                 program.primitive_type_reference(target_parameter.type_reference)
@@ -352,7 +355,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             ) else {
                                 continue;
                             };
-                            let Ok(argument_ordinal) = u32::try_from(argument_index) else {
+                            let Ok(argument_ordinal) = u32::try_from(target_position) else {
                                 continue;
                             };
                             expressions.push(CheckedLocatedScalarExpression {

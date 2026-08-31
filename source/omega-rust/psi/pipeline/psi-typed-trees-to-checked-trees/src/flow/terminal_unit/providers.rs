@@ -40,8 +40,7 @@ pub(super) fn checked_provider_attachment_requirements(
         .collect::<Vec<_>>();
     if field.identity.starts_with('#')
         || !structural_parameters.is_empty()
-        || calls.is_empty()
-        || calls.len() != call_operations.len()
+        || call_operations.is_empty()
     {
         return None;
     }
@@ -77,8 +76,25 @@ pub(super) fn checked_provider_attachment_requirements(
         .map(|requirement| requirement.symbol)
         .collect::<Vec<_>>();
 
-    let mut requirements = Vec::with_capacity(calls.len());
-    for (call, operation) in calls.iter().zip(call_operations) {
+    let mut requirements = Vec::with_capacity(call_operations.len());
+    for operation in call_operations {
+        let coordinate = match operation {
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
+            | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => coordinate,
+            _ => return None,
+        };
+        let matching_calls = calls
+            .iter()
+            .filter(|call| {
+                u32::try_from(call.statement_index).ok() == Some(coordinate.statement_index)
+                    && u32::try_from(call.call_ordinal).ok() == Some(coordinate.call_ordinal)
+            })
+            .collect::<Vec<_>>();
+        let [call] = matching_calls.as_slice() else {
+            return None;
+        };
         if !provider_requirements.contains(&call.target_symbol) {
             return None;
         }

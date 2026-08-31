@@ -118,13 +118,21 @@ pub(super) fn admit<'a>(
 }
 
 fn exact_parameters(state: &psi_checked_trees::CheckedComposedUnitControlStatePlan) -> bool {
-    !state.scalar_parameters.is_empty()
+    let Some(base) = state
+        .scalar_parameters
+        .first()
+        .map(|parameter| parameter.source_position)
+    else {
+        return false;
+    };
+    base <= 1
         && state
             .scalar_parameters
             .iter()
             .enumerate()
             .all(|(index, parameter)| {
-                parameter.source_position == u32::try_from(index).unwrap_or(u32::MAX)
+                parameter.source_position
+                    == base.saturating_add(u32::try_from(index).unwrap_or(u32::MAX))
                     && parameter.primitive_type == PrimitiveType::Bool
             })
 }
@@ -185,7 +193,7 @@ fn validate_edge(
                         argument_ordinal: argument.argument_ordinal,
                     },
                 );
-                argument.argument_ordinal == u32::try_from(target_index).unwrap_or(u32::MAX)
+                argument.argument_ordinal == target_parameter.source_position
                     && argument.target_scalar_parameter_index
                         == u32::try_from(target_index).unwrap_or(u32::MAX)
                     && argument.primitive_type == target_parameter.primitive_type

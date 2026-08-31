@@ -10,7 +10,7 @@ machine Game::run(&mut self) {
     self.view.render_title();
 
     transition {
-        _ -> prompt(self)
+        _ -> prompt()
     }
 
     state prompt(&mut self) {
@@ -18,9 +18,9 @@ machine Game::run(&mut self) {
         self.input.read_line(&mut self.line);
 
         transition self.parser.resolve_command(&self.line) {
-            Command::Look -> look(self)
-            Command::Quit -> finished(self)
-            Command::Invalid -> invalid_command(self)
+            Command::Look -> look()
+            Command::Quit -> finished()
+            Command::Invalid -> invalid_command()
         }
     }
 
@@ -28,7 +28,7 @@ machine Game::run(&mut self) {
         self.view.render_room(&self.room);
 
         transition {
-            _ -> prompt(self)
+            _ -> prompt()
         }
     }
 
@@ -36,7 +36,7 @@ machine Game::run(&mut self) {
         self.view.render_invalid_command();
 
         transition {
-            _ -> prompt(self)
+            _ -> prompt()
         }
     }
 
@@ -75,7 +75,7 @@ machine Inventory::find_item(
     out: &mut Optional<u64>
 ) {
     transition {
-        _ -> find_item_at(self, kind, 0, out)
+        _ -> find_item_at(kind, 0, out)
     }
 
     state find_item_at(
@@ -90,7 +90,7 @@ machine Inventory::find_item(
 
         transition (found, has_next) {
             (true, _) -> found_item(index, out)
-            (false, true) -> find_item_at(self, kind, next_index, out)
+            (false, true) -> find_item_at(kind, next_index, out)
             (false, false) -> not_found(out)
         }
     }
@@ -109,7 +109,9 @@ machine Inventory::find_item(
 ```
 
 The call-shaped syntax in a transition arm is argument passing for a jump. It is
-not method dispatch.
+not method dispatch. A target state's declared `self` parameter is carried as
+the machine attachment context and is not repeated in the transition argument
+list; only non-`self` state parameters are explicit jump arguments.
 
 Machine parameters are roots owned by the current activation, but they are not
 ambient names inside every state. A state may observe, mutate, move, or use only

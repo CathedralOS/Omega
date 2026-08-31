@@ -164,6 +164,10 @@ Must own:
   authored axis only; suspension never supplies blocking or vice versa.
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
+- Checked scalar expressions for named-transition arguments skip an implicit
+  `self` target parameter but retain each explicit argument's raw target
+  position. Later executable plans may use dense scalar carrier indices, but
+  they must rejoin this source-position coordinate rather than renumbering it.
 - A durable checked-flow representation of calls and transitions.
 - Exact positional binding from each named-transition evidence identifier to
   the target state's witness-bearing arrival requirement after ordinary

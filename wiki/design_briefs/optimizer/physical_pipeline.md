@@ -130,9 +130,13 @@ The same operation rung admits an exact parameterless boundary call with no
 scalar or structural arguments. Producer assembly includes control states in
 boundary/provider discovery; consumer admission rejoins the boundary call and
 emission records its source-call occurrence while appending it to the existing
-control block before the guard. Provider-backed control prefixes are still
-fail-closed where implicit-`self` scalar dispatch lacks a checked transition-
-argument expression row; lowering does not synthesize that missing evidence.
+control block before the guard. Provider-backed control prefixes cross this
+route by joining executable operations to flow calls at exact source
+coordinates; named-transition call facts remain graph topology. Checked scalar
+facts omit the implicit `self` parameter but key every explicit transition
+argument by its raw target position, while executable plans use separate dense
+source and target scalar indices. Producer and consumer independently rejoin
+those coordinates, and missing scalar facts or provider requirements reject.
 
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common

@@ -106,7 +106,11 @@ classification and independent reachability/cycle walks; the operation rungs
 own the exact finite pre-terminator sequence and preserve effect-before-branch
 source order. Internal and boundary calls share this rung; boundary emission
 reuses the ancestor call-operation projector so source-call occurrences are
-recorded once rather than reconstructed by the graph route.
+recorded once rather than reconstructed by the graph route. Provider discovery
+matches those executable operations to flow calls by exact source coordinate,
+so named-transition call facts stay with topology. Implicit `self` likewise
+stays attachment context: scalar-edge facts retain the raw target position but
+the nested-control plans carry separate dense scalar indices.
 Balanced, right-deep, convergent, and call-prefixed shapes do not receive
 sibling routes.
 The nested

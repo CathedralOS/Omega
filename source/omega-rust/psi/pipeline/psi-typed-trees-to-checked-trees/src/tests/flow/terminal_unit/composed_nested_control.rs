@@ -239,6 +239,53 @@ fn composes_a_parameterless_boundary_call_before_a_conditional() {
 }
 
 #[test]
+fn composes_a_provider_boundary_prefix_with_implicit_self_edges() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine tick() reaches Console;
+            machine exit(code: i32) reaches Console;
+        }
+        data Main { console: Console; }
+        machine Main::main(&mut self, first: bool, second: bool) reaches Console {
+            self.console.tick();
+            transition first { true -> dispatch(second) _ -> no() }
+            state dispatch(&mut self, flag: bool) {
+                transition flag { true -> yes() _ -> no() }
+            }
+            state yes(&mut self) { self.console.exit(1); }
+            state no(&mut self) { self.console.exit(2); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "main"))
+        .expect("implicit-self provider control should compose");
+    let [entry, dispatch, _, _] = plan.states.as_slice() else {
+        panic!("provider-prefixed control retains four states")
+    };
+    assert_eq!(entry.scalar_parameters[0].source_position, 1);
+    assert_eq!(dispatch.scalar_parameters[0].source_position, 1);
+    let (when_true, _) = conditional_successors(entry);
+    assert!(matches!(
+        when_true.scalar_arguments.as_slice(),
+        [argument]
+            if argument.argument_ordinal == 1
+                && argument.source_scalar_parameter_index == 1
+                && argument.target_scalar_parameter_index == 0
+    ));
+    assert_eq!(plan.provider_attachment_requirements.len(), 2);
+    assert!(
+        plan.provider_attachment_requirements
+            .iter()
+            .all(|requirement| requirement.field_identity == "console")
+    );
+}
+
+#[test]
 fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
     let checked = checked(
         r#"
