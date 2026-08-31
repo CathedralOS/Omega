@@ -314,11 +314,9 @@ pub(super) fn project_callable_conformances(
                     operator,
                 )?;
             }
-            if !operator.lifetime_parameters.is_empty()
-                || !compilation.operator_type_parameters(operator).is_empty()
-            {
+            if !operator.lifetime_parameters.is_empty() || !machine.lifetime_parameters.is_empty() {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes generic or lifetime-parameterized operator `{}::{}` not yet represented by package review",
+                    "reviewed callable `{}` realizes lifetime-parameterized operator `{}::{}` not yet represented by package review",
                     machine.name, conformance.name, requirement_name
                 ))]);
             }

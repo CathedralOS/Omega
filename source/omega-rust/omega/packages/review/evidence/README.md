@@ -64,6 +64,6 @@ certificate, policy decision, persistence codec, accepted lock, or
 The crate root exports `project_checked_package_review` as its operation. The
 manager owns comparison and policy; this crate never admits a package.
 
-The canonical review schema is version 114 and row schema version 72. Exact
+The canonical review schema is version 115 and row schema version 73. Exact
 vocabulary and revision notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

@@ -383,3 +383,250 @@ machine build(builder: &mut Build) {
         .expect("family mapping should have canonical review encoding");
     assert!(!canonical.is_empty());
 }
+
+#[test]
+fn review_selects_alpha_renamed_generic_checked_provider() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericMath {}
+pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+pub data GenericProvider {}
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("alpha-renamed generic operator provider should select");
+    let review = project_checked_package_review(&checked)
+        .expect("generic provider declaration should project without universal coverage");
+    let declaration = review
+        .public_operators()
+        .iter()
+        .find(|shape| shape.coordinate().identity().path() == "GenericMath::identity")
+        .expect("generic boundary operator declaration");
+    assert_eq!(declaration.type_parameters().len(), 1);
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "GenericProvider::identity")
+        .expect("generic checked provider callable");
+    assert_eq!(callable.type_parameters().len(), 1);
+    assert_eq!(declaration.type_parameters(), callable.type_parameters());
+    assert_eq!(
+        declaration.parameters()[0].type_identity(),
+        callable.parameters()[0].type_identity()
+    );
+    let [realization] = callable.operator_realizations() else {
+        panic!("one exact generic operator realization")
+    };
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    let [provider] = review.selected_providers() else {
+        panic!("one selected generic provider")
+    };
+    assert_eq!(
+        provider.schema_declaration().path(),
+        "GenericMath::identity"
+    );
+    let [row] = provider.row_declarations() else {
+        panic!("one selected generic provider row")
+    };
+    assert_eq!(row.realization().path(), "GenericProvider::identity");
+    assert!(review.boundary_application_realizations().is_empty());
+}
+
+#[test]
+fn review_accepts_generic_checked_provider_with_weaker_property_demand() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericMath {}
+pub operator GenericMath::identity<Element [copy]>(value: Element) -> Element;
+pub machine provide_identity<Value>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("a provider with weaker property demands should satisfy the operator");
+    let review = project_checked_package_review(&checked)
+        .expect("property-demand weakening should remain explicit in package review");
+    let declaration = review
+        .public_operators()
+        .iter()
+        .find(|shape| shape.coordinate().identity().path() == "GenericMath::identity")
+        .expect("bounded generic operator declaration");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_identity")
+        .expect("weaker generic provider callable");
+    assert_ne!(declaration.type_parameters(), callable.type_parameters());
+    let [realization] = callable.operator_realizations() else {
+        panic!("one refined generic operator realization")
+    };
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+}
+
+#[test]
+fn review_selects_alpha_renamed_const_generic_checked_provider() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data ConstMath {}
+pub boundary operator ConstMath::identity<const Count: u64>(
+    value: [u8; Count]
+) -> [u8; Count];
+pub data ConstProvider {}
+pub machine ConstProvider::identity<const Length: u64>(
+    value: [u8; Length]
+) -> [u8; Length]
+satisfies ConstMath::identity
+{ value }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("alpha-renamed const-generic operator provider should select");
+    let review = project_checked_package_review(&checked)
+        .expect("const-generic provider declaration should project exactly");
+    let declaration = review
+        .public_operators()
+        .iter()
+        .find(|shape| shape.coordinate().identity().path() == "ConstMath::identity")
+        .expect("const-generic boundary operator declaration");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "ConstProvider::identity")
+        .expect("const-generic checked provider callable");
+    assert_eq!(declaration.type_parameters().len(), 1);
+    assert_eq!(callable.type_parameters().len(), 1);
+    assert_eq!(declaration.type_parameters(), callable.type_parameters());
+    assert_eq!(
+        declaration.parameters()[0].type_identity(),
+        callable.parameters()[0].type_identity()
+    );
+    for authored_binder in ["Count", "Length"] {
+        assert!(
+            !callable.parameters()[0]
+                .type_identity()
+                .canonical()
+                .contains(authored_binder)
+        );
+    }
+    let [realization] = callable.operator_realizations() else {
+        panic!("one exact const-generic operator realization")
+    };
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert!(review.boundary_application_realizations().is_empty());
+}
+
+#[test]
+fn checked_operator_static_telescope_mismatches_reject_before_review() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let cases = [
+        (
+            "category",
+            r#"pub data GenericMath {}
+pub operator GenericMath::identity<Element>(value: i32) -> i32;
+pub machine provide_identity<const Count: u64>(value: i32) -> i32
+satisfies GenericMath::identity
+{ value }
+"#,
+        ),
+        (
+            "const carrier",
+            r#"pub data GenericMath {}
+pub operator GenericMath::identity<const Count: u64>(value: i32) -> i32;
+pub machine provide_identity<const Count: i64>(value: i32) -> i32
+satisfies GenericMath::identity
+{ value }
+"#,
+        ),
+        (
+            "property bounds",
+            r#"pub data GenericMath {}
+pub operator GenericMath::identity<Element>(value: Element) -> Element;
+pub machine provide_identity<Value [copy]>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+"#,
+        ),
+    ];
+    for (label, source) in cases {
+        let package = TempPackage::new();
+        package.write("main.omg", source);
+        package.write(
+            "build.omg",
+            r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+        );
+        let diagnostics = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect_err("mismatched operator/provider static telescopes must not check");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("does not match one exact overload of operator requirement")),
+            "{label}: {diagnostics:?}"
+        );
+    }
+}

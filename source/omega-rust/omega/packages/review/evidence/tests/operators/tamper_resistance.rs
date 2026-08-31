@@ -649,12 +649,15 @@ satisfies CheckedMath::identity
             &forged_type_parameter.typed,
         );
     let diagnostics = project_checked_package_review(&forged_type_parameter)
-        .expect_err("post-check generic operator realization must fail closed");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("realizes generic or lifetime-parameterized operator")
-    }));
+        .expect_err("post-check unmatched generic telescope must fail closed");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "resolves to neither one exact trait requirement nor one exact checked operator"
+            )),
+        "{diagnostics:?}"
+    );
 
     let operator = &checked.typed.operators()[0];
     let forged_lifetime = checked.typed.operator_path_members(operator.name)[0].clone();
@@ -667,11 +670,11 @@ satisfies CheckedMath::identity
             &checked.typed,
         );
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("post-check generic operator realization must fail closed");
+        .expect_err("post-check lifetime-bearing operator realization must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("realizes generic or lifetime-parameterized operator")
+            .contains("realizes lifetime-parameterized operator")
     }));
 
     let mut duplicate = compile_to_checked_with_packages(
