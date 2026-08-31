@@ -24,9 +24,12 @@ pub struct ProofFacts {
         Vec<ContractExpressionStaticConformanceApplicationFact>,
     pub contract_exits: Arena<ContractExitFact>,
     pub contract_operator_uses: Arena<ContractOperatorUseFact>,
-    /// Proof-only float projections bound to actual validated source calls.
+    /// Unique proof-only float projections bound to validated source keys.
     /// Rows retain only plan-local value identities and exact landed formats.
     pub float_meaning_projections: Vec<crate::CheckedFloatMeaningProjection>,
+    /// Authored projection occurrences and spans, retained separately from
+    /// canonical proof-value identity and erased before Terminal Psi.
+    pub float_meaning_projection_occurrences: Vec<crate::CheckedFloatMeaningProjectionOccurrence>,
     /// Proof-position equalities over exact float-meaning projection results.
     pub float_meaning_equalities: Vec<crate::CheckedFloatMeaningEqualityProposition>,
     /// Canonical nominal proposition declarations and applications after
@@ -68,6 +71,7 @@ impl ProofFacts {
             contract_exits,
             contract_operator_uses,
             float_meaning_projections,
+            float_meaning_projection_occurrences: Vec::new(),
             float_meaning_equalities,
             proposition_vocabulary,
         }

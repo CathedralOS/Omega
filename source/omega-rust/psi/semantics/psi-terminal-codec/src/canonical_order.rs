@@ -8,8 +8,8 @@ use std::collections::BTreeSet;
 
 use psi_core::{ContentTerm, IntegerMathTerm, Proposition, PropositionId, ScalarTerm};
 use psi_terminal::{
-    CrashRouteBucket, CrashRouteGuard, FloatProjectionInputId, OperationKind, ProofPropositionId,
-    ProofValueId, StructuralParameterDeclaration, StructuralTypeShape, TerminalModule, Terminator,
+    CrashRouteBucket, CrashRouteGuard, OperationKind, ProofPropositionId, ProofValueId,
+    StructuralParameterDeclaration, StructuralTypeShape, TerminalModule, Terminator,
 };
 
 use super::proposition_wire::encode_proposition;
@@ -225,21 +225,31 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "provider candidates by exact conformance identity",
         ));
     }
-    if module
-        .float_meaning_projections
-        .iter()
-        .enumerate()
-        .any(|(index, projection)| {
-            let Ok(index) = u32::try_from(index) else {
-                return true;
+    let mut float_projection_sources = Vec::new();
+    for (index, projection) in module.float_meaning_projections.iter().enumerate() {
+        let Ok(index) = u32::try_from(index) else {
+            return Err(CodecError::NonCanonicalOrder(
+                "float-meaning projections by dense proof value and first-use source IDs",
+            ));
+        };
+        if projection.result.id != ProofValueId(index) {
+            return Err(CodecError::NonCanonicalOrder(
+                "float-meaning projections by dense proof value and first-use source IDs",
+            ));
+        }
+        if !float_projection_sources.contains(&projection.source.id) {
+            let Ok(expected) = u32::try_from(float_projection_sources.len()) else {
+                return Err(CodecError::NonCanonicalOrder(
+                    "float-meaning projections by dense proof value and first-use source IDs",
+                ));
             };
-            projection.result.id != ProofValueId(index)
-                || projection.source.id != FloatProjectionInputId(index)
-        })
-    {
-        return Err(CodecError::NonCanonicalOrder(
-            "float-meaning projections by dense proof value and source IDs",
-        ));
+            if projection.source.id.0 != expected {
+                return Err(CodecError::NonCanonicalOrder(
+                    "float-meaning projections by dense proof value and first-use source IDs",
+                ));
+            }
+            float_projection_sources.push(projection.source.id);
+        }
     }
     if !strictly_increasing(module.proposition_declarations.iter().cloned().map(
         |mut declaration| {

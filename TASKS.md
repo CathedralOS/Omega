@@ -10461,10 +10461,17 @@ Remaining N6/N8 work:
   lookalike declarations, cross-format/catalog substitution, generic-equality
   and relation separation, canonical Terminal coordinates, and quantifier
   substitution. The authoritative tape was rebuilt through the below-Beta
-  route and the complete independent diamond agrees. Still open are the
-  artifact-aware reconstruction bridge, the complete Terminal source carrier
-  and `ProofValueId` deduplication/provenance split, source contract-owner
-  retention, and production proof-ledger discharge.
+  route and the complete independent diamond agrees. The bounded checked-plan
+  deduplication rung is also live for the currently landed source forms:
+  repeated resolved symbols and exact-bit literals share one dense
+  `ProofValueId`, authored occurrences retain separate span provenance, and
+  Terminal canonicalization/verifier replay rejects duplicate tuples or one
+  source coordinate used with inconsistent formats. Other typed expressions
+  still use their exact lowering-local handle, and the Terminal row still
+  carries only a migration coordinate. Still open are the artifact-aware
+  reconstruction bridge, the complete verifier-reconstructible Terminal source
+  carrier, source contract-owner retention, and production proof-ledger
+  discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
