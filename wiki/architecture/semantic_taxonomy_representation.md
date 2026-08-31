@@ -221,6 +221,22 @@ qualification—separately from program-point origin. Selected provider plans an
 linear result claims retain exact identities in checked artifacts, so resource
 receipts can match subjects without parsing result types.
 
+A boundary structural-domain requirement consumes that carried qualification
+directly. The requirement is an argument position plus an exact domain
+identity; admission checks membership in the argument's retained qualification
+roster. It creates no proposition or detached proof obligation. Predicate proof
+and an authorized routed introduction are distinct ways to establish a
+qualification upstream, and a later proof cannot replace sealed routed
+provenance.
+
+Qualification rosters are carried semantic facts, not optimizer-inferred flow
+facts. A transformed value may retain a qualification only when every incoming
+occurrence represented by that value carries it through valid establishment
+lineage. Joins therefore use at most the common intersection, never the union,
+and common-subexpression or value-numbering equivalence cannot ignore unequal
+rosters. Widening is an authority-forging soundness defect; narrowing is
+fail-closed but cannot publish as exact semantic preservation.
+
 Transparent aliases expand recursively to atomic facts before identity,
 compatibility, admission, and route normalization. Empty, cyclic,
 cross-carrier, unknown, and public-to-private expansions reject. Generic

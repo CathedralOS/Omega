@@ -1978,6 +1978,50 @@ deployment or reproduction subject. Real process/image attestation is separate
 deployment evidence until a concrete Omega claim and independent verifier
 consume it.
 
+## D47 — Boundary domain requirements consume carried qualifications
+
+A Terminal boundary structural-domain requirement is an argument position plus
+one exact domain identity. Boundary-call admission checks whether the selected
+structural argument already carries that identity in its qualification roster.
+The requirement has no proposition term or proof conclusion, mints no
+`ObligationId`, and does not reuse the positionally aligned proposition rows of
+ordinary, Unit, or structural-scalar in-module calls.
+
+The carried qualification may have been established upstream by predicate
+proof, an authorized routed operation, propagation, validation, or another
+route permitted by the domain. Those routes remain distinct. In particular, a
+generic proof cannot replace sealed routed provenance such as the qualification
+introduced by `InterruptEntry::enter`; the boundary call merely consumes the
+already-established result.
+
+Terminal's current boundary `requirement_obligations` wire slot is a legacy
+always-empty field. The verifier continues to reject every nonempty roster as
+`BoundaryStructuralRequirementsMintObligations`. At the next Terminal format
+and vocabulary revision, the boundary variant and wire payload remove the slot
+entirely and bump both markers. The new format says that the field is absent,
+not that boundary calls own an optional proof facility. Abstract lowering and
+native settlement retain the boundary, structural arguments, completion
+receipts, and declaration join; they do not fabricate or preserve boundary
+proof IDs.
+
+Qualification rosters are non-recomputable carried semantic facts. A
+transformation may retain a qualification only when every incoming occurrence
+represented by the output carries it through valid establishment lineage.
+Control-flow joins use at most the common intersection, never the union.
+CSE/GVN treats unequal rosters as unequal values unless it deliberately forms
+the common intersection and revalidates all uses. Widening is an
+authority-forging soundness failure. Narrowing is fail-closed, but an optimizer
+claiming exact Terminal preservation must reject rather than publish that
+semantic change.
+
+A future proposition over an exact structural argument place would be a new
+feature requiring its own term, substitution, admission, and publication
+custody. It may constrain use but cannot establish or replace routed
+qualification provenance unless the domain itself explicitly authorizes proof
+as an establishment route. Mapping a qualification to `Proposition::Truth`,
+copying opaque obligation IDs, or accepting a nonempty boundary roster without
+reconstructing a conclusion fabricates evidence and rejects.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

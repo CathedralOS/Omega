@@ -274,13 +274,16 @@ decision. Only true language-semantic questions belong in
   verification reconstructs these nonempty rows, but the corresponding
   abstract variants cannot carry them; add nonempty custody and mutation tests
   with the model extension.
-- [?] Decide whether boundary `StructuralDomainRequirement` rows remain
-  qualification-only or gain proposition/proof ownership. Terminal currently
-  rejects every nonempty boundary `requirement_obligations` roster as
-  `BoundaryStructuralRequirementsMintObligations`, so an optimizer carrier
-  cannot honestly add the requested nonempty mutation canary. See
-  **Decide whether boundary qualifications mint proof obligations** in
-  `OWNER_QUESTIONS.md`; do not manufacture proof meaning while it is open.
+- [ ] Apply **Boundary domain requirements consume carried qualifications**.
+  Until the next Terminal format/vocabulary revision, keep the legacy boundary
+  `requirement_obligations` slot empty and reject every nonempty roster as
+  `BoundaryStructuralRequirementsMintObligations`. At that revision remove the
+  field from the boundary variant and its wire payload rather than preserving
+  an always-empty slot. Add optimizer/publication controls that bind the exact
+  boundary, structural argument paths, carried qualification rosters, and
+  declaration requirements; joins use at most the common intersection, CSE/GVN
+  never equates unequal rosters by computation alone, and no transformation may
+  widen a roster or otherwise mint a routed qualification.
 - [x] Add fixed-view-copy v5 as a versioned envelope and structural selected
   subtree. Public encoding emits v5; decoding accepts v4/v5; v4 bytes and
   rejection order remain pinned. V5 authenticates the exact selected-plan

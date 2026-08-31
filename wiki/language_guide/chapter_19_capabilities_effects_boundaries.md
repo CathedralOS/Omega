@@ -1692,6 +1692,24 @@ domain declaration. Obligation-free domains may be qualified directly with
 See
 [`authority_values_and_boundary_evidence.md`](../design_briefs/authority_values_and_boundary_evidence.md).
 
+A boundary call checks each structural `requires` row against the exact domain
+qualifications already carried by the corresponding argument. The check is set
+membership over domain identities; it does not mint a proposition or an
+`ObligationId`. The qualification may have been established by predicate proof,
+an authorized routed operation, propagation, or another route permitted by its
+domain, but the boundary call neither repeats nor substitutes for that
+establishment. Ordinary in-module call propositions remain proof-bearing and
+are unaffected.
+
+Downstream transformations may carry or conservatively forget qualifications,
+but cannot derive them. A control-flow join may retain only qualifications
+present on every incoming occurrence, and CSE/GVN must distinguish unequal
+qualification rosters unless it deliberately forms their common intersection
+and revalidates every use. Unioning rosters would mint authority on a path that
+never established it. Forgetting a qualification is fail-closed, but an exact
+Terminal-to-Terminal publication must reject that semantic change rather than
+silently publish it as equivalent.
+
 ## Boundary Realization Catalog
 
 Omega has one provider model. A boundary trait/operator or explicit top-level
