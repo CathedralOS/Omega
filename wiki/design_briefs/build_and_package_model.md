@@ -2541,14 +2541,16 @@ redirected, or stale call custody rejects; recovery remains v14. This does not
 widen the call compositions accepted by checking; it retains views only in
 public facts that already pass the compiler's denotational-call rules.
 
-Package review v93/canonical row v51 admits a named public const in a checked
-contract-call const slot. Resolution retains the authored path once as an
-exact static-argument selection to the const declaration. Projection rejoins
-that symbol to exactly one checked public const and decodes its closed
-canonical integer value into the existing const-argument row. A changed value
-changes review identity; private declarations, missing or malformed canonical
-values, non-integer consts, and selection drift reject. Source names and
-diagnostic displays are not value identity, and recovery remains v14.
+Package review v93/canonical row v51 admits a named public integer const in a
+checked contract-call const slot. Resolution retains the authored path once as
+an exact static-argument selection to the const declaration. Projection
+rejoins that symbol to exactly one checked public const and decodes its closed
+canonical value into the const-argument row. Review v99/canonical row v57 adds
+Boolean values with a distinct atom and requires the exact compiler-owned
+`bool` declaration carrier. A changed value changes review identity; private
+declarations, missing or malformed canonical values, carrier disagreement,
+other value families, and selection drift reject. Source names and diagnostic
+displays are not value identity, and recovery remains v14.
 
 Package review v95/canonical row v53 extends the opaque external executable-
 supply key with a third exact requirement tag for public top-level boundary

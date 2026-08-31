@@ -100,6 +100,8 @@ pub enum PackageReviewContractStaticArgument {
     },
     /// One parser-canonical integer literal in an exact const-parameter slot.
     ConstInteger(String),
+    /// One canonical Boolean value in an exact const-parameter slot.
+    ConstBoolean(bool),
     /// One const parameter from the containing declaration's canonical static
     /// telescope. The ordinal spans every static parameter category.
     GenericConstBinder(u32),

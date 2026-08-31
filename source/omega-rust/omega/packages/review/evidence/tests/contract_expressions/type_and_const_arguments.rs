@@ -289,6 +289,148 @@ ensures result == constant<LIMIT, OTHER>();
 }
 
 #[test]
+fn review_projects_named_boolean_consts_with_exact_carrier_and_canonical_identity() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let compile = |value: bool| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub const ENABLED: bool = {value};
+pub const OTHER: u64 = 1;
+pub machine selected<const Value: bool>() -> bool {{ true }}
+boundary machine trusted_enabled() -> bool
+ensures result == selected<ENABLED>();
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("named Boolean const static contract argument should check")
+    };
+    let static_arguments = |review: &CheckedPackageReviewProjection| {
+        let callable = review
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path() == "trusted_enabled")
+            .expect("trusted Boolean callable");
+        let [contract] = callable.contracts() else {
+            panic!("one trusted-Boolean contract")
+        };
+        let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+            right,
+            ..
+        }) = contract.fact()
+        else {
+            panic!("trusted-Boolean equality contract")
+        };
+        let PackageReviewContractExpression::Call {
+            static_arguments, ..
+        } = right.as_ref()
+        else {
+            panic!("named Boolean const call")
+        };
+        static_arguments.clone()
+    };
+
+    let checked = compile(true);
+    let review = project_checked_package_review(&checked)
+        .expect("named Boolean const should have canonical package-review custody");
+    assert_eq!(
+        static_arguments(&review),
+        vec![PackageReviewContractStaticArgument::ConstBoolean(true)]
+    );
+    let false_review = project_checked_package_review(&compile(false))
+        .expect("false named Boolean const should have canonical package-review custody");
+    assert_eq!(
+        static_arguments(&false_review),
+        vec![PackageReviewContractStaticArgument::ConstBoolean(false)]
+    );
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        false_review.canonical_review_bytes().unwrap(),
+        "changing the selected canonical Boolean must change review identity",
+    );
+
+    let mut malformed = checked.clone();
+    let enabled = malformed
+        .typed
+        .tables
+        .const_declarations
+        .iter()
+        .find_map(|(handle, declaration)| {
+            (malformed.symbols.name(declaration.symbol) == "ENABLED").then_some(handle)
+        })
+        .expect("ENABLED declaration");
+    malformed
+        .typed
+        .tables
+        .const_declarations
+        .get_mut(enabled)
+        .canonical_value_encoding = Some("boolean4:true-tail".to_owned());
+    let diagnostics = project_checked_package_review(&malformed)
+        .expect_err("malformed post-check Boolean encoding must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("not a supported canonical value for its exact declared carrier")),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
+
+    let mut wrong_carrier = checked;
+    let declarations = wrong_carrier
+        .typed
+        .tables
+        .const_declarations
+        .iter()
+        .filter_map(|(handle, declaration)| {
+            let name = wrong_carrier.symbols.name(declaration.symbol);
+            matches!(name, "ENABLED" | "OTHER").then_some((name.to_owned(), handle))
+        })
+        .collect::<Vec<_>>();
+    let enabled = declarations
+        .iter()
+        .find_map(|(name, handle)| (name == "ENABLED").then_some(*handle))
+        .expect("ENABLED declaration");
+    let other = declarations
+        .iter()
+        .find_map(|(name, handle)| (name == "OTHER").then_some(*handle))
+        .expect("OTHER declaration");
+    let other_type = wrong_carrier
+        .typed
+        .tables
+        .const_declarations
+        .get(other)
+        .declared_type;
+    wrong_carrier
+        .typed
+        .tables
+        .const_declarations
+        .get_mut(enabled)
+        .declared_type = other_type;
+    let diagnostics = project_checked_package_review(&wrong_carrier)
+        .expect_err("Boolean encoding under a non-Boolean exact carrier must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("not a supported canonical value for its exact declared carrier")),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
+}
+
+#[test]
 fn public_contract_rejects_private_named_const_static_argument() {
     let Some(target) = host_target_name() else {
         return;

@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 98 and row schema version 56. This file
+The canonical review schema is version 99 and row schema version 57. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -129,11 +129,14 @@ inside public facts that already pass the compiler's denotational rules.
 A named public const supplied to a const-generic contract call retains one
 exact public-interface static-argument selection to the const declaration.
 Projection rejoins that symbol to exactly one checked public const and decodes
-its closed canonical integer encoding; neither the source identifier nor the
-diagnostic display becomes value identity. A private const exposed through a
-public contract, a missing canonical declaration value, a non-integer value,
-or a changed selection rejects. This acceptance expansion is schema v93 / row
-v51 and introduces no new expression atom or recovery-grammar revision.
+its closed canonical integer or Boolean encoding; Boolean values additionally
+rejoin the declaration's exact compiler-owned `bool` carrier. Neither the
+source identifier nor the diagnostic display becomes value identity. A
+private const exposed through a public contract, a missing or malformed
+canonical declaration value, a Boolean value under another carrier, another
+value family, or a changed selection rejects. Integer admission is schema v93
+/ row v51; the Boolean extension is schema v99 / row v57. Neither changes
+canonical-row recovery v14.
 
 Nongeneric, lifetime-free fixed-token boundary operators backed by one exact
 selected `CheckedAdapter` may enter package review only when their declaration
