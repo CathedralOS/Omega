@@ -1766,8 +1766,9 @@ origin package, or non-refining implementation rejects.
 `via` is earned only when it carries an undiscoverable binding payload. Other
 irreducible bindings use ordinary typed compile-time values produced by
 target-package machines. `DllImport` carries one object-format locator sum case
-whose case keeps a PE library/export pair, a PE library/ordinal pair, or an ELF
-object/symbol/version triple inseparable. The satisfied requirement's
+whose case keeps a PE library/export pair, a PE library/ordinal pair, an ELF
+object/symbol/version triple, or a Mach-O install-name/symbol pair inseparable.
+The satisfied requirement's
 `Calling<C, Policy>` relationship separately evaluates the ABI `CallPlan`;
 `Binding` does not carry or reselect it.
 Syscall, firmware, and vtable bindings carry equally typed physical operands.
