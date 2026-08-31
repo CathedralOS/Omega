@@ -121,7 +121,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     .filter(|edge| edge.target == target.id)
                     .count();
                 if incoming_count < 2
-                    || !adjacent_merge_ownership_is_identity(
+                    || !merge_boundary_ownership_is_identity(
                         unit,
                         function,
                         frontiers,

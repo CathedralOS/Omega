@@ -63,7 +63,7 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
-- [x] Audit all 299 governed `lib.rs`/`mod.rs` files and explicitly classify
+- [x] Audit all 300 governed `lib.rs`/`mod.rs` files and explicitly classify
   each at its source as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall. The
@@ -117,8 +117,15 @@ decision. Only true language-semantic questions belong in
   executable V9 framing/admission entrance over encoding, decoding,
   post-allocation custody, target layout, rendering, cursor, and error leaves.
   Its largest leaf is 239 lines; exact bytes and rejection order are unchanged.
+- [x] Replace the 736-line mixed block-merging leaf with a 16-line
+  non-executable family map over separately registered adjacent and
+  non-adjacent rules, shared substitution reconstruction, and their distinct
+  provenance-accounting leaves. Shared merge-boundary ownership custody now
+  sits at the nearest ancestor used by block merging and jump fusion. Its
+  largest leaf is 180 lines; the parent
+  control-flow-cleanup entrance remains the sole owner of exact rule order.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 21 remain at 600-749
+  has no production-classified leaves at 750+ lines; 20 remain at 600-749
   lines.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
   audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,

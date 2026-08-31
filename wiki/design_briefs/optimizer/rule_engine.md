@@ -48,6 +48,15 @@ tests.rs     # positive, negative, boundary, and corruption cases
 `mod.rs` is meaningful: it joins proposal to independent validation. It does
 not contain either implementation.
 
+Two exact rules may share a non-executable semantic family when they consume
+the same custody mechanics without sharing one execution point. Adjacent and
+non-adjacent block merging follow this pattern: each retains its stable
+identity, version, proposal row, and position in the control-flow-cleanup
+catalog, while a small family map exposes their separate proposal/accounting
+leaves and shared exact substitution reconstruction. Merge-boundary ownership
+custody lives at the parent level because jump fusion consumes it too. The
+family map neither enables rules nor owns a second order.
+
 ## Analyses
 
 Analyses are immutable products keyed by validated unit revision and declared
