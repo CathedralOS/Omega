@@ -281,12 +281,14 @@ proc skip_ident() {
 
 proc mark_reject_at(reason, off) {
     let open = word[2096848] == 0
+    let located = off >= 0       ; -1 is the private sentinel for space none
+    let coordinate = off * located
     state record {
-        word[2097056] = word[2097056] * (1 - open) + off * open
+        word[2097056] = word[2097056] * (1 - open) + coordinate * open
         word[2096848] = word[2096848] * (1 - open) + open
         word[2096840] = word[2096840] * (1 - open) + reason * open
-        word[2096832] = word[2096832] * (1 - open) + open
-        word[2096824] = word[2096824] * (1 - open) + off * open
+        word[2096832] = word[2096832] * (1 - open) + located * open
+        word[2096824] = word[2096824] * (1 - open) + coordinate * open
         word[2096816] = word[2096816] * (1 - open)
         word[2096808] = word[2096808] * (1 - open)
         word[2097088] = 1
@@ -3461,37 +3463,154 @@ proc lower_expr(expr, tail_position) {
 ;
 ; These checks consume only resolved D20 identities and author no candidate
 ; payload. D30 fixes the compilation-request envelope, exact profile maxima,
-; and GCOUT/DCOUT tables. D33 requires the completed boundary to retain every
-; schema (reason, coordinate) candidate, apply category order 19/20/21, use
-; coordinate space none for absent facts, and validate code availability
-; against the originating request profile. These Boolean validators do not yet
-; implement that public judgment; embedding it and emitting the selected
-; adapter remain outside this slice.
+; and GCOUT/DCOUT tables. D33's selected judgment authors missing-entry before
+; entry-schema before profile-schema, regardless of source order. Within the
+; Delta-only profile category, any absent required nominal fact precedes every
+; located defect; otherwise the earliest constructor name wins. Successful
+; validation alone publishes the exact identities consumed by a later adapter.
 
-proc validate_d19_conformance_schema() {
-    let function_index = 0
-    let main_count = 0
-    let main_identity = 0
-    state loop { to row when (function_index < word[2097120])  to result }
-    state row {
-        let name_off = word[8388608 + function_index * 32]
-        let is_main = name_is_packed(name_off, 1852399981, 0, 4)
+proc validate_d19_selected_schema() {
+    d19_initialize_name_table()
+    let reason_type = 0
+    let outcome_type = 0
+    let type_index = 2
+    state type_loop { to type_row when (type_index < word[2097104])  to constructor_start }
+    state type_row {
+        let type_code = d19_name_code(word[6291456 + type_index * 8])
+        reason_type = reason_type + type_index * (type_code == 27)
+        outcome_type = outcome_type + type_index * (type_code == 28)
+        type_index = type_index + 1
+        to type_loop
+    }
+    state constructor_start {
+        let constructor_index = 0
+        let complete_identity = 0
+        let reject_identity = 0
+        let storage_at_identity = 0
+        let storage_total_identity = 0
+        let schema_missing = (reason_type == 0) + (outcome_type == 0)
+        let schema_located = 0
+        let schema_coordinate = 0
+        to constructor_loop
+    }
+    state constructor_loop { to constructor_row when (constructor_index < word[2097096])  to function_start }
+    state constructor_row {
+        let constructor_identity = constructor_index + 1
+        let owner_type = word[6815744 + constructor_index * 24 + 8]
+        let constructor_name = word[6815744 + constructor_index * 24]
+        let constructor_code = d19_name_code(constructor_name)
+        let safe_code = constructor_code + (constructor_code == 0)
+        let fields = word[6815744 + constructor_index * 24 + 16]
+        let expected_reason = (constructor_code >= 1) * (constructor_code <= 26)
+        let expected_outcome = (constructor_code >= 29) * (constructor_code <= 32)
+        let expected = expected_reason + expected_outcome
+        let owner_reason = owner_type == reason_type
+        let owner_outcome = owner_type == outcome_type
+        let valid_reason_owner = expected_reason * owner_reason
+        let valid_outcome_owner = expected_outcome * owner_outcome
+        let is_complete = valid_outcome_owner * (constructor_code == 29)
+        let is_reject = valid_outcome_owner * (constructor_code == 30)
+        let is_storage_at = valid_outcome_owner * (constructor_code == 31)
+        let is_storage_total = valid_outcome_owner * (constructor_code == 32)
+        let reason_fields_ok = fields == 0
+        fields = fields + reason_fields_ok * 16777216
+        let complete_fields_ok = (fields != 0) * (word[fields] % 256 == 6)
+        complete_fields_ok = complete_fields_ok * (word[fields + 8] == 1)
+        complete_fields_ok = complete_fields_ok * (word[fields + 16] == 0)
+        let reject_fields_ok = d19_fields_match(fields, reason_type, 0, 2)
+        let storage_at_fields_ok = d19_three_int_fields_match(fields)
+        let storage_total_fields_ok = d19_fields_match(fields, 0, 0, 2)
+        let malformed = expected * (1 - valid_reason_owner - valid_outcome_owner)
+        malformed = malformed + owner_reason * (1 - expected_reason)
+        malformed = malformed + owner_outcome * (1 - expected_outcome)
+        malformed = malformed + valid_reason_owner * (1 - reason_fields_ok)
+        malformed = malformed + is_complete * (1 - complete_fields_ok)
+        malformed = malformed + is_reject * (1 - reject_fields_ok)
+        malformed = malformed + is_storage_at * (1 - storage_at_fields_ok)
+        malformed = malformed + is_storage_total * (1 - storage_total_fields_ok)
+        malformed = malformed != 0
+        let replace_coordinate = malformed * ((1 - schema_located)
+                               + schema_located * (constructor_name < schema_coordinate))
+        schema_coordinate = schema_coordinate * (1 - replace_coordinate)
+                          + constructor_name * replace_coordinate
+        schema_located = schema_located + (1 - schema_located) * malformed
+        let presence_address = 10748928 + (safe_code - 1) * 8
+        word[presence_address] = word[presence_address]
+                               + expected * (word[presence_address] == 0)
+        let valid_reason = valid_reason_owner * reason_fields_ok
+        let reason_address = 10750000 + (safe_code - 1) * 8
+        word[reason_address] = word[reason_address] * (1 - valid_reason)
+                             + constructor_identity * valid_reason
+        complete_identity = complete_identity + constructor_identity * is_complete * complete_fields_ok
+        reject_identity = reject_identity + constructor_identity * is_reject * reject_fields_ok
+        storage_at_identity = storage_at_identity + constructor_identity * is_storage_at * storage_at_fields_ok
+        storage_total_identity = storage_total_identity + constructor_identity * is_storage_total * storage_total_fields_ok
+        constructor_index = constructor_index + 1
+        to constructor_loop
+    }
+    state function_start {
+        let function_index = 0
+        let main_count = 0
+        let main_identity = 0
+        to function_loop
+    }
+    state function_loop { to function_row when (function_index < word[2097120])  to required_start }
+    state function_row {
+        let function_name = word[8388608 + function_index * 32]
+        let is_main = name_is_packed(function_name, 1852399981, 0, 4)
         main_count = main_count + is_main
         main_identity = main_identity + (function_index + 1) * is_main
         function_index = function_index + 1
-        to loop
+        to function_loop
+    }
+    state required_start {
+        let required_code = 1
+        to required_loop
+    }
+    state required_loop { to required_row when (required_code <= 32)  to result }
+    state required_row {
+        let required = (required_code <= 26) + (required_code >= 29)
+        schema_missing = schema_missing
+                       + required * (word[10748928 + (required_code - 1) * 8] == 0)
+        required_code = required_code + 1
+        to required_loop
     }
     state result {
-        to invalid when (main_count != 1)
-        let main_index = main_identity - 1
-        let profile = word[8388608 + main_index * 32 + 16]
-        to invalid when (profile / 4294967296 != 1)
-        let parameters = word[8388608 + main_index * 32 + 8]
-        let parameter = word[parameters + 8]
-        let accepted = (profile % 65536 == 1) * (word[parameter + 16] == 1)
-        return main_identity * accepted
+        let no_main = main_count == 0
+        let safe_main_identity = main_identity + no_main
+        let main_index = safe_main_identity - 1
+        let main_name = word[8388608 + main_index * 32]
+        let main_profile = word[8388608 + main_index * 32 + 16]
+        let main_parameters = word[8388608 + main_index * 32 + 8]
+        main_parameters = main_parameters + (main_parameters == 0) * 16777216
+        let main_parameter = word[main_parameters + 8]
+        main_parameter = main_parameter + (main_parameter == 0) * 16777216
+        let profile_one = word[2096856] == 1
+        let profile_two = word[2096856] == 2
+        let expected_return = profile_one + outcome_type * profile_two
+        let main_invalid = (main_count != 1) + (main_profile / 4294967296 != 1)
+        main_invalid = main_invalid + (main_profile % 65536 != expected_return)
+        main_invalid = main_invalid + (word[main_parameter + 16] != 1)
+        main_invalid = (1 - no_main) * (main_invalid != 0)
+        let schema_selected = profile_two * (1 - no_main) * (1 - main_invalid)
+        let absent_schema = schema_selected * (schema_missing != 0)
+        let located_schema = schema_selected * (schema_missing == 0) * schema_located
+        let reason = 19 * no_main + 20 * main_invalid
+        reason = reason + 21 * (absent_schema + located_schema)
+        let located = main_invalid + located_schema
+        let coordinate = main_name * main_invalid + schema_coordinate * located_schema
+        let reported_coordinate = coordinate * located - (1 - located)
+        to reject when (reason != 0)
+        word[10750208] = complete_identity * profile_two
+        word[10750216] = reject_identity * profile_two
+        word[10750224] = main_identity
+        word[10750232] = reason_type * profile_two
+        word[10750240] = outcome_type * profile_two
+        word[10750256] = storage_at_identity * profile_two
+        word[10750264] = storage_total_identity * profile_two
+        return 1
     }
-    state invalid { return 0 }
+    state reject { mark_reject_at(reason, reported_coordinate)  return 0 }
 }
 
 proc d19_fields_match(fields, first_type, second_type, expected_count) {
@@ -3523,107 +3642,6 @@ proc d19_three_int_fields_match(fields) {
         cursor = word[cursor + 16]
         to loop
     }
-}
-
-proc validate_d19_delta_schema() {
-    d19_initialize_name_table()
-    let reason_type = 0 - 1
-    let outcome_type = 0 - 1
-    let type_index = 2
-    state type_loop { to type_row when (type_index < word[2097104])  to constructor_start }
-    state type_row {
-        let type_code = d19_name_code(word[6291456 + type_index * 8])
-        reason_type = reason_type + (type_index + 1) * (type_code == 27)
-        outcome_type = outcome_type + (type_index + 1) * (type_code == 28)
-        type_index = type_index + 1
-        to type_loop
-    }
-    state constructor_start {
-        let constructor_index = 0
-        let reason_count = 0
-        let outcome_count = 0
-        let complete_identity = 0
-        let reject_identity = 0
-        let storage_at_identity = 0
-        let storage_total_identity = 0
-        let schema_invalid = (reason_type < 2) + (outcome_type < 2)
-        to constructor_loop
-    }
-    state constructor_loop { to constructor_row when (constructor_index < word[2097096])  to function_start }
-    state constructor_row {
-        let owner_type = word[6815744 + constructor_index * 24 + 8]
-        let constructor_code = d19_name_code(word[6815744 + constructor_index * 24])
-        let fields = word[6815744 + constructor_index * 24 + 16]
-        let is_reason = owner_type == reason_type
-        let is_outcome = owner_type == outcome_type
-        let is_complete = is_outcome * (constructor_code == 29)
-        let is_reject = is_outcome * (constructor_code == 30)
-        let is_storage_at = is_outcome * (constructor_code == 31)
-        let is_storage_total = is_outcome * (constructor_code == 32)
-        let reason_fields_ok = d19_fields_match(fields, 0, 0, 0)
-        let complete_fields_ok = d19_fields_match(fields, 1, 0, 1)
-        let reject_fields_ok = d19_fields_match(fields, reason_type, 0, 2)
-        let storage_at_fields_ok = d19_three_int_fields_match(fields)
-        let storage_total_fields_ok = d19_fields_match(fields, 0, 0, 2)
-        schema_invalid = schema_invalid + is_reason * (constructor_code < 1)
-        schema_invalid = schema_invalid + is_reason * (constructor_code > 26)
-        schema_invalid = schema_invalid + is_reason * (1 - reason_fields_ok)
-        schema_invalid = schema_invalid + is_outcome * (1 - is_complete - is_reject - is_storage_at - is_storage_total)
-        schema_invalid = schema_invalid + is_complete * (1 - complete_fields_ok)
-        schema_invalid = schema_invalid + is_reject * (1 - reject_fields_ok)
-        schema_invalid = schema_invalid + is_storage_at * (1 - storage_at_fields_ok)
-        schema_invalid = schema_invalid + is_storage_total * (1 - storage_total_fields_ok)
-        reason_count = reason_count + is_reason
-        outcome_count = outcome_count + is_outcome
-        complete_identity = complete_identity + (constructor_index + 1) * is_complete
-        reject_identity = reject_identity + (constructor_index + 1) * is_reject
-        storage_at_identity = storage_at_identity + (constructor_index + 1) * is_storage_at
-        storage_total_identity = storage_total_identity + (constructor_index + 1) * is_storage_total
-        word[10750000 + (constructor_code - 1) * 8] = (constructor_index + 1) * (is_reason + is_outcome)
-        constructor_index = constructor_index + 1
-        to constructor_loop
-    }
-    state function_start {
-        let function_index = 0
-        let main_count = 0
-        let main_identity = 0
-        to function_loop
-    }
-    state function_loop { to function_row when (function_index < word[2097120])  to result }
-    state function_row {
-        let function_name = word[8388608 + function_index * 32]
-        let is_main = name_is_packed(function_name, 1852399981, 0, 4)
-        main_count = main_count + is_main
-        main_identity = main_identity + (function_index + 1) * is_main
-        function_index = function_index + 1
-        to function_loop
-    }
-    state result {
-        schema_invalid = schema_invalid + (reason_count != 26)
-        schema_invalid = schema_invalid + (outcome_count != 4)
-        schema_invalid = schema_invalid + (complete_identity == 0)
-        schema_invalid = schema_invalid + (reject_identity == 0)
-        schema_invalid = schema_invalid + (storage_at_identity == 0)
-        schema_invalid = schema_invalid + (storage_total_identity == 0)
-        schema_invalid = schema_invalid + (main_count != 1)
-        to invalid when (schema_invalid != 0)
-        let main_index = main_identity - 1
-        let main_profile = word[8388608 + main_index * 32 + 16]
-        to invalid when (main_profile / 4294967296 != 1)
-        let main_parameters = word[8388608 + main_index * 32 + 8]
-        let main_parameter = word[main_parameters + 8]
-        schema_invalid = (main_profile % 65536 != outcome_type) + (word[main_parameter + 16] != 1)
-        to invalid when (schema_invalid != 0)
-        word[10750208] = complete_identity
-        word[10750216] = reject_identity
-        word[10750224] = main_identity
-        word[10750232] = reason_type
-        word[10750240] = outcome_type
-        word[10750256] = storage_at_identity
-        word[10750264] = storage_total_identity
-        return 1
-    }
-    state invalid { return 0 }
 }
 
 ; ---- resolved whole-function emission --------------------------------

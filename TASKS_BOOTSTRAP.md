@@ -591,10 +591,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `Reject(DeltaRejectReason, Int)`, and `main` identities. A private exact-name
     table covers identifiers through 24 bytes and fixes D17's 26 reason codes
     independently of declaration order; staged private identities are
-    consumable only when the validator succeeds, and it authors no candidate
-    adapter bytes. Seven adjacent cases accept both profiles, reverse every reason
-    declaration while preserving the mapping, and reject a wrong entry, missing
-    reason, extra outcome constructor, and wrong `Reject` payload.
+    consumable only when the selected validator succeeds, and it authors no
+    candidate adapter bytes. Eighteen focused cases accept both profiles,
+    reverse every reason declaration while preserving the mapping, and pin
+    D33's entry/schema category order, absent-before-located order, earliest
+    located coordinate, wrong-owner and extra-member handling, ordinary
+    `unknown_type` precedence, unrelated nominal declarations, and exact
+    retained identities.
   - [x] **D30 — PHYSICAL GAMMA APPLICATION PROFILES.** Fix `GCREQ` V1,
     profile IDs 1/2, both 4-MiB sealed-input maxima, the 4-MiB Conformance output
     maximum, AlphaBootstrapV2's 1,048,572-byte Delta output maximum, the shared
@@ -643,6 +646,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
       internal classes, while the existing exact/adjacent gates continue to
       exercise the real producer sites. Code 1 remains canonical GCREQ source
       exhaustion; remaining internal classes 1/5/6 do not yet have producers.
+    - [x] Retain D33's selected-profile schema judgment for codes 19 through
+      21. One bounded fold admits only the request-selected profile, makes
+      missing entry outrank entry mismatch and profile mismatch, makes any
+      absent Delta nominal fact outrank located defects, and otherwise selects
+      the earliest constructor-name coordinate. Profile 1 has no code-21 path;
+      successful validation alone publishes its selected identities. Seventeen
+      public-outcome cases plus the exact declaration-order-independent D19
+      identity gate cover both profiles, category-versus-coordinate priority,
+      absence-versus-location priority, wrong owners, extra members, unrelated
+      declarations, and ordinary `unknown_type` precedence.
   - [x] Preserve D30's generated resource identity at the sealed-input seam.
     The emitted reader now transfers input-extent and heap-extent failures to
     distinct adapter-owned terminals while containment remains independent;
@@ -650,9 +663,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
   - [ ] **OWNER-BLOCKED — Q2 Beta call-row profile for the complete Gamma
-    compiler.** The retained source consumes exactly 993 of D23's 1,024
+    compiler.** The retained source consumes exactly 991 of D23's 1,024
     non-builtin call rows before a production entry or either adapter. A focused
-    adjacent probe admits thirty-one further calls and refuses the thirty-second as
+    adjacent probe admits thirty-three further calls and refuses the thirty-fourth as
     canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
     total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
     publication, or silently revise the Alpha-written compiler profile.
