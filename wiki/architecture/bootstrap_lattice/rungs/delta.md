@@ -67,11 +67,11 @@ same walk retains exact-AST facts for settled literal, local-read, group,
 negation, and binary scalar forms without duplicating the recursive checker.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
-incomplete entry-diagnostic judgment, and Q5 blocks only unqualified receivers
-and constructor/machine collisions. Q6 blocks final composition of dependent
-parent diagnostics when child judgments are absent. D34 has settled physical
-storage refusal; its implementation additionally waits on the final
-nonaliasing map.
+incomplete entry-diagnostic judgment. D36 settles unqualified receivers and
+constructor/machine collisions; its parser and census enforcement remain
+implementation work. Q5 blocks final composition of dependent parent
+diagnostics when child judgments are absent. D34 has settled physical storage
+refusal; its implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns

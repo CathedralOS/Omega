@@ -630,6 +630,9 @@ owner-qualified machine identities. Lookup never acquires first-wins or last-
 wins meaning from collector traversal.
 
 D22's transition-arm binder and collection-failure gaps are completed by D24.
+D36 applies the grammar-selected principle to the one owner-qualified callable
+position that otherwise admits both a case and machine: those spellings share a
+narrow collision registry while their retained declaration rows stay distinct.
 
 ## D23 — AlphaBootstrapV2 admits a one-MiB tape through a coherent checker profile
 
@@ -1353,6 +1356,48 @@ current admission and decoding reject earlier vocabularies. Historical bytes
 may be retained opaquely and interpreted by their corresponding old toolchain
 or a separately authorized migration tool, but no legacy row or decode-and-
 discard parser enters the current record model.
+
+## D36 — Delta callable spelling is single-valued before body resolution
+
+Delta admits `&mut self` only on an owner-qualified machine declaration. The
+grammar for an unqualified machine accepts ordinary parameters only, so an
+authored `&` in that position is `UnexpectedToken` at the `&`; it is not a
+typeless receiver carried forward as `TypeMismatch`, and it never infers
+`Main` or another global storage owner. A qualified machine with an unknown
+owner remains later `UnknownName` at the owner spelling.
+
+D22's grammar-selected namespace rule implies one narrow owner-local callable
+registry. Every sum case and every qualified machine under the same data owner
+participates, regardless of case payload or machine parameters. Equal
+`(owner, name)` spellings are `DuplicateName` at the later callable
+declaration's start under the existing D22/D24 census ordering. Fields do not
+join this registry: their value access remains position-distinguished, although
+the existing field/case member collision rule still applies inside a data
+declaration.
+
+This is an application of D22 rather than an exception. The one qualified
+primary production can denote a constructor or machine application, and a
+semicolon-terminated call must not select the machine merely because statement
+context requires one. Declaration collection therefore makes that callable
+spelling single-valued before arity, expected type, statement context, or
+control context can influence resolution.
+
+Every machine application requires an authored argument list, including `()`
+for a zero-parameter machine. The parser's retained distinction between bare
+`Owner::name` and `Owner::name()` is semantic: a bare machine identity is not a
+first-class value or machine application and is `TypeMismatch` at the
+qualified expression start in an ordinary expression. Constructors retain
+their existing optional argument-list form and are checked against the uniquely
+resolved case payload only after name resolution.
+
+An accepted qualified expression consequently resolves at most one callable
+identity before arity and type checking. `InvalidControlTarget` remains only a
+continuation judgment: it covers a uniquely resolved constructor used as a
+continuation and an unqualified state/machine collision at the continuation
+expression start. Expected result, arity, declaration order, and preferred-
+namespace lookup never choose among callable identities. A future unqualified
+receiver or alternate callable spelling requires an explicit language revision
+with its own owner, initialization, aliasing, and lowering contract.
 
 ## Dependency order
 

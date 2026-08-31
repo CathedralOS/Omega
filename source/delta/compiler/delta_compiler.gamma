@@ -470,8 +470,9 @@
   (NoDeltaFinalReasons)
   (MoreDeltaFinalReasons DeltaRejectReason DeltaFinalReasonList))
 
-; Equal-coordinate final-phase reasons are retained as a bucket. Q4 and Q5
-; must rule their remaining cases before this can select one public rejection.
+; Equal-coordinate final-phase reasons are retained as a bucket. Q4 must rule
+; entry/body composition before this can select one public rejection. D36 owns
+; the earlier receiver grammar and callable-name census rules.
 (data DeltaFinalCandidate
   (NoDeltaFinalCandidate)
   (DeltaFinalCandidateAt Int DeltaFinalReasonList))

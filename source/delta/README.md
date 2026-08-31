@@ -7,12 +7,14 @@ adjacent source-to-Alpha-tape validation.
 It is self-contained: a compiler, sample corpus, historical implementation, or
 Omega document cannot amend Delta by acceptance.
 
-D22 fixes deterministic declaration identity beneath that contract: grammar-
-selected owner, machine, member, state, and local scopes; one pre-type scoped
-duplicate census; no active local shadowing; legal disjoint-state and member/
-local spelling reuse; and no authored machine bodies on boundary owners. D24
-completes that census with transition-arm binder scope, same-phase
-`DuplicateName`/`InvalidBoundary` ordering, and unique-owner classification.
+D22 and D36 fix deterministic declaration identity beneath that contract:
+grammar-selected owner, machine, member, state, and local scopes; one pre-type
+scoped duplicate census; no active local shadowing; legal disjoint-state and
+member/local spelling reuse; one data-owner callable registry for cases and
+qualified machines; qualified-only receivers; and no authored machine bodies
+on boundary owners. D24 completes that census with transition-arm binder scope,
+same-phase `DuplicateName`/`InvalidBoundary` ordering, and unique-owner
+classification.
 D31 completes type formation and D34 completes its realizability report:
 positive array lengths, zero-field records, mixed-data rejection, exact
 storage-only `u8` and `never`/view/`Console` placement, structural diagnostic
@@ -41,8 +43,8 @@ compilers and must not both be called “the Delta compiler.”
   source-shaped identity census, D31 structural type formation, the source-
   backed resolution catalog, ordered local-value resolution, exact scalar
   value/place facts, and symbolic Alpha encoding. Remaining final
-  body/control checking, Q4 entry diagnostics, Q5 receiver/callable ambiguity,
-  Q6 dependent-diagnostic composition, storage realization, lowering, `main`,
+  body/control checking, Q4 entry diagnostics, D36 callable-shape enforcement,
+  Q5 dependent-diagnostic composition, storage realization, lowering, `main`,
   and publication are incomplete, so it exposes no compiler artifact yet.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
