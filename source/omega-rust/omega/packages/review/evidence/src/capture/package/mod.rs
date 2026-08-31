@@ -37,7 +37,7 @@ pub fn project_checked_package_review(
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables.callables)?;
     let dangerous_authority_slack =
         project_dangerous_authority_slack(compilation, &callables.callables)?;
-    let providers = project_selected_providers(compilation, target)?;
+    let providers = project_selected_providers(compilation, target, package)?;
 
     PendingPackageReview {
         package,

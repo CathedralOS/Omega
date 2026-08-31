@@ -312,6 +312,9 @@ const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'static str {
         PackageReviewCanonicalRowKind::DangerousAuthoritySlack => "dangerous_authority_slack",
         PackageReviewCanonicalRowKind::SemanticDependency => "semantic_dependency",
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => "external_executable_supply",
+        PackageReviewCanonicalRowKind::BoundaryApplicationRealization => {
+            "boundary_application_realization"
+        }
     }
 }
 
@@ -333,6 +336,7 @@ pub(super) const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::PublicOperator => 13,
         PackageReviewCanonicalRowKind::PublicConformance => 14,
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
+        PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
     }
 }
 
@@ -388,6 +392,7 @@ pub(super) const fn source_location_role_tag(role: PackageReviewSourceLocationRo
         PackageReviewSourceLocationRole::TraitRequirement => 22,
         PackageReviewSourceLocationRole::DataMember => 23,
         PackageReviewSourceLocationRole::CallableParameter => 24,
+        PackageReviewSourceLocationRole::BoundaryApplicationUse => 26,
     }
 }
 
@@ -427,5 +432,6 @@ pub(super) const fn source_location_role_token(
         PackageReviewSourceLocationRole::TraitRequirement => "trait_requirement",
         PackageReviewSourceLocationRole::DataMember => "data_member",
         PackageReviewSourceLocationRole::CallableParameter => "callable_parameter",
+        PackageReviewSourceLocationRole::BoundaryApplicationUse => "boundary_application_use",
     }
 }

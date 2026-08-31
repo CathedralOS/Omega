@@ -326,7 +326,7 @@ explicitly.
   `generated-table -> generated-consumer` canary through the sponsored Build
   facets, not through a std authority exception.
 
-- [ ] Complete generic/exact-application coverage for
+- [ ] Complete generic and non-empty exact-application coverage for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Derive concrete static applications
   from checked uses, retain D29's normalized tagged type/const bindings, close
   artifact-qualified symbolic demands during final specialization, recheck the
@@ -334,9 +334,7 @@ explicitly.
   selected plans, and add compiler-to-update tests. Then implement D32's exact
   native physical children over the validated optimized projection, including
   per-occurrence parent bindings and missing/duplicate/stale/substituted/padded
-  rejection.
-  Exercise the canonical empty application as well as distinct/equivalent
-  const values.
+  rejection. Exercise distinct and equivalent const values.
   Keep compatibility failure when a public family gains an uncovered
   coordinate. Universal generic coverage remains deliberately unimplemented
   under D28; package evidence must never substitute declaration order, display

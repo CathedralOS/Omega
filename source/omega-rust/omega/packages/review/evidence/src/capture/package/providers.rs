@@ -1,3 +1,6 @@
+use super::super::providers::application_realizations::{
+    ProjectedBoundaryApplicationRealizations, project_boundary_application_realizations,
+};
 use super::super::providers::families::project_selected_provider_families;
 use super::super::providers::installation::project_selected_installation_reach;
 use super::super::providers::intrinsics::project_compiler_intrinsic_execution;
@@ -15,11 +18,13 @@ use psi_diagnostics::Diagnostic;
 pub(super) struct ProjectedProviders {
     pub(super) selected: Vec<CheckedPackageProviderReview>,
     pub(super) families: Vec<CheckedPackageProviderFamilyReview>,
+    pub(super) application_realizations: ProjectedBoundaryApplicationRealizations,
 }
 
 pub(super) fn project_selected_providers(
     compilation: &CheckedCompilation,
     target: TargetProfile,
+    package: psi_core::PackageKeyIdentity,
 ) -> Result<ProjectedProviders, Vec<Diagnostic>> {
     let selected_plans = compilation.selected_provider_plans().plans();
     let selected_provider_provenance = compilation.selected_provider_provenance();
@@ -224,5 +229,10 @@ pub(super) fn project_selected_providers(
     }
 
     let families = project_selected_provider_families(compilation, target, &selected)?;
-    Ok(ProjectedProviders { selected, families })
+    let application_realizations = project_boundary_application_realizations(compilation, package)?;
+    Ok(ProjectedProviders {
+        selected,
+        families,
+        application_realizations,
+    })
 }

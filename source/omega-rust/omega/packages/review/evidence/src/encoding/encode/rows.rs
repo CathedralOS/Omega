@@ -12,7 +12,10 @@ use super::values::declarations::{
     encode_const_shape, encode_operator_coordinate, encode_operator_shape, encode_proposition_shape,
 };
 use super::values::identity::encode_nominal;
-use super::values::providers::{encode_provider, encode_provider_family};
+use super::values::providers::{
+    encode_boundary_application_realization, encode_boundary_application_realization_key,
+    encode_provider, encode_provider_family,
+};
 use super::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewEncodingError, PackageReviewEncodingLimits, ROW_MAGIC,
@@ -55,6 +58,7 @@ pub(crate) fn encode_rows_with_limits(
         )
         .saturating_add(review.dangerous_authorities.len())
         .saturating_add(review.dangerous_authority_slack.len())
+        .saturating_add(review.boundary_application_realizations.len())
         .saturating_add(2);
     if required_rows > limits.maximum_rows {
         return Err(PackageReviewEncodingError::new(
@@ -308,6 +312,22 @@ pub(crate) fn encode_rows_with_limits(
             )?,
         )?;
     }
+    for (index, realization) in review.boundary_application_realizations.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::BoundaryApplicationRealization,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.boundary_application_realizations, index)?,
+                |encoder| encode_boundary_application_realization_key(encoder, realization),
+                |encoder| encode_boundary_application_realization(encoder, realization),
+            )?,
+        )?;
+    }
     push_row(
         &mut rows,
         &mut total_row_bytes,
@@ -435,5 +455,6 @@ pub(crate) const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) 
         PackageReviewCanonicalRowKind::PublicOperator => 13,
         PackageReviewCanonicalRowKind::PublicConformance => 14,
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
+        PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
     }
 }

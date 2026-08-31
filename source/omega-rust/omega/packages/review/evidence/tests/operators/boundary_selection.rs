@@ -79,6 +79,123 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         provider.rows()[0].binding,
         omega_effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
     ));
+    assert!(
+        review.boundary_application_realizations().is_empty(),
+        "selecting a provider without an actual use must not invent an application realization"
+    );
+}
+
+#[test]
+fn actual_empty_applications_rejoin_and_deduplicate_checked_body_review() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data CheckedMath {}
+pub boundary operator CheckedMath::offset_zero(value: i32) -> i32;
+
+pub data CheckedMathProvider {}
+pub machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+{
+    transition { _ -> input }
+}
+
+data FirstUse {}
+machine FirstUse::exercise(&mut self) {
+    let result: i32 = CheckedMath::offset_zero(70);
+}
+
+data SecondUse {}
+machine SecondUse::exercise(&mut self) {
+    let result: i32 = CheckedMath::offset_zero(71);
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("actual monomorphic boundary applications should check");
+    let review = project_checked_package_review(&checked)
+        .expect("actual boundary applications should rejoin their checked realization");
+
+    let [realization] = review.boundary_application_realizations() else {
+        panic!("equal empty applications should deduplicate to one realization row")
+    };
+    assert_eq!(
+        realization.application(),
+        PackageReviewBoundaryApplication::Empty
+    );
+    assert_eq!(
+        realization.role(),
+        PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody
+    );
+    assert_eq!(
+        realization.operator_declaration().path(),
+        "CheckedMath::offset_zero"
+    );
+    assert_eq!(
+        realization.realization_machine().path(),
+        "CheckedMathProvider::offset_zero_impl"
+    );
+    assert!(
+        realization
+            .realization_state()
+            .path()
+            .starts_with("CheckedMathProvider::offset_zero_impl::")
+    );
+    assert_ne!(realization.selected_plan_digest(), &[0; 32]);
+    assert_ne!(realization.realization_contract_commitment(), &[0; 32]);
+
+    let rows = review
+        .canonical_rows()
+        .expect("application realization should encode canonically");
+    let row = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationRealization)
+        .expect("one separate application-realization canonical row");
+    assert_eq!(row.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    let locations = row
+        .source()
+        .authored_locations()
+        .expect("actual applications should retain authored locations");
+    assert_eq!(locations.len(), 2);
+    assert!(locations.iter().all(|location| {
+        location.role() == PackageReviewSourceLocationRole::BoundaryApplicationUse
+    }));
+    let recovered = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(row)
+            .expect("application realization recovery envelope should encode"),
+    )
+    .expect("application realization recovery envelope should decode");
+    assert_eq!(
+        recovered.kind(),
+        PackageReviewCanonicalRowKind::BoundaryApplicationRealization
+    );
+    assert!(
+        recovered
+            .source()
+            .authored_locations()
+            .expect("recovered actual application locations")
+            .iter()
+            .all(|location| {
+                location.role() == PackageReviewSourceLocationRole::BoundaryApplicationUse
+            })
+    );
 }
 
 #[test]

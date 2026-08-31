@@ -7,8 +7,8 @@ use omega_package_evidence::record::{
     PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
-    PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
+    PackageReviewPropositionEvidence, PackageReviewRepresentationTcbKind,
+    PackageReviewSourceLocationRole,
 };
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
