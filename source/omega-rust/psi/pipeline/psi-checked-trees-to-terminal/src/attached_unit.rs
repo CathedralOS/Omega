@@ -1481,9 +1481,19 @@ pub(super) fn lower_attached_unit_closure_including(
                             "write-only store destination is not a primitive scalar root",
                         );
                     };
-                    if !matches!(value, CheckedScalarExpression::IntegerLiteral { .. }) {
+                    let direct_literal =
+                        matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+                            || matches!(
+                                value,
+                                CheckedScalarExpression::Boolean(expression)
+                                    if matches!(
+                                        expression.as_ref(),
+                                        psi_checked_trees::CheckedBooleanExpression::Constant(_)
+                                    )
+                            );
+                    if !direct_literal {
                         return unsupported(
-                            "write-only store value is outside the direct integer-literal rung",
+                            "write-only store value is outside the direct primitive-literal rung",
                         );
                     }
                     let value = lower_checked_scalar_expression(value)?;

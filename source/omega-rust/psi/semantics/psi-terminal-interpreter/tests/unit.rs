@@ -160,29 +160,52 @@ fn unit_return_fuel_exhaustion_resumes_without_advancing_or_double_charging() {
 
 #[test]
 fn write_only_primitive_store_survives_unit_call_and_is_atomic_at_fuel_exhaustion() {
-    let module = write_only_primitive_call_module();
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    assert_write_only_store_atomic(
+        write_only_primitive_call_module(),
+        91,
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(1),
+        },
+        TerminalScalarValue::Integer {
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(7),
+        },
+    );
+}
+
+#[test]
+fn write_only_boolean_store_survives_unit_call_and_is_atomic_at_fuel_exhaustion() {
+    assert_write_only_store_atomic(
+        write_only_boolean_call_module(),
+        93,
+        TerminalScalarValue::Boolean(false),
+        TerminalScalarValue::Boolean(true),
+    );
+}
+
+fn assert_write_only_store_atomic(
+    module: TerminalModule,
+    opaque_identity: u64,
+    initial_value: TerminalScalarValue,
+    written_value: TerminalScalarValue,
+) {
     let semantic = encode_module(&module).expect("primitive-store semantics encode");
     let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
-    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let structural = TerminalStructuralValue {
-        opaque_identity: 91,
+        opaque_identity,
         structural_type: structural_type_id(91),
         qualifications: Vec::new(),
         path: Vec::new(),
     };
     let initial = TerminalStructuralPrimitiveValue {
         argument_index: 0,
-        value: TerminalScalarValue::Integer {
-            scalar_type: integer,
-            value: IntegerValue::Unsigned(1),
-        },
+        value: initial_value,
     };
     let written = TerminalStructuralPrimitiveValue {
         argument_index: 0,
-        value: TerminalScalarValue::Integer {
-            scalar_type: integer,
-            value: IntegerValue::Unsigned(7),
-        },
+        value: written_value,
     };
     let mut execution =
         TerminalExecution::start_artifact_with_structural_arguments_and_primitive_values(
@@ -193,7 +216,7 @@ fn write_only_primitive_store_survives_unit_call_and_is_atomic_at_fuel_exhaustio
             &[structural],
             &[initial],
         )
-        .expect("verified primitive store starts");
+        .expect("verified Boolean store starts");
     let mut meter = TerminalFuelMeter::with_allowance(2);
 
     assert_eq!(
@@ -222,7 +245,7 @@ fn write_only_primitive_store_survives_unit_call_and_is_atomic_at_fuel_exhaustio
             .unwrap()
             .executions(),
         1,
-        "the callee store is committed exactly once after replenishment"
+        "the primitive store commits exactly once after replenishment"
     );
 }
 
@@ -2786,6 +2809,19 @@ fn write_only_primitive_call_module() -> TerminalModule {
         }],
         contract: empty_contract(contract_id(92)),
     });
+    module
+}
+
+fn write_only_boolean_call_module() -> TerminalModule {
+    let mut module = write_only_primitive_call_module();
+    module.structural_types[0].identity = "test::WriteOnlyBool".into();
+    module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean);
+    let constant = &mut module.machines[1].blocks[0].operations[0];
+    constant.result = OperationResult::Scalar(ValueDeclaration {
+        id: value_id(92),
+        scalar_type: ScalarType::Boolean,
+    });
+    constant.kind = OperationKind::BooleanConstant { value: true };
     module
 }
 

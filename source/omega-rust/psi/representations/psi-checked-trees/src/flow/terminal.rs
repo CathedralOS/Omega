@@ -1084,7 +1084,8 @@ pub enum CheckedUnitEffectOperationPlan {
     /// Replace one whole unrestricted primitive through an exact write-only
     /// structural parameter. The checked scalar expression is retained so
     /// later lowering can emit its ordinary scalar producer before the store;
-    /// the first admitted producer rung restricts this to an integer literal.
+    /// the first admitted producer rung restricts this to a landed integer or
+    /// Boolean literal.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
         destination_parameter_index: u32,

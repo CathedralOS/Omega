@@ -6571,15 +6571,16 @@ Owners:
   event or native/provider realization.
 
   A bounded executable Terminal rung is now live for one direct whole-root
-  unrestricted primitive integer replacement inside a checked in-module Unit
-  callee. Checked planning retains the exact literal expression and
+  unrestricted primitive replacement from either a landed integer literal or
+  a Boolean literal inside a checked in-module Unit callee. Checked planning
+  retains the exact literal expression and
   write-only parameter coordinate. Terminal format 42/vocabulary 45 retains an
   honest `PrimitiveScalar` structural referent plus a Unit
   `WriteOnlyPrimitiveStore` naming the destination place and preceding SSA
   value. Codec replay and independent verification require exact scalar type,
   dominating value, parameter-root place, `WriteOnlyBorrow` access,
   unrestricted multiplicity, and empty qualifications/claims. The reference
-  interpreter mutates stable target-neutral backing shared across call frames;
+  interpreter mutates exact-typed stable target-neutral backing shared across call frames;
   fuel is charged before mutation, so exhaustion and resume neither partially
   commit nor replay the store. Omega target-neutral lowering now retains that
   exact store through abstract operations and optimization identity/validation:

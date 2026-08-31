@@ -198,11 +198,11 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         // custody. Retain the exact scalar spelling separately
                         // so structural effect planning never has to revisit a
                         // typed expression handle. This first consumer needs
-                        // only direct integer literals; wider assignment
+                        // only direct primitive literals; wider assignment
                         // expressions remain outside its admitted vocabulary.
                         if !matches!(
                             program.expression_table.expression(assignment.value),
-                            ExpressionNode::Integer(_)
+                            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
                         ) {
                             continue;
                         }
@@ -233,7 +233,17 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         ) else {
                             continue;
                         };
-                        if !matches!(expression, CheckedScalarExpression::IntegerLiteral { .. }) {
+                        let direct_literal =
+                            matches!(expression, CheckedScalarExpression::IntegerLiteral { .. })
+                                || matches!(
+                                    &expression,
+                                    CheckedScalarExpression::Boolean(boolean)
+                                        if matches!(
+                                            boolean.as_ref(),
+                                            CheckedBooleanExpression::Constant(_)
+                                        )
+                                );
+                        if !direct_literal {
                             continue;
                         }
                         expressions.push(CheckedLocatedScalarExpression {

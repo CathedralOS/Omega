@@ -170,10 +170,11 @@ storage containing no live `T` is a separate feature.
 > owned/shared/mutable/write-only access (first introduced in Terminal format
 > 27); exact unrestricted record-leaf and literal-indexed field paths cross the
 > codec and independent verifier. Terminal format 42/vocabulary 45 additionally carries
-> one direct whole-root unrestricted primitive integer store. Its ordinary SSA
+> one direct whole-root unrestricted primitive store from either a landed
+> integer literal or a Boolean literal. Its ordinary SSA
 > value producer precedes a Unit write-only event, the verifier reconstructs
 > exact type/access/place custody without an old-value premise, and the
-> reference interpreter mutates stable target-neutral backing across an
+> reference interpreter mutates exact-typed stable target-neutral backing across an
 > in-module call with fuel charged before the store. Opaque-provider execution
 > and native address/width/store lowering still fail closed. `&write` is never
 > temporarily lowered as `&mut`.

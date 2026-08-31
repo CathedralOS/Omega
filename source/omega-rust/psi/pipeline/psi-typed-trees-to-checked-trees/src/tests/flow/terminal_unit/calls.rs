@@ -309,6 +309,54 @@ fn retains_one_direct_write_only_primitive_literal_store() {
 }
 
 #[test]
+fn retains_one_direct_write_only_boolean_literal_store() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write bool) {
+            destination = true;
+        }
+
+        data Root {}
+        machine Root::enter(destination: &mut bool) {
+            Sink::fill(&write destination);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let fill = plans
+        .for_machine(machine_named(&checked, "Sink::fill"))
+        .expect("Boolean-literal write-only callee plan");
+    assert!(matches!(
+        plans
+            .structural_types
+            .iter()
+            .find(|shape| shape.identity == fill.structural_parameters[0].type_identity)
+            .map(|shape| &shape.shape),
+        Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(
+            PrimitiveType::Bool
+        ))
+    ));
+    assert!(matches!(
+        fill.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index: 0,
+                destination_parameter_index: 0,
+                value: CheckedScalarExpression::Boolean(expression),
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                statement_index: 1,
+                ..
+            },
+        ] if matches!(
+            expression.as_ref(),
+            psi_checked_trees::CheckedBooleanExpression::Constant(true)
+        )
+    ));
+}
+
+#[test]
 fn primitive_store_planning_fails_closed_outside_the_literal_whole_write_root() {
     let cases = [
         (
@@ -326,6 +374,15 @@ fn primitive_store_planning_fails_closed_outside_the_literal_whole_write_root() 
             data Sink {}
             machine Sink::fill(destination: &mut i32) {
                 destination = 2;
+            }
+            "#,
+        ),
+        (
+            "computed Boolean replacement",
+            r#"
+            data Sink {}
+            machine Sink::fill(destination: &write bool) {
+                destination = !true;
             }
             "#,
         ),
