@@ -339,11 +339,11 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty abstract-to-target families, including
-  proof-bearing parameterized exact integer addition, selected incoming u12
-  folds, current machine substitutions, structural-Unit encoding, resolved
-  layout, and ranked-u32 publication routes are covered; the remaining source
-  families and publication routes are not.
+  machine-rule family. Twenty-one abstract-to-target families, including
+  proof-bearing exact and saturating parameterized integer addition, selected
+  incoming u12 folds, current machine substitutions, structural-Unit encoding,
+  resolved layout, and ranked-u32 publication routes are covered; the remaining
+  source families and publication routes are not.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross

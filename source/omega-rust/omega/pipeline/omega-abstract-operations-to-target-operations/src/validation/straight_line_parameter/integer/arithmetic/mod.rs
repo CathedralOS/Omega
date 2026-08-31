@@ -1,7 +1,9 @@
-//! Optimizer module role: executable entrance. Exact and wrapping integer-arithmetic source, ABI, provenance, and target replay.
+//! Optimizer module role: executable entrance. Exact arithmetic-family target replay routes.
 
 pub(crate) mod exact_add;
+mod reconstruction;
 mod replay;
+pub(crate) mod saturating_add;
 pub(crate) mod wrapping_add;
 pub(crate) mod wrapping_multiply;
 pub(crate) mod wrapping_subtract;
@@ -10,36 +12,26 @@ use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
-use super::super::model::{
-    ReconstructedExactIntegerAddParameters, ReconstructedIntegerArithmeticParameters,
-};
-use crate::validation::model::{
-    StraightLineExactIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    StraightLineWrappingIntegerSubtractParametersTranslationError,
-};
-
 pub(super) fn reconstruct_exact_add(
     function: &AbstractFunction,
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<
-    ReconstructedExactIntegerAddParameters,
-    StraightLineExactIntegerAddParametersTranslationError,
+    super::super::model::ReconstructedExactIntegerAddParameters,
+    crate::validation::model::StraightLineExactIntegerAddParametersTranslationError,
 > {
-    let source = super::super::source::integer::arithmetic::reconstruct_exact_add(function)?;
-    let arithmetic = replay::reconstruct_from_source(
-        function,
-        expected_target,
-        target,
-        source.arithmetic,
-        StraightLineExactIntegerAddParametersTranslationError::TargetProvenance,
-    )?;
-    Ok(ReconstructedExactIntegerAddParameters {
-        arithmetic,
-        obligation: source.obligation,
-    })
+    reconstruction::reconstruct_exact_add(function, expected_target, target)
+}
+
+pub(super) fn reconstruct_saturating_add(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    super::super::model::ReconstructedIntegerArithmeticParameters,
+    crate::validation::model::StraightLineSaturatingIntegerAddParametersTranslationError,
+> {
+    reconstruction::reconstruct_saturating_add(function, expected_target, target)
 }
 
 pub(super) fn reconstruct_wrapping_add(
@@ -47,16 +39,10 @@ pub(super) fn reconstruct_wrapping_add(
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<
-    ReconstructedIntegerArithmeticParameters,
-    StraightLineWrappingIntegerAddParametersTranslationError,
+    super::super::model::ReconstructedIntegerArithmeticParameters,
+    crate::validation::model::StraightLineWrappingIntegerAddParametersTranslationError,
 > {
-    replay::reconstruct(
-        function,
-        expected_target,
-        target,
-        super::super::source::integer::arithmetic::reconstruct_wrapping_add,
-        StraightLineWrappingIntegerAddParametersTranslationError::TargetProvenance,
-    )
+    reconstruction::reconstruct_wrapping_add(function, expected_target, target)
 }
 
 pub(super) fn reconstruct_wrapping_subtract(
@@ -64,16 +50,10 @@ pub(super) fn reconstruct_wrapping_subtract(
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<
-    ReconstructedIntegerArithmeticParameters,
-    StraightLineWrappingIntegerSubtractParametersTranslationError,
+    super::super::model::ReconstructedIntegerArithmeticParameters,
+    crate::validation::model::StraightLineWrappingIntegerSubtractParametersTranslationError,
 > {
-    replay::reconstruct(
-        function,
-        expected_target,
-        target,
-        super::super::source::integer::arithmetic::reconstruct_wrapping_subtract,
-        StraightLineWrappingIntegerSubtractParametersTranslationError::TargetProvenance,
-    )
+    reconstruction::reconstruct_wrapping_subtract(function, expected_target, target)
 }
 
 pub(super) fn reconstruct_wrapping_multiply(
@@ -81,14 +61,8 @@ pub(super) fn reconstruct_wrapping_multiply(
     expected_target: NativeTarget,
     target: &TargetFunction,
 ) -> Result<
-    ReconstructedIntegerArithmeticParameters,
-    StraightLineWrappingIntegerMultiplyParametersTranslationError,
+    super::super::model::ReconstructedIntegerArithmeticParameters,
+    crate::validation::model::StraightLineWrappingIntegerMultiplyParametersTranslationError,
 > {
-    replay::reconstruct(
-        function,
-        expected_target,
-        target,
-        super::super::source::integer::arithmetic::reconstruct_wrapping_multiply,
-        StraightLineWrappingIntegerMultiplyParametersTranslationError::TargetProvenance,
-    )
+    reconstruction::reconstruct_wrapping_multiply(function, expected_target, target)
 }

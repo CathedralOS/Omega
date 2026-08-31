@@ -96,6 +96,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrParameters,
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters,
             AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters,
+            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters,

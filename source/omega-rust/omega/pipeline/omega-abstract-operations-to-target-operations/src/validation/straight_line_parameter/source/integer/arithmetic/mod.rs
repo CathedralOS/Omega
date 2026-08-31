@@ -1,86 +1,55 @@
-//! Optimizer module role: executable entrance. Exact and wrapping integer-arithmetic source grammar coordination.
+//! Optimizer module role: executable entrance. Exact arithmetic-family source replay routes.
 
 pub(in crate::validation::straight_line_parameter) mod exact_add;
+pub(in crate::validation::straight_line_parameter) mod reconstruction;
+pub(in crate::validation::straight_line_parameter) mod saturating_add;
 pub(in crate::validation::straight_line_parameter) mod wrapping_add;
 pub(in crate::validation::straight_line_parameter) mod wrapping_multiply;
 pub(in crate::validation::straight_line_parameter) mod wrapping_subtract;
 
-use omega_abstract_operations::{AbstractFunction, AbstractOperation};
-use psi_core::ScalarType;
-
-use super::super::super::model::{
-    ExactIntegerAddParametersSource, IntegerArithmeticParametersSource,
-};
-use crate::validation::model::{
-    StraightLineExactIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    StraightLineWrappingIntegerSubtractParametersTranslationError,
-};
+use omega_abstract_operations::AbstractFunction;
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_add(
     function: &AbstractFunction,
-) -> Result<ExactIntegerAddParametersSource, StraightLineExactIntegerAddParametersTranslationError>
-{
-    let Some(AbstractOperation::ExactIntegerAdd { scalar_type, .. }) = function.operations.first()
-    else {
-        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster);
-    };
-    let envelope =
-        super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    exact_add::reconstruct(function, &envelope)
+) -> Result<
+    super::super::super::model::ExactIntegerAddParametersSource,
+    crate::validation::model::StraightLineExactIntegerAddParametersTranslationError,
+> {
+    reconstruction::reconstruct_exact_add(function)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(
+    function: &AbstractFunction,
+) -> Result<
+    super::super::super::model::IntegerArithmeticParametersSource,
+    crate::validation::model::StraightLineSaturatingIntegerAddParametersTranslationError,
+> {
+    reconstruction::reconstruct_saturating_add(function)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_add(
     function: &AbstractFunction,
 ) -> Result<
-    IntegerArithmeticParametersSource,
-    StraightLineWrappingIntegerAddParametersTranslationError,
+    super::super::super::model::IntegerArithmeticParametersSource,
+    crate::validation::model::StraightLineWrappingIntegerAddParametersTranslationError,
 > {
-    let Some(AbstractOperation::WrappingIntegerAdd { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineWrappingIntegerAddParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    wrapping_add::reconstruct(function, &envelope)
+    reconstruction::reconstruct_wrapping_add(function)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_subtract(
     function: &AbstractFunction,
 ) -> Result<
-    IntegerArithmeticParametersSource,
-    StraightLineWrappingIntegerSubtractParametersTranslationError,
+    super::super::super::model::IntegerArithmeticParametersSource,
+    crate::validation::model::StraightLineWrappingIntegerSubtractParametersTranslationError,
 > {
-    let Some(AbstractOperation::WrappingIntegerSubtract { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineWrappingIntegerSubtractParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    wrapping_subtract::reconstruct(function, &envelope)
+    reconstruction::reconstruct_wrapping_subtract(function)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_multiply(
     function: &AbstractFunction,
 ) -> Result<
-    IntegerArithmeticParametersSource,
-    StraightLineWrappingIntegerMultiplyParametersTranslationError,
+    super::super::super::model::IntegerArithmeticParametersSource,
+    crate::validation::model::StraightLineWrappingIntegerMultiplyParametersTranslationError,
 > {
-    let Some(AbstractOperation::WrappingIntegerMultiply { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineWrappingIntegerMultiplyParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    wrapping_multiply::reconstruct(function, &envelope)
+    reconstruction::reconstruct_wrapping_multiply(function)
 }

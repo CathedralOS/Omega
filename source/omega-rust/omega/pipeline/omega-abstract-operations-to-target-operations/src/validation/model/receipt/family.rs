@@ -57,6 +57,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineExactIntegerAddParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters
             }
+            Self::StraightLineSaturatingIntegerAddParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters
+            }
             Self::StraightLineWrappingIntegerAddParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters
             }

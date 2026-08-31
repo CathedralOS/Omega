@@ -1,0 +1,83 @@
+//! Exact arithmetic-family source envelope selection and replay join.
+
+use omega_abstract_operations::{AbstractFunction, AbstractOperation};
+use psi_core::ScalarType;
+
+use super::super::super::super::model::{
+    ExactIntegerAddParametersSource, IntegerArithmeticParametersSource,
+};
+use crate::validation::model::{
+    StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerMultiplyParametersTranslationError,
+    StraightLineWrappingIntegerSubtractParametersTranslationError,
+};
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_add(
+    function: &AbstractFunction,
+) -> Result<ExactIntegerAddParametersSource, StraightLineExactIntegerAddParametersTranslationError>
+{
+    let Some(AbstractOperation::ExactIntegerAdd { scalar_type, .. }) = function.operations.first()
+    else {
+        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster);
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::exact_add::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(
+    function: &AbstractFunction,
+) -> Result<
+    IntegerArithmeticParametersSource,
+    StraightLineSaturatingIntegerAddParametersTranslationError,
+> {
+    let Some(AbstractOperation::SaturatingIntegerAdd { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineSaturatingIntegerAddParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::saturating_add::reconstruct(function, &envelope)
+}
+
+macro_rules! reconstruct_wrapping {
+    ($name:ident, $variant:ident, $leaf:ident, $error:ty) => {
+        pub(in crate::validation::straight_line_parameter) fn $name(
+            function: &AbstractFunction,
+        ) -> Result<IntegerArithmeticParametersSource, $error> {
+            let Some(AbstractOperation::$variant { scalar_type, .. }) = function.operations.first()
+            else {
+                return Err(<$error>::SourceOperationRoster);
+            };
+            let envelope = super::super::super::envelope::reconstruct(
+                function,
+                ScalarType::Integer(*scalar_type),
+            )?;
+            super::$leaf::reconstruct(function, &envelope)
+        }
+    };
+}
+
+reconstruct_wrapping!(
+    reconstruct_wrapping_add,
+    WrappingIntegerAdd,
+    wrapping_add,
+    StraightLineWrappingIntegerAddParametersTranslationError
+);
+reconstruct_wrapping!(
+    reconstruct_wrapping_subtract,
+    WrappingIntegerSubtract,
+    wrapping_subtract,
+    StraightLineWrappingIntegerSubtractParametersTranslationError
+);
+reconstruct_wrapping!(
+    reconstruct_wrapping_multiply,
+    WrappingIntegerMultiply,
+    wrapping_multiply,
+    StraightLineWrappingIntegerMultiplyParametersTranslationError
+);
