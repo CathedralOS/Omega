@@ -34,7 +34,7 @@ keywords:
 data DllImport<
     const ObjectLength: u64,
     const SymbolLength: u64,
-    const VersionLength: u64,
+    const VersionLength: u64
 > {
     case PeByName(
         library: [u8; ObjectLength],
@@ -55,7 +55,7 @@ data DllImport<
 data Binding<
     const ObjectLength: u64,
     const SymbolLength: u64,
-    const VersionLength: u64,
+    const VersionLength: u64
 > {
     case DllImport(
         import: DllImport<ObjectLength, SymbolLength, VersionLength>
@@ -64,6 +64,13 @@ data Binding<
     case VtableField(field: NativeFieldIdentity);
 }
 ```
+
+That is the eventual closed surface. The current compiler-owned
+`core/external_binding.omg` lands the import-value rung first: all four
+`DllImport` cases and `Binding::DllImport`. `Syscall` and `VtableField` remain
+on visibly segregated legacy carriers until ordinary typed number and
+`NativeFieldIdentity` values can replace them; `CompilerIntrinsic` never gains
+a `Binding` case.
 
 Exact cases may grow only when a genuinely different irreducible binding
 mechanism exists. Host-specific flags and `host:` mini-languages are not part

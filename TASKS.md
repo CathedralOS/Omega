@@ -10691,9 +10691,19 @@ boundary without its corresponding checked law.
   expression shape is one exact receiverless zero-argument producer call with
   no runtime, machine, evidence, quotient, or private-layout argument lane;
   non-call expressions, unresolved targets, generic/bodyless producers, and
-  producers with parameters reject. This rung does not yet provide the
-  compiler-owned `DllImport`/`Binding` source declarations, execute the
-  producer, decode its value, or retain the evaluation/provenance receipt.
+  producers with parameters reject. The compiler-owned
+  `core/external_binding.omg` now provides the exact three-width `DllImport`
+  vocabulary and the import-only first `Binding` rung as ordinary toolchain
+  source, with a production-frontend test pinning every case, payload, const
+  binder, fixed-byte-array width, and nominal source owner. Psi now also
+  exposes exact-symbol measured result evaluation plus the exact admitted
+  checked-machine closure, so Omega never has to reselect a producer by
+  spelling. The compiler does not yet invoke that evaluator from `via`, decode
+  the returned value, atomically pair its normalized locator with a durable
+  producer/evaluator/materialization receipt, or install that evaluated import
+  in provider-plan and package-review identity. `Syscall` and `VtableField`
+  remain on their visibly segregated legacy carriers until their own ordinary
+  typed value vocabularies exist.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
   `PeByOrdinal`, `ElfVersioned`, and `MachODylibSymbol` candidates, rejecting
   empty/NUL coordinates, zero PE ordinals, UEFI/PE conflation, non-Linux
