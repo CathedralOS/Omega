@@ -5,7 +5,8 @@ use omega_abstract_operations::{
     AbstractOperationPlan, AbstractResult, CompletionClaimSource,
 };
 use omega_abstract_operations_to_target_operations::{
-    AdmittedBoundarySettlement, lower_to_target_operations_with_provider_executions,
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+    lower_to_target_operations_with_provider_executions,
 };
 use omega_calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStack,
@@ -594,7 +595,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         NativeTarget::linux_x64(),
         &[AdmittedBoundarySettlement {
             boundary,
-            provider_execution: &execution,
+            execution: AdmittedBoundaryExecution::Provider(&execution),
             realization: realization.into(),
         }],
     )
@@ -797,7 +798,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
     };
     let direct_settlement = AdmittedBoundarySettlement {
         boundary,
-        provider_execution: &result_execution,
+        execution: AdmittedBoundaryExecution::Provider(&result_execution),
         realization: BoundaryRealization::DirectPortReadU8(direct_realization).into(),
     };
     let direct_target = lower_to_target_operations_with_provider_executions(
@@ -857,9 +858,14 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
             argument_index: 0,
         }
     );
+    let omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(direct_provider_execution) =
+        direct_machine.functions[0].boundary_settlements[0].execution
+    else {
+        panic!("direct settlement must retain admitted-provider execution custody")
+    };
     assert_eq!(
         direct_provider_custody[0].provider_execution,
-        direct_machine.functions[0].boundary_settlements[0].provider_execution
+        direct_provider_execution
     );
     let mut substituted_provider_custody = direct_machine.clone();
     substituted_provider_custody.functions[0].boundary_settlements[0]
