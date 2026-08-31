@@ -1,4 +1,4 @@
-use super::CompilerIntrinsicExecutionIdentity;
+use super::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
 use psi_typed_trees::TypedTrees;
 
 /// One compiler-owned primitive floating-point binary execution.
@@ -8,63 +8,34 @@ use psi_typed_trees::TypedTrees;
 /// realization declarations. This atom identifies only the sealed compiler
 /// execution child and therefore commits the irreducible operation and
 /// permanent floating-point format.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompilerPrimitiveFloatBinaryOperation {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
+const fn operation_returns_boolean(operation: CompilerPrimitiveFloatBinaryOperation) -> bool {
+    matches!(
+        operation,
+        CompilerPrimitiveFloatBinaryOperation::Equal
+            | CompilerPrimitiveFloatBinaryOperation::NotEqual
+            | CompilerPrimitiveFloatBinaryOperation::Less
+            | CompilerPrimitiveFloatBinaryOperation::LessOrEqual
+            | CompilerPrimitiveFloatBinaryOperation::Greater
+            | CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual
+    )
 }
 
-impl CompilerPrimitiveFloatBinaryOperation {
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Add => "add",
-            Self::Subtract => "subtract",
-            Self::Multiply => "multiply",
-            Self::Divide => "divide",
-            Self::Equal => "equal",
-            Self::NotEqual => "not_equal",
-            Self::Less => "less",
-            Self::LessOrEqual => "less_or_equal",
-            Self::Greater => "greater",
-            Self::GreaterOrEqual => "greater_or_equal",
-        }
-    }
+const fn operation_spelling(
+    operation: CompilerPrimitiveFloatBinaryOperation,
+) -> psi_language_core::operator_spelling::OperatorSpelling {
+    use psi_language_core::operator_spelling::OperatorSpelling;
 
-    const fn returns_boolean(self) -> bool {
-        matches!(
-            self,
-            Self::Equal
-                | Self::NotEqual
-                | Self::Less
-                | Self::LessOrEqual
-                | Self::Greater
-                | Self::GreaterOrEqual
-        )
-    }
-
-    const fn spelling(self) -> psi_language_core::operator_spelling::OperatorSpelling {
-        use psi_language_core::operator_spelling::OperatorSpelling;
-
-        match self {
-            Self::Add => OperatorSpelling::Add,
-            Self::Subtract => OperatorSpelling::Subtract,
-            Self::Multiply => OperatorSpelling::Multiply,
-            Self::Divide => OperatorSpelling::Divide,
-            Self::Equal => OperatorSpelling::Equal,
-            Self::NotEqual => OperatorSpelling::NotEqual,
-            Self::Less => OperatorSpelling::Less,
-            Self::LessOrEqual => OperatorSpelling::LessEqual,
-            Self::Greater => OperatorSpelling::Greater,
-            Self::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        }
+    match operation {
+        CompilerPrimitiveFloatBinaryOperation::Add => OperatorSpelling::Add,
+        CompilerPrimitiveFloatBinaryOperation::Subtract => OperatorSpelling::Subtract,
+        CompilerPrimitiveFloatBinaryOperation::Multiply => OperatorSpelling::Multiply,
+        CompilerPrimitiveFloatBinaryOperation::Divide => OperatorSpelling::Divide,
+        CompilerPrimitiveFloatBinaryOperation::Equal => OperatorSpelling::Equal,
+        CompilerPrimitiveFloatBinaryOperation::NotEqual => OperatorSpelling::NotEqual,
+        CompilerPrimitiveFloatBinaryOperation::Less => OperatorSpelling::Less,
+        CompilerPrimitiveFloatBinaryOperation::LessOrEqual => OperatorSpelling::LessEqual,
+        CompilerPrimitiveFloatBinaryOperation::Greater => OperatorSpelling::Greater,
+        CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => OperatorSpelling::GreaterEqual,
     }
 }
 
@@ -93,7 +64,7 @@ pub fn primitive_float_binary_intrinsic_execution_identity(
         "greater_or_equal" => CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual,
         _ => return None,
     };
-    if operator.spelling != Some(operation.spelling()) {
+    if operator.spelling != Some(operation_spelling(operation)) {
         return None;
     }
     let [left, right] = typed.operator_parameters(operator) else {
@@ -108,7 +79,7 @@ pub fn primitive_float_binary_intrinsic_execution_identity(
         psi_typed_trees::types::PrimitiveType::F64 => psi_numerics::literals::FloatFormat::F64,
         _ => return None,
     };
-    let expected_result = if operation.returns_boolean() {
+    let expected_result = if operation_returns_boolean(operation) {
         psi_typed_trees::types::PrimitiveType::Bool
     } else {
         primitive

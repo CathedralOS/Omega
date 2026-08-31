@@ -7,6 +7,7 @@ mod executable_tcb_profile;
 mod isolated_executable_scopes;
 mod process_static_services;
 mod selected_provider_plans;
+mod terminal_authority;
 
 pub use capabilities::analysis::{
     BoundaryCallCoordinate, UnapprovedBoundaryCall, audit_boundary_provider_calls,
@@ -61,4 +62,8 @@ pub use process_static_services::{
 };
 pub use selected_provider_plans::{
     InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
+};
+pub use terminal_authority::{
+    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
+    TerminalAuthorityClass, TerminalAuthorityDisposition, TerminalAuthorityPolicyIdentity,
 };

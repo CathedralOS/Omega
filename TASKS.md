@@ -9158,12 +9158,27 @@ compiler concept is introduced.
 
   Land the first demand-complete table over the closed
   `CompilerIntrinsicExecutionIdentity` families, including explicit empty
-  dispositions and no wildcard default. Next add a structural Mach-O locator,
-  make ordinary source binding evaluation produce exact PE-by-name,
-  PE-by-ordinal, versioned-ELF, and Mach-O locators, and supply target-policy
-  rows for admitted imports. Only then replace the blessed filename table with
-  the exact service/schema permission table and binding-derived containment.
-  String-backed imports never enter accepted classification directly.
+  dispositions and no wildcard default. This first rung is now live as the
+  receiving realization's version-1, 494-row compiler-intrinsic policy: the
+  closed mechanism atoms and canonical 13-class disposition carrier live below
+  planning in `omega-effects`, while native realization owns the exhaustive
+  physical classification and strong whole-table commitment. The existing
+  provider-planning paths are compatibility re-exports, not a second identity
+  vocabulary. `LinuxExitGroupI32` exercises `ProcessTermination`; privileged
+  assembly is split explicitly between `MachineControl` and `PortIo`; every
+  authority-class-free builtin and numeric coordinate has an explicit empty
+  disposition. Empty remains distinct from absent or unsupported: policy lookup
+  rejects any exact mechanism missing from the versioned committed inventory.
+  This rung does not yet traverse provider closures, join service/schema
+  permissions, admit native execution, or carry the accepted policy identity
+  in realization evidence.
+
+  Next add a structural Mach-O locator, make ordinary source binding evaluation
+  produce exact PE-by-name, PE-by-ordinal, versioned-ELF, and Mach-O locators,
+  and supply target-policy rows for admitted imports. Only then replace the
+  blessed filename table with the exact service/schema permission table and
+  binding-derived containment. String-backed imports never enter accepted
+  classification directly.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,
