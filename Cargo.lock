@@ -994,6 +994,7 @@ dependencies = [
  "omega-psi-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-admission",
  "psi-terminal",

@@ -287,7 +287,7 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     id: OperationId::new(1_463).unwrap(),
                     result: OperationResult::Scalar(declaration(redundant, result_integer)),
                     kind: if proof_certified || compatible_policy {
-                        OperationKind::ExactIntegerShiftLeft {
+                        OperationKind::ExactIntegerShiftRight {
                             value: join_input,
                             count: zero,
                             obligation: redundant_obligation,
@@ -311,13 +311,13 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     id: OperationId::new(1_465).unwrap(),
                     result: OperationResult::Scalar(declaration(left_leader, result_integer)),
                     kind: if proof_certified {
-                        OperationKind::ExactIntegerShiftLeft {
+                        OperationKind::ExactIntegerShiftRight {
                             value: left_input,
                             count: zero,
                             obligation: left_obligation,
                         }
                     } else if compatible_policy {
-                        OperationKind::WrappingIntegerShiftLeft {
+                        OperationKind::WrappingIntegerShiftRight {
                             value: left_input,
                             count: zero,
                         }
@@ -371,13 +371,13 @@ pub(super) fn phi_translated_gvn_verified_fixture(
                     id: OperationId::new(1_469).unwrap(),
                     result: OperationResult::Scalar(declaration(right_leader, result_integer)),
                     kind: if proof_certified {
-                        OperationKind::ExactIntegerShiftLeft {
+                        OperationKind::ExactIntegerShiftRight {
                             value: right_input,
                             count: zero,
                             obligation: right_obligation,
                         }
                     } else if compatible_policy {
-                        OperationKind::WrappingIntegerShiftLeft {
+                        OperationKind::WrappingIntegerShiftRight {
                             value: right_input,
                             count: zero,
                         }

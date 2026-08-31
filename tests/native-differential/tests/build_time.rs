@@ -7,8 +7,8 @@
 
 use omega_compiler::compile_to_checked;
 use psi_checked_interpreter::{
-    BuildTimeValue, evaluate_build_time_machine, evaluate_build_time_machine_measured,
-    interpret_entry,
+    BuildTimeValue, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
+    evaluate_build_time_machine, evaluate_build_time_machine_measured, interpret_entry,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -100,8 +100,8 @@ machine Main::main(&mut self) { }
         evaluate_build_time_machine_measured(&checked.typed, "Planner::plan", vec![schema])
             .expect("equal evaluation should reproduce usage");
     assert_eq!(first.usage(), second.usage());
-    assert_eq!(first.usage().schema().schema_version(), 1);
-    assert_eq!(first.usage().schedule().marker(), 1);
+    assert_eq!(first.usage().schema(), CURRENT_EVALUATION_USAGE_SCHEMA);
+    assert_eq!(first.usage().schedule(), CURRENT_EVALUATION_STEP_SCHEDULE);
     assert!(first.usage().fuel_units() > 0);
     assert_eq!(first.usage().result_cells(), 4);
     assert_eq!(first.value(), second.value());

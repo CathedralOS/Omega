@@ -1220,10 +1220,13 @@ fn compiler_product_stops_delegate_component_progress_admission() {
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
     let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
         .expect("read compiler product driver");
+    let native_admission =
+        std::fs::read_to_string(compiler.join("compiler/optimization/admission.rs"))
+            .expect("read native optimization admission owner");
     let reporting = recursive_rust_source(&compiler.join("pipeline/reporting"));
 
     assert_eq!(
-        driver
+        native_admission
             .matches("component_progress::reject_undischarged_build_bound_progress(")
             .count(),
         1,
@@ -1231,6 +1234,7 @@ fn compiler_product_stops_delegate_component_progress_admission() {
     );
     for (owner, source) in [
         ("product driver", driver.as_str()),
+        ("native admission", native_admission.as_str()),
         ("reporting", reporting.as_str()),
     ] {
         assert!(
@@ -1246,12 +1250,16 @@ fn production_subject_projection_is_report_owned() {
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
     let driver = std::fs::read_to_string(compiler.join("compiler/driver.rs"))
         .expect("read compiler product driver");
+    let native_optimization =
+        std::fs::read_to_string(compiler.join("compiler/optimization/mod.rs"))
+            .expect("read native optimization join");
+    let product_stops = format!("{driver}\n{native_optimization}");
     let projection =
         std::fs::read_to_string(compiler.join("pipeline/reporting/production_subject.rs"))
             .expect("read production-subject report projection");
 
     assert_eq!(
-        driver
+        product_stops
             .matches("reporting::project_production_subject(")
             .count(),
         2,
@@ -1265,8 +1273,8 @@ fn production_subject_projection_is_report_owned() {
         "ProductionCompilationSubject::from_checked(",
     ] {
         assert!(
-            !driver.contains(forbidden),
-            "the product driver must not reconstruct production-subject detail `{forbidden}`"
+            !product_stops.contains(forbidden),
+            "compiler product stops must not reconstruct production-subject detail `{forbidden}`"
         );
         assert!(
             projection.contains(forbidden),
@@ -1279,9 +1287,9 @@ fn production_subject_projection_is_report_owned() {
 fn optimization_rollback_settlement_is_owner_complete() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler");
-    let driver =
-        std::fs::read_to_string(compiler.join("driver.rs")).expect("read compiler product driver");
-    let owner = std::fs::read_to_string(compiler.join("optimization_rollback.rs"))
+    let native_join = std::fs::read_to_string(compiler.join("optimization/mod.rs"))
+        .expect("read native optimization join");
+    let owner = std::fs::read_to_string(compiler.join("optimization/rollback/mod.rs"))
         .expect("read optimization rollback owner");
 
     for required in [
@@ -1297,11 +1305,11 @@ fn optimization_rollback_settlement_is_owner_complete() {
     }
     for required in [
         ".settle(checked.optimization_selections())",
-        "rollback_settlement.effective()",
-        "rollback_settlement.into_receipt()",
+        "rollback.effective()",
+        "rollback.into_receipt()",
     ] {
         assert!(
-            driver.contains(required),
+            native_join.contains(required),
             "native product stop lost rollback settlement view `{required}`"
         );
     }
@@ -1312,14 +1320,16 @@ fn optimization_rollback_settlement_is_owner_complete() {
         "optimization_rollback.requested_disabled()",
     ] {
         assert!(
-            !driver.contains(forbidden),
-            "the product driver must not reconstruct rollback policy through `{forbidden}`"
+            !native_join.contains(forbidden),
+            "the native optimization join must not reconstruct rollback policy through `{forbidden}`"
         );
     }
     assert_eq!(
-        driver.matches("checked.optimization_selections()").count(),
+        native_join
+            .matches("checked.optimization_selections()")
+            .count(),
         1,
-        "the driver must pass build selection to the rollback owner exactly once"
+        "the native optimization join must pass build selection to the rollback owner exactly once"
     );
 }
 
@@ -2040,10 +2050,11 @@ fn optimization_projection_stops_before_target_realization() {
 #[test]
 fn retained_native_product_enters_only_terminal_realization() {
     let root = workspace_root();
-    let driver_path =
-        root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler");
+    let driver_path = compiler.join("driver.rs");
     let driver = std::fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    let native = recursive_rust_source(&compiler.join("optimization"));
     let legacy_driver_path = root.join(
         "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/compatibility/harness.rs",
     );
@@ -2074,15 +2085,6 @@ fn retained_native_product_enters_only_terminal_realization() {
         !legacy_driver_path.exists(),
         "the StateGraph compatibility compiler must stay deleted"
     );
-    let native = driver
-        .split_once("fn native_report")
-        .map(|(native, _)| native)
-        .and_then(|_| {
-            driver
-                .split_once("fn native_report")
-                .map(|(_, native)| native)
-        })
-        .expect("compiler must retain one dedicated native stop");
     for required in [
         "produce_terminal_artifact(",
         "realize_native_artifact(",
@@ -2551,7 +2553,12 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "selected virtual-register origins must consume canonical legalization-temporary identities"
     );
     assert!(
-        selected_representation_source.contains("LegalizationTemporary"),
+        recursive_rust_source(
+            selected_representation
+                .parent()
+                .expect("selected representation has a source directory"),
+        )
+        .contains("LegalizationTemporary"),
         "selected virtual registers must distinguish legalized temporaries from Psi value identities"
     );
 

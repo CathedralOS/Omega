@@ -293,6 +293,7 @@ fn terminal_image(
         functions: vec![MachineCodeFunction {
             machine,
             attachment: None,
+            fixed_integer_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
                 edges: vec![edge],
@@ -306,6 +307,9 @@ fn terminal_image(
             internal_calls: Vec::new(),
             foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
+            internal_unit_scalar_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
             unit_affine_cleanup: None,
             semantic_code_attribution: vec![
                 SemanticCodeAttribution {

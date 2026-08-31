@@ -26,33 +26,28 @@ decision. Only true language-semantic questions belong in
    add/subtract goals are still represented by `KernelDerived(Truth)`. Use
    checked certificate-derived proofs; do not weaken proof admission.
 5. [>] Finish workspace validation and rollout canaries before promoting any
-   rule beyond explicit opt-in. The stale canonical-nonzero reducer assertion,
-   scalar-call Terminal-byte golden, and its exact published fingerprint are
-   repaired. Upstream placed-view custody has since advanced Terminal to format
-   43/vocabulary 46; the V4 fixed-view artifact golden binds that new semantic
-   identity without changing its envelope length. The complete 128-test source
-   and four-test call native-differential suites are green. The broader
-   no-fail-fast audit's stale compact-identity and generated-target inventories
-   are repaired, and the 537-line package-review projection leaf now has a
-   semantic taxonomy below its ratchet. The 36-test access-plan suite and four
-   affected build-output replay canaries are green. The source-custody Console
-   canary now pins the one target with a closed exit identity and asserts that
-   the provider's remaining unclosed intrinsic children block review instead
-   of varying with the host. Package-review fixtures now use the current
-   representation-TCB kind and give `process-exit` its own Linux-pinned
-   fail-closed canary instead of treating incomplete Console custody as
-   reviewable. The pre-rebase frozen-tree audit passed the 78-check layering
-   suite, the optimizer organization guard, all affected optimizer/lowering
-   suites, all 67 build-configuration cases (one intentional ignore), the
-   descriptor-lock canary, all six output-tree canaries, and all eight call-
-   acknowledgement canaries. Beyond that boundary, its 1,258-case language
-   canary exposed 1,144 native-production closure failures, predominantly a
-   missing checked transitive machine plan or exact selected program entry,
-   with a smaller unresolved `CheckedOperator` class. Upstream then landed
-   attached-Unit installation and placed-view custody changes during this
-   checkpoint; their affected focused suites are green after rebase, so run a
-   new frozen full-workspace audit before classifying which broad failures
-   remain.
+   rule beyond explicit opt-in. The authoritative frozen-tree command is
+   `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test --workspace
+   --no-fail-fast`; `--all-targets` is not the repository gate because it omits
+   doctests. The post-rebase audit completed with 23 failing test targets. Its
+   optimizer boundary was already green for the organization guard, all 67
+   build-configuration cases (one intentional ignore), descriptor lock, six
+   output-tree canaries, eight call-acknowledgement canaries, the 20 exact-name
+   opt-in cases, the 163-test optimization pipeline, and Terminal's 128 source
+   plus four call canaries. Subsequent focused repairs made layering 78/78,
+   run-to-abstract projection 48/48, build-time evaluation 4/4, headless GUI
+   1/1, no-selection native publication 5/5, and current Terminal format 43 /
+   vocabulary 46 provider, codec-ledger, publication, and image-fingerprint
+   canaries green. The reviewed no-selection goldens changed only semantic and
+   proof sections; object and image bytes stayed identical on all four targets.
+   The same audit still classifies the broad 1,258-case language canary at 114
+   passes / 1,144 native-production closure failures, predominantly missing
+   checked transitive machine plans or exact selected program entries, with a
+   smaller unresolved checked-expression class. Native-filesystem canaries are
+   likewise 0/89 on that closure, and narrower structural-return, generic-
+   instance, package-review, and native-coverage failures remain. Run the full
+   gate again only after the next coherent repair batch; no result here permits
+   implicit optimizer enablement.
 
 ## P0 — Source navigation and taxonomy
 
@@ -273,12 +268,18 @@ decision. Only true language-semantic questions belong in
   u12 folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
-- [ ] Extend abstract call operations and downstream identities/codecs/lowering
-  to retain Terminal `requirement_obligations` for ordinary, Unit, structural-
-  scalar, and boundary calls, plus `crash_continuations` for ordinary, Unit,
-  and structural-scalar calls. Current Terminal verification reconstructs
-  these nonempty rows, but the corresponding abstract variants cannot carry
-  them; add nonempty custody and mutation tests with the model extension.
+- [ ] Extend abstract ordinary, Unit, and structural-scalar call operations and
+  downstream identities/codecs/lowering to retain Terminal
+  `requirement_obligations` and `crash_continuations`. Current Terminal
+  verification reconstructs these nonempty rows, but the corresponding
+  abstract variants cannot carry them; add nonempty custody and mutation tests
+  with the model extension.
+- [?] Decide whether boundary `StructuralDomainRequirement` rows remain
+  qualification-only or gain proposition/proof ownership. Terminal currently
+  rejects every nonempty boundary `requirement_obligations` roster as
+  `BoundaryStructuralRequirementsMintObligations`, so an optimizer carrier
+  cannot honestly add the requested nonempty mutation canary. See
+  `OWNER_QUESTIONS.md` Q11; do not manufacture proof meaning while it is open.
 - [x] Add fixed-view-copy v5 as a versioned envelope and structural selected
   subtree. Public encoding emits v5; decoding accepts v4/v5; v4 bytes and
   rejection order remain pinned. V5 authenticates the exact selected-plan
