@@ -12,14 +12,14 @@ pub(super) fn resolve_base_symbol(
     member: &psi_symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     if state_symbol.is_valid() {
-        let parameter_symbol = child_symbol_by_kinds(
+        let lexical_symbol = child_symbol_by_kinds(
             symbols,
             state_symbol,
-            &[SymbolKind::Parameter],
+            &[SymbolKind::Parameter, SymbolKind::Local],
             member.as_str(),
         );
-        if parameter_symbol.is_valid() {
-            return parameter_symbol;
+        if lexical_symbol.is_valid() {
+            return lexical_symbol;
         }
     }
 

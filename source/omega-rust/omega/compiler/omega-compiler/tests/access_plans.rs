@@ -2588,7 +2588,7 @@ machine Main::main(&mut self) {}
         rejection
             .diagnostic()
             .0
-            .contains("interpretation does not match the admitted placement")
+            .contains("interpretation commitment does not match the admitted placement")
     );
     let (returned_admission, returned_content, _) = rejection.into_parts();
     assert_eq!(returned_admission.identity(), admission_id);

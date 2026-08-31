@@ -9,6 +9,8 @@ use psi_tokens_to_syntax_trees::parse_syntax_trees_with_id;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+mod state_local_resolution;
+
 #[test]
 fn explicit_top_level_boundary_requirement_satisfaction_resolves_exact_machine_symbol() {
     let provider_source = r#"
