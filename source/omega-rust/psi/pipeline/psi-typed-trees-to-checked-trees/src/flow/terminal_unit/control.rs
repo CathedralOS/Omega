@@ -1295,9 +1295,16 @@ fn build_write_only_primitive_store(
         0,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
-    if !matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
-        || crate::values::scalar_expression_type(value) != Some(*destination_type)
-    {
+    let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+        || matches!(
+            value,
+            CheckedScalarExpression::Boolean(expression)
+                if matches!(
+                    expression.as_ref(),
+                    psi_checked_trees::CheckedBooleanExpression::Constant(_)
+                )
+        );
+    if !direct_literal || crate::values::scalar_expression_type(value) != Some(*destination_type) {
         return None;
     }
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {

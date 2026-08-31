@@ -498,6 +498,69 @@ fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
 }
 
 #[test]
+fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
+    let checked = checked_source(
+        r#"
+            data Sink {}
+            machine Sink::fill(destination: &write bool) {
+                destination = true;
+            }
+
+            data Root {}
+            machine Root::enter(destination: &mut bool) {
+                Sink::fill(&write destination);
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower Boolean store closure");
+    let module = &lowered.semantic_module;
+    let [_, callee] = module.machines.as_slice() else {
+        panic!("caller and write-only callee are retained")
+    };
+    let [callee_parameter] = callee.structural_parameters.as_slice() else {
+        panic!("callee retains one primitive referent")
+    };
+    assert!(matches!(
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == callee_parameter.structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean))
+    ));
+    let [constant, store] = callee.blocks[0].operations.as_slice() else {
+        panic!("callee emits one Boolean constant followed by one store")
+    };
+    let stored_value = constant.result.expect_scalar().id;
+    assert!(matches!(
+        constant.kind,
+        OperationKind::BooleanConstant { value: true }
+    ));
+    assert!(matches!(
+        store.kind,
+        OperationKind::WriteOnlyPrimitiveStore { destination, value }
+            if destination == callee_parameter.place && value == stored_value
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode Boolean store");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode Boolean store");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify Boolean store");
+
+    let mut wrong_type = decoded;
+    let declaration = wrong_type
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == callee_parameter.structural_type)
+        .expect("Boolean structural declaration");
+    declaration.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+        psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+    ));
+    psi_terminal_verifier::validate_module(&wrong_type)
+        .expect_err("Boolean store value must match its exact referent type");
+}
+
+#[test]
 fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     let source = r#"
         data Leaf [copy] { value: u16; }

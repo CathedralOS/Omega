@@ -478,12 +478,13 @@ authority does not follow. The verifier also rejects widening, target
 disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
 Terminal format 42/vocabulary 45 retains one executable direct whole-root
-primitive-integer replacement. `PrimitiveScalar` is an honest structural
+primitive replacement from either a landed integer literal or a Boolean
+literal. `PrimitiveScalar` is an honest structural
 referent shape rather than a synthetic record, and
 `WriteOnlyPrimitiveStore(destination, value)` is Unit, unconditional, and
 non-observing. Verification requires one claim-free, unqualified,
 unrestricted `WriteOnlyBorrow` parameter root and an already-defined exact-type
-SSA value. Reference execution keeps primitive backing outside suspended call
+SSA value. Reference execution keeps exact-typed primitive backing outside suspended call
 frames, so a callee replacement is caller-visible; fuel is consumed before the
 mutation and resumption cannot replay it. Broader projected/aggregate stores,
 opaque-provider realization, and native address/width/store lowering remain
