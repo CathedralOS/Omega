@@ -1,5 +1,4 @@
 use omega_package_manager::review::{PackageSourceReviewInput, PackageTriageDisposition};
-use sha2::{Digest, Sha256};
 
 use super::protocol::{
     ADVISORY_NO_ADDITIONAL_AUDIT, ADVISORY_RECOMMEND_AUDIT, PackageAdvisoryRecommendation,
@@ -46,11 +45,7 @@ fn invoke_rendered_advisory_review<R: PackageAdvisoryReviewer>(
             required_bytes: required_output_bytes,
         });
     }
-    let review_input_commitment = advisory_review_input_commitment(&review_input);
-    let request = PackageAdvisoryReviewRequest {
-        review_input,
-        review_input_commitment,
-    };
+    let request = PackageAdvisoryReviewRequest { review_input };
     let mut output = PackageAdvisoryReviewOutput {
         bytes: Vec::with_capacity(required_output_bytes),
         maximum_bytes: maximum_output_bytes,
@@ -74,24 +69,15 @@ fn invoke_rendered_advisory_review<R: PackageAdvisoryReviewer>(
         _ => return Err(PackageAdvisoryReviewError::NonCanonicalOutput),
     };
     Ok(PackageAdvisoryReviewOutcome {
-        review_input_commitment,
         deterministic_disposition,
         deterministic_audit_recommended,
         advisory_recommendation,
     })
 }
 
-fn advisory_review_input_commitment(review_input: &str) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(b"omega-package-advisory-review-input-v1");
-    hasher.update((review_input.len() as u128).to_be_bytes());
-    hasher.update(review_input.as_bytes());
-    hasher.finalize().into()
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{advisory_review_input_commitment, invoke_rendered_advisory_review};
+    use super::invoke_rendered_advisory_review;
     use omega_package_manager::review::PackageTriageDisposition;
 
     use crate::PackageAdvisoryRecommendation;
@@ -105,7 +91,7 @@ mod tests {
 
     struct RecordingReviewer {
         response: Vec<u8>,
-        observed: Option<(String, String, String, [u8; 32], usize)>,
+        observed: Option<(String, String, String, usize)>,
     }
 
     impl PackageAdvisoryReviewer for RecordingReviewer {
@@ -120,7 +106,6 @@ mod tests {
                 request.instructions().to_owned(),
                 request.response_schema().to_owned(),
                 request.review_input().to_owned(),
-                request.review_input_commitment(),
                 output.maximum_bytes(),
             ));
             let _ = output.write(&self.response);
@@ -144,13 +129,11 @@ mod tests {
         )
         .expect("closed advisory response");
 
-        let (instructions, response_schema, evidence, commitment, maximum) =
+        let (instructions, response_schema, evidence, maximum) =
             reviewer.observed.expect("reviewer invocation");
         assert_eq!(instructions, ADVISORY_REVIEW_INSTRUCTIONS);
         assert_eq!(response_schema, ADVISORY_REVIEW_RESPONSE_SCHEMA);
         assert_eq!(evidence, hostile);
-        assert_eq!(commitment, advisory_review_input_commitment(hostile));
-        assert_eq!(outcome.review_input_commitment(), commitment);
         assert_eq!(maximum, ADVISORY_REVIEW_RESPONSE_SCHEMA.len());
         assert_eq!(
             outcome.deterministic_disposition(),

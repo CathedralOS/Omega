@@ -17,7 +17,6 @@ pub(super) const ADVISORY_NO_ADDITIONAL_AUDIT: &str =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageAdvisoryReviewRequest {
     pub(super) review_input: String,
-    pub(super) review_input_commitment: [u8; 32],
 }
 
 impl PackageAdvisoryReviewRequest {
@@ -31,10 +30,6 @@ impl PackageAdvisoryReviewRequest {
 
     pub fn review_input(&self) -> &str {
         &self.review_input
-    }
-
-    pub const fn review_input_commitment(&self) -> [u8; 32] {
-        self.review_input_commitment
     }
 }
 
@@ -125,17 +120,12 @@ pub enum PackageAdvisoryRecommendation {
 /// the final audit bit is the monotone OR of compiler policy and model advice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageAdvisoryReviewOutcome {
-    pub(super) review_input_commitment: [u8; 32],
     pub(super) deterministic_disposition: PackageTriageDisposition,
     pub(super) deterministic_audit_recommended: bool,
     pub(super) advisory_recommendation: PackageAdvisoryRecommendation,
 }
 
 impl PackageAdvisoryReviewOutcome {
-    pub const fn review_input_commitment(self) -> [u8; 32] {
-        self.review_input_commitment
-    }
-
     pub const fn deterministic_disposition(self) -> PackageTriageDisposition {
         self.deterministic_disposition
     }
