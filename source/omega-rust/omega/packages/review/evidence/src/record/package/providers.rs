@@ -1,4 +1,5 @@
 use super::super::identity::PackageReviewNominalIdentity;
+use super::super::signatures::PackageReviewTypeIdentity;
 use psi_core::PackageKeyIdentity;
 
 /// Exact declarations bound to one selected provider realization row.
@@ -249,14 +250,29 @@ pub struct CheckedPackageProviderFamilyReview {
     pub(crate) coordinates: Vec<CheckedPackageProviderFamilyCoordinateReview>,
 }
 
-/// Canonical D29 application shape currently admitted by package review.
+/// Canonical D29 application shape admitted by package review.
 ///
 /// The empty telescope is explicit rather than inferred from a missing field.
-/// Type/const applications remain absent until final specialization can
-/// reconstruct and recheck their complete role-specific realization.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Nonempty applications retain declaration-ordered category/ordinal bindings;
+/// the enclosing operator declaration owns the binder telescope.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewBoundaryApplication {
     Empty,
+    Exact(Vec<PackageReviewBoundaryApplicationArgument>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewBoundaryApplicationArgument {
+    Type {
+        binder_ordinal: u32,
+        type_identity: PackageReviewTypeIdentity,
+    },
+    Const {
+        binder_ordinal: u32,
+        declared_carrier: PackageReviewTypeIdentity,
+        value_type: String,
+        value_encoding: String,
+    },
 }
 
 /// Semantic realization role for one closed boundary application.
@@ -266,6 +282,7 @@ pub enum PackageReviewBoundaryApplication {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewBoundaryApplicationRealizationRole {
     NongenericCheckedBody,
+    SpecializedCheckedBody,
     ExactCompilerIntrinsic,
 }
 
@@ -281,6 +298,13 @@ pub enum PackageReviewBoundaryApplicationRealization {
     NongenericCheckedBody {
         realization_machine: PackageReviewNominalIdentity,
         realization_state: PackageReviewNominalIdentity,
+        realization_contract_commitment: [u8; 32],
+    },
+    SpecializedCheckedBody {
+        realization_template: PackageReviewNominalIdentity,
+        realization_machine: PackageReviewNominalIdentity,
+        realization_state: PackageReviewNominalIdentity,
+        specialization_commitment: [u8; 32],
         realization_contract_commitment: [u8; 32],
     },
     ExactCompilerIntrinsic {
@@ -312,8 +336,8 @@ impl CheckedPackageBoundaryApplicationRealizationReview {
         &self.operator_declaration
     }
 
-    pub const fn application(&self) -> PackageReviewBoundaryApplication {
-        self.application
+    pub fn application(&self) -> PackageReviewBoundaryApplication {
+        self.application.clone()
     }
 
     pub const fn selected_plan_digest(&self) -> &[u8; 32] {
@@ -324,6 +348,9 @@ impl CheckedPackageBoundaryApplicationRealizationReview {
         match self.realization {
             PackageReviewBoundaryApplicationRealization::NongenericCheckedBody { .. } => {
                 PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody
+            }
+            PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody { .. } => {
+                PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
             }
             PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic { .. } => {
                 PackageReviewBoundaryApplicationRealizationRole::ExactCompilerIntrinsic

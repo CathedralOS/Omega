@@ -570,9 +570,13 @@ fn plan_selected_operator_provider_evidence(
         let Some(operator) = operator else {
             continue;
         };
-        if let Err(diagnostic) =
-            selected_operator_provider_evidence(checked, candidates, selected, operator.symbol)
-        {
+        if let Err(diagnostic) = selected_operator_provider_evidence(
+            checked,
+            candidates,
+            selected,
+            operator.symbol,
+            None,
+        ) {
             diagnostics.push(diagnostic);
         }
     }
@@ -585,18 +589,38 @@ fn plan_selected_operator_provider_evidence(
         .operators
         .uses
         .iter()
-        .map(|(handle, operator_use)| (handle, operator_use.selected_operator_symbol))
+        .map(|(handle, operator_use)| {
+            (
+                handle,
+                operator_use.expression,
+                operator_use.origin,
+                operator_use.selected_operator_symbol,
+            )
+        })
         .collect::<Vec<_>>();
     let named = checked
         .facts
         .operators
         .named_uses
         .iter()
-        .map(|(handle, operator_use)| (handle, operator_use.selected_operator_symbol))
+        .map(|(handle, operator_use)| {
+            (
+                handle,
+                operator_use.expression,
+                operator_use.origin,
+                operator_use.selected_operator_symbol,
+            )
+        })
         .collect::<Vec<_>>();
     let mut spelled_updates = Vec::new();
-    for (handle, symbol) in spelled {
-        match selected_operator_provider_evidence(checked, candidates, selected, symbol) {
+    for (handle, expression, origin, symbol) in spelled {
+        match selected_operator_provider_evidence(
+            checked,
+            candidates,
+            selected,
+            symbol,
+            Some((expression, origin)),
+        ) {
             Ok(Some((report_fingerprint, commitment))) => {
                 spelled_updates.push((handle, report_fingerprint, commitment));
             }
@@ -605,8 +629,14 @@ fn plan_selected_operator_provider_evidence(
         }
     }
     let mut named_updates = Vec::new();
-    for (handle, symbol) in named {
-        match selected_operator_provider_evidence(checked, candidates, selected, symbol) {
+    for (handle, expression, origin, symbol) in named {
+        match selected_operator_provider_evidence(
+            checked,
+            candidates,
+            selected,
+            symbol,
+            Some((expression, origin)),
+        ) {
             Ok(Some((report_fingerprint, commitment))) => {
                 named_updates.push((handle, report_fingerprint, commitment));
             }
@@ -627,6 +657,10 @@ fn selected_operator_provider_evidence(
     candidates: &[ProviderPlan],
     selected: &omega_effects::SelectedProviderPlanFacts,
     operator_symbol: psi_symbols::SymbolHandle,
+    use_site: Option<(
+        psi_typed_trees::expression::ExpressionHandle,
+        psi_checked_trees::CheckedValueOrigin,
+    )>,
 ) -> Result<
     Option<(u64, psi_checked_trees::CheckedProviderPlanCommitment)>,
     psi_diagnostics::Diagnostic,
@@ -663,7 +697,8 @@ fn selected_operator_provider_evidence(
         )));
     };
     if let ProviderBinding::CheckedAdapter {
-        machine_identity, ..
+        machine_identity,
+        machine_package_identity,
     } = &row.binding
     {
         let [namespace, requirement] = checked.typed.operator_path_members(operator.name) else {
@@ -672,23 +707,115 @@ fn selected_operator_provider_evidence(
                 plan.name,
             )));
         };
-        let checked_provider = exact_checked_adapter(&checked.typed, plan, row)?;
-        let satisfies_slot = {
+        let demanded_application = match use_site {
+            None => None,
+            Some((expression, origin)) => {
+                let matching = checked
+                    .facts
+                    .operators
+                    .boundary_applications
+                    .iter()
+                    .filter(|application| {
+                        application.requirement_symbol == operator.symbol
+                            && application.site
+                                == psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                                    expression,
+                                    origin,
+                                }
+                    })
+                    .collect::<Vec<_>>();
+                let [application] = matching.as_slice() else {
+                    return Err(psi_diagnostics::Diagnostic::error(format!(
+                        "selected checked boundary-operator use retains {} exact application demands; expected one",
+                        matching.len(),
+                    )));
+                };
+                Some(*application)
+            }
+        };
+        let direct_provider = exact_checked_adapter(&checked.typed, plan, row);
+        let specialized_providers = checked
+            .typed
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                psi_validation::machine_specialization_matches_template_identity(
+                    &checked.typed,
+                    specialization,
+                    machine_identity,
+                    *machine_package_identity,
+                ) && specialization
+                    .operator_realizations
+                    .iter()
+                    .any(|realization| {
+                        realization.requirement_symbol == operator.symbol
+                            && demanded_application.is_none_or(|application| {
+                                psi_validation::checked_operator_application_matches_realization(
+                                    &checked.typed,
+                                    application,
+                                    realization,
+                                )
+                            })
+                    })
+            })
+            .filter_map(|specialization| {
+                checked
+                    .typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == specialization.instance)
+            })
+            .filter(|machine| {
+                checked
+                    .typed
+                    .symbols
+                    .symbol_package_identity(machine.symbol)
+                    == *machine_package_identity
+            })
+            .collect::<Vec<_>>();
+        let requires_specialization =
+            demanded_application.is_some_and(|application| !application.arguments.is_empty());
+        let checked_providers = if requires_specialization {
+            if specialized_providers.len() != 1 {
+                return Err(psi_diagnostics::Diagnostic::error(format!(
+                    "selected checked boundary-operator ProviderPlan `{}` resolves to {} exact specializations for one demanded application",
+                    plan.name,
+                    specialized_providers.len(),
+                )));
+            }
+            specialized_providers
+        } else {
+            match direct_provider {
+                Ok(provider) => vec![provider],
+                Err(direct_error) if specialized_providers.is_empty() => {
+                    return Err(direct_error);
+                }
+                Err(_) => specialized_providers,
+            }
+        };
+        let satisfies_slot = checked_providers.iter().all(|checked_provider| {
             checked
                 .typed
                 .machine_trait_conformances(checked_provider)
                 .iter()
                 .any(|conformance| {
                     conformance.external_binding.is_none()
-                        && psi_typed_trees::operator::resolve_satisfied_checked_operator(
+                        && (psi_typed_trees::operator::resolve_satisfied_checked_operator(
                             &checked.typed,
                             checked_provider,
                             namespace.as_str(),
                             requirement.as_str(),
                         )
                         .is_some_and(|resolved| resolved.symbol == operator.symbol)
+                            || psi_typed_trees::operator::resolve_specialized_checked_operator_application(
+                                &checked.typed,
+                                checked_provider,
+                                namespace.as_str(),
+                                requirement.as_str(),
+                            )
+                            .is_some_and(|(resolved, _)| resolved.symbol == operator.symbol))
                 })
-        };
+        });
         if !satisfies_slot {
             return Err(psi_diagnostics::Diagnostic::error(format!(
                 "selected boundary-operator ProviderPlan `{}` binds checked adapter `{machine_identity}`, but that machine does not satisfy exact slot `{slot}` with a checked body",

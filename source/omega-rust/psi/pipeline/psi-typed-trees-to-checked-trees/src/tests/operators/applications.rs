@@ -602,3 +602,84 @@ fn checked_boundary_applications_preserve_distinct_use_provenance() {
     assert_eq!(first.requirement_symbol, second.requirement_symbol);
     assert_ne!(first.site, second.site);
 }
+
+#[test]
+fn specialized_generic_operator_provider_retains_exact_closed_realization() {
+    let checked = checked_program_from_source(
+        r#"
+        pub data GenericMath {}
+        pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+
+        pub data GenericProvider {}
+        pub machine GenericProvider::identity<Value>(value: Value) -> Value
+        satisfies GenericMath::identity
+        { value }
+
+        machine exercise(value: i32) -> i32 {
+            GenericProvider::identity(value)
+        }
+        "#,
+    );
+
+    let specialization = checked
+        .machine_specializations
+        .iter()
+        .find(|specialization| {
+            checked.machines().iter().any(|machine| {
+                machine.symbol == specialization.instance
+                    && machine.name.as_str() == "GenericProvider::identity"
+            })
+        })
+        .expect("generic checked operator provider has one concrete specialization");
+    let [realization] = specialization.operator_realizations.as_slice() else {
+        panic!("specialization retains one exact operator realization")
+    };
+    let [
+        psi_typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+            binder_symbol,
+            type_reference,
+        },
+    ] = realization.arguments.as_slice()
+    else {
+        panic!("specialized realization retains one exact type argument")
+    };
+    assert!(realization.requirement_symbol.is_valid());
+    assert!(binder_symbol.is_valid());
+    assert_eq!(
+        checked.typed.primitive_type_reference(*type_reference),
+        Some(psi_typed_trees::types::PrimitiveType::I32)
+    );
+    assert!(!specialization.commitment.is_zero());
+    assert_eq!(
+        psi_validation::recompute_checked_machine_specialization_commitment(
+            &checked,
+            specialization.instance,
+        )
+        .expect("retained closed realization should replay"),
+        specialization.commitment.as_bytes(),
+    );
+
+    let mut tampered = checked.clone();
+    let specialization_index = tampered
+        .typed
+        .machine_specializations
+        .iter()
+        .position(|candidate| candidate.instance == specialization.instance)
+        .expect("same specialization survives cloning");
+    let psi_typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+        binder_symbol, ..
+    } = &mut tampered.typed.machine_specializations[specialization_index].operator_realizations[0]
+        .arguments[0]
+    else {
+        panic!("fixture retained one type application")
+    };
+    *binder_symbol = SymbolHandle::invalid();
+    assert!(
+        psi_validation::recompute_checked_machine_specialization_commitment(
+            &tampered,
+            tampered.typed.machine_specializations[specialization_index].instance,
+        )
+        .is_err(),
+        "specialization replay rejects a retained binder substitution"
+    );
+}

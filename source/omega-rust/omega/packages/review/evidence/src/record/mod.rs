@@ -66,11 +66,11 @@ pub use package::{
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
     CheckedPackageReviewProjection, PackageReviewBoundaryApplication,
-    PackageReviewBoundaryApplicationRealization, PackageReviewBoundaryApplicationRealizationRole,
-    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
-    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
-    PackageReviewSelectedProviderGrant,
+    PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
+    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCheckedServiceReach,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
 };
 pub use representation::{PackageReviewRepresentationTcb, PackageReviewRepresentationTcbKind};
 pub use rows::{

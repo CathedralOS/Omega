@@ -205,6 +205,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
         let ExpressionNode::Call(call) = expression else {
             continue;
         };
+        if psi_typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+            continue;
+        }
         collect_machine_proposals(
             program,
             &candidates,
@@ -225,25 +228,37 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
-                    StatementNode::Call(call) => collect_call_proposals(
-                        program,
-                        machine,
-                        state,
-                        &candidates,
-                        &callee_states,
-                        call.target_symbol,
-                        call.target.as_str(),
-                        &call.machine_arguments,
-                        program.statement_table.expression_handles(call.arguments),
-                        None,
-                        &mut machine_proposals,
-                        &mut evidence_proposals,
-                        &mut type_proposals,
-                        &mut const_proposals,
-                    ),
+                    StatementNode::Call(call)
+                        if psi_typed_trees::operator::declaration_by_symbol(
+                            program,
+                            call.target_symbol,
+                        )
+                        .is_none() =>
+                    {
+                        collect_call_proposals(
+                            program,
+                            machine,
+                            state,
+                            &candidates,
+                            &callee_states,
+                            call.target_symbol,
+                            call.target.as_str(),
+                            &call.machine_arguments,
+                            program.statement_table.expression_handles(call.arguments),
+                            None,
+                            &mut machine_proposals,
+                            &mut evidence_proposals,
+                            &mut type_proposals,
+                            &mut const_proposals,
+                        )
+                    }
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(local.initial_value)
+                            && psi_typed_trees::operator::resolve_named_expression_call(
+                                program, call,
+                            )
+                            .is_none()
                         {
                             collect_call_proposals(
                                 program,
@@ -269,6 +284,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
                     StatementNode::Expression(expression) => {
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(*expression)
+                            && psi_typed_trees::operator::resolve_named_expression_call(
+                                program, call,
+                            )
+                            .is_none()
                         {
                             collect_call_proposals(
                                 program,
@@ -442,8 +461,10 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
         {
             continue;
         }
-        apply_specialization(program, &candidate);
-        applied_any = true;
+        match apply_specialization(program, &candidate) {
+            Ok(()) => applied_any = true,
+            Err(diagnostic) => diagnostics.push(diagnostic),
+        }
     }
 
     if diagnostics.is_empty() {
@@ -502,6 +523,18 @@ fn materialize_static_const_argument_types(program: &mut TypedTrees) {
             }
         }
     }
+    literals.extend(
+        program
+            .type_reference_table
+            .fixed_array_lengths()
+            .filter_map(|(_, length)| match length {
+                psi_typed_trees::types::FixedArrayLength::Literal(value) => Some(value.to_string()),
+                psi_typed_trees::types::FixedArrayLength::ConstParameter { .. }
+                | psi_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+            }),
+    );
+    literals.sort();
+    literals.dedup();
     for literal in literals {
         let exists = program
             .type_reference_table
@@ -517,6 +550,13 @@ fn materialize_static_const_argument_types(program: &mut TypedTrees) {
         }
     }
 }
+
+/// Materialize exact private specializations for generic checked bodies chosen
+/// by Omega's boundary-operator ProviderPlans. The authored generic machine is
+/// never rewritten: it remains the package API and every closed application
+/// is cloned from that stable template.
+mod selected_operator_providers;
+pub(crate) use selected_operator_providers::specialize_selected_generic_operator_providers;
 
 fn machine_parameter_by_symbol(
     program: &TypedTrees,
@@ -782,7 +822,13 @@ fn collect_call_selections(
                     state.statement_nodes.start().generation(),
                 );
                 match program.statement_table.statement(handle) {
-                    StatementNode::Call(call) => {
+                    StatementNode::Call(call)
+                        if psi_typed_trees::operator::declaration_by_symbol(
+                            program,
+                            call.target_symbol,
+                        )
+                        .is_none() =>
+                    {
                         if let Some(selection) = selection_for_call(
                             program,
                             machine,
@@ -803,6 +849,10 @@ fn collect_call_selections(
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(local.initial_value)
+                            && psi_typed_trees::operator::resolve_named_expression_call(
+                                program, call,
+                            )
+                            .is_none()
                         {
                             covered_expressions.push(local.initial_value);
                             if let Some(selection) = selection_for_call(
@@ -829,6 +879,10 @@ fn collect_call_selections(
                     StatementNode::Expression(expression) => {
                         if let ExpressionNode::Call(call) =
                             program.expression_table.expression(*expression)
+                            && psi_typed_trees::operator::resolve_named_expression_call(
+                                program, call,
+                            )
+                            .is_none()
                         {
                             covered_expressions.push(*expression);
                             if let Some(selection) = selection_for_call(
@@ -866,6 +920,9 @@ fn collect_call_selections(
         let ExpressionNode::Call(call) = expression else {
             continue;
         };
+        if psi_typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
+            continue;
+        }
         let Some(callee) = resolve_callee(callee_states, call.target_symbol, call.target.as_str())
         else {
             continue;
@@ -1393,16 +1450,6 @@ fn infer_static_bindings(
             TypeReferenceNode::Slice {
                 element_type: actual,
             },
-        )
-        | (
-            TypeReferenceNode::FixedArray {
-                element_type: required,
-                ..
-            },
-            TypeReferenceNode::FixedArray {
-                element_type: actual,
-                ..
-            },
         ) => infer_static_bindings(
             program,
             *required,
@@ -1413,6 +1460,35 @@ fn infer_static_bindings(
             type_proposals,
             const_proposals,
         ),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: required_element,
+                length: required_length,
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: actual_element,
+                length: actual_length,
+            },
+        ) => {
+            infer_fixed_array_length_binding(
+                program,
+                required_length,
+                actual_length,
+                const_parameters,
+                candidate_index,
+                const_proposals,
+            );
+            infer_static_bindings(
+                program,
+                *required_element,
+                *actual_element,
+                type_parameters,
+                const_parameters,
+                candidate_index,
+                type_proposals,
+                const_proposals,
+            );
+        }
         (
             TypeReferenceNode::Generic {
                 base_name: required_base,
@@ -1448,6 +1524,57 @@ fn infer_static_bindings(
             }
         }
         _ => {}
+    }
+}
+
+fn infer_fixed_array_length_binding(
+    program: &TypedTrees,
+    required: &psi_typed_trees::types::FixedArrayLength,
+    actual: &psi_typed_trees::types::FixedArrayLength,
+    const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
+    candidate_index: usize,
+    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+) {
+    let psi_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = required else {
+        return;
+    };
+    let Some(parameter_index) =
+        const_parameters
+            .iter()
+            .position(|(parameter_symbol, parameter_name, _)| {
+                parameter_symbol == symbol
+                    || (!parameter_symbol.is_valid()
+                        && !symbol.is_valid()
+                        && parameter_name == name.as_str())
+            })
+    else {
+        return;
+    };
+    let binding = match actual {
+        psi_typed_trees::types::FixedArrayLength::Literal(value) => {
+            let value = value.to_string();
+            program
+                .type_reference_table
+                .named_references()
+                .find(|(_, candidate_symbol, candidate_name)| {
+                    !candidate_symbol.is_valid() && *candidate_name == value
+                })
+                .map(|(handle, _, _)| handle)
+        }
+        psi_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } => program
+            .type_reference_table
+            .named_references()
+            .find(|(_, candidate_symbol, candidate_name)| {
+                candidate_symbol == symbol
+                    || (!candidate_symbol.is_valid()
+                        && !symbol.is_valid()
+                        && *candidate_name == name.as_str())
+            })
+            .map(|(handle, _, _)| handle),
+        psi_typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+    };
+    if let Some(binding) = binding {
+        const_proposals.push((candidate_index, parameter_index, binding));
     }
 }
 
@@ -1921,7 +2048,7 @@ fn apply_multiple_specializations(
             .expect("generic template must retain a normalized callable identity");
     let accepted_template_commitment =
         accepted_template_commitment(&source, template.machine_index);
-    apply_specialization(program, &concrete_candidates[0]);
+    apply_specialization(program, &concrete_candidates[0]).map_err(|error| vec![error])?;
     if let Some(first) = program.machine_specializations.last_mut() {
         first.template_contract_report_fingerprint = template_contract_report_fingerprint;
         first.template_contract_commitment = template_contract_commitment;
@@ -1946,7 +2073,8 @@ fn apply_multiple_specializations(
             canonical_template_contract_bytes.clone(),
             normalized_template_identity.clone(),
             accepted_template_commitment.clone(),
-        );
+        )
+        .map_err(|error| vec![error])?;
         for selection_index in members {
             let selection = &selections[*selection_index];
             let Some((_, concrete_state)) = state_symbols
@@ -2067,7 +2195,7 @@ fn clone_specialized_machine(
     canonical_template_contract_bytes: Vec<u8>,
     normalized_template_identity: String,
     accepted_template_commitment: Option<String>,
-) -> Vec<(SymbolHandle, SymbolHandle)> {
+) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Diagnostic> {
     let source_machine = &source.machines()[candidate.machine_index];
     let source_states = source.machine_states(source_machine).to_vec();
     let source_owned = source.machine_owned_data(source_machine).to_vec();
@@ -2399,6 +2527,7 @@ fn clone_specialized_machine(
             }),
     );
     program.push_machine(cloned);
+    let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)?;
     program
         .machine_specializations
         .push(psi_typed_trees::typed_trees::MachineSpecialization {
@@ -2431,6 +2560,7 @@ fn clone_specialized_machine(
                 })
                 .chain(candidate.selected_bound_applications.iter().cloned())
                 .collect(),
+            operator_realizations,
             template_contract_report_fingerprint,
             template_contract_commitment,
             canonical_template_contract_bytes,
@@ -2443,7 +2573,7 @@ fn clone_specialized_machine(
             commitment: psi_typed_trees::typed_trees::MachineSpecializationCommitment::default(),
         });
 
-    state_symbols
+    Ok(state_symbols)
 }
 
 fn copy_expression(
@@ -2703,8 +2833,64 @@ fn substitute_cloned_type_parameters(
                 .substitute_node(occurrence, replacement.clone());
         }
     }
+    let fixed_array_replacements = fixed_array_const_replacements(source, candidate);
+    substitute_fixed_array_const_parameters(program, &fixed_array_replacements, Some(type_start));
     substitute_const_index_expression_parameters(program, candidate, Some(type_start));
     substitute_machine_parameter_type_references(program, candidate, Some(type_start));
+}
+
+fn fixed_array_const_replacements(
+    program: &TypedTrees,
+    candidate: &Candidate,
+) -> Vec<(SymbolHandle, String, usize)> {
+    candidate
+        .const_parameters
+        .iter()
+        .zip(candidate.const_bindings.iter())
+        .filter_map(|((symbol, name, _), binding)| {
+            let TypeReferenceNode::Named {
+                name: binding_name, ..
+            } = program
+                .type_reference_table
+                .type_reference(binding.expect("complete const specialization"))
+            else {
+                return None;
+            };
+            Some((*symbol, name.clone(), binding_name.as_str().parse().ok()?))
+        })
+        .collect()
+}
+
+fn substitute_fixed_array_const_parameters(
+    program: &mut TypedTrees,
+    replacements: &[(SymbolHandle, String, usize)],
+    type_start: Option<usize>,
+) {
+    let updates = program
+        .type_reference_table
+        .fixed_array_lengths()
+        .filter(|(handle, _)| type_start.is_none_or(|start| handle.arena_index() as usize >= start))
+        .filter_map(|(handle, length)| {
+            let psi_typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = length
+            else {
+                return None;
+            };
+            replacements
+                .iter()
+                .find(|(parameter_symbol, parameter_name, _)| {
+                    parameter_symbol == symbol
+                        || (!parameter_symbol.is_valid()
+                            && !symbol.is_valid()
+                            && parameter_name == name.as_str())
+                })
+                .map(|(_, _, value)| (handle, *value))
+        })
+        .collect::<Vec<_>>();
+    for (handle, value) in updates {
+        program
+            .type_reference_table
+            .set_fixed_array_length(handle, value);
+    }
 }
 
 fn substitute_const_index_expression_parameters(
@@ -3620,7 +3806,7 @@ fn remapped_symbol(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)
         .unwrap_or(symbol)
 }
 
-fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
+fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Result<(), Diagnostic> {
     let canonical_template_contract_bytes =
         canonical_template_contract_bytes(program, candidate.machine_index);
     let template_contract_report_fingerprint =
@@ -3703,6 +3889,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .collect(),
             inferred_conformance_arguments: candidate.inferred_conformance_arguments.clone(),
             conformance_applications,
+            operator_realizations: Vec::new(),
             template_contract_report_fingerprint,
             template_contract_commitment,
             canonical_template_contract_bytes,
@@ -3768,6 +3955,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 .substitute_node(occurrence, replacement.clone());
         }
     }
+    let fixed_array_replacements = fixed_array_const_replacements(program, candidate);
+    substitute_fixed_array_const_parameters(program, &fixed_array_replacements, None);
     substitute_const_index_expression_parameters(program, candidate, None);
 
     let machine_rewrites: Vec<(
@@ -3946,6 +4135,54 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
     let specialized = &mut program.machines_mut()[candidate.machine_index];
     specialized.type_parameters = HandleSpan::empty();
     specialized.conformance_bounds.clear();
+
+    let operator_realizations =
+        closed_operator_realizations_for_machine(program, candidate.template_symbol)?;
+    program
+        .machine_specializations
+        .last_mut()
+        .expect("specialization row was just retained")
+        .operator_realizations = operator_realizations;
+    Ok(())
+}
+
+fn closed_operator_realizations_for_machine(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+) -> Result<Vec<psi_typed_trees::operator::ClosedOperatorRealizationApplication>, Diagnostic> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .expect("specialized machine must remain in the typed program");
+    program
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter_map(|conformance| {
+            psi_typed_trees::operator::declaration_by_symbol(
+                program,
+                conformance.requirement_symbol,
+            )
+            .map(|operator| (conformance, operator))
+        })
+        .map(|(conformance, operator)| {
+            psi_typed_trees::operator::closed_operator_realization_application(
+                program, machine, operator,
+            )
+            .filter(|application| application.requirement_symbol == conformance.requirement_symbol)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "specialized machine `{}` does not reconstruct one exact closed application of operator requirement `{}::{}`",
+                    machine.name,
+                    conformance.name,
+                    conformance
+                        .requirement
+                        .as_ref()
+                        .map_or("<missing>", |requirement| requirement.as_str()),
+                ))
+            })
+        })
+        .collect()
 }
 
 fn specialized_attached_data(
@@ -4652,6 +4889,13 @@ fn replay_machine_specialization_identity(
     for commitment in &conformance_commitments {
         bytes.extend(commitment);
     }
+    let operator_realization_bytes = psi_validation::canonical_closed_operator_realization_bytes(
+        program,
+        specialization.instance,
+        &specialization.operator_realizations,
+    )
+    .map_err(Diagnostic::error)?;
+    encode_identity_bytes(&operator_realization_bytes, &mut bytes);
     match &specialization.accepted_template_commitment {
         Some(commitment) => {
             bytes.push(1);
@@ -4661,7 +4905,7 @@ fn replay_machine_specialization_identity(
     }
     let report_fingerprint = machine_specialization_report_fingerprint(&bytes);
     let mut strong = Sha256::new();
-    strong.update(b"omega.machine-specialization.v1\0");
+    strong.update(b"omega.machine-specialization.v2\0");
     strong.update(&bytes);
     Ok(ReplayedMachineSpecializationIdentity {
         machine_contract_report_fingerprints,
@@ -4691,7 +4935,7 @@ fn encode_identity_texts(values: &[String], bytes: &mut Vec<u8>) {
 }
 
 fn machine_specialization_report_fingerprint(bytes: &[u8]) -> u64 {
-    let mut report_bytes = b"omega.machine-specialization.report.v1\0".to_vec();
+    let mut report_bytes = b"omega.machine-specialization.report.v2\0".to_vec();
     report_bytes.extend(bytes);
     fnv1a_report_fingerprint(&report_bytes)
 }

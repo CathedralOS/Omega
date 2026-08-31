@@ -94,10 +94,14 @@ pub use machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite, validate_static_machine_selections,
     validate_static_machine_selections_with_facts,
 };
-pub use machine_specialization_identity::recompute_checked_machine_specialization_commitment;
+pub use machine_specialization_identity::{
+    machine_specialization_matches_template_identity,
+    recompute_checked_machine_specialization_commitment,
+};
 pub use operators::{
     ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
-    ValidatedBoundaryOperatorApplicationUseSite, validate_closed_operator_application,
+    ValidatedBoundaryOperatorApplicationUseSite, canonical_closed_operator_realization_bytes,
+    checked_operator_application_matches_realization, validate_closed_operator_application,
     validate_named_operator_application,
 };
 pub use placed_views::{
@@ -411,7 +415,7 @@ fn validate_program_internal(
         if !generic_contract_was_prevalidated {
             validate_machine_contract_entailment(program, machine, &mut diagnostics);
         }
-        validate_machine_trait_conformances(program, machine, &mut diagnostics);
+        validate_machine_trait_conformances(program, machine, &symbols, &mut diagnostics);
 
         // PRV4 step 1: a `via <Binding>` clause is the EXTERNAL LEAF's
         // realization -- it must never parse and then silently drop. Exactly

@@ -101,7 +101,15 @@ pub(super) fn typed_trees_to_checked_trees(
             omega_trust_model::AcceptedTemplateClassifications::capture(&typed);
         let contract_entailment_stand_downs =
             psi_validation::collect_contract_entailment_stand_downs(&typed);
-        let mut program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
+        let selected_generic_operator_providers =
+            selected_generic_operator_provider_specializations(
+                &typed,
+                &settlement.selected_provider_plan_facts,
+            )?;
+        let mut program = psi_typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
+            typed,
+            &selected_generic_operator_providers,
+        )?;
         crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
             crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
@@ -143,6 +151,72 @@ pub(super) fn typed_trees_to_checked_trees(
             contract_entailment_stand_downs,
         })
     })
+}
+
+fn selected_generic_operator_provider_specializations(
+    typed: &psi_typed_trees::TypedTrees,
+    selected: &omega_effects::SelectedProviderPlanFacts,
+) -> Result<
+    Vec<psi_typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization>,
+    Vec<Diagnostic>,
+> {
+    let mut requests = Vec::new();
+    let mut diagnostics = Vec::new();
+    for plan in selected.plans() {
+        let operators = typed
+            .operators()
+            .iter()
+            .filter(|operator| {
+                operator.is_boundary
+                    && psi_typed_trees::operator::boundary_operator_requirement_identity(
+                        typed, operator,
+                    ) == plan.schema.trait_name
+            })
+            .collect::<Vec<_>>();
+        let [operator] = operators.as_slice() else {
+            continue;
+        };
+        if typed.operator_type_parameters(operator).is_empty() {
+            continue;
+        }
+        let [row] = plan.rows.as_slice() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected generic boundary-operator ProviderPlan `{}` must retain exactly one row",
+                plan.name,
+            )));
+            continue;
+        };
+        if !matches!(
+            row.binding,
+            omega_effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+        ) {
+            continue;
+        }
+        let provider = match omega_provider_planning::plans::exact_checked_adapter(typed, plan, row)
+        {
+            Ok(provider) => provider,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        if typed.machine_type_parameters(provider).is_empty() {
+            continue;
+        }
+        let request =
+            psi_typed_trees_to_checked_trees::SelectedGenericOperatorProviderSpecialization {
+                requirement_operator: operator.symbol,
+                realization_machine: provider.symbol,
+            };
+        if !requests.contains(&request) {
+            requests.push(request);
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(requests)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 /// Consume a complete checked surface and settle every selected execution

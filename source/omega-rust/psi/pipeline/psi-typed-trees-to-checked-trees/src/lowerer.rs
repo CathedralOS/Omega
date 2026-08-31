@@ -5,20 +5,22 @@ use psi_checked_trees::CheckedTrees;
 
 pub(crate) fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
+    selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_crash_admission(program, true)
+    lower_typed_trees_with_crash_admission(program, true, selected_generic_operator_providers)
 }
 
 #[cfg(test)]
 pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_crash_admission(program, false)
+    lower_typed_trees_with_crash_admission(program, false, &[])
 }
 
 fn lower_typed_trees_with_crash_admission(
     program: psi_typed_trees::TypedTrees,
     enforce_crash_admission: bool,
+    selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
@@ -36,6 +38,10 @@ fn lower_typed_trees_with_crash_admission(
     crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     crate::normalize_open_index_identities(&mut program)?;
+    crate::monomorphization::specialize_selected_generic_operator_providers(
+        &mut program,
+        selected_generic_operator_providers,
+    )?;
     let nominal_machine_uses =
         crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
     crate::normalize_open_index_identities(&mut program)?;

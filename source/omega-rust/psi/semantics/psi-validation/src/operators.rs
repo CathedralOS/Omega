@@ -5,7 +5,8 @@ pub(crate) use applications::retain_validated_boundary_operator_application;
 pub(crate) use applications::validate_named_statement_operator_application;
 pub use applications::{
     ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
-    ValidatedBoundaryOperatorApplicationUseSite, validate_closed_operator_application,
+    ValidatedBoundaryOperatorApplicationUseSite, canonical_closed_operator_realization_bytes,
+    checked_operator_application_matches_realization, validate_closed_operator_application,
     validate_named_operator_application, validated_boundary_operator_application,
 };
 

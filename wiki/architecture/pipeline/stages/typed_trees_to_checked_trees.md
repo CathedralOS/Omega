@@ -256,6 +256,19 @@ Must own:
   Missing rows are not coverage and cannot be filled from the pre-D29 indexed-
   provider scaffold.
 
+  Omega's selected-provider owner now supplies the exact generic checked-body
+  requirement/provider symbols before final checked lowering. For direct named
+  call roots, including normalized unit statements, Psi independently rederives
+  every closed type/const application from authored operands, keeps the authored
+  generic declaration unchanged, and clones one private authoritative
+  specialization per distinct application. Each specialization retains the
+  exact closed operator realization and commits it with its template,
+  substitutions, selected conformances, and machine contracts. Package review
+  rejoins that custody to the strong selected plan. This is the local direct-
+  call checked-body semantic cohort only: nested calls, fixed-token generic,
+  external generic, symbolic cross-artifact, Terminal companion, and D32
+  physical-child work remain fail-closed.
+
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked
 acceptance only after compilation succeeds. `CheckedTrees` is therefore one

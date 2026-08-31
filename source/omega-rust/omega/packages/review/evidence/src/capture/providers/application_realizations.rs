@@ -1,4 +1,4 @@
-//! Actual D29 empty-application realization review projection.
+//! Actual D29 closed-application realization review projection.
 //!
 //! Selected dispatch performs the compiler-private join. This module removes
 //! handles, attributes actual authored uses to the reviewed package, and
@@ -6,12 +6,14 @@
 //! native, admission, or audit claim.
 
 use super::super::semantics::declarations::nominal_identity;
+use super::super::semantics::types::review_type_identity_with_binders;
 use super::super::source::locations::canonical_source_span_location;
 use super::intrinsics::project_compiler_intrinsic_execution;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
-    PackageReviewBoundaryApplicationRealization, PackageReviewCanonicalRowSource,
-    PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
+    PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
+    PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
+    PackageReviewSourceLocationRole,
 };
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
@@ -92,6 +94,8 @@ pub(crate) fn project_boundary_application_realizations(
         stage_realization(&mut staged, row, location)?;
     }
 
+    project_specialized_checked_body_applications(compilation, package, &mut staged)?;
+
     project_exact_compiler_intrinsic_applications(compilation, package, &mut staged)?;
 
     staged.sort_by(|left, right| application_key(&left.row).cmp(&application_key(&right.row)));
@@ -106,6 +110,156 @@ pub(crate) fn project_boundary_application_realizations(
         ));
     }
     Ok(ProjectedBoundaryApplicationRealizations { rows, sources })
+}
+
+fn project_specialized_checked_body_applications(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+    staged: &mut Vec<StagedRealization>,
+) -> Result<(), Vec<Diagnostic>> {
+    let derived =
+        omega_selected_dispatch::derive_checked_specialized_operator_application_realizations(
+            compilation,
+            compilation.selected_provider_plans(),
+        )?;
+    for realization in derived {
+        let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+            expression,
+            ..
+        } = realization.application_site
+        else {
+            return Err(vec![Diagnostic::error(
+                "specialized boundary application realization has no expression use site",
+            )]);
+        };
+        let location = canonical_source_span_location(
+            compilation,
+            authored_application_source_span(
+                compilation,
+                expression,
+                realization.authored_use_kind,
+                realization.requirement_operator,
+            )?,
+            PackageReviewSourceLocationRole::BoundaryApplicationUse,
+        )?;
+        if location.owner != PackageReviewSourceLocationOwner::Package(package) {
+            continue;
+        }
+        let application = project_exact_application(
+            compilation,
+            realization.requirement_operator,
+            &realization.application_arguments,
+        )?;
+        let row = CheckedPackageBoundaryApplicationRealizationReview {
+            requirement_identity: realization.requirement_overload_identity,
+            operator_declaration: nominal_identity(compilation, realization.requirement_operator)?,
+            application,
+            selected_plan_digest: *realization.provider_plan_commitment.as_bytes(),
+            realization: PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
+                realization_template: nominal_identity(
+                    compilation,
+                    realization.realization_template,
+                )?,
+                realization_machine: nominal_identity(
+                    compilation,
+                    realization.realization_machine,
+                )?,
+                realization_state: nominal_identity(compilation, realization.realization_state)?,
+                specialization_commitment: realization.specialization_commitment.as_bytes(),
+                realization_contract_commitment: realization
+                    .realization_contract_commitment
+                    .as_bytes(),
+            },
+        };
+        if row.selected_plan_digest == [0; 32]
+            || matches!(
+                &row.realization,
+                PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
+                    specialization_commitment,
+                    realization_contract_commitment,
+                    ..
+                } if *specialization_commitment == [0; 32]
+                    || *realization_contract_commitment == [0; 32]
+            )
+        {
+            return Err(vec![Diagnostic::error(
+                "specialized boundary application lost a strong plan, specialization, or contract commitment",
+            )]);
+        }
+        stage_realization(staged, row, location)?;
+    }
+    Ok(())
+}
+
+fn project_exact_application(
+    compilation: &CheckedCompilation,
+    requirement: psi_symbols::SymbolHandle,
+    arguments: &[psi_checked_trees::CheckedBoundaryOperatorApplicationArgument],
+) -> Result<PackageReviewBoundaryApplication, Vec<Diagnostic>> {
+    if arguments.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "specialized checked-body projection received an empty application",
+        )]);
+    }
+    let mut projected = Vec::with_capacity(arguments.len());
+    for (ordinal, argument) in arguments.iter().enumerate() {
+        let expected_ordinal = u32::try_from(ordinal).map_err(|_| {
+            vec![Diagnostic::error(
+                "boundary application telescope exceeds the review ordinal range",
+            )]
+        })?;
+        match argument {
+            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                binder_owner,
+                binder_ordinal,
+                type_reference,
+                ..
+            } if *binder_owner == requirement && *binder_ordinal == expected_ordinal => {
+                projected.push(PackageReviewBoundaryApplicationArgument::Type {
+                    binder_ordinal: *binder_ordinal,
+                    type_identity: review_type_identity_with_binders(
+                        compilation,
+                        *type_reference,
+                        &[],
+                    )?,
+                });
+            }
+            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+                binder_owner,
+                binder_ordinal,
+                declared_carrier,
+                value,
+                ..
+            } if *binder_owner == requirement && *binder_ordinal == expected_ordinal => {
+                psi_validation::validate_exact_const_value_encoding(
+                    &compilation.typed,
+                    *declared_carrier,
+                    value.encoding.as_str(),
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "boundary application const value has invalid canonical encoding: {reason}"
+                    ))]
+                })?;
+                projected.push(PackageReviewBoundaryApplicationArgument::Const {
+                    binder_ordinal: *binder_ordinal,
+                    declared_carrier: review_type_identity_with_binders(
+                        compilation,
+                        *declared_carrier,
+                        &[],
+                    )?,
+                    value_type: value.type_name.clone(),
+                    value_encoding: value.encoding.clone(),
+                });
+            }
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "boundary application does not rejoin its operator binder owner, category, and ordinal",
+                )]);
+            }
+        }
+    }
+    Ok(PackageReviewBoundaryApplication::Exact(projected))
 }
 
 fn project_exact_compiler_intrinsic_applications(
@@ -423,11 +577,11 @@ fn application_key(
 ) -> (
     &crate::record::PackageReviewNominalIdentity,
     &str,
-    PackageReviewBoundaryApplication,
+    &PackageReviewBoundaryApplication,
 ) {
     (
         &row.operator_declaration,
         row.requirement_identity.as_str(),
-        row.application,
+        &row.application,
     )
 }

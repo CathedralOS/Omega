@@ -491,6 +491,7 @@ fn native_carrier_diagnostic(
 pub(crate) fn validate_machine_trait_conformances(
     program: &TypedTrees,
     machine: &Machine,
+    symbols: &crate::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for conformance in program.machine_trait_conformances(machine) {
@@ -509,7 +510,13 @@ pub(crate) fn validate_machine_trait_conformances(
             continue;
         }
         let Some(trait_definition) = trait_definition_by_symbol(program, conformance.symbol) else {
-            if validate_machine_operator_conformance(program, machine, conformance, diagnostics) {
+            if validate_machine_operator_conformance(
+                program,
+                machine,
+                conformance,
+                symbols,
+                diagnostics,
+            ) {
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
@@ -1665,6 +1672,7 @@ fn validate_machine_operator_conformance(
     program: &TypedTrees,
     machine: &Machine,
     conformance: &psi_typed_trees::machine::TraitConformance,
+    symbols: &crate::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let Some(requirement) = conformance.requirement.as_ref() else {
@@ -1694,17 +1702,38 @@ fn validate_machine_operator_conformance(
         return true;
     }
 
-    let Some(operator) = psi_typed_trees::operator::resolve_satisfied_checked_operator(
-        program,
-        machine,
-        namespace,
-        requirement_name,
-    ) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` does not match one exact overload of operator requirement `{}::{}`; its entry parameter and result types must equal one declared requirement signature",
-            machine.name, namespace, requirement_name,
-        )));
-        return true;
+    let operator = if let Some(operator) =
+        psi_typed_trees::operator::resolve_satisfied_checked_operator(
+            program,
+            machine,
+            namespace,
+            requirement_name,
+        ) {
+        operator
+    } else {
+        let retained = psi_typed_trees::operator::resolve_specialized_checked_operator_application(
+            program,
+            machine,
+            namespace,
+            requirement_name,
+        );
+        let Some((operator, retained)) = retained else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` does not match one exact overload of operator requirement `{}::{}`; its entry parameter and result types must equal one declared requirement signature",
+                machine.name, namespace, requirement_name,
+            )));
+            return true;
+        };
+        if let Err(diagnostic) = crate::operators::validate_closed_operator_application(
+            program,
+            symbols,
+            operator,
+            &retained.arguments,
+        ) {
+            diagnostics.push(diagnostic);
+            return true;
+        }
+        operator
     };
     if conformance.requirement_symbol != operator.symbol {
         diagnostics.push(Diagnostic::error(format!(

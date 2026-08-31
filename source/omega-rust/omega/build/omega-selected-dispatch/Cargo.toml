@@ -21,6 +21,7 @@ psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+psi-validation = { path = "../../../psi/semantics/psi-validation" }
 
 [dev-dependencies]
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }

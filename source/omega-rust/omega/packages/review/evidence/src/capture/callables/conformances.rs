@@ -195,6 +195,15 @@ pub(super) fn project_callable_conformances(
                     conformance.name.as_str(),
                     requirement_name.as_str(),
                 )
+                .or_else(|| {
+                    psi_typed_trees::operator::resolve_specialized_checked_operator_application(
+                        &compilation.typed,
+                        machine,
+                        conformance.name.as_str(),
+                        requirement_name.as_str(),
+                    )
+                    .map(|(operator, _)| operator)
+                })
             };
             let Some(operator) = operator else {
                 return Err(vec![Diagnostic::error(format!(
