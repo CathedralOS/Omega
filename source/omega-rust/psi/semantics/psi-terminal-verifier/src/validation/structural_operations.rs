@@ -326,8 +326,10 @@ pub(super) fn validate_unit_operation_static(
                 .iter()
                 .zip(&callee.structural_parameters)
                 .position(|(argument, expected)| {
-                    is_literal_indexed_field_path(&argument.path)
-                        && !is_unrestricted_write_only_subloan(machine, expected, argument)
+                    (is_literal_indexed_field_path(&argument.path)
+                        || (is_single_literal_index_path(&argument.path)
+                            && argument.access == StructuralAccess::WriteOnlyBorrow))
+                        && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                 })
             {
                 return Err(ModuleError::InvalidStructuralArgumentPath {
@@ -962,7 +964,7 @@ fn validate_structural_arguments(
             });
         }
         let unrestricted_write_only_field_subloan =
-            is_unrestricted_write_only_subloan(caller, expected, argument);
+            is_unrestricted_write_only_subloan(module, caller, expected, argument);
         let actual_multiplicity = if argument.path.is_empty() {
             actual_multiplicity
         } else if unrestricted_write_only_field_subloan {
@@ -1048,27 +1050,49 @@ fn is_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
     is_nonempty_field_path(fields)
 }
 
+fn is_single_literal_index_path(path: &[StructuralPathSegment]) -> bool {
+    matches!(path, [StructuralPathSegment::FixedIndex(_)])
+}
+
 fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {
-    is_nonempty_field_path(path) || is_literal_indexed_field_path(path)
+    is_nonempty_field_path(path)
+        || is_literal_indexed_field_path(path)
+        || is_single_literal_index_path(path)
 }
 
 fn is_unrestricted_write_only_subloan(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
 ) -> bool {
+    let Some(actual) = caller
+        .structural_parameters
+        .iter()
+        .find(|actual| actual.place == argument.place)
+    else {
+        return false;
+    };
+    let indexed_leaf_is_primitive =
+        !matches!(
+            argument.path.last(),
+            Some(StructuralPathSegment::FixedIndex(_))
+        ) || resolve_structural_path(module, actual.structural_type, &argument.path).is_some_and(
+            |leaf| {
+                module.structural_types.iter().any(|declaration| {
+                    declaration.id == leaf
+                        && matches!(&declaration.shape, StructuralTypeShape::PrimitiveScalar(_))
+                })
+            },
+        );
+
     is_write_only_subloan_path(&argument.path)
         && argument.access == StructuralAccess::WriteOnlyBorrow
         && expected.access == StructuralAccess::WriteOnlyBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
-        && caller
-            .structural_parameters
-            .iter()
-            .find(|actual| actual.place == argument.place)
-            .is_some_and(|actual| {
-                actual.access == StructuralAccess::WriteOnlyBorrow
-                    && actual.multiplicity == StructuralMultiplicity::Unrestricted
-            })
+        && actual.access == StructuralAccess::WriteOnlyBorrow
+        && actual.multiplicity == StructuralMultiplicity::Unrestricted
+        && indexed_leaf_is_primitive
 }
 
 pub(super) fn validate_service_reach(
@@ -1105,7 +1129,7 @@ fn validate_unit_call_claim_transfers(
                 .filter(|claim| claim.input == parameter.place)
                 .collect::<Vec<_>>();
             let claim_free_unrestricted_write_only_field =
-                is_unrestricted_write_only_subloan(caller, parameter, argument)
+                is_unrestricted_write_only_subloan(module, caller, parameter, argument)
                     && callee_claims.is_empty()
                     && caller
                         .entry_claims

@@ -2142,7 +2142,7 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through sixth bounded represented-record levels are now live under the
+  Third through seventh bounded represented-record levels are now live under the
   same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
@@ -2150,7 +2150,7 @@ Owners:
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A seventh
+  storage, content, domain, provider, or establishment authority. An eighth
   represented record level and broader
   recursion, structurally zero-layout wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -6589,10 +6589,15 @@ Owners:
   every segment is an eligible common field and the leaf satisfies the existing
   non-observing replacement referee. One successor additionally permits that
   field path to end in exactly one in-bounds literal index of a nonempty literal
-  fixed-array leaf with an unrestricted primitive element. Checked and Terminal custody retain the
-  ordered `Field` identities followed by the exact `FixedIndex`; the independent
-  verifier replays the field and array shapes, bounds, type, multiplicity, and
-  write-only access. Reusable local aliases, direct-root indexing, dynamic or
+  fixed-array leaf with an unrestricted primitive element. Checked and Terminal
+  custody retain the ordered `Field` identities followed by the exact
+  `FixedIndex`; the independent verifier replays the field and array shapes,
+  bounds, type, multiplicity, and write-only access. The same literal-index
+  subloan now also accepts one direct `&write [P; N]` parameter root when `N`
+  is nonzero and literal and `P` is an unrestricted non-Atomic primitive. Its
+  complete path is the sole exact `FixedIndex`, and checked planning plus
+  Terminal replay independently rejoin its array shape, bounds, element type,
+  multiplicity, and write-only access. Reusable local aliases, dynamic or
   range projection, a second index, case/payload, qualified/generic/invariant/
   constrained paths, aggregate or recursively nested array elements,
   multi-parameter structural calls, and provider boundaries remain fenced.

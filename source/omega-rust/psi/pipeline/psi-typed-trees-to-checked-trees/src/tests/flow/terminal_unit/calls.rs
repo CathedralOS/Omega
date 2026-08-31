@@ -610,6 +610,44 @@ fn retains_exact_literal_indexed_write_only_subloan() {
 }
 
 #[test]
+fn retains_exact_direct_root_literal_indexed_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [u16; 2]) {
+            Sink::fill(&write values[1]);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let forward = plans
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("direct-root literal-indexed write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("direct-root literal-indexed attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one direct-root literal-indexed write-only argument")
+    };
+    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(
+        argument.path,
+        [psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)]
+    );
+}
+
+#[test]
 fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
     for (name, source) in [
         (
