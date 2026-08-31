@@ -46,6 +46,10 @@ data DllImport<
         symbol: [u8; SymbolLength],
         version: [u8; VersionLength],
     );
+    case MachODylibSymbol(
+        install_name: [u8; ObjectLength],
+        symbol: [u8; SymbolLength],
+    );
 }
 
 data Binding<
@@ -140,17 +144,18 @@ meaning.
 
 The Rust comparator now has the first dependency-light representation rung: a
 sealed target-bound normalized locator for atomic PE-by-name, PE-by-ordinal,
-and versioned-ELF coordinates. It validates target applicability and basic
-coordinate shape and derives a domain-separated, length-prefixed compatibility
-identity. Provider import rows and opaque executable-TCB projections now retain
-that whole normalized locator, and package-review/manifest output preserves its
-target, case, identity, and raw coordinates without rebuilding strings. The
-current source evaluator is visibly segregated as a temporary string-backed
-bootstrap. Trust artifacts now carry the atomic locator and render exact raw
-coordinates without text reconstruction, rejecting target drift before report
-installation. The calling bridge, ordinary authored machine validation, object
-locator side table, relocation replay, and PE name/ordinal emission retain that
-same atomic value. Versioned ELF rows now reach a canonical final-image request
+versioned-ELF, and Mach-O dylib-symbol coordinates. It validates target
+applicability and basic coordinate shape and derives a domain-separated,
+length-prefixed compatibility identity. Provider import rows and opaque
+executable-TCB projections now retain that whole normalized locator, and
+package-review/manifest output preserves its target, case, identity, and raw
+coordinates without rebuilding strings. The current source evaluator is
+visibly segregated as a temporary string-backed bootstrap. Trust artifacts now
+carry the atomic locator and render exact raw coordinates without text
+reconstruction, rejecting target drift before report installation. The calling
+bridge, ordinary authored machine validation, object locator side table,
+relocation replay, and PE name/ordinal emission retain that same atomic value.
+Versioned ELF rows now reach a canonical final-image request
 with exact raw object/symbol/version coordinates and relocation sites. The
 first dependency-light loader-plan input rung only seals one exact
 target/deployment-supplied interpreter pathname for a Linux x86-64 or AArch64
