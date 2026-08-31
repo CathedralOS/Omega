@@ -2054,6 +2054,39 @@ as an establishment route. Mapping a qualification to `Proposition::Truth`,
 copying opaque obligation IDs, or accepting a nonempty boundary roster without
 reconstructing a conclusion fabricates evidence and rejects.
 
+## D48 — Accepted locks are current-version generated artifacts
+
+`omega.lock` is generated accepted state and is normally committed for exact
+reproduction. It is not a durable multi-version evidence runtime. The accepted
+lock begins with fixed magic and one outer format version, both checked before
+payload allocation or interpretation. That version covers the complete payload
+contract, including every nested source-subject, reconstruction-question,
+obligation-semantics, review, and row schema or encoding required for
+acceptance. Any incompatible nested change bumps the outer lock version.
+
+Current Omega decodes only the exact current lock version. An unknown version
+rejects immediately with regeneration guidance. From the exact source closure,
+regeneration reconstructs the current package question and evidence, checks it
+under the current semantic schemas, obtains fresh root admission where needed,
+and writes a new lock. Old discharge and policy decisions are never
+grandfathered merely because fields, compiler versions, or producer claims look
+compatible.
+
+There is no semantic-schema migration registry, compatibility classifier, or
+backward-compatible accepted-lock requirement. A future format may add a
+specific compatibility path only for a concrete independently motivated
+product need; it does not arise automatically because a second version exists.
+Unsupported historical locks may be retained opaquely and interpreted with
+their matching old toolchain or separate audit tooling. Unavailable old source
+continues through the standalone review packet and audit-recommendation path;
+neither route grants current acceptance or erases a valid historical baseline.
+
+Nested frames keep their exact identities for local reconstruction and
+corruption diagnosis, but accepted-lock compatibility is decided by the one
+outer version before those frames are read. A fingerprint may bind the exact
+canonical lock bytes after decoding begins; it does not replace the cheap
+magic/version gate or become an admission baseline by itself.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;
