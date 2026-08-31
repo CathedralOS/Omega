@@ -1,5 +1,6 @@
 use super::{
-    Lowerer, lower_syntax_extension_against_resolved_base, lower_syntax_trees,
+    Lowerer, lower_syntax_extension_against_resolved_base,
+    lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
     lower_syntax_trees_with_sources, lower_syntax_trees_with_sources_and_top_level_bindings,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
@@ -10,6 +11,141 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 mod state_local_resolution;
+
+#[test]
+fn seeded_extension_carrier_rebases_selection_suffix_after_later_base_rows() {
+    let base_source = "machine helper() {} machine retained() { helper(); }";
+    let extension_source = "machine generated() { helper(); }";
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_syntax = parse_syntax_trees_with_id(
+        base_id,
+        &Lexer::new(base_source).tokenize().expect("tokenize base"),
+    )
+    .expect("parse base");
+    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
+        .expect("resolve base");
+    let helper = base.machines.iter().next().expect("helper");
+    let helper_symbol = helper.symbol;
+    let helper_state_symbol = base
+        .machine_state(base.machine_state_handles(helper.states)[0])
+        .symbol;
+    let mut destination = base.authored_declaration_selections().clone();
+    let base_selection_count = destination.len();
+    destination
+        .record_resolved(
+            psi_source::SourceSpan::new(base_id, psi_source::Span::new(0, 1)),
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::MemberAccess,
+            helper_symbol,
+        )
+        .expect("later-phase-only base selection");
+    let extension_syntax = parse_syntax_trees_with_id(
+        extension_id,
+        &Lexer::new(extension_source)
+            .tokenize()
+            .expect("tokenize extension"),
+    )
+    .expect("parse extension");
+
+    let carrier = lower_syntax_extension_with_authored_selection_frontier(
+        base,
+        &extension_syntax,
+        Arc::new(sources),
+        Vec::new(),
+    )
+    .expect("resolve seeded extension");
+    let unrebased = carrier.trees();
+    assert_eq!(
+        unrebased.authored_declaration_selections().len(),
+        base_selection_count + 1
+    );
+    let unrebased_extension =
+        unrebased.authored_declaration_selections().as_slice()[base_selection_count];
+    assert_eq!(unrebased_extension.source_span().source_id, extension_id);
+    let psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+        unrebased_extension.target()
+    else {
+        panic!("generated helper call is resolved")
+    };
+    assert_eq!(target.selected_symbol(), helper_state_symbol);
+    let generated = unrebased
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "generated")
+        .expect("generated machine");
+    let state = unrebased.machine_state(unrebased.machine_state_handles(generated.states)[0]);
+    let call = unrebased
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("unrebased generated helper call");
+    assert_eq!(
+        call.authored_call_selection,
+        Some(unrebased_extension.occurrence_id())
+    );
+
+    let rebased = carrier
+        .rebase_authored_selections(&destination)
+        .expect("rebase exact extension suffix");
+    assert_eq!(
+        &rebased.authored_declaration_selections().as_slice()[..destination.len()],
+        destination.as_slice()
+    );
+    assert_eq!(
+        rebased.authored_declaration_selections().len(),
+        destination.len() + 1
+    );
+    let rebased_extension = rebased.authored_declaration_selections().as_slice()[destination.len()];
+    assert_eq!(
+        rebased_extension.occurrence_id().ordinal(),
+        u64::try_from(destination.len()).expect("selection count")
+    );
+    assert_eq!(rebased_extension.source_span().source_id, extension_id);
+    let psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+        rebased_extension.target()
+    else {
+        panic!("rebased helper call remains resolved")
+    };
+    assert_eq!(target.selected_symbol(), helper_state_symbol);
+    let shifted = rebased_extension.occurrence_id();
+    let generated = rebased
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "generated")
+        .expect("generated machine");
+    let state = rebased.machine_state(rebased.machine_state_handles(generated.states)[0]);
+    let call = rebased
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            psi_symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("generated helper call");
+    assert_eq!(call.authored_call_selection, Some(shifted));
+}
 
 #[test]
 fn seeded_extension_preserves_base_identity_and_resolves_base_peers_and_shadowing() {

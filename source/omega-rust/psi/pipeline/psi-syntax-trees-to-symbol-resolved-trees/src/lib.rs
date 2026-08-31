@@ -29,7 +29,8 @@ mod type_reference;
 mod wire;
 
 pub use lowerer::{
-    lower_syntax_extension_against_resolved_base, lower_syntax_trees,
+    SeededSymbolResolvedTrees, lower_syntax_extension_against_resolved_base,
+    lower_syntax_extension_with_authored_selection_frontier, lower_syntax_trees,
     lower_syntax_trees_with_sources, lower_syntax_trees_with_sources_and_top_level_bindings,
 };
 pub use trait_defaults::synthesize_trait_defaults;

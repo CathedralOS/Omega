@@ -7,6 +7,9 @@ use crate::{
 };
 use psi_arena::{Arena, Handle, HandleSpan, OrderedRootArena};
 use psi_diagnostics::PhaseSnapshot;
+use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionSuffixRebase, AuthoredDeclarationSelectionSuffixRebaseError,
+};
 use psi_source::SourceSpan;
 use psi_symbols::SymbolTable;
 use std::ops::{Deref, DerefMut};
@@ -30,6 +33,34 @@ pub struct SymbolResolvedTrees {
     pub external_bindings: psi_language_semantics::ExternalBindingTable,
     /// Erased evidence assignments removed from runtime statement spans.
     pub evidence_forwardings: Vec<statement::EvidenceForwarding>,
+}
+
+/// Exact append boundary for every symbol-resolved store which can retain an
+/// authored declaration-selection occurrence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredSelectionExtensionFrontier {
+    selections: usize,
+    expressions: usize,
+    tree_statements: usize,
+    statements: usize,
+    transition_targets: usize,
+    proof_facts: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredSelectionOccurrenceStore {
+    Expressions,
+    TreeStatements,
+    Statements,
+    TransitionTargets,
+    ProofFacts,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredSelectionExtensionRebaseError {
+    Ledger(AuthoredDeclarationSelectionSuffixRebaseError),
+    StoreFrontierOutOfRange(AuthoredSelectionOccurrenceStore),
+    OccurrenceOutsideOwnerFrontier(AuthoredSelectionOccurrenceStore),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -117,6 +148,196 @@ pub struct SymbolResolvedBodyStorage {
 }
 
 impl SymbolResolvedTrees {
+    pub fn authored_selection_extension_frontier(&self) -> AuthoredSelectionExtensionFrontier {
+        AuthoredSelectionExtensionFrontier {
+            selections: self.tables.authored_declaration_selections.len(),
+            expressions: self.tables.bodies.expressions.expression_count(),
+            tree_statements: self.tables.declarations.state_statements.len(),
+            statements: self.tables.bodies.statements.statement_count(),
+            transition_targets: self.tables.bodies.statements.transition_target_count(),
+            proof_facts: self.tables.declarations.proof_facts.len(),
+        }
+    }
+
+    /// Replace the retained authored-selection ledger with an exact
+    /// later-phase base, preserve appended clones of base occurrences, and
+    /// shift only suffix occurrence identities. Failure returns the original
+    /// trees intact.
+    pub fn rebase_authored_selection_extension(
+        self,
+        frontier: AuthoredSelectionExtensionFrontier,
+        destination_base: &AuthoredDeclarationSelections,
+    ) -> Result<Self, (Self, AuthoredSelectionExtensionRebaseError)> {
+        let (ledger, rebase) = match self
+            .tables
+            .authored_declaration_selections
+            .replace_prefix_and_rebase_suffix(frontier.selections, destination_base)
+        {
+            Ok(joined) => joined,
+            Err(error) => {
+                return Err((self, AuthoredSelectionExtensionRebaseError::Ledger(error)));
+            }
+        };
+        let mut candidate = self.clone();
+        if let Err(error) = candidate.rebase_occurrence_stores(frontier, rebase) {
+            return Err((self, error));
+        }
+        candidate.tables.authored_declaration_selections = ledger;
+        Ok(candidate)
+    }
+
+    fn rebase_occurrence_stores(
+        &mut self,
+        frontier: AuthoredSelectionExtensionFrontier,
+        rebase: AuthoredDeclarationSelectionSuffixRebase,
+    ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
+        if frontier.expressions > self.tables.bodies.expressions.expression_count() {
+            return Err(
+                AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
+                    AuthoredSelectionOccurrenceStore::Expressions,
+                ),
+            );
+        }
+        self.tables
+            .bodies
+            .expressions
+            .rebase_authored_selection_extension(frontier.expressions, rebase)
+            .map_err(|()| {
+                AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
+                    AuthoredSelectionOccurrenceStore::Expressions,
+                )
+            })?;
+
+        self.rebase_tree_statement_occurrences(frontier.tree_statements, rebase)?;
+
+        if frontier.statements > self.tables.bodies.statements.statement_count() {
+            return Err(
+                AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
+                    AuthoredSelectionOccurrenceStore::Statements,
+                ),
+            );
+        }
+        if frontier.transition_targets > self.tables.bodies.statements.transition_target_count() {
+            return Err(
+                AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
+                    AuthoredSelectionOccurrenceStore::TransitionTargets,
+                ),
+            );
+        }
+        self.tables
+            .bodies
+            .statements
+            .rebase_authored_selection_extension(
+                frontier.statements,
+                frontier.transition_targets,
+                rebase,
+            )
+            .map_err(|store| {
+                AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(match store {
+                    statement::AuthoredSelectionStatementStore::Statements => {
+                        AuthoredSelectionOccurrenceStore::Statements
+                    }
+                    statement::AuthoredSelectionStatementStore::TransitionTargets => {
+                        AuthoredSelectionOccurrenceStore::TransitionTargets
+                    }
+                })
+            })?;
+
+        self.rebase_proof_fact_occurrences(frontier.proof_facts, rebase)
+    }
+
+    fn rebase_tree_statement_occurrences(
+        &mut self,
+        frontier: usize,
+        rebase: AuthoredDeclarationSelectionSuffixRebase,
+    ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
+        let statements = &mut self.tables.declarations.state_statements;
+        if frontier > statements.len() {
+            return Err(
+                AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
+                    AuthoredSelectionOccurrenceStore::TreeStatements,
+                ),
+            );
+        }
+        for (index, (_, statement)) in statements.iter().enumerate() {
+            for occurrence in tree_statement_occurrences(statement) {
+                let valid = if index < frontier {
+                    rebase.retain_base(occurrence)
+                } else {
+                    rebase.rebase_appended(occurrence)
+                };
+                if valid.is_none() {
+                    return Err(
+                        AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
+                            AuthoredSelectionOccurrenceStore::TreeStatements,
+                        ),
+                    );
+                }
+            }
+        }
+        statements.for_each_mut(|handle, statement| {
+            if usize::try_from(handle.arena_index()).expect("tree statement index overflow")
+                > frontier
+            {
+                rebase_tree_statement_occurrences(statement, rebase);
+            }
+        });
+        Ok(())
+    }
+
+    fn rebase_proof_fact_occurrences(
+        &mut self,
+        frontier: usize,
+        rebase: AuthoredDeclarationSelectionSuffixRebase,
+    ) -> Result<(), AuthoredSelectionExtensionRebaseError> {
+        let facts = &mut self.tables.declarations.proof_facts;
+        if frontier > facts.len() {
+            return Err(
+                AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
+                    AuthoredSelectionOccurrenceStore::ProofFacts,
+                ),
+            );
+        }
+        for (index, (_, fact)) in facts.iter().enumerate() {
+            let domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            let Some(occurrence) = membership.authored_domain_selection else {
+                continue;
+            };
+            let valid = if index < frontier {
+                rebase.retain_base(occurrence)
+            } else {
+                rebase.rebase_appended(occurrence)
+            };
+            if valid.is_none() {
+                return Err(
+                    AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
+                        AuthoredSelectionOccurrenceStore::ProofFacts,
+                    ),
+                );
+            }
+        }
+        facts.for_each_mut(|handle, fact| {
+            if usize::try_from(handle.arena_index()).expect("proof fact index overflow") <= frontier
+            {
+                return;
+            }
+            let domain::ProofFact::Membership(membership) = fact else {
+                return;
+            };
+            let Some(occurrence) = membership.authored_domain_selection else {
+                return;
+            };
+            membership.authored_domain_selection = Some(
+                rebase
+                    .rebase_appended(occurrence)
+                    .expect("proof membership occurrence was validated before mutation"),
+            );
+        });
+        Ok(())
+    }
+
     pub fn authored_service_reach_rows_for(
         &self,
         owner: psi_symbols::SymbolHandle,
@@ -473,6 +694,63 @@ impl SymbolResolvedTrees {
     }
 }
 
+fn tree_statement_occurrences(
+    statement: &statement::Statement,
+) -> impl Iterator<Item = AuthoredDeclarationSelectionOccurrenceId> {
+    let mut occurrences = [None, None];
+    match statement {
+        statement::Statement::Call(call) => occurrences[0] = call.authored_call_selection,
+        statement::Statement::Transition(transition) => {
+            if let statement::TransitionTarget::Named(target) = &transition.target {
+                occurrences[0] = target.authored_call_selection;
+            }
+            if let Some(statement::TransitionTarget::Named(target)) = &transition.continuation {
+                occurrences[1] = target.authored_call_selection;
+            }
+        }
+        _ => {}
+    }
+    occurrences.into_iter().flatten()
+}
+
+fn rebase_tree_statement_occurrences(
+    statement: &mut statement::Statement,
+    rebase: AuthoredDeclarationSelectionSuffixRebase,
+) {
+    match statement {
+        statement::Statement::Call(call) => {
+            if let Some(occurrence) = call.authored_call_selection {
+                call.authored_call_selection = Some(
+                    rebase
+                        .rebase_appended(occurrence)
+                        .expect("tree call occurrence was validated before mutation"),
+                );
+            }
+        }
+        statement::Statement::Transition(transition) => {
+            if let statement::TransitionTarget::Named(target) = &mut transition.target {
+                if let Some(occurrence) = target.authored_call_selection {
+                    target.authored_call_selection = Some(
+                        rebase
+                            .rebase_appended(occurrence)
+                            .expect("tree transition occurrence was validated before mutation"),
+                    );
+                }
+            }
+            if let Some(statement::TransitionTarget::Named(target)) = &mut transition.continuation {
+                if let Some(occurrence) = target.authored_call_selection {
+                    target.authored_call_selection = Some(
+                        rebase
+                            .rebase_appended(occurrence)
+                            .expect("tree continuation occurrence was validated before mutation"),
+                    );
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
     usize::try_from(handle.arena_index())
         .expect("proof fact source-span index exceeds usize")
@@ -506,8 +784,9 @@ impl DerefMut for SymbolResolvedTrees {
 mod tests {
     use crate::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredSelectionExtensionRebaseError, AuthoredSelectionOccurrenceStore,
         SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees, data, domain,
-        machine, name::DiagnosticName, operator, trait_definition,
+        expression, machine, name::DiagnosticName, operator, statement, trait_definition,
     };
     use psi_arena::{HandleSpan, OrderedRootArena};
     use psi_source::{SourceId, SourceSpan, Span};
@@ -601,6 +880,295 @@ mod tests {
         assert_eq!(
             trees.signature_invokes(signature_invokes)[0].as_str(),
             "Console.write"
+        );
+    }
+
+    fn record_selection(
+        trees: &mut SymbolResolvedTrees,
+        start: usize,
+        symbol: u32,
+    ) -> crate::AuthoredDeclarationSelectionOccurrenceId {
+        trees
+            .record_resolved_authored_declaration_selection(
+                SourceSpan::new(SourceId(4), Span::new(start, start + 1)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(symbol),
+            )
+            .expect("valid selected symbol")
+    }
+
+    fn tree_call(
+        occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
+    ) -> statement::Statement {
+        statement::Statement::Call(statement::Call {
+            receiver_symbol: SymbolHandle::invalid(),
+            target_symbol: SymbolHandle::from_arena_index(8),
+            target: DiagnosticName::generated("invoke"),
+            storage: statement::CallStorage {
+                authored_call_selection: Some(occurrence),
+                ..Default::default()
+            },
+        })
+    }
+
+    fn named_target(
+        occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
+    ) -> statement::TransitionTarget {
+        statement::TransitionTarget::Named(statement::NamedTransitionTarget {
+            head_symbol: SymbolHandle::from_arena_index(8),
+            symbol: SymbolHandle::from_arena_index(9),
+            storage: statement::NamedTransitionTargetStorage {
+                authored_call_selection: Some(occurrence),
+                ..Default::default()
+            },
+        })
+    }
+
+    fn tree_transition(
+        occurrence: crate::AuthoredDeclarationSelectionOccurrenceId,
+    ) -> statement::Statement {
+        statement::Statement::Transition(statement::Transition {
+            target: named_target(occurrence),
+            continuation: Some(named_target(occurrence)),
+            guard: statement::TransitionGuard::Always,
+            proof_selectors: Box::default(),
+            exit: statement::TransitionExit::Ordinary,
+            source_span: SourceSpan::default(),
+        })
+    }
+
+    #[test]
+    fn extension_rebase_shifts_every_extension_owned_occurrence_store() {
+        let mut trees = SymbolResolvedTrees::default();
+        let base_occurrence = record_selection(&mut trees, 1, 3);
+        let base_expression = trees
+            .tables
+            .bodies
+            .expressions
+            .insert(expression::ExpressionNode::default());
+        trees
+            .tables
+            .bodies
+            .expressions
+            .attach_authored_selection_occurrences(base_expression, [base_occurrence]);
+        trees
+            .tables
+            .declarations
+            .state_statements
+            .append(tree_call(base_occurrence));
+        trees
+            .tables
+            .bodies
+            .statements
+            .insert(statement::StatementNode::Call(statement::TableCall {
+                authored_call_selection: Some(base_occurrence),
+                ..Default::default()
+            }));
+        trees
+            .tables
+            .declarations
+            .proof_facts
+            .append(domain::ProofFact::Membership(domain::ProofMembershipFact {
+                authored_domain_selection: Some(base_occurrence),
+                ..Default::default()
+            }));
+        let frontier = trees.authored_selection_extension_frontier();
+
+        let extension_occurrence = record_selection(&mut trees, 3, 4);
+        let extension_expression = trees
+            .tables
+            .bodies
+            .expressions
+            .insert(expression::ExpressionNode::default());
+        trees
+            .tables
+            .bodies
+            .expressions
+            .attach_authored_selection_occurrences(extension_expression, [extension_occurrence]);
+        let extension_tree_statement = trees
+            .tables
+            .declarations
+            .state_statements
+            .append(tree_call(extension_occurrence));
+        let extension_tree_transition = trees
+            .tables
+            .declarations
+            .state_statements
+            .append(tree_transition(extension_occurrence));
+        let extension_table_statement =
+            trees
+                .tables
+                .bodies
+                .statements
+                .insert(statement::StatementNode::Call(statement::TableCall {
+                    authored_call_selection: Some(extension_occurrence),
+                    ..Default::default()
+                }));
+        let extension_fact =
+            trees
+                .tables
+                .declarations
+                .proof_facts
+                .append(domain::ProofFact::Membership(domain::ProofMembershipFact {
+                    authored_domain_selection: Some(extension_occurrence),
+                    ..Default::default()
+                }));
+
+        let mut destination = crate::AuthoredDeclarationSelections::default();
+        destination
+            .record_resolved(
+                SourceSpan::new(SourceId(4), Span::new(1, 2)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(3),
+            )
+            .expect("same retained base row");
+        destination
+            .record_resolved(
+                SourceSpan::new(SourceId(4), Span::new(2, 3)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(7),
+            )
+            .expect("later-phase-only retained row");
+
+        let rebased = trees
+            .rebase_authored_selection_extension(frontier, &destination)
+            .expect("exact append frontier");
+        let shifted = rebased.authored_declaration_selections().as_slice()[2].occurrence_id();
+        assert_eq!(
+            rebased
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(extension_expression)
+                .collect::<Vec<_>>(),
+            vec![shifted]
+        );
+        let statement::Statement::Call(call) = rebased
+            .tables
+            .declarations
+            .state_statements
+            .get(extension_tree_statement)
+        else {
+            panic!("extension tree call")
+        };
+        assert_eq!(call.authored_call_selection, Some(shifted));
+        let statement::Statement::Transition(transition) = rebased
+            .tables
+            .declarations
+            .state_statements
+            .get(extension_tree_transition)
+        else {
+            panic!("extension tree transition")
+        };
+        let statement::TransitionTarget::Named(target) = &transition.target else {
+            panic!("named target")
+        };
+        assert_eq!(target.authored_call_selection, Some(shifted));
+        let Some(statement::TransitionTarget::Named(continuation)) = &transition.continuation
+        else {
+            panic!("named continuation")
+        };
+        assert_eq!(continuation.authored_call_selection, Some(shifted));
+        let statement::StatementNode::Call(call) = rebased
+            .tables
+            .bodies
+            .statements
+            .statement(extension_table_statement)
+        else {
+            panic!("extension table call")
+        };
+        assert_eq!(call.authored_call_selection, Some(shifted));
+        let domain::ProofFact::Membership(fact) =
+            rebased.tables.declarations.proof_facts.get(extension_fact)
+        else {
+            panic!("extension proof membership")
+        };
+        assert_eq!(fact.authored_domain_selection, Some(shifted));
+        assert_eq!(
+            &rebased.authored_declaration_selections().as_slice()[..2],
+            destination.as_slice()
+        );
+    }
+
+    #[test]
+    fn extension_rebase_failure_returns_the_original_trees_intact() {
+        let mut trees = SymbolResolvedTrees::default();
+        record_selection(&mut trees, 1, 3);
+        let frontier = trees.authored_selection_extension_frontier();
+        let mut destination = trees.authored_declaration_selections().clone();
+        let destination_only_occurrence = destination
+            .record_resolved(
+                SourceSpan::new(SourceId(4), Span::new(3, 4)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("destination-only selection");
+        trees
+            .tables
+            .declarations
+            .state_statements
+            .append(tree_call(destination_only_occurrence));
+        let expected = trees.clone();
+
+        let (returned, error) = trees
+            .rebase_authored_selection_extension(frontier, &destination)
+            .expect_err("appended store cannot claim a destination-only occurrence");
+
+        assert_eq!(returned, expected);
+        assert_eq!(
+            error,
+            AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
+                AuthoredSelectionOccurrenceStore::TreeStatements
+            )
+        );
+    }
+
+    #[test]
+    fn extension_rebase_preserves_appended_clones_of_base_occurrences() {
+        let mut trees = SymbolResolvedTrees::default();
+        let base_occurrence = record_selection(&mut trees, 1, 3);
+        let frontier = trees.authored_selection_extension_frontier();
+        let appended_expression = trees
+            .tables
+            .bodies
+            .expressions
+            .insert(expression::ExpressionNode::default());
+        trees
+            .tables
+            .bodies
+            .expressions
+            .attach_authored_selection_occurrences(appended_expression, [base_occurrence]);
+        let appended_clone = trees
+            .tables
+            .declarations
+            .state_statements
+            .append(tree_call(base_occurrence));
+        let destination = trees.authored_declaration_selections().clone();
+
+        let rebased = trees
+            .rebase_authored_selection_extension(frontier, &destination)
+            .expect("compiler-generated clone retains its authored base identity");
+        let statement::Statement::Call(call) = rebased
+            .tables
+            .declarations
+            .state_statements
+            .get(appended_clone)
+        else {
+            panic!("appended call clone")
+        };
+        assert_eq!(call.authored_call_selection, Some(base_occurrence));
+        assert_eq!(
+            rebased
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(appended_expression)
+                .collect::<Vec<_>>(),
+            vec![base_occurrence]
         );
     }
 }

@@ -476,7 +476,12 @@ base, appends extension roots and children without moving existing handles,
 preserves base service IDs and authored reach provenance, validates the exact
 retained source frontier, and applies the settled one-way visibility and same-
 stratum duplicate rules. Compiler orchestration of that continuation and
-seeded resolved-to-typed lowering remain implementation work.
+seeded resolved-to-typed lowering remain implementation work. A bounded
+representation prerequisite now retains the exact pre-extension authored-
+selection frontier for every occurrence-bearing symbol-resolved store. Its
+opaque consuming carrier transactionally preserves/replaces the destination
+base ledger and shifts only the validated extension suffix; it does not itself
+admit typed continuation or remove the transitional rebuild.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between

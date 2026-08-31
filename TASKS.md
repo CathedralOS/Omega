@@ -11642,9 +11642,14 @@ checked-result arithmetic decision listed below.
   frontier, appends roots and nested symbols without moving retained handles,
   preserves service IDs and authored reach provenance, resolves extension
   peers/base declarations with extension-wide precedence, and rejects only
-  same-stratum duplicates. Compiler orchestration of this continuation and
-  seeded resolved-to-typed lowering remain engineering work, not a language-
-  design blocker.
+  same-stratum duplicates. The bounded authored-selection prerequisite is now
+  live too: seeded resolution captures the exact pre-extension frontier across
+  every occurrence-bearing symbol-resolved store, and its consuming carrier
+  can preserve/replace the exact destination base ledger while checked-
+  shifting only the extension suffix and preserving compiler-generated clones
+  of retained occurrences. Failure returns the original carrier intact.
+  Compiler orchestration and seeded resolved-to-typed lowering remain
+  engineering work, not a language-design blocker.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

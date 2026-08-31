@@ -168,6 +168,64 @@ pub enum AuthoredDeclarationSelectionFinalizationError {
     InvalidSelectedSymbol,
 }
 
+/// Why a retained authored-selection prefix and one appended suffix could not
+/// be joined without changing occurrence identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredDeclarationSelectionSuffixRebaseError {
+    SourceFrontierOutOfRange,
+    DestinationPrefixTooShort,
+    PrefixIdentityMismatch,
+    PrefixTargetMismatch,
+    OccurrenceCapacityExceeded,
+}
+
+/// Checked mapping from the occurrence identities minted while resolving an
+/// extension to their positions after a later phase has appended rows to the
+/// retained base ledger.
+///
+/// Construction is private to the ledger join below. Representation owners
+/// can therefore distinguish retained and extension sites without recovering
+/// either class from spans or names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthoredDeclarationSelectionSuffixRebase {
+    source_frontier: u64,
+    source_end: u64,
+    destination_frontier: u64,
+}
+
+impl AuthoredDeclarationSelectionSuffixRebase {
+    pub fn retain_base(
+        self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
+        (occurrence.0 < self.source_frontier).then_some(occurrence)
+    }
+
+    pub fn rebase_extension(
+        self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
+        if occurrence.0 < self.source_frontier || occurrence.0 >= self.source_end {
+            return None;
+        }
+        let suffix_offset = occurrence.0.checked_sub(self.source_frontier)?;
+        Some(AuthoredDeclarationSelectionOccurrenceId(
+            self.destination_frontier.checked_add(suffix_offset)?,
+        ))
+    }
+
+    /// Map an occurrence stored after an append frontier. Authored extension
+    /// occurrences shift, while compiler-generated clones may deliberately
+    /// retain the base occurrence from which they were derived.
+    pub fn rebase_appended(
+        self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> Option<AuthoredDeclarationSelectionOccurrenceId> {
+        self.retain_base(occurrence)
+            .or_else(|| self.rebase_extension(occurrence))
+    }
+}
+
 /// One authored occurrence retained while its source location and exposure are
 /// still exact. Package ownership is intentionally absent and is joined by a
 /// later compiler integration.
@@ -244,6 +302,82 @@ pub struct AuthoredDeclarationSelections {
 }
 
 impl AuthoredDeclarationSelections {
+    /// Replace the exact retained prefix of a combined resolved ledger with a
+    /// destination ledger owned by a later phase, then append and re-identify
+    /// only the resolved extension suffix.
+    ///
+    /// A destination prefix may finalize a source `LateBound` row, but may not
+    /// change its source identity, exposure, kind, or an already-settled
+    /// target. Extra destination rows are retained verbatim ahead of the
+    /// shifted suffix.
+    pub fn replace_prefix_and_rebase_suffix(
+        &self,
+        source_frontier: usize,
+        destination_base: &Self,
+    ) -> Result<
+        (Self, AuthoredDeclarationSelectionSuffixRebase),
+        AuthoredDeclarationSelectionSuffixRebaseError,
+    > {
+        if source_frontier > self.rows.len() {
+            return Err(AuthoredDeclarationSelectionSuffixRebaseError::SourceFrontierOutOfRange);
+        }
+        if destination_base.rows.len() < source_frontier {
+            return Err(AuthoredDeclarationSelectionSuffixRebaseError::DestinationPrefixTooShort);
+        }
+
+        for (source, destination) in self.rows[..source_frontier]
+            .iter()
+            .zip(&destination_base.rows[..source_frontier])
+        {
+            if source.occurrence_id != destination.occurrence_id
+                || source.source_span != destination.source_span
+                || source.exposure != destination.exposure
+                || source.kind != destination.kind
+            {
+                return Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixIdentityMismatch);
+            }
+            let target_is_compatible = source.target == destination.target
+                || matches!(
+                    (source.target, destination.target),
+                    (
+                        AuthoredDeclarationSelectionTarget::LateBound(_),
+                        AuthoredDeclarationSelectionTarget::Resolved(_)
+                            | AuthoredDeclarationSelectionTarget::Intrinsic(_)
+                    )
+                );
+            if !target_is_compatible {
+                return Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixTargetMismatch);
+            }
+        }
+
+        let source_frontier_index = source_frontier;
+        let source_frontier = u64::try_from(source_frontier_index).map_err(|_| {
+            AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded
+        })?;
+        let source_end = u64::try_from(self.rows.len()).map_err(|_| {
+            AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded
+        })?;
+        let destination_frontier = u64::try_from(destination_base.rows.len()).map_err(|_| {
+            AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded
+        })?;
+        let rebase = AuthoredDeclarationSelectionSuffixRebase {
+            source_frontier,
+            source_end,
+            destination_frontier,
+        };
+        let mut rows = destination_base.rows.clone();
+        rows.reserve(self.rows.len() - source_frontier_index);
+        for source in &self.rows[source_frontier_index..] {
+            let occurrence_id = rebase
+                .rebase_extension(source.occurrence_id)
+                .ok_or(AuthoredDeclarationSelectionSuffixRebaseError::OccurrenceCapacityExceeded)?;
+            let mut rebased = *source;
+            rebased.occurrence_id = occurrence_id;
+            rows.push(rebased);
+        }
+        Ok((Self { rows }, rebase))
+    }
+
     pub fn record_resolved(
         &mut self,
         source_span: SourceSpan,
@@ -450,6 +584,108 @@ mod tests {
         assert_eq!(first_ids[1].ordinal(), 1);
         assert_eq!(first_run.get(first_ids[0]), first_run.as_slice().first());
         assert_eq!(first_run.get(first_ids[1]), first_run.as_slice().get(1));
+    }
+
+    #[test]
+    fn suffix_rebase_preserves_destination_prefix_and_shifts_only_extension_rows() {
+        let mut combined = AuthoredDeclarationSelections::default();
+        combined
+            .record_late_bound(
+                source_span(1, 2),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            )
+            .expect("base row");
+        let mut destination = combined.clone();
+        destination
+            .finalize_late_bound(
+                AuthoredDeclarationSelectionOccurrenceId(0),
+                AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("typed base finalization");
+        destination
+            .record_resolved(
+                source_span(3, 4),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(5),
+            )
+            .expect("typed-only base row");
+        let extension = combined
+            .record_resolved(
+                source_span(5, 6),
+                AuthoredDeclarationSelectionExposure::PublicInterface,
+                AuthoredDeclarationSelectionKind::TypeReference,
+                SymbolHandle::from_arena_index(6),
+            )
+            .expect("extension row");
+
+        let (joined, rebase) = combined
+            .replace_prefix_and_rebase_suffix(1, &destination)
+            .expect("compatible retained prefix");
+
+        assert_eq!(
+            &joined.as_slice()[..destination.len()],
+            destination.as_slice()
+        );
+        assert_eq!(joined.len(), 3);
+        assert_eq!(joined.as_slice()[2].occurrence_id().ordinal(), 2);
+        assert_eq!(
+            rebase.rebase_extension(extension).map(|id| id.ordinal()),
+            Some(2)
+        );
+        assert_eq!(
+            rebase.retain_base(AuthoredDeclarationSelectionOccurrenceId(0)),
+            Some(AuthoredDeclarationSelectionOccurrenceId(0))
+        );
+        assert_eq!(
+            rebase.retain_base(extension),
+            None,
+            "extension identity cannot be laundered through a base site"
+        );
+    }
+
+    #[test]
+    fn suffix_rebase_rejects_prefix_identity_and_target_tampering() {
+        let mut combined = AuthoredDeclarationSelections::default();
+        combined
+            .record_resolved(
+                source_span(1, 2),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("base row");
+
+        let mut identity_tamper = AuthoredDeclarationSelections::default();
+        identity_tamper
+            .record_resolved(
+                source_span(9, 10),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("tampered row");
+        assert_eq!(
+            combined.replace_prefix_and_rebase_suffix(1, &identity_tamper),
+            Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixIdentityMismatch)
+        );
+
+        let mut target_tamper = AuthoredDeclarationSelections::default();
+        target_tamper
+            .record_resolved(
+                source_span(1, 2),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(9),
+            )
+            .expect("retargeted row");
+        assert_eq!(
+            combined.replace_prefix_and_rebase_suffix(1, &target_tamper),
+            Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixTargetMismatch)
+        );
     }
 
     #[test]
