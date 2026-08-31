@@ -1717,12 +1717,6 @@ fn validate_foreign_scalar_arguments(
     semantic_code_attribution: &[SemanticCodeAttribution],
     call: &omega_machine_code::ForeignCallRelocation,
 ) -> Result<(), ObjectError> {
-    if call.scalar_arguments.len() > 5 {
-        return Err(ObjectError::InvalidForeignCallArgument {
-            caller,
-            owner: call.owner,
-        });
-    }
     if call.scalar_arguments.is_empty() {
         return (call.call_plan.parameters.is_empty()
             && call.call_plan.result.is_none()
@@ -1850,11 +1844,15 @@ fn validate_foreign_scalar_arguments(
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rdx) => 2,
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rcx) => 1,
             (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86R8) => 8,
+            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86R9) => 9,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(0)) => 0,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(1)) => 1,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(2)) => 2,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(3)) => 3,
             (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(4)) => 4,
+            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(5)) => 5,
+            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(6)) => 6,
+            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(7)) => 7,
             _ => {
                 return Err(ObjectError::InvalidForeignCallArgument {
                     caller,
