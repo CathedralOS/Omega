@@ -44,31 +44,16 @@ stop the item on one precise owner question before adding machinery.
     representation;
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
-    provider-demand, coverage-composition, and installation-issuance joins;
-  - finish D29's exact boundary-application evidence. Checked lowering now
-    retains the canonical empty application for monomorphic selected boundary
-    operators and ordered tagged type/const applications for closed spelled and
-    named uses. Type bindings retain exact structural custody and discharge
-    declared copy/linear/carry bounds. Const bindings retain a display-free
-    canonical evaluated value beside the exact declared carrier; fixed-array
-    positions, repeated/nested occurrences, and synthesized generic-instance
-    origins share the same operand matcher. Explicit integer arguments only
-    corroborate the operand-derived value. Validation and checked lowering
-    replay category, binder, carrier, value, bounds, selected use, and named-
-    expression operand reconstruction. Unit-returning statement syntax survives
-    its existing expression normalization with exact authored-selection custody; retained
-    statement calls have a distinct exact use coordinate. Open, forwarded,
-    return-only, or unresolved applications remain demand work rather than
-    being mislabeled concrete. Remaining work is artifact-qualified symbolic
-    demand and final substitution, role-specific realization replay, D32's
-    optimized-projection-to-physical-child join. The physical child must bind
-    its exact Terminal parent and surviving optimized operation occurrence, and
-    the complete child set must match the derived surviving occurrence set.
-    Equal applications may share one semantic parent but not one child.
-    Lifetime, machine, and proposition operator applications remain fail-
-    closed. D28 authorizes no generic-coverage implementation until a checked
-    generic operator realization supplies a producer; generic assertions
-    remain non-authorizing;
+    provider-demand and installation-issuance joins;
+  - finish D29's artifact-qualified symbolic demand and final substitution,
+    role-specific checked-realization replay, and D32's exact optimized-
+    projection-to-physical-child join. Each physical child must bind its exact
+    Terminal parent and surviving optimized operation occurrence; the complete
+    child set must equal the derived surviving set. Lifetime, machine, and
+    proposition operator applications remain fail-closed. D28 authorizes no
+    universal generic coverage; only compiler-derived demand joined to an
+    independently checked application-specific realization may authorize a
+    row;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -105,12 +90,13 @@ stop the item on one precise owner question before adding machinery.
   Replace it with the root-aware Build facet before admission; do not add a
   same-path-only receipt or ignore the pattern during replay matching.
 
-- [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Locally recheck every proof or retained
-  certificate required by an ordinary package claim. Reject open/deferred
-  proofs and contract-entailment stand-downs, retain accepted axioms and opaque
-  claims as explicit trust rows, and add the later-discharge/open-obligation
-  ledger. Do not cite the standalone `psi-proof` ledger as production
-  enforcement.
+- [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Add the authority-bearing later-
+  discharge/open-obligation ledger and locally recheck every retained
+  certificate required by an ordinary package claim. Package review already
+  rejects contract-entailment stand-downs and retains accepted axioms, opaque
+  claims, and bodyless accepted claims as explicit trust rows. Do not cite the
+  standalone `psi-proof` ledger as production enforcement or invent a deferred-
+  proof row before the compiler owns such a status.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
@@ -133,12 +119,8 @@ stop the item on one precise owner question before adding machinery.
   package-installation `ProviderExecutionEvidence` for a compiler-owned builtin
   merely to satisfy the existing settlement API.
 
-- [ ] **REPRESENTATION-TCB-EVIDENCE.** Complete the D26 representation
-  projection. Producer availability now rejoins the exact opaque declaration,
-  package-owned public named conformance, and public checked-shape carrier
-  without accepting a consumer choice; it remains distinct from and may
-  coexist with `Unbound`. Add consumer demand only for an actual runtime
-  by-value use, consuming the exact retained
+- [ ] **REPRESENTATION-TCB-EVIDENCE.** Add D26 consumer demand only for an
+  actual runtime by-value use, consuming the exact retained
   `BoundaryOpaqueRepresentationUse` and validated calling-plan realization
   rather than reconstructing either from an aggregate digest. Rejoin the exact
   boundary requirement application, opaque declaration, named conformance or
@@ -152,15 +134,13 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
-  Validate at most one selected application per opaque declaration at the
-  completed compilation-activation build-config join, even though current
-  orchestration evaluates only one authoritative build machine. Preserve an
-  unused selection as policy that excludes a second selection while emitting
-  no demand row. Add canaries proving that independently reviewed dependencies
-  may retain different historical selections while one later source consumer
-  selects its own application, and reserve the future `PackageInstance`
-  composition canary that rejects unequal commitments on an actual by-value
-  exchange.
+  First carry the selected opaque-to-carrier application through general layout
+  and complete movement/finalization planning; do not publish a partial demand
+  row from calling-convention shape alone. Add canaries proving that
+  independently reviewed dependencies may retain different historical
+  selections while one later source consumer selects its own application. The
+  future `PackageInstance` composition canary must reject unequal commitments
+  only at an actual by-value exchange.
 
 ## P3 — Recheckable evidence and accepted lock
 
@@ -169,12 +149,6 @@ stop the item on one precise owner question before adding machinery.
   locally re-derived discharge results, transitive open assumptions, and root
   admission decisions exist. Do not revive the deleted caller-constructed
   placeholder or treat compiler/toolchain provenance as a seal.
-
-- [ ] **ORDINARY-PACKAGE-ARTIFACT-SUBJECT.** Finish the canonical semantic
-  subject for ordinary package claims: one complete versioned row set under the
-  exact package key, target, dependency closure, and obligation-semantics
-  schema. Source, compiler/process observations, certificates, decisions,
-  native code, and Terminal evidence remain separately bound subjects.
 
 - [ ] **RECHECKABLE-PACKAGE-EVIDENCE.** Build the authority-bearing path that
   compiler review deliberately cannot issue. Bind exact requested source,
@@ -216,11 +190,11 @@ stop the item on one precise owner question before adding machinery.
   occurred.
 
 - [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
-  reviewer into command orchestration with the existing fixed instructions,
-  bounded Omega-rendered evidence, closed response schema, and monotone
-  recommendation rule. Apply its result only through root policy. It cannot
-  suppress deterministic recommendations, resolve conflicts, admit evidence,
-  attest review, or mutate project state.
+  reviewer into the accepted-lock command transaction. Reuse the existing
+  fixed instructions, bounded Omega-rendered evidence, closed response schema,
+  and monotone recommendation rule. Apply its result only through root policy.
+  It cannot suppress deterministic recommendations, resolve conflicts, admit
+  evidence, attest review, or mutate project state.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   admitted, admitted-with-audit-recommended, blocked capability change,
@@ -255,12 +229,22 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Source integration and fixtures
 
+- [ ] **RESOLVER-EXECUTION-CUSTODY.** Owner-blocked on **Retire resolver
+  execution custody that adds no source guarantee** in `OWNER_QUESTIONS.md`.
+  Do not extend executable hashing, self-issued execution guarantees/receipts,
+  native Git confinement, or per-locator transport locking while that boundary
+  is unsettled. Verified object/snapshot custody, process cleanup, and concrete
+  resource ceilings remain independent.
+
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
   controls and negative cases on a native Windows worker and retain the results
   in the normal test lane.
 
 - [ ] **PRIVATE-REMOTE-FIXTURES.** Run the exact pinned CathedralOS SSH/HTTPS
-  mirror tests in credentialed infrastructure. Unavailable credentials must
+  mirror tests in credentialed infrastructure. The 2026-08-30 host-SSH run
+  reached the pinned repositories but found the remote fixture contents stale
+  against the current local language fixtures; synchronize and repin all
+  changed mirrors, then rerun the complete lane. Unavailable credentials must
   remain an explicit ignored/blocked environment condition, never a fallback
   to a different transport or fabricated success.
 
@@ -274,10 +258,10 @@ explicitly.
   - carry the same application into general type layout and physical
     move/finalization planning, including cleanup and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
-    consumer demand from retained compiler custody, validate the activation-
-    wide unique selection, rejoin foreign demand to landed producer-
-    availability rows and immutable source, and preserve strong application
-    equality at actual independently compiled by-value composition edges;
+    consumer demand from retained compiler custody, rejoin foreign demand to
+    landed producer-availability rows and immutable source, and preserve strong
+    application equality at actual independently compiled by-value composition
+    edges;
   - bind the application into artifacts, replacement compatibility, stable-
     handle era rules, and independently replaceable provider contracts;
   - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,
