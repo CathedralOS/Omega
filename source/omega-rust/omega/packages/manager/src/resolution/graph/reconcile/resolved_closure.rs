@@ -106,12 +106,12 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
             let custody = closure
                 .custody(requester_key)
                 .expect("every validated graph package has source custody");
-            debug_assert_eq!(requester.dependencies().len(), custody.dependency_requests().len());
-            requester
-                .dependencies()
-                .iter()
-                .enumerate()
-                .map(move |(dependency_index, dependency)| {
+            debug_assert_eq!(
+                requester.dependencies().len(),
+                custody.dependency_requests().len()
+            );
+            requester.dependencies().iter().enumerate().map(
+                move |(dependency_index, dependency)| {
                     let request = &custody.dependency_requests()[dependency_index];
                     let selected = closure
                         .graph
@@ -125,7 +125,8 @@ impl<'a> ResolvedPackageSourceRequestSet<'a> {
                         alias: dependency.alias(),
                         selected,
                     }
-                })
+                },
+            )
         })
     }
 }
@@ -189,7 +190,10 @@ impl ResolvedPackageSourceClosure {
             let custody = self
                 .custody(&requester)
                 .expect("validated graph package retains source custody");
-            debug_assert_eq!(node.dependencies().len(), custody.dependency_requests().len());
+            debug_assert_eq!(
+                node.dependencies().len(),
+                custody.dependency_requests().len()
+            );
             for (dependency_index, dependency) in node.dependencies().iter().enumerate() {
                 if !visited.insert(dependency.target().clone()) {
                     continue;

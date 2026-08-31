@@ -101,8 +101,7 @@ where
             .expect("only accepted package custody enters the traversal queue")
             .clone();
         let requester_depth = depths[&requester_key];
-        let mut selected_dependencies =
-            Vec::with_capacity(requester.dependency_requests().len());
+        let mut selected_dependencies = Vec::with_capacity(requester.dependency_requests().len());
 
         for (dependency_index, request) in requester.dependency_requests().iter().enumerate() {
             dependency_request_count = dependency_request_count.saturating_add(1);
@@ -147,7 +146,7 @@ where
             .projected_dependencies()
             .validate_aliases(&selected_package_names)
             .map_err(
-                |error| PackageSourceClosureResolutionError::InvalidActiveAliases {
+                |error| PackageSourceClosureResolutionError::InvalidAliases {
                     requester: requester_key.clone(),
                     error,
                 },
@@ -247,13 +246,7 @@ fn collect_conflicts(
                         .origins
                         .iter()
                         .flat_map(|origin| {
-                            paths_for_origin(
-                                root,
-                                origin,
-                                key,
-                                dependencies,
-                                custodies,
-                            )
+                            paths_for_origin(root, origin, key, dependencies, custodies)
                         })
                         .collect(),
                 })
@@ -338,7 +331,10 @@ fn collect_paths(
     }
 
     if let Some(outgoing) = dependencies.get(current) {
-        debug_assert_eq!(custodies[current].dependency_requests().len(), outgoing.len());
+        debug_assert_eq!(
+            custodies[current].dependency_requests().len(),
+            outgoing.len()
+        );
         for (dependency_index, dependency) in outgoing.iter().enumerate() {
             if active.contains(dependency.target()) {
                 continue;
