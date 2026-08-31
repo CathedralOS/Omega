@@ -70,17 +70,23 @@ preserves its owner/member identity for later layout and lowering. One
 generalized callable ledger retains exact direct-qualified and settled grouped/
 unqualified machine application custody before category, arity, or type
 checking, and complete applications retain value, resultless, or `never` facts
-without manufacturing recovery facts. Expression use distinguishes an ordinary
-value, call head, discarded postfix statement, and transition continuation
-rather than collapsing the latter three.
+without manufacturing recovery facts. Exact catalog owners now supply positive
+receiver-scoped `self` custody and nominal place facts. Grouped named-data and
+sealed-boundary receiver applications retain exact callable identity before
+receiver-place and shared signature joins; authored-field fallback and
+case/machine collision neutrality preserve D36's namespace rules. Expression
+use distinguishes an ordinary value, call head, discarded postfix statement,
+and transition continuation rather than collapsing the latter three.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
 case/machine collision census, direct qualified applications, and settled
-grouped/unqualified application slice are implemented; receiver and
-continuation classification remains open. D37 settles dependent parent
-composition and relational statement/projection anchors; its full body/control
-implementation remains open. D38 settles the place-valued fixed-array receiver
+grouped/unqualified plus named-receiver application slices are implemented;
+continuation/state classification including Q10's state-transfer spelling,
+Q11's invalid-`self` diagnostic, and general non-named projection failures
+remain open. D37 settles dependent parent composition and relational
+statement/projection anchors; its full body/control implementation remains
+open. D38 settles the place-valued fixed-array receiver
 and non-place full-view result for `.as_slice`; its source fact relation is
 implemented while lowering and executable controls remain. D34 has settled
 physical storage refusal; its
