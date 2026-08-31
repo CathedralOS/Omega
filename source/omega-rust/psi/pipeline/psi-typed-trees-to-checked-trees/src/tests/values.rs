@@ -2,6 +2,56 @@ use super::*;
 use psi_checked_trees::{CheckedScalarBindingValue, CheckedValueStatementRole};
 
 #[test]
+fn transition_scalar_facts_skip_implicit_self_but_retain_target_position() {
+    let source = r#"
+        data Main {}
+
+        machine Main::main(&mut self, first: bool, second: bool) {
+            transition first { true -> dispatch(second) _ -> done() }
+
+            state dispatch(&mut self, flag: bool) {
+                transition flag { true -> done() _ -> done() }
+            }
+
+            state done(&mut self) {}
+        }
+    "#;
+
+    let checked = lower_typed_trees(typed_trees(source))
+        .expect("implicit-self transition arguments should reach checked lowering");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("main machine");
+    let entry = &checked.machine_states(machine)[0];
+    assert_eq!(
+        checked.facts.values.scalar_expressions.expression_at(
+            entry.symbol,
+            0,
+            psi_checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+                argument_ordinal: 1,
+            },
+        ),
+        Some(&psi_checked_trees::CheckedScalarExpression::Boolean(
+            Box::new(psi_checked_trees::CheckedBooleanExpression::Parameter { position: 1 })
+        )),
+        "the dense scalar expression must retain the target parameter's raw position",
+    );
+    assert_eq!(
+        checked.facts.values.scalar_expressions.expression_at(
+            entry.symbol,
+            0,
+            psi_checked_trees::CheckedScalarExpressionRole::TransitionArgument {
+                argument_ordinal: 0,
+            },
+        ),
+        None,
+        "implicit self must not masquerade as an authored scalar argument",
+    );
+}
+
+#[test]
 fn checked_scalar_graph_retains_direct_call_bindings_and_arguments() {
     let source = r#"
         machine identity(value: bool) -> bool { value }

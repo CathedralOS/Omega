@@ -150,6 +150,27 @@ fn checked_boundary_prefixed_nested_control() -> CheckedTrees {
     )
 }
 
+fn checked_provider_boundary_prefixed_nested_control() -> CheckedTrees {
+    checked_source(
+        r#"
+            boundary trait Console {
+                machine tick() reaches Console;
+                machine exit(code: i32) reaches Console;
+            }
+            data Main { console: Console; }
+            machine Main::main(&mut self, first: bool, second: bool) reaches Console {
+                self.console.tick();
+                transition first { true -> dispatch(second) _ -> no() }
+                state dispatch(&mut self, flag: bool) {
+                    transition flag { true -> yes() _ -> no() }
+                }
+                state yes(&mut self) { self.console.exit(1); }
+                state no(&mut self) { self.console.exit(2); }
+            }
+        "#,
+    )
+}
+
 #[test]
 fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
     let checked = checked_nested_control();
@@ -387,6 +408,93 @@ fn boundary_call_prefix_rejects_coordinate_drift() {
     coordinate.statement_index = 1;
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
+#[test]
+fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
+    let checked = checked_provider_boundary_prefixed_nested_control();
+    let lowered = lower_machine(&checked, "Main::main").expect("provider boundary prefix lowers");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("provider boundary graph emits one machine")
+    };
+    assert_eq!(machine.parameters.len(), 2);
+    assert_eq!(machine.structural_places.len(), 2);
+    assert!(
+        machine
+            .structural_places
+            .iter()
+            .all(|place| matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
+    );
+    assert!(matches!(
+        machine.blocks[0].operations.as_slice(),
+        [Operation {
+            kind: OperationKind::BoundaryCall { .. },
+            ..
+        }]
+    ));
+    let Terminator::Conditional { when_true, .. } = &machine.blocks[0].terminator else {
+        panic!("provider call remains before the source conditional")
+    };
+    assert_eq!(when_true.arguments.as_slice(), [machine.parameters[1].id]);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("provider boundary-prefix module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+
+    let mut missing_scalar_fact = checked.clone();
+    let entry_state = missing_scalar_fact
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines[0]
+        .states[0]
+        .state;
+    let scalar_fact = missing_scalar_fact
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter()
+        .position(|expression| {
+            expression.state == entry_state
+                && matches!(
+                    expression.role,
+                    CheckedScalarExpressionRole::TransitionArgument {
+                        argument_ordinal: 1
+                    }
+                )
+        })
+        .expect("implicit-self edge scalar fact");
+    missing_scalar_fact
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .remove(scalar_fact);
+    assert!(matches!(
+        lower_machine(&missing_scalar_fact, "Main::main"),
+        Err(LoweringError::Unsupported(_))
+    ));
+
+    let mut missing_requirement = checked;
+    missing_requirement
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines[0]
+        .provider_attachment_requirements
+        .clear();
+    assert!(matches!(
+        lower_machine(&missing_requirement, "Main::main"),
         Err(LoweringError::Unsupported(_))
     ));
 }

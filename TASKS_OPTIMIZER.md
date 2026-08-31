@@ -161,16 +161,19 @@ decision. Only true language-semantic questions belong in
    the source-call occurrence, and emission appends the call before the guard
    without manufacturing another block. Verifier/codec replay and coordinate
    corruption canaries pass. The producer descends through an 18-line
-   `nested_control` entrance into 319-line `topology`, 60-line `operations`,
+   `nested_control` entrance into 330-line `topology`, 60-line `operations`,
    and 91-line `assembly` rungs; the 16-line consumer entrance retains separate
-   295-line `admission`, 75-line `operations`, and 238-line `emission` rungs. No
-   topology-specific sibling was added. Provider-backed control prefixes remain
-   the next bounded gap: an implicit-`self` dispatch target with a scalar state
-   parameter currently has no checked transition-argument expression row, so
-   the producer correctly declines it rather than inventing evidence. Repairing
-   that fact construction is engineering, not an owner language decision. A
-   smaller recurring custody
-   class leaves
+   303-line `admission`, 75-line `operations`, and 238-line `emission` rungs. No
+   topology-specific sibling was added. Provider-backed control prefixes now
+   cross the same route. Checked scalar-fact construction skips the implicit
+   `self` target parameter while retaining each explicit argument's raw target
+   position; producer and consumer therefore rejoin an implicit-`self` Boolean
+   handoff without confusing source positions with dense scalar indices.
+   Provider discovery joins executable prefix operations by their exact call
+   coordinates, leaving named-transition call facts in topology custody. A
+   provider prefix plus provider-backed leaves verifies and codec-replays;
+   deleting either the scalar row or provider requirements rejects. A smaller
+   recurring custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine

@@ -40,10 +40,7 @@ pub(super) fn admit<'a>(
             || attachment
                 .as_ref()
                 .is_some_and(|identity| identity != &state_attachment)
-            || scalar.iter().enumerate().any(|(index, parameter)| {
-                parameter.source_position != u32::try_from(index).unwrap_or(u32::MAX)
-                    || parameter.primitive_type != PrimitiveType::Bool
-            })
+            || !exact_boolean_parameters(&scalar)
         {
             return None;
         }
@@ -99,6 +96,19 @@ pub(super) fn admit<'a>(
         guards,
         edges,
     })
+}
+
+fn exact_boolean_parameters(parameters: &[CheckedStructuralScalarParameterPlan]) -> bool {
+    let base = parameters
+        .first()
+        .map(|parameter| parameter.source_position)
+        .unwrap_or(0);
+    base <= 1
+        && parameters.iter().enumerate().all(|(index, parameter)| {
+            parameter.source_position
+                == base.saturating_add(u32::try_from(index).unwrap_or(u32::MAX))
+                && parameter.primitive_type == PrimitiveType::Bool
+        })
 }
 
 fn conditional(
@@ -202,14 +212,15 @@ fn scalar_successor(
         .iter()
         .position(|state| state.symbol == path.symbol)?;
     let target_parameters = &signatures[target_index];
-    if program.statement_table.expression_handles(*arguments).len() != target_parameters.len() {
+    let explicit_arguments = program.statement_table.expression_handles(*arguments);
+    if explicit_arguments.len() != target_parameters.len() {
         return None;
     }
     let scalar_arguments = target_parameters
         .iter()
         .enumerate()
         .map(|(argument_index, target)| {
-            let argument_ordinal = u32::try_from(argument_index).ok()?;
+            let argument_ordinal = target.source_position;
             let expression = facts.values.scalar_expressions.expression_at(
                 source.symbol,
                 ordinal,
