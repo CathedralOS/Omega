@@ -64,6 +64,52 @@ pub fn lower_syntax_trees_with_sources_and_top_level_bindings(
     lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources), bindings)
 }
 
+/// Append one already-parsed later-stratum syntax forest to an exact retained
+/// symbol-resolved base. Existing arenas and symbol tables are consumed and
+/// extended in place; no source bytes are read and neither forest is parsed
+/// again.
+pub fn lower_syntax_extension_against_resolved_base(
+    base: SymbolResolvedTrees,
+    extension_syntax: &SyntaxTrees,
+    sources: Arc<SourceMap>,
+    additional_source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
+    if retained_sources.len() > sources.len()
+        || !retained_sources
+            .iter()
+            .copied()
+            .eq(sources.files().take(retained_sources.len()))
+    {
+        return Err(vec![Diagnostic::error(
+            "seeded symbol resolution source map does not retain the exact base frontier",
+        )]);
+    }
+    let roots = RootWatermarks::capture(&base);
+    let retained_service_reaches = base.service_reaches.clone();
+    let retained_service_reach_rows = base.service_reach_rows.clone();
+    let mut syntax_trees = extension_syntax.clone();
+    crate::trait_defaults::synthesize_trait_defaults(&mut syntax_trees)?;
+    let mut lowerer = Lowerer::new(Some(sources), additional_source_scoped_top_level_bindings);
+    lowerer.seed_resolved_base(base);
+
+    for item in syntax_trees.root_items() {
+        lower_item(&mut lowerer, &syntax_trees, item).map_err(|diagnostic| vec![diagnostic])?;
+    }
+    for selection in &mut lowerer.pending_const_selections {
+        selection.declaration_ordinal = selection
+            .declaration_ordinal
+            .checked_add(roots.const_declarations)
+            .expect("seeded const declaration ordinal overflow");
+    }
+
+    lowerer.finish_with(FinishMode::Seeded {
+        roots,
+        retained_service_reaches,
+        retained_service_reach_rows,
+    })
+}
+
 fn lower_syntax_trees_with_optional_sources(
     syntax_trees: &SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
@@ -177,6 +223,44 @@ pub(crate) struct Lowerer {
     arm_state_counter: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RootWatermarks {
+    pub(crate) const_declarations: usize,
+    pub(crate) data_definitions: usize,
+    pub(crate) domain_definitions: usize,
+    pub(crate) machines: usize,
+    pub(crate) operators: usize,
+    pub(crate) propositions: usize,
+    pub(crate) traits: usize,
+    pub(crate) conformances: usize,
+    pub(crate) wire_schemas: usize,
+}
+
+impl RootWatermarks {
+    fn capture(program: &SymbolResolvedTrees) -> Self {
+        Self {
+            const_declarations: program.const_declarations.len(),
+            data_definitions: program.data_definitions.len(),
+            domain_definitions: program.domain_definitions.len(),
+            machines: program.machines.len(),
+            operators: program.operators.len(),
+            propositions: program.propositions.len(),
+            traits: program.traits.len(),
+            conformances: program.conformances.len(),
+            wire_schemas: program.wire_schemas.len(),
+        }
+    }
+}
+
+enum FinishMode {
+    Complete,
+    Seeded {
+        roots: RootWatermarks,
+        retained_service_reaches: psi_language_semantics::ServiceReachTable,
+        retained_service_reach_rows: psi_language_semantics::ServiceReachRowTable,
+    },
+}
+
 /// One continuation state the guarded-arm value-call rewrite synthesizes.
 pub(crate) struct SynthesizedArmState {
     pub(crate) name: String,
@@ -238,6 +322,63 @@ impl Lowerer {
         }
     }
 
+    fn seed_resolved_base(&mut self, base: SymbolResolvedTrees) {
+        self.pending_const_declarations = base
+            .const_declarations
+            .iter()
+            .map(|declaration| PendingConstDeclaration {
+                semantic_name: base.symbols.name(declaration.symbol).to_owned(),
+                source_span: base
+                    .symbols
+                    .symbol_source_span(declaration.symbol)
+                    .unwrap_or_default(),
+                is_public: declaration.is_public,
+            })
+            .collect();
+        self.pending_machine_service_reaches = base
+            .machines
+            .iter()
+            .map(|machine| pending_service_reach_for(&base, machine.symbol))
+            .collect();
+        for definition in &base.traits {
+            for offset in 0..definition.machines.len() {
+                let handle = handle_at_offset(definition.machines, offset);
+                let signature = base
+                    .tables
+                    .declarations
+                    .trait_machine_signatures
+                    .get(handle);
+                let pending = pending_service_reach_for(&base, signature.symbol);
+                self.pending_signature_service_reaches
+                    .push(PendingSignatureServiceReach {
+                        location: PendingSignatureLocation::Trait(handle),
+                        owner: PendingSignatureOwner::Trait(definition.name.clone()),
+                        keyword_source_spans: pending.keyword_source_spans,
+                        authored: pending.authored,
+                    });
+            }
+        }
+        for (handle, parameter) in base.tables.declarations.data_type_parameters.iter() {
+            let psi_symbol_resolved_trees::data::TypeParameterKind::Machine { contract } =
+                &parameter.kind
+            else {
+                continue;
+            };
+            let Some(signature) = contract.structural() else {
+                continue;
+            };
+            let pending = pending_service_reach_for(&base, signature.symbol);
+            self.pending_signature_service_reaches
+                .push(PendingSignatureServiceReach {
+                    location: PendingSignatureLocation::MachineParameter(handle),
+                    owner: PendingSignatureOwner::Requirement(parameter.name.clone()),
+                    keyword_source_spans: pending.keyword_source_spans,
+                    authored: pending.authored,
+                });
+        }
+        self.symbol_resolved_trees = base;
+    }
+
     pub(crate) fn source_reference_can_see_declaration(
         &self,
         reference: psi_source::SourceSpan,
@@ -291,17 +432,40 @@ impl Lowerer {
         name
     }
 
-    pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    pub(crate) fn finish(self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+        self.finish_with(FinishMode::Complete)
+    }
+
+    fn finish_with(
+        mut self,
+        finish_mode: FinishMode,
+    ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
         crate::domain_operator_homes::normalize_domain_operator_homes(
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::symbols::assign_symbols(
-            &mut self.symbol_resolved_trees,
-            self.sources,
-            self.source_scoped_top_level_bindings,
-            &self.pending_const_declarations,
-        )?;
+        match &finish_mode {
+            FinishMode::Complete => crate::symbols::assign_symbols(
+                &mut self.symbol_resolved_trees,
+                self.sources,
+                self.source_scoped_top_level_bindings,
+                &self.pending_const_declarations,
+            )?,
+            FinishMode::Seeded { roots, .. } => {
+                let sources = self.sources.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "seeded symbol resolution requires retained source custody",
+                    )]
+                })?;
+                crate::symbols::assign_symbols_against_resolved_base(
+                    &mut self.symbol_resolved_trees,
+                    sources,
+                    self.source_scoped_top_level_bindings,
+                    *roots,
+                    &self.pending_const_declarations,
+                )?;
+            }
+        }
         crate::state::finalize_outcome_specific_contract_symbols(
             &mut self.symbol_resolved_trees,
             &self.pending_outcome_specific_contracts,
@@ -393,11 +557,24 @@ impl Lowerer {
             &mut self.symbol_resolved_trees,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        crate::service_reaches::normalize_service_reaches(
-            &mut self.symbol_resolved_trees,
-            &pending_machine_service_reaches,
-            &pending_signature_service_reaches,
-        )
+        match finish_mode {
+            FinishMode::Complete => crate::service_reaches::normalize_service_reaches(
+                &mut self.symbol_resolved_trees,
+                &pending_machine_service_reaches,
+                &pending_signature_service_reaches,
+            ),
+            FinishMode::Seeded {
+                retained_service_reaches,
+                retained_service_reach_rows,
+                ..
+            } => crate::service_reaches::normalize_service_reaches_with_retained_tables(
+                &mut self.symbol_resolved_trees,
+                &pending_machine_service_reaches,
+                &pending_signature_service_reaches,
+                retained_service_reaches,
+                retained_service_reach_rows,
+            ),
+        }
         .map_err(|diagnostic| vec![diagnostic])?;
         self.symbol_resolved_trees.rebuild_tables();
         crate::conformance_blocks::route_inline_member_calls(&mut self.symbol_resolved_trees);
@@ -487,6 +664,45 @@ fn bind_evidence_forwarding_owners(program: &mut SymbolResolvedTrees) {
                 });
         }
     }
+}
+
+fn pending_service_reach_for(
+    program: &SymbolResolvedTrees,
+    owner: psi_symbols::SymbolHandle,
+) -> crate::service_reaches::PendingAuthoredServiceReach {
+    let Some(row) = program
+        .authored_service_reach_rows
+        .iter()
+        .find(|row| row.owner == owner)
+    else {
+        return crate::service_reaches::PendingAuthoredServiceReach {
+            keyword_source_spans: Vec::new(),
+            authored: Vec::new(),
+        };
+    };
+    crate::service_reaches::PendingAuthoredServiceReach {
+        keyword_source_spans: row.keyword_source_spans.clone(),
+        authored: row
+            .targets
+            .iter()
+            .map(|target| {
+                psi_symbol_resolved_trees::name::DiagnosticName::new(
+                    program.symbols.name(target.service),
+                    target.source_span,
+                )
+            })
+            .collect(),
+    }
+}
+
+fn handle_at_offset<T>(span: psi_arena::HandleSpan<T>, offset: usize) -> psi_arena::Handle<T> {
+    psi_arena::Handle::from_parts(
+        span.start()
+            .arena_index()
+            .checked_add(u32::try_from(offset).expect("handle-span offset fits u32"))
+            .expect("handle-span offset overflow"),
+        span.start().generation(),
+    )
 }
 
 #[derive(Debug, Clone, Copy)]

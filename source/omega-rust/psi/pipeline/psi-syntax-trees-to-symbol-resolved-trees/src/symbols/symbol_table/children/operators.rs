@@ -1,12 +1,12 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use crate::symbols::symbol_table::names::{
     operator_symbol_name, operator_symbol_seed, symbol_seed,
 };
 
 pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     domain_symbol: SymbolHandle,
     domain: &psi_symbol_resolved_trees::domain::DomainDefinition,
@@ -42,7 +42,7 @@ pub(in crate::symbols::symbol_table) fn insert_domain_symbol_children(
 }
 
 pub(in crate::symbols::symbol_table) fn insert_operator_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     operator_symbol: SymbolHandle,
     operator: &psi_symbol_resolved_trees::operator::OperatorDefinition,

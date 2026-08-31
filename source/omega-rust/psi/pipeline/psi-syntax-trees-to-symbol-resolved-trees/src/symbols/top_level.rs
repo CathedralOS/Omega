@@ -42,9 +42,11 @@ pub(super) fn assign_top_level_symbols(
     let mut conformance_symbols = conformance_symbols.into_iter();
     program.conformances.for_each_mut(|conformance| {
         if conformance.alias.is_some() {
-            conformance.symbol = conformance_symbols
-                .next()
-                .unwrap_or_else(SymbolHandle::invalid);
+            if !conformance.symbol.is_valid() {
+                conformance.symbol = conformance_symbols
+                    .next()
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
         }
     });
     assign_conformance_parameter_symbols(program, symbols);
@@ -55,8 +57,10 @@ pub(super) fn assign_top_level_symbols(
     assign_trait_symbols(program, symbols, &mut root_children);
 
     program.wire_schemas.for_each_mut(|wire_schema| {
-        wire_schema.symbol =
-            next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
+        if !wire_schema.symbol.is_valid() {
+            wire_schema.symbol =
+                next_child_of_kind(&mut root_children, symbols, SymbolKind::WireSchema);
+        }
     });
 
     diagnostics

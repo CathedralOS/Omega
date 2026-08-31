@@ -1,11 +1,11 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_parameter_signature_children;
 use crate::symbols::symbol_table::names::{SymbolSeed, symbol_seed};
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     machine_symbol: SymbolHandle,
     machine: &psi_symbol_resolved_trees::machine::Machine,
@@ -178,7 +178,7 @@ fn select_visible_trait_definition<'program>(
 }
 
 fn insert_state_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     state_symbol: SymbolHandle,
     state: &psi_symbol_resolved_trees::state::State,

@@ -20,6 +20,137 @@ use crate::symbols::symbol_table::names::{
     operator_symbol_name, operator_symbol_seed, symbol_seed,
 };
 
+pub(super) fn extend_symbol_table(
+    program: &mut SymbolResolvedTrees,
+    sources: Arc<SourceMap>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+    roots: crate::lowerer::RootWatermarks,
+    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+) {
+    let has_sources = true;
+    let resolution_sources = Some(sources.clone());
+    let mut extension = std::mem::take(&mut program.symbols)
+        .begin_extension(Some(sources), source_scoped_top_level_bindings);
+
+    for index in roots.domain_definitions..program.domain_definitions.len() {
+        let definition = program.domain_definitions[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::Domain,
+            &definition.name,
+            has_sources,
+        )])[0];
+        insert_domain_symbol_children(&mut extension, program, symbol, &definition, has_sources);
+        program.domain_definitions[index].symbol = symbol;
+    }
+    for index in roots.data_definitions..program.data_definitions.len() {
+        let definition = program.data_definitions[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::Data,
+            &definition.name,
+            has_sources,
+        )])[0];
+        insert_data_symbol_children(&mut extension, program, symbol, &definition, has_sources);
+        program.data_definitions[index].symbol = symbol;
+    }
+    for index in roots.conformances..program.conformances.len() {
+        let conformance = program.conformances[index].clone();
+        let Some(alias) = &conformance.alias else {
+            continue;
+        };
+        let symbol =
+            extension.insert_top_level([symbol_seed(SymbolKind::Conformance, alias, has_sources)])
+                [0];
+        insert_conformance_symbol_children(
+            &mut extension,
+            program,
+            symbol,
+            &conformance,
+            has_sources,
+        );
+        program.conformances[index].symbol = symbol;
+    }
+    for index in roots.machines..program.machines.len() {
+        let machine = program.machines[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::Machine,
+            &machine.name,
+            has_sources,
+        )])[0];
+        insert_machine_symbol_children(
+            &mut extension,
+            program,
+            symbol,
+            &machine,
+            has_sources,
+            resolution_sources.as_deref(),
+        );
+        program.machines[index].symbol = symbol;
+    }
+    for index in roots.propositions..program.propositions.len() {
+        let proposition = program.propositions[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::Proposition,
+            &proposition.name,
+            has_sources,
+        )])[0];
+        insert_proposition_symbol_children(
+            &mut extension,
+            program,
+            symbol,
+            &proposition,
+            has_sources,
+        );
+        program.propositions[index].symbol = symbol;
+    }
+    for index in roots.operators..program.operators.len() {
+        let operator = program.operators[index].clone();
+        let name = operator_symbol_name(program, &operator);
+        let symbol = extension.insert_top_level([operator_symbol_seed(
+            program,
+            &operator,
+            &name,
+            has_sources,
+        )])[0];
+        insert_operator_symbol_children(&mut extension, program, symbol, &operator, has_sources);
+        program.operators[index].symbol = symbol;
+    }
+    for index in roots.traits..program.traits.len() {
+        let definition = program.traits[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::Trait,
+            &definition.name,
+            has_sources,
+        )])[0];
+        insert_trait_symbol_children(&mut extension, program, symbol, &definition, has_sources);
+        program.traits[index].symbol = symbol;
+    }
+    for index in roots.wire_schemas..program.wire_schemas.len() {
+        let schema = program.wire_schemas[index].clone();
+        let symbol = extension.insert_top_level([symbol_seed(
+            SymbolKind::WireSchema,
+            &schema.name,
+            has_sources,
+        )])[0];
+        program.wire_schemas[index].symbol = symbol;
+    }
+    for (offset, declaration) in const_declarations
+        .iter()
+        .enumerate()
+        .skip(roots.const_declarations)
+    {
+        let symbol = extension.insert_top_level([(
+            SymbolKind::Const,
+            SymbolNameRef::OwnedSource {
+                value: declaration.semantic_name.as_str(),
+                source_span: declaration.source_span,
+            },
+        )])[0];
+        program.const_declarations[offset].symbol = symbol;
+    }
+
+    program.symbols = extension.finish();
+}
+
 pub(super) fn build_symbol_table(
     program: &SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,

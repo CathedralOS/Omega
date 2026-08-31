@@ -155,6 +155,27 @@ impl SymbolTableBuilder {
     }
 }
 
+/// Common append surface used while first constructing a symbol hierarchy and
+/// while extending one retained hierarchy. Both routes preserve contiguous
+/// child ranges; only top-level insertion differs.
+pub trait SymbolTableAppender {
+    fn insert_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol>;
+}
+
+impl SymbolTableAppender for SymbolTableBuilder {
+    fn insert_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
+        SymbolTableBuilder::insert_children(self, parent, children)
+    }
+}
+
 impl SymbolTable {
     pub fn new() -> Self {
         Self::default()
@@ -744,6 +765,16 @@ impl SymbolTableExtension {
 
     pub fn finish(self) -> SymbolTable {
         self.table
+    }
+}
+
+impl SymbolTableAppender for SymbolTableExtension {
+    fn insert_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
+        SymbolTableExtension::insert_children(self, parent, children)
     }
 }
 

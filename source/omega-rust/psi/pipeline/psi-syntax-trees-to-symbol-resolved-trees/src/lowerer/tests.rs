@@ -1,6 +1,6 @@
 use super::{
-    Lowerer, lower_syntax_trees, lower_syntax_trees_with_sources,
-    lower_syntax_trees_with_sources_and_top_level_bindings,
+    Lowerer, lower_syntax_extension_against_resolved_base, lower_syntax_trees,
+    lower_syntax_trees_with_sources, lower_syntax_trees_with_sources_and_top_level_bindings,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -10,6 +10,291 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 mod state_local_resolution;
+
+#[test]
+fn seeded_extension_preserves_base_identity_and_resolves_base_peers_and_shadowing() {
+    let base_source = r#"
+        data Shared { base: u32; }
+        data Authored { shared: Shared; }
+    "#;
+    let extension_source = r#"
+        data Shared { extension: u64; }
+        data Generated { authored: Authored; peer: Peer; shared: Shared; }
+        data Peer { value: u32; }
+    "#;
+    let mut sources = SourceMap::default();
+    let base_source_id = sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let extension_source_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/extension.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
+    let base_syntax =
+        parse_syntax_trees_with_id(base_source_id, &base_tokens).expect("parse base once");
+    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
+        .expect("resolve retained base");
+    let expected_base_roots = base.data_definitions.iter().cloned().collect::<Vec<_>>();
+    let expected_base_members = base
+        .tables
+        .declarations
+        .data_members
+        .iter()
+        .map(|(handle, member)| (handle, member.clone()))
+        .collect::<Vec<_>>();
+    let expected_base_selections = base.authored_declaration_selections().as_slice().to_vec();
+    let base_shared = expected_base_roots[0].symbol;
+    let base_authored = expected_base_roots[1].symbol;
+    let base_shared_span = base
+        .symbols
+        .symbol_source_span(base_shared)
+        .expect("source-backed base Shared");
+    let base_authored_span = base
+        .symbols
+        .symbol_source_span(base_authored)
+        .expect("source-backed base Authored");
+
+    let extension_tokens = Lexer::new(extension_source)
+        .tokenize()
+        .expect("tokenize extension");
+    let extension_syntax = parse_syntax_trees_with_id(extension_source_id, &extension_tokens)
+        .expect("parse extension once");
+    let program = lower_syntax_extension_against_resolved_base(
+        base,
+        &extension_syntax,
+        Arc::new(sources),
+        Vec::new(),
+    )
+    .expect("continue resolution from retained base");
+
+    assert_eq!(
+        program
+            .data_definitions
+            .iter()
+            .take(expected_base_roots.len())
+            .cloned()
+            .collect::<Vec<_>>(),
+        expected_base_roots,
+    );
+    assert_eq!(
+        program
+            .tables
+            .declarations
+            .data_members
+            .iter()
+            .take(expected_base_members.len())
+            .map(|(handle, member)| (handle, member.clone()))
+            .collect::<Vec<_>>(),
+        expected_base_members,
+    );
+    assert_eq!(
+        &program.authored_declaration_selections().as_slice()[..expected_base_selections.len()],
+        expected_base_selections.as_slice(),
+    );
+    assert_eq!(
+        program.symbols.symbol_source_span(base_shared),
+        Some(base_shared_span)
+    );
+    assert_eq!(
+        program.symbols.symbol_source_span(base_authored),
+        Some(base_authored_span)
+    );
+
+    let extension_shared = program
+        .data_definitions
+        .iter()
+        .find(|definition| {
+            definition.name.as_str() == "Shared"
+                && definition.name.source_span().source_id == extension_source_id
+        })
+        .expect("extension Shared");
+    let peer = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Peer")
+        .expect("extension Peer");
+    let generated = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Generated")
+        .expect("extension Generated");
+    let selected = program
+        .data_members(generated.members)
+        .iter()
+        .map(|member| {
+            let psi_symbol_resolved_trees::data::DataMember::Field(field) = member else {
+                panic!("Generated has fields only")
+            };
+            let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, .. } =
+                &field.type_reference
+            else {
+                panic!("Generated fields retain named types")
+            };
+            *symbol
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected,
+        vec![base_authored, peer.symbol, extension_shared.symbol]
+    );
+}
+
+#[test]
+fn seeded_extension_rejects_duplicates_within_its_own_stratum() {
+    let base_source = "data Authored {}";
+    let left_source = "const Limits::VALUE: u64 = 1;";
+    let right_source = "const Limits::VALUE: u64 = 2;";
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let left_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/left.omg"),
+            left_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let right_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/right.omg"),
+            right_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base once");
+    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
+        .expect("resolve base");
+    let left_tokens = Lexer::new(left_source).tokenize().expect("tokenize left");
+    let mut extension = parse_syntax_trees_with_id(left_id, &left_tokens).expect("parse left once");
+    let right_tokens = Lexer::new(right_source).tokenize().expect("tokenize right");
+    extension.extend_from(
+        &parse_syntax_trees_with_id(right_id, &right_tokens).expect("parse right once"),
+    );
+
+    let diagnostics = lower_syntax_extension_against_resolved_base(
+        base,
+        &extension,
+        Arc::new(sources),
+        Vec::new(),
+    )
+    .expect_err("same-stratum duplicate const must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("duplicate const `Limits::VALUE`")
+    }));
+}
+
+#[test]
+fn seeded_extension_retains_base_service_ids_and_authored_reach_provenance() {
+    let base_source = r#"
+        boundary trait Readable {}
+        boundary trait Filesystem: Readable {}
+        machine authored() reaches Filesystem {}
+    "#;
+    let extension_source = r#"
+        boundary trait Aardvark {}
+        machine generated() reaches Filesystem, Aardvark {}
+    "#;
+    let mut sources = SourceMap::default();
+    let base_id = sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from(".omega/generated/reaches.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let base_tokens = Lexer::new(base_source).tokenize().expect("tokenize base");
+    let base_syntax = parse_syntax_trees_with_id(base_id, &base_tokens).expect("parse base once");
+    let base = lower_syntax_trees_with_sources(&base_syntax, Arc::new(sources.clone()))
+        .expect("resolve retained base");
+    let filesystem = base
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Filesystem")
+        .expect("base Filesystem")
+        .symbol;
+    let filesystem_id = base
+        .service_reaches
+        .id_for_symbol(filesystem)
+        .expect("base Filesystem service id");
+    let authored = base
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "authored")
+        .expect("base authored machine");
+    let authored_symbol = authored.symbol;
+    let authored_row = authored.service_reach_row;
+    let authored_provenance = base
+        .authored_service_reach_rows_for(authored_symbol)
+        .cloned()
+        .collect::<Vec<_>>();
+    let extension_tokens = Lexer::new(extension_source)
+        .tokenize()
+        .expect("tokenize extension");
+    let extension_syntax =
+        parse_syntax_trees_with_id(extension_id, &extension_tokens).expect("parse extension once");
+
+    let program = lower_syntax_extension_against_resolved_base(
+        base,
+        &extension_syntax,
+        Arc::new(sources),
+        Vec::new(),
+    )
+    .expect("seeded service resolution");
+    assert_eq!(
+        program.service_reaches.id_for_symbol(filesystem),
+        Some(filesystem_id)
+    );
+    let retained_authored = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == authored_symbol)
+        .expect("retained authored machine");
+    assert_eq!(retained_authored.service_reach_row, authored_row);
+    assert_eq!(
+        program
+            .authored_service_reach_rows_for(authored_symbol)
+            .cloned()
+            .collect::<Vec<_>>(),
+        authored_provenance,
+    );
+    let generated = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "generated")
+        .expect("generated machine");
+    let generated_services = program
+        .service_reach_rows
+        .services(generated.service_reach_row)
+        .iter()
+        .filter_map(|service| program.service_reaches.definition(*service))
+        .map(|definition| definition.name.as_str())
+        .collect::<Vec<_>>();
+    assert!(generated_services.contains(&"Filesystem"));
+    assert!(generated_services.contains(&"Aardvark"));
+}
 
 #[test]
 fn explicit_top_level_boundary_requirement_satisfaction_resolves_exact_machine_symbol() {

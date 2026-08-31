@@ -1,10 +1,10 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
 use super::super::names::symbol_seed;
 
 pub(in crate::symbols) fn insert_proposition_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     proposition_symbol: SymbolHandle,
     proposition: &psi_symbol_resolved_trees::proposition::PropositionDefinition,

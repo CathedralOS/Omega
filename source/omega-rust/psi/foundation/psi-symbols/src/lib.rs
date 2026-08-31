@@ -18,8 +18,8 @@ pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{
-    SourceScopedTopLevelBinding, SymbolNameStorageCounts, SymbolTable, SymbolTableBuilder,
-    SymbolTableExtension,
+    SourceScopedTopLevelBinding, SymbolNameStorageCounts, SymbolTable, SymbolTableAppender,
+    SymbolTableBuilder, SymbolTableExtension,
 };
 
 #[cfg(test)]

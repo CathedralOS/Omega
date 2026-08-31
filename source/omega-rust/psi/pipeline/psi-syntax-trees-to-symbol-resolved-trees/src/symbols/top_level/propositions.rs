@@ -13,7 +13,10 @@ pub(super) fn assign_proposition_symbols(
     let propositions = &mut program.roots.propositions;
 
     propositions.for_each_mut(|proposition| {
-        proposition.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Proposition);
+        if !proposition.symbol.is_valid() {
+            proposition.symbol =
+                next_child_of_kind(root_children, symbols, SymbolKind::Proposition);
+        }
         let mut children = symbols
             .child_handles(proposition.symbol)
             .into_iter()

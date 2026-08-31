@@ -106,7 +106,9 @@ pub(super) fn assign_machine_symbols(
     } = &mut program.roots;
 
     machines.for_each_mut(|machine| {
-        machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
+        if !machine.symbol.is_valid() {
+            machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
+        }
         machine.attached_data_symbol = machine
             .attached_data
             .as_ref()

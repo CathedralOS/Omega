@@ -17,7 +17,9 @@ pub(super) fn assign_domain_symbols(
     let state_parameters = &mut declarations.state_parameters;
     let child_type_references = &mut declarations.child_type_references;
     roots.domain_definitions.for_each_mut(|domain| {
-        domain.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Domain);
+        if !domain.symbol.is_valid() {
+            domain.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Domain);
+        }
         let mut domain_children = symbols.child_handles(domain.symbol).into_iter().flatten();
         for parameter in data_type_parameters.span_mut_or_empty(domain.type_parameters) {
             parameter.symbol =

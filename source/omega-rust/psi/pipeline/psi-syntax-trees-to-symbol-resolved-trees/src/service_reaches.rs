@@ -30,6 +30,22 @@ pub(crate) fn normalize_service_reaches(
     machine_service_reaches: &[(psi_symbols::SymbolHandle, PendingAuthoredServiceReach)],
     signature_service_reaches: &[PendingSignatureServiceReach],
 ) -> Result<(), Diagnostic> {
+    normalize_service_reaches_with_retained_tables(
+        program,
+        machine_service_reaches,
+        signature_service_reaches,
+        ServiceReachTable::default(),
+        ServiceReachRowTable::default(),
+    )
+}
+
+pub(crate) fn normalize_service_reaches_with_retained_tables(
+    program: &mut SymbolResolvedTrees,
+    machine_service_reaches: &[(psi_symbols::SymbolHandle, PendingAuthoredServiceReach)],
+    signature_service_reaches: &[PendingSignatureServiceReach],
+    mut services: ServiceReachTable,
+    mut rows: ServiceReachRowTable,
+) -> Result<(), Diagnostic> {
     let mut boundary_traits = program
         .traits
         .iter()
@@ -48,7 +64,6 @@ pub(crate) fn normalize_service_reaches(
         .collect::<Vec<_>>();
     boundary_traits.sort_by(|left, right| left.1.cmp(&right.1));
 
-    let mut services = ServiceReachTable::default();
     for (symbol, name, _) in &boundary_traits {
         services.intern(*symbol, name);
     }
@@ -63,7 +78,6 @@ pub(crate) fn normalize_service_reaches(
         services.set_parents(service, parents);
     }
 
-    let mut rows = ServiceReachRowTable::default();
     rows.intern(Vec::new());
 
     let machine_rows = program

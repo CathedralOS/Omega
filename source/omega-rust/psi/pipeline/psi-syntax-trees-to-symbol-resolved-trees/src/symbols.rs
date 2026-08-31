@@ -51,3 +51,31 @@ pub(crate) fn assign_symbols(
         Err(diagnostics)
     }
 }
+
+pub(crate) fn assign_symbols_against_resolved_base(
+    program: &mut SymbolResolvedTrees,
+    sources: Arc<SourceMap>,
+    source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+    roots: crate::lowerer::RootWatermarks,
+    const_declarations: &[crate::lowerer::PendingConstDeclaration],
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    symbol_table::extend_symbol_table(
+        program,
+        sources,
+        source_scoped_top_level_bindings,
+        roots,
+        const_declarations,
+    );
+    let symbols = program.symbols.clone();
+    let diagnostics = assign_top_level_symbols(program, &symbols);
+    assign_type_reference_symbols(program, &symbols);
+    propositions::assign_proposition_expression_symbols(program, &symbols);
+    assign_contract_reference_symbols(program, &symbols);
+    assign_domain_fact_symbols(program, &symbols);
+    assign_statement_reference_symbols(program, &symbols);
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
