@@ -69,6 +69,14 @@ Foreign table calls name a field in that validated layout; authored numeric
 slot ordinals are not binding identity. Compiler intrinsics carry no binding
 value at all: the exact realization declaration, signature, and selected target
 select the sealed catalog entry.
+The first production catalog row is Linux `Console::exit_process(i32) -> Unit`.
+It requires exact toolchain-owned requirement and realization symbols, the
+normalized signature and satisfaction edge, a payloadless
+`CompilerIntrinsic` binding, and a selected canonical Linux profile. Canonical
+Terminal replay contributes only the exact demanded boundary identity; later
+compiler-owned evidence rejoins that demand to the selected plan before choosing
+the existing `exit_group` realization. Lookalike symbols, targetless plans,
+sibling Console operations, and non-Linux targets confer no catalog identity.
 Privileged target instructions belong to parsed, contract-emitting `asm {}`;
 `Binding::Instruction` is retired rather than preserving two ways to state the
 same operation with different visibility to effect and authority analysis.

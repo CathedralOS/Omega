@@ -131,6 +131,7 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     let builtin = encoded(PackageReviewCompilerIntrinsicExecution::BuiltinFunction(
         psi_symbols::BuiltinFunction::Min,
     ));
+    let linux_exit = encoded(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32);
     let negate_f32 = encoded(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(
         psi_numerics::literals::FloatFormat::F32,
     ));
@@ -163,6 +164,8 @@ fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
         },
     );
     assert_ne!(builtin, negate_f32);
+    assert_ne!(linux_exit, builtin);
+    assert_eq!(linux_exit, [4]);
     assert_ne!(negate_f32, negate_f64);
     assert_ne!(primitive_add_f32, primitive_subtract_f32);
     assert_ne!(primitive_add_f32, primitive_add_f64);

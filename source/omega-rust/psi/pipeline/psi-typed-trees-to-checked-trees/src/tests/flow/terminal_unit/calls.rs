@@ -566,6 +566,102 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
 }
 
 #[test]
+fn selected_console_exit_intrinsic_projects_the_exact_boundary_requirement() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine exit_process(return_code: i32)
+            reaches Console;
+        }
+
+        data ConsoleNativeProvider {}
+        machine ConsoleNativeProvider::exit_process(return_code: i32)
+            satisfies Console::exit_process
+            via Binding::CompilerIntrinsic;
+
+        data Root { console: Console; }
+        machine Root::enter(&mut self)
+        reaches Console
+        {
+            self.console.exit_process(37);
+        }
+        "#,
+    );
+
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let requirement = plans
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.scalar_parameters.len() == 1)
+        .expect("exact Console exit requirement");
+    let root = plans
+        .for_machine(machine_named(&checked, "Root::enter"))
+        .expect("selected bodyless intrinsic must not remove its caller plan");
+    assert!(matches!(
+        root.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                target_machine,
+                scalar_arguments,
+                structural_arguments,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if *target_machine == requirement.machine
+            && scalar_arguments.len() == 1
+            && structural_arguments.is_empty()
+    ));
+    assert!(
+        plans
+            .for_machine(machine_named(
+                &checked,
+                "ConsoleNativeProvider::exit_process"
+            ))
+            .is_none(),
+        "the bodyless intrinsic is a boundary realization, not a checked transitive body"
+    );
+}
+
+#[test]
+fn other_external_mechanisms_and_signatures_do_not_rejoin_as_intrinsic_boundaries() {
+    for source in [
+        r#"
+        boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        data ConsoleNativeProvider {}
+        machine ConsoleNativeProvider::exit_process(return_code: i32)
+            satisfies Console::exit_process
+            via Binding::DllImport("libSystem.B.dylib", "_exit");
+        data Root {}
+        machine Root::enter() reaches Console {
+            ConsoleNativeProvider::exit_process(37);
+        }
+        "#,
+        r#"
+        boundary trait Console { machine write_byte(byte: i64) reaches Console; }
+        data ConsoleNativeProvider {}
+        machine ConsoleNativeProvider::write_byte(byte: i64)
+            satisfies Console::write_byte
+            via Binding::CompilerIntrinsic;
+        data Root {}
+        machine Root::enter() reaches Console {
+            ConsoleNativeProvider::write_byte(37);
+        }
+        "#,
+    ] {
+        let checked = checked(source);
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine_named(&checked, "Root::enter"))
+                .is_none(),
+            "unsupported external mechanism or signature unexpectedly rejoined a boundary"
+        );
+    }
+}
+
+#[test]
 fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
     let checked = checked(
         r#"

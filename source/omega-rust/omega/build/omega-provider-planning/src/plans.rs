@@ -2876,6 +2876,10 @@ impl CompilerNumericType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompilerIntrinsicExecutionIdentity {
+    /// Exact toolchain-owned `Console::exit_process(i32) -> Unit` row selected
+    /// for one canonical Linux target. Native settlement remains a later
+    /// phase; this identity closes only package-review catalog authority.
+    LinuxExitGroupI32,
     BuiltinFunction(psi_symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: CompilerPrimitiveFloatBinaryOperation,

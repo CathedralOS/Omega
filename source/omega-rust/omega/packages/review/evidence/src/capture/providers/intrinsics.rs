@@ -1,10 +1,12 @@
 use crate::record::PackageReviewCompilerIntrinsicExecution;
 use omega_compiler::CheckedCompilation;
 use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
-use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;
+use omega_provider_planning::plans::{
+    CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration,
+};
 use omega_selected_dispatch::{
     SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity,
+    derive_selected_compiler_intrinsic_execution_identity_for_row,
 };
 use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
@@ -13,19 +15,25 @@ pub(crate) fn project_compiler_intrinsic_execution(
     compilation: &CheckedCompilation,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    boundary_operator: bool,
+    schema: ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
 ) -> Result<Option<PackageReviewCompilerIntrinsicExecution>, Vec<Diagnostic>> {
-    if !boundary_operator || !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
+    if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
         return reconcile_compiler_intrinsic_execution(&plan.name, false, None, retained)
             .map(|identity| identity.map(project_execution_identity))
             .map_err(|message| vec![Diagnostic::error(message)]);
     }
-    let derived = derive_selected_compiler_intrinsic_execution_identity(
+    let derived = derive_selected_compiler_intrinsic_execution_identity_for_row(
         compilation,
         plan,
+        schema,
+        row,
         requirement_symbol,
+        realization_symbol,
+        selected_target,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
     reconcile_compiler_intrinsic_execution(&plan.name, true, derived, retained)
@@ -37,6 +45,9 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
+            PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)
         }
@@ -60,6 +71,9 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
+            "Linux exit-group with one `i32` argument".to_owned()
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             format!("builtin function `{}`", function.name())
         }
@@ -125,18 +139,36 @@ fn reconcile_compiler_intrinsic_execution(
 
 #[cfg(test)]
 mod tests {
-    use super::reconcile_compiler_intrinsic_execution;
+    use super::{project_execution_identity, reconcile_compiler_intrinsic_execution};
+    use crate::record::PackageReviewCompilerIntrinsicExecution;
     use omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity;
 
     #[test]
     fn execution_reconciliation_rejects_missing_mismatched_and_spoofed_state() {
         use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::{
-            BuiltinFunction, NamedFloatConversion, NamedFloatNegation, PrimitiveFloatBinary,
+            BuiltinFunction, LinuxExitGroupI32, NamedFloatConversion, NamedFloatNegation,
+            PrimitiveFloatBinary,
         };
         use omega_provider_planning::plans::CompilerNumericType;
         use psi_numerics::arithmetic::ArithmeticDomain;
         use psi_numerics::literals::FloatFormat;
         use psi_symbols::BuiltinFunction::{Max, Min};
+
+        assert_eq!(
+            reconcile_compiler_intrinsic_execution(
+                "linux-exit",
+                true,
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    LinuxExitGroupI32,
+                )),
+                Some(LinuxExitGroupI32),
+            ),
+            Ok(Some(LinuxExitGroupI32)),
+        );
+        assert_eq!(
+            project_execution_identity(LinuxExitGroupI32),
+            PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32,
+        );
 
         assert_eq!(
             reconcile_compiler_intrinsic_execution(

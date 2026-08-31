@@ -248,6 +248,114 @@ pub(super) fn build_affine_array_construction_prefix(
     Some((rows, 1))
 }
 
+/// Rejoin a bodyless compiler-intrinsic satisfier to the exact boundary-trait
+/// requirement whose call it realizes. Provider selection may resolve a call
+/// to the target satisfier before checked Unit planning; that satisfier is not
+/// an ordinary transitive machine body. Terminal projection grants no
+/// execution authority here: the later sealed compiler catalog independently
+/// decides whether the exact requirement/realization/target tuple is native.
+pub(super) fn exact_compiler_intrinsic_boundary_requirement(
+    program: &TypedTrees,
+    target_state_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let mut machines = program.machines().iter().filter(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == target_state_symbol)
+    });
+    let machine = machines.next()?;
+    if machines.next().is_some()
+        || machine.body_is_present
+        || !machine.lifetime_parameters.is_empty()
+        || !program.machine_type_parameters(machine).is_empty()
+    {
+        return None;
+    }
+    let MachineSupplyMode::ExternalRealization { binding, mechanism } = machine.supply_mode else {
+        return None;
+    };
+    if mechanism != psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic
+        || program.external_bindings.identity(binding)
+            != Some(&psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic)
+    {
+        return None;
+    }
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    if state.symbol != target_state_symbol
+        || !exact_direct_intrinsic_signature(
+            program,
+            program.state_parameters(state),
+            state.return_type,
+        )
+    {
+        return None;
+    }
+
+    let mut matches = program
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter_map(|conformance| {
+            if conformance.external_binding != Some(binding)
+                || conformance.requirement.is_none()
+                || !program
+                    .type_reference_table
+                    .type_reference_handles(conformance.arguments)
+                    .is_empty()
+            {
+                return None;
+            }
+            let psi_typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            } = psi_typed_trees::machine::resolve_satisfied_declaration(
+                program,
+                machine,
+                conformance,
+            )?
+            else {
+                return None;
+            };
+            (definition.symbol == conformance.symbol
+                && definition.is_boundary
+                && definition.lifetime_parameters.is_empty()
+                && program.trait_type_parameters(definition).is_empty()
+                && requirement.symbol == conformance.requirement_symbol
+                && requirement.lifetime_parameters.is_empty()
+                && program
+                    .state_signature_type_parameters(requirement)
+                    .is_empty()
+                && requirement.native_callback_parameters.is_empty()
+                && !requirement.suspends
+                && !requirement.blocks
+                && exact_direct_intrinsic_signature(
+                    program,
+                    program.state_signature_parameters(requirement),
+                    requirement.return_type,
+                ))
+            .then_some(requirement.symbol)
+        });
+    let requirement = matches.next()?;
+    matches.next().is_none().then_some(requirement)
+}
+
+fn exact_direct_intrinsic_signature(
+    program: &TypedTrees,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+    return_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let [parameter] = parameters else {
+        return false;
+    };
+    !parameter.is_self
+        && !parameter.is_const
+        && !parameter.is_mutable
+        && program.primitive_type_reference(parameter.type_reference) == Some(PrimitiveType::I32)
+        && is_unit(program, return_type)
+}
+
 pub(super) fn build_call_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -306,6 +414,10 @@ pub(super) fn build_call_operation(
         });
     }
 
+    let direct_boundary_target =
+        exact_compiler_intrinsic_boundary_requirement(program, call.target_symbol)
+            .unwrap_or(call.target_symbol);
+    let selected_realization = direct_boundary_target != call.target_symbol;
     let mut static_boundaries = program
         .traits()
         .iter()
@@ -314,11 +426,13 @@ pub(super) fn build_call_operation(
             program
                 .trait_machine_signatures(definition)
                 .iter()
-                .filter(move |signature| signature.symbol == call.target_symbol)
+                .filter(move |signature| signature.symbol == direct_boundary_target)
                 .map(move |signature| (definition, signature, false))
         })
         .collect::<Vec<_>>();
-    if let Some((_, requirement)) = program.machine_parameter_signature(call.target_symbol) {
+    if direct_boundary_target == call.target_symbol
+        && let Some((_, requirement)) = program.machine_parameter_signature(call.target_symbol)
+    {
         static_boundaries.extend(
             program
                 .traits()
@@ -427,7 +541,9 @@ pub(super) fn build_call_operation(
                 .iter()
                 .any(|parameter| !parameter.is_self && (parameter.is_const || parameter.is_mutable))
             || arguments.len() != abi_parameters.len()
-            || if *selected_parameter {
+            || if selected_realization {
+                call.has_receiver
+            } else if *selected_parameter {
                 call.has_receiver
             } else {
                 !call.has_receiver

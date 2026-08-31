@@ -4,6 +4,7 @@ use psi_core::PackageKeyIdentity;
 /// Exact declarations bound to one selected provider realization row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
+    LinuxExitGroupI32,
     BuiltinFunction(psi_symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation,
@@ -48,6 +49,7 @@ impl CheckedPackageProviderRowIdentity {
                 Some(function)
             }
             Some(PackageReviewCompilerIntrinsicExecution::PrimitiveFloatBinary { .. })
+            | Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32)
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatNegation(_))
             | Some(PackageReviewCompilerIntrinsicExecution::NamedFloatConversion { .. })
             | None => None,

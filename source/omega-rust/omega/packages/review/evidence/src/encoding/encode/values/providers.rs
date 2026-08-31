@@ -94,6 +94,9 @@ pub(super) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
+        PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32 => {
+            encoder.byte(4);
+        }
         PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function) => {
             encoder.byte(0);
             encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {

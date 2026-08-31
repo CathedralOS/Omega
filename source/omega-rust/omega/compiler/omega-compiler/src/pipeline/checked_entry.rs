@@ -943,6 +943,7 @@ fn compile_to_checked_inner_with_replay(
         SelectedExecutionSettlementInput {
             exact_component_progress_root,
             provider_selection_target,
+            selected_target_profile,
             selected_provider_provenance,
         },
     )?;

@@ -2566,8 +2566,11 @@ payload-bearing. Projection retains the normalized requirement-overload
 identity and independently rejoins the exact satisfies symbols, binding,
 provider type, selected plan when present, and realization declaration.
 Disclosure of an unselected leaf still implies no selection or audit.
-Compiler-intrinsic execution remains closed pending catalog settlement, and
-canonical recovery remains v14.
+Package review v97/canonical row v55 closes the first compiler-intrinsic catalog
+identity for the exact selected Linux `Console::exit_process(i32) -> Unit`
+requirement and realization. Targetless, non-Linux, wrong-symbol,
+wrong-signature, and sibling rows remain closed; further intrinsic entries still
+require their own catalog settlement. Canonical recovery remains v14.
 
 For a selected payload-bearing top-level external satisfier, provider planning
 extracts the foreign calling row from the same exact selected plan. The ABI

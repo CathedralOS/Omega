@@ -1,6 +1,6 @@
 use crate::{
     SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity,
+    derive_selected_compiler_intrinsic_execution_identity_for_row,
 };
 use omega_provider_planning::plans::SelectedProviderReviewProvenance;
 use psi_checked_trees::CheckedTrees;
@@ -18,6 +18,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
     checked: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
+    selected_target: Option<&str>,
 ) -> Result<(), Vec<Diagnostic>> {
     let plans = selected_provider_plans.plans();
     if plans.len() != provenance.len() {
@@ -31,6 +32,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
     for (plan, retained) in plans.iter().zip(provenance.iter()) {
         if retained.plan != *plan
             || retained.provider.row_requirements.len() != plan.rows.len()
+            || retained.provider.row_realizations.len() != plan.rows.len()
             || !retained.row_compiler_intrinsic_executions.is_empty()
         {
             diagnostics.push(Diagnostic::error(format!(
@@ -42,21 +44,27 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
         }
 
         let mut rows = Vec::with_capacity(plan.rows.len());
-        for (row, requirement_symbol) in plan.rows.iter().zip(&retained.provider.row_requirements) {
+        for ((row, requirement_symbol), realization_symbol) in plan
+            .rows
+            .iter()
+            .zip(&retained.provider.row_requirements)
+            .zip(&retained.provider.row_realizations)
+        {
             if !matches!(
-                retained.provider.schema,
-                omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_)
-            ) || !matches!(
                 row.binding,
                 omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
             ) {
                 rows.push(None);
                 continue;
             }
-            match derive_selected_compiler_intrinsic_execution_identity(
+            match derive_selected_compiler_intrinsic_execution_identity_for_row(
                 checked,
                 plan,
+                retained.provider.schema,
+                row,
                 *requirement_symbol,
+                *realization_symbol,
+                selected_target,
             ) {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
                     rows.push(Some(identity))

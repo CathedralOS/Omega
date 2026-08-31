@@ -46,6 +46,7 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
     pub(super) exact_component_progress_root:
         Option<crate::pipeline::component_progress::ExactComponentProgressRoot<'a>>,
     pub(super) provider_selection_target: omega_target::NativeTarget,
+    pub(super) selected_target_profile: Option<omega_target::TargetProfile>,
     pub(super) selected_provider_provenance:
         Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
 }
@@ -164,6 +165,9 @@ pub(super) fn settle_selected_execution(
         &checked.program,
         &checked.selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
+        settlement
+            .selected_target_profile
+            .map(omega_target::TargetProfile::target_name),
     )?;
     omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked.program,
