@@ -11442,8 +11442,21 @@ checked-result arithmetic decision listed below.
   across the complete cohort. Paths deeper than five records, recursive or
   array-mediated paths, direct-sum coexistence, and target-dependent placement
   remain rejected; every shallower API retains its exact boundary.
+  The complete plural depth-six fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural depth-five
+  report for that occurrence. The distinct non-clone carrier composes the
+  corresponding depth-five carriers, preserves repeated nominal occurrences,
+  rebuilds every nested zero-padded image in authored order, replays every
+  layout and occurrence identity hash-free, and performs one final atomic copy.
+  Projection and replay share one memoized bounded walk and global leaf ceiling
+  across the complete cohort. Paths deeper than six records, recursive or
+  array-mediated paths, direct-sum coexistence, and target-dependent placement
+  remain rejected; every shallower API retains its exact boundary.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  five records, plural paths deeper than five records, mixed common-field/case
+  six records, plural paths deeper than six records, mixed common-field/case
   shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
