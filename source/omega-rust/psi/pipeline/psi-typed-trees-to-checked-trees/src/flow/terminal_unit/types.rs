@@ -1130,7 +1130,7 @@ impl<'program> ShapeCollector<'program> {
             element_type,
             length:
                 psi_typed_trees::types::FixedArrayLength::Literal(
-                    length @ (2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11),
+                    length @ (2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12),
                 ),
         } = self.program.type_reference_table.type_reference(resolved)
         else {

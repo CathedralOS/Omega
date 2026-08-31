@@ -1068,8 +1068,18 @@ zero-ABI local places, the Unit return discards them as
 `[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the verifier, codec, interpreter, Omega
 lowering, native emission, object/image replay, and installation encoding
 retain the common root plus exact eleven fuel units. Missing/reordered
-operations or cleanup, changed indices/root length, and length-twelve or wider
-prefixes reject; no runtime liveness bitmap or cleanup loop is introduced.
+operations or cleanup, changed indices/root length, and other prefix drift
+reject; no runtime liveness bitmap or cleanup loop is introduced.
+
+The next bounded carrier admits the same shape at length twelve with
+establishments `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`. Terminal publishes eleven
+ordered zero-ABI local places, the Unit return discards them as
+`[10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the verifier, codec, interpreter,
+Omega lowering, native emission, object/image replay, and installation encoding
+retain the common root plus exact twelve fuel units. Missing/reordered
+operations or cleanup, changed indices/root length, and length-thirteen or
+wider prefixes reject; no runtime liveness bitmap or cleanup loop is
+introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
 finite nonempty list of claim-free, unqualified affine parameters whose records
@@ -2215,9 +2225,13 @@ form admits exactly four enclosing relevant record fields and replays the same
 complete ordered path through equality, inequality, whole-root call rebasing,
 codecs, verification, fixed fuel, interpretation, and independent prefix
 mutation. A fifth bounded form admits exactly five enclosing relevant record
-fields and replays the same complete ordered path. Six or more enclosing
-fields, mixed values below case payloads or another mixed shape, two mixed
-sibling fields, direct projected mixed comparisons, recursive cycles, address
+fields and replays the same complete ordered path. A sixth bounded form admits
+exactly six enclosing relevant record fields and replays the same complete
+ordered path through whole-root equality, inequality, Unit-call rebasing,
+codecs, verification, fixed fuel, interpretation, and independent prefix
+mutation. Seven or more enclosing fields, mixed values below case payloads or
+another mixed shape, two mixed sibling fields, direct projected mixed
+comparisons, recursive cycles, address
 and erased payload equality, written
 `equals` bodies, and runtime sum layout remain outside this bounded terminal
 slice. When an acyclic

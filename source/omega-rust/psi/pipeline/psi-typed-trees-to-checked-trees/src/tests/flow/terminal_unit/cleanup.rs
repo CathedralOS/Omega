@@ -696,6 +696,76 @@ fn retains_ten_element_fixed_array_construction_prefix_and_reverse_cleanup() {
 }
 
 #[test]
+fn retains_eleven_element_fixed_array_construction_prefix_and_reverse_cleanup() {
+    let checked = checked(
+        r#"
+        data Empty {}
+        data Root {}
+        machine Root::enter() {
+            let mut values: [Empty; 12];
+            values[0] = Empty {};
+            values[1] = Empty {};
+            values[2] = Empty {};
+            values[3] = Empty {};
+            values[4] = Empty {};
+            values[5] = Empty {};
+            values[6] = Empty {};
+            values[7] = Empty {};
+            values[8] = Empty {};
+            values[9] = Empty {};
+            values[10] = Empty {};
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "enter"))
+        .expect("eleven-element construction prefix should have a Unit plan");
+    assert_eq!(plan.trivial_affine_locals.len(), 11);
+    assert!(
+        plan.trivial_affine_locals
+            .iter()
+            .enumerate()
+            .all(|(index, local)| {
+                usize::try_from(local.declaration_ordinal) == Ok(index)
+                    && local.type_identity == "named(name(Empty))"
+                    && local.construction.as_ref().is_some_and(|construction| {
+                        construction.root_type_identity == "array(named(name(Empty)),literal(12))"
+                            && usize::try_from(construction.index) == Ok(index)
+                    })
+            })
+    );
+    assert_eq!(plan.operations.len(), 12);
+    assert!(
+        plan.operations[..11]
+            .iter()
+            .enumerate()
+            .all(|(index, operation)| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
+                        statement_index,
+                        declaration_ordinal,
+                        ..
+                    } if usize::try_from(*statement_index) == Ok(index + 1)
+                        && usize::try_from(*declaration_ordinal) == Ok(index)
+                )
+            })
+    );
+    assert!(matches!(
+        &plan.operations[11],
+        CheckedUnitEffectOperationPlan::ReturnUnit {
+            statement_index: 12,
+            trivial_affine_local_discard_ordinals,
+            trivial_affine_discards,
+        } if trivial_affine_local_discard_ordinals == &[10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+            && trivial_affine_discards.is_empty()
+    ));
+}
+
+#[test]
 fn wider_construction_prefix_rejects_missing_or_reordered_establishments() {
     for (name, body) in [
         (
@@ -891,7 +961,7 @@ fn wider_construction_prefix_rejects_missing_or_reordered_establishments() {
             "#,
         ),
         (
-            "length_twelve",
+            "missing_twelve",
             r#"
                 let mut values: [Empty; 12];
                 values[0] = Empty {};
@@ -904,7 +974,41 @@ fn wider_construction_prefix_rejects_missing_or_reordered_establishments() {
                 values[7] = Empty {};
                 values[8] = Empty {};
                 values[9] = Empty {};
+            "#,
+        ),
+        (
+            "reordered_twelve",
+            r#"
+                let mut values: [Empty; 12];
+                values[0] = Empty {};
+                values[1] = Empty {};
+                values[2] = Empty {};
+                values[3] = Empty {};
+                values[4] = Empty {};
+                values[5] = Empty {};
+                values[6] = Empty {};
+                values[7] = Empty {};
+                values[8] = Empty {};
                 values[10] = Empty {};
+                values[9] = Empty {};
+            "#,
+        ),
+        (
+            "length_thirteen",
+            r#"
+                let mut values: [Empty; 13];
+                values[0] = Empty {};
+                values[1] = Empty {};
+                values[2] = Empty {};
+                values[3] = Empty {};
+                values[4] = Empty {};
+                values[5] = Empty {};
+                values[6] = Empty {};
+                values[7] = Empty {};
+                values[8] = Empty {};
+                values[9] = Empty {};
+                values[10] = Empty {};
+                values[11] = Empty {};
             "#,
         ),
     ] {
