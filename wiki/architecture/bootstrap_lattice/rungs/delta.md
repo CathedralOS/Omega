@@ -73,8 +73,9 @@ incomplete entry-diagnostic judgment. D36's qualified-only receiver parser and
 case/machine collision census are implemented; its qualified-expression
 application classification remains open. D37 settles dependent parent
 composition and relational statement/projection anchors; its full body/control
-enforcement remains implementation work. Q6 blocks only the accepted receiver
-set for `.as_slice`. D34 has settled physical storage refusal; its
+implementation work. D38 settles the place-valued fixed-array receiver and
+non-place full-view result for `.as_slice`; its enforcement remains
+implementation work. D34 has settled physical storage refusal; its
 implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private

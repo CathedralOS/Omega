@@ -1433,8 +1433,8 @@ Projection likewise consumes complete premises. An absent member is
 `UnknownName` at the member spelling. A known member of the wrong kind, a known
 contextual member on an unsupported receiver, or a non-`i32` index/bound is
 `TypeMismatch` at the enclosing postfix expression start. This failure rule
-also governs whichever `.as_slice` receivers the separate receiver-set decision
-excludes.
+also governs D38's complete non-array `.as_slice` receivers; D38 separately
+requires a place fact from an otherwise supported fixed-array receiver.
 
 Operator, call, constructor, and postfix relational failures anchor at the
 enclosing expression start; arity at the application start; `InvalidPlace` at
@@ -1450,6 +1450,40 @@ reasons at one exact coordinate after the premise DAG are an internal compiler
 contradiction and yield outer `InternalFailure`; reason-code order never breaks
 the tie. Runtime short-circuiting, transition selection, and compiler traversal
 do not suppress static checking of authored children or arms.
+
+## D38 — Delta `.as_slice` borrows only a place-valued fixed array
+
+Delta's field-like contextual `.as_slice` postfix is admitted only when its
+complete receiver result is a fixed-array value carrying a place. It evaluates
+that receiver exactly once and produces a non-place immutable `&[T]` view over
+the exact full range `0..N`. The operation allocates and copies nothing,
+performs no bounds check, and cannot trap. This is the allocation-free bridge
+from owning fixed storage to the view surface; an existing view is used
+directly and owns no redundant identity conversion.
+
+A fixed-array value without a place contributes `InvalidPlace` at the receiver
+expression's start. Every other complete receiver type, including an immutable
+view, contributes `TypeMismatch` at the enclosing postfix expression's start.
+An unresolved receiver produces no `.as_slice` candidate. These are applications
+of D37's premise DAG: the first rule consumes a complete value and its required
+place fact, while an absent receiver result cannot create a parent failure.
+Consequently `f().as_slice = x` produces only the receiver `InvalidPlace`; the
+failed postfix has no result from which assignment-place checking could derive
+a second candidate.
+
+The accepted spelling is the `.as_slice` postfix itself. A following `()` is a
+separate syntactic call suffix, so `array.as_slice()` parses as
+`(array.as_slice)()` and rejects when it attempts to call the resulting view.
+Authored record fields named `as_slice` remain ordinary fields because
+contextual selection happens only after base-type classification. A computed
+place such as `arrays[index()].as_slice` remains useful and evaluates the
+effectful receiver exactly once; admitting place receivers does not create a
+temporary-storage or lifetime rule for returned array values.
+
+This matches the owning-container boundary in Omega core: `Array::as_slice`
+adapts fixed storage to the borrowed `Slice` surface, while `Slice` itself owns
+no `as_slice` identity operation. Delta remains independently normative, but it
+does not broaden that member set in the rung intended to be Omega-shaped.
 
 ## Dependency order
 

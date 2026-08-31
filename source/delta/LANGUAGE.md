@@ -385,7 +385,23 @@ once from left to right. Arrays are fixed in length and never allocate.
 An array or view access evaluates its base and then its index. An index outside
 `0..length-1` traps as `Bounds` before any access. A slice `a[lo..hi]` requires
 `0 <= lo <= hi <= length`; otherwise it traps as `Bounds`. `.len` returns an
-`i32`; `.as_slice` returns the full view.
+`i32`.
+
+`.as_slice` is a field-like contextual postfix admitted only on a complete
+fixed-array value that carries a place. It evaluates that receiver exactly once
+and returns a non-place immutable `&[T]` view over the array's exact full range
+`0..N`; it performs no allocation, copy, or bounds check and cannot trap. A
+fixed-array value without a place contributes `InvalidPlace` at the receiver
+expression's start. Every other complete receiver type, including an existing
+immutable view, contributes `TypeMismatch` at the enclosing postfix
+expression's start. An unresolved receiver contributes no `.as_slice`
+candidate. An authored record field named `as_slice` remains an ordinary field:
+contextual selection occurs only after base-type classification.
+
+Because postfix suffixes compose, `array.as_slice()` parses as
+`(array.as_slice)()` rather than as an alternate spelling of the contextual
+operation. The resulting view is not callable, so the additional call suffix
+contributes `TypeMismatch` under the ordinary call rule.
 
 ## 7. Scalar operations
 
@@ -459,12 +475,14 @@ Projection rules consume complete base and index/bound facts. An absent member
 on any complete base contributes `UnknownName` at the member spelling. A known
 member of the wrong kind, a known contextual member on an unsupported receiver,
 or a non-`i32` required index or bound contributes `TypeMismatch` at the
-enclosing postfix expression's start. The separately selected `.as_slice`
-receiver set follows this same failure rule.
+enclosing postfix expression's start. The fixed-array `.as_slice` relation is
+the one contextual exception requiring a place fact: a supported array type
+without that fact contributes `InvalidPlace` rather than `TypeMismatch`.
 
 Body/control anchors are otherwise exact. Unary, binary, call, constructor,
 and postfix relational failures use the enclosing expression start; arity uses
-the application start. `InvalidPlace` uses the left-side place start. A `let`,
+the application start. `InvalidPlace` uses the left-side place start or the
+receiver start of a place-requiring contextual postfix. A `let`,
 assignment, `assert`, return, or transition value-type relation uses the
 initializer, assigned value, asserted expression, returned expression, or
 transition subject start respectively. A required but absent return value uses
