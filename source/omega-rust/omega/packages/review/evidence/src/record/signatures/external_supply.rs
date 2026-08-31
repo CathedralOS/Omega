@@ -61,13 +61,16 @@ pub enum PackageReviewExternalStaticParameter {
     Const {
         type_identity: PackageReviewTypeIdentity,
     },
+    Machine {
+        contract: PackageReviewMachineParameterContract,
+    },
 }
 
 impl PackageReviewExternalStaticParameter {
     pub const fn type_properties(&self) -> Option<PackageReviewDataProperties> {
         match self {
             Self::Type { properties } => Some(*properties),
-            Self::Const { .. } => None,
+            Self::Const { .. } | Self::Machine { .. } => None,
         }
     }
 
@@ -75,14 +78,23 @@ impl PackageReviewExternalStaticParameter {
         match self {
             Self::Type { .. } => None,
             Self::Const { type_identity } => Some(type_identity),
+            Self::Machine { .. } => None,
+        }
+    }
+
+    pub const fn machine_contract(&self) -> Option<&PackageReviewMachineParameterContract> {
+        match self {
+            Self::Type { .. } | Self::Const { .. } => None,
+            Self::Machine { contract } => Some(contract),
         }
     }
 }
 
 /// Self-contained callable shape for executable code supplied outside Omega.
 /// The static telescope currently represents ordinary type parameters with
-/// their exact property bounds and const parameters with their exact carrier;
-/// the adjacent conformance telescope retains exact structural generic bounds.
+/// their exact property bounds, const parameters with their exact carrier, and
+/// static-machine parameters with their complete recursive contract. The
+/// adjacent conformance telescope retains exact structural generic bounds.
 /// Projection rejects other static kinds until their exact structure has a
 /// stable carrier here.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

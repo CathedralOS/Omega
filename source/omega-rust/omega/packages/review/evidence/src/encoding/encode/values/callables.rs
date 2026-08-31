@@ -1,5 +1,6 @@
 use super::super::declarations::{
-    encode_conformance_bound, encode_data_properties, encode_type_identity, encode_type_parameter,
+    encode_conformance_bound, encode_data_properties, encode_machine_parameter_contract,
+    encode_type_identity, encode_type_parameter,
 };
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
@@ -134,6 +135,10 @@ pub(super) fn encode_external_callable_signature(
             PackageReviewExternalStaticParameter::Const { type_identity } => {
                 encoder.byte(1);
                 encode_type_identity(encoder, type_identity)?;
+            }
+            PackageReviewExternalStaticParameter::Machine { contract } => {
+                encoder.byte(2);
+                encode_machine_parameter_contract(encoder, contract)?;
             }
         }
         Ok(())

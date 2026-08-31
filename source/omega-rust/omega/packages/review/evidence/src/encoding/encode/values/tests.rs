@@ -10,8 +10,8 @@ use crate::record::{
     PackageReviewContractExpression, PackageReviewDataProperties, PackageReviewExternalBinding,
     PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
     PackageReviewExternalRequirement, PackageReviewExternalStaticParameter,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,
-    PackageReviewTypeIdentity,
+    PackageReviewMachineParameterContract, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
@@ -187,7 +187,16 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
             trait_lifetime_arguments: Vec::new(),
             arguments: Vec::new(),
         });
-    assert_ne!(changed_const_key, encode_key(&changed_conformance_bounds));
+    let conformance_key = encode_key(&changed_conformance_bounds);
+    assert_ne!(changed_const_key, conformance_key);
+
+    let mut changed_machine_telescope = changed_conformance_bounds;
+    changed_machine_telescope.signature.static_parameters.push(
+        PackageReviewExternalStaticParameter::Machine {
+            contract: PackageReviewMachineParameterContract::RequirementIdentity,
+        },
+    );
+    assert_ne!(conformance_key, encode_key(&changed_machine_telescope));
 }
 
 pub(crate) fn normalized_import_row(

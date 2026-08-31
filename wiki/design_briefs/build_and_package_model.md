@@ -2621,6 +2621,16 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v111/canonical row v69 admits static-machine parameters in
+external callable signatures. Structural contracts retain their complete
+recursively alpha-normalized static/value signature, contracts, crash ceiling,
+service and invocation envelope, suspension/blocking flags, and termination
+guarantee; nominal contracts retain exact public trait and requirement
+identity. Review reruns the compiler's binder-positional recursive refinement
+before projecting the independently exact requirement and provider telescopes.
+Post-check kind substitution and inapplicable type-property bounds reject.
+Canonical-row recovery remains v15.
+
 Package review v110/canonical row v68 retains each external callable's ordered
 structural conformance-bound telescope. Top-level requirement supply
 independently projects both telescopes and currently admits only exact
