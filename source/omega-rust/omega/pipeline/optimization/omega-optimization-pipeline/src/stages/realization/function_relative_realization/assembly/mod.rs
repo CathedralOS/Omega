@@ -6,6 +6,7 @@ mod custody;
 mod manifests;
 mod rel8;
 mod statistics;
+mod validation;
 
 pub(super) use custody::*;
 pub(super) use manifests::{
@@ -14,6 +15,7 @@ pub(super) use manifests::{
 };
 pub(super) use rel8::*;
 pub(crate) use statistics::{function_relative_statistics, seal_function_relative_manifest};
+pub(super) use validation::validate_realization_artifacts;
 
 pub(super) fn build_realization<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -70,47 +72,4 @@ pub(super) fn build_realization<S: ValidatedSelectedAnalysis>(
         exit_contract,
         manifest,
     ))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn validate_realization_artifacts<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
-    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
-    exit_contract: &ValidatedWholeFunctionExitContract,
-    selections: &OptimizationSelections,
-) -> Result<(), FunctionRelativeOptimizationRealizationError> {
-    validate_optimized_layout_independent_selected_form_encoding(
-        selected, machine, physical, encoding,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout(
-        selected,
-        machine,
-        physical,
-        encoding,
-        baseline_layout,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_selected_relaxation(
-        selected,
-        machine,
-        physical,
-        encoding,
-        baseline_layout,
-        relaxation,
-        selections,
-    )?;
-    validate_exit_contract(
-        selected,
-        machine,
-        physical,
-        encoding,
-        baseline_layout,
-        relaxation,
-        exit_contract,
-    )
 }

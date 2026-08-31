@@ -182,6 +182,18 @@ custody boundaries are executable entrances, not generic codec buckets.
 
 ## Where to enter the source
 
+Do not begin by searching for an optimization name across the pipeline. Start
+at one of these coordination files and descend through its visible catalog or
+route:
+
+| Question | Entrance |
+|---|---|
+| Which Psi optimizations were explicitly requested, and what verified plan leaves? | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` |
+| Which physical phase composition runs next? | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` |
+| Which exact Psi passes and local rules are enabled? | `omega-psi-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
+| Which selected-lowering or allocation-recovery rule is enabled? | `omega-regalloc/src/rules/<phase>/mod.rs` -> adjacent `catalog.rs` |
+| Which post-allocation machine rule is enabled for the ISA? | `omega-machine-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
+
 ```text
 source/omega-rust/omega/
   representations/

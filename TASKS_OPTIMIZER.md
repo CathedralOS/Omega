@@ -14,7 +14,9 @@ decision. Only true language-semantic questions belong in
 
 ## Now
 
-1. [>] Restore the source-navigation contract. Complete the organization work
+1. [>] Restore the source-navigation contract. The rule-owning optimizer and
+   lowering roots now satisfy the hard entrance/leaf limits with no
+   exceptions. Finish the compiler-hook and optimized-carrier boundary audit
    below before adding another broad optimization family.
 2. [x] Split the fixed-view-copy artifact architecture from v4 to v5. V5
    carries `SelectedInstructionPlan::structural_unit_functions`; v4 remains
@@ -210,19 +212,34 @@ decision. Only true language-semantic questions belong in
   scalar-affine cleanup, target selection, and Terminal-to-native realization.
   Their maps are 5-21 lines, all existing tests remain, and the largest focused
   leaf is 479 lines.
-- [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 4 remain at 600-749
-  lines.
-- [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
-  audit has no test/fixture leaves at 1,000+ lines; 11 remain at 800-999 lines.
-  Continue until every broad matrix mirrors its production or behavior
-  taxonomy below the 800-line target.
+- [x] Ratchet every governed production leaf to at most 600 lines. The final
+  debt split covers core identities/contracts, pre-allocation identity,
+  post-allocation replay, and Unit assignment; production now has no size
+  exceptions.
+- [x] Ratchet every governed focused test and fixture to at most 800 lines.
+  The final eleven matrices now descend by pass behavior, identity replay,
+  assignment family, structural custody, allocation recovery, and provider
+  installation.
 - [x] Replace parallel rule-stage path arrays in the organization guard with
   typed stage descriptors and generic entrance/catalog/next-rung checks.
   Bespoke checks remain only for genuinely stage-specific invariants.
-- [ ] Keep the hard migration ceilings at 1,000 production and 1,500 tests
-  until the ratchet is complete. Crossing the 600/800 refactor target creates
-  explicit non-growing debt; it is not considered healthy organization.
+- [x] Replace the temporary 1,000/1,500 migration ceilings with hard 600/800
+  production/test limits. All three entrance exceptions were split away; the
+  default 100-line executable-entrance limit now has no exceptions.
+- [ ] Extract the compiler-facing optimization vocabulary, selection,
+  checked-entry handoff, rollback, and native-driver hooks into focused
+  optimization subtrees, then add those entrances to the organization guard.
+  Do not govern entire compiler/build crates as a proxy for this boundary.
+- [ ] Add the optimized program-entry carriers and selected/assigned optimizer
+  representations to the governed boundary. First split the existing
+  771-line optimized semantic entry, 744-line wrapper, and 729-line assigned
+  representation entrance beneath the production ratchet.
+- [ ] Resolve the narrow `omega-image-emission/ranked_u32_countdown` exception:
+  either document why only that publication lane is optimizer-owned, remove it
+  from this guard, or govern the coherent native-publication boundary.
+- [ ] Strengthen catalog uniqueness checks against proxy enable/order tables,
+  then replace the duplicated build and filesystem prelude optimization
+  switch schemas with one canonical projection.
 
 ## P1 — Opt-in, catalogs, and compatibility firewall
 

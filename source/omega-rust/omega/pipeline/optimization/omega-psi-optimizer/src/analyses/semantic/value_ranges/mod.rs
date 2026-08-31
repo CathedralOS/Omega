@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Canonical constant and accepted-proof value-range analysis.
+//! Optimizer module role: executable entrance. Canonical constant and accepted-proof value-range analysis.
 //!
 //! This entrance joins the two exact support families, orders their facts
 //! canonically, and exposes only the validated current-fact query. Constant

@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Same-block common-subexpression rules.
+//! Optimizer module role: stage group. Same-block common-subexpression rule family map.
 //!
 //! The three exact rule families share one analysis/invalidation contract but
 //! keep their expression and evidence mechanics in named leaves.

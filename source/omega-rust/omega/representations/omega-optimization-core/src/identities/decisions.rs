@@ -1,0 +1,36 @@
+canonical_identity!(
+    OptimizationDecisionIdentity,
+    b"omega.optimization-decision-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationDecisionSchemaIdentity,
+    b"omega.optimization-decision-schema-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationDecisionTargetIdentity,
+    b"omega.optimization-decision-target-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationValidatorIdentity,
+    b"omega.optimization-validator-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationUnitIdentity,
+    b"omega.optimization-unit-identity.v1\0"
+);
+canonical_identity!(
+    TargetCostModelIdentity,
+    b"omega.target-cost-model-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationDecisionLogIdentity,
+    b"omega.optimization-decision-log-identity.v1\0"
+);
+canonical_identity!(
+    OptimizationWorkloadProfileIdentity,
+    b"omega.optimization-workload-profile-identity.v1\0"
+);
+canonical_identity!(
+    TransformationLedgerIdentity,
+    b"omega.transformation-ledger-identity.v1\0"
+);

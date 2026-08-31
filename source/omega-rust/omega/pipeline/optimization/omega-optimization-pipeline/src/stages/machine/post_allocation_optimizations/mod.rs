@@ -1,7 +1,7 @@
-//! Optimizer module role: executable entrance. Catalog-driven post-allocation symbolic-machine optimization stage.
+//! Optimizer module role: stage group. Catalog-driven post-allocation optimization components.
 //!
 //! `omega_machine_optimizer::rules` owns the single enable/order catalog.
-//! [`execution`] consumes that catalog, while target leaves here retain
+//! [`execution`] is the executable catalog consumer, while target leaves retain
 //! pipeline custody for their independently validated symbolic plans.
 
 mod aarch64_cbnz;

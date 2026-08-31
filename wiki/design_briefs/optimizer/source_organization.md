@@ -1,13 +1,14 @@
 # Optimizer Source Organization
 
 This is the source-navigation contract for the optimizer. The design entrance
-is [optimizer_architecture.md](../optimizer_architecture.md); the executable
-work list is [TASKS_OPTIMIZER.md](../../../TASKS_OPTIMIZER.md).
+is [optimizer_architecture.md](../optimizer_architecture.md); executable work
+belongs in [TASKS_OPTIMIZER.md](../../../TASKS_OPTIMIZER.md), and completed
+refactor history belongs in Git.
 
-## The rule
+## Human navigation contract
 
-A human opening an executable optimization stage must land on one small file
-that answers five questions without repository-wide search:
+A human opening an optimization stage must land on one small file that answers
+five questions without repository-wide search:
 
 1. What validated value enters?
 2. Which exact optimization names are eligible?
@@ -15,36 +16,35 @@ that answers five questions without repository-wide search:
 4. What function coordinates proposal and independent validation?
 5. What validated value leaves?
 
-The entrance is normally `mod.rs`. It is not a re-export wall and it does not
-contain rule mechanics. It owns the small coordination join and points directly
-to the next semantic rung.
+The entrance is normally `mod.rs`. It owns the coordination join, but not the
+mechanics. It points directly to an adjacent catalog and the next semantic
+rung. A short re-export wall is not an entrance.
 
-A directory that only groups neighboring stages may have a map-only `mod.rs`,
-but its module documentation must call it a group. It is not counted or
-described as a stage entrance.
+Every governed `lib.rs` and `mod.rs` declares exactly one role:
 
-Every governed `lib.rs` and `mod.rs` begins with exactly one source-local role
-declaration: `crate map`, `stage group`, or `executable entrance`. This is not
-decorative prose. The architecture audit inventories the complete governed
-tree, rejects an unclassified or multiply classified module, and requires each
-executable entrance to retain its named coordination seam. A new module cannot
-silently become an entrance by accumulating mechanics behind a map.
+- `crate map`: names the crate's major responsibilities;
+- `stage group`: groups neighboring boundaries and performs no execution; or
+- `executable entrance`: owns one transformation, replay, or admission join.
 
-## The Squalr pattern
+The architecture audit rejects missing, duplicate, or false role declarations.
+An executable entrance must contain its named coordination seam; a group may
+not silently accumulate execution.
 
-The useful reference is Squalr's scan-rule path:
+## Pattern adopted from Squalr
+
+The useful Squalr scan-rule path is:
 
 ```text
 registry -> ordered enabled rules -> mapped scan plan -> scanner dispatch
 ```
 
-The registry is short, the application loop is obvious, and each rule is easy
-to add or remove. Omega keeps that shape while replacing string keys,
-unordered maps, global singleton state, and unchecked in-place mutation with
+The registry is short, adding or removing a built-in is obvious, and each rule
+has a named implementation leaf. Omega retains that navigability while using
 typed exact names, deterministic order, immutable plans, independent replay,
-and identity-bound receipts.
+and identity-bound receipts instead of string keys, unordered maps, global
+mutable state, or unchecked in-place mutation.
 
-The Omega path is therefore:
+The Omega rule path is:
 
 ```text
 stage/mod.rs
@@ -54,69 +54,34 @@ stage/mod.rs
   -> {model, compute, validate, identity, codec, tests}.rs
 ```
 
-Every rung narrows the question. A reader should never have to open a mixed
-`rules.rs`, `helpers.rs`, or thousand-line match to discover the next route.
+Every rung narrows the question. Do not introduce generic `rules.rs`,
+`helpers.rs`, or a large mixed match as the next rung.
 
-## Entrance and catalog ownership
+## Optimizer-execution entrances
 
-One stage entrance owns the executable join. One adjacent catalog owns exact
+These are the two top-level routes inside `omega-optimization-pipeline`:
+
+| Responsibility | Entrance | Next rung |
+|---|---|---|
+| Verified Psi optimization | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` | `request.rs`, exact Psi catalog, independent abstract projection |
+| Native physical continuation | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
+
+The ordinary empty-selection compiler path does not enter the explicit Psi
+optimizer. Physical routing consumes the exact selected phase set and one
+typed optimized target value; it does not invent optimization profiles.
+
+The outer build/compiler hooks are not yet part of the governed boundary.
+Their vocabulary, selection extraction, checked-entry handoff, rollback, and
+native-driver code must first move into focused optimization subtrees; adding
+whole compiler or build crates to the guard would hide rather than repair that
+taxonomy. The optimized program-entry carriers and the selected/assigned
+optimizer representations are the next boundary expansion. These omissions
+remain explicit P0 work in `TASKS_OPTIMIZER.md`.
+
+## Rule-owning stage entrances
+
+One stage entrance consumes selections. One adjacent catalog owns exact
 enablement and order.
-
-```rust,ignore
-pub fn optimize(input: &ValidatedInput, selections: &OptimizationSelections)
-    -> Result<ValidatedOutput, StageError>
-{
-    let selected = catalog::select(selections)?;
-    let proposal = selected.propose(input)?;
-    selected.validate(input, proposal)
-}
-```
-
-The catalog contains descriptors, not a second implementation. Removing a row
-disables the rule. Adding a row must make omissions, duplicates, unsupported
-targets, and ambiguous matches fail closed.
-
-A cross-stage custody crate consumes the rule owner's typed result. It may not
-create a proxy schedule or repeat the rule-name match.
-
-## Folder taxonomy
-
-Use the smallest applicable template.
-
-```text
-analyses/<fact>/
-  mod.rs          # compute/validate entrance
-  model.rs
-  compute.rs
-  validate.rs
-  identity.rs
-  tests.rs
-
-rules/<target-or-family>/<exact-rule>/
-  mod.rs          # propose/validate entrance
-  model.rs
-  compute.rs
-  validate.rs
-  identity.rs
-  codec.rs        # only when persisted
-  tests.rs
-
-stages/<custody-boundary>/
-  mod.rs          # build/replay or project/admit entrance
-  model.rs
-  construction/
-  validation/
-  tests/
-```
-
-Do not create every leaf pre-emptively. A shared module belongs at the nearest
-ancestor where at least two exact leaves consume one semantic contract.
-
-Tests mirror production taxonomy. Large matrices descend by artifact family,
-then by behavior (`positive`, `source_corruption`, `target_corruption`,
-`compatibility`) rather than accumulating in a stage-wide test file.
-
-## Current rule-stage entrances
 
 | Phase | Entrance | Sole catalog | Next rung |
 |---|---|---|---|
@@ -127,196 +92,119 @@ then by behavior (`positive`, `source_corruption`, `target_corruption`,
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
-This table is an inventory, not prose documentation. Adding a rule-owning
-stage requires adding one row here and one architecture-test descriptor.
+Removing a catalog row disables that exact rule. Adding a row must make
+omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
+A custody crate may consume the catalog owner's typed result; it may not create
+a proxy schedule or repeat the rule-name match.
 
-## Size and cohesion guardrails
+Psi has one additional local rung. `rules/catalog.rs` orders the selected
+passes, while `passes/<exact-pass>/mod.rs` visibly orders that pass's local
+rules. A family folder below a pass is a group, not another enablement table.
 
-Line count is only a smoke alarm. A 70-line re-export wall is invalid and a
-focused 300-line decoder may be coherent. The enforceable defaults are:
+## Semantic folder templates
 
-- executable entrances: prefer at most 100 lines;
-- any entrance above 100 lines: exact, non-growing exception and semantic
-  reason;
-- production leaves: refactor target at 600 lines, hard ceiling at 1,000
-  during migration;
-- focused tests or fixtures: refactor target at 800 lines, hard ceiling at
-  1,500 during migration; and
-- no file may mix catalog ownership, producer mechanics, independent
+Use the smallest applicable template; do not create empty leaves in advance.
+
+```text
+analyses/<fact>/
+  mod.rs          # compute -> independent validation entrance
+  model.rs
+  compute/
+  validate/
+  identity.rs
+  tests/
+
+rules/<target-or-family>/<exact-rule>/
+  mod.rs          # proposal -> independent validation entrance
+  model.rs
+  compute/
+  validate/
+  identity.rs
+  codec/          # only when persisted
+  tests/
+
+stages/<custody-boundary>/
+  mod.rs          # build/replay or project/admit entrance
+  model.rs
+  construction/
+  validation/
+  tests/
+```
+
+Shared mechanics belong at the nearest ancestor where at least two exact
+leaves consume the same semantic contract. Producer and validator mechanics
+remain separate even when they share neutral canonical vocabulary.
+
+Tests mirror production taxonomy. Large matrices descend first by artifact or
+rule family, then by behavior such as `positive`, `source_corruption`,
+`target_corruption`, and `compatibility`.
+
+## Size and cohesion ratchets
+
+Line count is a smoke alarm, not a substitute for review. The enforceable
+healthy limits are:
+
+- executable entrances: at most 100 lines by default;
+- an entrance exception: exact path, semantic reason, and non-growing ceiling,
+  never above 200 lines;
+- production files: at most 600 lines;
+- focused tests and fixtures: at most 800 lines; and
+- no file may mix catalog ownership, proposal mechanics, independent
   validation, persistence, and broad fixtures.
 
-The 1,000/1,500 limits are migration ceilings, not a definition of good
-organization. Crossing a refactor target creates explicit debt before the file
-grows again.
+The architecture test now enforces 600/800 directly; the former 1,000/1,500
+migration ceilings and all entrance exceptions have been removed.
 
-## Current audit
+## Architecture guard shape
 
-The principal rule-stage entrances are small and catalog-backed, but the tree
-does not yet fully satisfy this contract.
-
-- The former 1,254-line source-organization architecture test now has one tiny
-  coordination entrance over inventory, bounds, executable entrances,
-  catalogs, and retired paths. Its six rule stages share one typed descriptor
-  for entrance, catalog, markers, and next rungs.
-- Psi pass entrances now own their visible local rule order rather than
-  re-exporting a registration function from a hidden sibling catalog.
-- The optimization manifest now has a 37-line entrance that owns its stable
-  decision-v5/pass-v1 format registry and descends into decision, pass, work,
-  fact, framing, error, and matching test leaves. Legalized-call validation
-  likewise owns its join directly instead of hiding it behind one child.
-- Abstract-operation identity encoding now has a 71-line exhaustive family
-  router over structural establishment, calls/effects, scalar operations,
-  control exits, and scalar-operation shapes, with identity-wide carriers at
-  the nearest shared ancestor. SCCP candidate validation now has a 98-line
-  rule-first, exhaustive-patch join over focused validation leaves.
-- Independent live-range replay now has a 78-line reconstruct/canonicalize/
-  compare/receipt join; independent GVN keys descend by total,
-  proof-certified, and compatible-policy vocabulary. The former 1,457-line
-  structural-catalog test matrix now mirrors six production validation families.
-- All 302 governed module maps are source-locally classified: 166 executable
-  entrances, 14 crate maps, and 122 stage groups. The guard exhaustively checks
-  those roles and the real coordination marker of every executable entrance.
-- The transformation ledger now descends from a 92-line custody-validation
-  entrance into model, error, validation, encoding, decoding, cursor, and test
-  leaves. Register-allocation and selected-lowering test matrices now mirror
-  their retained artifact and exact-rule families; their largest leaves are
-  388 and 599 lines respectively.
-- Conditional-control lowering now descends by Boolean result, integer result,
-  and shared edge binding. Provider settlement has one 61-line executable join
-  over exact-plan, normalized-call, and per-boundary leaves. Pre-allocation
-  machine-effect persistence descends through an explicit V6 vocabulary into
-  framing, instruction, structural, ownership, and value leaves.
-- MOVN proposal computation now has a 95-line root-admission, bounded-selection,
-  and plan-finalization join over source, recipe, materialization, budget, and
-  focused test leaves. Fixed-view-copy persistence now has an 82-line V4/V5
-  selected-plan entrance over a historical scalar leaf and a 71-line structural
-  entrance; structural ABI, call, declaration, settlement, and signature fields
-  descend into named leaves below it.
-- Spill-choice computation and normalized foreign-scalar boundary-call lowering
-  now retain cohesive 495- and 514-line production leaves while their focused
-  fixtures live in adjacent 280- and 259-line test leaves.
-- Exact wrapping add, subtract, and multiply translation descend through one
-  75-line arithmetic catalog and sub-70-line source/replay coordinators into
-  separate grammar, target, error, receipt, corruption, and custody leaves.
-  The adjacent family-error entrance keeps its exact typed sum below 100 lines
-  by separating whole-translation validation failures from family failures.
-- Selected-block validation now has a 39-line roster/entry/return-routes join
-  over exact block-family replay leaves and one shared instruction comparator;
-  its largest leaf is 195 lines and it never calls construction helpers.
-- Scalar legalization source projection now has a 99-line common-admission,
-  exact-family-dispatch, and return join over named family, operation-roster,
-  return, and fuel leaves. Its largest leaf is 270 lines and it preserves
-  catalog order, diagnostics, proof custody, and provenance order.
-- The immutable rewrite vocabulary now has a 19-line stage-group map over
-  source/provenance foundations, scalar evaluation, SCCP, CFG plans, scalar
-  plans, and the candidate contract. Its largest leaf is 169 lines; candidate
-  construction remains at its separate executable entrance, and neutral
-  canonical writers prevent the model from depending on its candidate codec.
-- Post-allocation machine-plan construction now has a 76-line coordinator that
-  admits the complete identity-root set, constructs ordinary and structural-
-  Unit functions through separate leaves, and performs the sole final plan
-  assembly and identity assignment. Physical operand footprints and exact
-  alternative applicability have their own leaves; focused fixtures mirror
-  alternative selection. The existing `post_allocation/mod.rs` remains the
-  only executable producer-to-independent-validator entrance.
-- Optimization-unit seed reconstruction now has a 67-line plan/function/
-  identity entrance over ordered function assembly, provenance, scalar
-  dataflow, control flow, facts, and structural custody. Its largest leaf is
-  196 lines, and verified optimizer admission remains a separate boundary.
-- Function-relative realization persistence now has a 78-line V9 framing and
-  final-admission entrance over encoding, decoding, post-allocation custody,
-  target layout, rendering, cursor, and error leaves. Its largest leaf is 239
-  lines; exact bytes and rejection precedence are unchanged.
-- Control-flow block merging now has a 16-line non-executable family map over
-  separately registered adjacent and non-adjacent rules and their distinct
-  provenance-accounting leaves, with exact parameter substitution
-  reconstruction shared explicitly between them. Merge-boundary ownership
-  custody sits at the control-flow-cleanup level beside jump fusion; the parent
-  pass entrance remains the sole owner of exact local rule order. The family's
-  largest leaf is 180 lines.
-- Fixed-view-copy validation now has a 95-line executable admission/receipt
-  join over root and constraint custody, work usage, policy transformation,
-  leaf destination, shared-entry, and selected-plan application leaves. Its
-  largest leaf is 193 lines; replay remains independent from the producer and
-  rejection precedence is unchanged.
-- Terminal-operation projection now has a 96-line wildcard-free executable
-  router over structural establishment, calls, effects, Boolean, integer
-  constants/relations, conversion, bitwise, shift, and arithmetic leaves. The
-  router performs the sole abstract-operation append, so every routed Terminal
-  operation yields exactly one output. Its largest leaf is 322 lines.
-- Recovery classification now has an 86-line compute coordinator over exact
-  policy admission, function/victim classification, immediate eligibility,
-  and checked work usage. Its semantic model is separate from the V3
-  persistence protocol, all leaves are below 600 lines, and the existing
-  analysis entrance still owns the compute-to-independent-validation join.
-- X86 branch relaxation now has a 51-line computation coordinator over
-  production, independent replay, shared branch inspection, reflow, work
-  admission, and canonical artifact assembly. Its existing stage entrance and
-  adjacent catalog remain the only execution and exact-enablement owners.
-- Psi value-range analysis now has a 52-line constant/proof fact join over
-  exact proof goals, interval reconstruction, control-flow scope, and canonical
-  fact construction. Allocation-legality computation now has a 108-line root
-  and environment admission/assembly entrance over named function, live-point,
-  early-clobber, fixed-view, and candidate-view leaves. Both retain their
-  existing public validation boundaries and canonical output order.
-- Ranked-u32 countdown replay now has a 48-line ordered machine/object contract
-  join over carrier, proof custody, ranked semantics, calling convention, and
-  structural-frontier leaves. Its largest leaf is 200 lines and its rejection
-  order is explicit at the entrance.
-- Fixed-point execution tests now descend from an 11-line semantic map into
-  algebraic, structural, proof-elision, value-numbering, and cross-pass
-  composition matrices. All 34 tests remain and every leaf is below 400 lines.
-- SCCP binary evaluation and independent integer replay, pressure-
-  rematerialization proposal/replay, fragment placement/emission, and
-  post-allocation V3 persistence now descend from 52-83-line coordinators into
-  exact semantic leaves. Their largest production leaf is 339 lines; producer
-  and validator mechanics remain separate, and exact route/wire order stays at
-  the owning entrance.
-- The ten former 1,000+ line test matrices for pass fixtures, artifacts,
-  physical coordination, selection, active-resident realization, validation,
-  lowering, and Terminal-to-native realization now descend from 5-21-line
-  maps. All existing tests remain and their largest leaf is 479 lines.
-- No production-classified leaf remains at 750+ lines; 4 governed production
-  leaves remain at 600-749 lines.
-- No test or fixture leaf remains at 1,000+ lines; 11 governed test leaves
-  remain at 800-999 lines.
-- The old task ledger and this brief accumulated milestone history instead of
-  remaining entrances. Git history is the milestone archive.
-
-These are organization defects, not language-design questions. They are
-tracked at the top of `TASKS_OPTIMIZER.md` and block declaring the navigation
-migration complete.
-
-## Architecture test shape
-
-The guard must mirror the architecture it checks:
+The guard mirrors what it checks:
 
 ```text
 tests/architecture/optimizer_source_organization/
-  mod.rs             # run the audit and report violations
-  inventory.rs       # governed roots and stage descriptors
-  bounds.rs          # line and entrance ceilings
-  module_roles.rs    # exhaustive source-local module classification
-  entrances/         # meaningful joins and required semantic ladders
-  catalogs.rs        # sole-order and exact-leaf checks
-  retired_paths.rs   # prohibited legacy shapes
+  mod.rs                 # run each audit and aggregate violations
+  inventory.rs           # governed roots and six rule-stage descriptors
+  bounds.rs              # production, test, and entrance ceilings
+  module_roles.rs        # exhaustive source-local role classification
+  entrances/
+    mod.rs               # coordinate entrance and ladder checks
+    requirements/
+      mod.rs             # typed domain inventory entrance
+      executable/        # Psi, translation, selection, physical, native
+      ladders/           # named semantic descents
+  catalogs.rs            # sole order and exact-rule checks
+  retired_paths.rs       # prohibited legacy shapes
 ```
 
-Stage descriptors carry the entrance, catalog, coordination marker, catalog
-marker, and next rungs together. The current six-row inventory uses generic
-entrance/catalog checks; bespoke checks are reserved for invariants such as the
-sole legalization catalog and fixed-view-copy protocol ownership.
+The guard's inventory is architecture too. Domain files must be short enough
+to read as maps, and its entrance must iterate typed domain groups rather than
+accumulate one repository-wide path array.
 
-## Review test
+## Enforced state
 
-Before adding an optimization, start from the phase entrance and answer:
+The live tree and architecture guard establish:
 
-- Is there one catalog row to enable or disable it?
+- the governed optimizer-execution and rule-owning entrances above are small
+  and meaningful;
+- post-allocation construction and replay meet only at
+  `omega-machine-optimizer/src/planning/post_allocation/mod.rs`, with separate
+  semantic subtrees;
+- no governed production file exceeds 600 lines;
+- no governed test or fixture exceeds 800 lines;
+- no executable entrance exceeds 100 lines; and
+- the guard itself has a 19-line coordinator over typed domain inventories,
+  with no monolithic entrance or requirement array.
+
+These are organization defects, not language-design questions.
+
+## Review checklist
+
+Start from the phase entrance and answer:
+
+- Is there one catalog row to enable or disable the exact optimization?
 - Does that row descend to one exact named leaf?
 - Does the leaf entrance join proposal to independent validation?
 - Are shared mechanics below the nearest honest family ancestor?
 - Do tests follow the same taxonomy?
-- Can the architecture guard discover the route without another bespoke
-  thousand-line list?
+- Can the architecture guard discover the route through a named domain group?
 
 If any answer is no, refactor the route before extending it.

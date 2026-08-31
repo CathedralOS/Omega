@@ -1,8 +1,8 @@
-//! Optimizer module role: executable entrance. Post-allocation machine analysis stage.
+//! Optimizer module role: stage group. Post-allocation machine analysis components.
 //!
 //! Route adapters project each supported selected-instruction lineage into the
-//! common analysis join. This entrance seals the resulting effects and machine
-//! plan into one replayable custody receipt.
+//! common construction entrance. Shared receipt sealing remains beside the
+//! construction, model, and validation components at this nearest ancestor.
 
 mod construction;
 mod model;
