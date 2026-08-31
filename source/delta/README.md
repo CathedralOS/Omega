@@ -41,11 +41,12 @@ compilers and must not both be called “the Delta compiler.”
   canonical Alpha tape, and refinement evidence. The retained source currently
   contains final compiler material through complete parsing, the D22/D24
   source-shaped identity census, D31 structural type formation, the source-
-  backed resolution catalog, ordered local-value resolution, exact scalar
-  value/place facts, and symbolic Alpha encoding. Remaining final
+  backed resolution catalog, ordered local-value resolution, exact scalar and
+  aggregate value/place facts, and symbolic Alpha encoding. Remaining final
   body/control checking, Q4 entry diagnostics, D36 callable-shape enforcement,
-  Q5 dependent-diagnostic composition, storage realization, lowering, `main`,
-  and publication are incomplete, so it exposes no compiler artifact yet.
+  Q5 dependent-diagnostic composition, Q7 `.as_slice` receiver validity,
+  storage realization, lowering, `main`, and publication are incomplete, so it
+  exposes no compiler artifact yet.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
 tree, including the restricted Delta-written Darwin compiler prototype, are

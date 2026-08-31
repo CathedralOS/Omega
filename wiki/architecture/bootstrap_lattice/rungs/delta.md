@@ -54,8 +54,8 @@ demand witness, never a Delta rejection.
 
 The canonical compiler source now implements complete parsing, that identity
 census, D31's profile-independent structural type formation, a source-backed
-resolution catalog, ordered local resolution, scalar value/place facts, and
-pure symbolic Alpha encoding. The formed program
+resolution catalog, ordered local resolution, scalar/aggregate value-place
+facts, and pure symbolic Alpha encoding. The formed program
 retains explicit record/sum classification and direct value-containment edges;
 the catalog keeps one row per top-level declaration and exact owner/member/state
 lookups without flattening the AST again. Candidate selection covers array
@@ -64,13 +64,16 @@ source coordinate. Ordered body scans retain exact machine/state parameter,
 let, and arm-binder identities, enforce pending-let visibility, and isolate
 entry, state, and arm environments without selecting a final rejection. The
 same walk retains exact-AST facts for settled literal, local-read, group,
-negation, and binary scalar forms without duplicating the recursive checker.
+negation, binary scalar, record-field, array/view index, range-slice, and
+`.len` forms without duplicating the recursive checker. Exact field custody
+preserves its owner/member identity for later layout and lowering.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment. D36 settles unqualified receivers and
 constructor/machine collisions; its parser and census enforcement remain
 implementation work. Q5 blocks final composition of dependent parent
-diagnostics when child judgments are absent. D34 has settled physical storage
+diagnostics and relational statement/projection anchors. Q7 blocks the accepted
+receiver set for `.as_slice`. D34 has settled physical storage
 refusal; its implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private

@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar value/place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 dependent-diagnostic composition, implement D36 callable shape, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar/aggregate value-place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 dependent-diagnostic composition, settle Q7 `.as_slice` receiver validity, implement D36 callable shape, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1208,17 +1208,27 @@ code, discover a closure, manufacture proof premises, or decide admission.
     vectors remain planned until the real Gamma compiler edge can execute them.
   - [x] **IMPLEMENTATION — DELTA SCALAR VALUE/PLACE FACT FOUNDATION.** Extend
     the existing ordered expression walk instead of adding a duplicate
-    recursive checker. Retain a source-ordered exact-AST fact carrying one of
-    value-with-optional-place, resultless, or never. Materialize `i32` facts for
-    integer, character, and Boolean literals, immutable `&[u8]` for strings,
-    declared-value plus storage-place facts for resolved parameters/locals,
-    place-preserving groups, and non-place `i32` results for complete scalar
-    negation/binary operands. Do not manufacture a parent fact or dependent
-    error when a needed child judgment is absent. Field/index/slice/call,
-    receiver, constructor, transition-binder, resultless, and never completion
-    remain in the body/control task. The Gamma frontend type-checks the complete
-    source; executable semantics remain dependency-blocked on the real Gamma
-    compiler edge.
+    recursive checker. Retain deterministic child-before-parent exact-AST facts
+    carrying one of value-with-optional-place, resultless, or never. Materialize
+    `i32` facts for integer, character, and Boolean literals, immutable `&[u8]`
+    for strings, declared-value plus storage-place facts for resolved
+    parameters/locals, place-preserving groups, and non-place `i32` results for
+    complete scalar negation/binary operands. Do not manufacture a parent fact
+    or dependent error when a needed child judgment is absent. Call, receiver,
+    constructor, transition-binder, resultless, and never completion remain in
+    the body/control task. The Gamma frontend type-checks the complete source;
+    executable semantics remain dependency-blocked on the real Gamma compiler
+    edge.
+    - [x] Extend the same walk with positive aggregate postfix facts. Retain
+      exact record-owner/field custody for named-record projections; preserve a
+      stored field's read type separately from its inherited optional place;
+      type array/view `.len` as non-place `i32`; type array indexes with an
+      inherited element place and immutable-view indexes without one; and type
+      complete array/view ranges as non-place views. Every present index/bound
+      must have a complete `i32` fact. Keep receiver-call selectors out of field
+      resolution, leave bounds as runtime traps, emit no dependent invalid-
+      projection candidates, and postpone `.as_slice` under Q7. Exact field
+      custody and result facts remain recoverable by constructor plus span.
   - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Split machine parsing so
     only an owner-qualified declaration accepts `&mut self`; an unqualified
     `&` rejects as `UnexpectedToken` at that byte. Extend the D22/D24 census
@@ -1234,10 +1244,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
     closed rejection set and earliest-coordinate phase rule do not say whether
     an enclosing operator/call/place/statement may contribute its own
     `TypeMismatch`, `ArityMismatch`, or `InvalidPlace` while a required child
-    judgment is absent or already erroneous. Retain independent child facts and
-    suppress dependent parent candidates for now; Q5 blocks only final
-    candidate composition, not continued resolution and typing of complete
-    subtrees.
+    judgment is absent or already erroneous, nor which expression-versus-
+    statement anchor owns relational let/assignment/assert failures. Retain
+    independent child facts and suppress unsettled parent candidates for now;
+    Q5 blocks only final candidate composition, not continued resolution and
+    typing of complete subtrees.
+  - [ ] **OWNER-BLOCKED — Q7 DELTA `.as_slice` RECEIVER VALIDITY.** Array-to-
+    view conversion is required, but D17 does not say whether applying
+    `.as_slice` to an already immutable view is valid identity conversion or an
+    invalid member application. Do not assign that postfix a fact until Q7
+    settles the accepted receiver set and leaves invalid-form diagnostics to
+    Q5.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
     complete body/control checking and the final nonaliasing generated-program
     map exist, derive its selected static-storage limit and expand only
