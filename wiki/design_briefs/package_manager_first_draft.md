@@ -2279,13 +2279,13 @@ and replay lowering consumes semantic, ledger, and proof sections in that order.
 It is not whole-package evidence or lock authority.
 
 Dependency evidence composes transitively. Each subject retains its own
-obligation-semantics identity because one closure may contain evidence produced
-under several versions. Checked obligations compose upward. Missing or
+obligation-semantics identity. Checked obligations compose upward. Missing or
 unproved obligations also compose upward as open rows, never as a producer's
 already-accepted decision; each consuming project applies its own admission
-policy. A checked schema-delta relation may reuse classes proven unchanged and
-derive the precise new gaps for added or strengthened classes. Reinterpreted or
-unknown classes force re-derivation, and no gap becomes admitted implicitly.
+policy. The first accepted-evidence boundary requires exact semantic-schema
+identity: a mismatch forces complete local reconstruction and fresh admission.
+Only a concrete checked pairwise migration may later reuse results across
+semantic versions; outer encoding-only revisions remain codec concerns.
 
 Mechanical verification, local admissions, and producer metadata are separate
 report sections. A `verified` verdict contains only locally re-derived facts.

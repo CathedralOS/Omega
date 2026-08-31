@@ -155,7 +155,7 @@ mod tests {
         };
         let outcome = invoke_rendered_advisory_review(
             "bounded evidence\n".to_owned(),
-            PackageTriageDisposition::Admitted,
+            PackageTriageDisposition::NoReviewBlocker,
             false,
             &mut reviewer,
             ADVISORY_REVIEW_RESPONSE_SCHEMA.len(),
@@ -164,7 +164,7 @@ mod tests {
 
         assert_eq!(
             outcome.deterministic_disposition(),
-            PackageTriageDisposition::Admitted
+            PackageTriageDisposition::NoReviewBlocker
         );
         assert!(!outcome.deterministic_audit_recommended());
         assert!(outcome.audit_recommended());
@@ -180,7 +180,7 @@ mod tests {
         assert!(matches!(
             invoke_rendered_advisory_review(
                 "bounded evidence\n".to_owned(),
-                PackageTriageDisposition::Admitted,
+                PackageTriageDisposition::NoReviewBlocker,
                 false,
                 &mut prose,
                 1_024,
@@ -195,7 +195,7 @@ mod tests {
         assert!(matches!(
             invoke_rendered_advisory_review(
                 "bounded evidence\n".to_owned(),
-                PackageTriageDisposition::Admitted,
+                PackageTriageDisposition::NoReviewBlocker,
                 false,
                 &mut oversized,
                 ADVISORY_RECOMMEND_AUDIT
@@ -212,7 +212,7 @@ mod tests {
         assert!(matches!(
             invoke_rendered_advisory_review(
                 "bounded evidence\n".to_owned(),
-                PackageTriageDisposition::Admitted,
+                PackageTriageDisposition::NoReviewBlocker,
                 false,
                 &mut not_invoked,
                 ADVISORY_RECOMMEND_AUDIT
