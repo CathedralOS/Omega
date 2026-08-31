@@ -75,7 +75,9 @@ pub(super) fn assign_trait_symbols(
     let state_parameters = &mut declarations.state_parameters;
     let child_type_references = &mut declarations.child_type_references;
     program.roots.traits.for_each_mut(|trait_definition| {
-        trait_definition.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Trait);
+        if !trait_definition.symbol.is_valid() {
+            trait_definition.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Trait);
+        }
         let trait_symbol = trait_definition.symbol;
         let mut trait_children = symbols.child_handles(trait_symbol).into_iter().flatten();
 

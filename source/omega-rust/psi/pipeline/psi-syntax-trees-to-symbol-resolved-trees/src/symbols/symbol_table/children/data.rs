@@ -1,11 +1,11 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_parameter_signature_children;
 use crate::symbols::symbol_table::names::symbol_seed;
 
 pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     data_symbol: SymbolHandle,
     data_definition: &psi_symbol_resolved_trees::data::DataDefinition,

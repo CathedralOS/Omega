@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 use crate::{Arena, Handle, HandleSpan};
 
@@ -82,6 +82,14 @@ impl<T: Default> Index<usize> for OrderedRootArena<T> {
         let handle = self.handles.span_or_empty(self.roots)[index];
 
         self.storage.get(handle)
+    }
+}
+
+impl<T: Default> IndexMut<usize> for OrderedRootArena<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        let handle = self.handles.span_or_empty(self.roots)[index];
+
+        self.storage.get_mut(handle)
     }
 }
 

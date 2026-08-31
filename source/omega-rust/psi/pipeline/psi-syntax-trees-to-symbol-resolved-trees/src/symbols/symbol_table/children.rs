@@ -13,7 +13,7 @@ pub(super) use propositions::insert_proposition_symbol_children;
 pub(super) use traits::insert_trait_symbol_children;
 
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::names::symbol_seed;
 
@@ -22,7 +22,7 @@ use super::names::symbol_seed;
 /// machine symbol layout. Nested machine parameters recursively own their
 /// own signature children.
 fn insert_machine_parameter_signature_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     owner_symbol: SymbolHandle,
     signature: &psi_symbol_resolved_trees::signature::StateSignature,
@@ -73,7 +73,7 @@ fn insert_machine_parameter_signature_children(
 }
 
 pub(in crate::symbols::symbol_table) fn insert_conformance_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     conformance_symbol: SymbolHandle,
     conformance: &psi_symbol_resolved_trees::trait_definition::Conformance,

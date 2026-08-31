@@ -88,6 +88,16 @@ pub(crate) fn finalize_authored_expression_selections(
         .expressions
         .iter_expressions()
         .filter_map(|(expression, _)| {
+            if program
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(expression)
+                .len()
+                != 0
+            {
+                return None;
+            }
             program
                 .tables
                 .bodies
@@ -162,6 +172,9 @@ pub(crate) fn finalize_authored_expression_selections(
             ));
         };
         let membership = *membership;
+        if membership.authored_domain_selection.is_some() {
+            continue;
+        }
         let members = program
             .tables
             .declarations
@@ -252,6 +265,7 @@ fn finalize_authored_statement_call_selections(
                     Statement::Call(call)
                         if call.operational_acknowledgement.origin
                             == psi_language_semantics::CallOperationalAcknowledgementOrigin::Source
+                            && call.authored_call_selection.is_none()
                             && nonempty(call.target.source_span()) =>
                     {
                         candidates.push(AuthoredStatementCallCandidate {
@@ -320,7 +334,7 @@ fn collect_authored_transition_call_candidate(
     let psi_symbol_resolved_trees::statement::TransitionTarget::Named(target) = target else {
         return;
     };
-    if nonempty(target.source_span) {
+    if target.authored_call_selection.is_none() && nonempty(target.source_span) {
         candidates.push(AuthoredStatementCallCandidate {
             site: AuthoredStatementCallSite::TransitionTarget {
                 statements,
@@ -424,14 +438,13 @@ pub(crate) fn finalize_conformance_reference_selections(
             )
             .with_source_span(source_span));
         }
-        program
-            .record_resolved_authored_declaration_selection(
-                source_span,
-                Exposure::PrivateImplementation,
-                Kind::StaticPathSegment,
-                realization_machine,
-            )
-            .map_err(record_diagnostic)?;
+        let candidate = UnattachedCandidate {
+            source_span,
+            exposure: Exposure::PrivateImplementation,
+            kind: Kind::StaticPathSegment,
+            target: CandidateTarget::Resolved(realization_machine),
+        };
+        record_unattached_candidate(program, candidate)?;
     }
     Ok(())
 }
@@ -448,6 +461,9 @@ fn record_unattached_candidate(
     program: &mut SymbolResolvedTrees,
     candidate: UnattachedCandidate,
 ) -> Result<(), Diagnostic> {
+    if selection_already_recorded(program, candidate) {
+        return Ok(());
+    }
     match candidate.target {
         CandidateTarget::Resolved(symbol) => program
             .record_resolved_authored_declaration_selection(
@@ -466,6 +482,30 @@ fn record_unattached_candidate(
     }
     .map(|_| ())
     .map_err(record_diagnostic)
+}
+
+fn selection_already_recorded(
+    program: &SymbolResolvedTrees,
+    candidate: UnattachedCandidate,
+) -> bool {
+    use psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
+
+    program.authored_declaration_selections().iter().any(|row| {
+        row.source_span() == candidate.source_span
+            && row.exposure() == candidate.exposure
+            && row.kind() == candidate.kind
+            && match (row.target(), candidate.target) {
+                (
+                    AuthoredDeclarationSelectionTarget::Resolved(existing),
+                    CandidateTarget::Resolved(candidate),
+                ) => existing.selected_symbol() == candidate,
+                (
+                    AuthoredDeclarationSelectionTarget::LateBound(existing),
+                    CandidateTarget::LateBound(candidate),
+                ) => existing == candidate,
+                _ => false,
+            }
+    })
 }
 
 fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<UnattachedCandidate> {

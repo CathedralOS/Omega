@@ -11409,8 +11409,14 @@ checked-result arithmetic decision listed below.
   retained base/root/nested handle and authored child span remains unchanged;
   extension-owned nested children retain fresh contiguous spans, and advancing
   the source map preserves existing source-scoped bindings. The seeded
-  syntax-to-resolved and resolved-to-typed continuation APIs remain engineering
-  work, not a language-design blocker.
+  syntax-to-resolved continuation API is now live: it consumes the retained
+  resolved base and already-parsed extension, validates the exact base source
+  frontier, appends roots and nested symbols without moving retained handles,
+  preserves service IDs and authored reach provenance, resolves extension
+  peers/base declarations with extension-wide precedence, and rejects only
+  same-stratum duplicates. Compiler orchestration of this continuation and
+  seeded resolved-to-typed lowering remain engineering work, not a language-
+  design blocker.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

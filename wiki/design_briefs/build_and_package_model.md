@@ -300,8 +300,12 @@ removal of the full rebuild/rebind remain open. Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is
 consumed into the unchanged transitional combined pass without source reread or
-reparse. Seeded syntax-to-resolved and resolved-to-typed lowering are the next
-engineering prerequisites for the retained-base continuation.
+reparse. Seeded syntax-to-resolved lowering now consumes that retained base and
+extension directly, preserves base arena/symbol/service identities, and appends
+the complete later stratum under the settled one-way visibility and duplicate
+rules. Wiring that API into compiler orchestration and seeded resolved-to-typed
+lowering are the next engineering prerequisites for the retained-base
+continuation.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

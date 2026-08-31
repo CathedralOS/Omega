@@ -50,21 +50,49 @@ pub(crate) fn normalize_domain_establishment_routes(
     });
 
     for resolution in resolutions {
+        record_route_selection_once(
+            program,
+            resolution.trait_source_span,
+            resolution.exposure,
+            SelectionKind::TypeReference,
+            resolution.route.source_symbol(),
+        )?;
+        record_route_selection_once(
+            program,
+            resolution.requirement_source_span,
+            resolution.exposure,
+            SelectionKind::StaticPathSegment,
+            resolution.route.requirement_symbol(),
+        )?;
+    }
+    Ok(())
+}
+
+fn record_route_selection_once(
+    program: &mut SymbolResolvedTrees,
+    source_span: SourceSpan,
+    exposure: Exposure,
+    kind: SelectionKind,
+    symbol: SymbolHandle,
+) -> Result<(), Diagnostic> {
+    use psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget;
+
+    let retained = program
+        .authored_declaration_selections()
+        .iter()
+        .any(|selection| {
+            selection.source_span() == source_span
+                && selection.exposure() == exposure
+                && selection.kind() == kind
+                && matches!(
+                    selection.target(),
+                    AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == symbol
+                )
+        });
+    if !retained {
         program
-            .record_resolved_authored_declaration_selection(
-                resolution.trait_source_span,
-                resolution.exposure,
-                SelectionKind::TypeReference,
-                resolution.route.source_symbol(),
-            )
-            .map_err(selection_diagnostic)?;
-        program
-            .record_resolved_authored_declaration_selection(
-                resolution.requirement_source_span,
-                resolution.exposure,
-                SelectionKind::StaticPathSegment,
-                resolution.route.requirement_symbol(),
-            )
+            .record_resolved_authored_declaration_selection(source_span, exposure, kind, symbol)
             .map_err(selection_diagnostic)?;
     }
     Ok(())

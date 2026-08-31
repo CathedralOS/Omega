@@ -470,8 +470,13 @@ rebuild/rebind remain the next D18 continuation. The source-side prerequisite
 is now explicit: own generated outputs are parsed once into a retained
 extension-only syntax carrier bound to the exact base source frontier, unit
 roots, bytes, and custody. The carrier feeds the unchanged transitional
-combined pass without rereading or reparsing generated source. Seeded
-syntax-to-resolved and resolved-to-typed lowering remain implementation work.
+combined pass without rereading or reparsing generated source. The seeded
+syntax-to-resolved continuation is now live: it consumes the retained resolved
+base, appends extension roots and children without moving existing handles,
+preserves base service IDs and authored reach provenance, validates the exact
+retained source frontier, and applies the settled one-way visibility and same-
+stratum duplicate rules. Compiler orchestration of that continuation and
+seeded resolved-to-typed lowering remain implementation work.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between

@@ -1,10 +1,10 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
-use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use psi_symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use crate::symbols::symbol_table::names::symbol_seed;
 
 pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
-    builder: &mut SymbolTableBuilder,
+    builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     trait_symbol: SymbolHandle,
     trait_definition: &psi_symbol_resolved_trees::trait_definition::TraitDefinition,

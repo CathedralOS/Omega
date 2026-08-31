@@ -37,7 +37,9 @@ pub(super) fn assign_operator_symbols(
     type_constraints: &Arena<psi_symbol_resolved_trees::types::TypeConstraint>,
     operator: &mut psi_symbol_resolved_trees::operator::OperatorDefinition,
 ) {
-    operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
+    if !operator.symbol.is_valid() {
+        operator.symbol = next_child_of_kind(siblings, symbols, SymbolKind::Operator);
+    }
     let mut operator_children = symbols.child_handles(operator.symbol).into_iter().flatten();
 
     for type_parameter in data_type_parameters.span_mut_or_empty(operator.type_parameters) {
