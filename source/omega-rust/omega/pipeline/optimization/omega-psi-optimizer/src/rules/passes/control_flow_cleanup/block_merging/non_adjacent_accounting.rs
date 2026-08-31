@@ -1,7 +1,13 @@
-use super::super::*;
+use std::collections::{BTreeMap, BTreeSet};
+
+use omega_optimization_unit::{
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiRealizationSite, ScalarSubstitution,
+};
+use psi_core::BlockId;
 
 pub(super) fn non_adjacent_merge_accounting(
-    function: &omega_optimization_unit::PsiOptimizationFunction,
+    function: &PsiOptimizationFunction,
     predecessor: NodeLocation,
     target: BlockId,
     substitutions: &[ScalarSubstitution],

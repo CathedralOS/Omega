@@ -57,23 +57,31 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let proof_check_root = format!("{psi_pass_root}proof_check_elision/");
-    for path in source_lines
-        .keys()
-        .filter(|path| path.starts_with(&proof_check_root) && !is_test_source(path))
-    {
-        match fs::read_to_string(repository.join(path)) {
-            Ok(contents)
-                if contents.contains("use super::*;")
-                    || contents.contains("use super::super::*;") =>
-            {
-                violations.insert(format!(
-                    "proof-check elision restored an inherited parent glob dependency: {path}"
-                ));
-            }
-            Ok(_) => {}
-            Err(error) => {
-                violations.insert(format!("cannot read {path}: {error}"));
+    for (family, relative_root) in [
+        ("proof-check elision", "proof_check_elision/"),
+        (
+            "control-flow block merging",
+            "control_flow_cleanup/block_merging/",
+        ),
+    ] {
+        let family_root = format!("{psi_pass_root}{relative_root}");
+        for path in source_lines
+            .keys()
+            .filter(|path| path.starts_with(&family_root) && !is_test_source(path))
+        {
+            match fs::read_to_string(repository.join(path)) {
+                Ok(contents)
+                    if contents.contains("use super::*;")
+                        || contents.contains("use super::super::*;") =>
+                {
+                    violations.insert(format!(
+                        "{family} restored an inherited parent glob dependency: {path}"
+                    ));
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    violations.insert(format!("cannot read {path}: {error}"));
+                }
             }
         }
     }

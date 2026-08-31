@@ -8,8 +8,7 @@ use omega_optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use omega_optimization_unit::{
-    AdjacentBlockMergeRewrite, ConstantConditionalRewrite, NodeLocation,
-    NonAdjacentBlockMergeRewrite, OwnershipFrontierSite, OwnershipFrontierWitness,
+    ConstantConditionalRewrite, NodeLocation, OwnershipFrontierSite, OwnershipFrontierWitness,
     OwnershipFrontierWitnessRow, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
     PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
     ScalarSubstitution, SharedJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
@@ -19,10 +18,7 @@ use psi_core::{BlockId, MachineId};
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-use super::{
-    CONTROL_FLOW_CLEANUP_PASS_NAME, boolean_constant,
-    support::{block_dominates, replacement_dominates_parameter_uses},
-};
+use super::{CONTROL_FLOW_CLEANUP_PASS_NAME, boolean_constant};
 
 mod block_merging;
 mod constant_conditionals;

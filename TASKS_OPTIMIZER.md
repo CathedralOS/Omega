@@ -67,8 +67,10 @@ decision. Only true language-semantic questions belong in
    mixed empty-block leaf is now a seven-file semantic ladder: exact linear and
    path-qualified rule leaves share only binding composition and ownership
    identity, while retaining separate accounting leaves. The remaining
-   production parent-glob debt is confined to control-flow cleanup (9) and GVN
-   (18); remove those 27 dependencies before extending either family.
+   block-merging leaves now own explicit imports as well, and the guard forbids
+   parent-glob regression across that subtree. The remaining production
+   parent-glob debt is confined to four other control-flow leaves and GVN (18);
+   remove those 22 dependencies before extending either family.
 
 ## P0 — Source navigation and taxonomy
 

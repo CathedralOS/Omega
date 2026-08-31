@@ -1,5 +1,17 @@
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    NodeLocation, NonAdjacentBlockMergeRewrite, OptimizationBlock, PsiOptimizationUnit,
+    PsiRewriteCandidate,
+};
+
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::super::{CONTROL_FLOW_CLEANUP_PASS_NAME, support::block_dominates};
 use super::super::merge_boundary_ownership::merge_boundary_ownership_is_identity;
-use super::super::*;
 use super::non_adjacent_accounting::non_adjacent_merge_accounting;
 use super::substitutions::merge_substitutions;
 
@@ -167,9 +179,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
     }
 }
 
-fn non_adjacent_merge_target_is_nonempty(
-    target: &omega_optimization_unit::OptimizationBlock,
-) -> bool {
+fn non_adjacent_merge_target_is_nonempty(target: &OptimizationBlock) -> bool {
     !target.nodes.is_empty()
         && !matches!(target.nodes.as_slice(), [node] if matches!(node.operation, O::Jump { .. }))
 }
