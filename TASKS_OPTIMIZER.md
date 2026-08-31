@@ -164,11 +164,29 @@ decision. Only true language-semantic questions belong in
   inspection, production, independent replay, reflow, and artifact assembly.
   Every production leaf is below 210 lines; the existing stage entrance and
   sole exact-rule catalog retain execution and enablement ownership.
+- [x] Replace the 678-line mixed value-range analysis with a 52-line stage join
+  over constant facts and accepted-proof facts, with proof-goal, interval,
+  reachability/dominance, and canonical fact-construction leaves below it. The
+  join retains exact fact ordering and current-fact validation; its largest
+  leaf is 311 lines.
+- [x] Replace the 677-line allocation-legality computation with a 108-line
+  root/environment admission and plan-assembly entrance over function, live-
+  point, early-clobber, fixed-view, and candidate-view leaves. Its largest
+  production leaf is 103 lines; rejection and function ordering are unchanged,
+  and the public compute-to-independent-validation entrance remains singular.
+- [x] Replace the 620-line ranked-u32 countdown contract replay with a 48-line
+  ordered admission join over carrier, proof custody, ranked semantics, calling
+  convention, and structural-frontier leaves. Machine-code and object replay
+  remain visibly parallel; its largest leaf is 200 lines.
+- [x] Replace the 1,256-line fixed-point execution test matrix with an 11-line
+  map over algebraic rewrites, structural rewrites, proof-check elision, value
+  numbering, and cross-pass dispatch/composition. All 34 tests remain; its
+  largest leaf is 335 lines.
 - [ ] Ratchet production leaves toward 600 lines. The current governed audit
-  has no production-classified leaves at 750+ lines; 14 remain at 600-749
+  has no production-classified leaves at 750+ lines; 11 remain at 600-749
   lines.
 - [ ] Ratchet focused tests and fixtures toward 800 lines. The current governed
-  audit has 11 test/fixture leaves at 1,000+ lines. The structural-catalog,
+  audit has 10 test/fixture leaves at 1,000+ lines. The structural-catalog,
   register-allocation, and selected-lowering matrices now mirror their
   production families; continue with physical coordination, output artifacts,
   selected-machine, assignment/legalization, and pass-manager execution.
