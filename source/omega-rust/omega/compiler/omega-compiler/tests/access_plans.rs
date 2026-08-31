@@ -11,7 +11,6 @@ use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use omega_target::NativeTarget;
-use psi_checked_trees_to_terminal::lower_machine;
 use psi_access_plans::{
     AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, BoundaryReach, EffectiveSupplyKind, ExternalCapability, ExternalRead,
@@ -22,6 +21,7 @@ use psi_access_plans::{
     adopt_owned_atomic, adopt_owned_stable, bind_schema_correspondence_to_placement, place,
 };
 use psi_build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
+use psi_checked_trees_to_terminal::lower_machine;
 use psi_core::PackageKeyIdentity;
 use psi_extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
@@ -739,6 +739,57 @@ data Main {}
 }
 
 #[test]
+fn subordinate_placed_view_input_retains_exact_checked_state_custody() {
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-subordinate-input",
+        r#"
+data Inspector {}
+machine Inspector::inspect(
+    &mut self,
+    view: &mut Placed<UartPlacement, Registers>
+) {
+    state inspect_again(view: &mut Placed<UartPlacement, Registers>) {}
+}
+"#,
+    );
+    let checked = compile_to_checked_with_packages(&main, None, inputs)
+        .expect("subordinate placed-view input should compile to checked custody");
+    let inspect = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Inspector::inspect")
+        .expect("placed-view consumer");
+    let [entry, subordinate] = checked.typed.machine_states(inspect) else {
+        panic!("entry and subordinate state")
+    };
+    let inputs = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .filter(|input| input.machine == inspect.symbol)
+        .collect::<Vec<_>>();
+    let [entry_input, subordinate_input] = inputs.as_slice() else {
+        panic!("entry and subordinate checked placed-view inputs")
+    };
+    assert_eq!(entry_input.state, entry.symbol);
+    assert_eq!(entry_input.position, 1);
+    assert_eq!(subordinate_input.state, subordinate.symbol);
+    assert_eq!(subordinate_input.position, 0);
+    assert_ne!(entry_input.parameter, subordinate_input.parameter);
+    assert_eq!(entry_input.reference_access, ReferenceAccess::Mutable);
+    assert_eq!(subordinate_input.reference_access, ReferenceAccess::Mutable);
+    assert_eq!(entry_input.view, subordinate_input.view);
+    assert_eq!(entry_input.policy, subordinate_input.policy);
+    assert_eq!(
+        entry_input.policy_plan_machine,
+        subordinate_input.policy_plan_machine
+    );
+    assert_eq!(entry_input.schema, subordinate_input.schema);
+    assert_eq!(entry_input.placement, subordinate_input.placement);
+}
+
+#[test]
 fn direct_placed_view_input_crosses_terminal_with_exact_source_custody() {
     let (main, inputs) = write_cross_package_program(
         "placed-view-terminal-input",
@@ -779,7 +830,10 @@ machine Inspector::inspect(
     };
     assert_eq!(terminal_input.machine, lowered.semantic_module.entry);
     assert_eq!(terminal_input.position, input.position);
-    assert_eq!(terminal_input.access, psi_terminal::StructuralAccess::MutableBorrow);
+    assert_eq!(
+        terminal_input.access,
+        psi_terminal::StructuralAccess::MutableBorrow
+    );
     assert_eq!(
         terminal_input.source_machine_identity,
         checked

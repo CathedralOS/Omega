@@ -103,7 +103,7 @@ pub struct CheckFacts {
     /// Compiler-owned call meanings selected only after exact receiver and
     /// owner checking.
     pub intrinsic_calls: Vec<CheckedIntrinsicCallFact>,
-    /// Direct entry inputs whose opaque placed-view meaning has been joined to
+    /// Direct state inputs whose opaque placed-view meaning has been joined to
     /// its exact source-derived placement plan. These rows grant no runtime
     /// storage, accessor, provider, or ABI authority.
     pub placed_view_inputs: Vec<CheckedPlacedViewInput>,

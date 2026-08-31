@@ -48,6 +48,14 @@ fn unit_machine_is_a_value_less_normal_return() {
 }
 
 fn placed_view_input(machine: MachineId, position: u32) -> TerminalPlacedViewInput {
+    placed_view_input_at_state(machine, "inspect::entry", position)
+}
+
+fn placed_view_input_at_state(
+    machine: MachineId,
+    state: &str,
+    position: u32,
+) -> TerminalPlacedViewInput {
     let identity = |name: &str| format!("package:{}::{name}", "01".repeat(32));
     let policy_identity = identity("Uart");
     let schema_identity = identity("Registers");
@@ -55,8 +63,8 @@ fn placed_view_input(machine: MachineId, position: u32) -> TerminalPlacedViewInp
         machine,
         position,
         source_machine_identity: identity("inspect"),
-        source_state_identity: identity("inspect::entry"),
-        source_parameter_identity: identity(&format!("inspect::entry::view{position}")),
+        source_state_identity: identity(state),
+        source_parameter_identity: identity(&format!("{state}::view{position}")),
         access: StructuralAccess::MutableBorrow,
         binding_is_const: false,
         binding_is_mutable: true,
@@ -78,6 +86,17 @@ fn placed_view_inputs_require_exact_canonical_custody() {
     let row = placed_view_input(module.entry, 0);
     module.placed_view_inputs.push(row.clone());
     validate_module(&module).expect("exact placed-view input should validate");
+
+    let mut distinct_state_at_same_position = module.clone();
+    distinct_state_at_same_position
+        .placed_view_inputs
+        .push(placed_view_input_at_state(
+            distinct_state_at_same_position.entry,
+            "inspect::next",
+            0,
+        ));
+    validate_module(&distinct_state_at_same_position)
+        .expect("distinct state inputs may reuse the same parameter position");
 
     let mut zero_commitment = module.clone();
     zero_commitment.placed_view_inputs[0].placement_commitment = [0; 32];
@@ -102,9 +121,18 @@ fn placed_view_inputs_require_exact_canonical_custody() {
     ));
 
     let mut redirected_view = module.clone();
-    redirected_view.placed_view_inputs[0].view_identity.push('x');
+    redirected_view.placed_view_inputs[0]
+        .view_identity
+        .push('x');
     assert!(matches!(
         validate_module(&redirected_view),
+        Err(ModuleError::InvalidPlacedViewInput { .. })
+    ));
+
+    let mut malformed_state = module.clone();
+    malformed_state.placed_view_inputs[0].source_state_identity = "inspect::entry".to_owned();
+    assert!(matches!(
+        validate_module(&malformed_state),
         Err(ModuleError::InvalidPlacedViewInput { .. })
     ));
 

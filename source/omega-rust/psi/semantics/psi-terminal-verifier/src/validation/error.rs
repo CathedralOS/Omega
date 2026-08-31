@@ -23,6 +23,7 @@ pub enum ModuleError {
     NonCanonicalPlacedViewInputOrder,
     DuplicatePlacedViewInput {
         machine: MachineId,
+        source_state_identity: String,
         position: u32,
     },
     InvalidPlacedViewInput {
