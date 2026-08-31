@@ -242,16 +242,6 @@ stop the item on one precise owner question before adding machinery.
   controls and negative cases on a native Windows worker and retain the results
   in the normal test lane.
 
-- [ ] **PRIVATE-REMOTE-FIXTURES.** Run the exact pinned CathedralOS SSH/HTTPS
-  mirror tests in credentialed infrastructure. The 2026-08-30 host-SSH run
-  reached the pinned repositories but found the remote fixture contents stale
-  against the current local language fixtures; synchronize and repin all
-  changed mirrors, then rerun the complete lane. Unavailable credentials must
-  remain an explicit ignored/blocked environment condition; the fixture
-  harness must not replace the authored request after failure or fabricate
-  success. Effective HTTPS/SSH routing remains ordinary host Git policy under
-  D43.
-
 ## P7 — Cross-system package work
 
 These tasks consume settled language and architecture decisions across package,
