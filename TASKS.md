@@ -2592,11 +2592,17 @@ Owners:
   observing/non-observing axes, canonical failure-first case order, and exact
   payload disposition; source canaries independently replay the public generic
   parameter and case/payload schemas. `Key` and the selected encoding law do
-  not enter any runtime outcome identity. Operation desugaring and checked
-  result custody remain prerequisites for `compare_exchange_once`; reusing the
-  decisive prior-value carrier would erase `Uncommitted`. Retain the exact
-  carrier through checked source, Terminal Psi, interpretation, lowering,
-  package review, and replay before admitting that operation. Migrate the
+  not enter any runtime outcome identity. The first compiler-internal checked-
+  result custody prerequisite for `compare_exchange_once` is now live. A
+  dedicated carrier binds the observing single-attempt operation axis to the
+  exact three-arm result shape and `AtomicCompareExchangeOnceOutcome` identity
+  through syntax, resolution, typing, and the checked boundary; missing result
+  custody, a decisive or non-observing sibling identity, a two-arm shape,
+  scalar substitution, and a missing result destination reject. Parser-
+  authored operations still carry only their existing scalar custody, so this
+  does not admit the source call or an atomic attempt. Retain the exact carrier
+  through Terminal Psi, interpretation, lowering, package review, and replay
+  before admitting that operation. Migrate the
   decisive scalar-return call with a targeted diagnostic rather than a scalar
   overload. The try operations remain fenced until their custody and
   encoding-law rows exist. Source calls for the other families,

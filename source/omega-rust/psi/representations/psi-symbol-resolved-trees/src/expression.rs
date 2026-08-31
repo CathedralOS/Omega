@@ -344,6 +344,7 @@ impl ExpressionTable {
                     value,
                     result,
                     ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
                 }))
             }
             ExpressionNode::Binary(binary) => {
@@ -804,6 +805,7 @@ impl ExpressionTable {
                     value,
                     result,
                     ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
                 }))
             }
             ExpressionNode::Binary(binary) => {
@@ -1180,6 +1182,7 @@ pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     pub result: ExpressionHandle,
     pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
+    pub result_custody: psi_language_core::atomic::AtomicExpressionResultCustody,
 }
 
 impl Default for ExpressionNode {

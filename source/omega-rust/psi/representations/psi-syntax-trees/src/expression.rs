@@ -197,6 +197,7 @@ pub struct TableAtomicExpression {
     /// observed by the atomic instruction. Invalid for load/store.
     pub result: ExpressionHandle,
     pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
+    pub result_custody: psi_language_core::atomic::AtomicExpressionResultCustody,
 }
 
 impl Default for ExpressionNode {

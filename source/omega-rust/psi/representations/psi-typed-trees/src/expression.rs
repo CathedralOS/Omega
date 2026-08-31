@@ -64,6 +64,7 @@ pub struct AtomicExpression {
     pub value: Expression,
     pub result: Option<Expression>,
     pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
+    pub result_custody: psi_language_core::atomic::AtomicExpressionResultCustody,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -397,6 +398,7 @@ impl ExpressionTable {
                     value,
                     result,
                     ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
                 }))
             }
             ExpressionNode::Binary(binary) => {
@@ -1412,6 +1414,7 @@ impl ExpressionTable {
                     value,
                     result,
                     ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
                 }))
             }
             ExpressionNode::Binary(binary) => {
@@ -1633,6 +1636,7 @@ impl ExpressionTable {
                     value,
                     result,
                     ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
                 }))
             }
             Expression::Binary(binary) => {
@@ -1774,6 +1778,7 @@ impl ExpressionTable {
                     .is_valid()
                     .then(|| self.to_tree(atomic.result)),
                 ordering: atomic.ordering,
+                result_custody: atomic.result_custody,
             })),
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
                 left: self.to_tree(binary.left),
@@ -2052,6 +2057,7 @@ pub struct TableAtomicExpression {
     pub value: ExpressionHandle,
     pub result: ExpressionHandle,
     pub ordering: psi_language_core::atomic::AtomicOrderingPlan,
+    pub result_custody: psi_language_core::atomic::AtomicExpressionResultCustody,
 }
 
 impl Default for ExpressionNode {

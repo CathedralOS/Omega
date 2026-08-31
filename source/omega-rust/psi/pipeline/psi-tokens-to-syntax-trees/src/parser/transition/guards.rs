@@ -829,6 +829,7 @@ pub(super) fn rewrite_destructure_guard_expression(
                 ExpressionHandle::invalid()
             },
             ordering: atomic.ordering,
+            result_custody: atomic.result_custody,
         }),
         ExpressionNode::ArrayLiteral(values) => {
             let source_values = syntax_trees.expressions.expression_handles(values).to_vec();

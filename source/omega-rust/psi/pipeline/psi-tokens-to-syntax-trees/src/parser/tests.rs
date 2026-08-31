@@ -6,6 +6,65 @@ use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn decisive_compare_exchange_desugar_derives_scalar_result_custody() {
+    let tokens = Lexer::new(
+        "machine update(cell: u64) { let prior: u64 = cell.compare_exchange(0, 1, NoOrdering, NoOrdering); }",
+    )
+    .tokenize()
+    .expect("tokenize decisive compare-exchange");
+    let parsed = parse_syntax_trees(&tokens).expect("parse decisive compare-exchange");
+    let atomic = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Atomic(atomic) => Some(atomic),
+            _ => None,
+        })
+        .expect("decisive compare-exchange desugars to an atomic expression");
+
+    assert!(matches!(
+        atomic.ordering,
+        psi_language_core::atomic::AtomicOrderingPlan::CompareExchange { .. }
+    ));
+    assert_eq!(
+        atomic.result_custody,
+        psi_language_core::atomic::AtomicExpressionResultCustody::Scalar
+    );
+}
+
+#[test]
+fn single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source() {
+    let tokens = Lexer::new(
+        "machine update(cell: u64) { let outcome: u64 = cell.compare_exchange_once(0, 1, NoOrdering, NoOrdering); }",
+    )
+    .tokenize()
+    .expect("tokenize fenced single-attempt spelling");
+    let parsed = parse_syntax_trees(&tokens).expect("parse fenced spelling as an ordinary call");
+
+    assert!(
+        parsed
+            .expressions
+            .iter_expressions()
+            .any(|(_, expression)| {
+                matches!(
+                    expression,
+                    ExpressionNode::Call(call) if call.target.as_str() == "compare_exchange_once"
+                )
+            })
+    );
+    assert!(!parsed.expressions.iter_expressions().any(|(_, expression)| {
+        matches!(
+            expression,
+            ExpressionNode::Atomic(atomic)
+                if matches!(
+                    atomic.ordering,
+                    psi_language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { .. }
+                )
+        )
+    }));
+}
+
+#[test]
 fn old_remains_an_ordinary_parameter_and_local_identifier() {
     let tokens =
         Lexer::new("machine migrate(old: u64) -> u64 { let old_copy: u64 = old; old_copy }")
