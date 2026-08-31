@@ -9,6 +9,7 @@ mod machine_code;
 mod model;
 mod output;
 mod providers;
+mod terminal_authority_policy;
 
 pub use callback_custody::{
     CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
@@ -17,6 +18,11 @@ pub use callback_custody::{
 pub use model::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
     NativeRealizationRequest, SettledNativeArtifact,
+};
+pub use terminal_authority_policy::{
+    COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
+    UnclassifiedCompilerIntrinsicTerminalMechanism,
+    current_compiler_intrinsic_terminal_authority_policy,
 };
 
 use crate::entry_settlement::validate_native_program_entry_settlement;

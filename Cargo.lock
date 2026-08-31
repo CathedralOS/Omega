@@ -565,6 +565,7 @@ dependencies = [
  "psi-effects",
  "psi-language-core",
  "psi-language-semantics",
+ "psi-numerics",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
@@ -1440,6 +1441,7 @@ dependencies = [
  "psi-core",
  "psi-diagnostics",
  "psi-language-semantics",
+ "psi-numerics",
  "psi-proof-admission",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
@@ -1449,6 +1451,7 @@ dependencies = [
  "psi-terminal-codec",
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees-to-checked-trees",
+ "sha2",
 ]
 
 [[package]]

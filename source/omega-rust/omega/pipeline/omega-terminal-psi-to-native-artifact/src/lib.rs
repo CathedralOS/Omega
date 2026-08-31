@@ -28,9 +28,12 @@ pub use optimized_semantic_wrapper_encoding::{
 };
 pub use optimized_semantic_wrapper_object::*;
 pub use realization::{
-    CallbackCustodyNativeRealizationError, NativeBoundaryRealization,
+    COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CallbackCustodyNativeRealizationError,
+    CompilerIntrinsicTerminalAuthorityPolicy, NativeBoundaryRealization,
     NativeCompilerBuiltinSettlement, NativeProviderSettlement, NativeRealizationRequest,
-    RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact, realize_native_artifact,
+    RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
+    UnclassifiedCompilerIntrinsicTerminalMechanism,
+    current_compiler_intrinsic_terminal_authority_policy, realize_native_artifact,
     realize_native_artifact_with_callback_custody, realize_program_entry_native_artifact,
 };
 
