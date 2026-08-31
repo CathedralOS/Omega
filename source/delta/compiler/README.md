@@ -40,14 +40,16 @@ through the current Gamma frontend gate.
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
-exhaustion. D36's declaration syntax and cross-kind callable census are now
-implemented. Direct-qualified, unqualified, named-data receiver, and exact
+exhaustion. The source still contains D36's former cross-kind callable census
+and direct-qualified static-machine path; D51 requires their removal.
+Unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
 are retained separately. Transition subjects, resolved patterns, typed payload
 binders, and sum coverage now have separate exact custody; resolved semantic
 pattern identities make later duplicate checking reconstructable without
-claiming its unsettled ordering. Bare states and the remaining body/control
+claiming its unsettled ordering. D50 settles bare states and D52 settles
+resultless argument anchoring; their branches and the remaining body/control
 judgments stay with the rest of D37's premise-DAG composition.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
@@ -67,10 +69,9 @@ first collects every owner row and exact qualified machine identity from source
 spans, then scans member, parameter, state, let, and transition-binder scopes.
 It compares authored bytes exactly, keeps local identities source-shaped,
 collects transition binders independently of later case and arity validity,
-and returns the globally earliest declaration-start failure. Its D36 extension
-compares every case against every qualified machine admitted beneath the same
-unique data owner, ignores fields and arity, and anchors a collision at the
-later callable declaration. Any duplicate owner row is ambiguous, including
+and returns the globally earliest declaration-start failure. Its former D36
+case/qualified-machine comparison is superseded by D51's syntax-selected case
+and receiver-method namespaces and remains deletion work. Any duplicate owner row is ambiguous, including
 same-kind duplication, so it contributes no inferred owner kind and admits no
 machine to a data-owner callable registry until repaired. The current source
 type-checks through the Gamma frontend; no census behavior is claimed as
@@ -100,12 +101,11 @@ keeps members, cases, bodies, and states inside their original AST owner. It
 classifies qualified machine owners without numeric node IDs, provides exact
 owner/machine/member/state lookups, and compares types structurally using
 nominal name equality and semantic array lengths. Constructor and qualified-
-machine lookup remain structurally distinct after D36's census rejects any
-shared owner/name callable spelling. An unqualified receiver is a syntax
-rejection at its `&` rather than an ownerless catalog row. The retained bare-
-versus-parenthesized qualified-expression distinction now feeds an owner-aware
-direct qualified-callable lookup. An unresolved qualified machine declaration
-owner contributes `UnknownName` at that owner spelling even when unused. A
+machine lookup remain structurally distinct in the current source, but D51
+permits shared owner/name spellings and removes direct qualified static-machine
+selection. An unqualified receiver remains a syntax rejection at its `&`; a
+qualified machine must instead begin with its receiver. An unresolved qualified
+machine declaration owner contributes `UnknownName` at that owner spelling even when unused. A
 neutral minimum-coordinate bucket deduplicates one reason/coordinate and
 retains distinct ties for the eventual D37 internal-contradiction promotion;
 traversal and DCOUT order never choose between them.
@@ -135,17 +135,17 @@ a non-place `i32`. Their resultless/`never` branches are retained independently
 at D37's enclosing-relation or exact-call anchors, and a missing sibling never
 manufactures an operator mismatch or result.
 
-Direct qualified constructors and data machines retain exact callable custody
-before context, arity, or argument typing. The same generalized ledger retains
+The current source retains direct qualified constructors and static data
+machines before context, arity, or argument typing; D51 narrows that path to
+constructors and deletes static data-machine custody. The generalized ledger retains
 unqualified machine applications in ordinary, nested-call-head, and postfix-
 statement positions, including arbitrarily grouped bare-name heads.
 Constructor and machine lookups remain independent, and the semantic machine
 lookup admits only a catalog row already resolved beneath a data owner.
 Authored arguments are walked as siblings; arity depends only on admitted
 identity and count; and the type join waits for every required value fact. A
-compatible constructor yields its nominal non-place value, while a compatible
-receiverless machine with authored parentheses yields its declared value,
-resultless, or `never` fact.
+compatible constructor yields its nominal non-place value. Free machines retain
+their declared value, resultless, or `never` fact through the unqualified path.
 Stored constructor payload `u8` accepts an `i32` value and leaves range
 enforcement to runtime `ByteRange`. A bare resolved machine in an ordinary
 value position contributes D36's `TypeMismatch` at the qualified expression
@@ -155,14 +155,14 @@ grammar selects that namespace; a genuinely absent head retains the local
 local is `TypeMismatch` at the application. One admitted-signature join owns
 arity, complete argument typing, and value/resultless/`never` production for
 direct-qualified, unqualified, data-receiver, and sealed-boundary spellings.
-Exact catalog ownership gives `self` its nominal value and storage place only
-inside a receiver-bearing qualified data machine and all of that machine's
-states; invalid `self` remains factless pending Q5's rejection ruling.
+Exact catalog ownership currently gives a special `self` node its nominal value
+and storage place inside a receiver-bearing qualified data machine and its
+states. D51 replaces that path with an ordinary named receiver binding; an
+undeclared `self` then follows ordinary `UnknownName` resolution.
 Grouped named-receiver heads preserve exact data-machine or boundary-member
-custody before receiver-place and signature checks. Static machines are never
-inferred to have a receiver. Same-spelled record fields fall back to ordinary
-field custody and the general value-call failure, while call syntax selects a
-same-spelled machine and an invalid case/machine collision selects neither.
+custody before receiver-place and signature checks. Same-spelled record fields
+fall back to ordinary field custody and call syntax selects a receiver machine;
+D51 likewise permits a same-spelled case because constructor syntax is disjoint.
 Chained resultless/`never` receivers retain their category/terminal failures.
 Grouped bare-qualified call heads now transfer machine custody to the exact
 outer application; a completed constructor or machine application followed by
@@ -192,8 +192,12 @@ authored continuation anchor, and state/local spelling reuse selects the state
 only in this exact control syntax. Constructors, bare machine selectors,
 static receiver spellings, and complete field/scalar values receive category
 failures before dependent checking; same-spelled authored fields remain fields
-without call syntax. Q4 leaves only a state-only bare spelling open, while Q7
-separately owns machine-continuation exit effects and reachability.
+without call syntax. D50 requires authored argument syntax for every state
+transfer: a state-only bare spelling contributes `InvalidControlTarget` at the
+continuation start without entering the state-application ledger. Its compiler
+branch remains to be implemented. D53 settles machine-continuation exit effects
+as local block facts and requires no reachability pass; its branch remains to
+be implemented.
 
 Each complete transition subject is retained once as scalar `i32` or one exact
 nominal sum owner after the ordinary result category relation. Pattern
@@ -205,7 +209,8 @@ its D24 binder locals; `u8` payloads therefore read as `i32` while retaining
 their storage type. Resolved-but-incomplete patterns retain no guessed
 category, arity, or duplicate candidate. Every continuation remains
 independently checked, and each sum transition retains complete, missing, or
-unresolved coverage. Q8 owns the total negative pattern/coverage premise DAG,
+unresolved coverage. The owner queue retains the total negative pattern/
+coverage premise DAG,
 including duplicate and wildcard ordering and the missing-coverage coordinate.
 
 Named-record projection retains both the exact owner declaration and authored
@@ -236,9 +241,12 @@ while a consumed child premise is absent. Admitted callable arity is a sibling
 judgment and can therefore coexist with an independently failing
 argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
-an embedded `never` result is `InvalidTerminal`. Every authored argument keeps
-its explicitly anchored `never` branch independently of callee admission and
-arity; Q6 blocks the unspecified resultless-argument anchor. Let and `assert`
+an embedded `never` result is `InvalidTerminal`. The contract gives every
+authored argument its independently anchored category branch regardless of
+enclosing-callee admission and arity. D52 fixes resultless `TypeMismatch` at
+the authored argument expression start, including outer grouping, while grouped `never`
+retains its exact call-head anchor; the resultless branch remains implementation
+work. Let and `assert`
 relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into
@@ -248,9 +256,11 @@ returns. Explicit absence/value relations use D37's exact anchors and category
 premises without resolving the expression twice. A source-shaped statement
 flow fact retains a successful standalone `never` result, diagnoses only the
 first following ordinary statement, and still visits every later authored
-child. Q7 blocks explicit terminals after that `never`, forbidden falloff,
-and machine-continuation exit effects; remaining transition/control and
-terminal-flow candidates still require the rest of the D37 premise DAG. The
+child. D53 supersedes that coordinate and settles later executable constructs
+after `never`, local falloff, and machine-continuation effects without a
+reachability/fixed-point pass; its five-effect carrier and checks remain
+implementation work. Remaining transition/control and terminal-flow candidates
+still require the rest of the D37 premise DAG. The
 fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining
@@ -260,15 +270,22 @@ acceptance or runtime realization.
 ## Contract-derived conformance plan
 
 This is the compact case matrix for the eventual adjacent executable gate. It
-derives from D17, D22, D24, D36, D37, D38, and `LANGUAGE.md`; it is not an unrun
-corpus and records no execution evidence. Cases become executable only through
-the real Gamma-written compiler and its selected D19 adapter.
+derives from D17, D22, D24, D36, D37, D38, D50, D51, D52, D53, and
+`LANGUAGE.md`; it is not an unrun corpus and records no execution evidence.
+Cases become executable only through the real Gamma-written compiler and its
+selected D19 adapter.
+
+D51 supersedes the current-source entries below that mention receiverless
+qualified machines or case/machine collision rejection. Final controls instead
+require a receiver on every qualified data machine, allow case/receiver-method
+spelling reuse, normalize `self` through ordinary binding lookup, and reject a
+direct static-machine spelling.
 
 | Area | Positive controls | Negative controls and exact obligation |
 | --- | --- | --- |
 | Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
-| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate machine/member/payload/parameter/state/let/transition binder; same-owner case/qualified-machine callable collision regardless of arity; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
+| Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; case/receiver-method spelling reuse; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate exact machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
 | Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; complete scalar and sum transitions | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
@@ -282,10 +299,10 @@ D22 rows already settled by the third line include these discriminator pairs:
 
 - a type owner and an unqualified machine may share a spelling, while boundary
   and data owners may not;
-- `parse` and `Owner::parse` are distinct machine identities, while two exact
-  owner/name pairs conflict;
-- every case and qualified machine under one data owner shares the D36 callable
-  spelling registry, while fields remain outside that cross-kind check;
+- `parse` and receiver method `Owner::parse` are distinct machine identities,
+  while two exact machine owner/name pairs conflict;
+- a case and receiver method under one data owner may share a spelling because
+  constructor and receiver syntax select different namespaces;
 - fields and cases share their data-owner member scope, but a member and bare
   local may share a spelling;
 - machine parameters conflict in the entry and every state body; state
@@ -323,33 +340,40 @@ demand without taking a Gamma trap.
 Resolution-catalog, local-resolution, and expression-fact controls remain
 planned, not claimed execution: forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
-distinct qualified/unqualified machines, D36 case/machine collision rejection,
+distinct qualified/unqualified machines, D51 case/receiver-method reuse,
 mandatory parentheses on zero-parameter machine calls, state-name reuse across
 separate machines, parameter and ordered let visibility,
 `UseBeforeInitialization` versus `UnknownName`, entry/state
 isolation, arm-local binder visibility, exact same-start postfix separation,
 literal/read/group/arithmetic facts, record-field custody, `u8` read/place
 splitting, array-place versus immutable-view indexing, every optional slice-
-bound shape, `.len`, positive receiver-scoped `self`, grouped named-data and
+bound shape, `.len`, ordinary named receiver binding for reserved `self`, grouped named-data and
 sealed-`Console` receiver calls, authored-field fallback, same-spelled
-field/machine call selection, static-machine-via-receiver refusal, receiver
+field/machine call selection, direct-static-machine refusal, receiver
 place refusal, unknown receiver members, and chained resultless/`never`
 receiver failures. D38 adds a
 place-valued fixed array and computed `array[i()].as_slice` positive case;
 view `.as_slice` as `TypeMismatch`; a non-place array result as `InvalidPlace`;
 the parsed extra-call form `array.as_slice()` as `TypeMismatch`; an ordinary
 record field named `as_slice`; and `f().as_slice = x` producing only the inner
-receiver `InvalidPlace` under premise closure. Constructor and
-machine rows remain structurally distinct after the census establishes one
-callable spelling; no body context, arity, or expected type may select between
-colliding declarations. Controls cover both declaration orders, nullary and
-payload cases, a same-spelled field/qualified-machine positive case, an
+receiver `InvalidPlace` under premise closure. Constructor and receiver-machine
+rows remain structurally distinct by syntax; no body context, arity, or expected
+type selects between namespaces. Controls cover nullary and payload cases,
+same-spelled case/receiver-machine and field/receiver-machine positive cases, an
 unqualified receiver at its `&`, explicit `()` on a zero-parameter machine, and
-a bare machine identity as `TypeMismatch` in an ordinary expression. D37
-premise-DAG controls include unresolved callee versus place checking,
+a direct receiver-machine spelling that cannot act as a static call. D50 adds
+distinct bare zero-parameter state, bare parameterized state, bare machine, and
+state/machine-collision controls; all share `InvalidControlTarget` at the
+continuation start while only the machine-only case retains callable custody.
+D37 premise-DAG controls include unresolved callee versus place checking,
 wrong arity alongside an independently failing argument, resultless/`never`
 value use, projection reason/anchors, and exact let/assignment/assert/return
-relations. D38 totals `.as_slice` receiver validity and once-evaluation.
+relations. D52 adds valid, wrong-arity, unknown/inadmissible-callee, constructor,
+and grouped resultless/`never` argument controls, including the absence of a
+distinct-reason coordinate tie. D53 adds every local block category/effect,
+unused states, closed cycles, resultless/`never`/value continuation calls, and
+exact after-`never` delimiter and falloff-brace controls. D38 totals
+`.as_slice` receiver validity and once-evaluation.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,

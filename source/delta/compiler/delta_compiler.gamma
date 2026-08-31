@@ -179,8 +179,8 @@
 (data DeltaStatement
   (DeltaLetStatement Int Int DeltaName DeltaType DeltaExpression)
   (DeltaAssignmentStatement Int Int DeltaExpression DeltaExpression)
-  ; Resolution later classifies a semicolon-terminated postfix form as an
-  ; ordinary call statement or, only in final body position, a never terminal.
+  ; D53 keeps every semicolon-terminated postfix form syntactically a statement.
+  ; Resolution may give a successful `never` call NoNormalReturn semantics.
   (DeltaPostfixStatement Int Int DeltaExpression)
   (DeltaAssertStatement Int Int DeltaExpression))
 
@@ -714,6 +714,8 @@
     DeltaTypedExpressionList
     DeltaFinalCandidate))
 
+; Superseded by D53: the final compiler replaces this partial statement-flow
+; carrier with five local block-exit effects and no reachability fixed point.
 (data DeltaStatementFlow
   (DeltaStatementFlowOpen)
   (DeltaStatementFlowEndedByNever)
@@ -3448,11 +3450,9 @@
             (MoreDeltaMachineRows (DeltaMachineRowSyntax start name)
               accumulator)))))))
 
-; D36 adds one narrow cross-kind callable registry without flattening the
-; accepted catalog. A case collides only with a qualified machine whose owner
-; resolves uniquely to that data declaration. Unknown, boundary, and ambiguous
-; owners therefore remain in their existing later resolution/classification
-; judgments rather than acquiring an inferred data-owner kind here.
+; Superseded by D51: constructor and receiver-machine syntax now select
+; disjoint namespaces, so this former D36 cross-kind collision census is
+; deletion work rather than accepted semantics.
 (def delta_census_later_callable_start ((leftStart Int)
   (rightStart Int)) Int
   (if (lt leftStart rightStart) rightStart leftStart))
@@ -4814,6 +4814,9 @@
         (MoreDeltaLocalBindings
           (DeltaMachineParameterLocal item) bindings)))))
 
+; Superseded by D51: the reserved self token becomes one ordinary named
+; receiver binding carrying its owner-derived type/place. Receiverless
+; qualified machines and this nameless carrier are deletion work.
 (def delta_add_catalog_machine_self_binding
   ((machineDeclaration DeltaDeclaration) (owner DeltaCatalogMachineOwner)
   (bindings DeltaLocalBindingList)) DeltaLocalBindingList
@@ -5579,11 +5582,12 @@
           (delta_local_scan_add_value expressionValue typeValue
             NoDeltaPlaceType scan))))))
 
-; An argument's explicitly anchored `never` category is a sibling of callable
-; admission and arity, so retain it for every authored application before
-; lookup. D37 does not yet assign an anchor to a resultless argument's required
-; TypeMismatch; leave that owner-blocked category factless rather than guessing.
-; The later all-value type join owns application-anchored type mismatch.
+; An argument's category is a sibling of the enclosing callable's admission
+; and arity. D52 anchors a resultless argument's TypeMismatch at the authored
+; argument expression start, including outer grouping; its branch below remains
+; intentionally unimplemented. The existing `never` sibling keeps the core
+; call-head anchor, and the later all-value join owns application-anchored type
+; mismatch.
 (def delta_local_scan_argument_terminal_candidates
   ((arguments DeltaExpressionList) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
@@ -5957,8 +5961,9 @@
               ((OneDeltaCatalogCase caseOwner caseValue) 1)
               ((OneDeltaCatalogField fieldOwner fieldValue) 0)
               (NoDeltaCatalogDataMember 0))
-            ; The census already rejects a case/machine collision. Preserve
-            ; that candidate without selecting either callable in later facts.
+            ; Superseded by D51: the final compiler removes this cross-kind
+            ; collision guard because constructor and receiver syntax select
+            ; distinct namespaces.
             (if caseCollision
               scan
               (let identityScan
@@ -6253,10 +6258,12 @@
     ((DeltaBinaryExpression start end operator operatorStart operatorEnd
       left right) scan)))
 
-; The owner queue leaves only a state-only bare spelling undecided. A state/machine
-; collision is already invalid, a machine-only spelling is a known but
-; unapplied control target, and genuine namespace absence may fall back to a
-; local value judgment without inventing a target.
+; D50 settles a state-only bare spelling as InvalidControlTarget independent of
+; state arity. Its branch below remains intentionally unimplemented here. A
+; state/machine collision is already invalid, a machine-only spelling is a
+; known but unapplied control target, and genuine namespace absence may fall
+; back to a local value judgment without inventing a target. A bare state never
+; enters stateApplications because no application was authored.
 (def delta_local_scan_transition_bare_name ((source Bytes)
   (expressionValue DeltaExpression) (name DeltaName)
   (active DeltaLocalBindingList) (pending DeltaLocalBindingList)
@@ -6276,8 +6283,8 @@
                     ((OneDeltaCatalogMachine targetMachine)
                       (delta_local_scan_add_candidate InvalidControlTarget
                         continuationStart scan))
-                    ; The pending bare-state ruling decides whether this is a
-                    ; zero-argument application.
+                    ; D50 requires InvalidControlTarget at continuationStart;
+                    ; the implementation milestone replaces this pending scan.
                     (NoDeltaCatalogMachine scan)))
                 (NoDeltaCatalogState
                   (match machineLookup
@@ -6437,6 +6444,8 @@
           (delta_local_scan_add_candidate UnknownName
             (delta_expression_start expressionValue) scan))))))
 
+; Superseded by D51: self expressions follow ordinary local lookup. This
+; self-only fact path remains only until receiver normalization is implemented.
 (def delta_local_scan_self_fact ((expressionValue DeltaExpression)
   (active DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
@@ -7353,9 +7362,10 @@
     ((DeltaPostfixStatement start end expressionValue) start)
     ((DeltaAssertStatement start end expressionValue) start)))
 
-; Once a successful standalone `never` call ends the ordinary statement
-; stream, D37 diagnoses only the first following statement. The stream remains
-; traversed so every authored child keeps its independent static candidates.
+; Superseded by D53: a successful `never` statement ends local block flow, and
+; the first later executable statement or terminal anchors InvalidTerminal at
+; its terminating delimiter. The final pass still visits every authored child
+; but admits no later construct's block-exit parent relation.
 (def delta_local_scan_statement_after_never
   ((statementValue DeltaStatement) (flow DeltaStatementFlow)
    (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan

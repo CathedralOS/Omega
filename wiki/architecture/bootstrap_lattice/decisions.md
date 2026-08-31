@@ -1421,56 +1421,46 @@ discard parser enters the current record model.
 
 ## D36 — Delta callable spelling is single-valued before body resolution
 
-Delta admits `&mut self` only on an owner-qualified machine declaration. The
-grammar for an unqualified machine accepts ordinary parameters only, so an
-authored `&` in that position is `UnexpectedToken` at the `&`; it is not a
-typeless receiver carried forward as `TypeMismatch`, and it never infers
-`Main` or another global storage owner. A qualified machine with an unknown
-owner remains later `UnknownName` at the owner spelling.
+D51 narrows D36's original callable partition. An unqualified machine accepts
+ordinary parameters and is invoked as `name(...)`. An owner-qualified data
+machine requires `&mut self` as its first input and is invoked only through a
+typed receiver postfix such as `value.name(...)`. A data-owner
+`Owner::name(...)` is constructor syntax. These grammar-selected positions,
+not one cross-kind declaration registry, make callable spelling single-valued.
 
-D22's grammar-selected namespace rule implies one narrow owner-local callable
-registry. Every sum case and every qualified machine under the same data owner
-participates, regardless of case payload or machine parameters. Equal
-`(owner, name)` spellings are `DuplicateName` at the later callable
-declaration's start under the existing D22/D24 census ordering. Fields do not
-join this registry: their value access remains position-distinguished, although
-the existing field/case member collision rule still applies inside a data
-declaration.
-
-This is an application of D22 rather than an exception. The one qualified
-primary production can denote a constructor or machine application, and a
-semicolon-terminated call must not select the machine merely because statement
-context requires one. Declaration collection therefore makes that callable
-spelling single-valued before arity, expected type, statement context, or
-control context can influence resolution.
+The grammar for an unqualified machine accepts no receiver, so an authored `&`
+there is `UnexpectedToken` at that byte. A qualified declaration requires its
+receiver immediately after `(`; `)` or an ordinary parameter there is
+`UnexpectedToken` at that token. No form infers `Main`, global storage, or a
+receiver from later use. A qualified machine with an unknown owner remains
+later `UnknownName` at the owner spelling.
 
 Every machine application requires an authored argument list, including `()`
-for a zero-parameter machine. The parser's retained distinction between bare
-`Owner::name` and `Owner::name()` is semantic: a bare machine identity is not a
-first-class value or machine application and is `TypeMismatch` at the
-qualified expression start in an ordinary expression. Constructors retain
-their existing optional argument-list form and are checked against the uniquely
-resolved case payload only after name resolution.
+for a zero-parameter free machine or receiver method. Constructors retain their
+optional payload-list syntax and resolve only in the case namespace. A case and
+receiver method may share `(owner, name)` because their invocation positions
+are disjoint; fields remain independently position-qualified and the existing
+field/case member collision rule still applies.
 
-An accepted qualified expression consequently resolves at most one callable
-identity before arity and type checking. `InvalidControlTarget` remains only a
-continuation judgment: it covers a uniquely resolved constructor used as a
-continuation and an unqualified state/machine collision at the continuation
-expression start. Expected result, arity, declaration order, and preferred-
-namespace lookup never choose among callable identities. A future unqualified
-receiver or alternate callable spelling requires an explicit language revision
-with its own owner, initialization, aliasing, and lowering contract.
+`InvalidControlTarget` remains only a continuation judgment. D50 completes its
+callable-category cases: a uniquely resolved constructor used as a
+continuation, a known bare state, a known bare unqualified machine, and an
+unqualified state/machine collision all reject at the continuation expression
+start. These are distinct causes sharing one public judgment, not separately
+observable outcome classes. Expected result, arity, declaration order, and
+preferred-namespace lookup never choose among callable identities.
 
 ## D37 — Delta body diagnostics follow a complete premise DAG
 
-Delta body/control checking visits every authored child and retains every
+Delta body/control checking visits every authored child and derives every
 independent child candidate, but a failure candidate or absent semantic fact
 does not satisfy a parent premise. No error type, guessed value, place, or
 callable is manufactured for recovery. A parent success or rejection candidate
 exists exactly when every fact consumed by that rule has resolved. Thus a
 binary scalar rule consumes both operand results, while arity consumes an
 admitted resolved callable and argument count but not the independently checked
-argument facts.
+argument facts. An implementation may reduce derived candidates online to the
+smallest coordinate; it need not physically retain candidates that cannot win.
 
 The callable path is a DAG rather than a traversal chain. Callable resolution
 feeds context/category admission, whose admitted result feeds arity; authored
@@ -1487,7 +1477,8 @@ resultless, or `never`. Place checking consumes only a complete value result: a
 value without a place is `InvalidPlace`, while `missing() = 0` has no value fact
 and therefore contributes only its callee `UnknownName`. Resultless in a
 value-required position is `TypeMismatch`; a `never` call outside its exact
-terminal position, or a statement following it, is `InvalidTerminal`.
+terminal position, or a later executable construct in the same block, is
+`InvalidTerminal`.
 Immutable views and other nonassignable values need no separate mutability row;
 they simply carry no place.
 
@@ -1503,15 +1494,17 @@ enclosing expression start; arity at the application start; `InvalidPlace` at
 the left-side place start; and let, assignment, assert, return, and transition
 value relations at their initializer, assigned value, asserted expression,
 returned expression, or subject. A required absent return value anchors at the
-`return` keyword. Control and terminal failures anchor at their continuation,
-mispositioned `never` call, or first following statement as applicable.
+`return` keyword. Control and terminal failures anchor at their continuation or
+mispositioned `never` call. D53 supersedes the former first-following-statement
+anchor with that construct's terminating delimiter.
 
 Candidates merge only by the existing body-phase smallest packed coordinate.
-Duplicate derivation of one reason/coordinate is one candidate. Distinct
-reasons at one exact coordinate after the premise DAG are an internal compiler
-contradiction and yield outer `InternalFailure`; reason-code order never breaks
-the tie. Runtime short-circuiting, transition selection, and compiler traversal
-do not suppress static checking of authored children or arms.
+Duplicate derivation of one reason/coordinate is one candidate. No two
+simultaneously derivable distinct reasons may share one coordinate by
+construction. Finding such a pair is an internal compiler contradiction and
+yields outer `InternalFailure`; reason-code order never breaks the tie. Runtime
+short-circuiting, transition selection, and compiler traversal do not suppress
+static checking of authored children or arms.
 
 ## D38 — Delta `.as_slice` borrows only a place-valued fixed array
 
@@ -2160,6 +2153,169 @@ parent, optimized occurrence, lowering, assignment, relocation, and emitted-
 byte custody. Missing, duplicate, stale, substituted, padded, or role-swapped
 children reject; verified elimination is the only omission. Retained D41
 settlement content is replay input, not self-issued authority.
+
+## D50 — Delta state transfers always author an argument list
+
+Every Delta state transfer has an authored argument list, including `()` for a
+zero-parameter state. A known bare state in continuation position is not a
+state transfer and contributes `InvalidControlTarget` at the continuation
+expression's first byte, regardless of the state's arity. Only an explicit
+application enters arity and argument checking, so `retry` is
+`InvalidControlTarget` while `retry()` may be `ArityMismatch`.
+
+This is a semantic judgment over the existing postfix-expression continuation
+grammar. Mandatory parentheses in a state declaration support the symmetric
+surface but do not derive the use-site rule: the grammar still admits a bare
+identifier. Ordinary-expression resolution is unchanged. State labels do not
+enter the local-value namespace; a same-spelled active local resolves as that
+local, a pending local is `UseBeforeInitialization`, and genuine absence is
+`UnknownName`.
+
+D36's continuation cases consequently include a known bare state and a known
+bare machine in addition to a uniquely resolved constructor and an unqualified
+state/machine collision. These are distinct source causes that deliberately
+share `InvalidControlTarget` and the continuation-start coordinate; public
+outcome bytes cannot distinguish them, so controls exercise each cause
+independently. Expected type, arity, source order, or preferred-namespace
+lookup never selects or admits one.
+
+A bare state retains neither a state application nor a first-class state
+reference. No application was authored, state labels are not values, and the
+state-application ledger remains reserved for exact application syntax. A bare
+machine may retain the existing general callable reference because that
+identity has consumers outside this failed continuation judgment; this carrier
+asymmetry does not grant either spelling application status.
+
+## D51 — Delta owner-qualified machines always bind their data receiver
+
+Delta has free machines and receiver machines, but no owner-qualified static
+machine. An unqualified declaration accepts ordinary parameters and no
+receiver. Every owner-qualified data-machine declaration begins with
+`&mut self`, and every invocation is receiver-qualified. A receiverless
+`machine Owner::name(...)` declaration rejects syntactically at the first token
+where the required receiver is absent. Boundary-trait members remain their
+separate bodyless declaration form.
+
+For `machine Buffer::clear(&mut self)`, the first input is exactly the mutable
+`Buffer` data instance. `self` is the fixed reserved symbol bound by that input;
+it is not a distinct type, inferred global, or special runtime value. The
+compiler normalizes expression occurrences of the keyword to the ordinary
+named-local path using their source spans. The receiver binding carries the
+owner-derived nominal type and place and remains active through the machine's
+states. An occurrence outside that lexical scope therefore reaches ordinary
+local lookup and is `UnknownName` under the existing rule.
+
+The special `DeltaSelfExpression`, nameless `DeltaSelfLocal`, self-only lookup,
+and `NoDeltaLocalBindingName` path are representation defects and are retired.
+The replacement receiver-local carrier retains the keyword span and exact
+owner-derived type. `NoDeltaLocalBindingType` remains because incomplete
+transition-binder typing uses it independently. The catalog's broad
+`DeltaDeclaration` owner payload is separate upstream cleanup and no longer
+survives in the receiver binding.
+
+The surface partition removes the former case/qualified-machine collision
+registry. For a data owner, `Owner::name(...)` selects a sum constructor,
+`value.name(...)` selects a receiver machine, and bare `name(...)` selects an
+unqualified machine. A case and receiver machine may share a spelling; neither
+arity, expected type, statement context, nor source order selects between
+namespaces. Owner qualification that supplies only namespacing adds no Delta
+capability and can be reintroduced later if a concrete static-owner operation
+requires semantics distinct from a free machine.
+
+Controls cover free-machine calls; valid receiver binding in entry and state
+bodies; undeclared `self` and multiple occurrences under ordinary earliest-
+coordinate selection; case/method spelling reuse; rejection of empty and
+ordinary-parameter qualified declarations; direct `Owner::method(...)` not
+selecting a receiver machine; and receiver syntax never selecting a case.
+
+## D52 — Resultless Delta arguments own their value-use anchor
+
+A resultless call used directly as a machine or constructor argument
+contributes `TypeMismatch` at the first byte of that authored argument
+expression. Redundant grouping is part of the argument expression, so
+`consume((write()))` anchors the resultless failure at the outer `(`. This is a
+sibling judgment to the enclosing application's callable admission and arity;
+it is derived even when either enclosing branch fails.
+
+The adjacent `never` argument relation adopts the same argument-subtree
+ownership but deliberately retains its existing call-head coordinate.
+`consume((stop()))` therefore anchors `InvalidTerminal` at `stop`, because the
+defect is the mispositioned nonreturning call, while the resultless defect is
+that the authored argument position supplied no value. Controls pin this
+reason-specific grouping distinction rather than normalizing it away.
+
+The body-phase accumulator publishes only the smallest packed coordinate and
+retains a reason list only for exact ties. An enclosing `ArityMismatch`,
+`UnknownName`, or inadmissible-callable rejection therefore precedes and
+replaces a later resultless-argument candidate; the observable requirement is
+the earlier rejection and never `InternalFailure`, not physical co-retention of
+both candidates.
+
+The application-start audit is closed by the D37 premise graph. For any call
+`C`, every relation consuming `C`'s result category is blocked by an arity
+failure on `C`, because `C` produces a result only after its own arity and
+argument-type join succeeds. An inner call `G` may successfully produce
+`Resultless`, whose argument-position failure is then a sibling of outer call
+`F`'s admission and arity; their coordinates are distinct. Thus no two
+simultaneously derivable distinct reasons share an application coordinate.
+
+This ruling adds no rejection reason or wire code. Controls cover a valid
+outer call, wrong outer arity, unknown and inadmissible outer callees,
+constructor arguments, grouped resultless arguments, and grouped `never`
+arguments.
+
+## D53 — Delta block exits are local facts, not a reachability fixed point
+
+The grammar no longer classifies `call ";"` as both a statement and a
+terminal. Every semicolon-terminated call is syntactically a statement. A
+successfully resolved call returning `never` gives its block the semantic
+`NoNormalReturn` exit effect. Any later executable statement, return, or
+transition in that same entry or state block contributes `InvalidTerminal` at
+its terminating delimiter: `;` for a statement or return and the closing `}`
+for a transition. State declarations following the entry sequence are not
+executable successors and remain permitted. The later construct's children are
+still checked, but it contributes no return, transition, or other block-exit
+parent relation after flow has ended.
+
+Every machine entry and every declared state body is checked independently,
+whether or not another block currently transfers to it. Each block edge has
+exactly one of five effects:
+
+```text
+Falloff | ReturnNone | ReturnValue(type) | NoNormalReturn | StateTransfer(state)
+```
+
+There is no `MachineTail` effect. A transition continuation that is a
+resultless machine call has `Falloff` if the call returns; a call returning
+`never` has `NoNormalReturn`; and a value-returning call is `TypeMismatch` at
+the continuation expression start. Value-returning control is written
+explicitly as `-> return expression`. These rules apply to every admitted
+machine continuation, including free, receiver, and sealed-boundary calls.
+
+The enclosing machine category checks each edge locally. A resultless machine
+admits `Falloff`, `ReturnNone`, `NoNormalReturn`, and `StateTransfer`. A machine
+returning `T` admits structurally compatible `ReturnValue(T)`,
+`NoNormalReturn`, and `StateTransfer`. A `never` machine admits only
+`NoNormalReturn` and `StateTransfer`. An incompatible falloff is `TypeMismatch`
+at the exact closing `}` of the entry or state body. Existing explicit-return
+anchors remain unchanged.
+
+`StateTransfer` is compatible with every category because its target is a
+state of the same machine and that state body is checked independently under
+the same declared return category. Consequently no reachability traversal,
+cycle detection, or least fixed point participates in return validation. On
+any finite execution, a normal return must occur through one locally checked
+falloff or return edge; an infinite state cycle takes no normal-return edge and
+requires no termination proof. Unused malformed states reject deliberately,
+so adding a transfer elsewhere cannot change whether an untouched state body
+is valid.
+
+D37's rule that runtime selection does not suppress checking of authored arms
+continues to govern child diagnostics, but reachability is not a block-exit
+premise. Controls cover empty and nonempty blocks, every machine category,
+unused states, closed cycles, each of the five effects, resultless/`never`/value
+machine continuations, constructs after `never`, and exact delimiter/brace
+coordinates. This ruling adds no rejection reason or wire code.
 
 ## Dependency order
 

@@ -7,12 +7,12 @@ adjacent source-to-Alpha-tape validation.
 It is self-contained: a compiler, sample corpus, historical implementation, or
 Omega document cannot amend Delta by acceptance.
 
-D22 and D36 fix deterministic declaration identity beneath that contract:
+D22, D36, and D51 fix deterministic declaration identity beneath that contract:
 grammar-selected owner, machine, member, state, and local scopes; one pre-type
 scoped duplicate census; no active local shadowing; legal disjoint-state and
-member/local spelling reuse; one data-owner callable registry for cases and
-qualified machines; qualified-only receivers; and no authored machine bodies
-on boundary owners. D24 completes that census with transition-arm binder scope,
+member/local spelling reuse; free unqualified machines; mandatory receivers on
+owner-qualified data machines; disjoint constructor and receiver-method
+namespaces; and no authored machine bodies on boundary owners. D24 completes that census with transition-arm binder scope,
 same-phase `DuplicateName`/`InvalidBoundary` ordering, and unique-owner
 classification.
 D31 completes type formation and D34 completes its realizability report:
@@ -21,7 +21,10 @@ storage-only `u8` and `never`/view/`Console` placement, structural diagnostic
 anchors, and profile-owned bounded-witness static-storage refusal.
 D37 fixes body/control candidate dependency as a complete premise DAG,
 including value/place/resultless/`never` joins and exact relational/projection
-anchors.
+anchors. D52 fixes resultless machine/constructor arguments at their authored
+argument-expression start and closes the distinct-reason coordinate audit.
+D53 fixes five local block-exit effects, checks every state without reachability
+analysis, and gives falloff and post-`never` constructs exact delimiter anchors.
 D38 fixes `.as_slice` as a once-evaluated, allocation-free full view of a
 place-valued fixed array; views and non-place array temporaries are not accepted
 receivers.
@@ -46,13 +49,13 @@ compilers and must not both be called “the Delta compiler.”
 - `compiler/` owns the in-progress `delta_compiler.gamma`, its eventual
   canonical Alpha tape, and refinement evidence. The retained source currently
   contains final compiler material through complete parsing, the D22/D24
-  source-shaped identity census including D36's receiver restriction and
-  case/machine collision registry, D31 structural type formation, the source-
-  backed resolution catalog, ordered local-value resolution, exact scalar and
+  source-shaped identity census including D36's receiver restriction and the
+  superseded case/machine collision registry, D31 structural type formation,
+  the source-backed resolution catalog, ordered local-value resolution, exact scalar and
   aggregate value/place facts, one generalized callable ledger, direct
   qualified applications, grouped/unqualified machine applications and
   discarded postfix-statement category admission in settled non-continuation
-  contexts, positive receiver-scoped `self`, named-data
+  contexts, the superseded special receiver-scoped `self` carrier, named-data
   receiver applications, exact sealed-`Console` receiver applications, and
   explicit transition state applications with state/machine collision
   rejection and separate state completion custody, transition subject,
@@ -60,12 +63,12 @@ compilers and must not both be called “the Delta compiler.”
   settled field/index/slice projection failures, D37 scalar and argument-
   `never` category joins, let/assignment/assert and explicit-return relations,
   first-following-statement terminal flow, and symbolic Alpha encoding.
-  Remaining final body/control checking, Q3-blocked entry diagnostics, Q4
-  bare-state-transfer spelling, Q5 invalid-`self` diagnostic, Q6
-  resultless-argument anchor, the Q7-blocked exit/falloff judgment,
-  Q8-blocked transition-pattern/coverage diagnostics, reachability, and the
-  remaining D37 control/terminal premise DAG, D38 executable controls, storage
-  realization/lowering,
+  D50 fixes bare-state-transfer spelling, D51 retires static qualified
+  machines plus special `self` resolution, D52 fixes resultless-argument
+  anchoring, and D53 fixes local block exits. Their implementation remains
+  alongside final body/control checking, owner-blocked entry and transition-
+  pattern/coverage diagnostics, the remaining D37 control/terminal
+  premise DAG, D38 executable controls, storage realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact
   yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
