@@ -19,6 +19,7 @@ pub use path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{
     SourceScopedTopLevelBinding, SymbolNameStorageCounts, SymbolTable, SymbolTableBuilder,
+    SymbolTableExtension,
 };
 
 #[cfg(test)]
@@ -94,6 +95,97 @@ mod tests {
         assert_eq!(symbols.name(authored_machine), "main");
         assert_eq!(symbols.name(authored_entry), "entry");
         assert_eq!(symbols.get(authored_entry).parent, authored_machine);
+    }
+
+    #[test]
+    fn authored_extension_appends_without_mutating_base_symbol_identity() {
+        let mut sources = SourceMap::default();
+        let base_source = sources
+            .add(PathBuf::from("base.omg"), String::from("Base"))
+            .source_id;
+        let shadow_source = sources
+            .add(PathBuf::from("shadow.omg"), String::from("Base"))
+            .source_id;
+        let reference_source = sources
+            .add(PathBuf::from("reference.omg"), String::from("Base"))
+            .source_id;
+        let extension_source = sources
+            .add_with_metadata_and_resolution_stratum(
+                PathBuf::from("generated.omg"),
+                String::from("Extension"),
+                PathBuf::from("."),
+                None,
+                SourceOrigin::User,
+                SourceResolutionStratum::CurrentActivationExtension,
+            )
+            .source_id;
+        let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+            Some(Arc::new(sources.clone())),
+            vec![SourceScopedTopLevelBinding::new(
+                reference_source,
+                shadow_source,
+                "Base",
+            )],
+        );
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let base_declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(base_source, Span::new(0, 4))),
+                ),
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::Source(SourceSpan::new(shadow_source, Span::new(0, 4))),
+                ),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let [base, shadow] = base_declarations.as_slice() else {
+            panic!("two base declarations")
+        };
+        let base_member = SymbolTableBuilder::child_handles(builder.insert_children(
+            *base,
+            [(SymbolKind::Field, SymbolNameRef::Static("member"))],
+        ))
+        .next()
+        .expect("base member");
+        let base_snapshot = (*base, *shadow, base_member);
+
+        let mut extension = builder
+            .finish()
+            .begin_extension(Some(Arc::new(sources)), Vec::new());
+        let generated = extension.insert_top_level([(
+            SymbolKind::Data,
+            SymbolNameRef::Source(SourceSpan::new(extension_source, Span::new(0, 9))),
+        )]);
+        let [generated] = generated.as_slice() else {
+            panic!("one extension symbol")
+        };
+        let symbols = extension.finish();
+
+        assert_eq!((*base, *shadow, base_member), base_snapshot);
+        assert_eq!(symbols.find_child_by_name(root, "Base"), Some(*base));
+        assert_eq!(
+            symbols.find_child_by_name(root, "Extension"),
+            Some(*generated)
+        );
+        assert_eq!(
+            symbols.find_child_by_name(*base, "member"),
+            Some(base_member)
+        );
+        assert_eq!(symbols.get(base_member).parent, *base);
+        assert_eq!(symbols.get(*generated).parent, root);
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                "Base",
+                &[SymbolKind::Data],
+                SourceSpan::new(reference_source, Span::new(0, 4)),
+            ),
+            Some(*shadow),
+            "extension must preserve base source-scoped bindings",
+        );
     }
 
     #[test]

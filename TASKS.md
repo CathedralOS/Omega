@@ -11391,8 +11391,13 @@ checked-result arithmetic decision listed below.
   explicit extension-only syntax carrier. It retains exact unit-to-root
   ownership, source bytes/map, custody, and the base-frontier identity, then is
   consumed into the unchanged transitional combined pass without source reread
-  or reparse. Seeded syntax-to-resolved and resolved-to-typed continuation APIs
-  remain engineering work, not a language-design blocker.
+  or reparse. The symbol-table prerequisite for the seeded pass is now
+  append-only: supplemental extension roots participate in lookup while every
+  retained base/root/nested handle and authored child span remains unchanged;
+  extension-owned nested children retain fresh contiguous spans, and advancing
+  the source map preserves existing source-scoped bindings. The seeded
+  syntax-to-resolved and resolved-to-typed continuation APIs remain engineering
+  work, not a language-design blocker.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

@@ -18,6 +18,7 @@ pub struct SymbolTable {
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
     root: SymbolHandle,
+    supplemental_top_level: Vec<SymbolHandle>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -134,6 +135,7 @@ impl SymbolTableBuilder {
             sources: self.sources,
             source_scoped_top_level_bindings: self.source_scoped_top_level_bindings,
             root: self.root,
+            supplemental_top_level: Vec::new(),
         }
     }
 
@@ -160,6 +162,19 @@ impl SymbolTable {
 
     pub fn get(&self, symbol: SymbolHandle) -> &Symbol {
         self.symbols.get(symbol)
+    }
+
+    /// Start an append-only extension of an already resolved symbol table.
+    /// Existing symbol handles and child ranges remain unchanged.
+    pub fn begin_extension(
+        mut self,
+        sources: Option<Arc<SourceMap>>,
+        additional_source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
+    ) -> SymbolTableExtension {
+        self.sources = sources;
+        self.source_scoped_top_level_bindings
+            .extend(additional_source_scoped_top_level_bindings);
+        SymbolTableExtension { table: self }
     }
 
     /// Mint a compiler-generated root declaration after symbol resolution.
@@ -325,8 +340,15 @@ impl SymbolTable {
         self.root
     }
 
-    pub fn child_handles(&self, parent: SymbolHandle) -> Option<HierarchyChildHandles<Symbol>> {
-        self.symbols.child_handles(parent)
+    pub fn child_handles(&self, parent: SymbolHandle) -> Option<SymbolChildHandles<'_>> {
+        Some(SymbolChildHandles {
+            contiguous: self.symbols.child_handles(parent)?,
+            supplemental: if parent == self.root {
+                self.supplemental_top_level.iter()
+            } else {
+                [].iter()
+            },
+        })
     }
 
     pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {
@@ -334,8 +356,8 @@ impl SymbolTable {
             return None;
         }
 
-        self.symbols
-            .find_child(parent, |symbol, _| self.name(symbol) == name)
+        self.child_handles(parent)?
+            .find(|symbol| self.name(*symbol) == name)
     }
 
     pub fn find_child_by_name_and_kind(
@@ -348,9 +370,8 @@ impl SymbolTable {
             return None;
         }
 
-        self.symbols.find_child(parent, |symbol, symbol_data| {
-            symbol_data.kind == kind && self.name(symbol) == name
-        })
+        self.child_handles(parent)?
+            .find(|symbol| self.get(*symbol).kind == kind && self.name(*symbol) == name)
     }
 
     /// Resolve one source-backed top-level reference without turning a
@@ -655,6 +676,74 @@ impl SymbolTable {
 
     pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
         &self.path_members
+    }
+}
+
+pub struct SymbolChildHandles<'table> {
+    contiguous: HierarchyChildHandles<Symbol>,
+    supplemental: std::slice::Iter<'table, SymbolHandle>,
+}
+
+impl Iterator for SymbolChildHandles<'_> {
+    type Item = SymbolHandle;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.contiguous
+            .next()
+            .or_else(|| self.supplemental.next().copied())
+    }
+}
+
+pub struct SymbolTableExtension {
+    table: SymbolTable,
+}
+
+impl SymbolTableExtension {
+    pub fn insert_top_level<'name>(
+        &mut self,
+        declarations: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> Vec<SymbolHandle> {
+        let root = self.table.root;
+        let names = &mut self.table.names;
+        let symbols = &mut self.table.symbols;
+        let mut inserted = Vec::new();
+        for (kind, name) in declarations {
+            let handle = symbols.insert_supplemental_child(
+                root,
+                Symbol {
+                    parent: root,
+                    children: HandleSpan::empty(),
+                    kind,
+                    name: names.insert(SymbolName::from_ref(name)),
+                    generated_from: SymbolHandle::invalid(),
+                },
+            );
+            self.table.supplemental_top_level.push(handle);
+            inserted.push(handle);
+        }
+        inserted
+    }
+
+    pub fn insert_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
+        let names = &mut self.table.names;
+        self.table.symbols.insert_generated_children(
+            parent,
+            children.into_iter().map(|(kind, name)| Symbol {
+                parent,
+                children: HandleSpan::empty(),
+                kind,
+                name: names.insert(SymbolName::from_ref(name)),
+                generated_from: SymbolHandle::invalid(),
+            }),
+        )
+    }
+
+    pub fn finish(self) -> SymbolTable {
+        self.table
     }
 }
 
