@@ -158,8 +158,8 @@ inferred to have a receiver. Same-spelled record fields fall back to ordinary
 field custody and the general value-call failure, while call syntax selects a
 same-spelled machine and an invalid case/machine collision selects neither.
 Chained resultless/`never` receivers retain their category/terminal failures.
-Full continuation/state admission and non-named negative projection remain
-with the wider body/control judgment.
+Full continuation/state admission remains with the wider body/control
+judgment.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
@@ -173,14 +173,25 @@ its complete receiver before ordinary field fallback. Record fields literally
 named `len` or `as_slice` remain ordinary fields because contextual array/view
 members are selected only after base-type classification.
 
+The same selector classifier owns settled negative projection: an absent
+ordinary member is `UnknownName` at its spelling; a known case, machine, or
+boundary member used as a value selector is `TypeMismatch`; contextual names
+on unsupported complete receivers are `TypeMismatch`; and resultless/`never`
+bases retain category/terminal failures. Grouped call heads reuse the same
+classifier before the separate call suffix. Index and slice joins retain each
+available resultless/`never` child failure independently, but derive
+unsupported-base and non-`i32` relations only when every required operand has
+a value fact. Missing siblings therefore manufacture no projection relation or
+parent result. Static index/slice checking still imposes no range judgment.
+
 The fact pass follows D37 by producing no parent fact or dependent diagnostic
 while a consumed child premise is absent. Admitted callable arity is a sibling
 judgment and can therefore coexist with an independently failing
 argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
-an embedded `never` result is `InvalidTerminal`. Negative
-projection, relational, place, general-call, resultless-use, and `never`-flow
-candidates still require the remaining D37 premise DAG. The fact pass now
+an embedded `never` result is `InvalidTerminal`. Place, statement, remaining
+call/control context, return, and terminal-flow candidates still require the
+rest of the D37 premise DAG. The fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining
 nested failure candidates compose. This foundation does not claim final

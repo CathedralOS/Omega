@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/unqualified/named-receiver callable facts, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q10/Q11 diagnostics, complete D36 continuation/state and D37 body/control premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/unqualified/named-receiver callable and field/index/slice projection facts, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q10/Q11 diagnostics, complete D36 continuation/state and D37 body/control premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1307,8 +1307,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       reason/coordinate, and implement the direct qualified callable's sibling
       argument walk, context gate, independent arity derivation, complete-value
       type join, and result production without an error type or guessed fact.
-      Distinct same-coordinate reasons, remaining call forms, place/projection
-      failures, relational statements, and terminal flow remain open.
+      Distinct same-coordinate reasons, remaining call forms, place/statement
+      relations, and terminal flow remain open.
+    - [x] Centralize settled field selection in one complete-result classifier.
+      Exact data fields retain owner/member custody and inherited places before
+      contextual names; cases and known callable members are `TypeMismatch`;
+      true absence is member-anchored `UnknownName`; array/view `.len` and D38
+      `.as_slice` keep their exact rules; and resultless/`never` bases retain
+      category/terminal failures. Reuse that classifier for grouped call-head
+      fallback so non-named selectors, named no-machine branches, and the
+      following separate call suffix cannot diverge. Complete index and slice
+      projection joins now retain independent resultless/`never` child
+      candidates, wait for every required value fact before deriving base/type
+      relations, reject unsupported bases or non-`i32` operands at the postfix
+      start, preserve array/view place distinctions, and leave bounds to
+      runtime. Missing sibling facts manufacture neither a relation nor a
+      parent result. The Gamma admission gate covers source formation only;
+      executable controls remain dependency-blocked on the real compiler edge.
   - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
     once and retain a non-place immutable full-range view without allocation,
