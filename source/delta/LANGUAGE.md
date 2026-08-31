@@ -426,6 +426,60 @@ statement or control target. An unqualified state and machine that both match
 one transition continuation reject as `InvalidControlTarget` at that
 continuation expression's first byte.
 
+Body and control checking is one finite premise DAG, not traversal-driven error
+recovery. Every authored child judgment is visited and retains its independent
+candidate even when its parent cannot be formed. A failed child, whether it
+contributes a candidate or no semantic fact, does not satisfy a parent premise
+and is never replaced by an error type, guessed `i32`, place, or callable. A
+parent success or rejection candidate exists exactly when every fact consumed
+by that rule has resolved.
+
+Callable resolution and argument checking branch after the callable spelling
+is resolved and admitted for the current expression, statement, or control
+context. Arity consumes that admitted callable and the authored argument count,
+but not argument facts; argument expressions are checked independently and an
+`ArityMismatch` may therefore coexist with a failure inside an argument.
+Argument-type comparison additionally consumes arity success and the complete
+argument facts, and only that join can produce the call result. An identity
+inadmissible in the current context contributes `InvalidControlTarget` or
+`TypeMismatch` without also contributing arity or argument-type failures, while
+its authored argument expressions remain independently checked.
+
+A complete expression result is exactly a value with its type and optional
+place, a resultless call, or a `never` call. A place-required judgment consumes
+only a complete value result. A value with no place contributes `InvalidPlace`;
+an unresolved expression cannot. A resultless call used where a value is
+required contributes `TypeMismatch`. A `never` call is admitted only as the
+exact terminal; embedding it in another expression or statement contributes
+`InvalidTerminal`, and the first statement following a `never` terminal also
+contributes `InvalidTerminal`. No mutability discriminator exists: immutable
+views and other nonassignable values simply carry no place.
+
+Projection rules consume complete base and index/bound facts. An absent member
+on any complete base contributes `UnknownName` at the member spelling. A known
+member of the wrong kind, a known contextual member on an unsupported receiver,
+or a non-`i32` required index or bound contributes `TypeMismatch` at the
+enclosing postfix expression's start. The separately selected `.as_slice`
+receiver set follows this same failure rule.
+
+Body/control anchors are otherwise exact. Unary, binary, call, constructor,
+and postfix relational failures use the enclosing expression start; arity uses
+the application start. `InvalidPlace` uses the left-side place start. A `let`,
+assignment, `assert`, return, or transition value-type relation uses the
+initializer, assigned value, asserted expression, returned expression, or
+transition subject start respectively. A required but absent return value uses
+the `return` keyword. `InvalidControlTarget` uses the continuation expression
+start, and `InvalidTerminal` uses the mispositioned `never` call or first
+following statement start.
+
+All admitted body/control candidates merge by smallest packed source
+coordinate. Repeated derivation of the same reason at the same coordinate is
+one candidate. Two distinct reasons at one coordinate after applying the
+premise DAG are a compiler contradiction and produce outer `InternalFailure`,
+never a Delta rejection chosen by reason-code order. Runtime short-circuiting,
+transition selection, and source traversal do not suppress static checking of
+authored child expressions or arms.
+
 A resultless machine may `return;` or fall off a reachable block. A
 value-returning machine must `return expression;` on every reachable normal
 path. A `never` machine has no normal return path.
@@ -476,8 +530,8 @@ failing phase is reported. Coordinates are exact:
   reports its length literal, a standalone value-position `u8` or misplaced
   `never` reports that type token, and a forbidden view reports its outermost
   forbidden `&`; and
-- a body error reports the first token of the offending expression or
-  statement.
+- a body error follows the premise-DAG relation anchors in section 8 rather
+  than a compiler traversal or statement-wide fallback.
 
 The Delta compiler application's `DCOUT` v1 reject table is explicit and is
 not derived from Gamma constructor order:

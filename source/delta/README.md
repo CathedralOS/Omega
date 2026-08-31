@@ -19,6 +19,9 @@ D31 completes type formation and D34 completes its realizability report:
 positive array lengths, zero-field records, mixed-data rejection, exact
 storage-only `u8` and `never`/view/`Console` placement, structural diagnostic
 anchors, and profile-owned bounded-witness static-storage refusal.
+D37 fixes body/control candidate dependency as a complete premise DAG,
+including value/place/resultless/`never` joins and exact relational/projection
+anchors.
 
 ## Canonical edges
 
@@ -44,9 +47,9 @@ compilers and must not both be called “the Delta compiler.”
   backed resolution catalog, ordered local-value resolution, exact scalar and
   aggregate value/place facts, and symbolic Alpha encoding. Remaining final
   body/control checking, Q4 entry diagnostics, D36 callable-shape enforcement,
-  Q5 dependent-diagnostic composition, Q7 `.as_slice` receiver validity,
-  storage realization, lowering, `main`, and publication are incomplete, so it
-  exposes no compiler artifact yet.
+  D37 premise-DAG enforcement, Q6 `.as_slice` receiver validity, storage
+  realization, lowering, `main`, and publication are incomplete, so it exposes
+  no compiler artifact yet.
 
 The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
 tree, including the restricted Delta-written Darwin compiler prototype, are
