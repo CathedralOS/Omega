@@ -1,6 +1,9 @@
 //! Proof-certified scalar-operation classification.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use psi_core::ScalarType;
+
+use super::{ProofCertifiedScalarExpressionKey, ScalarExpressionRow, canonical_pair};
 
 pub(in crate::rules::passes) fn proof_certified_scalar_expression(
     operation: &O,

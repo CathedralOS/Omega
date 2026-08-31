@@ -1,6 +1,10 @@
 //! Expression-key models and identity-preserving operand translation.
 
-use super::*;
+use std::collections::{BTreeMap, BTreeSet};
+
+use psi_core::{IntegerType, IntegerValue, ScalarType, ValueId};
+
+use super::canonical_pair;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(in crate::rules::passes::global_value_numbering) enum TotalScalarExpressionKey {
@@ -36,7 +40,10 @@ pub(in crate::rules::passes) enum CompatiblePolicyScalarExpressionKey {
 }
 
 impl CompatiblePolicyScalarExpressionKey {
-    pub(in crate::rules::passes::global_value_numbering) fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+    pub(in crate::rules::passes::global_value_numbering) fn references_any(
+        self,
+        values: &BTreeSet<ValueId>,
+    ) -> bool {
         match self {
             Self::ShiftLeft(_, _, left, right)
             | Self::ShiftRight(_, _, left, right)
@@ -46,7 +53,10 @@ impl CompatiblePolicyScalarExpressionKey {
         }
     }
 
-    pub(in crate::rules::passes::global_value_numbering) fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Self {
+    pub(in crate::rules::passes::global_value_numbering) fn translate(
+        self,
+        values: &BTreeMap<ValueId, ValueId>,
+    ) -> Self {
         let value = |operand: ValueId| values.get(&operand).copied().unwrap_or(operand);
         match self {
             Self::ShiftLeft(value_type, count_type, operand, count) => {
@@ -71,7 +81,10 @@ impl CompatiblePolicyScalarExpressionKey {
 }
 
 impl TotalScalarExpressionKey {
-    pub(in crate::rules::passes::global_value_numbering) fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+    pub(in crate::rules::passes::global_value_numbering) fn references_any(
+        self,
+        values: &BTreeSet<ValueId>,
+    ) -> bool {
         match self {
             Self::BooleanConstant(_) | Self::IntegerConstant(_, _) => false,
             Self::BooleanNot(value)
@@ -99,7 +112,10 @@ impl TotalScalarExpressionKey {
         }
     }
 
-    pub(in crate::rules::passes::global_value_numbering) fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
+    pub(in crate::rules::passes::global_value_numbering) fn translate(
+        self,
+        values: &BTreeMap<ValueId, ValueId>,
+    ) -> Option<Self> {
         let value = |operand: ValueId| Some(values.get(&operand).copied().unwrap_or(operand));
         let commutative = |left: ValueId, right: ValueId| {
             let left = value(left)?;
@@ -193,7 +209,10 @@ pub(in crate::rules::passes) enum ProofCertifiedScalarExpressionKey {
 }
 
 impl ProofCertifiedScalarExpressionKey {
-    pub(in crate::rules::passes::global_value_numbering) fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+    pub(in crate::rules::passes::global_value_numbering) fn references_any(
+        self,
+        values: &BTreeSet<ValueId>,
+    ) -> bool {
         match self {
             Self::ExactCast(_, _, operand) => values.contains(&operand),
             Self::ExactShiftLeft(_, _, left, right)
@@ -212,7 +231,10 @@ impl ProofCertifiedScalarExpressionKey {
         }
     }
 
-    pub(in crate::rules::passes::global_value_numbering) fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Self {
+    pub(in crate::rules::passes::global_value_numbering) fn translate(
+        self,
+        values: &BTreeMap<ValueId, ValueId>,
+    ) -> Self {
         let value = |operand: ValueId| values.get(&operand).copied().unwrap_or(operand);
         match self {
             Self::ExactCast(source_type, target_type, operand) => {

@@ -1,6 +1,9 @@
 //! Compatible-policy leader and redundant-operation classification.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use psi_core::ScalarType;
+
+use super::{CompatiblePolicyScalarExpressionKey, ScalarExpressionRow, canonical_pair};
 
 pub(in crate::rules::passes) fn compatible_policy_scalar_leader(
     operation: &O,
