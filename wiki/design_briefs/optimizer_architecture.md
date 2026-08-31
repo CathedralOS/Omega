@@ -195,6 +195,14 @@ catalog. Primitive identity writers live in the neutral sibling
 `rewrite/canonical_encoding.rs`, consumed by both fact identities and the
 candidate codec without a model-to-codec dependency cycle.
 
+`omega-optimization-unit/src/construction/mod.rs` is the sole low-level
+abstract-plan-to-seed projection entrance. It builds functions in source order,
+descends through exact provenance, scalar-dataflow, control-flow, fact, and
+structural-custody projections, then recomputes the complete unit identity.
+Verified optimizer admission remains at
+`omega-psi-to-abstract-operations/src/optimization/mod.rs`; the seed split does
+not create a second verifier or catalog.
+
 Within a crate, follow semantic rungs rather than filename prefixes:
 
 ```text

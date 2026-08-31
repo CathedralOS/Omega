@@ -30,6 +30,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
         "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
         "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model.rs",
+        "source/omega-rust/omega/representations/omega-optimization-unit/src/construction.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

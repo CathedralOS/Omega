@@ -152,6 +152,10 @@ pub(crate) fn check(audit: &mut Audit) {
             REQUIRED_LEGALIZATION_SOURCE_LEAVES,
         ),
         ("rewrite model", REQUIRED_REWRITE_MODEL_LEAVES),
+        (
+            "optimization-unit seed construction",
+            REQUIRED_OPTIMIZATION_UNIT_CONSTRUCTION_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {
