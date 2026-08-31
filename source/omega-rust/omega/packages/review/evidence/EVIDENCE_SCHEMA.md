@@ -1,8 +1,20 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 114 and row schema version 72. This file
+The canonical review schema is version 115 and row schema version 73. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v115 / row v73 admits checked type/const-generic operator-provider
+declarations when the compiler resolves one exact positional static-telescope
+relation. The operator and callable rows retain both complete telescopes; their
+realization edge defines the ordinal relation, so binder spelling is not
+identity and no duplicate mapping is encoded. Categories and const carriers
+remain exact. Provider type-property requirements may weaken the requirement
+telescope but never strengthen it. Arity, parameter, and result drift reject.
+Lifetime, static-machine, proposition, fixed-token generic, and external
+generic realizations remain closed. This declaration evidence grants no
+generic application coverage; D29 still requires each compiler-derived demand
+to rejoin one independently checked final specialization.
 
 Schema v114 / row v72 adds D29's exact compiler-intrinsic realization role for
 actual monomorphic boundary-operator applications. The application rejoins its

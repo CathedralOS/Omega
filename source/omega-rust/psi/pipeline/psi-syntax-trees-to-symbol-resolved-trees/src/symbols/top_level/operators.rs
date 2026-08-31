@@ -49,6 +49,24 @@ pub(super) fn assign_operator_symbols(
     let local_type_parameters = data_type_parameters
         .span_or_empty(operator.type_parameters)
         .to_vec();
+    for index in 0..operator.type_parameters.len() {
+        let kind = data_type_parameters.span_or_empty(operator.type_parameters)[index]
+            .kind
+            .clone();
+        let psi_symbol_resolved_trees::data::TypeParameterKind::Const { mut type_reference } = kind
+        else {
+            continue;
+        };
+        assign_type_reference_symbol_with_locals_and_constraints(
+            symbols,
+            child_type_references,
+            type_constraints,
+            &local_type_parameters,
+            &mut type_reference,
+        );
+        data_type_parameters.span_mut_or_empty(operator.type_parameters)[index].kind =
+            psi_symbol_resolved_trees::data::TypeParameterKind::Const { type_reference };
+    }
     for parameter in state_parameters.span_mut_or_empty(operator.parameters) {
         parameter.symbol =
             next_child_of_kind(&mut operator_children, symbols, SymbolKind::Parameter);

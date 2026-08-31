@@ -230,17 +230,6 @@ machine FloatProvider::minimum(left: f32, right: f32) -> f32
 "#,
             "through an alias not yet represented",
         ),
-        (
-            "generic-machine",
-            r#"pub data F32 {}
-pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
-data FloatProvider {}
-machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
-    satisfies F32::minimum
-    via Binding::CompilerIntrinsic;
-"#,
-            "generic or lifetime-parameterized boundary operator",
-        ),
     ];
 
     for (label, source, expected) in cases {
@@ -262,6 +251,31 @@ machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
             "{label}: {diagnostics:?}"
         );
     }
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data F32 {}
+pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
+data FloatProvider {}
+machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    package.write("build.omg", build);
+    let diagnostics = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect_err("an unmatched external operator telescope must not check");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match one exact overload of operator requirement")),
+        "generic-machine: {diagnostics:?}"
+    );
 }
 
 #[test]

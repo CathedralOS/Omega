@@ -131,6 +131,21 @@ pub struct TypeParameter {
     pub bounds: DataProperties,
 }
 
+/// Whether a provider-side type parameter requires properties not guaranteed
+/// by the requirement-side parameter.
+///
+/// Affine with no carry policy is the unconstrained default. A provider may
+/// weaken to that default or repeat the requirement exactly; it may not demand
+/// a different multiplicity or carry policy from its callers.
+pub fn type_parameter_demands_stronger_properties(
+    requirement: &TypeParameter,
+    provider: &TypeParameter,
+) -> bool {
+    (provider.bounds.multiplicity != psi_language_semantics::Multiplicity::Affine
+        && requirement.bounds.multiplicity != provider.bounds.multiplicity)
+        || provider.bounds.carry.is_some() && provider.bounds.carry != requirement.bounds.carry
+}
+
 impl Default for TypeParameter {
     fn default() -> Self {
         Self {

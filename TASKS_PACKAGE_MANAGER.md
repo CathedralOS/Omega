@@ -61,6 +61,18 @@ stop the item on one precise owner question before adding machinery.
   rederived closed execution identity. It carries no checked-body fields and
   makes no Terminal/native or generic-coverage claim.
 
+  Generic checked provider declarations now retain their exact positional
+  type/const telescope relation on the existing operator realization edge.
+  Categories and const carriers remain exact; provider type-property demands
+  may weaken the requirement but never strengthen it. This is declaration
+  evidence only. Actual generic uses remain in D29's
+  demand-and-final-specialization work: a concrete use currently specializes
+  the checked provider while leaving its open `satisfies` edge attached, so
+  validation correctly rejects the resulting false declaration relation. The
+  specialization must instead retain and rejoin the exact closed requirement
+  application. Lifetime, static-machine, proposition, fixed-token generic, and
+  external generic realizations remain fail-closed.
+
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
   nominal Chi stage merely to collect private compiler state.

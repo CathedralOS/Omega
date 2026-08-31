@@ -4812,6 +4812,36 @@ fn preserves_operator_declarations() {
 }
 
 #[test]
+fn resolves_operator_const_parameter_carriers() {
+    let source = r#"
+    pub operator ConstSurface::identity<const Count: u64>(
+        value: [u8; Count]
+    ) -> [u8; Count];
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+    let operator = program.operators.first().expect("const-generic operator");
+    let [parameter] = program.data_type_parameters(operator.type_parameters) else {
+        panic!("one const parameter")
+    };
+    let psi_symbol_resolved_trees::data::TypeParameterKind::Const {
+        type_reference: psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name },
+    } = &parameter.kind
+    else {
+        panic!("const parameter carrier")
+    };
+    assert_eq!(name.as_str(), "u64");
+    assert!(
+        symbol.is_valid(),
+        "const carrier must retain semantic identity"
+    );
+}
+
+#[test]
 fn preserves_domain_operator_declarations() {
     let source = r#"
     data Quantity {

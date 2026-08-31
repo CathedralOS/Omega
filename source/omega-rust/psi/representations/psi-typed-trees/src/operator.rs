@@ -304,6 +304,11 @@ fn resolve_satisfied_operator<'program>(
         {
             return false;
         }
+        let Some((machine_binders, operator_binders)) =
+            operator_realization_static_binders(program, machine, operator)
+        else {
+            return false;
+        };
         let required_parameters = program.operator_parameters(operator);
         actual_parameters.len() == required_parameters.len()
             && actual_parameters
@@ -311,17 +316,85 @@ fn resolve_satisfied_operator<'program>(
                 .zip(required_parameters.iter())
                 .all(|(actual, required)| {
                     actual.is_self == required.is_self
+                        && actual.is_const == required.is_const
                         && actual.is_mutable == required.is_mutable
-                        && program.normalized_type_identity(actual.type_reference)
-                            == program.normalized_type_identity(required.type_reference)
+                        && program.normalized_type_identity_with_binders(
+                            actual.type_reference,
+                            &machine_binders,
+                        ) == program.normalized_type_identity_with_binders(
+                            required.type_reference,
+                            &operator_binders,
+                        )
                 })
             && state.return_type.is_valid() == operator.return_type.is_valid()
             && (!state.return_type.is_valid()
-                || program.normalized_type_identity(state.return_type)
-                    == program.normalized_type_identity(operator.return_type))
+                || program
+                    .normalized_type_identity_with_binders(state.return_type, &machine_binders)
+                    == program.normalized_type_identity_with_binders(
+                        operator.return_type,
+                        &operator_binders,
+                    ))
     });
     let selected = candidates.next()?;
     candidates.next().is_none().then_some(selected)
+}
+
+/// Build one alpha-normalized relation between a realizing machine's static
+/// telescope and the operator requirement telescope it claims to satisfy.
+///
+/// Type and const parameters are matched by category and declaration order;
+/// names and private symbols are not identity. Const carriers remain exact;
+/// provider type-property demands may weaken the requirement but never
+/// strengthen it. Static-machine and proposition parameters have no
+/// operator-application replay rule yet and therefore fail closed here instead
+/// of being flattened to a count.
+fn operator_realization_static_binders(
+    program: &TypedTrees,
+    machine: &crate::machine::Machine,
+    operator: &OperatorDefinition,
+) -> Option<(Vec<(SymbolHandle, String)>, Vec<(SymbolHandle, String)>)> {
+    let machine_parameters = program.machine_type_parameters(machine);
+    let operator_parameters = program.operator_type_parameters(operator);
+    if machine_parameters.len() != operator_parameters.len() {
+        return None;
+    }
+    let machine_binders = machine_parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, parameter)| (parameter.symbol, format!("${ordinal}")))
+        .collect::<Vec<_>>();
+    let operator_binders = operator_parameters
+        .iter()
+        .enumerate()
+        .map(|(ordinal, parameter)| (parameter.symbol, format!("${ordinal}")))
+        .collect::<Vec<_>>();
+    for (machine_parameter, operator_parameter) in
+        machine_parameters.iter().zip(operator_parameters)
+    {
+        match (&machine_parameter.kind, &operator_parameter.kind) {
+            (crate::data::TypeParameterKind::Type, crate::data::TypeParameterKind::Type)
+                if !crate::data::type_parameter_demands_stronger_properties(
+                    operator_parameter,
+                    machine_parameter,
+                ) => {}
+            (
+                crate::data::TypeParameterKind::Const {
+                    type_reference: machine_carrier,
+                },
+                crate::data::TypeParameterKind::Const {
+                    type_reference: operator_carrier,
+                },
+            ) if machine_parameter.bounds == operator_parameter.bounds
+                && program
+                    .normalized_type_identity_with_binders(*machine_carrier, &machine_binders)
+                    == program.normalized_type_identity_with_binders(
+                        *operator_carrier,
+                        &operator_binders,
+                    ) => {}
+            _ => return None,
+        }
+    }
+    Some((machine_binders, operator_binders))
 }
 
 fn operator_path_matches(

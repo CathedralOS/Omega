@@ -461,10 +461,9 @@ fn validate_callable_type_parameters(
     {
         match (&required.kind, &actual.kind) {
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
-                if (actual.bounds.multiplicity != psi_language_semantics::Multiplicity::Affine
-                    && required.bounds.multiplicity != actual.bounds.multiplicity)
-                    || actual.bounds.carry.is_some() && required.bounds.carry != actual.bounds.carry
-                {
+                if psi_typed_trees::data::type_parameter_demands_stronger_properties(
+                    required, actual,
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: generic parameter {} demands stronger type properties",
                         parameter.name, index

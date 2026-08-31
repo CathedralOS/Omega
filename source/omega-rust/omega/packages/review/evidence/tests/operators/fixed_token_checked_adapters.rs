@@ -271,11 +271,14 @@ satisfies CheckedMath::subtract
         );
     let diagnostics = project_checked_package_review(&generic)
         .expect_err("post-check generic fixed-token adapter must reject");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("generic or lifetime-parameterized fixed-token boundary operator")
-    }));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "resolves to neither one exact trait requirement nor one exact checked operator"
+            )),
+        "{diagnostics:?}"
+    );
 
     let mut lifetime = checked;
     lifetime.typed.machines_mut()[provider_index]
