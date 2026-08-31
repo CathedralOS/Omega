@@ -35,7 +35,7 @@ decision. Only true language-semantic questions belong in
    build-configuration cases (one intentional ignore), descriptor lock, six
    output-tree canaries, eight call-acknowledgement canaries, the 20 exact-name
    opt-in cases, the 163-test optimization pipeline, and Terminal's 128 source
-   plus four call canaries. Subsequent focused repairs made layering 78/78,
+   plus four call canaries. Subsequent focused repairs made layering 80/80,
    run-to-abstract projection 48/48, build-time evaluation 4/4, headless GUI
    1/1, no-selection native publication 5/5, and current Terminal format 43 /
    vocabulary 46 provider, codec-ledger, publication, and image-fingerprint
@@ -66,14 +66,24 @@ decision. Only true language-semantic questions belong in
    rejoined during lowering, Terminal verification and codec replay pass, and
    deleting the checked boundary fails closed. The new lowering route has a
    23-line coordinating entrance over named `admission`, `catalogs`, and
-   `emission` leaves rather than another monolithic producer. Next widen this
-   carrier one explicit capability at a time: shared structural arguments and
-   claims first, then internal Unit-call leaves and larger acyclic graphs. This
-   is engineering, not an owner language decision. A smaller recurring custody
+   `emission` leaves rather than another monolithic producer. The next bounded
+   rung is also complete: the typed producer is now a 22-line entrance over
+   `topology`, `guards`, `leaves`, and `assembly`; exact closed integer-literal
+   guards fold to checked Boolean constants; implicit borrowed `self` remains
+   attachment context; and one provider-backed attachment field lowers through
+   shared requirement validation into exact `ProviderAttachment` roots. The
+   checked producer and Terminal verifier/codec regression are green. The real
+   `runtime_free_const_exit` compiler canary now crosses this formerly missing
+   Terminal route and stops later on the documented host-realization fence:
+   only Linux `exit_process(i32)` currently has a closed compiler-intrinsic
+   execution identity, while the local macOS plan has none. Next widen the
+   composed carrier with shared structural arguments and claims, then internal
+   Unit-call leaves and larger acyclic graphs. This is engineering, not an
+   owner language decision. A smaller recurring custody
    class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
-   access unresolved. Independent failures remain in layering, the legacy
-   `Pair` layout fixture, one generic erased-record instance, nominal-affine
+   access unresolved. Independent failures remain in the legacy `Pair` layout
+   fixture, one generic erased-record instance, nominal-affine
    lowering (stack overflow), and the compiler/compilation-report doctests.
    Repair the Unit plan lane first, then authored checked selections, then the
    isolated fixtures and docs. Run the full gate again only after that coherent

@@ -8,20 +8,49 @@ pub(super) fn emit_composed_unit_control(
     admitted: admission::AdmittedComposedUnit<'_>,
     catalogs: catalogs::ComposedCatalogs,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let entry_parameter = ValueDeclaration {
-        id: value_id(1),
-        scalar_type: ScalarType::Boolean,
+    let [entry, _, _] = plan.states.as_slice() else {
+        unreachable!("admission retained exactly three states")
     };
+    let entry_parameters = entry
+        .scalar_parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            Ok(ValueDeclaration {
+                id: value_id(dense_identity(index)?),
+                scalar_type: terminal_scalar_type(parameter.primitive_type)?,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let parameter_types = entry_parameters
+        .iter()
+        .map(|parameter| parameter.scalar_type)
+        .collect::<Vec<_>>();
+    let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } = &entry.terminator
+    else {
+        unreachable!("admission retained one conditional entry")
+    };
+    let guard = lower_checked_scalar_expression(guard)?;
+    validate_direct_parameter_types(&guard, &parameter_types)?;
     let state_ids = [block_id(1), block_id(2), block_id(3)];
-    let mut next_value = 2_u64;
-    let mut next_operation = 1_u64;
+    let mut next_value = u64::try_from(entry_parameters.len())
+        .map_err(|_| LoweringError::Unsupported("composed Unit scalar arity exceeds u64"))?
+        + 1;
     let mut next_edge = 1_u64;
+    let mut entry_operations = OperationBuffer::new(0);
+    let guard = emit_direct_expression(
+        &guard,
+        &entry_parameters,
+        &mut next_value,
+        &mut entry_operations,
+    );
+    let mut next_operation = entry_operations.next_identity;
     let mut blocks = vec![Block {
         id: state_ids[0],
         parameters: Vec::new(),
-        operations: Vec::new(),
+        operations: entry_operations.operations,
         terminator: Terminator::Conditional {
-            condition: entry_parameter.id,
+            condition: guard,
             when_true: empty_successor(state_ids[1], &mut next_edge)?,
             when_false: empty_successor(state_ids[2], &mut next_edge)?,
         },
@@ -39,17 +68,33 @@ pub(super) fn emit_composed_unit_control(
         blocks.push(lowered_block);
         source_call_occurrences.append(&mut occurrences);
     }
+    let attachment = lookup_type_id(&catalogs.type_ids, &plan.attachment_type_identity)?;
+    let attachment_declaration = catalogs
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == attachment)
+        .expect("composed attachment declaration was selected");
+    let provider_boundaries = catalogs
+        .lowered_boundaries
+        .iter()
+        .map(|(symbol, boundary, _)| (*symbol, *boundary))
+        .collect::<Vec<_>>();
+    let mut next_place = 1_u64;
+    let structural_places = super::super::provider_attachments::lower_provider_attachment_places(
+        attachment,
+        attachment_declaration,
+        &plan.provider_attachment_requirements,
+        &provider_boundaries,
+        &mut next_place,
+    )?;
     let machine = TerminalMachine {
         id: machine_id(1),
-        attachment: Some(lookup_type_id(
-            &catalogs.type_ids,
-            &plan.attachment_type_identity,
-        )?),
-        parameters: vec![entry_parameter],
+        attachment: Some(attachment),
+        parameters: entry_parameters,
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
-        structural_places: Vec::new(),
+        structural_places,
         entry_claims: Vec::new(),
         published_service_ceiling: lower_installation_machine_service_ceiling(
             checked,

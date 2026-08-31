@@ -128,7 +128,7 @@ fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
     assert!(entry.operations.is_empty());
     assert!(matches!(
         entry.terminator,
-        psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
+        psi_checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
     for leaf in [when_true, when_false] {
         assert!(matches!(
@@ -137,9 +137,44 @@ fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
         ));
         assert!(matches!(
             leaf.terminator,
-            psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit { .. }
+            psi_checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         ));
     }
+}
+
+#[test]
+fn composes_closed_guard_with_one_provider_backed_attachment() {
+    let checked = checked(
+        r#"
+        boundary trait Console {
+            machine exit_process(return_code: i32)
+            reaches Console;
+        }
+        const PAGE_SIZE: u32 = 64;
+        data Main { console: Console; }
+        machine Main::main(&mut self)
+        reaches Console
+        {
+            transition PAGE_SIZE == 64 { true -> yes() _ -> no() }
+            state yes(&mut self) { self.console.exit_process(70); }
+            state no(&mut self) { self.console.exit_process(71); }
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let machine = plans
+        .composed_for_machine(machine_named(&checked, "main"))
+        .expect("closed guard and provider attachment compose atomically");
+    assert!(machine.states[0].scalar_parameters.is_empty());
+    assert_eq!(machine.provider_attachment_requirements.len(), 1);
+    assert_eq!(
+        machine.provider_attachment_requirements[0].field_identity,
+        "console"
+    );
+    assert!(matches!(
+        machine.states[0].terminator,
+        psi_checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+    ));
 }
 
 #[test]

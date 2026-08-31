@@ -1187,18 +1187,27 @@ custody map, second join, or third predecessor rejects.
 Effectful multi-state Unit control uses a separate additive checked carrier;
 it does not weaken the claim-free structural-control carrier above or attach
 operations to it. The first exact composed family has three acyclic states: an
-operation-free entry with one Boolean scalar parameter and two ordered
-successors, plus two parameter-free leaves containing exactly one scalar-only
-bodyless boundary call followed by Unit return. The carrier retains per-state
+operation-free entry with either one Boolean scalar parameter or one exact
+closed Boolean guard and two ordered successors, plus two parameter-free leaves
+containing exactly one scalar-only bodyless boundary call followed by Unit
+return. Closed comparisons whose const substitution leaves only anonymous
+integer literals are evaluated mathematically at the checked boundary and
+retained as Boolean constants; no downstream stage guesses an integer width.
+The carrier retains per-state
 operations, machine-wide contract and service reach, and exact boundary call
 coordinates. Typed-to-checked construction removes the whole machine if either
 leaf or boundary catalog entry is unavailable. Checked-to-Terminal lowering
 rejoins the original flow call and contract identities, publishes the selected
 attachment, boundary, and service catalogs, and emits one conditional block
-and two effectful return blocks. Structural arguments, claims, provider-backed
-attachments, internal calls, and larger graphs remain fenced. The lowering
+and two effectful return blocks. One implicit borrowed `self` may remain
+attachment context rather than a runtime structural parameter. When that
+attachment has exactly one provider-backed field and both leaves call through
+it, shared provider admission requires a complete canonical requirement set
+and emits exact `ProviderAttachment` roots. Ambiguous provider fields,
+structural arguments, claims, internal calls, and larger graphs remain fenced. The lowering
 entrance only coordinates named `admission`, `catalogs`, and `emission`
-submodules so the family can widen without accumulating a second monolith.
+submodules; its typed producer is likewise a small coordinator over named
+`topology`, `guards`, `leaves`, and `assembly` submodules.
 
 General cycles also reject; the exact ranked unsigned-countdown representation is the sole
 exception. Its acyclic skeleton establishes the header frontier, one complete

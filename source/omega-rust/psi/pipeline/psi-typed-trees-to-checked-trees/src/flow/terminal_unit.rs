@@ -4,16 +4,17 @@ use psi_checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
-    CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
-    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralCallPlan,
-    CheckedStructuralCallReturnMachinePlan, CheckedStructuralCallReturnPlans,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
+    CheckedComposedUnitControlTerminatorPlan, CheckedIntegerBinaryKind,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedPayloadlessCaseReturnMachinePlan, CheckedPayloadlessGuardedCallEvidencePlan,
+    CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
+    CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
     CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
@@ -52,6 +53,7 @@ mod calls;
 mod cleanup;
 mod composed_control;
 pub(crate) mod control;
+mod providers;
 pub(crate) mod returns;
 mod selected_operator;
 pub(crate) mod shared_convergence;
@@ -61,6 +63,7 @@ use calls::*;
 use cleanup::*;
 use composed_control::*;
 use control::*;
+use providers::*;
 use returns::*;
 use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;

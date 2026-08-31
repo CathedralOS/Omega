@@ -562,7 +562,20 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
-    pub terminator: CheckedStructuralUnitControlTerminatorPlan,
+    pub terminator: CheckedComposedUnitControlTerminatorPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedComposedUnitControlTerminatorPlan {
+    ReturnUnit,
+    Conditional {
+        /// Exact checked scalar expression selected by the authored guard.
+        /// The current family admits either one Boolean state parameter or a
+        /// closed expression with no local or structural dependencies.
+        guard: CheckedScalarExpression,
+        when_true: CheckedStructuralControlSuccessorPlan,
+        when_false: CheckedStructuralControlSuccessorPlan,
+    },
 }
 
 /// Source-handle-free checked plans for the bounded structural-result lanes.
