@@ -5350,7 +5350,8 @@
       left right) scan)))
 
 (def delta_local_scan_boundary_receiver_application ((source Bytes)
-  (expressionValue DeltaExpression) (receiver DeltaExpression)
+  (expressionValue DeltaExpression) (callBase DeltaExpression)
+  (receiver DeltaExpression)
   (memberName DeltaName) (arguments DeltaExpressionList)
   (receiverPlace DeltaOptionalPlaceType) (ownerDeclaration DeltaDeclaration)
   (scan DeltaLocalResolutionScan))
@@ -5359,8 +5360,9 @@
     ((DeltaBoundaryDeclaration start end name machines)
       (match (delta_catalog_find_boundary_machine source memberName machines)
         (NoDeltaCatalogBoundaryMember
-          (delta_local_scan_add_candidate UnknownName
-            (delta_name_start memberName) scan))
+          (delta_local_scan_propagate_grouped_call_head_result callBase
+            (delta_local_scan_field_fact source
+              (delta_call_head_core callBase) receiver memberName scan)))
         ((OneDeltaCatalogBoundaryMember memberValue)
           (let identityScan
             (delta_local_scan_add_callable_reference expressionValue
@@ -5429,17 +5431,9 @@
                         (delta_expression_start expressionValue)
                         identityScan))))))))
         (NoDeltaCatalogDataMachine
-          (match memberLookup
-            ((OneDeltaCatalogField fieldOwner fieldValue)
-              (delta_local_scan_propagate_grouped_call_head_result callBase
-                (delta_local_scan_field_fact source
-                  (delta_call_head_core callBase) receiver memberName scan)))
-            ((OneDeltaCatalogCase caseOwner caseValue)
-              (delta_local_scan_add_candidate TypeMismatch
-                (delta_expression_start expressionValue) scan))
-            (NoDeltaCatalogDataMember
-              (delta_local_scan_add_candidate UnknownName
-                (delta_name_start memberName) scan))))))))
+          (delta_local_scan_propagate_grouped_call_head_result callBase
+            (delta_local_scan_field_fact source
+              (delta_call_head_core callBase) receiver memberName scan)))))))
 
 (def delta_local_scan_receiver_application ((source Bytes)
   (expressionValue DeltaExpression) (callBase DeltaExpression)
@@ -5461,12 +5455,15 @@
                         ((DeltaResolutionCatalogSyntax rows)
                           (match (delta_catalog_find_owner source ownerName rows)
                             (NoDeltaCatalogOwner
-                              (delta_local_scan_add_candidate UnknownName
-                                (delta_name_start member) scan))
+                              (delta_local_scan_propagate_grouped_call_head_result
+                                callBase
+                                (delta_local_scan_field_fact source
+                                  (delta_call_head_core callBase) receiver member
+                                  scan)))
                             ((OneDeltaCatalogBoundaryOwner ownerDeclaration)
                               (delta_local_scan_boundary_receiver_application
-                                source expressionValue receiver member arguments
-                                receiverPlace ownerDeclaration scan))
+                                source expressionValue callBase receiver member
+                                arguments receiverPlace ownerDeclaration scan))
                             ((OneDeltaCatalogDataOwner ownerDeclaration shape)
                               (delta_local_scan_data_receiver_application source
                                 expressionValue callBase receiver ownerName
@@ -5477,13 +5474,8 @@
                     ((DeltaArrayType typeStart typeEnd element lengthValue)
                       scan)
                     ((DeltaViewType typeStart typeEnd element) scan)))
-                (DeltaResultlessExpressionResult
-                  (delta_local_scan_add_candidate TypeMismatch
-                    (delta_expression_start expressionValue) scan))
-                (DeltaNeverExpressionResult
-                  (delta_local_scan_add_candidate InvalidTerminal
-                    (delta_expression_start (delta_call_head_core receiver))
-                    scan))))))))
+                (DeltaResultlessExpressionResult scan)
+                (DeltaNeverExpressionResult scan)))))))
     ((DeltaIntegerExpression start end literal) scan)
     ((DeltaCharacterExpression start end literal) scan)
     ((DeltaStringExpression start end literal) scan)
@@ -5667,12 +5659,26 @@
     ((DeltaNameSpan start end)
       (delta_span_is_8 source start end 97 115 95 115 108 105 99 101))))
 
+(def delta_name_is_contextual_field ((source Bytes) (nameValue DeltaName)) Int
+  (if (delta_name_is_len source nameValue)
+    1
+    (delta_name_is_as_slice source nameValue)))
+
 (def delta_projected_place_type ((basePlace DeltaOptionalPlaceType)
   (storageType DeltaType)) DeltaOptionalPlaceType
   (match basePlace
     (NoDeltaPlaceType NoDeltaPlaceType)
     ((SomeDeltaPlaceType baseStorage)
       (SomeDeltaPlaceType storageType))))
+
+(def delta_local_scan_absent_field_candidate ((source Bytes)
+  (expressionValue DeltaExpression) (member DeltaName)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (if (delta_name_is_contextual_field source member)
+    (delta_local_scan_add_candidate TypeMismatch
+      (delta_expression_start expressionValue) scan)
+    (delta_local_scan_add_candidate UnknownName
+      (delta_name_start member) scan)))
 
 (def delta_local_scan_field_fact ((source Bytes)
   (expressionValue DeltaExpression) (base DeltaExpression)
@@ -5688,48 +5694,85 @@
             ((DeltaValueExpressionResult baseType basePlace)
               (match baseType
                 ((DeltaI32Type start end)
-                  (if (delta_name_is_as_slice source member)
-                    (delta_local_scan_add_candidate TypeMismatch
-                      (delta_expression_start expressionValue) scan)
-                    scan))
+                  (delta_local_scan_absent_field_candidate source
+                    expressionValue member scan))
                 ((DeltaU8Type start end)
-                  (if (delta_name_is_as_slice source member)
-                    (delta_local_scan_add_candidate TypeMismatch
-                      (delta_expression_start expressionValue) scan)
-                    scan))
+                  (delta_local_scan_absent_field_candidate source
+                    expressionValue member scan))
                 ((DeltaNeverType start end)
-                  (if (delta_name_is_as_slice source member)
-                    (delta_local_scan_add_candidate TypeMismatch
-                      (delta_expression_start expressionValue) scan)
-                    scan))
+                  (delta_local_scan_absent_field_candidate source
+                    expressionValue member scan))
                 ((DeltaNamedType start end ownerName)
                   (match catalog
                     ((DeltaResolutionCatalogSyntax rows)
-                      (match (delta_catalog_find_data_member source ownerName
-                        member rows)
-                        (NoDeltaCatalogDataMember
-                          (if (delta_name_is_as_slice source member)
-                            (delta_local_scan_add_candidate TypeMismatch
-                              (delta_expression_start expressionValue) scan)
-                            scan))
-                        ((OneDeltaCatalogCase ownerValue caseValue)
-                          (if (delta_name_is_as_slice source member)
-                            (delta_local_scan_add_candidate TypeMismatch
-                              (delta_expression_start expressionValue) scan)
-                            scan))
-                        ((OneDeltaCatalogField ownerValue fieldValue)
-                          (match fieldValue
-                            ((DeltaFieldMember fieldStart fieldEnd fieldName
-                              fieldType)
-                              (delta_local_scan_add_value expressionValue
-                                (delta_storage_read_type expressionValue
-                                  fieldType)
-                                (delta_projected_place_type basePlace fieldType)
-                                (delta_local_scan_add_field_reference
-                                  expressionValue ownerValue fieldValue
-                                  scan)))
-                            ((DeltaCaseMember fieldStart fieldEnd fieldName
-                              payload) scan)))))))
+                      (match (delta_catalog_find_owner source ownerName rows)
+                        (NoDeltaCatalogOwner
+                          (delta_local_scan_absent_field_candidate source
+                            expressionValue member scan))
+                        ((OneDeltaCatalogBoundaryOwner ownerDeclaration)
+                          (match ownerDeclaration
+                            ((DeltaBoundaryDeclaration ownerStart ownerEnd
+                              ownerNameValue machines)
+                              (match (delta_catalog_find_boundary_machine source
+                                member machines)
+                                (NoDeltaCatalogBoundaryMember
+                                  (delta_local_scan_absent_field_candidate
+                                    source expressionValue member scan))
+                                ((OneDeltaCatalogBoundaryMember memberValue)
+                                  (delta_local_scan_add_candidate TypeMismatch
+                                    (delta_expression_start expressionValue)
+                                    scan))))
+                            ((DeltaDataDeclaration ownerStart ownerEnd
+                              ownerNameValue members) scan)
+                            ((DeltaMachineDeclaration ownerStart ownerEnd
+                              machineName inputs returnType bodyValue) scan)))
+                        ((OneDeltaCatalogDataOwner ownerDeclaration shape)
+                          (match ownerDeclaration
+                            ((DeltaBoundaryDeclaration ownerStart ownerEnd
+                              ownerNameValue machines) scan)
+                            ((DeltaDataDeclaration ownerStart ownerEnd
+                              ownerNameValue members)
+                              (let memberLookup
+                                (delta_catalog_find_member_in_data source member
+                                  ownerDeclaration members)
+                                (match memberLookup
+                                  ((OneDeltaCatalogField ownerValue fieldValue)
+                                    (match fieldValue
+                                      ((DeltaFieldMember fieldStart fieldEnd
+                                        fieldName fieldType)
+                                        (delta_local_scan_add_value
+                                          expressionValue
+                                          (delta_storage_read_type
+                                            expressionValue fieldType)
+                                          (delta_projected_place_type basePlace
+                                            fieldType)
+                                          (delta_local_scan_add_field_reference
+                                            expressionValue ownerValue
+                                            fieldValue scan)))
+                                      ((DeltaCaseMember fieldStart fieldEnd
+                                        fieldName payload) scan)))
+                                  ((OneDeltaCatalogCase caseOwner caseValue)
+                                    (delta_local_scan_add_candidate TypeMismatch
+                                      (delta_expression_start expressionValue)
+                                      scan))
+                                  (NoDeltaCatalogDataMember
+                                    (match
+                                      (delta_catalog_find_qualified_data_machine
+                                        source ownerName member rows)
+                                      ((OneDeltaCatalogDataMachine machineOwner
+                                        machineDeclaration)
+                                        (delta_local_scan_add_candidate
+                                          TypeMismatch
+                                          (delta_expression_start
+                                            expressionValue)
+                                          scan))
+                                      (NoDeltaCatalogDataMachine
+                                        (delta_local_scan_absent_field_candidate
+                                          source expressionValue member
+                                          scan)))))))
+                            ((DeltaMachineDeclaration ownerStart ownerEnd
+                              machineName inputs returnType bodyValue)
+                              scan)))))))
                 ((DeltaArrayType start end element lengthValue)
                   (if (delta_name_is_len source member)
                     (delta_local_scan_add_value expressionValue
@@ -5744,7 +5787,8 @@
                           (delta_local_scan_add_value expressionValue
                             (delta_expression_view_type expressionValue element)
                             NoDeltaPlaceType scan)))
-                      scan)))
+                      (delta_local_scan_absent_field_candidate source
+                        expressionValue member scan))))
                 ((DeltaViewType start end element)
                   (if (delta_name_is_len source member)
                     (delta_local_scan_add_value expressionValue
@@ -5753,16 +5797,22 @@
                     (if (delta_name_is_as_slice source member)
                       (delta_local_scan_add_candidate TypeMismatch
                         (delta_expression_start expressionValue) scan)
-                      scan)))))
-            (DeltaResultlessExpressionResult scan)
-            (DeltaNeverExpressionResult scan)))))))
+                      (delta_local_scan_absent_field_candidate source
+                        expressionValue member scan))))))
+            (DeltaResultlessExpressionResult
+              (delta_local_scan_add_candidate TypeMismatch
+                (delta_expression_start expressionValue) scan))
+            (DeltaNeverExpressionResult
+              (delta_local_scan_add_candidate InvalidTerminal
+                (delta_expression_start (delta_call_head_core base))
+                scan))))))))
 
-; A field selector in call-head position normally belongs to receiver-machine
-; resolution. D38 is the only contextual field relation that must first become
-; an ordinary value so that a following `()` remains a separate, invalid call.
-; Named receivers stay untouched for D36 call-head classification, which must
-; distinguish a receiver machine from fallback to an authored field.
-(def delta_local_scan_call_head_as_slice_fact ((source Bytes)
+; Named field-shaped call heads first belong to D36 receiver-machine
+; resolution. Every non-named receiver and every complete category failure can
+; use the one ordinary field classifier immediately; a positive field result
+; is carried through authored groups so the following `()` remains a separate
+; call suffix. Named no-machine branches fall back through the same classifier.
+(def delta_local_scan_non_named_call_head_field_fact ((source Bytes)
   (callBase DeltaExpression) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
   (match callBase
@@ -5774,38 +5824,40 @@
             ((OneDeltaExpressionResult resultValue) scan)
             (NoDeltaExpressionResult
               (delta_local_scan_propagate_result callBase inner
-                (delta_local_scan_call_head_as_slice_fact source inner
+                (delta_local_scan_non_named_call_head_field_fact source inner
                   scan)))))))
     ((DeltaFieldExpression start end receiver member)
-      (if (delta_name_is_as_slice source member)
-        (match scan
-          ((DeltaLocalResolutionScanSyntax catalog references fields callables
-            types candidate)
-            (match (delta_find_expression_result receiver types)
-              (NoDeltaExpressionResult scan)
-              ((OneDeltaExpressionResult receiverResult)
-                (match receiverResult
-                  ((DeltaValueExpressionResult receiverType receiverPlace)
-                    (match receiverType
-                      ((DeltaI32Type typeStart typeEnd)
-                        (delta_local_scan_field_fact source callBase receiver
-                          member scan))
-                      ((DeltaU8Type typeStart typeEnd)
-                        (delta_local_scan_field_fact source callBase receiver
-                          member scan))
-                      ((DeltaNeverType typeStart typeEnd)
-                        (delta_local_scan_field_fact source callBase receiver
-                          member scan))
-                      ((DeltaNamedType typeStart typeEnd name) scan)
-                      ((DeltaArrayType typeStart typeEnd element lengthValue)
-                        (delta_local_scan_field_fact source callBase receiver
-                          member scan))
-                      ((DeltaViewType typeStart typeEnd element)
-                        (delta_local_scan_field_fact source callBase receiver
-                          member scan))))
-                  (DeltaResultlessExpressionResult scan)
-                  (DeltaNeverExpressionResult scan))))))
-        scan))
+      (match scan
+        ((DeltaLocalResolutionScanSyntax catalog references fields callables
+          types candidate)
+          (match (delta_find_expression_result receiver types)
+            (NoDeltaExpressionResult scan)
+            ((OneDeltaExpressionResult receiverResult)
+              (match receiverResult
+                ((DeltaValueExpressionResult receiverType receiverPlace)
+                  (match receiverType
+                    ((DeltaI32Type typeStart typeEnd)
+                      (delta_local_scan_field_fact source callBase receiver
+                        member scan))
+                    ((DeltaU8Type typeStart typeEnd)
+                      (delta_local_scan_field_fact source callBase receiver
+                        member scan))
+                    ((DeltaNeverType typeStart typeEnd)
+                      (delta_local_scan_field_fact source callBase receiver
+                        member scan))
+                    ((DeltaNamedType typeStart typeEnd name) scan)
+                    ((DeltaArrayType typeStart typeEnd element lengthValue)
+                      (delta_local_scan_field_fact source callBase receiver
+                        member scan))
+                    ((DeltaViewType typeStart typeEnd element)
+                      (delta_local_scan_field_fact source callBase receiver
+                        member scan))))
+                (DeltaResultlessExpressionResult
+                  (delta_local_scan_field_fact source callBase receiver member
+                    scan))
+                (DeltaNeverExpressionResult
+                  (delta_local_scan_field_fact source callBase receiver member
+                    scan))))))))
     ((DeltaIntegerExpression start end literal) scan)
     ((DeltaCharacterExpression start end literal) scan)
     ((DeltaStringExpression start end literal) scan)
@@ -5842,17 +5894,44 @@
                 (delta_expression_start (delta_call_head_core base))
                 scan))))))))
 
-(def delta_local_scan_index_fact ((expressionValue DeltaExpression)
-  (base DeltaExpression) (indexValue DeltaExpression)
+; Resultless and `never` are complete expression categories whose invalid use
+; is independent of sibling projection premises. Value-type relations remain
+; in the enclosing field/index/slice join and therefore wait for every value
+; fact that relation consumes.
+(def delta_local_scan_projection_value_use_candidate
+  ((expressionValue DeltaExpression) (child DeltaExpression)
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match scan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables types
       candidate)
-      (match (delta_find_expression_result base types)
+      (match (delta_find_expression_result child types)
         (NoDeltaExpressionResult scan)
+        ((OneDeltaExpressionResult resultValue)
+          (match resultValue
+            ((DeltaValueExpressionResult typeValue placeType) scan)
+            (DeltaResultlessExpressionResult
+              (delta_local_scan_add_candidate TypeMismatch
+                (delta_expression_start expressionValue) scan))
+            (DeltaNeverExpressionResult
+              (delta_local_scan_add_candidate InvalidTerminal
+                (delta_expression_start (delta_call_head_core child))
+                scan))))))))
+
+(def delta_local_scan_index_fact ((expressionValue DeltaExpression)
+  (base DeltaExpression) (indexValue DeltaExpression)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (let categoryScan
+    (delta_local_scan_projection_value_use_candidate expressionValue indexValue
+      (delta_local_scan_projection_value_use_candidate expressionValue base
+        scan))
+    (match categoryScan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables types
+      candidate)
+      (match (delta_find_expression_result base types)
+        (NoDeltaExpressionResult categoryScan)
         ((OneDeltaExpressionResult baseResult)
           (match (delta_find_expression_result indexValue types)
-            (NoDeltaExpressionResult scan)
+            (NoDeltaExpressionResult categoryScan)
             ((OneDeltaExpressionResult indexResult)
               (match baseResult
                 ((DeltaValueExpressionResult baseType basePlace)
@@ -5860,24 +5939,38 @@
                     ((DeltaValueExpressionResult indexType indexPlace)
                       (if (delta_type_is_i32 indexType)
                         (match baseType
-                          ((DeltaI32Type start end) scan)
-                          ((DeltaU8Type start end) scan)
-                          ((DeltaNeverType start end) scan)
-                          ((DeltaNamedType start end name) scan)
+                          ((DeltaI32Type start end)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaU8Type start end)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaNeverType start end)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaNamedType start end name)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
                           ((DeltaArrayType start end element lengthValue)
                             (delta_local_scan_add_value expressionValue
                               (delta_storage_read_type expressionValue element)
                               (delta_projected_place_type basePlace element)
-                              scan))
+                              categoryScan))
                           ((DeltaViewType start end element)
                             (delta_local_scan_add_value expressionValue
                               (delta_storage_read_type expressionValue element)
-                              NoDeltaPlaceType scan)))
-                        scan))
-                    (DeltaResultlessExpressionResult scan)
-                    (DeltaNeverExpressionResult scan)))
-                (DeltaResultlessExpressionResult scan)
-                (DeltaNeverExpressionResult scan)))))))))
+                              NoDeltaPlaceType categoryScan)))
+                        (delta_local_scan_add_candidate TypeMismatch
+                          (delta_expression_start expressionValue)
+                          categoryScan)))
+                    (DeltaResultlessExpressionResult categoryScan)
+                    (DeltaNeverExpressionResult categoryScan)))
+                (DeltaResultlessExpressionResult categoryScan)
+                (DeltaNeverExpressionResult categoryScan))))))))))
 
 (def delta_optional_bound_is_i32 ((bound DeltaOptionalExpression)
   (types DeltaTypedExpressionList)) Int
@@ -5893,37 +5986,87 @@
             (DeltaResultlessExpressionResult 0)
             (DeltaNeverExpressionResult 0)))))))
 
+(def delta_optional_bound_has_value ((bound DeltaOptionalExpression)
+  (types DeltaTypedExpressionList)) Int
+  (match bound
+    (NoDeltaExpression 1)
+    ((SomeDeltaExpression expressionValue)
+      (match (delta_find_expression_result expressionValue types)
+        (NoDeltaExpressionResult 0)
+        ((OneDeltaExpressionResult resultValue)
+          (match resultValue
+            ((DeltaValueExpressionResult typeValue placeType) 1)
+            (DeltaResultlessExpressionResult 0)
+            (DeltaNeverExpressionResult 0)))))))
+
+(def delta_local_scan_optional_projection_value_use_candidate
+  ((expressionValue DeltaExpression) (bound DeltaOptionalExpression)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match bound
+    (NoDeltaExpression scan)
+    ((SomeDeltaExpression child)
+      (delta_local_scan_projection_value_use_candidate expressionValue child
+        scan))))
+
 (def delta_local_scan_slice_fact ((expressionValue DeltaExpression)
   (base DeltaExpression) (low DeltaOptionalExpression)
   (high DeltaOptionalExpression) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
-  (match scan
-    ((DeltaLocalResolutionScanSyntax catalog references fields callables types
-      candidate)
-      (match (delta_find_expression_result base types)
-        (NoDeltaExpressionResult scan)
-        ((OneDeltaExpressionResult baseResult)
-          (if (delta_optional_bound_is_i32 low types)
-            (if (delta_optional_bound_is_i32 high types)
-              (match baseResult
-                ((DeltaValueExpressionResult baseType basePlace)
-                  (match baseType
-                    ((DeltaI32Type start end) scan)
-                    ((DeltaU8Type start end) scan)
-                    ((DeltaNeverType start end) scan)
-                    ((DeltaNamedType start end name) scan)
-                    ((DeltaArrayType start end element lengthValue)
-                      (delta_local_scan_add_value expressionValue
-                        (delta_expression_view_type expressionValue element)
-                        NoDeltaPlaceType scan))
-                    ((DeltaViewType start end element)
-                      (delta_local_scan_add_value expressionValue
-                        (delta_expression_view_type expressionValue element)
-                        NoDeltaPlaceType scan))))
-                (DeltaResultlessExpressionResult scan)
-                (DeltaNeverExpressionResult scan))
-              scan)
-            scan))))))
+  (let categoryScan
+    (delta_local_scan_optional_projection_value_use_candidate expressionValue
+      high
+      (delta_local_scan_optional_projection_value_use_candidate
+        expressionValue low
+        (delta_local_scan_projection_value_use_candidate expressionValue base
+          scan)))
+    (match categoryScan
+      ((DeltaLocalResolutionScanSyntax catalog references fields callables types
+        candidate)
+        (match (delta_find_expression_result base types)
+          (NoDeltaExpressionResult categoryScan)
+          ((OneDeltaExpressionResult baseResult)
+            (match baseResult
+              ((DeltaValueExpressionResult baseType basePlace)
+                (if (delta_optional_bound_has_value low types)
+                  (if (delta_optional_bound_has_value high types)
+                    (if (delta_optional_bound_is_i32 low types)
+                      (if (delta_optional_bound_is_i32 high types)
+                        (match baseType
+                          ((DeltaI32Type start end)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaU8Type start end)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaNeverType start end)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaNamedType start end name)
+                            (delta_local_scan_add_candidate TypeMismatch
+                              (delta_expression_start expressionValue)
+                              categoryScan))
+                          ((DeltaArrayType start end element lengthValue)
+                            (delta_local_scan_add_value expressionValue
+                              (delta_expression_view_type expressionValue
+                                element)
+                              NoDeltaPlaceType categoryScan))
+                          ((DeltaViewType start end element)
+                            (delta_local_scan_add_value expressionValue
+                              (delta_expression_view_type expressionValue
+                                element)
+                              NoDeltaPlaceType categoryScan)))
+                        (delta_local_scan_add_candidate TypeMismatch
+                          (delta_expression_start expressionValue)
+                          categoryScan))
+                      (delta_local_scan_add_candidate TypeMismatch
+                        (delta_expression_start expressionValue) categoryScan))
+                    categoryScan)
+                  categoryScan))
+              (DeltaResultlessExpressionResult categoryScan)
+              (DeltaNeverExpressionResult categoryScan))))))))
 
 (def delta_local_scan_propagate_result ((expressionValue DeltaExpression)
   (child DeltaExpression) (scan DeltaLocalResolutionScan))
@@ -6064,7 +6207,8 @@
           (delta_resolve_local_expression_context source base active pending
             scan DeltaCallHeadExpressionUse))
         (let contextualScan
-          (delta_local_scan_call_head_as_slice_fact source base childScan)
+          (delta_local_scan_non_named_call_head_field_fact source base
+            childScan)
           (let receiverScan
             (delta_local_scan_receiver_application source expressionValue base
               arguments contextualScan)
