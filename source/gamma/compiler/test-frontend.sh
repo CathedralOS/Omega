@@ -240,37 +240,56 @@ stamp_seed "$T/gcout-emitter-outcome.tape" "$SEED" "$T/gcout-emitter-outcome.exe
 }
 stamp_seed "$T/local-profile.tape" "$SEED" "$T/local-profile.exe" >/dev/null 2>&1
 
-# D19 schema selection is pure compiler-side admission. This focused entry
-# checks both exact profiles and the declaration-order-independent DCOUT reason
-# mapping without emitting an application adapter or choosing unruled profile
-# constants.
+# D19/D33 schema selection consumes the admitted profile after the ordinary
+# frontend. The private outcome probe observes exact public reason/coordinate
+# precedence without emitting an application adapter.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc project_selected_schema() {' \
+    '    let frontend_status = frontend_check_main()' \
+    '    state checked {' \
+    '        to frontend_failed when (frontend_status != 1)' \
+    '        return validate_d19_selected_schema()' \
+    '    }' \
+    '    state frontend_failed { return 0 }' \
+    '}'
+  private_outcome_probe_entry project_selected_schema
+} | "$T/bc.exe" > "$T/gcout-schema.tape" || {
+  echo "bc(gamma_compiler.beta + D33 schema outcome probe) failed"
+  exit 1
+}
+stamp_seed "$T/gcout-schema.tape" "$SEED" "$T/gcout-schema.exe" >/dev/null 2>&1
+
+# Keep the exact declaration-order-independent D19 identity mapping observable
+# independently of the public outcome probe.
 {
   sed -n '1,$p' gamma_compiler.beta
   printf '%s\n' \
     'proc main() {' \
     '    let frontend_status = frontend_check_main()' \
     '    state checked {' \
-    '        to frontend_failed when (frontend_status != 1)' \
-    '        let conformance_identity = validate_d19_conformance_schema()' \
-    '        let delta_status = validate_d19_delta_schema()' \
-    '        let retained_delta = (word[10750000] == 26)' \
-    '        retained_delta = retained_delta * (word[10750200] == 1)' \
-    '        retained_delta = retained_delta * (word[10750208] == 27)' \
-    '        retained_delta = retained_delta * (word[10750216] == 28)' \
-    '        retained_delta = retained_delta * (word[10750224] == 1)' \
-    '        retained_delta = retained_delta * (word[10750232] == 2)' \
-    '        retained_delta = retained_delta * (word[10750240] == 3)' \
-    '        retained_delta = retained_delta * (word[10750256] == 29)' \
-    '        retained_delta = retained_delta * (word[10750264] == 30)' \
-    '        return 3 - 2 * (conformance_identity != 0) - (delta_status == 1) * retained_delta' \
+    '        to failed when (frontend_status != 1)' \
+    '        let schema_status = validate_d19_selected_schema()' \
+    '        to failed when (schema_status != 1)' \
+    '        let retained = (word[10750000] == 26)' \
+    '        retained = retained * (word[10750200] == 1)' \
+    '        retained = retained * (word[10750208] == 27)' \
+    '        retained = retained * (word[10750216] == 28)' \
+    '        retained = retained * (word[10750224] == 1)' \
+    '        retained = retained * (word[10750232] == 2)' \
+    '        retained = retained * (word[10750240] == 3)' \
+    '        retained = retained * (word[10750256] == 29)' \
+    '        retained = retained * (word[10750264] == 30)' \
+    '        return retained' \
     '    }' \
-    '    state frontend_failed { return 4 }' \
+    '    state failed { return 0 }' \
     '}'
-} | "$T/bc.exe" > "$T/d19-schema.tape" || {
-  echo "bc(gamma_compiler.beta + D19 schema gate) failed"
+} | "$T/bc.exe" > "$T/d19-identities.tape" || {
+  echo "bc(gamma_compiler.beta + D19 identity gate) failed"
   exit 1
 }
-stamp_seed "$T/d19-schema.tape" "$SEED" "$T/d19-schema.exe" >/dev/null 2>&1
+stamp_seed "$T/d19-identities.tape" "$SEED" "$T/d19-identities.exe" >/dev/null 2>&1
 
 {
   runtime_emitter_source
@@ -2575,9 +2594,9 @@ stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/
 
 PASS=0; FAIL=0
 # Pin Q2's measured retained call-row pressure without adding a production
-# entry or adapter. Thirty-one appended references exactly fill 1,024 rows;
-# the thirty-second must be the Beta compiler's canonical adjacent refusal.
-for gamma_call_probe_count in 31 32; do
+# entry or adapter. Thirty-three appended references exactly fill 1,024 rows;
+# the thirty-fourth must be the Beta compiler's canonical adjacent refusal.
+for gamma_call_probe_count in 33 34; do
   {
     sed -n '1,$p' gamma_compiler.beta
     printf '%s\n' 'proc main() {'
@@ -2588,18 +2607,18 @@ for gamma_call_probe_count in 31 32; do
   } | "$T/bc.exe" > "$T/call-rows-$gamma_call_probe_count.out"
   gamma_call_probe_status=$?
   case "$gamma_call_probe_count" in
-    31) gamma_call_probe_status_31=$gamma_call_probe_status ;;
-    32) gamma_call_probe_status_32=$gamma_call_probe_status ;;
+    33) gamma_call_probe_status_33=$gamma_call_probe_status ;;
+    34) gamma_call_probe_status_34=$gamma_call_probe_status ;;
   esac
 done
-gamma_call_probe_size=$(wc -c < "$T/call-rows-32.out" | tr -d ' ')
-gamma_call_probe_kind=$(od -An -tu1 -j 8 -N 1 "$T/call-rows-32.out" | tr -d ' ')
-gamma_call_probe_space=$(od -An -tu1 -j 9 -N 1 "$T/call-rows-32.out" | tr -d ' ')
-gamma_call_probe_code=$(od -An -tx1 -j 12 -N 4 "$T/call-rows-32.out" | tr -d ' \n')
-gamma_call_probe_limit=$(od -An -tx1 -j 24 -N 8 "$T/call-rows-32.out" | tr -d ' \n')
-gamma_call_probe_requested=$(od -An -tx1 -j 32 -N 8 "$T/call-rows-32.out" | tr -d ' \n')
-if [ "$gamma_call_probe_status_31" = 0 ] &&
-   [ "$gamma_call_probe_status_32" = 2 ] &&
+gamma_call_probe_size=$(wc -c < "$T/call-rows-34.out" | tr -d ' ')
+gamma_call_probe_kind=$(od -An -tu1 -j 8 -N 1 "$T/call-rows-34.out" | tr -d ' ')
+gamma_call_probe_space=$(od -An -tu1 -j 9 -N 1 "$T/call-rows-34.out" | tr -d ' ')
+gamma_call_probe_code=$(od -An -tx1 -j 12 -N 4 "$T/call-rows-34.out" | tr -d ' \n')
+gamma_call_probe_limit=$(od -An -tx1 -j 24 -N 8 "$T/call-rows-34.out" | tr -d ' \n')
+gamma_call_probe_requested=$(od -An -tx1 -j 32 -N 8 "$T/call-rows-34.out" | tr -d ' \n')
+if [ "$gamma_call_probe_status_33" = 0 ] &&
+   [ "$gamma_call_probe_status_34" = 2 ] &&
    [ "$gamma_call_probe_size" = 40 ] &&
    [ "$gamma_call_probe_kind" = 2 ] &&
    [ "$gamma_call_probe_space" = 1 ] &&
@@ -2609,32 +2628,93 @@ if [ "$gamma_call_probe_status_31" = 0 ] &&
   PASS=$((PASS+1))
 else
   FAIL=$((FAIL+1))
-  echo "  FAIL Gamma retained call rows: exact=$gamma_call_probe_status_31 adjacent=$gamma_call_probe_status_32 frame=$gamma_call_probe_size/$gamma_call_probe_kind/$gamma_call_probe_space/$gamma_call_probe_code/$gamma_call_probe_limit/$gamma_call_probe_requested"
+  echo "  FAIL Gamma retained call rows: exact=$gamma_call_probe_status_33 adjacent=$gamma_call_probe_status_34 frame=$gamma_call_probe_size/$gamma_call_probe_kind/$gamma_call_probe_space/$gamma_call_probe_code/$gamma_call_probe_limit/$gamma_call_probe_requested"
 fi
-unset gamma_call_probe_count gamma_call_probe_status gamma_call_probe_status_31 gamma_call_probe_status_32
+unset gamma_call_probe_count gamma_call_probe_status gamma_call_probe_status_33 gamma_call_probe_status_34
 unset gamma_call_probe_size gamma_call_probe_kind gamma_call_probe_space
 unset gamma_call_probe_code gamma_call_probe_limit gamma_call_probe_requested
-d19_schema_case() { # source expected-status description
-  gcreq_text 1 "$1" | "$T/d19-schema.exe" > "$T/d19-schema.out"
-  d19_schema_status=$?
-  if [ "$d19_schema_status" = "$2" ] && [ ! -s "$T/d19-schema.out" ]; then
-    PASS=$((PASS+1))
-  else
-    FAIL=$((FAIL+1))
-    echo "  FAIL D19 schema $3: status $d19_schema_status, output $(wc -c < "$T/d19-schema.out" | tr -d ' ') bytes"
-  fi
+schema_case() { # name profile source status kind code space coordinate
+  schema_name=$1
+  schema_profile=$2
+  schema_source=$3
+  shift 3
+  schema_length=$(printf '%s' "$schema_source" | wc -c | tr -d ' ')
+  gcreq_text "$schema_profile" "$schema_source" > "$T/schema-$schema_name.req"
+  check_private_outcome gcout-schema "$schema_name" "$T/schema-$schema_name.req" \
+    "$1" "$schema_profile" "$2" "$3" "$4" "$5" 0 0 "$schema_length"
 }
+run_schema_cases() {
 d19_reason_reverse='(NonexhaustiveSum) (DuplicatePattern) (InvalidTerminal) (InvalidControlTarget) (EscapingView) (UseBeforeInitialization) (InvalidPlace) (ArityMismatch) (TypeMismatch) (UnknownName) (InvalidArrayLength) (InvalidDataShape) (RecursiveValueType) (UnknownType) (InvalidBoundary) (InvalidEntry) (MissingEntry) (DuplicateName) (UnexpectedEnd) (UnexpectedToken) (IntegerLiteralOutOfRange) (InvalidEscape) (UnterminatedString) (InvalidCharacterLiteral) (InvalidToken) (InvalidSourceByte)'
 d19_reason_missing='(NonexhaustiveSum) (DuplicatePattern) (InvalidTerminal) (InvalidControlTarget) (EscapingView) (UseBeforeInitialization) (InvalidPlace) (ArityMismatch) (TypeMismatch) (UnknownName) (InvalidArrayLength) (InvalidDataShape) (RecursiveValueType) (UnknownType) (InvalidBoundary) (InvalidEntry) (MissingEntry) (DuplicateName) (UnexpectedEnd) (UnexpectedToken) (IntegerLiteralOutOfRange) (InvalidEscape) (UnterminatedString) (InvalidCharacterLiteral) (InvalidToken)'
-d19_schema_case '(def main ((input Bytes)) Bytes input)' 1 'ConformanceBytesV1 exact entry'
-d19_schema_case '(def main ((input Int)) Bytes (bytes_empty))' 3 'ConformanceBytesV1 wrong parameter type'
 d19_outcomes='(Complete Bytes) (Reject DeltaRejectReason Int) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 2 'DeltaCompilerV1 exact schema and reversed reason order'
-d19_schema_case "(data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'missing DCOUT reason row'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome $d19_outcomes (Other)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'extra outcome constructor'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong Reject offset payload'
-d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int) (StorageIncompleteAt Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong attributed storage payload'
-unset d19_reason_reverse d19_reason_missing d19_outcomes d19_schema_status
+d19_valid="(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))"
+
+schema_case conformance-exact 1 '(def main ((input Bytes)) Bytes input)' 1 0 0 0 0
+schema_case conformance-missing-main 1 '(def helper () Int 0)' 0 1 19 0 0
+schema_case conformance-wrong-main 1 '(def main ((input Int)) Bytes (bytes_empty))' 0 1 20 1 5
+schema_case conformance-ignores-delta-schema 1 \
+  '(data DeltaRejectReason (Bogus Int)) (def main ((input Bytes)) Bytes input)' 1 0 0 0 0
+
+schema_case delta-exact 2 "$d19_valid" 1 0 0 0 0
+gcreq_text 2 "$d19_valid" | "$T/d19-identities.exe" > "$T/d19-identities.out"
+d19_identity_status=$?
+if [ "$d19_identity_status" = 1 ] && [ ! -s "$T/d19-identities.out" ]; then
+  PASS=$((PASS+1))
+else
+  FAIL=$((FAIL+1))
+  echo "  FAIL D19 retained identity mapping: status $d19_identity_status, output $(wc -c < "$T/d19-identities.out" | tr -d ' ') bytes"
+fi
+
+schema_case delta-missing-main-precedes-schema 2 \
+  '(data DeltaRejectReason (Bogus Int)) (def helper () Int 0)' 0 1 19 0 0
+schema_case delta-wrong-main-precedes-schema 2 \
+  '(def main ((input Int)) Bytes (bytes_empty))' 0 1 20 1 5
+schema_case delta-missing-reason 2 \
+  "(data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" \
+  0 1 21 0 0
+schema_case delta-missing-type 2 \
+  '(data DeltaCompileOutcome (Complete Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))' \
+  0 1 21 0 0
+
+d19_prefix="(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) ("
+d19_coordinate=$(printf '%s' "$d19_prefix" | wc -c | tr -d ' ')
+schema_case delta-malformed-reject 2 \
+  "${d19_prefix}Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" \
+  0 1 21 1 "$d19_coordinate"
+schema_case delta-absence-precedes-location 2 \
+  "(data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" \
+  0 1 21 0 0
+schema_case delta-earliest-located 2 \
+  "${d19_prefix}Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" \
+  0 1 21 1 "$d19_coordinate"
+
+d19_prefix="(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def "
+d19_coordinate=$(printf '%s' "$d19_prefix" | wc -c | tr -d ' ')
+schema_case delta-entry-category-precedes-coordinate 2 \
+  "${d19_prefix}main ((source Bytes)) Bytes source)" 0 1 20 1 "$d19_coordinate"
+
+d19_prefix='(data Other ('
+d19_coordinate=$(printf '%s' "$d19_prefix" | wc -c | tr -d ' ')
+schema_case delta-wrong-owner-located 2 \
+  "${d19_prefix}InvalidSourceByte)) (data DeltaRejectReason $d19_reason_missing) (data DeltaCompileOutcome $d19_outcomes) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" \
+  0 1 21 1 "$d19_coordinate"
+d19_prefix="(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome $d19_outcomes ("
+d19_coordinate=$(printf '%s' "$d19_prefix" | wc -c | tr -d ' ')
+schema_case delta-extra-outcome-located 2 \
+  "${d19_prefix}Other)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" \
+  0 1 21 1 "$d19_coordinate"
+
+d19_prefix='(def main ((source Bytes)) '
+d19_coordinate=$(printf '%s' "$d19_prefix" | wc -c | tr -d ' ')
+schema_case delta-ordinary-unknown-type-precedes-schema 2 \
+  "${d19_prefix}Missing source)" 0 1 11 1 "$d19_coordinate"
+schema_case delta-unrelated-nominal-allowed 2 \
+  "(data Other (X Int)) $d19_valid" 1 0 0 0 0
+
+unset d19_reason_reverse d19_reason_missing d19_outcomes d19_valid
+unset d19_prefix d19_coordinate d19_identity_status
+unset schema_name schema_profile schema_source schema_length
+}
 gcreq_text 1 '(def main ((value Int)) Int value)' | "$T/function-metadata.exe" > "$T/function-metadata.out"
 function_metadata_status=$?
 if [ "$function_metadata_status" = 1 ] && [ ! -s "$T/function-metadata.out" ]; then
@@ -3044,6 +3124,10 @@ emitter_outcome_case() { # name private-code kind public-code space limit reques
   check_private_outcome gcout-emitter-outcome "$1" "$T/emitter-outcome-$1.req" \
     0 0 "$3" "$4" "$5" 23 "$6" "$7" 0
 }
+
+# The schema matrix is defined with the earlier D19 fixtures but runs only
+# after the shared private-outcome comparison helpers exist.
+run_schema_cases
 
 # D30/D33 request admission: header precedence, complete profile selection,
 # provision-before-body, exact-end, and source-byte validation after exactness.
