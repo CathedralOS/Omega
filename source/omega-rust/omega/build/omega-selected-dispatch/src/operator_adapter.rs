@@ -6,8 +6,14 @@
 //! body. This is the operator analogue of boundary-trait adapter dispatch;
 //! compiler intrinsics remain in `float_intrinsic_dispatch`.
 
+mod application_realization;
 mod spelled;
 mod unit;
+
+pub use application_realization::{
+    CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
+    derive_checked_nongeneric_operator_application_realizations,
+};
 
 use omega_effects::provider_plan::ProviderBinding;
 use psi_checked_trees::{
@@ -671,6 +677,145 @@ mod tests {
             other_plan,
             operator_use,
         }
+    }
+
+    fn settled_attached_unit_fixture() -> (
+        Arc<CheckedTrees>,
+        omega_effects::SelectedProviderPlanFacts,
+        psi_checked_trees::CheckedNamedOperatorUseFact,
+    ) {
+        let mut fixture = fixture();
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (use_handle, mut operator_use) = fixture
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .map(|(handle, operator_use)| (handle, *operator_use))
+            .find(|(_, operator_use)| {
+                matches!(
+                    operator_use.origin,
+                    CheckedValueOrigin::StateStatement {
+                        machine_symbol,
+                        state_symbol,
+                        statement_index: 0,
+                        role: CheckedValueStatementRole::LocalInitializer,
+                    } if machine_symbol == main_symbol && state_symbol == main_state
+                )
+            })
+            .expect("selected operator local in Unit fixture");
+        operator_use.provider_plan_report_fingerprint = fixture.checked_plan.report_fingerprint();
+        operator_use.provider_plan_commitment =
+            psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+                *fixture.checked_plan.identity_digest().as_bytes(),
+            );
+        *fixture
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .get_mut(use_handle) = operator_use;
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&fixture.checked_plan),
+            std::slice::from_ref(&fixture.checked_plan.name),
+        )
+        .expect("select exact checked-operator plan");
+        let mut settled = Arc::new(fixture.checked);
+        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect("selected Unit operator application settles");
+        (settled, selected, operator_use)
+    }
+
+    #[test]
+    fn derives_canonical_empty_nongeneric_checked_body_application() {
+        let (settled, selected, operator_use) = settled_attached_unit_fixture();
+
+        let rows = derive_checked_nongeneric_operator_application_realizations(&settled, &selected)
+            .expect("exact selected application joins");
+        let [row] = rows.as_slice() else {
+            panic!("fixture must derive one attached-Unit application row")
+        };
+        assert_eq!(row.authored_use_kind, CheckedOperatorAuthoredUseKind::Named,);
+        assert_eq!(row.call_coordinate.statement_index, 0);
+        assert_eq!(row.call_coordinate.call_ordinal, 0);
+        assert_eq!(
+            row.requirement_operator,
+            operator_use.selected_operator_symbol
+        );
+        assert!(
+            row.requirement_overload_identity
+                .contains("CheckedMath::offset_zero")
+        );
+        assert_eq!(
+            row.provider_plan_commitment,
+            operator_use.provider_plan_commitment,
+        );
+        assert!(!row.realization_contract_commitment.is_zero());
+    }
+
+    #[test]
+    fn application_realization_derivation_rejects_missing_or_substituted_joins() {
+        let (settled, selected, _) = settled_attached_unit_fixture();
+
+        let mut missing_application = settled.as_ref().clone();
+        missing_application
+            .facts
+            .operators
+            .boundary_applications
+            .clear();
+        let missing = derive_checked_nongeneric_operator_application_realizations(
+            &missing_application,
+            &selected,
+        )
+        .expect_err("selected call without its application demand must reject");
+        assert_eq!(missing.len(), 1);
+        assert!(
+            missing[0]
+                .message
+                .contains("retained 0 exact application demands"),
+            "unexpected diagnostic: {}",
+            missing[0].message,
+        );
+
+        let mut substituted_contract = settled.as_ref().clone();
+        let selected_call = substituted_contract
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.operations)
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    realization_contract_commitment,
+                    ..
+                } => Some(realization_contract_commitment),
+                _ => None,
+            })
+            .expect("selected attached-Unit call");
+        *selected_call = psi_checked_trees::MachineContractCommitment::from_digest([0xa5; 32]);
+        let substituted = derive_checked_nongeneric_operator_application_realizations(
+            &substituted_contract,
+            &selected,
+        )
+        .expect_err("substituted machine contract must reject");
+        assert_eq!(substituted.len(), 1);
+        assert!(
+            substituted[0]
+                .message
+                .contains("does not rejoin its exact machine contract commitment"),
+            "unexpected diagnostic: {}",
+            substituted[0].message,
+        );
     }
 
     #[derive(Clone, Copy, Debug)]
