@@ -197,6 +197,14 @@ fn project_terminal_native_realization_proposal(
             Ok(omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 occurrence.terminal_operation,
+                placement
+                    .private_materialization
+                    .as_ref()
+                    .and_then(|materialization| {
+                        materialization
+                            .direct_registrar_parameter_application
+                            .clone()
+                    }),
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

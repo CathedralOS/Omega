@@ -1,6 +1,6 @@
 use omega_calling_conventions::{
-    BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId, NativePlace,
-    StaticMachineBinderId,
+    BoundaryEntryPlan, CallbackMaterializationContext, CallbackRequirementId,
+    NativeParameterApplication, NativePlace, StaticMachineBinderId, ValueClass, ValueShape,
 };
 use omega_function_identity::StateKey;
 use psi_checked_trees::NominalMachineUseSite;
@@ -57,6 +57,10 @@ pub struct BoundCallbackPrivateMaterialization {
     /// nominal native telescope, callback rows, placements, and physical plan.
     pub registrar_application_report_fingerprint: u64,
     pub registrar_application_commitment: [u8; 32],
+    /// Exact target-closed registrar telescope row selected by a direct
+    /// parameter destination. Field destinations retain `None`: their root
+    /// semantic parameter is not itself a compiler-private callback argument.
+    pub direct_registrar_parameter_application: Option<NativeParameterApplication>,
     pub context: CallbackMaterializationContext,
 }
 
@@ -249,6 +253,25 @@ fn fingerprint_private_materialization(
     );
     fingerprint_into(
         report_fingerprint,
+        &[u8::from(
+            materialization
+                .direct_registrar_parameter_application
+                .is_some(),
+        )],
+    );
+    if let Some(application) = &materialization.direct_registrar_parameter_application {
+        fingerprint_into(
+            report_fingerprint,
+            &application.parameter.get().to_le_bytes(),
+        );
+        fingerprint_into(
+            report_fingerprint,
+            &application.native_ordinal.to_le_bytes(),
+        );
+        fingerprint_value_shape(report_fingerprint, application.shape);
+    }
+    fingerprint_into(
+        report_fingerprint,
         &(materialization.context.binders.len() as u64).to_le_bytes(),
     );
     for binder in &materialization.context.binders {
@@ -263,6 +286,21 @@ fn fingerprint_private_materialization(
         fingerprint_native_place(report_fingerprint, &demand.destination);
         fingerprint_into(report_fingerprint, &demand.requirement.get().to_le_bytes());
     }
+}
+
+fn fingerprint_value_shape(report_fingerprint: &mut u64, shape: ValueShape) {
+    match shape.class {
+        ValueClass::Integer => fingerprint_into(report_fingerprint, &[1]),
+        ValueClass::Float => fingerprint_into(report_fingerprint, &[2]),
+        ValueClass::HomogeneousFloatAggregate { members } => {
+            fingerprint_into(report_fingerprint, &[3, members]);
+        }
+        ValueClass::SystemVAggregate { first, second } => {
+            fingerprint_into(report_fingerprint, &[4, first as u8, second as u8]);
+        }
+    }
+    fingerprint_into(report_fingerprint, &shape.byte_size.to_le_bytes());
+    fingerprint_into(report_fingerprint, &shape.alignment.to_le_bytes());
 }
 
 fn fingerprint_native_place(report_fingerprint: &mut u64, place: &NativePlace) {
@@ -441,6 +479,7 @@ pub fn validate_bound_nominal_callback_placement(
                         .to_owned(),
                 ));
         }
+        validate_callback_registrar_native_parameters(materialization)?;
     }
     if validated.plan() != &placement.boundary_entry_plan {
         return Err(omega_calling_conventions::PlanDiagnostic(
@@ -457,6 +496,54 @@ pub fn validate_bound_nominal_callback_placement(
         ));
     }
     Ok(validated)
+}
+
+fn validate_callback_registrar_native_parameters(
+    materialization: &BoundCallbackPrivateMaterialization,
+) -> Result<(), omega_calling_conventions::PlanDiagnostic> {
+    let destination_parameter = match &materialization.destination {
+        NativePlace::Parameter(parameter) => *parameter,
+        NativePlace::Field { .. } => {
+            if materialization
+                .direct_registrar_parameter_application
+                .is_some()
+            {
+                return Err(omega_calling_conventions::PlanDiagnostic(
+                    "field callback destination retained a direct native parameter application"
+                        .to_owned(),
+                ));
+            }
+            return Ok(());
+        }
+    };
+    let Some(application) = &materialization.direct_registrar_parameter_application else {
+        return Err(omega_calling_conventions::PlanDiagnostic(
+            "direct callback destination lost its exact native parameter application".to_owned(),
+        ));
+    };
+    let Some(placement) = usize::try_from(application.native_ordinal)
+        .ok()
+        .and_then(|ordinal| {
+            materialization
+                .registrar_boundary_entry_plan
+                .call
+                .parameters
+                .get(ordinal)
+        })
+    else {
+        return Err(omega_calling_conventions::PlanDiagnostic(
+            "callback registrar native telescope ordinal is absent from its exact plan".to_owned(),
+        ));
+    };
+    if application.parameter != destination_parameter
+        || application.shape != application.placement.shape
+        || application.placement != *placement
+    {
+        return Err(omega_calling_conventions::PlanDiagnostic(
+            "callback registrar native telescope identity, shape, or placement drifted".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// Derive the one compiler-private object identity bound to an exact validated

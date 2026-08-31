@@ -351,17 +351,15 @@ relocation still consumes only a complete validated outbound plan: missing,
 duplicate, overlapping, shape-incompatible, or unresolved materializations
 reject.
 
-Backend planning now performs the next address-free join after abstract
-boundary lowering: every ordered demand retains the exact registrar occurrence
-handle and exact ordered native-argument handle that own its `NativePlace`
-root. Replay binds the original placement/thunk/demand evidence to the source
-host-call site, registrar target and overload, lowering and call coordinates,
-authored native order, nominal parameter identity, and boundary-plan
-application fingerprint. Nested field
-destinations preserve the complete nominal layout and ordered slot path without
-deriving a byte offset; distinct fields may share one exact parameter root.
-This evidence still carries no target operation, bytes, object relocation,
-runtime address, registration authority, or lease.
+#### Retired custom/unknown carrier
+
+An earlier custom/unknown host-operation prototype performed an address-free
+registrar-occurrence and native-argument join after abstract lowering. That
+carrier was removed during the canonical Terminal pipeline migration and is
+not evidence for the current direct path. The replacement must enter native
+realization as target-owned adjunct data keyed by stable Terminal
+`OperationId`; canonical Terminal Psi itself remains target-neutral and source-
+handle-free.
 
 The target-closed backend recipe now extends that join to the exact outbound
 parameter `ValuePlacement` and one authoritative private-layout demand for the
@@ -376,17 +374,13 @@ object symbol, relocation, bytes, runtime address, registration authority, or
 lease; the exact registrar-native-parameter-to-assigned-operand join follows
 separately.
 
-That exact assigned-operand carrier now exists for custom/unknown outbound
-registrar host operations. Selection records the exact source-call handle,
-call/operation ordinals, and ordered native-parameter-to-abstract-operand rows,
-retaining semantic-formal identity only where one exists and excluding the
-result pseudo-argument. Target lowering resolves exactly one
-retained occurrence and boundary edge and preserves abstract/target operand
-handles; backend planning joins them to the assigned instruction and operand
-for the prior physical destination. Replay rejects coordinate collisions,
-missing or duplicated rows, stale handles, and operand-shape drift. Generic
-host operations remain outside the carrier, and it grants no object,
-relocation, byte, runtime, registration, or lease authority.
+The former custom/unknown assigned-operand carrier is likewise absent from the
+canonical path. New work must not revive that source-specific branch. It must
+join the target-owned occurrence/application row to the ordinary Terminal
+boundary call, then retain exact abstract, target, assigned, and emitted-call
+identities with independent replay.
+
+#### Canonical direct-parameter custody
 
 The authored direct-parameter path now reaches the preceding occurrence rung
 on the canonical Terminal pipeline. Checked Unit plans retain the exact
@@ -395,15 +389,24 @@ callback binder rejoins its admitted nominal selection. Terminal production
 records the source coordinate, resolved registrar target, and emitted
 `OperationId` ephemerally; the compiler consumes that source-bearing join and
 retains a placement-index-to-`BoundaryCall` row in the target-owned native
-proposal. Canonical Terminal Psi remains source-handle-free. Proposal replay
-rejects missing, duplicate, unreachable, wrong-target, non-boundary-operation,
-and artifact drift, while native realization remains fenced. The direct path
-still lacks the exact target-closed native-telescope row required to map its
-`NativeParameterId` to ordinal, function-pointer shape, `ValuePlacement`, and
-eventual assigned operand; none of those may be inferred from the parameter
-ID or registrar plan position.
+proposal. The proposal also carries the exact target-closed direct parameter
+application: nominal `NativeParameterId`, authored ordinal, function-pointer
+shape, and plan-selected `ValuePlacement`. Retained-product replay compares the
+complete row with the independently validated callback placement. Canonical
+Terminal Psi remains source-handle-free. Proposal replay rejects missing,
+duplicate, unreachable, wrong-target, non-boundary-operation, native-
+application, and artifact drift, while native realization remains fenced. The
+next rung is to feed this adjunct row into native realization and retain its
+exact abstract, target, assigned, and emitted-call joins; none may be inferred
+from the parameter ID or registrar plan position.
 
-Object planning now permits one further evidence-only join for an exact
+#### Retired object-store and installation prototype
+
+The following object-store and installation sequence belonged to the removed
+custom/unknown carrier. It is historical context, not a live canonical-
+Terminal path.
+
+Object planning permitted one further evidence-only join for an exact
 one-slot `Field` whose assigned registrar operand is
 `RuntimeStorageAddress`. The ordered request binds that operand's storage
 region/base and target-closed field geometry to the canonical BSS storage
@@ -447,13 +450,13 @@ selected-provider-closure digest and exact requirement strings/catalogs, and
 its replay rejects exact-requirement substitution even when all compact report
 coordinates are unchanged.
 
-The current canonical checked-to-Terminal function has no input field for the
-compiler's validated callback-placement sidecar. The compiler product driver
-therefore accepts those rows for check-only output but rejects Terminal and
-native artifact production before calling the Terminal producer. It reports
-the complete row count and canonical callback identities rather than clearing
-or reconstructing the sidecar. Canonical artifact production remains fenced
-until this handoff has an explicit custody carrier and consumer.
+The canonical checked-to-Terminal function keeps target-owned callback data out
+of Terminal Psi. While checked source and the canonical artifact coexist, the
+compiler product driver joins each validated placement to one emitted
+`BoundaryCall` `OperationId`, then retains the occurrence and direct native-
+parameter application in the native-realization proposal beside the artifact.
+Terminal artifact production is live; native artifact production remains
+fenced until native realization consumes this sidecar with complete replay.
 
 Deployment now owns a separate two-phase reclaimable callback custody path. It
 installs an independently admitted root before the ordinary registrar call and

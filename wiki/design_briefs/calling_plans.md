@@ -851,6 +851,14 @@ context, row, thunk, or schedule identities. The resulting
 bytes, object relocation, runtime storage, native address, registration
 authority, or lease; those remain later lowering and lifetime steps.
 
+### Retired pre-Terminal callback carrier
+
+The following host-call, assigned-operand, object-store, and installation-
+manifest sequence records a removed custom/unknown host-operation prototype.
+It is historical context, not current implementation or reusable authority.
+The canonical replacement starts at the checked identity spine below and its
+current frontier is stated in the direct-source section later in this brief.
+
 The next prerequisite retains the registrar occurrence through the ordinary
 host-call and abstract-boundary spine without granting any of those later
 authorities. One outbound `HostCallPlan` row records its exact authored
@@ -968,6 +976,8 @@ attribution remains intact through pending registration, live registration,
 failure, cleanup, and quiescence. Compact entry IDs never substitute for the
 sealed manifest row, and no resolved address, invocation, capacity, lease, or
 publication authority is introduced.
+
+### Current callback identity and custody spine
 
 The checked identity spine is live. Admission records the exact statement or
 expression handle, argument ordinal, registration operation, selected machine
@@ -1661,7 +1671,7 @@ Target closure reconstructs the exact binder requirement, derives the nominal
 parameter identity from the owning requirement and declared parameter name,
 adds the target function-pointer shape at the authored native position,
 publishes `NativePlace::Parameter`, and validates the resulting telescope
-against the physical plan. The application-v2 commitment covers that exact
+against the physical plan. The application-v3 commitment covers that exact
 requirement, ordered nominal telescope, origins and shapes, placements,
 callback demands, and reusable physical plan; retained callback placement
 replay carries both the strong commitment and its compact report coordinate.
@@ -1676,14 +1686,21 @@ all agree. Checked-to-Terminal lowering temporarily retains the exact authored
 site, source coordinate and target beside the emitted `OperationId`; the Omega
 product consumes those source handles at the boundary and stores only one
 placement-index-to-`BoundaryCall` row in the target-owned native-realization
-proposal. Missing, duplicate, unreachable, wrong-target, non-boundary, and
-artifact-drifted rows reject independently. Native production remains fenced
-until it can consume the row rather than silently discarding it.
+proposal. That occurrence now also owns the exact target-closed direct native-
+parameter application from `NativeParameterId` to authored ordinal, function-
+pointer shape, and `ValuePlacement`; retained-product replay compares it
+structurally with the placement's registrar plan instead of inferring it from
+the ID or ordinal. Missing, duplicate, unreachable, wrong-target, non-boundary,
+native-application-drifted, and artifact-drifted rows reject independently.
+Native production remains fenced until it can consume the row rather than
+silently discarding it.
 
-The next slice must retain the exact target-closed native-telescope mapping
-from `NativeParameterId` to authored ordinal, function-pointer shape, and
-`ValuePlacement`, then carry that authority through abstract, target,
-assigned-operand, emitted-call, and artifact replay. Those integrations and
+The next slice must carry that target-owned application as adjunct realization
+input keyed by the stable Terminal `OperationId`, then retain it through
+abstract, target, assigned-operand, emitted-call, and artifact replay. The
+current canonical pipeline has no native-only callback-argument carrier in
+those representations; the removed custom/unknown host-operation prototype is
+not reusable evidence of completion. Those integrations and
 the remaining authored-hidden-parameter and stale-v1/v2 negative matrix are
 engineering work under the settled v3 application model, not open
 language-design questions.

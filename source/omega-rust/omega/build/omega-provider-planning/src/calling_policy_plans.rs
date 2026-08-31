@@ -947,6 +947,63 @@ fn bound_private_callback_materialization(
             matching_demands.len()
         ));
     };
+    let direct_registrar_parameter_application = match row.destination {
+        NativePlace::Parameter(parameter) => {
+            let matching_parameters = registrar
+                .native_parameters
+                .iter()
+                .filter(|candidate| candidate.identity == parameter)
+                .collect::<Vec<_>>();
+            let [native_parameter] = matching_parameters.as_slice() else {
+                return Err(format!(
+                    "direct callback destination resolves to {} target-closed native parameter rows; exactly one is required",
+                    matching_parameters.len(),
+                ));
+            };
+            if native_parameter.origin
+                != (BoundaryNativeParameterOrigin::PrivateCallback {
+                    binder: binder.binder,
+                    requirement: binder.requirement,
+                })
+            {
+                return Err(
+                    "direct callback native parameter is not owned by its exact binder and requirement"
+                        .to_owned(),
+                );
+            }
+            let BoundaryNativeParameterShape::TargetFunctionPointer {
+                byte_size,
+                alignment,
+            } = native_parameter.shape
+            else {
+                return Err(
+                    "direct callback native parameter does not retain a target function-pointer shape"
+                        .to_owned(),
+                );
+            };
+            let shape = ValueShape::integer(byte_size, alignment);
+            let placement = usize::try_from(native_parameter.native_ordinal)
+                .ok()
+                .and_then(|ordinal| validated.plan().call.parameters.get(ordinal))
+                .ok_or_else(|| {
+                    "direct callback native parameter ordinal is absent from the exact registrar plan"
+                        .to_owned()
+                })?;
+            if placement.shape != shape {
+                return Err(
+                    "direct callback native parameter shape drifted from its exact registrar placement"
+                        .to_owned(),
+                );
+            }
+            Some(omega_calling_conventions::NativeParameterApplication {
+                parameter,
+                native_ordinal: native_parameter.native_ordinal,
+                shape,
+                placement: placement.clone(),
+            })
+        }
+        NativePlace::Field { .. } => None,
+    };
     let application_commitment = commitment.as_bytes();
     Ok(Some(
         omega_backend_plan::BoundCallbackPrivateMaterialization {
@@ -957,6 +1014,7 @@ fn bound_private_callback_materialization(
             registrar_calling_plan_report_fingerprint: validated.contract_report_fingerprint(),
             registrar_application_report_fingerprint: application_report_fingerprint,
             registrar_application_commitment: application_commitment,
+            direct_registrar_parameter_application,
             context,
         },
     ))
@@ -4427,6 +4485,31 @@ mod tests {
         assert_eq!(retained.destination, destination);
         assert_eq!(retained.requirement, requirement);
         assert_eq!(retained.context, context);
+        assert!(
+            retained.direct_registrar_parameter_application.is_none(),
+            "a field destination must not acquire a direct native parameter application",
+        );
+        let mut direct_row_on_field = bound[0].clone();
+        let shape = ValueShape::integer(8, 8);
+        direct_row_on_field
+            .private_materialization
+            .as_mut()
+            .unwrap()
+            .direct_registrar_parameter_application =
+            Some(omega_calling_conventions::NativeParameterApplication {
+                parameter: NativeParameterId::new(107).unwrap(),
+                native_ordinal: 0,
+                shape,
+                placement: ValuePlacement {
+                    shape,
+                    locations: Vec::new(),
+                },
+            });
+        assert!(
+            omega_backend_plan::validate_bound_nominal_callback_placement(&direct_row_on_field)
+                .is_err(),
+            "a field destination must reject a substituted direct application row",
+        );
         assert_eq!(
             retained.registrar_boundary_entry_plan,
             realizations[1].boundary_entry_plan
