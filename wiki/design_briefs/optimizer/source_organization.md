@@ -111,6 +111,14 @@ Psi has one additional local rung. `rules/catalog.rs` orders the selected
 passes, while `passes/<exact-pass>/mod.rs` visibly orders that pass's local
 rules. A family folder below a pass is a group, not another enablement table.
 
+Proof-check elision demonstrates the intended split. Its pass entrance is only
+the ordered roster and module map. Each exact identity leaf owns the operation
+classifier bearing that identity's name. The adjacent `identity_rewrite/`
+group contains only the common candidate model, proposal construction, and
+typed zero/one vocabulary. Generic provenance accounting for deleting a node
+lives in `passes/support/node_elision_accounting.rs`, where GVN and proof-check
+elision consume it as peers; neither pass reaches through the other's module.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.

@@ -117,7 +117,7 @@ impl PsiOptimizationRule for SameBlockTotalScalarCseRule {
                         node: node_index,
                     };
                     let Some((affected_blocks, provenance)) =
-                        local_cse_accounting(function, redundant_location, result)
+                        node_elision_accounting(function, redundant_location, result)
                     else {
                         continue;
                     };

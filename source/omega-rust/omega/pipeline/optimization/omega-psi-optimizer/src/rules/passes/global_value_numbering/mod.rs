@@ -18,7 +18,10 @@ use psi_core::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, Scala
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-use super::{GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligation_fact, support::block_dominates};
+use super::{
+    GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligation_fact,
+    support::{block_dominates, node_elision_accounting},
+};
 
 mod accounting;
 mod dominating;
@@ -32,7 +35,6 @@ pub use identities::*;
 pub use local::*;
 pub use phi_translated::*;
 
-pub(in crate::rules::passes) use accounting::local_cse_accounting;
 use accounting::*;
 use expression_keys::*;
 pub(in crate::rules::passes) use expression_keys::{

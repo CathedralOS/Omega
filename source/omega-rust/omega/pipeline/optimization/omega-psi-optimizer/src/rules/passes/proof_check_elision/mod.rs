@@ -1,25 +1,8 @@
 //! Optimizer module role: executable entrance. Proof-check elision, cataloged by the exact scalar identity being proved.
 
-use omega_abstract_operations::AbstractOperation as O;
-use omega_optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-};
-use omega_optimization_unit::{
-    IntegerConstantRewrite, NodeLocation, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
-};
-use psi_core::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
-
 use crate::rules::catalog::BuiltInRuleRegistration;
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 use super::dead_scalar_elimination::ProofCertifiedDeadScalarEliminationRule;
-use super::{
-    PROOF_CHECK_ELISION_PASS_NAME, accepted_obligation_fact, literal_integer_constant,
-    local_cse_accounting,
-};
 
 mod divide_by_one;
 mod identity_rewrite;
@@ -46,7 +29,7 @@ pub use signed_remainder_by_negative_one::*;
 pub use zero_dividend::*;
 pub use zero_value_shift::*;
 
-use identity_rewrite::*;
+#[cfg(test)]
 pub(in crate::rules::passes) use identity_rewrite::{integer_one, integer_zero};
 
 /// The exact local rule order for this pass.

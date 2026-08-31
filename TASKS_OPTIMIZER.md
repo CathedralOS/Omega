@@ -55,8 +55,14 @@ decision. Only true language-semantic questions belong in
 6. [>] Finish the exact-rule navigation refactor across Psi passes. Copy
    propagation and dead-scalar elimination now use exact named leaves, the
    dead-scalar entrance is a 31-line ordered roster, and the guard rejects new
-   production `rule.rs`/`rules.rs` catch-alls. Remove inherited parent glob
-   dependencies from the remaining pass families before extending them.
+   production `rule.rs`/`rules.rs` catch-alls. Proof-check elision now has a
+   63-line ordered entrance, exact leaves own all six operation classifiers,
+   its shared identity-rewrite group is split into model/proposal/typed-literal
+   rungs, and a guard forbids restoring either the 552-line flat hub or parent
+   glob imports in that family. Its generic node-elision accounting now lives
+   under pass support instead of GVN. The remaining production parent-glob
+   debt is confined to control-flow cleanup (10) and GVN (18); remove those 28
+   dependencies before extending either family.
 
 ## P0 — Source navigation and taxonomy
 

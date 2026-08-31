@@ -1,6 +1,61 @@
 //! Proof-certified exact multiplication by zero.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
+};
+use psi_core::IntegerValue;
+
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::PROOF_CHECK_ELISION_PASS_NAME;
+use super::identity_rewrite::{
+    ProofCertifiedScalarIdentityShape, integer_zero, propose_proof_certified_scalar_identities,
+};
+
+fn proof_certified_exact_integer_multiply_by_zero_shapes(
+    operation: &O,
+) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
+    let O::ExactIntegerMultiply {
+        psi_operation,
+        result,
+        scalar_type,
+        left,
+        right,
+        ..
+    } = operation
+    else {
+        return Vec::new();
+    };
+    vec![
+        (
+            ProofCertifiedScalarIdentityShape {
+                source_operation: *psi_operation,
+                result: *result,
+                replacement: *left,
+                identity_operand: *left,
+                scalar_type: *scalar_type,
+                identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft,
+            },
+            integer_zero(*scalar_type),
+        ),
+        (
+            ProofCertifiedScalarIdentityShape {
+                source_operation: *psi_operation,
+                result: *result,
+                replacement: *right,
+                identity_operand: *right,
+                scalar_type: *scalar_type,
+                identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight,
+            },
+            integer_zero(*scalar_type),
+        ),
+    ]
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;

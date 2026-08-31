@@ -175,7 +175,7 @@ impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
                     continue;
                 }
                 let Some((affected_blocks, provenance)) =
-                    local_cse_accounting(function, *redundant, *redundant_result)
+                    node_elision_accounting(function, *redundant, *redundant_result)
                 else {
                     continue;
                 };

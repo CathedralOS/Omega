@@ -45,6 +45,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/representations/omega-optimization-unit/src/construction.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/identity_rewrite.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate.rs",
         "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
@@ -52,6 +53,27 @@ pub(crate) fn check(audit: &mut Audit) {
             violations.insert(format!(
                 "optimizer representation restored a retired flat or forwarding-wall path: {obsolete}"
             ));
+        }
+    }
+
+    let proof_check_root = format!("{psi_pass_root}proof_check_elision/");
+    for path in source_lines
+        .keys()
+        .filter(|path| path.starts_with(&proof_check_root) && !is_test_source(path))
+    {
+        match fs::read_to_string(repository.join(path)) {
+            Ok(contents)
+                if contents.contains("use super::*;")
+                    || contents.contains("use super::super::*;") =>
+            {
+                violations.insert(format!(
+                    "proof-check elision restored an inherited parent glob dependency: {path}"
+                ));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                violations.insert(format!("cannot read {path}: {error}"));
+            }
         }
     }
 

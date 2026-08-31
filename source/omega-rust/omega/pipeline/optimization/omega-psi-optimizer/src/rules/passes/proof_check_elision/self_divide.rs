@@ -1,6 +1,20 @@
 //! Proof-certified self division.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    IntegerConstantRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+};
+use psi_core::{IntegerCarrier, IntegerSign};
+
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{PROOF_CHECK_ELISION_PASS_NAME, accepted_obligation_fact};
+use super::identity_rewrite::integer_one;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedIntegerSelfDivideEliminationRule;

@@ -1,6 +1,22 @@
 //! Proof-certified signed remainder by negative one.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    IntegerConstantRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+};
+use psi_core::{IntegerCarrier, IntegerSign, IntegerValue};
+
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{
+    PROOF_CHECK_ELISION_PASS_NAME, accepted_obligation_fact, literal_integer_constant,
+};
+use super::identity_rewrite::integer_zero;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule;
