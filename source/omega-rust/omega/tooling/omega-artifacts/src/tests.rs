@@ -9,7 +9,12 @@ use omega_calling_conventions::{
     StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_realization,
 };
-use omega_effects::{ForeignLocatorCandidate, normalize_foreign_locator};
+use omega_effects::provider_plan::{
+    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+    EvaluatedForeignImport,
+};
+use omega_effects::{ForeignLocatorCandidate, NormalizedForeignLocator, normalize_foreign_locator};
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactAuthorityCommitments,
     ArtifactEntry, ArtifactId, CodePlacementAuthority, CodePlacementId, ContainerLimits,
@@ -50,29 +55,50 @@ use super::{
     TrustReportRow, value_placement_json,
 };
 
+fn evaluated_import(locator: NormalizedForeignLocator, seed: u8) -> EvaluatedForeignImport {
+    let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
+        .expect("valid fixture usage");
+    let receipt = EvaluatedBindingReceipt::from_evaluation(
+        None,
+        format!("fixture::producer::{seed}"),
+        EvaluatedBindingProducerClosureDigest::from_bytes([seed; 32]).unwrap(),
+        1,
+        usage,
+        EvaluatedBindingEvaluationDigest::from_bytes([seed.wrapping_add(1); 32]).unwrap(),
+        1,
+        EvaluatedBindingMaterializationDigest::from_bytes([seed.wrapping_add(2); 32]).unwrap(),
+        locator.identity_digest(),
+    )
+    .expect("valid fixture receipt");
+    EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+        .expect("receipt matches fixture locator")
+}
+
 fn normalized_windows_import(library: &[u8], export: &[u8]) -> TrustProviderRealization {
+    let locator = normalize_foreign_locator(
+        ForeignLocatorCandidate::PeByName {
+            library: library.to_vec(),
+            export: export.to_vec(),
+        },
+        TargetProfile::WindowsX64,
+    )
+    .expect("valid normalized Windows import");
     TrustProviderRealization::Import {
-        locator: normalize_foreign_locator(
-            ForeignLocatorCandidate::PeByName {
-                library: library.to_vec(),
-                export: export.to_vec(),
-            },
-            TargetProfile::WindowsX64,
-        )
-        .expect("valid normalized Windows import"),
+        evaluated: evaluated_import(locator, 11),
     }
 }
 
 fn normalized_macos_import(install_name: &[u8], symbol: &[u8]) -> TrustProviderRealization {
+    let locator = normalize_foreign_locator(
+        ForeignLocatorCandidate::MachODylibSymbol {
+            install_name: install_name.to_vec(),
+            symbol: symbol.to_vec(),
+        },
+        TargetProfile::MacosArm64,
+    )
+    .expect("valid normalized Mach-O import");
     TrustProviderRealization::Import {
-        locator: normalize_foreign_locator(
-            ForeignLocatorCandidate::MachODylibSymbol {
-                install_name: install_name.to_vec(),
-                symbol: symbol.to_vec(),
-            },
-            TargetProfile::MacosArm64,
-        )
-        .expect("valid normalized Mach-O import"),
+        evaluated: evaluated_import(locator, 21),
     }
 }
 

@@ -69,7 +69,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         let selected_plan = import_plan(b"selected_leaf", profile);
         let report_identity = selected_plan.report_fingerprint();
         let locator = match &selected_plan.rows[0].binding {
-            ProviderBinding::Import { locator } => locator.clone(),
+            ProviderBinding::Import { evaluated } => evaluated.locator().clone(),
             _ => unreachable!(),
         };
         let boundary_entry_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(

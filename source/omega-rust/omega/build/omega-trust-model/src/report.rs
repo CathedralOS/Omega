@@ -682,8 +682,8 @@ fn trust_provider_realization(
     use omega_effects::provider_plan::ProviderBinding;
 
     let realization = match binding {
-        ProviderBinding::Import { locator } => TrustProviderRealization::Import {
-            locator: locator.clone(),
+        ProviderBinding::Import { evaluated } => TrustProviderRealization::Import {
+            evaluated: evaluated.clone(),
         },
         ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
             TrustProviderRealization::StringBackedImportBootstrap {
@@ -806,16 +806,40 @@ mod tests {
             omega_target::TargetProfile::LinuxX64,
         )
         .expect("valid normalized Linux import");
+        let usage = omega_effects::provider_plan::EvaluatedBindingUsage::from_evaluator(
+            7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0,
+        )
+        .expect("valid fixture usage");
+        let receipt = omega_effects::provider_plan::EvaluatedBindingReceipt::from_evaluation(
+            None,
+            "fixture::producer".to_owned(),
+            omega_effects::provider_plan::EvaluatedBindingProducerClosureDigest::from_bytes(
+                [11; 32],
+            )
+            .unwrap(),
+            1,
+            usage,
+            omega_effects::provider_plan::EvaluatedBindingEvaluationDigest::from_bytes([12; 32])
+                .unwrap(),
+            1,
+            omega_effects::provider_plan::EvaluatedBindingMaterializationDigest::from_bytes(
+                [13; 32],
+            )
+            .unwrap(),
+            locator.identity_digest(),
+        )
+        .expect("valid fixture receipt");
+        let evaluated =
+            omega_effects::provider_plan::EvaluatedForeignImport::from_retained_evidence(
+                locator.clone(),
+                receipt,
+            )
+            .expect("receipt matches locator");
         let normalized =
             trust_provider_realization(&omega_effects::provider_plan::ProviderBinding::Import {
-                locator: locator.clone(),
+                evaluated: evaluated.clone(),
             });
-        assert_eq!(
-            normalized,
-            TrustProviderRealization::Import {
-                locator: locator.clone(),
-            }
-        );
+        assert_eq!(normalized, TrustProviderRealization::Import { evaluated });
         assert_eq!(
             normalized.foreign_locator_compatibility_report_identity(),
             Some(locator.non_authoritative_compatibility_fingerprint()),

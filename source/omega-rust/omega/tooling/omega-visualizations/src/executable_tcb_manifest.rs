@@ -333,13 +333,15 @@ fn push_provider_identity_json(json: &mut String, identity: &ProviderIdentity) {
 
 fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding) {
     match binding {
-        OpaqueInProcessBinding::Import { locator } => {
+        OpaqueInProcessBinding::Import { evaluated } => {
+            let locator = evaluated.locator();
             json.push_str("{\"kind\": \"normalized_import\", \"target\": ");
             push_json_string(json, locator.target().target_name());
             let _ = write!(
                 json,
-                ", \"normalized_identity\": \"0x{:016x}\", \"locator\": ",
+                ", \"normalized_identity\": \"0x{:016x}\", \"evaluation_receipt_identity\": \"{}\", \"locator\": ",
                 locator.non_authoritative_compatibility_fingerprint(),
+                hex_bytes(&evaluated.receipt().identity_digest()),
             );
             match locator.locator() {
                 omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
@@ -413,6 +415,10 @@ fn push_json_bytes(json: &mut String, bytes: &[u8]) {
     json.push(']');
 }
 
+fn hex_bytes(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 fn push_execution_scope_json(json: &mut String, scope: ExecutionScope) {
     match scope {
         ExecutionScope::CallerAddressSpace => push_json_string(json, "caller_address_space"),
@@ -468,12 +474,36 @@ fn push_json_string(output: &mut String, value: &str) {
 mod tests {
     use super::*;
     use omega_effects::provider_plan::{
-        ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+        EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+        EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+        EvaluatedForeignImport, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+        ServiceSchema,
     };
+
+    fn evaluated_import(
+        locator: omega_effects::NormalizedForeignLocator,
+        seed: u8,
+    ) -> EvaluatedForeignImport {
+        let usage =
+            EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0).unwrap();
+        let receipt = EvaluatedBindingReceipt::from_evaluation(
+            None,
+            format!("fixture::producer::{seed}"),
+            EvaluatedBindingProducerClosureDigest::from_bytes([seed; 32]).unwrap(),
+            1,
+            usage,
+            EvaluatedBindingEvaluationDigest::from_bytes([seed.wrapping_add(1); 32]).unwrap(),
+            1,
+            EvaluatedBindingMaterializationDigest::from_bytes([seed.wrapping_add(2); 32]).unwrap(),
+            locator.identity_digest(),
+        )
+        .unwrap();
+        EvaluatedForeignImport::from_retained_evidence(locator, receipt).unwrap()
+    }
 
     fn selected(binding: ProviderBinding) -> SelectedProviderPlanFacts {
         let target = match &binding {
-            ProviderBinding::Import { locator } => locator.target().target_name(),
+            ProviderBinding::Import { evaluated } => evaluated.locator().target().target_name(),
             _ => "test-target",
         };
         let plan = ProviderPlan {
@@ -544,7 +574,7 @@ mod tests {
         )
         .expect("normalized import");
         let selected = selected(ProviderBinding::Import {
-            locator: locator.clone(),
+            evaluated: evaluated_import(locator.clone(), 11),
         });
         let json = executable_tcb_manifest_json(&selected);
 
@@ -569,7 +599,9 @@ mod tests {
             omega_target::TargetProfile::MacosArm64,
         )
         .expect("normalized Mach-O import");
-        let selected = selected(ProviderBinding::Import { locator });
+        let selected = selected(ProviderBinding::Import {
+            evaluated: evaluated_import(locator, 21),
+        });
         let json = executable_tcb_manifest_json(&selected);
 
         assert!(json.contains("\"case\": \"macho_dylib_symbol\""));

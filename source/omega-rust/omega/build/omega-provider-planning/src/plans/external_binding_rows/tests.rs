@@ -7,7 +7,10 @@ use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
 };
 use omega_effects::provider_plan::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+    EvaluatedForeignImport, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
+    ServiceSchema,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -31,6 +34,25 @@ struct Fixture {
 
 fn symbol(index: u32) -> SymbolHandle {
     SymbolHandle::from_arena_index(index)
+}
+
+fn evaluated_import(locator: omega_effects::NormalizedForeignLocator) -> EvaluatedForeignImport {
+    let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
+        .expect("valid fixture usage");
+    let receipt = EvaluatedBindingReceipt::from_evaluation(
+        None,
+        "fixture::producer".to_owned(),
+        EvaluatedBindingProducerClosureDigest::from_bytes([11; 32]).unwrap(),
+        1,
+        usage,
+        EvaluatedBindingEvaluationDigest::from_bytes([12; 32]).unwrap(),
+        1,
+        EvaluatedBindingMaterializationDigest::from_bytes([13; 32]).unwrap(),
+        locator.identity_digest(),
+    )
+    .expect("valid fixture receipt");
+    EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+        .expect("receipt matches fixture locator")
 }
 
 fn fixture(inherited_owner: bool) -> Fixture {
@@ -402,7 +424,7 @@ fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically
         method: METHOD_NAME.to_owned(),
         requirement_identity: fixture.requirement_identity.clone(),
         binding: ProviderBinding::Import {
-            locator: locator.clone(),
+            evaluated: evaluated_import(locator.clone()),
         },
     });
 

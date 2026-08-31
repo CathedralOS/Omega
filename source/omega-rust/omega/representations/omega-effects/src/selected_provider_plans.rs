@@ -589,7 +589,8 @@ impl SelectedProviderClosureDigestEncoder {
 
     fn opaque_binding(&mut self, binding: &crate::OpaqueInProcessBinding) {
         match binding {
-            crate::OpaqueInProcessBinding::Import { locator } => {
+            crate::OpaqueInProcessBinding::Import { evaluated } => {
+                let locator = evaluated.locator();
                 self.byte(0);
                 self.string(locator.target().target_name());
                 match locator.locator() {
@@ -622,6 +623,7 @@ impl SelectedProviderClosureDigestEncoder {
                         self.bytes(symbol);
                     }
                 }
+                self.bytes(&evaluated.receipt().identity_digest());
             }
             crate::OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
                 self.byte(1);
@@ -649,7 +651,32 @@ impl SelectedProviderClosureDigestEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider_plan::{ProviderBinding, ProviderPlanRow, ServiceMethod, ServiceSchema};
+    use crate::provider_plan::{
+        EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+        EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+        EvaluatedForeignImport, ProviderBinding, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    };
+
+    fn evaluated_import(
+        locator: crate::NormalizedForeignLocator,
+        seed: u8,
+    ) -> EvaluatedForeignImport {
+        let usage =
+            EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0).unwrap();
+        let receipt = EvaluatedBindingReceipt::from_evaluation(
+            None,
+            format!("fixture::producer::{seed}"),
+            EvaluatedBindingProducerClosureDigest::from_bytes([seed; 32]).unwrap(),
+            1,
+            usage,
+            EvaluatedBindingEvaluationDigest::from_bytes([seed.wrapping_add(1); 32]).unwrap(),
+            1,
+            EvaluatedBindingMaterializationDigest::from_bytes([seed.wrapping_add(2); 32]).unwrap(),
+            locator.identity_digest(),
+        )
+        .unwrap();
+        EvaluatedForeignImport::from_retained_evidence(locator, receipt).unwrap()
+    }
 
     fn candidate(name: &str, method: &str) -> ProviderPlan {
         ProviderPlan {
@@ -994,7 +1021,7 @@ mod tests {
         )
         .expect("normalized opaque import");
         opaque_leaf.rows[0].binding = ProviderBinding::Import {
-            locator: locator.clone(),
+            evaluated: evaluated_import(locator.clone(), 11),
         };
         let selected = SelectedProviderPlanFacts::from_selection(
             &[checked_wrapper.clone(), opaque_leaf.clone()],
@@ -1013,11 +1040,11 @@ mod tests {
             crate::IncompleteCause::SelectedOpaqueProvider {
                 provider_plan_report_identity,
                 binding: crate::OpaqueInProcessBinding::Import {
-                    locator: retained,
+                    evaluated: retained,
                 },
                 ..
             } if *provider_plan_report_identity == opaque_leaf.report_fingerprint()
-                && retained == &locator
+                && retained.locator() == &locator
         ));
     }
 
@@ -1026,15 +1053,16 @@ mod tests {
         fn selected(export: &[u8]) -> SelectedProviderPlanFacts {
             let mut plan = candidate("OpaqueLeaf", "read_raw");
             plan.target = "windows_x86_64".into();
+            let locator = crate::normalize_foreign_locator(
+                crate::ForeignLocatorCandidate::PeByName {
+                    library: b"vendor-storage.dll".to_vec(),
+                    export: export.to_vec(),
+                },
+                omega_target::TargetProfile::WindowsX64,
+            )
+            .expect("normalized selected import");
             plan.rows[0].binding = ProviderBinding::Import {
-                locator: crate::normalize_foreign_locator(
-                    crate::ForeignLocatorCandidate::PeByName {
-                        library: b"vendor-storage.dll".to_vec(),
-                        export: export.to_vec(),
-                    },
-                    omega_target::TargetProfile::WindowsX64,
-                )
-                .expect("normalized selected import"),
+                evaluated: evaluated_import(locator, 21),
             };
             SelectedProviderPlanFacts::from_selection(
                 std::slice::from_ref(&plan),
@@ -1054,15 +1082,16 @@ mod tests {
         fn selected(install_name: &[u8], symbol: &[u8]) -> SelectedProviderPlanFacts {
             let mut plan = candidate("OpaqueLeaf", "read_raw");
             plan.target = "macos_arm64".into();
+            let locator = crate::normalize_foreign_locator(
+                crate::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: install_name.to_vec(),
+                    symbol: symbol.to_vec(),
+                },
+                omega_target::TargetProfile::MacosArm64,
+            )
+            .expect("normalized selected Mach-O import");
             plan.rows[0].binding = ProviderBinding::Import {
-                locator: crate::normalize_foreign_locator(
-                    crate::ForeignLocatorCandidate::MachODylibSymbol {
-                        install_name: install_name.to_vec(),
-                        symbol: symbol.to_vec(),
-                    },
-                    omega_target::TargetProfile::MacosArm64,
-                )
-                .expect("normalized selected Mach-O import"),
+                evaluated: evaluated_import(locator, 31),
             };
             SelectedProviderPlanFacts::from_selection(
                 std::slice::from_ref(&plan),

@@ -190,7 +190,7 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
         cases.iter().map(|case| case.type_identity.into()).collect();
     let report_identity = selected_plan.report_fingerprint();
     let locator = match &selected_plan.rows[0].binding {
-        ProviderBinding::Import { locator } => locator.clone(),
+        ProviderBinding::Import { evaluated } => evaluated.locator().clone(),
         _ => unreachable!(),
     };
     let signature = omega_calling_conventions::CallSignature {

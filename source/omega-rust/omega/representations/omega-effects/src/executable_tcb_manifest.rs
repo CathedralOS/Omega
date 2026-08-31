@@ -167,7 +167,7 @@ pub enum IncompleteCause {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OpaqueInProcessBinding {
     Import {
-        locator: crate::NormalizedForeignLocator,
+        evaluated: crate::provider_plan::EvaluatedForeignImport,
     },
     StringBackedImportBootstrap {
         library: String,
@@ -795,8 +795,8 @@ fn provider_identity(plan: &ProviderPlan) -> ProviderIdentity {
 
 fn opaque_binding(binding: &ProviderBinding) -> Option<OpaqueInProcessBinding> {
     match binding {
-        ProviderBinding::Import { locator } => Some(OpaqueInProcessBinding::Import {
-            locator: locator.clone(),
+        ProviderBinding::Import { evaluated } => Some(OpaqueInProcessBinding::Import {
+            evaluated: evaluated.clone(),
         }),
         ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
             Some(OpaqueInProcessBinding::StringBackedImportBootstrap {

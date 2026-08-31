@@ -1,8 +1,14 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 115 and row schema version 73. This file
+The canonical review schema is version 116 and row schema version 74. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v116 / row v74 retains the atomic evaluated-import receipt beside each
+normalized locator: exact producer package/callable/closure, evaluator
+semantics and measured usage, evaluation-result commitment, materializer
+schema/commitment, and locator commitment. Any receipt-axis change changes
+canonical package evidence.
 
 Schema v115 / row v73 admits checked type/const-generic operator-provider
 declarations when the compiler resolves one exact positional static-telescope

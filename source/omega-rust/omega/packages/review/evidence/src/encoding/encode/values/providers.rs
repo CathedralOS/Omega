@@ -331,7 +331,8 @@ pub(crate) fn encode_provider_row(
     encoder.string(&row.method)?;
     encoder.string(&row.requirement_identity)?;
     match &row.binding {
-        ProviderBinding::Import { locator } => {
+        ProviderBinding::Import { evaluated } => {
+            let locator = evaluated.locator();
             encoder.byte(7);
             encoder.string(locator.target().target_name())?;
             encoder.u64(locator.non_authoritative_compatibility_fingerprint());
@@ -365,6 +366,8 @@ pub(crate) fn encode_provider_row(
                     encoder.bytes(symbol)?;
                 }
             }
+            encoder.fixed_bytes(&locator.identity_digest().as_bytes());
+            encode_evaluated_binding_receipt(encoder, evaluated.receipt())?;
         }
         ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
             encoder.byte(0);
@@ -403,4 +406,31 @@ pub(crate) fn encode_provider_row(
         }
     }
     Ok(())
+}
+
+fn encode_evaluated_binding_receipt(
+    encoder: &mut Encoder,
+    receipt: &omega_effects::provider_plan::EvaluatedBindingReceipt,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.optional_package_identity(receipt.producer_package());
+    encoder.string(receipt.producer_callable_identity())?;
+    encoder.fixed_bytes(&receipt.producer_closure_digest().as_bytes());
+    encoder.u32(receipt.evaluator_semantics_marker());
+    let usage = receipt.evaluation_usage();
+    encoder.u32(usage.usage_schema_version());
+    encoder.u32(usage.step_schedule_marker());
+    encoder.u64(usage.fuel_units());
+    encoder.u64(usage.fuel_ceiling());
+    encoder.u64(usage.build_log_bytes());
+    encoder.u64(usage.filesystem_operation_attempts());
+    encoder.u64(usage.peak_live_cells());
+    encoder.u64(usage.peak_live_text_bytes());
+    encoder.u64(usage.result_cells());
+    encoder.u64(usage.result_text_bytes());
+    encoder.fixed_bytes(&receipt.evaluation_digest().as_bytes());
+    encoder.u32(receipt.materializer_schema_version());
+    encoder.fixed_bytes(&receipt.materialization_digest().as_bytes());
+    encoder.fixed_bytes(&receipt.locator_identity_digest().as_bytes());
+    encoder.fixed_bytes(&receipt.identity_digest());
+    encoder.check()
 }
