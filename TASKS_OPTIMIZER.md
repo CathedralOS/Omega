@@ -155,15 +155,21 @@ decision. Only true language-semantic questions belong in
    transitive closure, and Terminal emission preserves call-before-branch
    source order. One- and two-call canaries pass verifier and codec replay;
    coordinate drift and operation reordering reject. Producer and consumer
-   each name a small `operations` rung. The producer descends through an
-   18-line `nested_control` entrance into 319-line `topology`, 39-line
-   `operations`, and 75-line `assembly` rungs; the 16-line consumer entrance
-   retains separate 295-line `admission`, 37-line `operations`, and 231-line
-   `emission` rungs. No
-   topology-specific sibling was added. The next bounded widening is an exact
-   parameterless boundary-call prefix; it remains separate until source-call
-   occurrences and provider replay are explicit. This is engineering, not an
-   owner language decision. A smaller recurring custody
+   each name a small `operations` rung. Exact parameterless boundary calls may
+   now occupy the same prefix: production admits their checked boundary and
+   empty signature, lowering independently rejoins the call target and records
+   the source-call occurrence, and emission appends the call before the guard
+   without manufacturing another block. Verifier/codec replay and coordinate
+   corruption canaries pass. The producer descends through an 18-line
+   `nested_control` entrance into 319-line `topology`, 60-line `operations`,
+   and 91-line `assembly` rungs; the 16-line consumer entrance retains separate
+   295-line `admission`, 75-line `operations`, and 238-line `emission` rungs. No
+   topology-specific sibling was added. Provider-backed control prefixes remain
+   the next bounded gap: an implicit-`self` dispatch target with a scalar state
+   parameter currently has no checked transition-argument expression row, so
+   the producer correctly declines it rather than inventing evidence. Repairing
+   that fact construction is engineering, not an owner language decision. A
+   smaller recurring custody
    class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout

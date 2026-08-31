@@ -17,19 +17,40 @@ pub(super) fn finish(
             super::super::leaves::build(program, facts, machine, state, boundaries, &[], &[])
         })
         .collect::<Option<Vec<_>>>()?;
-    let provider_inputs = topology
-        .leaves
+    let control_operations = topology
+        .controls
         .iter()
-        .zip(&leaves)
-        .map(|(state, leaf)| {
+        .map(|state| super::operations::build(program, facts, machine, state, boundaries))
+        .collect::<Option<Vec<_>>>()?;
+    let mut provider_inputs = topology
+        .controls
+        .iter()
+        .zip(&control_operations)
+        .filter(|(_, operations)| !operations.is_empty())
+        .map(|(state, operations)| {
             let flow = state_flow(facts, machine.symbol, state.symbol)?;
             Some((
                 *state,
                 facts.flow.control.calls.span_or_empty(flow.calls),
-                leaf.operations.as_slice(),
+                operations.as_slice(),
             ))
         })
         .collect::<Option<Vec<_>>>()?;
+    provider_inputs.extend(
+        topology
+            .leaves
+            .iter()
+            .zip(&leaves)
+            .map(|(state, leaf)| {
+                let flow = state_flow(facts, machine.symbol, state.symbol)?;
+                Some((
+                    *state,
+                    facts.flow.control.calls.span_or_empty(flow.calls),
+                    leaf.operations.as_slice(),
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?,
+    );
     let provider_requirements = checked_composed_provider_attachment_requirements(
         program,
         shapes,
@@ -37,11 +58,6 @@ pub(super) fn finish(
         &topology.attachment,
         &provider_inputs,
     )?;
-    let control_operations = topology
-        .controls
-        .iter()
-        .map(|state| super::operations::build(program, facts, machine, state))
-        .collect::<Option<Vec<_>>>()?;
     let mut checked_states = topology
         .controls
         .iter()

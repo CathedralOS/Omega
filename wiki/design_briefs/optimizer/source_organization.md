@@ -104,7 +104,9 @@ effect leaves. Its typed producer has a small coordinator over `topology`,
 `operations`, and `emission` split. The topology/admission rungs own graph
 classification and independent reachability/cycle walks; the operation rungs
 own the exact finite pre-terminator sequence and preserve effect-before-branch
-source order.
+source order. Internal and boundary calls share this rung; boundary emission
+reuses the ancestor call-operation projector so source-call occurrences are
+recorded once rather than reconstructed by the graph route.
 Balanced, right-deep, convergent, and call-prefixed shapes do not receive
 sibling routes.
 The nested
