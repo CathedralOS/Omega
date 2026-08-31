@@ -89,18 +89,28 @@ pub(super) fn emit_composed_unit_control(
     }];
     let mut source_call_occurrences = Vec::new();
     for (state, block) in admitted.leaves.into_iter().zip(&state_ids[1..]) {
-        let (lowered_block, mut occurrences) = emit_leaf(
-            state,
-            *block,
-            &catalogs.lowered_boundaries,
-            &catalogs.type_ids,
-            &catalogs.structural_types,
-            &structural_parameters,
-            &claim_bindings,
-            &mut next_value,
-            &mut next_operation,
-            &mut next_edge,
-        )?;
+        let (lowered_block, mut occurrences) = match &state.operations[0] {
+            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => emit_boundary_leaf(
+                state,
+                *block,
+                &catalogs.lowered_boundaries,
+                &catalogs.type_ids,
+                &catalogs.structural_types,
+                &structural_parameters,
+                &claim_bindings,
+                &mut next_value,
+                &mut next_operation,
+                &mut next_edge,
+            )?,
+            CheckedUnitEffectOperationPlan::CallUnit { .. } => internal_calls::emit_leaf(
+                state,
+                *block,
+                &catalogs.internal_targets,
+                &mut next_operation,
+                &mut next_edge,
+            )?,
+            _ => unreachable!("admission retained one exact leaf call"),
+        };
         blocks.push(lowered_block);
         source_call_occurrences.append(&mut occurrences);
     }
@@ -161,10 +171,18 @@ pub(super) fn emit_composed_unit_control(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    finish_module(machine, catalogs, source_call_occurrences)
+    let mut machines = vec![machine];
+    machines.extend(internal_calls::emit_targets(
+        checked,
+        &catalogs.internal_targets,
+        &catalogs.type_ids,
+        &catalogs.service_ids,
+        &mut next_edge,
+    )?);
+    finish_module(machines, catalogs, source_call_occurrences)
 }
 
-fn emit_leaf(
+fn emit_boundary_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
     block: BlockId,
     boundaries: &[catalogs::LoweredComposedBoundary],
@@ -312,14 +330,20 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
 }
 
 fn finish_module(
-    machine: TerminalMachine,
+    machines: Vec<TerminalMachine>,
     catalogs: catalogs::ComposedCatalogs,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    let entry = machines
+        .first()
+        .map(|machine| machine.id)
+        .ok_or(LoweringError::Unsupported(
+            "composed Unit emission produced no entry machine",
+        ))?;
     let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: machine.id,
+            entry,
             structural_types: catalogs.structural_types,
             structural_domains: Vec::new(),
             services: catalogs.services,
@@ -337,7 +361,7 @@ fn finish_module(
             proof_output_calls: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
-            machines: vec![machine],
+            machines,
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,

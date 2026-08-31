@@ -86,9 +86,18 @@ decision. Only true language-semantic questions belong in
    `runtime_free_const_exit` compiler canary now crosses this formerly missing
    Terminal route and stops later on the documented host-realization fence:
    only Linux `exit_process(i32)` currently has a closed compiler-intrinsic
-   execution identity, while the local macOS plan has none. Next add internal
-   Unit-call leaves and larger acyclic graphs. This is engineering, not an
-   owner language decision. A smaller recurring custody class leaves
+   execution identity, while the local macOS plan has none. Parameterless
+   internal Unit-call leaves are now complete as the next exact family: both
+   branches can call one checked qualification-free empty-body target, the
+   producer retains the composed plan only while that ordinary target plan
+   survives pruning, and lowering independently rejoins its state, contract,
+   and reach before emitting one deduplicated in-module machine. Target-state,
+   contract-fingerprint, and missing-target-plan corruption fail closed;
+   Terminal verification and codec replay pass. The consumer entrance remains
+   25 lines and names `internal_calls` as a distinct rung. Next admit larger
+   acyclic graphs and then widen internal targets beyond the empty-body slice.
+   This is engineering, not an owner language decision. A smaller recurring
+   custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine

@@ -1766,7 +1766,13 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
         (
             terminal.join("composed_control.rs"),
             30,
-            &["admission", "catalogs", "custody", "emission"][..],
+            &[
+                "admission",
+                "catalogs",
+                "custody",
+                "emission",
+                "internal_calls",
+            ][..],
         ),
     ] {
         let source = std::fs::read_to_string(&entrance)
