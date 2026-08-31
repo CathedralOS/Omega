@@ -1,8 +1,17 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 109 and row schema version 67. This file
+The canonical review schema is version 110 and row schema version 68. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v110 / row v68 retains each external callable's ordered structural
+conformance-bound telescope. Top-level requirement supply independently
+projects both telescopes and currently admits only exact equality; a checked
+provider that weakens or otherwise changes the bounds rejects until the
+compiler owns a real conformance-bound subsumption judgment. Bound evidence
+names alpha-normalize to ordinals, while subject ordinals, public trait
+identity, selected conformance applications, and structural arguments remain
+exact key material.
 
 Schema v109 / row v67 admits const parameters in external realization and
 top-level requirement signatures. Each side retains the exact const carrier;

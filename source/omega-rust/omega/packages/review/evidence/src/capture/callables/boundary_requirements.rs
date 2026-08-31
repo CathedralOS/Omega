@@ -45,16 +45,15 @@ pub(super) fn project_top_level_requirement_external_supply(
                 | psi_typed_trees::data::TypeParameterKind::Const { .. }
         )
     };
-    if !requirement.conformance_bounds.is_empty()
-        || requirement_parameters
-            .iter()
-            .any(unsupported_static_parameter)
+    if requirement_parameters
+        .iter()
+        .any(unsupported_static_parameter)
         || realization_parameters
             .iter()
             .any(unsupported_static_parameter)
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` with static kinds or conformance bounds not yet represented by package review",
+            "reviewed callable `{}` realizes top-level requirement `{}` with static kinds not yet represented by package review",
             machine.name, requirement.name
         ))]);
     }
@@ -91,6 +90,12 @@ pub(super) fn project_top_level_requirement_external_supply(
     )?;
     let requirement_signature =
         project_external_callable_signature(compilation, requirement, &requirement_binders)?;
+    if requirement_signature.conformance_bounds() != signature.conformance_bounds() {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed callable `{}` realizes top-level requirement `{}` with non-identical conformance bounds; package review does not yet certify conformance-bound weakening",
+            machine.name, requirement.name
+        ))]);
+    }
     project_external_executable_supply_with_source(
         machine,
         conformance,

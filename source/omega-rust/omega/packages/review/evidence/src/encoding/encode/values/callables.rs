@@ -138,6 +138,7 @@ pub(super) fn encode_external_callable_signature(
         }
         Ok(())
     })?;
+    encoder.sequence(&signature.conformance_bounds, encode_conformance_bound)?;
     encoder.sequence(&signature.parameters, |encoder, parameter| {
         encode_type_identity(encoder, &parameter.type_identity)?;
         encoder.boolean(parameter.is_const);
