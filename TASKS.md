@@ -6782,6 +6782,20 @@ Owners:
   rebuilding either resource arena. The evidence remains non-authorizing and
   proves no completed restoration or Terminal custody.
 
+  The first checked post-reactivation use certificate is now live for one
+  direct-root `Mutable` parent and one `Mutable` or `WriteOnly` child. The child
+  must end by `LastUseExpired` through the exact `Reactivate` disposition and
+  `ExclusiveSuspension` containment row, immediately before one receiver-free,
+  call with one exact mutable-reference parameter takes the bare parent carrier
+  and mutates the complete restored referent. The certificate rejoins the exact child and parent
+  resources, weakening, disposition, containment, flow and borrow call rows,
+  carrier-read access, parent-loan entry constraint, captured places, restored
+  access, and target. Independent replay is transactional. Shared cohorts,
+  multihop or sequential children, state-exit closure, projected arguments,
+  direct assignment, receiver calls, extra parameters, and nonmutating targets
+  retain no such row. This is checked evidence only and grants no Terminal use,
+  cleanup, transfer, or discharge authority.
+
   Terminal root-custody publication now accepts one finite nonempty linear
   exclusive lineage from a direct-root `Mutable` loan to the leaf that ends at
   state exit. Each edge is exactly `Mutable -> Mutable`, `Mutable -> WriteOnly`,

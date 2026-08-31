@@ -273,6 +273,17 @@ cohort ended. Lexical survival and a compiler-recorded disposition are not by
 themselves authority. Terminal Psi independently reconstructs and replays this
 evidence before publishing post-reborrow use or root custody.
 
+The first checked post-reactivation use row is deliberately narrower than that
+publication boundary. It accepts one direct mutable parent, one mutable or
+write-only child that ends by last use, and the exact next receiver-free call
+whose sole mutable parameter consumes the bare parent carrier and mutates the
+whole restored referent. It independently rejoins the child and parent
+resources, exclusive-suspension containment, reactivation, weakening, call,
+entry-loan, access, place, and target evidence. Shared cohorts, multihop or
+sequential children, state exit, projected arguments, receiver calls, direct
+assignment, and partial mutation remain outside this row. The row is checked
+evidence only; Terminal publication remains separate.
+
 Published root custody remains deliberately narrow but now covers a finite
 linear exclusive lineage. One direct-root mutable loan may lend a mutable or
 write-only child; a mutable child may continue with either access, while a
@@ -280,7 +291,7 @@ write-only child may continue only as write-only. The complete chain must close
 at state exit through exact exclusive-suspension paths. Terminal retains that
 handoff as semantic custody, not as executable cleanup or transfer. Shared
 cohorts, branching, restoration before state exit, and later use of the
-restored parent require further publication support.
+restored parent still require further Terminal publication support.
 
 ## Transitions And Ownership
 
