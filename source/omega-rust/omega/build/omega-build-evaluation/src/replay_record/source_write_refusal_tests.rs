@@ -147,6 +147,14 @@ fn refused_source_write_codec_rejects_omission_duplication_and_framing_mutation(
         )
         .is_err()
     );
+    let mut logged = summary(vec![exact_remove_attempt()]);
+    logged.build_log = b"unrelated\n".to_vec();
+    assert_eq!(
+        capture_verified_build_filesystem_replay_record(&logged, limits)
+            .unwrap_err()
+            .to_string(),
+        "filesystem replay refused Source operation cannot carry BuildLog output"
+    );
 
     let captured =
         capture_verified_build_filesystem_replay_record(&summary(vec![exact_attempt()]), limits)

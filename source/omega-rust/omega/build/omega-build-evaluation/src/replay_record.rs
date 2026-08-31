@@ -214,6 +214,18 @@ pub fn capture_verified_build_filesystem_replay_record(
     {
         return Ok(None);
     }
+    if let [attempt] = summary.filesystem_operation_attempts()
+        && matches!(attempt.operation_tag(), 1 | 9)
+        && matches!(attempt.rooted_path_operand_resolutions(), [rooted] if rooted.root() == BuildFilesystemRoot::Source)
+        && matches!(attempt.grant_refusals(), [refusal]
+            if refusal.access() == BuildFilesystemGrantAccess::Write
+                && refusal.reason() == BuildFilesystemGrantRefusalReason::OutsideGrantedRoots)
+        && !summary.build_log().is_empty()
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay refused Source operation cannot carry BuildLog output",
+        ));
+    }
     let mut encoder = Encoder::new(limits.maximum_bytes);
     encoder.fixed(MAGIC);
     encoder.u16(VERSION);
