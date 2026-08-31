@@ -6,9 +6,9 @@ use super::external_supply::{
 use super::signatures::project_external_callable_signature;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
-    PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewNominalIdentity,
+    PackageReviewConformanceBound, PackageReviewExternalBinding,
+    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
+    PackageReviewExternalRequirement, PackageReviewNominalIdentity,
 };
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
@@ -91,9 +91,12 @@ pub(super) fn project_top_level_requirement_external_supply(
     )?;
     let requirement_signature =
         project_external_callable_signature(compilation, requirement, &requirement_binders)?;
-    if requirement_signature.conformance_bounds() != signature.conformance_bounds() {
+    if !provider_conformance_bounds_refine(
+        requirement_signature.conformance_bounds(),
+        signature.conformance_bounds(),
+    ) {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` with non-identical conformance bounds; package review does not yet certify conformance-bound weakening",
+            "reviewed callable `{}` realizes top-level requirement `{}` while demanding a conformance bound not guaranteed by the requirement",
             machine.name, requirement.name
         ))]);
     }
@@ -110,6 +113,41 @@ pub(super) fn project_top_level_requirement_external_supply(
             binding: binding.clone(),
         },
     )
+}
+
+fn provider_conformance_bounds_refine(
+    requirement: &[PackageReviewConformanceBound],
+    provider: &[PackageReviewConformanceBound],
+) -> bool {
+    let mut matched = vec![false; requirement.len()];
+    provider.iter().all(|provider_bound| {
+        let Some((index, _)) = requirement
+            .iter()
+            .enumerate()
+            .find(|(index, requirement_bound)| {
+                !matched[*index] && same_conformance_bound_shape(requirement_bound, provider_bound)
+            })
+        else {
+            return false;
+        };
+        matched[index] = true;
+        true
+    })
+}
+
+fn same_conformance_bound_shape(
+    requirement: &PackageReviewConformanceBound,
+    provider: &PackageReviewConformanceBound,
+) -> bool {
+    requirement.binder_ordinal.is_some() == provider.binder_ordinal.is_some()
+        && requirement.subject_parameter == provider.subject_parameter
+        && requirement.selected_conformance == provider.selected_conformance
+        && requirement.selected_lifetime_arguments == provider.selected_lifetime_arguments
+        && requirement.selected_arguments == provider.selected_arguments
+        && requirement.selected_subject == provider.selected_subject
+        && requirement.trait_identity == provider.trait_identity
+        && requirement.trait_lifetime_arguments == provider.trait_lifetime_arguments
+        && requirement.arguments == provider.arguments
 }
 
 pub(super) fn validate_selected_top_level_requirement_external_supply(

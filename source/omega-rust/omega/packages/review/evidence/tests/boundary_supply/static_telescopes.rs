@@ -36,7 +36,7 @@ target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let checked = compile_to_checked_with_packages(
+    let mut checked = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
         Some(target),
         package_inputs(&package.0),
@@ -63,19 +63,50 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert_eq!(provider_bound.subject_parameter(), 0);
     assert_eq!(provider_bound.trait_identity().path(), "Ranked");
 
+    let provider_index = checked
+        .typed
+        .machines()
+        .iter()
+        .position(|machine| {
+            matches!(
+                machine.supply_mode,
+                psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
+            )
+        })
+        .expect("bound provider");
+    let provider = &mut checked.typed.machines_mut()[provider_index];
+    provider
+        .conformance_bounds
+        .push(provider.conformance_bounds[0].clone());
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("a duplicated provider demand must not refine one requirement demand");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("demanding a conformance bound not guaranteed by the requirement")),
+        "unexpected duplicate conformance-bound diagnostics: {diagnostics:?}",
+    );
+
     let weaker_provider = TempPackage::new();
     weaker_provider.write(
         "main.omg",
         r#"pub trait Ranked {
     machine before(left: Self, right: Self) -> bool;
 }
+pub trait Hashed {
+    machine hash(value: Self) -> u64;
+}
 pub data BoundSurface {}
 pub data BoundProvider {}
 pub boundary requirement BoundSurface::identity<
     Element,
-    RequirementOrder: Element satisfies Ranked
+    RequirementOrder: Element satisfies Ranked,
+    RequirementHash: Element satisfies Hashed
 >(value: Element) -> Element;
-pub machine BoundProvider::identity<Value>(value: Value) -> Value
+pub machine BoundProvider::identity<
+    Value,
+    ProviderHash: Value satisfies Hashed
+>(value: Value) -> Value
     satisfies BoundSurface::identity
     via Binding::DllImport("omega-bound", "identity");
 "#,
@@ -95,13 +126,64 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&weaker_provider.0),
     )
     .expect("the compiler currently accepts a weaker provider bound");
+    let review = project_checked_package_review(&checked)
+        .expect("a provider may omit a conformance precondition guaranteed by the requirement");
+    let [supply] = review.external_executable_supply() else {
+        panic!("one weakened conformance-bound supply row")
+    };
+    let [provider_bound] = supply.signature().conformance_bounds() else {
+        panic!("one retained provider conformance bound")
+    };
+    assert_eq!(provider_bound.binder_ordinal(), Some(0));
+    assert_eq!(provider_bound.trait_identity().path(), "Hashed");
+    assert_eq!(
+        supply
+            .top_level_requirement_signature()
+            .expect("top-level requirement signature")
+            .conformance_bounds()
+            .len(),
+        2,
+    );
+
+    let stronger_provider = TempPackage::new();
+    stronger_provider.write(
+        "main.omg",
+        r#"pub trait Ranked {
+    machine before(left: Self, right: Self) -> bool;
+}
+pub data BoundSurface {}
+pub data BoundProvider {}
+pub boundary requirement BoundSurface::identity<Element>(value: Element) -> Element;
+pub machine BoundProvider::identity<
+    Value,
+    ProviderOrder: Value satisfies Ranked
+>(value: Value) -> Value
+    satisfies BoundSurface::identity
+    via Binding::DllImport("omega-bound", "identity");
+"#,
+    );
+    stronger_provider.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &stronger_provider.0.join("main.omg"),
+        Some(target),
+        package_inputs(&stronger_provider.0),
+    )
+    .expect("the compiler currently accepts a stronger provider conformance bound");
     let diagnostics = project_checked_package_review(&checked)
-        .expect_err("package review must reject unsettled conformance-bound weakening");
+        .expect_err("package review must reject a provider-only conformance demand");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("does not yet certify conformance-bound weakening")),
-        "unexpected diagnostics for weaker conformance bounds: {diagnostics:?}",
+            .contains("demanding a conformance bound not guaranteed by the requirement")),
+        "unexpected diagnostics for stronger conformance bounds: {diagnostics:?}",
     );
 }
 

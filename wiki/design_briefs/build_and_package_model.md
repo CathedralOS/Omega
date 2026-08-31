@@ -2629,6 +2629,18 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v112/canonical row v70 admits conformance-bound weakening for
+top-level external requirement supply. Every provider demand must match one
+distinct requirement demand after alpha normalization; requirement-only
+demands may be omitted because the provider asks no more of its caller.
+Matching ignores each telescope's locally renumbered evidence-binder ordinal
+while preserving binder presence, subject ordinal, public trait, selected
+conformance application, lifetime arguments, and structural arguments exactly.
+Added, changed, or duplicated provider demands reject. Both exact telescopes
+remain in the opaque supply key, so weakening neither fabricates conformance
+evidence nor grants selection, installation, or execution authority. Canonical-
+row recovery remains v15.
+
 Package review v111/canonical row v69 admits static-machine parameters in
 external callable signatures. Structural contracts retain their complete
 recursively alpha-normalized static/value signature, contracts, crash ceiling,
