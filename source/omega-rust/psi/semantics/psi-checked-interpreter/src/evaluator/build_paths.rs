@@ -115,6 +115,97 @@ impl<'program> Evaluator<'program> {
         }))
     }
 
+    pub(super) fn try_build_facet_filesystem_value_call(
+        &mut self,
+        call: &psi_typed_trees::expression::TableCallExpression,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        if !call.receiver.is_valid()
+            || !matches!(
+                call.target.as_str(),
+                "open" | "read" | "close" | "create" | "write"
+            )
+        {
+            return Ok(None);
+        }
+        let receiver = self.resolve_place(call.receiver, frame)?;
+        let Some(operation) = self.build_facet_filesystem_operation(
+            &receiver,
+            call.target.as_str(),
+            call.target_symbol,
+        )?
+        else {
+            return Ok(None);
+        };
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        self.try_filesystem_call(operation, arguments, frame)
+            .map(Some)
+    }
+
+    pub(super) fn try_build_facet_filesystem_statement(
+        &mut self,
+        call: &psi_typed_trees::statement::TableCall,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        if call.receiver.is_empty()
+            || !matches!(
+                call.target.as_str(),
+                "open" | "read" | "close" | "create" | "write"
+            )
+        {
+            return Ok(None);
+        }
+        let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
+            return Ok(None);
+        };
+        let Some(operation) = self.build_facet_filesystem_operation(
+            &receiver,
+            call.target.as_str(),
+            call.target_symbol,
+        )?
+        else {
+            return Ok(None);
+        };
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments);
+        self.try_filesystem_call(operation, arguments, frame)
+            .map(Some)
+    }
+
+    fn build_facet_filesystem_operation(
+        &self,
+        receiver: &Cell,
+        target: &str,
+        target_symbol: SymbolHandle,
+    ) -> EvalResult<Option<FilesystemHostOperation>> {
+        let receiver = self.deref_cell(receiver.clone());
+        let attached = match &*receiver.borrow() {
+            Value::Struct { type_name, .. } if type_name == SOURCE_ROOT_FACET_TYPE => "BuildSource",
+            Value::Struct { type_name, .. } if type_name == OUTPUT_ROOT_FACET_TYPE => "BuildOutput",
+            _ => return Ok(None),
+        };
+        let operation = match (attached, target) {
+            ("BuildSource", "open") => FilesystemHostOperation::Open,
+            ("BuildSource", "read") => FilesystemHostOperation::Read,
+            ("BuildSource", "close") => FilesystemHostOperation::Close,
+            ("BuildOutput", "create") => FilesystemHostOperation::Create,
+            ("BuildOutput", "write") => FilesystemHostOperation::Write,
+            ("BuildOutput", "close") => FilesystemHostOperation::Close,
+            _ => return Ok(None),
+        };
+        if !self.exact_build_facet_method(attached, target, target_symbol) {
+            return Err(Halt::Trap(format!(
+                "build {attached} operation `{target}` did not select the exact toolchain machine"
+            )));
+        }
+        Ok(Some(operation))
+    }
+
     pub(super) fn try_build_output_include_source_value_call(
         &mut self,
         call: &psi_typed_trees::expression::TableCallExpression,
@@ -272,6 +363,15 @@ impl<'program> Evaluator<'program> {
         expected_attached: &str,
         target_symbol: SymbolHandle,
     ) -> bool {
+        self.exact_build_facet_method(expected_attached, "resolve", target_symbol)
+    }
+
+    fn exact_build_facet_method(
+        &self,
+        expected_attached: &str,
+        expected_state: &str,
+        target_symbol: SymbolHandle,
+    ) -> bool {
         self.program.machines().iter().any(|machine| {
             machine
                 .attached_data
@@ -279,7 +379,7 @@ impl<'program> Evaluator<'program> {
                 .is_some_and(|attached| attached.as_str() == expected_attached)
                 && self.symbol_has_build_prelude_source(machine.symbol)
                 && self.program.machine_states(machine).iter().any(|state| {
-                    state.name.as_str() == "resolve"
+                    state.name.as_str() == expected_state
                         && self.symbol_has_build_prelude_source(state.symbol)
                         // Build evaluation consumes the specialized typed tree
                         // before checked authored selections are finalized, so

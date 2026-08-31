@@ -2108,6 +2108,93 @@ fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
     })
 }
 
+fn is_exact_toolchain_build_filesystem_facet_call(
+    typed: &TypedTrees,
+    target_machine: SymbolHandle,
+    target_state: SymbolHandle,
+) -> bool {
+    typed.machines().iter().any(|machine| {
+        if machine.symbol != target_machine
+            || !machine
+                .attached_data
+                .as_ref()
+                .is_some_and(|attached| matches!(attached.as_str(), "BuildSource" | "BuildOutput"))
+            || !typed
+                .symbols
+                .symbol_source_span(machine.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == psi_source::SourceOrigin::Toolchain
+                        && file.path == std::path::Path::new("<build-prelude>")
+                })
+        {
+            return false;
+        }
+        typed.machine_states(machine).iter().any(|state| {
+            state.symbol == target_state
+                && matches!(
+                    (
+                        machine.attached_data.as_ref().map(|name| name.as_str()),
+                        state.name.as_str(),
+                    ),
+                    (Some("BuildSource"), "open" | "read" | "close")
+                        | (
+                            Some("BuildOutput"),
+                            "create" | "write" | "close" | "include_source"
+                        )
+                )
+        })
+    })
+}
+
+fn build_reaches_filesystem_facet(
+    typed: &TypedTrees,
+    operational: &psi_effects::OperationalPlan,
+    root: SymbolHandle,
+) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let Some(machine) = operational
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+        else {
+            continue;
+        };
+        for state in operational.states.span_or_empty(machine.states) {
+            for call in operational.calls.span_or_empty(state.calls) {
+                // Attached calls through the compiler-created private facet
+                // value are intentionally unresolved at this typed prepass;
+                // the evaluator below still admits only the exact prelude
+                // declaration and private activation marker. A same-named
+                // ordinary call can at most provision an unused sponsor: it
+                // cannot obtain either rooted facet value.
+                if is_exact_toolchain_build_filesystem_facet_call(
+                    typed,
+                    call.target_machine_symbol,
+                    call.target_state_symbol,
+                ) || (!call.target_state_symbol.is_valid()
+                    && matches!(
+                        call.target_name.as_str(),
+                        "open" | "read" | "close" | "create" | "write" | "include_source"
+                    ))
+                {
+                    return true;
+                }
+                if call.target_machine_symbol.is_valid() {
+                    pending.push(call.target_machine_symbol);
+                }
+            }
+        }
+    }
+    false
+}
+
 fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,
     symbol: SymbolHandle,
@@ -3460,9 +3547,12 @@ pub fn compute_build_config(
         ))]);
     }
 
-    let filesystem_reachable = transitive.iter().any(|service| {
+    let filesystem_service_reachable = transitive.iter().any(|service| {
         is_exact_toolchain_build_service(typed, *service, "FilesystemHost", "filesystem_host.omg")
     });
+    let filesystem_facet_reachable =
+        build_reaches_filesystem_facet(typed, &effect_plan, machine.symbol);
+    let filesystem_reachable = filesystem_service_reachable || filesystem_facet_reachable;
 
     let mut build_fields = Vec::new();
     if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
@@ -3517,14 +3607,16 @@ pub fn compute_build_config(
                 "output".to_owned(),
                 root_facet("$OmegaBuildOutputRoot", BUILD_OUTPUT_ROOT_IDENTITY),
             ),
-            (
-                "filesystem".to_owned(),
-                BuildTimeValue::Struct {
-                    type_name: "FilesystemHost".to_owned(),
-                    fields: Vec::new(),
-                },
-            ),
         ]);
+    }
+    if filesystem_service_reachable {
+        build_fields.push((
+            "filesystem".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "FilesystemHost".to_owned(),
+                fields: Vec::new(),
+            },
+        ));
     }
     let zero_build = BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
@@ -3534,10 +3626,10 @@ pub fn compute_build_config(
     // Omega owns the grant decision. Psi owns the target-neutral interpreter
     // entry selected by that explicit mode. BuildLog remains available in
     // either mode without granting a runtime boundary service.
-    let execution_mode = if transitive.is_empty() {
+    let execution_mode = if transitive.is_empty() && !filesystem_facet_reachable {
         BuildMachineExecutionMode::Pure
     } else {
-        let filesystem_metadata_layout = if filesystem_reachable {
+        let filesystem_metadata_layout = if filesystem_service_reachable {
             selected_filesystem_metadata_layout(typed)?
         } else {
             BuildMachineFilesystemMetadataLayout::default()
@@ -3817,7 +3909,11 @@ pub fn compute_build_config(
     let replay_usage = if let Some(replay) = replay {
         let replay_mode = BuildMachineExecutionMode::Granted {
             filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
-            filesystem_metadata_layout: selected_filesystem_metadata_layout(typed)?,
+            filesystem_metadata_layout: if filesystem_service_reachable {
+                selected_filesystem_metadata_layout(typed)?
+            } else {
+                BuildMachineFilesystemMetadataLayout::default()
+            },
         };
         let replayed = match evaluation_sponsor {
             Some(sponsor) => {

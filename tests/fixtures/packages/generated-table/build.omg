@@ -1,29 +1,25 @@
 // package-manager fixture: build reads inputs/table.txt and publishes generated
-// Omega source only through its scoped output root.
-use omega::language::std::filesystem_host;
+// Omega source only through its compiler-owned Source and Output facets.
 
 target windows_x86_64 { }
 target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 
-machine build(builder: &mut Build)
-reaches FilesystemHost
-invokes FilesystemHost;
-{
+machine build(builder: &mut Build) {
     builder.package("generated-table");
     let input_bytes: [u8; 64];
-    let input: &[u8] in Path = builder.source.resolve("inputs/table.txt");
-    let input_descriptor: i32 = builder.filesystem.open(input, 0);
-    let input_count: i64 = builder.filesystem.read(input_descriptor, &mut input_bytes, 64);
-    let input_close: i32 = builder.filesystem.close(input_descriptor);
+    let input: BuildPath = builder.source.resolve("inputs/table.txt");
+    let input_descriptor: i32 = builder.source.open(input, 0);
+    let input_count: i64 = builder.source.read(input_descriptor, &mut input_bytes, 64);
+    let input_close: i32 = builder.source.close(input_descriptor);
 
-    let generated: &[u8] in Path = builder.output.resolve("table.generated.omg");
-    let output_descriptor: i32 = builder.filesystem.create(generated, 438);
-    let output_count: i64 = builder.filesystem.write(
+    let generated: BuildPath = builder.output.resolve("table.generated.omg");
+    let output_descriptor: i32 = builder.output.create(generated, 438);
+    let output_count: i64 = builder.output.write(
         output_descriptor,
         "pub machine table_size() -> u64 {\n    3\n}\n"
     );
-    let output_close: i32 = builder.filesystem.close(output_descriptor);
+    let output_close: i32 = builder.output.close(output_descriptor);
     builder.output.include_source(generated);
 }

@@ -471,6 +471,15 @@ pub data Subsystem {
 }
 // compiler-owned TargetProfile declaration
 // compiler-owned optimization declarations
+// Compiler-owned package-build path carrier. The evaluator replaces values
+// produced by `resolve` with activation-local rooted authority; an authored
+// `BuildPath {}` has the right static shape but no usable runtime root.
+pub data BuildPath [copy] {
+}
+pub data BuildSource {
+}
+pub data BuildOutput {
+}
 pub data BuildLog {
 }
 pub data Build {
@@ -478,6 +487,8 @@ pub data Build {
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
+    source: BuildSource;
+    output: BuildOutput;
     log: BuildLog;
 }
 pub data PackageSelection {
@@ -497,6 +508,32 @@ pub machine Build::package(&mut self, name: &[u8]) {
 pub machine Build::application(&mut self, name: &[u8]) {
 }
 pub machine Build::member(&mut self, path: &[u8]) {
+}
+pub machine BuildSource::resolve(&self, relative: &[u8]) -> BuildPath {
+    BuildPath {}
+}
+pub machine BuildOutput::resolve(&self, relative: &[u8]) -> BuildPath {
+    BuildPath {}
+}
+pub machine BuildSource::open(&self, path: BuildPath, flags: i32) -> i32 {
+    0
+}
+pub machine BuildSource::read(&self, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 {
+    0
+}
+pub machine BuildSource::close(&self, descriptor: i32) -> i32 {
+    0
+}
+pub machine BuildOutput::create(&mut self, path: BuildPath, mode: i32) -> i32 {
+    0
+}
+pub machine BuildOutput::write(&mut self, descriptor: i32, bytes: &[u8]) -> i64 {
+    0
+}
+pub machine BuildOutput::close(&mut self, descriptor: i32) -> i32 {
+    0
+}
+pub machine BuildOutput::include_source(&mut self, generated: BuildPath) {
 }
 pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 }

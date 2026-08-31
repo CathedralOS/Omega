@@ -314,6 +314,9 @@ impl<'program> Evaluator<'program> {
         if let Some(value) = self.try_build_root_resolve_value_call(call, frame)? {
             return Ok(value);
         }
+        if let Some(value) = self.try_build_facet_filesystem_value_call(call, frame)? {
+            return Ok(value);
+        }
         if let Some(value) = self.try_build_output_include_source_value_call(call, frame)? {
             return Ok(value);
         }
