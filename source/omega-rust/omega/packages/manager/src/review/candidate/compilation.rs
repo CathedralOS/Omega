@@ -17,7 +17,8 @@ use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
 use omega_package_compilation::PackageCompilationInputError;
 use omega_package_evidence::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
-    validate_ordinary_package_obligation_ledger,
+    ordinary_package_obligation_results_from_projection,
+    validate_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_results,
 };
 use omega_package_evidence::project_checked_package_review;
 use psi_checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
@@ -208,6 +209,22 @@ fn compile_resolved_package_reviews_in_session(
                 diagnostics,
             },
         )?;
+        let obligation_results =
+            ordinary_package_obligation_results_from_projection(&obligations, &projection)
+                .map_err(
+                    |error| CompileResolvedPackageReviewsError::Projection {
+                        package: key.clone(),
+                        diagnostics: vec![Diagnostic::error(format!(
+                            "compiler-issued ordinary package obligation results are structurally invalid: {error}"
+                        ))],
+                    },
+                )?;
+        validate_ordinary_package_obligation_results(&obligation_results, &checked).map_err(
+            |diagnostics| CompileResolvedPackageReviewsError::Projection {
+                package: key.clone(),
+                diagnostics,
+            },
+        )?;
         let obligations_bytes =
             retained_obligation_ledger_bytes(&obligations).ok_or_else(|| {
                 CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
@@ -240,6 +257,7 @@ fn compile_resolved_package_reviews_in_session(
             canonical_review_bytes,
             canonical_rows,
             obligations,
+            obligation_results,
             comparison_rows,
         });
     }

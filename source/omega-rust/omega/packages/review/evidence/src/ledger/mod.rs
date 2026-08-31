@@ -11,6 +11,7 @@ mod codec;
 mod construction;
 mod limits;
 mod model;
+mod results;
 mod validation;
 
 pub use codec::{
@@ -28,6 +29,11 @@ pub use model::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerFingerprint,
     OrdinaryPackageObligationLedgerRecoveryError, OrdinaryPackageObligationRow,
     OrdinaryPackageObligationSchemaIdentity,
+};
+pub use results::{
+    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageObligationResultSet,
+    OrdinaryPackageObligationStatus, ordinary_package_obligation_results_from_projection,
+    reconstruct_ordinary_package_obligation_results, validate_ordinary_package_obligation_results,
 };
 pub use validation::{
     reconstruct_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,

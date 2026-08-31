@@ -2,7 +2,9 @@ use super::rows::ReviewOnlyCanonicalRow;
 use crate::declarations::PackageKey;
 use omega_build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
 use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
-use omega_package_evidence::ledger::OrdinaryPackageObligationLedger;
+use omega_package_evidence::ledger::{
+    OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
+};
 use omega_package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
 use omega_package_source::ImmutableSourceResolution;
 
@@ -23,6 +25,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) canonical_review_bytes: Vec<u8>,
     pub(super) canonical_rows: Vec<PackageReviewCanonicalRow>,
     pub(super) obligations: OrdinaryPackageObligationLedger,
+    pub(super) obligation_results: OrdinaryPackageObligationResultSet,
     pub(super) comparison_rows: Vec<ReviewOnlyCanonicalRow>,
 }
 
@@ -75,6 +78,12 @@ impl CompilerIssuedPackageReview {
     /// discharge result, admission decision, package instance, or lock row.
     pub const fn obligations(&self) -> &OrdinaryPackageObligationLedger {
         &self.obligations
+    }
+
+    /// Locally reconstructed result for the supported ordinary obligation
+    /// lanes. Accepted claims remain explicitly open; this is not admission.
+    pub const fn obligation_results(&self) -> &OrdinaryPackageObligationResultSet {
+        &self.obligation_results
     }
 
     pub(crate) fn comparison_rows(&self) -> &[ReviewOnlyCanonicalRow] {

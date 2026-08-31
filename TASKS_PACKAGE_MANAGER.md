@@ -29,28 +29,21 @@ policy, operator custody, unverifiable review ceremony, or proxy metrics
 presented as containment. If that authority boundary is genuinely ambiguous,
 stop the item on one precise owner question before adding machinery.
 
-## P2 — Compiler admission projection
+## P2 — Compiler review and realization projection
 
-- [ ] **PACKAGE-ADMISSION-COMPILATION.** Make the compiler-owned ordinary
-  package projection total for the supported language surface after successful
+- [ ] **PACKAGE-REVIEW-PROJECTION.** Make the compiler-owned ordinary package
+  projection total for the supported language surface after successful
   checking. The canonical output must contain no arena handles, diagnostic
-  strings as identity, or compiler-private IDs.
+  strings as identity, compiler-private IDs, or compiler-issued admission
+  verdicts.
 
   Remaining projection work includes:
 
-  - canonical const values beyond the completed public named acyclic,
-    monomorphic checked-record/pure-sum cohort, and closed conformance static
-    applications beyond the completed lifetime-free cohort whose conformance
-    telescope contains exact types or parser-canonical integer-literal consts
-    and whose target-trait telescope is type-only, but
-    only where successful checking retains an exact structural value and call-
-    occurrence witness. Direct named public integer and Boolean const values,
-    checked structured values with nested literal arrays, forwarded caller
-    const binders, and the first exact closed-conformance occurrence lane are
-    complete;
-  - generic or lifetime-parameterized external/top-level realizations,
-    unsupported compiler-intrinsic execution identities, and the remaining
-    provider-demand and installation-issuance joins;
+  - remaining canonical const and closed-conformance forms only where
+    successful checking retains the exact structural value, complete static
+    application, and call-occurrence witness;
+  - generic or lifetime-parameterized external/top-level realizations and the
+    remaining provider-demand and installation-issuance joins;
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact
@@ -59,9 +52,7 @@ stop the item on one precise owner question before adding machinery.
     proposition operator applications remain fail-closed. D28 authorizes no
     universal generic coverage; only compiler-derived demand joined to an
     independently checked application-specific realization may authorize a
-    row;
-  - complete exact semantic-subject commitments, certificate closure, and
-    reproducibility dispositions.
+    row.
 
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
@@ -77,49 +68,6 @@ stop the item on one precise owner question before adding machinery.
   compatibility uses the explicit semantic and evidence-encoding identities;
   it never substitutes the bytes readable through `current_exe()`.
 
-- [ ] **BUILD-OBSERVATION-EVIDENCE.** Extend the closed exact replay lanes for
-  candidates that require receipted builds. The implemented grammar, versions,
-  ceilings, and deliberately non-receipted neighbors live in
-  `source/omega-rust/omega/build/omega-build-evaluation/BUILD_OBSERVATION_REPLAY.md`.
-
-  The first two exact denied-operation rungs are complete: literal-mode
-  Source-root `create` and operand-free Source-root `remove` retain their
-  rooted operand and exact grant refusal, replay as compiler policy before
-  generic Output handling, and survive canonical recovery. Broader refusal
-  families remain below; add one only for a concrete receipted-build need,
-  not to fill out an operation matrix.
-
-  No additional replay operation is currently queued. The concrete
-  `generated-table` package already closes its complete Source
-  open/read/close, Output create/write/close, and generated-source handoff
-  lifecycle through provider-free replay and canonical recovery. Add another
-  operation or failed/denied outcome only with an otherwise admission-eligible
-  package fixture that remains volatile solely because that exact replay is
-  missing. Do not complete the raw filesystem operation matrix speculatively.
-  Add peak-live accounts only where the compiler owns the complete allocation
-  lifetime; do not duplicate per-operation bounds or present partial
-  allocator/RSS participation as containment.
-  Host CPU/RSS limits are deployment availability policy, not package evidence
-  and not a precondition that turns review into authority. Projects that need
-  stronger availability isolation run `omega` under their selected CI,
-  container, VM, or job controls.
-
-  A summary or observation digest alone is not a receipt.
-
-  The Windows `find_first`/`find_next`/`find_close` companion remains ordered
-  after **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS**. Its unrooted,
-  working-directory-dependent pattern cannot become a portable receipt.
-  Replace it with the root-aware Build facet before admission; do not add a
-  same-path-only receipt or ignore the pattern during replay matching.
-
-- [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Add the authority-bearing later-
-  discharge/open-obligation ledger and locally recheck every retained
-  certificate required by an ordinary package claim. Package review already
-  rejects contract-entailment stand-downs and retains accepted axioms, opaque
-  claims, and bodyless accepted claims as explicit trust rows. Do not cite the
-  standalone `psi-proof` ledger as production enforcement or invent a deferred-
-  proof row before the compiler owns such a status.
-
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
   fixed native resources, or profiles requesting final-code replay. Keep
@@ -127,20 +75,6 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Terminal retains the exact settled join
-  `{ authored operator-use coordinate, selected requirement/candidate } ->
-  { selected realization machine, selected realization state }` as an ordinary
-  scalar `Call`, without a global conformance scan. Immediately before either
-  Terminal or NativeArtifact production, Omega rejoins that carrier to the
-  complete still-owned selected ProviderPlan and rejects substitution by a
-  second conforming checked machine. Named/fixed-token compiler canaries replay
-  the canonical Terminal artifact through the later boundary consumer.
-  NativeArtifact production now carries the first bounded attached-Unit scalar
-  closure end to end: service-free fixed 8/16/32/64-bit integer callees,
-  constants or prior call results as arguments, one durable Unit-frame home per
-  result, exact per-function ABI, native call/relocation custody on all four
-  ordinary targets, independent object byte replay, and installation format 46
-  transport. Broader mixed scalar forms remain incremental engineering.
   D41 requires a distinct consuming-lowerer TCB lane for compiler-owned target
   builtins. Delete `CompilerIntrinsicSettlementEvidence` and its self-issued
   compact coordinates; they are not package-installation
@@ -173,11 +107,8 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
-  General target layout now consumes the exact selected opaque-to-carrier
-  application and derives by-value size/alignment from the carrier while
-  references remain representation-free and a direct unselected by-value
-  demand rejects. Complete movement/lifecycle planning next under D44's
-  inert-carrier rule. Do not publish a partial demand row from
+  Complete movement/lifecycle planning under D44's inert-carrier rule. Do not
+  publish a partial demand row from
   calling-convention shape or size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
   selections while one later source consumer selects its own application. The
@@ -185,6 +116,17 @@ stop the item on one precise owner question before adding machinery.
   only at an actual by-value exchange.
 
 ## P3 — Recheckable evidence and accepted lock
+
+- [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
+  discharge/open-obligation result and locally recheck every retained
+  certificate required by an ordinary package claim. The first real lane is
+  complete in memory: a bodyless accepted claim rejoins its typed callable and
+  canonical obligation row, remains explicitly `OpenRootAdmission`, and
+  propagates through the exact dependency closure without producer decisions.
+  Add another result class only with a concrete compiler-owned obligation and
+  certificate route or explicit open status. Do not persist this partial lane,
+  cite the standalone `psi-proof` ledger as production enforcement, or invent
+  a deferred-proof row before the compiler owns such a status.
 
 - [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
   after exact source and artifact subjects, obligation-semantics identity,
@@ -352,6 +294,11 @@ explicitly.
   because it is filesystem- or console-shaped.
   `FilesystemSponsor` remains the enforcement boundary for source/output
   roots, symlinks, limits, descriptors, and staging custody.
+
+  The Windows `find_first`/`find_next`/`find_close` companion remains ordered
+  after this migration. Its unrooted working-directory-dependent pattern
+  cannot become a portable receipt; replace it with the root-aware Build facet
+  before admission rather than adding a same-path-only replay rule.
 
   Audit every non-test `SourceOrigin::Toolchain` consumer. Preserve it for core,
   intrinsics, and virtual compiler sources such as `<build-prelude>`; replace

@@ -599,7 +599,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
 }
 
 #[test]
-fn process_exit_fixture_fails_closed_until_every_console_intrinsic_has_review_identity() {
+fn process_exit_fixture_retains_closed_exit_and_unresolved_console_siblings() {
     let package = "process-exit";
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
@@ -614,27 +614,51 @@ fn process_exit_fixture_fails_closed_until_every_console_intrinsic_has_review_id
     )
     .expect("process-exit source closure should resolve");
 
-    let error =
-        compile_resolved_package_reviews(&closure, "linux_x86_64", &cache.join("compiler-build"))
-            .expect_err("an unclosed compiler-intrinsic child must block package review");
-    let CompileResolvedPackageReviewsError::Projection {
-        package: rejected,
-        diagnostics,
-    } = error
-    else {
-        panic!("process-exit must fail at review projection: {error:#?}")
+    let reviews = compile_resolved_package_reviews(
+        &closure,
+        "linux_x86_64",
+        &cache.join("compiler-build"),
+    )
+    .expect(
+        "process-exit compiler review should retain unresolved siblings without authorizing them",
+    );
+    let issued = reviews
+        .review(closure.graph().root())
+        .expect("process-exit root compiler review");
+    let console = issued
+        .projection()
+        .selected_providers()
+        .iter()
+        .find(|provider| provider.service_schema() == "Console")
+        .expect("process-exit selected Console provider");
+    assert_eq!(console.rows().len(), console.row_declarations().len());
+    let execution_for = |method: &str| {
+        let index = console
+            .rows()
+            .iter()
+            .position(|row| row.method == method)
+            .unwrap_or_else(|| panic!("selected Console plan retains `{method}`"));
+        console.row_declarations()[index].compiler_intrinsic_execution()
     };
-    assert_eq!(rejected.name().as_str(), package);
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("compiler-intrinsic execution child without a closed package-review identity")
-    }));
+    assert_eq!(
+        execution_for("exit_process"),
+        Some(
+            omega_package_evidence::record::PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32,
+        ),
+        "process-exit retains the exact closed Linux execution identity",
+    );
+    for method in ["read_line", "read_byte", "write_byte"] {
+        assert_eq!(
+            execution_for(method),
+            None,
+            "unresolved Console sibling `{method}` remains visible but non-authorizing",
+        );
+    }
     assert!(
         std::fs::read_dir(cache.join("compiler-build"))
-            .expect("failed review build workspace remains readable")
+            .expect("successful review build workspace remains readable")
             .next()
             .is_none(),
-        "failed review must dispose its private build session"
+        "successful review must dispose its private build session"
     );
 }

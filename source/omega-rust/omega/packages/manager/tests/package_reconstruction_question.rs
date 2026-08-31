@@ -1,14 +1,18 @@
+use omega_package_evidence::ledger::OrdinaryPackageObligationStatus;
+use omega_package_evidence::record::PackageReviewCallableSupply;
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
+    resolve_external_local_package_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::resolution::source::ResolvePackageSourceError;
 use omega_package_manager::review::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionLimits,
-    compile_resolved_package_reviews,
+    LocallyComposedPackageObligationResults, compile_resolved_package_reviews,
 };
 use omega_package_source::{
-    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
+    SourceResolverStorage,
 };
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -52,6 +56,22 @@ fn resolve_workspace_package_closure(
         source_limits,
         closure_limits,
     )
+}
+
+fn resolve_external_closure(
+    live_root: impl AsRef<Path>,
+    cache_dir: impl AsRef<Path>,
+) -> ResolvedPackageSourceClosure {
+    let storage = SourceResolverStorage::for_hardened_base(cache_dir).expect("source storage");
+    resolve_external_local_package_closure_with_storage(
+        live_root,
+        ExternalSourceContext::derive(b"open-claim-composition"),
+        omega_target::TargetProfile::CrossPlatformCli,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve external package closure")
 }
 
 fn graph_workbench_question() -> (
@@ -126,6 +146,89 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         recovered
             .matches_resolved_and_reviews(&closure, &reviews, limits)
             .expect("fresh source and review reconstruction should succeed")
+    );
+
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
+fn dependency_open_claims_propagate_to_the_root_without_policy_decisions() {
+    let temporary = temporary_root("open-claim-composition");
+    let dependency = temporary.join("dependency");
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&dependency).expect("create claim dependency");
+    std::fs::create_dir_all(&root).expect("create claim consumer");
+    std::fs::write(
+        dependency.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("claim-dependency");
+}
+"#,
+    )
+    .expect("write claim dependency build");
+    std::fs::write(
+        dependency.join("main.omg"),
+        r#"boundary machine trusted_zero() -> u64
+ensures result == 0;
+"#,
+    )
+    .expect("write open accepted claim");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("claim-consumer");
+    builder.depend(Source::Path {
+        location: "../dependency"
+    });
+}
+"#,
+    )
+    .expect("write claim consumer build");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write claim consumer source");
+
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews =
+        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
+            .expect("compile two-package claim closure");
+    let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+        &closure,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+    )
+    .expect("compose locally reconstructed open claims");
+
+    assert_eq!(composed.entries().len(), 2);
+    let root_entry = composed
+        .entries()
+        .iter()
+        .find(|entry| entry.package() == closure.graph().root())
+        .expect("selected root result");
+    assert!(root_entry.results().open_accepted_claims().is_empty());
+    let propagated = composed.root_open_accepted_claims().collect::<Vec<_>>();
+    let [(owner, claim)] = propagated.as_slice() else {
+        panic!("one dependency claim must propagate to the root")
+    };
+    assert_eq!(owner.name().as_str(), "claim-dependency");
+    assert_eq!(
+        claim.status(),
+        OrdinaryPackageObligationStatus::OpenRootAdmission
+    );
+    assert_eq!(
+        claim.callable().supply(),
+        PackageReviewCallableSupply::AdmissionClaim
+    );
+    assert_eq!(
+        claim.row().kind(),
+        omega_package_evidence::record::PackageReviewCanonicalRowKind::AcceptedClaim
+    );
+    assert_eq!(
+        composed.question().source_closure().packages().len(),
+        closure.graph().packages().len()
     );
 
     remove_temporary_tree(&temporary);

@@ -450,11 +450,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
-fn process_authority_review_rejects_until_every_toolchain_console_intrinsic_is_closed() {
-    // Package review currently closes one process intrinsic exactly: the
-    // toolchain-owned Linux `Console::exit_process(i32) -> Unit` realization.
-    // Pin the canary to that target so rejection names the remaining unclosed
-    // Console rows rather than varying with the test host.
+fn process_authority_review_retains_closed_exit_and_discloses_unresolved_siblings() {
+    // Package review closes the demanded process identity without pretending
+    // that unrelated selected Console siblings have closed execution atoms.
+    // Terminal realization remains responsible for rejecting an unresolved
+    // sibling when a canonical artifact actually demands it.
     let target = "linux_x86_64";
 
     let canonical = TempPackage::new();
@@ -485,13 +485,34 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&canonical.0),
     )
     .expect("canonical console fixture should check");
-    let diagnostics = project_checked_package_review(&canonical_checked)
-        .expect_err("an unclosed compiler-intrinsic child must block package review");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("compiler-intrinsic execution child without a closed package-review identity")
-    }));
+    let canonical_review = project_checked_package_review(&canonical_checked)
+        .expect("unsupported selected siblings remain non-authorizing review evidence");
+    let console = canonical_review
+        .selected_providers()
+        .iter()
+        .find(|provider| provider.service_schema() == "Console")
+        .expect("canonical Console provider review");
+    assert_eq!(console.rows().len(), console.row_declarations().len());
+    let execution_for = |method: &str| {
+        let index = console
+            .rows()
+            .iter()
+            .position(|row| row.method == method)
+            .unwrap_or_else(|| panic!("selected Console plan retains `{method}`"));
+        console.row_declarations()[index].compiler_intrinsic_execution()
+    };
+    assert_eq!(
+        execution_for("exit_process"),
+        Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32),
+        "the exact Linux exit execution remains closed",
+    );
+    for method in ["read_line", "read_byte", "write_byte"] {
+        assert_eq!(
+            execution_for(method),
+            None,
+            "unsupported selected Console sibling `{method}` must remain visible but non-authorizing",
+        );
+    }
 
     let lookalike = TempPackage::new();
     lookalike.write(
