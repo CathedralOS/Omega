@@ -1,5 +1,5 @@
 use omega_target_operations::ScalarParameterLocation;
-use psi_core::{EdgeId, IntegerType, OperationId, ValueId};
+use psi_core::{EdgeId, IntegerType, ObligationId, OperationId, ValueId};
 
 pub(in crate::validation::straight_line_parameter) struct IntegerArithmeticParametersSource {
     pub(in crate::validation::straight_line_parameter) operation: OperationId,
@@ -23,4 +23,16 @@ pub(in crate::validation::straight_line_parameter) struct ReconstructedIntegerAr
     pub(in crate::validation::straight_line_parameter) right_parameter_index: usize,
     pub(in crate::validation::straight_line_parameter) left_location: ScalarParameterLocation,
     pub(in crate::validation::straight_line_parameter) right_location: ScalarParameterLocation,
+}
+
+pub(in crate::validation::straight_line_parameter) struct ExactIntegerAddParametersSource {
+    pub(in crate::validation::straight_line_parameter) arithmetic:
+        IntegerArithmeticParametersSource,
+    pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
+}
+
+pub(in crate::validation::straight_line_parameter) struct ReconstructedExactIntegerAddParameters {
+    pub(in crate::validation::straight_line_parameter) arithmetic:
+        ReconstructedIntegerArithmeticParameters,
+    pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
 }

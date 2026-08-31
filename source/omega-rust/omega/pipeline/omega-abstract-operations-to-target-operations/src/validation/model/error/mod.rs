@@ -12,6 +12,7 @@ pub(in crate::validation) use parameter::StraightLineParameterReconstructionErro
 pub use parameter::{
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
+    StraightLineExactIntegerAddParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerBitwiseOrParametersTranslationError,
@@ -55,6 +56,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationError,
     ),
+    StraightLineExactIntegerAddParameters(StraightLineExactIntegerAddParametersTranslationError),
     StraightLineWrappingIntegerAddParameters(
         StraightLineWrappingIntegerAddParametersTranslationError,
     ),

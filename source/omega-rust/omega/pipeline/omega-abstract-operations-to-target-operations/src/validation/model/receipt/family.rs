@@ -54,6 +54,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerBitwiseXorParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
             }
+            Self::StraightLineExactIntegerAddParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters
+            }
             Self::StraightLineWrappingIntegerAddParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters
             }

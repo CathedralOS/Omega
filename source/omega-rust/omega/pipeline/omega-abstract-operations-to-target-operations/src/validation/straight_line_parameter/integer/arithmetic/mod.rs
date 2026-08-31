@@ -1,5 +1,6 @@
-//! Optimizer module role: executable entrance. Wrapping integer-arithmetic source, ABI, provenance, and target replay.
+//! Optimizer module role: executable entrance. Exact and wrapping integer-arithmetic source, ABI, provenance, and target replay.
 
+pub(crate) mod exact_add;
 mod replay;
 pub(crate) mod wrapping_add;
 pub(crate) mod wrapping_multiply;
@@ -9,12 +10,37 @@ use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
-use super::super::model::ReconstructedIntegerArithmeticParameters;
+use super::super::model::{
+    ReconstructedExactIntegerAddParameters, ReconstructedIntegerArithmeticParameters,
+};
 use crate::validation::model::{
+    StraightLineExactIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
+
+pub(super) fn reconstruct_exact_add(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedExactIntegerAddParameters,
+    StraightLineExactIntegerAddParametersTranslationError,
+> {
+    let source = super::super::source::integer::arithmetic::reconstruct_exact_add(function)?;
+    let arithmetic = replay::reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source.arithmetic,
+        StraightLineExactIntegerAddParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedExactIntegerAddParameters {
+        arithmetic,
+        obligation: source.obligation,
+    })
+}
 
 pub(super) fn reconstruct_wrapping_add(
     function: &AbstractFunction,

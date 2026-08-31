@@ -1,4 +1,4 @@
-//! Wrapping integer-arithmetic expression adapters.
+//! Exact-semantics and wrapping integer-arithmetic expression adapters.
 
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
@@ -10,6 +10,13 @@ use super::super::super::super::{
 };
 use super::super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
+
+pub(in crate::validation::catalog) const EXACT_INTEGER_ADD: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters,
+        straight_line_parameter::integer::arithmetic::exact_add::is_candidate,
+        exact_integer_add,
+    );
 
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
@@ -44,6 +51,20 @@ pub(in crate::validation::catalog::dispatch) fn wrapping_integer_add(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerAddParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerAddParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn exact_integer_add(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::exact_add::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerAddParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerAddParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(

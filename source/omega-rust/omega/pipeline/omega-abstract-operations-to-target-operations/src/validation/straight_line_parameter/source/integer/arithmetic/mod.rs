@@ -1,5 +1,6 @@
-//! Optimizer module role: executable entrance. Wrapping integer-arithmetic source grammar coordination.
+//! Optimizer module role: executable entrance. Exact and wrapping integer-arithmetic source grammar coordination.
 
+pub(in crate::validation::straight_line_parameter) mod exact_add;
 pub(in crate::validation::straight_line_parameter) mod wrapping_add;
 pub(in crate::validation::straight_line_parameter) mod wrapping_multiply;
 pub(in crate::validation::straight_line_parameter) mod wrapping_subtract;
@@ -7,12 +8,28 @@ pub(in crate::validation::straight_line_parameter) mod wrapping_subtract;
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
-use super::super::super::model::IntegerArithmeticParametersSource;
+use super::super::super::model::{
+    ExactIntegerAddParametersSource, IntegerArithmeticParametersSource,
+};
 use crate::validation::model::{
+    StraightLineExactIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_add(
+    function: &AbstractFunction,
+) -> Result<ExactIntegerAddParametersSource, StraightLineExactIntegerAddParametersTranslationError>
+{
+    let Some(AbstractOperation::ExactIntegerAdd { scalar_type, .. }) = function.operations.first()
+    else {
+        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster);
+    };
+    let envelope =
+        super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    exact_add::reconstruct(function, &envelope)
+}
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_add(
     function: &AbstractFunction,

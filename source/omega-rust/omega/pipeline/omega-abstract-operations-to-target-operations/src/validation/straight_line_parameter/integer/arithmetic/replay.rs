@@ -1,4 +1,4 @@
-//! Shared whole-roster ABI and exact provenance replay for wrapping integer arithmetic.
+//! Shared whole-roster ABI and exact provenance replay for integer arithmetic.
 
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
@@ -22,6 +22,25 @@ where
     Error: From<StraightLineParameterReconstructionError>,
 {
     let source = reconstruct_source(function)?;
+    reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source,
+        target_provenance_error,
+    )
+}
+
+pub(super) fn reconstruct_from_source<Error>(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+    source: IntegerArithmeticParametersSource,
+    target_provenance_error: Error,
+) -> Result<ReconstructedIntegerArithmeticParameters, Error>
+where
+    Error: From<StraightLineParameterReconstructionError>,
+{
     let locations = abi::replay(
         &function.parameters,
         ScalarType::Integer(source.scalar_type),

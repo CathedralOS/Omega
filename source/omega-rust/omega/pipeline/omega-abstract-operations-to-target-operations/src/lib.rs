@@ -26,6 +26,8 @@ pub use validation::{
     StraightLineBooleanNotParameterTranslationError,
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationError, StraightLineBooleanParameterTranslationReceipt,
+    StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerAddParametersTranslationReceipt,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationError,
