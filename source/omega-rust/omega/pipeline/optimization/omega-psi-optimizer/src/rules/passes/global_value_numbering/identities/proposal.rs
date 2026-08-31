@@ -12,7 +12,7 @@ use psi_core::ScalarType;
 use crate::rules::passes::literal_integer_constant;
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-use super::super::{exact_pure_scalar_effect, local_cse_accounting};
+use super::super::{exact_pure_scalar_effect, node_elision_accounting};
 use super::TotalScalarIdentityShape;
 
 pub(super) fn propose_total_scalar_identities(
@@ -98,7 +98,7 @@ pub(super) fn propose_total_scalar_identities(
                     node: node_index,
                 };
                 let Some((affected_blocks, provenance)) =
-                    local_cse_accounting(function, location, shape.result)
+                    node_elision_accounting(function, location, shape.result)
                 else {
                     continue;
                 };

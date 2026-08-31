@@ -248,7 +248,7 @@ fn dominator_gvn_rejects_an_equivalent_sibling_expression_at_a_join() {
         node: 0,
     };
     let (affected, provenance) =
-        local_cse_accounting(function, redundant, id(1_449, ValueId::new)).unwrap();
+        node_elision_accounting(function, redundant, id(1_449, ValueId::new)).unwrap();
     let forged = PsiRewriteCandidate::new_dominating_scalar_common_subexpression(
         unit.identity,
         contract,

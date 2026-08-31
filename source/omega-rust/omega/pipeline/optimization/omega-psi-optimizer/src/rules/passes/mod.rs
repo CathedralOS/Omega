@@ -30,8 +30,10 @@ pub use global_value_numbering::*;
 pub use proof_check_elision::*;
 pub use sparse_conditional_constant_propagation::*;
 
-use global_value_numbering::local_cse_accounting;
 use support::{accepted_obligation_fact, boolean_constant, literal_integer_constant};
+
+#[cfg(test)]
+use support::node_elision_accounting;
 
 #[cfg(test)]
 use sparse_conditional_constant_propagation::range_comparisons::{

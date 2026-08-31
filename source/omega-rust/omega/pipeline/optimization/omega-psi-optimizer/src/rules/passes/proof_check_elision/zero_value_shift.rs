@@ -1,6 +1,66 @@
 //! Proof-certified exact shifts of a zero value.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    ProofCertifiedScalarIdentityKind, PsiOptimizationUnit, PsiRewriteCandidate,
+};
+use psi_core::IntegerValue;
+
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::PROOF_CHECK_ELISION_PASS_NAME;
+use super::identity_rewrite::{
+    ProofCertifiedScalarIdentityShape, integer_zero, propose_proof_certified_scalar_identities,
+};
+
+fn proof_certified_exact_integer_zero_value_shift_shapes(
+    operation: &O,
+) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
+    let (source_operation, result, scalar_type, value, identity) = match operation {
+        O::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            value,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *value_type,
+            *value,
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue,
+        ),
+        O::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            value,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *value_type,
+            *value,
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue,
+        ),
+        _ => return Vec::new(),
+    };
+    vec![(
+        ProofCertifiedScalarIdentityShape {
+            source_operation,
+            result,
+            replacement: value,
+            identity_operand: value,
+            scalar_type,
+            identity,
+        },
+        integer_zero(scalar_type),
+    )]
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;

@@ -111,7 +111,7 @@ impl PsiOptimizationRule for SameBlockProofCertifiedCompatiblePolicyScalarCseRul
                         node: node_index,
                     };
                     let Some((affected_blocks, provenance)) =
-                        local_cse_accounting(function, redundant, result)
+                        node_elision_accounting(function, redundant, result)
                     else {
                         continue;
                     };
