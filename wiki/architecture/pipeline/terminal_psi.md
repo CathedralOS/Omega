@@ -639,16 +639,18 @@ rebuild. The checked certificate is non-authorizing, and reaching a root grants
 no cleanup, transfer, or linear-discharge authority to the borrow layer.
 
 A sibling checked-only post-reactivation row now retains the first exact later
-use without publishing it. One direct mutable parent lends one mutable or
-write-only child; the child ends by `LastUseExpired` through matching
+use without publishing it. One direct mutable parent lends an exact mutable or
+write-only child while other non-overlapping sequential siblings may occur in
+the state; the qualifying child ends by `LastUseExpired` through matching
 `Reactivate` and `ExclusiveSuspension` rows; and the same boundary enters one
 receiver-free call with one exact mutable-reference parameter over the bare
 parent carrier whose mutation summary covers the complete restored referent. Transactional replay
 rejoins both resources, weakening, disposition, containment, flow and borrow
 calls, carrier-read access, parent-loan entry constraint, captured places,
-restored access, and target identity. Shared, multihop, sequential, state-exit,
-projected, receiver, extra-parameter, direct-assignment, partial-mutation, and
-nonmutating shapes remain absent. This checked row is not Terminal authority.
+restored access, and target identity. Shared, multihop, concurrent-sibling,
+state-exit, projected, receiver, extra-parameter, direct-assignment,
+partial-mutation, and nonmutating shapes remain absent. This checked row is not
+Terminal authority.
 
 The bounded Terminal publication now consumes that complete checked join for a
 finite nonempty linear exclusive lineage rooted in one direct-root `Mutable`

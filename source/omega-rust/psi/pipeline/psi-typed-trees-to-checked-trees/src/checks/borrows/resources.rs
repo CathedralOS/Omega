@@ -676,10 +676,12 @@ fn plan_reborrow_containment_certificates(
     Ok(certificates)
 }
 
-/// Retain the first deliberately narrow post-reactivation use shape: a single
-/// direct exclusive child ends by last use immediately before one receiver-free
-/// call mutates the whole restored mutable parent carrier. Unsupported shapes
-/// remain unclassified rather than receiving inferred authority.
+/// Retain the first deliberately narrow post-reactivation use shape: one direct
+/// exclusive child ends by last use immediately before one receiver-free call
+/// mutates the whole restored mutable parent carrier. Earlier fully ended
+/// sequential siblings do not invalidate that exact per-child event.
+/// Unsupported shapes remain unclassified rather than receiving inferred
+/// authority.
 #[allow(clippy::too_many_arguments)]
 fn plan_reborrow_restored_call_uses(
     program: &psi_typed_trees::TypedTrees,
@@ -718,11 +720,6 @@ fn plan_reborrow_restored_call_uses(
             || child.parent_lexical_status != ParentLexicalStatusAtChildEnd::LivePastChild
             || child.weakening_reason
                 != psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
-            || reborrows
-                .iter()
-                .filter(|candidate| candidate.parent_loan == parent.loan)
-                .count()
-                != 1
             || reborrows
                 .iter()
                 .any(|candidate| candidate.parent_loan == child.loan)

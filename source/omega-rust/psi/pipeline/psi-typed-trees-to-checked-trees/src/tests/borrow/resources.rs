@@ -1736,14 +1736,13 @@ fn rejects_missing_duplicate_and_reordered_containment_certificates() {
 fn sequential_reborrows() -> psi_checked_trees::CheckedTrees {
     lower(
         r#"
-        data Cell { value: i32; }
-        data Main { cell: Cell; }
-        machine write(value: &mut Cell) { value.value = 1; }
+        data Main { value: i32; }
+        machine write(value: &mut i32) { value = 1; }
         machine Main::exercise(&mut self) {
-            let parent: &mut Cell = &mut self.cell;
-            let first: &mut Cell = &mut parent;
+            let parent: &mut i32 = &mut self.value;
+            let first: &mut i32 = &mut parent;
             write(first);
-            let second: &mut Cell = &mut parent;
+            let second: &mut i32 = &mut parent;
             write(second);
             write(parent);
         }
@@ -1752,31 +1751,51 @@ fn sequential_reborrows() -> psi_checked_trees::CheckedTrees {
 }
 
 #[test]
-fn sequential_children_reactivate_then_resuspend_the_exact_parent() {
-    let checked = sequential_reborrows();
+fn sequential_children_reactivate_then_final_child_certifies_the_exact_parent_use() {
+    let mut checked = sequential_reborrows();
     let events = checked
         .facts
         .borrow
         .reborrow_disposition_events
         .iter()
-        .map(|(_, event)| event)
         .collect::<Vec<_>>();
     assert_eq!(events.len(), 2);
-    assert!(events.iter().all(|event| {
+    assert!(events.iter().all(|(_, event)| {
         event.disposition == psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
             && event.retired_parent_path.is_empty()
             && event.boundary_phase
                 == psi_checked_trees::CheckedBorrowResourceLifecyclePhase::LastUseExpired
     }));
-    assert_eq!(events[0].parent_resource, events[1].parent_resource);
-    assert_ne!(events[0].child_resource, events[1].child_resource);
-    assert!(
-        checked
-            .facts
-            .borrow
-            .reborrow_restored_call_use_certificates
-            .is_empty(),
-        "sequential children remain outside the single-child restored-use rung"
+    assert_eq!(events[0].1.parent_resource, events[1].1.parent_resource);
+    assert_ne!(events[0].1.child_resource, events[1].1.child_resource);
+    let child_resources = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    let certificates = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    let [certificate] = certificates.as_slice() else {
+        panic!("only the final qualifying sequential child should certify restored use")
+    };
+    assert_eq!(certificate.child_resource, child_resources[1]);
+    let psi_checked_trees::CheckedParentBorrowResource::DirectRoot {
+        resource: event_parent,
+    } = &events[1].1.parent_resource
+    else {
+        panic!("the sequential sibling must restore the exact direct parent")
+    };
+    assert_eq!(certificate.parent_resource, *event_parent);
+    assert_eq!(certificate.disposition, events[1].0);
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts).expect(
+        "the exact sequential-child restored use should independently replay transactionally",
     );
 }
 

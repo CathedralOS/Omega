@@ -424,17 +424,18 @@ Current ownership is:
   access-amplified, or retargeted rows before rebuilding either resource arena.
   These certificates remain non-authorizing and do not establish completed
   restoration. One further checked-only row now retains an exact use after
-  one-hop exclusive reactivation: a direct mutable parent lends one mutable or
-  write-only child, the child ends by `LastUseExpired` with exact
+  one-hop exclusive reactivation: a direct mutable parent lends an exact
+  mutable or write-only child while other non-overlapping sequential siblings
+  may occur in the state, and that child ends by `LastUseExpired` with exact
   `Reactivate` and `ExclusiveSuspension` evidence, and the same boundary enters
   one receiver-free call with one exact mutable-reference parameter over the bare
   parent carrier whose mutation summary is the complete restored referent. The row independently
   rejoins both resources, weakening, disposition, containment, flow and borrow
   calls, the carrier-read access, parent-loan entry constraint, captured
-  places, restored access, and target. Shared, multihop, sequential, state-exit,
-  projected, receiver, extra-parameter, direct-assignment, and nonmutating
-  shapes remain outside this transactional replay. It grants no Terminal
-  authority. The downstream Terminal consumer now publishes exact direct-root
+  places, restored access, and target. Shared, multihop, concurrent-sibling,
+  state-exit, projected, receiver, extra-parameter, direct-assignment, and
+  nonmutating shapes remain outside this transactional replay. It grants no
+  Terminal authority. The downstream Terminal consumer now publishes exact direct-root
   custody for a finite nonempty linear exclusive lineage whose direct root is
   `Mutable`, whose edges are `Mutable`-to-`Mutable`,
   `Mutable`-to-`WriteOnly`, or `WriteOnly`-to-`WriteOnly`, and whose leaf
