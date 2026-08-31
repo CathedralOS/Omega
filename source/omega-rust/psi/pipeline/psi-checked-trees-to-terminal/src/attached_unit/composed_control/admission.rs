@@ -115,20 +115,30 @@ pub(super) fn admit_call_targets<'a>(
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
     for state in call_states.iter().copied() {
-        match &state.operations[0] {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                retain_leaf_boundary(checked, machine, state, plans, &mut boundaries)?;
+        for operation in &state.operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
+                    retain_call_boundary(
+                        checked,
+                        machine,
+                        state,
+                        operation,
+                        plans,
+                        &mut boundaries,
+                    )?;
+                }
+                CheckedUnitEffectOperationPlan::CallUnit { .. } => {
+                    internal_calls::admission::retain_call_target(
+                        checked,
+                        machine,
+                        state,
+                        operation,
+                        plans,
+                        &mut internal_targets,
+                    )?;
+                }
+                _ => unreachable!("call-state shape was validated"),
             }
-            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                internal_calls::admission::retain_call_target(
-                    checked,
-                    machine,
-                    state,
-                    plans,
-                    &mut internal_targets,
-                )?;
-            }
-            _ => unreachable!("call-state shape was validated"),
         }
     }
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
@@ -147,7 +157,8 @@ pub(super) fn admit_call_targets<'a>(
     }
     let called_boundaries = call_states
         .iter()
-        .filter_map(|state| match &state.operations[0] {
+        .flat_map(|state| &state.operations)
+        .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
                 Some(*target_machine)
             }
@@ -211,10 +222,11 @@ pub(super) fn validate_contract(
     Ok(())
 }
 
-fn retain_leaf_boundary<'a>(
+fn retain_call_boundary<'a>(
     checked: &'a CheckedTrees,
     machine: psi_symbols::SymbolHandle,
     state: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
     plans: &'a psi_checked_trees::CheckedUnitEffectPlans,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
@@ -225,7 +237,7 @@ fn retain_leaf_boundary<'a>(
         target_contract_report_fingerprint,
         service_reach,
         ..
-    } = &state.operations[0]
+    } = operation
     else {
         unreachable!("leaf shape was validated")
     };

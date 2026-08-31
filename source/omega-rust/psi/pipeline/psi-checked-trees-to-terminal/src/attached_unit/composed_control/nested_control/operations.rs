@@ -3,23 +3,24 @@
 use super::*;
 
 pub(super) fn validate(state: &psi_checked_trees::CheckedComposedUnitControlStatePlan) -> bool {
-    match state.operations.as_slice() {
-        [] => true,
-        [
-            CheckedUnitEffectOperationPlan::CallUnit {
+    state
+        .operations
+        .iter()
+        .enumerate()
+        .all(|(statement_index, operation)| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
                 structural_arguments,
                 claim_transfers,
                 ..
-            },
-        ] => {
-            coordinate.statement_index == 0
-                && coordinate.call_ordinal == 0
-                && structural_arguments.is_empty()
-                && claim_transfers.is_empty()
-        }
-        _ => false,
-    }
+                } if usize::try_from(coordinate.statement_index).ok() == Some(statement_index)
+                    && coordinate.call_ordinal == 0
+                    && structural_arguments.is_empty()
+                    && claim_transfers.is_empty()
+            )
+        })
 }
 
 pub(super) fn emit(
@@ -27,8 +28,10 @@ pub(super) fn emit(
     targets: &[super::super::catalogs::LoweredComposedInternalTarget],
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
-    if state.operations.is_empty() {
-        return Ok(());
+    for operation in &state.operations {
+        super::super::internal_calls::emission::emit_call_operation(
+            operation, targets, operations,
+        )?;
     }
-    super::super::internal_calls::emission::emit_call_operation(state, targets, operations)
+    Ok(())
 }

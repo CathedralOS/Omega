@@ -151,6 +151,47 @@ fn composes_an_internal_unit_call_before_a_conditional() {
 }
 
 #[test]
+fn composes_a_finite_internal_call_prefix_before_a_conditional() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root {}
+        machine Root::quiet_a() {}
+        machine Root::quiet_b() {}
+        machine Root::enter(first: bool, second: bool) {
+            Root::quiet_a();
+            Root::quiet_b();
+            transition first { true -> dispatch(second) _ -> no() }
+            state dispatch(flag: bool) {
+                transition flag { true -> yes() _ -> no() }
+            }
+            state yes() { Host::exit(1); }
+            state no() { Host::exit(2); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("the finite control-state call prefix should compose");
+    let [entry, _, _, _] = plan.states.as_slice() else {
+        panic!("multi-call nested graph retains four states")
+    };
+    assert!(matches!(
+        entry.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate: first, .. },
+            CheckedUnitEffectOperationPlan::CallUnit { coordinate: second, .. },
+        ] if first.statement_index == 0 && second.statement_index == 1
+    ));
+    let (when_true, when_false) = conditional_successors(entry);
+    assert_eq!(when_true.statement_ordinal, 2);
+    assert_eq!(when_false.statement_ordinal, 3);
+}
+
+#[test]
 fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
     let checked = checked(
         r#"

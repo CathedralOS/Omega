@@ -55,12 +55,9 @@ pub(super) fn admit<'a>(
     let mut saw_leaf = false;
     for state in states {
         match program.statement_table.statements(state.statement_nodes) {
-            [StatementNode::Transition(_), StatementNode::Transition(_)]
-            | [
-                StatementNode::Call(_),
-                StatementNode::Transition(_),
-                StatementNode::Transition(_),
-            ] if !saw_leaf => controls.push(state),
+            statements if conditional_parts(statements).is_some() && !saw_leaf => {
+                controls.push(state)
+            }
             [StatementNode::Call(_)] if signatures[state_index(states, state)?].is_empty() => {
                 saw_leaf = true;
                 leaves.push(state)
@@ -117,18 +114,7 @@ fn conditional(
     [CheckedStructuralControlSuccessorPlan; 2],
 )> {
     let (statement_offset, when_true, when_false) =
-        match program.statement_table.statements(state.statement_nodes) {
-            [
-                StatementNode::Transition(when_true),
-                StatementNode::Transition(when_false),
-            ] => (0, when_true, when_false),
-            [
-                StatementNode::Call(_),
-                StatementNode::Transition(when_true),
-                StatementNode::Transition(when_false),
-            ] => (1, when_true, when_false),
-            _ => return None,
-        };
+        conditional_parts(program.statement_table.statements(state.statement_nodes))?;
     if when_true.exit != TransitionExit::Ordinary
         || !matches!(when_true.guard, TransitionGuardNode::When(_))
         || when_false.exit != TransitionExit::Ordinary
@@ -171,6 +157,28 @@ fn conditional(
             )?,
         ],
     ))
+}
+
+pub(super) fn conditional_parts(
+    statements: &[StatementNode],
+) -> Option<(
+    u32,
+    &psi_typed_trees::statement::TableTransition,
+    &psi_typed_trees::statement::TableTransition,
+)> {
+    let (StatementNode::Transition(when_false), preceding) = statements.split_last()? else {
+        return None;
+    };
+    let (StatementNode::Transition(when_true), prefix) = preceding.split_last()? else {
+        return None;
+    };
+    if !prefix
+        .iter()
+        .all(|statement| matches!(statement, StatementNode::Call(_)))
+    {
+        return None;
+    }
+    Some((u32::try_from(prefix.len()).ok()?, when_true, when_false))
 }
 
 #[allow(clippy::too_many_arguments)]

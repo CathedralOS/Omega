@@ -8,21 +8,17 @@ pub(super) fn build(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    match program.statement_table.statements(state.statement_nodes) {
-        [StatementNode::Transition(_), StatementNode::Transition(_)] => Some(Vec::new()),
-        [
-            StatementNode::Call(_),
-            StatementNode::Transition(_),
-            StatementNode::Transition(_),
-        ] => {
-            let flow = state_flow(facts, machine.symbol, state.symbol)?;
-            let matching_calls = facts
-                .flow
-                .control
-                .calls
-                .span_or_empty(flow.calls)
+    let (prefix_count, _, _) = super::topology::conditional_parts(
+        program.statement_table.statements(state.statement_nodes),
+    )?;
+    let flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let calls = facts.flow.control.calls.span_or_empty(flow.calls);
+    (0..prefix_count)
+        .map(|statement_index| {
+            let source_index = usize::try_from(statement_index).ok()?;
+            let matching_calls = calls
                 .iter()
-                .filter(|call| call.statement_index == 0 && call.call_ordinal == 0)
+                .filter(|call| call.statement_index == source_index && call.call_ordinal == 0)
                 .collect::<Vec<_>>();
             let [call] = matching_calls.as_slice() else {
                 return None;
@@ -37,8 +33,7 @@ pub(super) fn build(
                     ..
                 } if structural_arguments.is_empty() && claim_transfers.is_empty()
             )
-            .then_some(vec![operation])
-        }
-        _ => None,
-    }
+            .then_some(operation)
+        })
+        .collect()
 }

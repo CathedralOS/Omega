@@ -108,6 +108,27 @@ fn checked_call_prefixed_nested_control() -> CheckedTrees {
     )
 }
 
+fn checked_multi_call_prefixed_nested_control() -> CheckedTrees {
+    checked_source(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::quiet_a() {}
+            machine Root::quiet_b() {}
+            machine Root::enter(first: bool, second: bool) {
+                Root::quiet_a();
+                Root::quiet_b();
+                transition first { true -> dispatch(second) _ -> no() }
+                state dispatch(flag: bool) {
+                    transition flag { true -> yes() _ -> no() }
+                }
+                state yes() { Host::exit(1); }
+                state no() { Host::exit(2); }
+            }
+        "#,
+    )
+}
+
 #[test]
 fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
     let checked = checked_nested_control();
@@ -250,6 +271,47 @@ fn call_prefixed_control_rejects_coordinate_drift() {
         unreachable!()
     };
     coordinate.statement_index = 1;
+    assert!(matches!(
+        lower_machine(&checked, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
+#[test]
+fn lowers_a_finite_internal_call_prefix_in_source_order() {
+    let checked = checked_multi_call_prefixed_nested_control();
+    let lowered = lower_machine(&checked, "Root::enter").expect("multi-call prefix lowers");
+    let [root, first_target, second_target] = lowered.semantic_module.machines.as_slice() else {
+        panic!("root and two internal targets form the module")
+    };
+    let entry = &root.blocks[0];
+    assert!(matches!(
+        entry.operations.as_slice(),
+        [
+            Operation { kind: OperationKind::CallUnit { callee: first, .. }, .. },
+            Operation { kind: OperationKind::CallUnit { callee: second, .. }, .. },
+        ] if *first == first_target.id && *second == second_target.id
+    ));
+    assert!(matches!(entry.terminator, Terminator::Conditional { .. }));
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("multi-call prefix module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn finite_call_prefix_rejects_operation_reordering() {
+    let mut checked = checked_multi_call_prefixed_nested_control();
+    checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0]
+        .operations
+        .swap(0, 1);
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(_))
