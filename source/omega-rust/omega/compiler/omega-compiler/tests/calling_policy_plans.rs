@@ -746,6 +746,31 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
     );
     let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
     let selection = retained_interrupt_representation(&checked);
+    let timer_entry = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "TimerProvider::enter")
+        .expect("timer adapter");
+    let timer_entry = checked
+        .typed
+        .machine_states(timer_entry)
+        .first()
+        .expect("timer entry state");
+    let acknowledgement = checked
+        .typed
+        .state_parameters(timer_entry)
+        .first()
+        .expect("timer acknowledgement parameter");
+    let acknowledgement_layout = omega_layout::layout_type_reference(
+        &checked,
+        omega_target::NativeTarget::host(),
+        checked.opaque_representation_selections(),
+        acknowledgement.type_reference,
+    )
+    .expect("selected opaque representation must supply general by-value layout");
+    assert_eq!(acknowledgement_layout.size, 40);
+    assert_eq!(acknowledgement_layout.alignment, 8);
     let demanded_realizations = checked
         .boundary_calling_plan_realizations()
         .iter()
@@ -1090,6 +1115,48 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
 }
 
 #[test]
+fn selected_opaque_representation_supplies_nested_general_layout() {
+    let source = INTERRUPT_POLICY.replace(
+        "data Main { }",
+        "data InterruptEnvelope { acknowledgement: InterruptAcknowledgement }\n\ndata Main { }",
+    );
+    let main_path = write_project(
+        "interrupt-nested-layout",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("selected opaque representation should close nested layout");
+    let layouts = omega_layout::build_layout_plan(
+        &checked,
+        omega_target::NativeTarget::host(),
+        checked.opaque_representation_selections(),
+    )
+    .expect("general layout should consume the selected carrier");
+    let envelope = layouts
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "InterruptEnvelope")
+        .expect("nested opaque envelope layout");
+    assert_eq!(envelope.layout.size, 40);
+    assert_eq!(envelope.layout.alignment, 8);
+    let omega_layout::DataShape::Record { fields } = envelope.shape else {
+        panic!("interrupt envelope should remain a semantic record")
+    };
+    let [acknowledgement] = layouts.fields.span_or_empty(fields) else {
+        panic!("interrupt envelope should retain one semantic field")
+    };
+    assert_eq!(
+        acknowledgement.type_name.as_ref(),
+        "InterruptAcknowledgement"
+    );
+    assert_eq!(acknowledgement.layout.size, 40);
+    assert_eq!(acknowledgement.layout.alignment, 8);
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
 fn opaque_by_value_boundary_rejects_without_build_selection() {
     let rendered = compile_project_negative(
         "interrupt-missing-representation",
@@ -1135,6 +1202,56 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
     let unselected = compile_to_checked(&unselected, None)
         .expect("a reference-only opaque pointee must not demand representation closure");
     assert!(unselected.opaque_representation_selections().is_empty());
+    let inspect = unselected
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "TimerProvider::inspect")
+        .expect("reference-only timer adapter");
+    let inspect = unselected
+        .typed
+        .machine_states(inspect)
+        .first()
+        .expect("reference-only entry state");
+    let acknowledgement = unselected
+        .typed
+        .state_parameters(inspect)
+        .first()
+        .expect("reference-only acknowledgement");
+    let reference_layout = omega_layout::layout_type_reference(
+        &unselected,
+        omega_target::NativeTarget::host(),
+        unselected.opaque_representation_selections(),
+        acknowledgement.type_reference,
+    )
+    .expect("reference layout must not demand an opaque representation");
+    assert_eq!(
+        reference_layout.size,
+        omega_target::NativeTarget::host().pointer_size
+    );
+    assert_eq!(
+        reference_layout.alignment,
+        omega_target::NativeTarget::host().pointer_alignment
+    );
+    let psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. } = unselected
+        .typed
+        .type_reference_table
+        .type_reference(acknowledgement.type_reference)
+    else {
+        panic!("reference-only acknowledgement should retain its referee")
+    };
+    let diagnostic = omega_layout::layout_type_reference(
+        &unselected,
+        omega_target::NativeTarget::host(),
+        unselected.opaque_representation_selections(),
+        *referee,
+    )
+    .expect_err("the same opaque requested by value must require a selection");
+    assert!(
+        diagnostic
+            .message
+            .contains("requires one exact representation")
+    );
 
     let selected = write_project(
         "interrupt-reference-only-selected-representation",

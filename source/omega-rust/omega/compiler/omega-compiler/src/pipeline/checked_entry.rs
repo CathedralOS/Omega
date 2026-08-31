@@ -938,6 +938,7 @@ fn compile_to_checked_inner_with_replay(
             native_target: selected_native_target,
             package_inputs,
             boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
+            opaque_representation_selections: &opaque_representation_selections,
             provider_plans: &provider_plans,
             selected_provider_plan_facts,
             root_grants: &root_grants,
@@ -958,6 +959,7 @@ fn compile_to_checked_inner_with_replay(
             provider_selection_target,
             selected_target_profile,
             selected_provider_provenance,
+            opaque_representation_selections: &opaque_representation_selections,
         },
     )?;
 

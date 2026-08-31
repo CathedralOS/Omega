@@ -1001,7 +1001,7 @@ fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
         })
         .expect("Only variant");
 
-    let layout = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+    let layout = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
     let boxed = layout
         .data_layouts
         .iter()
@@ -1255,7 +1255,7 @@ fn closed_generic_erased_sum_elaborates_and_lays_out_material_payload_only() {
         .expect("Some variant");
     assert_eq!(checked.data_payload_fields(some).len(), 2);
 
-    let layout = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+    let layout = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
     let maybe = layout
         .data_layouts
         .iter()
@@ -1430,7 +1430,7 @@ fn mixed_generic_sum_preserves_common_and_payload_relevance() {
         matches!(member, psi_checked_trees::data::DataMember::Field(field)
             if field.name.as_str() == "proof" && field.relevance.is_erased())
     }));
-    let layout = build_layout_plan(&checked, NativeTarget::host()).expect("mixed layout");
+    let layout = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("mixed layout");
     let mixed = layout
         .data_layouts
         .iter()

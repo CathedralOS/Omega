@@ -1799,8 +1799,9 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     let canary = pass_canary("float/named_provider_classify_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float classify calls should compile to checked trees");
-    let layouts = omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host())
-        .expect("FloatClass layout should build");
+    let layouts =
+        omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host(), &[])
+            .expect("FloatClass layout should build");
     let float_class = layouts
         .data_layouts
         .iter()

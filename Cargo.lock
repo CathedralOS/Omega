@@ -777,6 +777,7 @@ name = "omega-layout"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-representation-planning",
  "omega-runtime-abi",
  "omega-target",
  "psi-arena",

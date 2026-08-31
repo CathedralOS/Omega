@@ -1185,10 +1185,12 @@ pub fn close_outbound_callback_materializations(
     checked: &mut psi_checked_trees::CheckedTrees,
     realizations: &mut [BoundaryCallingPlanRealization],
     native_target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&omega_package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let layout_plan = omega_layout::build_layout_plan(checked, native_target)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let layout_plan =
+        omega_layout::build_layout_plan(checked, native_target, opaque_representation_selections)
+            .map_err(|diagnostic| vec![diagnostic])?;
     let admission =
         psi_build_time_evaluation::BuildTimeAdmissionPlan::infer_with_selection_authority(
             &checked.typed,

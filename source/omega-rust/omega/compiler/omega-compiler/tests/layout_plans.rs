@@ -217,7 +217,7 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     // And the backend layout plan bakes those offsets into the synthesized
     // record's FieldLayouts.
     let target = NativeTarget::from_omega_target_name(None).expect("host target");
-    let layouts = build_layout_plan(&checked, target).expect("layout plan should build");
+    let layouts = build_layout_plan(&checked, target, &[]).expect("layout plan should build");
     let data_layout = layouts
         .data_layouts
         .iter()
@@ -240,7 +240,7 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
     checked.typed.plan_laid_layouts[0].data_name = "diagnostic-only-layout-name".to_owned();
     psi_validation::validate_program(&checked.typed)
         .expect("presentation-name drift must not change retained plan identity");
-    let layouts = build_layout_plan(&checked, target)
+    let layouts = build_layout_plan(&checked, target, &[])
         .expect("presentation-name drift must not redirect a plan-laid layout");
     let data_layout = layouts
         .data_layouts
@@ -370,7 +370,7 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
             .message
             .contains("changed its exact synthesized field identity inventory")
     }));
-    let diagnostic = build_layout_plan(&checked, target)
+    let diagnostic = build_layout_plan(&checked, target, &[])
         .expect_err("substituted plan-laid data identity must fail closed");
     assert!(
         diagnostic
@@ -438,7 +438,7 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
     );
 
     let target = NativeTarget::windows_x64();
-    let closed = build_layout_plan(&checked, target)
+    let closed = build_layout_plan(&checked, target, &[])
         .expect("the selected target should close the private callback slot");
     let [closed_demand] = closed.private_callback_demands.as_slice() else {
         panic!("the exact target-closed private callback demand should be published");
@@ -475,7 +475,7 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         mutated.size = 24;
         mutated.validated_layout.size = Some(24);
     }
-    let moved = build_layout_plan(&checked, target)
+    let moved = build_layout_plan(&checked, target, &[])
         .expect("a distinct valid target layout should close independently");
     assert_ne!(
         first_layout_identity, moved.private_callback_demands[0].layout,
@@ -532,7 +532,7 @@ fn target_closure_proves_one_inline_named_field_then_one_private_callback_slot()
     root.validated_layout.align = 8;
     checked.typed.plan_laid_layouts.push(root);
 
-    let closed = build_layout_plan(&checked, NativeTarget::windows_x64()).unwrap();
+    let closed = build_layout_plan(&checked, NativeTarget::windows_x64(), &[]).unwrap();
     assert_eq!(
         closed.plan_laid_layout_identities.len(),
         2,
@@ -580,13 +580,13 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
 
     checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].offset = 9;
     let error =
-        build_layout_plan(&checked, target).expect_err("unaligned private slot must reject");
+        build_layout_plan(&checked, target, &[]).expect_err("unaligned private slot must reject");
     assert!(error.message.contains("is not aligned"), "{error:?}");
 
     checked.typed.plan_laid_layouts[layout_index] = original.clone();
     checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].offset = 16;
-    let error =
-        build_layout_plan(&checked, target).expect_err("out-of-bounds private slot must reject");
+    let error = build_layout_plan(&checked, target, &[])
+        .expect_err("out-of-bounds private slot must reject");
     assert!(
         error.message.contains("lies outside its 16-byte layout"),
         "{error:?}"
@@ -595,7 +595,7 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
     checked.typed.plan_laid_layouts[layout_index] = original.clone();
     checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0].offset = 0;
     let error =
-        build_layout_plan(&checked, target).expect_err("semantic/private overlap must reject");
+        build_layout_plan(&checked, target, &[]).expect_err("semantic/private overlap must reject");
     assert!(
         error.message.contains("overlaps semantic field storage"),
         "{error:?}"
@@ -609,7 +609,7 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
         .private_callback_demands
         .push(overlapping);
     let error =
-        build_layout_plan(&checked, target).expect_err("private/private overlap must reject");
+        build_layout_plan(&checked, target, &[]).expect_err("private/private overlap must reject");
     assert!(
         error.message.contains("private callback slots") && error.message.contains("overlap"),
         "{error:?}"
@@ -619,7 +619,7 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
     checked.typed.plan_laid_layouts[layout_index].private_callback_demands[0]
         .layout_subject_identity
         .push_str("::Substituted");
-    let error = build_layout_plan(&checked, target)
+    let error = build_layout_plan(&checked, target, &[])
         .expect_err("retained layout-subject substitution must reject");
     assert!(
         error.message.contains("changed layout subject"),
@@ -640,7 +640,7 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
     checked.typed.plan_laid_layouts[layout_index]
         .validated_layout
         .size = Some(24);
-    let error = build_layout_plan(&checked, target)
+    let error = build_layout_plan(&checked, target, &[])
         .expect_err("one canonical slot cannot close under conflicting requirements");
     assert!(
         error.message.contains("repeats private callback slot"),
@@ -756,7 +756,7 @@ fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
     assert_eq!(recorded.bit_fields[2].fragments[1].source_lsb, 2);
 
     let target = NativeTarget::from_omega_target_name(None).expect("host target");
-    let layouts = build_layout_plan(&checked, target).expect("layout plan should build");
+    let layouts = build_layout_plan(&checked, target, &[]).expect("layout plan should build");
     let data_layout = layouts
         .data_layouts
         .iter()
@@ -2599,7 +2599,8 @@ machine Main::main(&mut self) { }
     checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total = false;
 
     let target = NativeTarget::from_omega_target_name(None).expect("host target");
-    let layouts = build_layout_plan(&checked, target).expect("stored integer layout should build");
+    let layouts =
+        build_layout_plan(&checked, target, &[]).expect("stored integer layout should build");
     let data_layout = layouts
         .data_layouts
         .iter()
@@ -2693,7 +2694,8 @@ fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
     }));
     checked.typed.plan_laid_layouts[recorded_index].integer_fields[0].write_is_total = true;
     let target = NativeTarget::from_omega_target_name(None).expect("host target");
-    let layouts = build_layout_plan(&checked, target).expect("stored integer layout should build");
+    let layouts =
+        build_layout_plan(&checked, target, &[]).expect("stored integer layout should build");
     let layout = layouts
         .data_layouts
         .iter()

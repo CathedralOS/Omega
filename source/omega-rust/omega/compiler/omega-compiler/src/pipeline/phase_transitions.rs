@@ -49,6 +49,8 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
     pub(super) selected_target_profile: Option<omega_target::TargetProfile>,
     pub(super) selected_provider_provenance:
         Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
+    pub(super) opaque_representation_selections:
+        &'a [omega_representation_planning::OpaqueRepresentationSelection],
 }
 
 /// Final typed settlements that must finish inside the phase transition that
@@ -58,6 +60,8 @@ pub(super) struct TypedToCheckedSettlementInput<'a> {
     pub(super) package_inputs: Option<&'a crate::pipeline::PackageCompilationInputs>,
     pub(super) boundary_calling_plan_realizations:
         &'a mut [crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization],
+    pub(super) opaque_representation_selections:
+        &'a [omega_representation_planning::OpaqueRepresentationSelection],
     pub(super) provider_plans: &'a [omega_effects::provider_plan::ProviderPlan],
     pub(super) selected_provider_plan_facts: omega_effects::SelectedProviderPlanFacts,
     pub(super) root_grants: &'a [String],
@@ -110,6 +114,7 @@ pub(super) fn typed_trees_to_checked_trees(
                 &mut program,
                 settlement.boundary_calling_plan_realizations,
                 native_target,
+                settlement.opaque_representation_selections,
                 settlement.package_inputs,
             )?;
         }
@@ -177,6 +182,7 @@ pub(super) fn settle_selected_execution(
         &checked.program,
         &checked.selected_provider_plan_facts,
         settlement.provider_selection_target,
+        settlement.opaque_representation_selections,
     )?;
 
     Ok(SelectedExecutionSettlementSurface {

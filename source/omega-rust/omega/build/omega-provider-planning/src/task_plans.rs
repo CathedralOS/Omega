@@ -21,12 +21,15 @@ pub fn elaborate_task_activation_plans(
     program: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     target: NativeTarget,
+    opaque_representation_selections: &[omega_representation_planning::OpaqueRepresentationSelection],
 ) -> Result<TaskActivationPlanSet, Vec<Diagnostic>> {
     let selections = task_start_selections(program)?;
     if selections.is_empty() {
         return Ok(TaskActivationPlanSet::default());
     }
-    let layouts = omega_layout::build_layout_plan(program, target).map_err(|error| vec![error])?;
+    let layouts =
+        omega_layout::build_layout_plan(program, target, opaque_representation_selections)
+            .map_err(|error| vec![error])?;
     let mut activations = Vec::new();
 
     for selection in selections {
@@ -85,6 +88,7 @@ pub fn elaborate_task_activation_plans(
         let argument_layout_report_fingerprint = signature_layout_report_fingerprint(
             program,
             target,
+            opaque_representation_selections,
             program
                 .state_parameters(entry)
                 .iter()
@@ -98,6 +102,7 @@ pub fn elaborate_task_activation_plans(
         let outcome_layout_report_fingerprint = signature_layout_report_fingerprint(
             program,
             target,
+            opaque_representation_selections,
             std::iter::once(entry.return_type),
         )?;
         let terminal_outcome_layout = normalized_id(
@@ -129,8 +134,14 @@ pub fn elaborate_task_activation_plans(
             target_machine.name.as_str(),
         )?;
         let carry_obligations = carry_obligations(activation_wide_carry.effective);
-        let (stack_bytes, stack_alignment) =
-            fixed_stack_layout(program, target, &layouts, target_machine, &crossings.root)?;
+        let (stack_bytes, stack_alignment) = fixed_stack_layout(
+            program,
+            target,
+            opaque_representation_selections,
+            &layouts,
+            target_machine,
+            &crossings.root,
+        )?;
         let stack_representation = normalized_id(
             stack_representation_report_fingerprint(target),
             StackRepresentationId::from_normalized_identity,
@@ -182,9 +193,14 @@ pub fn settle_task_activation_plans(
     program: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     target: NativeTarget,
+    opaque_representation_selections: &[omega_representation_planning::OpaqueRepresentationSelection],
 ) -> Result<(), Vec<Diagnostic>> {
-    let task_activations =
-        elaborate_task_activation_plans(program, selected_provider_plans, target)?;
+    let task_activations = elaborate_task_activation_plans(
+        program,
+        selected_provider_plans,
+        target,
+        opaque_representation_selections,
+    )?;
     *retained = Arc::new(task_activations);
     Ok(())
 }
@@ -1207,6 +1223,7 @@ fn append_task_start_selection(
 fn fixed_stack_layout(
     program: &CheckedTrees,
     target: NativeTarget,
+    opaque_representation_selections: &[omega_representation_planning::OpaqueRepresentationSelection],
     layouts: &omega_layout::LayoutPlan,
     machine: &psi_checked_trees::machine::Machine,
     crossings: &[&psi_checked_trees::SuspensionCrossingCarryFact],
@@ -1242,8 +1259,13 @@ fn fixed_stack_layout(
             if live.storage == SuspensionCrossingStorage::Persistent {
                 continue;
             }
-            let layout = omega_layout::layout_type_reference(program, target, live.type_reference)
-                .map_err(|error| vec![error])?;
+            let layout = omega_layout::layout_type_reference(
+                program,
+                target,
+                opaque_representation_selections,
+                live.type_reference,
+            )
+            .map_err(|error| vec![error])?;
             append_layout(&mut size, &mut alignment, layout)?;
         }
         size = align_to(size, alignment)?;
@@ -1397,13 +1419,19 @@ fn stack_representation_report_fingerprint(target: NativeTarget) -> u64 {
 fn signature_layout_report_fingerprint(
     program: &CheckedTrees,
     target: NativeTarget,
+    opaque_representation_selections: &[omega_representation_planning::OpaqueRepresentationSelection],
     types: impl IntoIterator<Item = psi_checked_trees::types::TypeReferenceHandle>,
 ) -> Result<u64, Vec<Diagnostic>> {
     let mut hash = StableHash::new();
     hash.byte(0x51);
     for type_reference in types {
-        let layout = omega_layout::layout_type_reference(program, target, type_reference)
-            .map_err(|error| vec![error])?;
+        let layout = omega_layout::layout_type_reference(
+            program,
+            target,
+            opaque_representation_selections,
+            type_reference,
+        )
+        .map_err(|error| vec![error])?;
         hash.string(program.normalized_type_identity(type_reference).as_str());
         hash.usize(layout.size);
         hash.usize(layout.alignment);
@@ -2719,6 +2747,7 @@ mod tests {
             &checked,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect("shared checked custody should produce the complete activation sidecar");
 
@@ -2816,7 +2845,7 @@ mod tests {
     fn compiler_task_activation_rejection_preserves_prior_sidecar_identity() {
         let (mut checked, selected, _) = concrete_task_start_fixture();
         let retained =
-            elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64())
+            elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
                 .expect("fixture should produce a retained activation sidecar");
         let target = retained
             .as_slice()
@@ -2837,6 +2866,7 @@ mod tests {
             &checked,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("missing exact suspension evidence must reject settlement");
 
@@ -2860,6 +2890,7 @@ mod tests {
             &checked,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect("an empty checked program should produce an empty activation sidecar");
 
@@ -2882,6 +2913,7 @@ mod tests {
             &checked,
             &foreign_leaf_selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("same-leaf foreign schema must not satisfy exact TaskRuntime owner");
         assert!(
@@ -2903,6 +2935,7 @@ mod tests {
             &checked,
             &wrong_method_owner_selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("method owner drift must not satisfy exact TaskRuntime requirement");
         assert!(
@@ -2912,7 +2945,7 @@ mod tests {
         );
 
         let task_activations =
-            elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64())
+            elaborate_task_activation_plans(&checked, &selected, NativeTarget::macos_arm64(), &[])
                 .expect("elaborate activation plan");
         let activations = task_activations.as_slice();
         assert_eq!(activations.len(), 2);
@@ -2994,6 +3027,7 @@ mod tests {
             &missing_suspension,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("missing exact target suspension facts must fail closed");
         assert_eq!(
@@ -3011,6 +3045,7 @@ mod tests {
             &missing_blocking,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("missing exact target blocking facts must fail closed");
         assert_eq!(
@@ -3031,9 +3066,13 @@ mod tests {
             .carry
             .activation_wide_carry
             .retain(|fact| fact.machine != target_machine_symbol);
-        let diagnostics =
-            elaborate_task_activation_plans(&missing_carry, &selected, NativeTarget::macos_arm64())
-                .expect_err("missing exact target carry envelope must fail closed");
+        let diagnostics = elaborate_task_activation_plans(
+            &missing_carry,
+            &selected,
+            NativeTarget::macos_arm64(),
+            &[],
+        )
+        .expect_err("missing exact target carry envelope must fail closed");
         assert_eq!(
             diagnostics[0].message,
             "task activation target `Worker::run` has no exact activation-wide CPU/thread carry envelope"
@@ -3057,6 +3096,7 @@ mod tests {
             &duplicate_carry,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("duplicate exact target carry envelope must fail closed");
         assert_eq!(
@@ -3077,6 +3117,7 @@ mod tests {
             &incomplete_carry,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("incomplete exact target carry envelope must fail closed");
         assert_eq!(
@@ -3098,6 +3139,7 @@ mod tests {
             &authoritative_carry,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect("exact checked target envelope remains the sole carry authority");
         let authoritative_plan = authoritative
@@ -3140,6 +3182,7 @@ mod tests {
                 &unrelated_carry,
                 &selected,
                 NativeTarget::macos_arm64(),
+                &[],
             )
             .expect("unrelated carry envelope must not perturb exact target selection"),
             task_activations,
@@ -3158,6 +3201,7 @@ mod tests {
             &unrelated_only,
             &selected,
             NativeTarget::macos_arm64(),
+            &[],
         )
         .expect_err("unrelated carry envelope must not satisfy exact target selection");
         assert_eq!(

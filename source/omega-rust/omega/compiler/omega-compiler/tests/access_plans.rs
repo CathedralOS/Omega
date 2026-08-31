@@ -729,7 +729,7 @@ data Main {}
     );
 
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let layouts = build_layout_plan(&checked, target).expect("placed layout should build");
+        let layouts = build_layout_plan(&checked, target, &[]).expect("placed layout should build");
         for field in &view.fields {
             let accessor = layouts
                 .data_layouts
