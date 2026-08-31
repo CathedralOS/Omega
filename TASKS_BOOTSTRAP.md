@@ -618,14 +618,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     limit/requested fields. Eleven focused cases pin both profiles, truncated
     header/body, first bad magic byte, unknown-profile precedence, exact and
     adjacent source capacity, trailing input, and exact-end precedence over an
-    invalid source byte without increasing the 994 non-builtin call rows.
+    invalid source byte without adding request-specific non-builtin helpers.
   - [ ] Complete the semantic `GCOUT` judgment behind the retained private
-    outcome fields. Replace the remaining one-bit parser/type/resource results
-    with the normative reason/resource codes, retain every profile-schema
-    `(reason, coordinate)` candidate, apply D33's total ordering, check each
-    code against the selected profile, and gate the four embedded TSV
-    projections. This is implementation work independent of Q2's adapter-call
-    capacity ruling.
+    outcome fields. Replace the remaining one-bit resource and emission
+    results with normative resource/internal codes, retain every profile-schema
+    `(reason, coordinate)` candidate for codes 19/20/21, apply D33's total
+    ordering, check each code against the selected profile, and gate the four
+    embedded TSV projections. This is implementation work independent of Q2's
+    adapter-call capacity ruling.
+    - [x] Retain ordinary Gamma rejection codes 4 through 18 at their decisive
+      source coordinate. Parsing records syntax and integer-range failures;
+      declaration resolution distinguishes duplicate type, constructor, and
+      function namespaces plus unknown types; environment/type checking
+      distinguishes active-local and pattern conflicts, unknown constructor/
+      function/local identities, type and arity mismatches, duplicate match
+      cases, and nonexhaustive matches. A private frontend-outcome probe pins
+      every code while all existing positive/negative behavior remains green.
   - [x] Preserve D30's generated resource identity at the sealed-input seam.
     The emitted reader now transfers input-extent and heap-extent failures to
     distinct adapter-owned terminals while containment remains independent;
@@ -633,9 +641,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
   - [ ] **OWNER-BLOCKED — Q2 Beta call-row profile for the complete Gamma
-    compiler.** The retained source consumes exactly 994 of D23's 1,024
+    compiler.** The retained source consumes exactly 993 of D23's 1,024
     non-builtin call rows before a production entry or either adapter. A focused
-    adjacent probe admits thirty further calls and refuses the thirty-first as
+    adjacent probe admits thirty-one further calls and refuses the thirty-second as
     canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
     total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
     publication, or silently revise the Alpha-written compiler profile.

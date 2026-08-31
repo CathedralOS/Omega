@@ -156,10 +156,13 @@ oversized declaration before body work, requires the exact admitted body and
 EOF, and only then validates Gamma source bytes. It retains the selected
 profile and private outcome kind/code/space/coordinate/limit/requested fields.
 
-The remaining work is to replace later one-bit frontend results with semantic
-`GCOUT` judgments, retain and order every schema candidate, check the embedded
-tables, emit the two PC-zero adapters, and publish no canonical artifact until
-the projections and exact/adjacent gates agree.
+The ordinary frontend now also retains every closed rejection class from
+`invalid_syntax` (4) through `nonexhaustive_match` (18) at its decisive Gamma
+source coordinate. The remaining semantic work is to replace private resource
+and emission results with public resource/internal judgments, retain and order
+schema codes 19/20/21, check the embedded tables, emit the two PC-zero adapters,
+and publish no canonical artifact until the projections and exact/adjacent
+gates agree.
 
 ## D30 physical application profiles
 
@@ -395,8 +398,10 @@ depends on falling into an uncatchable Alpha trap.
 D20's declaration/binder resolver, source joins, and profile-neutral
 whole-function label/body emission are implemented. D19's exact source-owned
 schemas and reason-code bijection, D30's physical profile facts, and D33's
-canonical request ingress are implemented. Total semantic GCOUT diagnosis,
-both adapters, and final publication still gate the tape. No incomplete slice
+canonical request ingress are implemented. Ordinary rejection codes 3 through
+18 are retained with their exact request/source coordinates. Resource,
+schema, and internal GCOUT diagnosis, both adapters, and final publication
+still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.

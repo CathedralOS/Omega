@@ -69,6 +69,7 @@ proc admit_gcreq() {
     let header_index = 0
     let profile = 0
     let source_length = 0
+    let reading_body = 0
     word[2097088] = 0        ; INVALID_TYPE
     word[2097056] = 0        ; FAIL_OFF (meaningful when INVALID_TYPE != 0)
     word[2097048] = 0        ; NODE_OFF for the next AST allocation
@@ -93,8 +94,7 @@ proc admit_gcreq() {
         byte[2097152 + header_index] = c
         header_index = header_index + 1
         to validate_header when (header_index == 16)
-        c = read_byte()
-        to header
+        to read_next
     }
     state validate_header {
         header_index = header_index % 16
@@ -113,8 +113,13 @@ proc admit_gcreq() {
         source_length = source_length + byte[2097166] * 65536
         source_length = source_length + byte[2097167] * 16777216
         to source_exhausted when (source_length > 4194304)
+        reading_body = 1
+        to read_next
+    }
+    state read_next {
         c = read_byte()
-        to body
+        to body when (reading_body == 1)
+        to header
     }
     state body {
         to body_done when (n == source_length)
@@ -122,8 +127,7 @@ proc admit_gcreq() {
         to malformed when (c < 0)
         byte[2097152 + n] = c
         n = n + 1
-        c = read_byte()
-        to body
+        to read_next
     }
     state body_done {
         header_index = 16 + source_length
@@ -185,11 +189,7 @@ proc admit_gcreq() {
         return 2
     }
     state invalid {
-        word[2096848] = 1
-        word[2096840] = 3        ; invalid_source_byte
-        word[2096832] = 1        ; Gamma source byte
-        word[2096824] = n
-        mark_invalid_at(n)
+        mark_reject_at(3, n)     ; invalid_source_byte
         return 1
     }
 }
@@ -252,9 +252,10 @@ proc is_ident_start(c) {
 }
 
 proc is_ident_continue(c) {
-    state start { to yes when (is_ident_start(c) == 1)  to digit }
-    state digit { to yes when (is_digit(c) == 1)  return 0 }
-    state yes { return 1 }
+    state result {
+        return (c == '_') + (c >= 'A') * (c <= 'Z')
+             + (c >= 'a') * (c <= 'z') + (c >= '0') * (c <= '9')
+    }
 }
 
 proc is_op(c) {
@@ -278,17 +279,19 @@ proc skip_ident() {
     state body { adv()  to loop }
 }
 
-proc mark_invalid_at(off) {
+proc mark_reject_at(reason, off) {
     state first {
         to recorded when (word[2097088] != 0)
         word[2097056] = off
+        word[2096848] = 1        ; Reject
+        word[2096840] = reason
+        word[2096832] = 1        ; Gamma source byte
+        word[2096824] = off
+        word[2096816] = 0
+        word[2096808] = 0
         to recorded
     }
     state recorded { word[2097088] = 1  return 0 }
-}
-
-proc mark_invalid() {
-    return mark_invalid_at(word[2097144])
 }
 
 proc mark_resource_failed() {
@@ -305,7 +308,7 @@ proc take_ident() {
     }
     state consume { skip_ident()  return off }
     state invalid {
-        mark_invalid()
+        mark_reject_at(4, word[2097144])
         to advance_bad when (cbyte() != 0)
         return off
     }
@@ -317,7 +320,7 @@ proc consume_expected(c) {
     state valid { to consume when (cbyte() == c)  to invalid }
     state consume { adv()  return 1 }
     state invalid {
-        mark_invalid()
+        mark_reject_at(4, word[2097144])
         to advance_bad when (cbyte() != 0)
         return 0
     }
@@ -354,7 +357,7 @@ proc parse_integer() {
     state positive_edge { to overflow when (d > 7)  to append }
     state append { v = v * 10 + d  adv()  to loop }
     state overflow {
-        mark_invalid_at(word[2097144])
+        mark_reject_at(5, word[2097144])
         ; Consume the rest of the literal so the parser still makes progress.
         to consume
     }
@@ -750,7 +753,7 @@ proc tyid(off) {
     }
     state hit { return i }
     state missing {
-        mark_invalid_at(off)
+        mark_reject_at(11, off)
         return 0 - 1
     }
 }
@@ -790,7 +793,7 @@ proc parse_args() {
     }
     state first { head = node  tail = node  to loop }
     state exhausted { return head }
-    state eof { mark_invalid()  return head }
+    state eof { mark_reject_at(4, word[2097144])  return head }
     state done { return head }
 }
 
@@ -861,7 +864,7 @@ proc parse_expr_inner(start) {
     state do_let {
         let noff = take_ident()
         to let_name_ok when (valid_value_name(noff) == 1)
-        mark_invalid_at(noff)
+        mark_reject_at(4, noff)
         to let_name_ok
     }
     state let_name_ok {
@@ -907,7 +910,7 @@ proc parse_expr_inner(start) {
         ; The six reserved bytes_* forms are parsed through the same argument
         ; list representation but remain closed builtins in tc_call.
         to call_name_ok when (bytes_builtin_kind(hoff) != 0)
-        mark_invalid_at(hoff)
+        mark_reject_at(4, hoff)
         to call_name_ok
     }
     state call_name_ok {
@@ -921,7 +924,7 @@ proc parse_expr_inner(start) {
         let voff = take_ident()
         to nullcon when (is_upper(byte[2097152 + voff]) == 1)
         to atom_name_ok when (valid_value_name(voff) == 1)
-        mark_invalid_at(voff)
+        mark_reject_at(4, voff)
         to atom_name_ok
     }
     state atom_name_ok {
@@ -933,12 +936,12 @@ proc parse_expr_inner(start) {
         return alloc(7, voff, 0, 0)
     }                                                ; nullary constructor
     state invalid_compound {
-        mark_invalid()
+        mark_reject_at(4, word[2097144])
         to invalid_advance when (cbyte() != 0)
         return 16777216
     }
     state invalid {
-        mark_invalid_at(start)
+        mark_reject_at(4, start)
         to invalid_advance when (cbyte() != 0)
         return 16777216
     }
@@ -954,7 +957,7 @@ proc parse_pvars() {
         to eof when (cbyte() == 0)
         let voff = take_ident()
         to name_ok when (valid_value_name(voff) == 1)
-        mark_invalid_at(voff)
+        mark_reject_at(4, voff)
         to name_ok
     }
     state name_ok {
@@ -968,7 +971,7 @@ proc parse_pvars() {
     }
     state first { head = node  tail = node  to loop }
     state exhausted { return head }
-    state eof { mark_invalid()  return head }
+    state eof { mark_reject_at(4, word[2097144])  return head }
     state done { return head }
 }
 
@@ -980,7 +983,7 @@ proc parse_pat() {
         consume_expected('(')
         let coff = take_ident()
         to pcon_name_ok when (valid_nominal_name(coff) == 1)
-        mark_invalid_at(coff)
+        mark_reject_at(4, coff)
         to pcon_name_ok
     }
     state pcon_name_ok {
@@ -993,7 +996,7 @@ proc parse_pat() {
         let voff = take_ident()
         to nullcon when (is_upper(byte[2097152 + voff]) == 1)
         to pvar_name_ok when (valid_value_name(voff) == 1)
-        mark_invalid_at(voff)
+        mark_reject_at(4, voff)
         to pvar_name_ok
     }
     state pvar_name_ok {
@@ -1002,7 +1005,7 @@ proc parse_pat() {
     }
     state nullcon {
         to nullcon_ok when (valid_nominal_name(voff) == 1)
-        mark_invalid_at(voff)
+        mark_reject_at(4, voff)
         to nullcon_ok
     }
     state nullcon_ok {
@@ -1037,7 +1040,7 @@ proc parse_arms() {
     }
     state first { head = node  tail = node  to loop }
     state exhausted { return head }
-    state eof { mark_invalid()  return head }
+    state eof { mark_reject_at(4, word[2097144])  return head }
     state done { return head }
 }
 
@@ -1052,13 +1055,13 @@ proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM no
         consume_expected('(')
         let poff = take_ident()
         to param_name_ok when (valid_value_name(poff) == 1)
-        mark_invalid_at(poff)
+        mark_reject_at(4, poff)
         to param_name_ok
     }
     state param_name_ok {
         let toff = take_ident()
         to param_type_ok when (is_upper(byte[2097152 + toff]) == 1)
-        mark_invalid_at(toff)
+        mark_reject_at(4, toff)
         to param_type_ok
     }
     state param_type_ok {
@@ -1077,7 +1080,7 @@ proc parse_typed_params() {       ; (pname Ty) pairs until ')', CONS of PARAM no
     }
     state first { head = link  tail = link  to loop }
     state exhausted { return head }
-    state eof { mark_invalid()  return head }
+    state eof { mark_reject_at(4, word[2097144])  return head }
     state done { return head }
 }
 
@@ -1085,12 +1088,12 @@ proc parse_def() {
     consume_expected('(')
     let keyword = take_ident()
     to keyword_ok when (name_is_packed(keyword, 6710628, 0, 3) == 1)
-    mark_invalid_at(keyword)
+    mark_reject_at(4, keyword)
     to keyword_ok
     state keyword_ok {
     let noff = take_ident()
     to name_ok when (valid_value_name(noff) == 1)
-    mark_invalid_at(noff)
+    mark_reject_at(4, noff)
     to name_ok
     }
     state name_ok {
@@ -1099,7 +1102,7 @@ proc parse_def() {
     consume_expected(')')
     let rtoff = take_ident()
     to return_type_ok when (is_upper(byte[2097152 + rtoff]) == 1)
-    mark_invalid_at(rtoff)
+    mark_reject_at(4, rtoff)
     to return_type_ok
     }
     state return_type_ok {
@@ -1130,7 +1133,7 @@ proc parse_argtypes() {           ; constructor arg type names until ')', CONS o
         to eof when (cbyte() == 0)
         let toff = take_ident()
         to type_name_ok when (is_upper(byte[2097152 + toff]) == 1)
-        mark_invalid_at(toff)
+        mark_reject_at(4, toff)
         to type_name_ok
     }
     state type_name_ok {
@@ -1145,7 +1148,7 @@ proc parse_argtypes() {           ; constructor arg type names until ')', CONS o
     }
     state first { head = node  tail = node  to loop }
     state exhausted { return head }
-    state eof { mark_invalid()  return head }
+    state eof { mark_reject_at(4, word[2097144])  return head }
     state done { return head }
 }
 
@@ -1153,12 +1156,12 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
     consume_expected('(')
     let keyword = take_ident()
     to keyword_ok when (name_is_packed(keyword, 1635017060, 0, 4) == 1)
-    mark_invalid_at(keyword)
+    mark_reject_at(4, keyword)
     to keyword_ok
     state keyword_ok {
     let toff = take_ident()
     to type_name_ok when (valid_nominal_name(toff) == 1)
-    mark_invalid_at(toff)
+    mark_reject_at(4, toff)
     to type_name_ok
     }
     state type_name_ok {
@@ -1187,7 +1190,7 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
         consume_expected('(')
         let coff = take_ident()
         to con_name_ok when (valid_nominal_name(coff) == 1)
-        mark_invalid_at(coff)
+        mark_reject_at(4, coff)
         to con_name_ok
     }
     state con_name_ok {
@@ -1209,10 +1212,10 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
         skip_ws()
         to loop
     }
-    state eof { mark_invalid()  return 0 }
+    state eof { mark_reject_at(4, word[2097144])  return 0 }
     state done {
         to have_constructor when (word[2097096] != first_con)
-        mark_invalid()
+        mark_reject_at(4, word[2097144])
         to have_constructor
     }
     state have_constructor {
@@ -1239,7 +1242,7 @@ proc tenv_push(off, t, local_kind, index) {
     let n = word[2097112]
     state unique {
         to capacity when (tenv_lookup(off) == 0 - 1)
-        mark_invalid_at(off)
+        mark_reject_at(9, off)
         return 0
     }
     state capacity { to store when (n < 65536)  to exhausted }
@@ -1256,11 +1259,11 @@ proc tenv_push(off, t, local_kind, index) {
 ; private capacities succeed. This keeps source rejection ahead of resource
 ; exhaustion and prevents a failed bind from mutating TENV, slot cursors, or
 ; the packed-profile maximum.
-proc tenv_push_local(off, t, slot) {
+proc tenv_push_local(off, t, slot, conflict_reason) {
     let n = word[2097112]
     state unique {
         to environment_capacity when (tenv_lookup(off) == 0 - 1)
-        mark_invalid_at(off)
+        mark_reject_at(conflict_reason, off)
         return 0
     }
     state environment_capacity { to slot_capacity when (n < 65536)  to exhausted }
@@ -1300,9 +1303,19 @@ proc tenv_lookup(qoff) {
 ; exact rows; the remainder implements D16 forward/mutual nominal references.
 proc resolve_decl_types() {
     let duplicate = word[2097136]
-    duplicate = namespace_duplicate_before(6291472, 8, word[2097104] - 2, duplicate)
-    duplicate = namespace_duplicate_before(6815744, 24, word[2097096], duplicate)
-    duplicate = namespace_duplicate_before(8388608, 32, word[2097120], duplicate)
+    let duplicate_reason = 0
+    let candidate = namespace_duplicate_before(6291472, 8, word[2097104] - 2, duplicate)
+    let earlier = candidate < duplicate
+    duplicate = duplicate * (1 - earlier) + candidate * earlier
+    duplicate_reason = duplicate_reason * (1 - earlier) + 6 * earlier
+    candidate = namespace_duplicate_before(6815744, 24, word[2097096], duplicate)
+    earlier = candidate < duplicate
+    duplicate = duplicate * (1 - earlier) + candidate * earlier
+    duplicate_reason = duplicate_reason * (1 - earlier) + 7 * earlier
+    candidate = namespace_duplicate_before(8388608, 32, word[2097120], duplicate)
+    earlier = candidate < duplicate
+    duplicate = duplicate * (1 - earlier) + candidate * earlier
+    duplicate_reason = duplicate_reason * (1 - earlier) + 8 * earlier
     ; Function rows retain at most 32,768 one-based indexes in COVERAGE. Start
     ; match epochs above that range so the final hash table needs no fourth
     ; 65,536-row clearing pass before exhaustiveness checking.
@@ -1312,7 +1325,7 @@ proc resolve_decl_types() {
         let ci = 0
         to con_loop
     }
-    state duplicate_declaration { mark_invalid_at(duplicate)  return 0 }
+    state duplicate_declaration { mark_reject_at(duplicate_reason, duplicate)  return 0 }
     state con_loop {
         to con_body when (ci < word[2097096])
         to fun_start
@@ -1365,63 +1378,63 @@ proc tc_bytes_builtin(kind, args) {
         to slice when (kind == 5)
         to concat
     }
-    state empty { to bytesret when (args == 0)  return 0 - 1 }
+    state empty { to bytesret when (args == 0)  return 0 - 16 }
     state single {
-        to bad when (args == 0)
+        to arity_bad when (args == 0)
         let a1 = args
-        to bad when (word[a1 + 16] != 0)
+        to arity_bad when (word[a1 + 16] != 0)
         to bytesret when (tc(word[a1 + 8]) == 0)
-        to bad
+        to type_bad
     }
     state length {
-        to bad when (args == 0)
+        to arity_bad when (args == 0)
         let a2 = args
-        to bad when (word[a2 + 16] != 0)
+        to arity_bad when (word[a2 + 16] != 0)
         to intret when (tc(word[a2 + 8]) == 1)
-        to bad
+        to type_bad
     }
     state get {
-        to bad when (args == 0)
+        to arity_bad when (args == 0)
         let g1 = args
         let g2 = word[g1 + 16]
-        to bad when (g2 == 0)
-        to bad when (word[g2 + 16] != 0)
-        to bad when (tc(word[g1 + 8]) != 1)
+        to arity_bad when (g2 == 0)
+        to arity_bad when (word[g2 + 16] != 0)
+        to type_bad when (tc(word[g1 + 8]) != 1)
         to intret when (tc(word[g2 + 8]) == 0)
-        to bad
+        to type_bad
     }
     state slice {
-        to bad when (args == 0)
+        to arity_bad when (args == 0)
         let s1 = args
         let s2 = word[s1 + 16]
-        to bad when (s2 == 0)
+        to arity_bad when (s2 == 0)
         let s3 = word[s2 + 16]
-        to bad when (s3 == 0)
-        to bad when (word[s3 + 16] != 0)
-        to bad when (tc(word[s1 + 8]) != 1)
-        to bad when (tc(word[s2 + 8]) != 0)
+        to arity_bad when (s3 == 0)
+        to arity_bad when (word[s3 + 16] != 0)
+        to type_bad when (tc(word[s1 + 8]) != 1)
+        to type_bad when (tc(word[s2 + 8]) != 0)
         to bytesret when (tc(word[s3 + 8]) == 0)
-        to bad
+        to type_bad
     }
     state concat {
-        to bad when (args == 0)
+        to arity_bad when (args == 0)
         let c1 = args
         let c2 = word[c1 + 16]
-        to bad when (c2 == 0)
-        to bad when (word[c2 + 16] != 0)
-        to bad when (tc(word[c1 + 8]) != 1)
+        to arity_bad when (c2 == 0)
+        to arity_bad when (word[c2 + 16] != 0)
+        to type_bad when (tc(word[c1 + 8]) != 1)
         to bytesret when (tc(word[c2 + 8]) == 1)
-        to bad
+        to type_bad
     }
     state intret { return 0 }
     state bytesret { return 1 }
-    state bad { return 0 - 1 }
+    state type_bad { return 0 - 15 }
+    state arity_bad { return 0 - 16 }
 }
 
 proc tc_arguments(params, args, params_are_nodes) {
     let p = params
     let a = args
-    let fail = 0
     state loop {
         to pdone when (p == 0)
         to achk
@@ -1433,12 +1446,12 @@ proc tc_arguments(params, args, params_are_nodes) {
         to compare
     }
     state parameter_node { expected = word[expected + 16]  to compare }
-    state compare { to mark when (tc(word[a + 8]) != expected)  to advance }
-    state mark { fail = 1  to advance }
+    state compare { to type_bad when (tc(word[a + 8]) != expected)  to advance }
     state advance { p = word[p + 16]  a = word[a + 16]  to loop }
-    state pdone { to overmark when (a != 0)  return 1 - fail }
-    state adone { return 0 }
-    state overmark { return 0 }
+    state pdone { to arity_bad when (a != 0)  return 1 }
+    state adone { return 0 - 16 }
+    state type_bad { return 0 - 15 }
+    state arity_bad { return 0 - 16 }
 }
 
 proc tc_call(expr) {
@@ -1451,30 +1464,30 @@ proc tc_call(expr) {
         let fi = global_lookup(fname, 8388608, 32, word[2097120])
         to fchk
     }
-    state fchk { to known when (fi != 0 - 1)  return 0 - 1 }   ; unknown function
+    state fchk { to known when (fi != 0 - 1)  return 0 - 13 }  ; unknown function
     state known {
         ; Zero remains the unresolved/builtin sentinel; table identities are
         ; retained one-based for the eventual tag-5 lowering join.
         word[expr + 24] = fi + 1
         let args_ok = tc_arguments(word[8388608 + fi * 32 + 8], args, 1)
-        to failret when (args_ok == 0)
+        to failret when (args_ok != 1)
         return word[8388608 + fi * 32 + 16] % 65536
     }
-    state failret { return 0 - 1 }
+    state failret { return args_ok }
 }
 
 proc tc_conapp(expr) {
     let coff = word[expr + 8]
     let args = word[expr + 16]
     let ci = global_lookup(coff, 6815744, 24, word[2097096])
-    state cchk { to known when (ci != 0 - 1)  return 0 - 1 }   ; unknown constructor
+    state cchk { to known when (ci != 0 - 1)  return 0 - 12 }  ; unknown constructor
     state known {
         word[expr + 24] = ci + 1
         let args_ok = tc_arguments(word[6815744 + ci * 24 + 16], args, 0)
-        to failret when (args_ok == 0)
+        to failret when (args_ok != 1)
         return word[6815744 + ci * 24 + 8]
     }
-    state failret { return 0 - 1 }
+    state failret { return args_ok }
 }
 
 proc tc_match(scrut, arms) {
@@ -1491,6 +1504,7 @@ proc tc_match(scrut, arms) {
         let catchall = 0
         let covered_by_catchall = 0
         let seen = 0
+        let fail_reason = 15
         let epoch = word[2097080]
         let phase = 0                  ; 0 types bodies, 1 rebuilds coverage
         let ci2 = 0
@@ -1509,7 +1523,11 @@ proc tc_match(scrut, arms) {
         to after_catchall when (catchall == 1)
         to patkind
     }
-    state after_catchall { fail = 1  to patkind }
+    state after_catchall {
+        fail_reason = fail_reason * fail + 17 * (1 - fail)
+        fail = 1
+        to patkind
+    }
     state patkind {
         to pvar when (word[pat] % 256 == 9)
         to pcon
@@ -1519,7 +1537,7 @@ proc tc_match(scrut, arms) {
         catchall = 1
         covered_by_catchall = 1
         let slot = word[2096896]
-        to pvar_bound when (tenv_push_local(word[pat + 8], st, slot) == 1)
+        to pvar_bound when (tenv_push_local(word[pat + 8], st, slot, 10) == 1)
         to binding_resource when (word[2097072] != 0)
         fail = 1
         to checkbody
@@ -1530,6 +1548,8 @@ proc tc_match(scrut, arms) {
     }
     state pcon {
         let ci = global_lookup(word[pat + 8], 6815744, 24, word[2097096])
+        let select_unknown = (ci == 0 - 1) * (fail == 0)
+        fail_reason = fail_reason * (1 - select_unknown) + 12 * select_unknown
         to pattern_fail when (ci == 0 - 1)
         to tymatch
     }
@@ -1542,6 +1562,7 @@ proc tc_match(scrut, arms) {
     }
     state pattern_fail { fail = 1  to checkbody }
     state duplicate {
+        fail_reason = fail_reason * fail + 17 * (1 - fail)
         fail = 1
         to bindvars
     }
@@ -1556,9 +1577,11 @@ proc tc_match(scrut, arms) {
         to bindrest                   ; pv == 0
     }
     state bindpv {
+        let select_arity = (av == 0) * (fail == 0)
+        fail_reason = fail_reason * (1 - select_arity) + 16 * select_arity
         to pattern_fail when (av == 0)   ; too many pattern vars
         let slot2 = word[2096896]
-        to bind_record when (tenv_push_local(word[pv + 8], word[av + 8], slot2) == 1)
+        to bind_record when (tenv_push_local(word[pv + 8], word[av + 8], slot2, 10) == 1)
         to binding_resource when (word[2097072] != 0)
         fail = 1
         to bind_advance
@@ -1573,6 +1596,8 @@ proc tc_match(scrut, arms) {
         to bindloop
     }
     state bindrest {
+        let select_remaining_arity = (av != 0) * (fail == 0)
+        fail_reason = fail_reason * (1 - select_remaining_arity) + 16 * select_remaining_arity
         to pattern_fail when (av != 0)   ; too few pattern vars
         to checkbody
     }
@@ -1604,6 +1629,7 @@ proc tc_match(scrut, arms) {
     state nextarm { arm = word[arm + 16]  to loop }
     state finish {
         to failret when (fail == 1)
+        fail_reason = fail_reason * seen + 18 * (1 - seen)
         to failret when (seen == 0)
         to complete when (phase * covered_by_catchall == 1)
         to coverloop when (phase == 1)
@@ -1627,17 +1653,19 @@ proc tc_match(scrut, arms) {
         to covernext
     }
     state covernext { ci2 = ci2 + 1  to coverloop }
-    state missing { return 0 - 1 }
+    state missing { return 0 - 18 }
     state complete { return rty }
-    state failret { return 0 - 1 }
+    state failret { return 0 - fail_reason }
 }
 
 proc tc(expr) {
     let result = tc_inner(expr)
-    state checked { to invalid when (result == 0 - 1)  return result }
+    state checked { to invalid when (result < 0)  return result }
     state invalid {
         to resource when (word[2097072] != 0)
-        mark_invalid_at(word[expr] / 256)
+        let reason = 0 - result
+        reason = reason + (reason == 1) * 14
+        mark_reject_at(reason, word[expr] / 256)
         return 0 - 1
     }
     state resource { return 0 - 1 }
@@ -1654,7 +1682,7 @@ proc tc_inner(expr) {
         word[expr + 16] = binding
         return binding % 65536
     }
-    state missing_var { return 0 - 1 }
+    state missing_var { return 0 - 14 }
     state t2 { to prim when (tag == 2)  to t3 }
     state prim {                                      ; PRIM : Int x Int -> Int
         let a = tc(word[expr + 16])
@@ -1689,7 +1717,7 @@ proc tc_inner(expr) {
     state let_ok {
         let local_base = word[2096896]
         let slot = local_base
-        to let_bound when (tenv_push_local(word[expr + 8], vt, slot) == 1)
+        to let_bound when (tenv_push_local(word[expr + 8], vt, slot, 9) == 1)
         return 0 - 1
     }
     state let_bound {
@@ -3770,7 +3798,7 @@ proc frontend_check_main() {
         to invalid_program when (word[2097144] != word[2097136])
         to resolve_types
     }
-    state invalid_program { mark_invalid()  to checkfns }
+    state invalid_program { mark_reject_at(4, word[2097144])  to checkfns }
     state resolve_types {
         to checkfns when (word[2097072] != 0)
         to checkfns when (word[2097088] != 0)
@@ -3823,7 +3851,7 @@ proc frontend_check_main() {
         return 0
     }
     state okmark {
-        mark_invalid_at(word[word[8388608 + i * 32 + 24]] / 256)
+        mark_reject_at(15, word[word[8388608 + i * 32 + 24]] / 256)
         return 0
     }
     state advance {
