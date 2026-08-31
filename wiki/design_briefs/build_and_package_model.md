@@ -305,9 +305,12 @@ consumed into the unchanged transitional combined pass without source reread or
 reparse. Seeded syntax-to-resolved lowering now consumes that retained base and
 extension directly, preserves base arena/symbol/service identities, and appends
 the complete later stratum under the settled one-way visibility and duplicate
-rules. Wiring that API into compiler orchestration and seeded resolved-to-typed
-lowering are the next engineering prerequisites for the retained-base
-continuation.
+rules. The seeded result can now retain the exact authored-selection append
+frontier and transactionally rebase only extension-owned occurrences against a
+later phase's preserved base ledger while leaving appended compiler clones of
+retained occurrences unchanged. This is a representation prerequisite only:
+wiring it into compiler orchestration and implementing seeded resolved-to-typed
+lowering remain engineering work for the retained-base continuation.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

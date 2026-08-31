@@ -180,6 +180,47 @@ impl ExpressionTable {
             .map(StoredAuthoredSelectionOccurrenceId::occurrence)
     }
 
+    pub(crate) fn rebase_authored_selection_extension(
+        &mut self,
+        expression_frontier: usize,
+        rebase: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
+    ) -> Result<(), ()> {
+        if expression_frontier > self.expression_count() {
+            return Err(());
+        }
+        let remapped = self
+            .iter_expressions()
+            .enumerate()
+            .map(|(index, (handle, _))| {
+                let occurrences = self
+                    .authored_selection_occurrences(handle)
+                    .map(|occurrence| {
+                        if index < expression_frontier {
+                            rebase.retain_base(occurrence)
+                        } else {
+                            rebase.rebase_appended(occurrence)
+                        }
+                        .ok_or(())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((index >= expression_frontier).then_some(occurrences))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        for (index, occurrences) in remapped.into_iter().enumerate() {
+            let Some(occurrences) = occurrences else {
+                continue;
+            };
+            self.nodes.authored_selection_occurrences[index] =
+                self.spans.authored_selection_occurrence_ids.insert_many(
+                    occurrences
+                        .into_iter()
+                        .map(StoredAuthoredSelectionOccurrenceId::new),
+                );
+        }
+        Ok(())
+    }
+
     pub fn insert_expression_handles(
         &mut self,
         expressions: impl IntoIterator<Item = ExpressionHandle>,

@@ -7,6 +7,12 @@ use std::ops::{Deref, DerefMut};
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AuthoredSelectionStatementStore {
+    Statements,
+    TransitionTargets,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     AssemblyFact(AssemblyFact),
@@ -341,6 +347,91 @@ impl StatementTable {
 
     pub fn transition_target_count(&self) -> usize {
         self.nodes.transition_targets.len()
+    }
+
+    pub(crate) fn rebase_authored_selection_extension(
+        &mut self,
+        statement_frontier: usize,
+        transition_target_frontier: usize,
+        rebase: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
+    ) -> Result<(), AuthoredSelectionStatementStore> {
+        if statement_frontier > self.statement_count() {
+            return Err(AuthoredSelectionStatementStore::Statements);
+        }
+        if transition_target_frontier > self.transition_target_count() {
+            return Err(AuthoredSelectionStatementStore::TransitionTargets);
+        }
+
+        for (index, (_, statement)) in self.nodes.statements.iter().enumerate() {
+            let StatementNode::Call(call) = statement else {
+                continue;
+            };
+            let Some(occurrence) = call.authored_call_selection else {
+                continue;
+            };
+            let valid = if index < statement_frontier {
+                rebase.retain_base(occurrence)
+            } else {
+                rebase.rebase_appended(occurrence)
+            };
+            if valid.is_none() {
+                return Err(AuthoredSelectionStatementStore::Statements);
+            }
+        }
+        for (index, (_, target)) in self.nodes.transition_targets.iter().enumerate() {
+            let TransitionTargetNode::Named {
+                authored_call_selection: Some(occurrence),
+                ..
+            } = target
+            else {
+                continue;
+            };
+            let valid = if index < transition_target_frontier {
+                rebase.retain_base(*occurrence)
+            } else {
+                rebase.rebase_appended(*occurrence)
+            };
+            if valid.is_none() {
+                return Err(AuthoredSelectionStatementStore::TransitionTargets);
+            }
+        }
+
+        self.nodes.statements.for_each_mut(|handle, statement| {
+            let StatementNode::Call(call) = statement else {
+                return;
+            };
+            let Some(occurrence) = call.authored_call_selection else {
+                return;
+            };
+            if usize::try_from(handle.arena_index()).expect("statement index overflow")
+                > statement_frontier
+            {
+                call.authored_call_selection = Some(
+                    rebase
+                        .rebase_appended(occurrence)
+                        .expect("statement occurrence was validated before mutation"),
+                );
+            }
+        });
+        self.nodes
+            .transition_targets
+            .for_each_mut(|handle, target| {
+                let TransitionTargetNode::Named {
+                    authored_call_selection: Some(occurrence),
+                    ..
+                } = target
+                else {
+                    return;
+                };
+                if usize::try_from(handle.arena_index()).expect("transition target index overflow")
+                    > transition_target_frontier
+                {
+                    *occurrence = rebase
+                        .rebase_appended(*occurrence)
+                        .expect("extension occurrences were validated before mutation");
+                }
+            });
+        Ok(())
     }
 
     pub fn insert_tree(
@@ -773,13 +864,104 @@ pub struct TableNamePath {
 mod tests {
     use super::{
         NamedTransitionTarget, NamedTransitionTargetStorage, Statement, StatementNode,
-        StatementTable, Transition, TransitionGuard, TransitionTarget, TransitionTargetNode,
+        StatementTable, TableCall, Transition, TransitionGuard, TransitionTarget,
+        TransitionTargetNode,
     };
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
-    use psi_arena::Arena;
+    use psi_arena::{Arena, Handle};
     use psi_symbols::SymbolHandle;
+
+    fn selection_ledger(
+        start: usize,
+        symbol: u32,
+    ) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelections {
+        let mut ledger =
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelections::default();
+        ledger
+            .record_resolved(
+                psi_source::SourceSpan::new(
+                    psi_source::SourceId(1),
+                    psi_source::Span::new(start, start + 1),
+                ),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(symbol),
+            )
+            .expect("selection row");
+        ledger
+    }
+
+    #[test]
+    fn authored_selection_rebase_covers_folded_calls_and_named_transition_targets() {
+        let mut combined = selection_ledger(1, 2);
+        let extension = combined
+            .record_resolved(
+                psi_source::SourceSpan::new(
+                    psi_source::SourceId(1),
+                    psi_source::Span::new(3, 4),
+                ),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call,
+                SymbolHandle::from_arena_index(3),
+            )
+            .expect("extension selection");
+        let mut destination = selection_ledger(1, 2);
+        destination
+            .record_resolved(
+                psi_source::SourceSpan::new(
+                    psi_source::SourceId(1),
+                    psi_source::Span::new(2, 3),
+                ),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess,
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("later-phase row");
+        let (_, rebase) = combined
+            .replace_prefix_and_rebase_suffix(1, &destination)
+            .expect("compatible prefix");
+        let shifted = rebase
+            .rebase_extension(extension)
+            .expect("extension mapping");
+
+        let mut table = StatementTable::new();
+        table
+            .nodes
+            .statements
+            .insert(StatementNode::Call(TableCall {
+                authored_call_selection: Some(extension),
+                ..Default::default()
+            }));
+        let target = table
+            .nodes
+            .transition_targets
+            .insert(TransitionTargetNode::Named {
+                path: Default::default(),
+                arguments: Default::default(),
+                evidence_arguments: Default::default(),
+                source_span: Default::default(),
+                authored_call_selection: Some(extension),
+            });
+
+        table
+            .rebase_authored_selection_extension(0, 0, rebase)
+            .expect("extension-owned folded stores");
+
+        let StatementNode::Call(call) = table.statement(Handle::from_arena_index(1)) else {
+            panic!("folded call")
+        };
+        assert_eq!(call.authored_call_selection, Some(shifted));
+        let TransitionTargetNode::Named {
+            authored_call_selection,
+            ..
+        } = table.transition_target(target)
+        else {
+            panic!("folded named transition target")
+        };
+        assert_eq!(*authored_call_selection, Some(shifted));
+    }
 
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {

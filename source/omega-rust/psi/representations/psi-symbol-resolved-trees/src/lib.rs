@@ -29,12 +29,15 @@ pub use declaration_selection::{
     AuthoredDeclarationSelection, AuthoredDeclarationSelectionExposure,
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
+    AuthoredDeclarationSelectionSuffixRebase, AuthoredDeclarationSelectionSuffixRebaseError,
     AuthoredDeclarationSelectionTarget, AuthoredDeclarationSelections,
     ResolvedAuthoredDeclarationSelection,
 };
 pub use psi_arena::OrderedRootArena;
 pub use snapshot::SymbolResolvedTreesSnapshot;
 pub use symbol_resolved_trees::{
-    SymbolResolvedBodyStorage, SymbolResolvedDeclarationStorage, SymbolResolvedRoots,
-    SymbolResolvedTableStorage, SymbolResolvedTrees, SymbolResolvedTypeStorage,
+    AuthoredSelectionExtensionFrontier, AuthoredSelectionExtensionRebaseError,
+    AuthoredSelectionOccurrenceStore, SymbolResolvedBodyStorage, SymbolResolvedDeclarationStorage,
+    SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees,
+    SymbolResolvedTypeStorage,
 };

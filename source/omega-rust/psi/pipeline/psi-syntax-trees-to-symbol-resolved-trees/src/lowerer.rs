@@ -1,7 +1,10 @@
 use crate::item::lower_item;
 use psi_diagnostics::Diagnostic;
 use psi_source::SourceMap;
-use psi_symbol_resolved_trees::SymbolResolvedTrees;
+use psi_symbol_resolved_trees::{
+    AuthoredDeclarationSelections, AuthoredSelectionExtensionFrontier,
+    AuthoredSelectionExtensionRebaseError, SymbolResolvedTrees,
+};
 use psi_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
 
@@ -74,6 +77,27 @@ pub fn lower_syntax_extension_against_resolved_base(
     sources: Arc<SourceMap>,
     additional_source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    lower_syntax_extension_with_authored_selection_frontier(
+        base,
+        extension_syntax,
+        sources,
+        additional_source_scoped_top_level_bindings,
+    )
+    .map(SeededSymbolResolvedTrees::into_unrebased_trees)
+}
+
+/// Resolve one syntax extension while retaining the exact append frontier of
+/// every authored-selection occurrence store.
+///
+/// The returned carrier is readable, but its trees can enter a later seeded
+/// phase only by transactionally rebasing the extension suffix against that
+/// phase's exact retained authored-selection ledger.
+pub fn lower_syntax_extension_with_authored_selection_frontier(
+    base: SymbolResolvedTrees,
+    extension_syntax: &SyntaxTrees,
+    sources: Arc<SourceMap>,
+    additional_source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+) -> Result<SeededSymbolResolvedTrees, Vec<Diagnostic>> {
     let retained_sources = base.symbols.source_files().collect::<Vec<_>>();
     if retained_sources.len() > sources.len()
         || !retained_sources
@@ -85,6 +109,7 @@ pub fn lower_syntax_extension_against_resolved_base(
             "seeded symbol resolution source map does not retain the exact base frontier",
         )]);
     }
+    let authored_selection_frontier = base.authored_selection_extension_frontier();
     let roots = RootWatermarks::capture(&base);
     let retained_service_reaches = base.service_reaches.clone();
     let retained_service_reach_rows = base.service_reach_rows.clone();
@@ -103,11 +128,48 @@ pub fn lower_syntax_extension_against_resolved_base(
             .expect("seeded const declaration ordinal overflow");
     }
 
-    lowerer.finish_with(FinishMode::Seeded {
-        roots,
-        retained_service_reaches,
-        retained_service_reach_rows,
-    })
+    lowerer
+        .finish_with(FinishMode::Seeded {
+            roots,
+            retained_service_reaches,
+            retained_service_reach_rows,
+        })
+        .map(|trees| SeededSymbolResolvedTrees {
+            trees,
+            authored_selection_frontier,
+        })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SeededSymbolResolvedTrees {
+    trees: SymbolResolvedTrees,
+    authored_selection_frontier: AuthoredSelectionExtensionFrontier,
+}
+
+impl SeededSymbolResolvedTrees {
+    pub fn trees(&self) -> &SymbolResolvedTrees {
+        &self.trees
+    }
+
+    pub fn rebase_authored_selections(
+        self,
+        destination_base: &AuthoredDeclarationSelections,
+    ) -> Result<SymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)> {
+        // This is a representation join, not an authority boundary. The
+        // seeded typed continuation must supply the ledger owned by its exact
+        // retained base rather than accepting one from compilation input.
+        match self
+            .trees
+            .rebase_authored_selection_extension(self.authored_selection_frontier, destination_base)
+        {
+            Ok(trees) => Ok(trees),
+            Err((trees, error)) => Err((Self { trees, ..self }, error)),
+        }
+    }
+
+    fn into_unrebased_trees(self) -> SymbolResolvedTrees {
+        self.trees
+    }
 }
 
 fn lower_syntax_trees_with_optional_sources(
