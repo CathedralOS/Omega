@@ -7,8 +7,9 @@ use crate::record::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCollectionViewOperation, PackageReviewCompilerIntrinsicExecution,
     PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewExternalBinding,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,
+    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
+    PackageReviewExternalRequirement, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
@@ -26,10 +27,19 @@ fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
         path: path.to_owned(),
     };
     let callable_path = "LinuxCompletion::complete";
+    let requirement_path = "InterruptAcknowledgement::complete#exact";
     let supply = PackageReviewExternalExecutableSupply {
         callable: nominal(callable_path),
+        signature: PackageReviewExternalCallableSignature {
+            lifetime_parameter_count: 0,
+            type_parameter_count: 0,
+            parameters: Vec::new(),
+            return_type: PackageReviewTypeIdentity {
+                canonical: "unit".to_owned(),
+            },
+        },
         requirement: PackageReviewExternalRequirement::TopLevelRequirement(nominal(
-            "InterruptAcknowledgement::complete#exact",
+            requirement_path,
         )),
         binding: PackageReviewExternalBinding::Syscall { number: 60 },
     };
@@ -37,8 +47,48 @@ fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
     encode_external_executable_supply_key(&mut encoder, &supply)
         .expect("encode top-level external requirement key");
     let encoded = encoder.finish().expect("bounded encoding");
-    let tag_offset = 1 + 32 + 8 + callable_path.len();
+    let encoded_requirement_length = 1 + 32 + 8 + requirement_path.len();
+    let tag_offset = encoded.len() - encoded_requirement_length - 1;
     assert_eq!(encoded[tag_offset], 2);
+}
+
+#[test]
+fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
+    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
+    let nominal = |path: &str| PackageReviewNominalIdentity {
+        owner: PackageReviewNominalOwner::Package(package),
+        path: path.to_owned(),
+    };
+    let supply = PackageReviewExternalExecutableSupply {
+        callable: nominal("Foreign::read"),
+        signature: PackageReviewExternalCallableSignature {
+            lifetime_parameter_count: 0,
+            type_parameter_count: 0,
+            parameters: Vec::new(),
+            return_type: PackageReviewTypeIdentity {
+                canonical: "nominal(package:ReturnA)".to_owned(),
+            },
+        },
+        requirement: PackageReviewExternalRequirement::TopLevelRequirement(nominal(
+            "Read::read#exact",
+        )),
+        binding: PackageReviewExternalBinding::Syscall { number: 0 },
+    };
+    let encode_key = |supply: &PackageReviewExternalExecutableSupply| {
+        let mut encoder = Encoder::bounded(512);
+        encode_external_executable_supply_key(&mut encoder, supply)
+            .expect("encode external supply key");
+        encoder.finish().expect("bounded encoding")
+    };
+
+    let baseline = encode_key(&supply);
+    let mut changed_return = supply.clone();
+    changed_return.signature.return_type.canonical = "nominal(package:ReturnB)".to_owned();
+    assert_ne!(baseline, encode_key(&changed_return));
+
+    let mut changed_telescope = supply;
+    changed_telescope.signature.type_parameter_count = 1;
+    assert_ne!(baseline, encode_key(&changed_telescope));
 }
 
 pub(crate) fn normalized_import_row(

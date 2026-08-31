@@ -13,6 +13,7 @@ use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableParameter, PackageReviewCallableRole,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach,
+    PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
     PackageReviewExternalExecutableSupply, PackageReviewNominalIdentity,
 };
 use omega_compiler::CheckedCompilation;
@@ -78,8 +79,21 @@ pub(in crate::capture) fn project_callable(
         &binders,
         &machine.lifetime_parameters,
     )?;
+    let external_signature = matches!(
+        machine.supply_mode,
+        MachineSupplyMode::ExternalRealization { .. }
+    )
+    .then(|| project_external_callable_signature(compilation, machine, &binders))
+    .transpose()?;
     let (conformances, operator_realizations, external_executable_supply) =
-        project_callable_conformances(compilation, machine, &identity, &binders, true)?;
+        project_callable_conformances(
+            compilation,
+            machine,
+            &identity,
+            &binders,
+            external_signature.as_ref(),
+            true,
+        )?;
     let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
     let service_reach = exactly_one(
         compilation
@@ -309,7 +323,68 @@ pub(in crate::capture) fn project_private_external_executable_supply(
         identity.path.as_str(),
         &machine.lifetime_parameters,
     )?;
-    let (_, _, supply) =
-        project_callable_conformances(compilation, machine, identity, &binders, false)?;
+    let signature = project_external_callable_signature(compilation, machine, &binders)?;
+    let (_, _, supply) = project_callable_conformances(
+        compilation,
+        machine,
+        identity,
+        &binders,
+        Some(&signature),
+        false,
+    )?;
     Ok(supply)
+}
+
+fn project_external_callable_signature(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    binders: &[(psi_symbols::SymbolHandle, String)],
+) -> Result<PackageReviewExternalCallableSignature, Vec<Diagnostic>> {
+    let subject = machine.name.as_str();
+    let type_parameters = compilation.machine_type_parameters(machine);
+    if !machine.conformance_bounds.is_empty()
+        || type_parameters.iter().any(|parameter| {
+            !matches!(
+                parameter.kind,
+                psi_typed_trees::data::TypeParameterKind::Type
+            ) || parameter.bounds != psi_typed_trees::data::DataProperties::default()
+        })
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{subject}` uses static parameter kinds, bounds, or conformances not yet represented by its executable-supply signature"
+        ))]);
+    }
+    let Some(entry) = compilation.machine_states(machine).first() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed external callable `{subject}` has no canonical entry signature"
+        ))]);
+    };
+    let parameters = compilation
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| {
+            Ok(PackageReviewExternalCallableParameter {
+                type_identity: review_signature_type_identity_with_binders(
+                    compilation,
+                    parameter.type_reference,
+                    binders,
+                    &machine.lifetime_parameters,
+                )?,
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
+                is_self: parameter.is_self,
+            })
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    Ok(PackageReviewExternalCallableSignature {
+        lifetime_parameter_count: machine.lifetime_parameters.len(),
+        type_parameter_count: type_parameters.len(),
+        parameters,
+        return_type: review_signature_type_identity_with_binders(
+            compilation,
+            entry.return_type,
+            binders,
+            &machine.lifetime_parameters,
+        )?,
+    })
 }

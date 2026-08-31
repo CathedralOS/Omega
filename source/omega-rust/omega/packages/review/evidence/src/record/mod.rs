@@ -80,7 +80,8 @@ pub use rows::{
 pub use signatures::{
     PackageReviewCallableConformance, PackageReviewCallableParameter,
     PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
-    PackageReviewExternalBinding, PackageReviewExternalExecutableSupply,
+    PackageReviewExternalBinding, PackageReviewExternalCallableParameter,
+    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
     PackageReviewExternalRequirement, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,

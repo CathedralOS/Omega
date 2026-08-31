@@ -40,12 +40,7 @@ stop the item on one precise owner question before adding machinery.
   Remaining projection work includes:
 
   - generic or lifetime-parameterized external/top-level realizations and the
-    remaining provider-demand and installation-issuance joins. Before widening
-    this lane, make the external-executable-supply key self-contained for the
-    exact private callable and requirement application: the current normalized
-    overload coordinate can omit an unused generic telescope and the exact
-    non-dispatch return carrier. Do not rely on a separate public callable row,
-    because private external leaves deliberately have none;
+    remaining provider-demand and installation-issuance joins;
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact

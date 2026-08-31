@@ -6,7 +6,8 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableConformance, PackageReviewCallableRole,
     PackageReviewCheckedServiceReach, PackageReviewExternalBinding,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
+    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
+    PackageReviewExternalRequirement,
 };
 
 use super::contracts::encode_callable_contract;
@@ -98,6 +99,7 @@ pub(crate) fn encode_external_executable_supply_key(
     supply: &PackageReviewExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &supply.callable)?;
+    encode_external_callable_signature(encoder, &supply.signature)?;
     match &supply.requirement {
         PackageReviewExternalRequirement::Trait(conformance) => {
             encoder.byte(0);
@@ -112,6 +114,22 @@ pub(crate) fn encode_external_executable_supply_key(
             encode_nominal(encoder, requirement)
         }
     }
+}
+
+fn encode_external_callable_signature(
+    encoder: &mut Encoder,
+    signature: &PackageReviewExternalCallableSignature,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.usize(signature.lifetime_parameter_count)?;
+    encoder.usize(signature.type_parameter_count)?;
+    encoder.sequence(&signature.parameters, |encoder, parameter| {
+        encode_type_identity(encoder, &parameter.type_identity)?;
+        encoder.boolean(parameter.is_const);
+        encoder.boolean(parameter.is_mutable);
+        encoder.boolean(parameter.is_self);
+        Ok(())
+    })?;
+    encode_type_identity(encoder, &signature.return_type)
 }
 
 pub(crate) fn encode_external_executable_supply(
