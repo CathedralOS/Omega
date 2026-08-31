@@ -853,6 +853,10 @@ mod atomic_fence_tests {
                     success: MemoryOrdering::ReceivePublish,
                     failure: MemoryOrdering::Receive,
                 },
+                result_custody: psi_language_core::atomic::AtomicExpressionResultCustody::
+                    ObservingCompareExchangeOnce(
+                        psi_language_core::atomic::AtomicCompareExchangeOnceResultCustody::CANONICAL,
+                    ),
             }));
 
         let outcome =

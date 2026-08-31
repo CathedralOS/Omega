@@ -450,6 +450,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                                 ordering: psi_language_core::atomic::AtomicOrderingPlan::Load(
                                     ordering,
                                 ),
+                                result_custody:
+                                    psi_language_core::atomic::AtomicExpressionResultCustody::Scalar,
                             },
                         ));
                         continue;

@@ -127,6 +127,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .insert(typed::expression::ExpressionNode::ArrayLiteral(values)))
             }
             resolved::expression::ExpressionNode::Atomic(atomic) => {
+                if !atomic.result_custody.is_valid_for(atomic.ordering)
+                    || (atomic.result_custody.requires_result_destination()
+                        && !atomic.result.is_valid())
+                {
+                    return Err(Diagnostic::error(
+                        "atomic expression result custody does not match its operation axis",
+                    ));
+                }
                 let value = self.lower(atomic.value)?;
                 let result = if atomic.result.is_valid() {
                     self.lower(atomic.result)?
@@ -140,6 +148,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             value,
                             result,
                             ordering: atomic.ordering,
+                            result_custody: atomic.result_custody,
                         },
                     )))
             }

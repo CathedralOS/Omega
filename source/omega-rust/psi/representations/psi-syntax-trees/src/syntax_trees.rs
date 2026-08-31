@@ -1227,6 +1227,7 @@ impl SyntaxTrees {
                         .then(|| self.copy_expression_handle(other, atomic.result))
                         .unwrap_or_else(ExpressionHandle::invalid),
                     ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
                 })
             }
             ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {

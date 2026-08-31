@@ -993,8 +993,13 @@ compare-exchange additionally remain distinct in the shared ordering carrier
 and permission check. All four flat generic outcome declarations are now
 published together in core, and compiler-owned closed-shape identity keeps the
 operation axes, case order, and payload disposition distinct without admitting
-an atomic event. The single-attempt form is not source-admitted or lowered yet
-because its operation path does not retain three-arm result custody. The
+an atomic event. The first compiler-internal result-custody rung binds the
+observing single-attempt ordering axis to the exact three-arm
+`AtomicCompareExchangeOnceOutcome` identity through syntax, resolution,
+typing, and checked validation. Axis, shape, outcome, scalar, or result-
+destination substitution rejects. Parser-authored operations retain their
+existing scalar custody, so the single-attempt form remains source-unadmitted
+and unlowered. The
 outcome cases are owned by the flat core types `AtomicCompareExchangeOutcome<T>` and
 `AtomicCompareExchangeOnceOutcome<T>`, with `Mismatched` at tag zero,
 `Exchanged` at tag one, and `Uncommitted` at tag two where present. Checked

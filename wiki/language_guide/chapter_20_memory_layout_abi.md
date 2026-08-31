@@ -594,6 +594,12 @@ canonical case order are part of the operation ABI. Fetch conformance
 additionally proves the exact provider raw transition over every read-reachable
 representation; no External read/write pair synthesizes it.
 
+The compiler internally retains the observing single-attempt result as a
+distinct three-arm custody identity through checked validation. That carrier is
+not source admission or execution authority: the public call remains fenced
+until Terminal, provider, interpreter, and target replay preserve the same
+operation and result axes end to end.
+
 A destructive read derives `DestructiveRead<T>::take(&mut self)`, never
 `Readable<T>`. Stable take moves the exact resident field occurrence out and
 leaves that field semantically vacant in a partial placed value; it does not

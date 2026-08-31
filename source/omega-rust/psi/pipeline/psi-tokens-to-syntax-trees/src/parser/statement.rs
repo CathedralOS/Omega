@@ -1155,6 +1155,7 @@ pub(super) fn try_parse_atomic_compare_exchange_let<'tokens, 'source>(
                 success: success_ordering,
                 failure: failure_ordering,
             },
+            result_custody: psi_language_core::atomic::AtomicExpressionResultCustody::Scalar,
         }));
 
     let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
@@ -1511,6 +1512,7 @@ pub(super) fn try_parse_atomic_fetch_let<'tokens, 'source>(
                 value: update_expr,
                 result: result_name,
                 ordering: psi_language_core::atomic::AtomicOrderingPlan::ReadModifyWrite(ordering),
+                result_custody: psi_language_core::atomic::AtomicExpressionResultCustody::Scalar,
             }));
     let place_for_assign = copy_expression_as_place(syntax_trees, place_expr)?;
     let assign_stmt = syntax_trees
@@ -1598,6 +1600,7 @@ pub(super) fn try_parse_atomic_swap_let<'tokens, 'source>(
             value: replacement,
             result,
             ordering: psi_language_core::atomic::AtomicOrderingPlan::Swap(ordering),
+            result_custody: psi_language_core::atomic::AtomicExpressionResultCustody::Scalar,
         }));
     let target = copy_expression_as_place(syntax_trees, place)?;
     let assignment = syntax_trees
@@ -1684,6 +1687,7 @@ fn try_desugar_atomic_store(
             value,
             result: ExpressionHandle::invalid(),
             ordering: psi_language_core::atomic::AtomicOrderingPlan::Store(ordering),
+            result_custody: psi_language_core::atomic::AtomicExpressionResultCustody::Scalar,
         }));
     let receiver = call.receiver;
     // receiver must be a valid place expression (member/indexed path). If it
