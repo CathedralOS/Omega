@@ -39,7 +39,6 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
                 }],
             },
         }],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -217,7 +216,6 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
         ],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -518,7 +516,6 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
         ],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -636,7 +633,6 @@ fn refuses_a_return_whose_value_was_never_materialized() {
         psi: identity(),
         entry: machine,
         structural_types: Vec::new(),
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

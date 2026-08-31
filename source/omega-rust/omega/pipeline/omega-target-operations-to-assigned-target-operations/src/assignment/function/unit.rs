@@ -491,7 +491,7 @@ fn assign_normalized_foreign_scalar_arguments_for_plan(
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
     preceding_operations: &[TargetUnitOperation],
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, AssignmentError> {
-    if scalar_arguments.len() > 3 {
+    if scalar_arguments.len() > 4 {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
     let signature = CallSignature {
@@ -789,37 +789,6 @@ mod normalized_foreign_scalar_tests {
             .is_err()
         );
 
-        let three_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
-            CallingPolicy::native_for_target(target),
-            &CallSignature {
-                parameters: vec![ValueShape::integer(4, 4); 3],
-                result: None,
-            },
-        )
-        .unwrap()
-        .plan()
-        .clone();
-        let three_arguments = (0..3)
-            .map(
-                |index| omega_target_operations::NormalizedForeignScalarArgument {
-                    source_value: argument.source_value,
-                    scalar_type: argument.scalar_type,
-                    immediate: argument.immediate,
-                    parameter_index: index,
-                    placement: three_plan.call.parameters[index as usize].clone(),
-                },
-            )
-            .collect::<Vec<_>>();
-        assert_eq!(
-            assign_normalized_foreign_scalar_arguments_for_plan(
-                &three_plan,
-                target,
-                &three_arguments,
-                &preceding,
-            ),
-            Ok(three_arguments.clone())
-        );
-
         let four_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
@@ -841,11 +810,42 @@ mod normalized_foreign_scalar_tests {
                 },
             )
             .collect::<Vec<_>>();
-        assert!(
+        assert_eq!(
             assign_normalized_foreign_scalar_arguments_for_plan(
                 &four_plan,
                 target,
                 &four_arguments,
+                &preceding,
+            ),
+            Ok(four_arguments.clone())
+        );
+
+        let five_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(4, 4); 5],
+                result: None,
+            },
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let five_arguments = (0..5)
+            .map(
+                |index| omega_target_operations::NormalizedForeignScalarArgument {
+                    source_value: argument.source_value,
+                    scalar_type: argument.scalar_type,
+                    immediate: argument.immediate,
+                    parameter_index: index,
+                    placement: five_plan.call.parameters[index as usize].clone(),
+                },
+            )
+            .collect::<Vec<_>>();
+        assert!(
+            assign_normalized_foreign_scalar_arguments_for_plan(
+                &five_plan,
+                target,
+                &five_arguments,
                 &preceding,
             )
             .is_err()
