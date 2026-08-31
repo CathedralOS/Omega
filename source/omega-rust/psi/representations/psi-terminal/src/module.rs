@@ -498,6 +498,9 @@ pub struct StructuralResultDeclaration {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// One qualification-only boundary call-admission check. The corresponding
+/// structural argument must already carry `domain`; this row does not create a
+/// proposition or mint an obligation identity.
 pub struct StructuralDomainRequirement {
     pub argument_index: u32,
     pub domain: StructuralDomainId,
@@ -516,7 +519,9 @@ pub struct BoundaryMachineDeclaration {
     /// successful invocation returns a runtime status/value.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub result: Option<ScalarType>,
-    /// Strictly ordered by `(argument_index, domain)`.
+    /// Strictly ordered qualification checks by `(argument_index, domain)`.
+    /// Admission consumes qualifications already carried by the arguments;
+    /// these rows are not proof propositions.
     pub requires: Vec<StructuralDomainRequirement>,
     /// Exact portable schemas authorized by this requirement's domain routes.
     /// These rows describe per-occurrence capacity but introduce no authority;
@@ -1529,6 +1534,10 @@ pub enum OperationKind {
         arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
+        /// Legacy current-format slot. This must remain empty: boundary
+        /// structural-domain requirements consume carried qualifications and
+        /// have no proposition conclusion. Remove the slot, with the matching
+        /// wire payload, at the next Terminal format/vocabulary revision.
         requirement_obligations: Vec<ObligationId>,
     },
     /// Immediate x86 port-space byte output. This first closed variant retains
