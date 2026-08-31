@@ -31,8 +31,8 @@ pub(super) fn compile_native_with_checked_receipt(
 ) -> Result<NativeCompilationWithCheckedReceipt, Vec<Diagnostic>> {
     let request = request.validate_for_native_execution()?;
     let (checked, trust_settlement) = compile_checked_with_observations(&request)?;
-    let report =
-        native_report(request, &checked)?.with_trust_admission_settlement(trust_settlement);
+    let report = super::optimization::native_report(request, &checked)?
+        .with_trust_admission_settlement(trust_settlement);
     NativeCompilationWithCheckedReceipt::new(checked, report)
         .map_err(|message| vec![Diagnostic::error(message)])
 }
@@ -119,122 +119,4 @@ fn terminal_report(
         production_subject,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
-}
-
-fn native_report(
-    request: ValidatedCompileRequest,
-    checked: &crate::pipeline::CheckedCompilation,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    let request = request.into_inner();
-    reject_unconsumed_callback_placements("native-artifact", checked)?;
-    let production_subject = crate::pipeline::reporting::project_production_subject(checked)?;
-    let source_file_count = checked.source_file_count();
-    let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native-artifact production requires one exact selected program entry",
-        )]
-    })?;
-    let entry_machine = selected_program_entry.machine_name().to_owned();
-    let target = checked.selected_native_target().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "native-artifact production requires one exact selected native target",
-        )]
-    })?;
-    crate::pipeline::component_progress::reject_undischarged_build_bound_progress(
-        checked.component_progress(),
-    )?;
-    omega_selected_dispatch::validate_selected_operator_terminal_custody(
-        checked,
-        checked.selected_provider_plans(),
-    )?;
-    let rollback_settlement = request
-        .optimization_rollback
-        .settle(checked.optimization_selections());
-    let artifact =
-        psi_checked_trees_to_terminal::produce_terminal_artifact(checked, &entry_machine).map_err(
-            |error| {
-                vec![Diagnostic::error(format!(
-                    "native-artifact Terminal production failed: {error}"
-                ))]
-            },
-        )?;
-    let terminal_module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
-        |error| {
-            vec![Diagnostic::error(format!(
-                "native-artifact intrinsic settlement could not replay canonical Terminal semantics: {error}"
-            ))]
-        },
-    )?;
-    let demanded_intrinsics =
-        super::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
-    let intrinsic_evidence =
-        super::intrinsic_settlements::derive_compiler_intrinsic_settlement_evidence(
-            checked,
-            &demanded_intrinsics,
-        )?;
-    let selected_plans = checked.selected_provider_plans().plans();
-    let intrinsic_settlements = intrinsic_evidence
-        .iter()
-        .map(|evidence| {
-            let realization = match evidence.execution {
-                omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
-                    omega_target_operations::LinuxExitGroupI32Realization.into()
-                }
-                _ => unreachable!("native intrinsic evidence admits only cataloged boundary realizations"),
-            };
-            omega_terminal_psi_to_native_artifact::NativeProviderSettlement {
-                provider_execution: evidence,
-                provider_plan: &selected_plans[evidence.plan_index],
-                realization,
-            }
-        })
-        .collect::<Vec<_>>();
-    let calling_plans = selected_program_entry
-        .calling_plans()
-        .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
-    let program_entry = omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
-        selected_program_entry.source_signature(),
-        calling_plans,
-    );
-    let native_artifact = omega_terminal_psi_to_native_artifact::realize_native_artifact(
-        artifact,
-        omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
-            target,
-            subsystem: checked.subsystem(),
-            profile: &request.terminal_admission_profile,
-            program_entry,
-            optimization_selections: rollback_settlement.effective(),
-            selected_provider_plans: checked.selected_provider_plans(),
-            external_binding_rows: checked.external_binding_rows(),
-            settlements: &intrinsic_settlements,
-        },
-    )?;
-    CompileReport::from_retained_native_artifact(
-        request.options.root_path,
-        source_file_count,
-        native_artifact,
-        rollback_settlement.into_receipt(),
-        production_subject,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])
-}
-
-fn reject_unconsumed_callback_placements(
-    product: &str,
-    checked: &crate::pipeline::CheckedCompilation,
-) -> Result<(), Vec<Diagnostic>> {
-    let placements = checked.callback_placements();
-    if placements.is_empty() {
-        return Ok(());
-    }
-
-    let requirements = placements
-        .iter()
-        .map(|placement| format!("`{}`", placement.canonical_requirement_overload))
-        .collect::<Vec<_>>()
-        .join(", ");
-    Err(vec![Diagnostic::error(format!(
-        "{product} production cannot discard {} validated callback placement(s) for {requirements}; canonical Terminal callback-use custody is not implemented",
-        placements.len()
-    ))])
 }

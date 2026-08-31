@@ -2,6 +2,29 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "selected machine-effect carrier",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/mod.rs",
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/model.rs",
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/constraint_keys.rs",
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/validation.rs",
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/identity.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "assigned target-operation carrier",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/lib.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/operation.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/plan.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/unit.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/mod.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/boolean.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/integer.rs",
+            "source/omega-rust/omega/representations/omega-assigned-target-operations/src/scalar/calls_and_locations.rs",
+        ],
+    },
+    SemanticLadder {
         family: "fixed-view-copy codec",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec/content.rs",

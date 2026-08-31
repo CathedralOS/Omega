@@ -10,14 +10,14 @@ mod driver;
 pub(crate) mod execution;
 mod intrinsic_settlements;
 mod native_checked;
-mod optimization_rollback;
+mod optimization;
 mod options;
 pub(crate) use omega_compilation_report as report;
 mod request;
 
 pub(crate) use native_checked::NativeCompilationWithCheckedReceipt;
 pub use omega_trust_model::{TrustAdmission, TrustAdmissionSettlement};
-pub use optimization_rollback::{OptimizationRollback, OptimizationRollbackInputError};
+pub use optimization::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
 pub use report::{
     CompileOutputKind, CompileReport, ExecutablePublicationDestination,

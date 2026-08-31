@@ -188,6 +188,9 @@ route:
 
 | Question | Entrance |
 |---|---|
+| How does `build.omg` become one exact selection? | `omega-build-evaluation/src/optimization/mod.rs` -> `vocabulary.rs`, `selection.rs` |
+| Where is the sole injected exact-name mapping used by both build preludes? | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` -> `fragments.rs` |
+| What checked selection reaches native compilation after release rollback? | `omega-compiler/src/compiler/optimization/mod.rs` -> `rollback/`, `native_realization.rs` |
 | Which Psi optimizations were explicitly requested, and what verified plan leaves? | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` |
 | Which physical phase composition runs next? | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` |
 | Which exact Psi passes and local rules are enabled? | `omega-psi-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
@@ -196,10 +199,20 @@ route:
 
 ```text
 source/omega-rust/omega/
+  backend/plans/
+    omega-program-entry-plan/       # governed optimized semantic entry/wrapper carriers
+  build/
+    omega-build-evaluation/src/optimization/
+                                      # exact vocabulary admission and selection extraction
+  compiler/omega-compiler/src/
+    pipeline/optimization/            # injected vocabulary and checked handoff
+    compiler/optimization/            # admission, rollback, native realization
   representations/
+    omega-assigned-target-operations/ # concrete assigned-operation carrier taxonomy
     omega-optimization-core/       # one exact-name descriptor, selections, identities
     omega-optimization-unit/       # complete input model, reconstruction, rewrite custody
     omega-register-model/          # register views, units, aliases, ABI facts
+    omega-selected-instructions/   # pre-allocation plan and admitted machine effects
   pipeline/
     omega-psi-to-abstract-operations/
                                       # artifact, optimizer-unit, provider, and lowering entrances
