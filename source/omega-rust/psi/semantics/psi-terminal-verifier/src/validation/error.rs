@@ -47,6 +47,13 @@ pub enum ModuleError {
         index: u32,
         error: crate::verification::FloatMeaningProjectionVerificationError,
     },
+    InconsistentFloatMeaningProjectionSourceFormat {
+        source: u32,
+    },
+    DuplicateFloatMeaningProjection {
+        first: u32,
+        duplicate: u32,
+    },
     NonDenseFloatMeaningEquality {
         expected: u32,
         actual: u32,

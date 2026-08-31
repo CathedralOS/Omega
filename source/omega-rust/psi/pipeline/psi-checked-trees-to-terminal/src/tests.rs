@@ -913,7 +913,7 @@ fn top_level_bounded_reach_lowers_normalized_machine_identity() {
 }
 
 #[test]
-fn actual_float_meaning_calls_emit_source_free_module_rows() {
+fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
     let source = r#"
         data FloatMeaning { }
         operator Float::meaning32(value: f32) -> FloatMeaning;
@@ -939,14 +939,14 @@ fn actual_float_meaning_calls_emit_source_free_module_rows() {
     let checked = lower_typed_trees(typed).expect("check");
     let lowered = lower_machine(&checked, "terminal_root").expect("lower");
     let projections = &lowered.semantic_module.float_meaning_projections;
-    assert_eq!(projections.len(), 4);
+    assert_eq!(projections.len(), 2);
     assert_eq!(projections[0].result.id, psi_terminal::ProofValueId(0));
     assert_eq!(
         projections[0].operation,
         psi_terminal::FloatMeaningProjectionOperation::Meaning32
     );
     assert_eq!(
-        projections[2].operation,
+        projections[1].operation,
         psi_terminal::FloatMeaningProjectionOperation::Meaning64
     );
     assert_eq!(
@@ -955,12 +955,12 @@ fn actual_float_meaning_calls_emit_source_free_module_rows() {
             psi_terminal::FloatMeaningEqualityProposition {
                 id: psi_terminal::ProofPropositionId(0),
                 left: psi_terminal::ProofValueId(0),
-                right: psi_terminal::ProofValueId(1),
+                right: psi_terminal::ProofValueId(0),
             },
             psi_terminal::FloatMeaningEqualityProposition {
                 id: psi_terminal::ProofPropositionId(1),
-                left: psi_terminal::ProofValueId(2),
-                right: psi_terminal::ProofValueId(3),
+                left: psi_terminal::ProofValueId(1),
+                right: psi_terminal::ProofValueId(1),
             },
         ]
     );

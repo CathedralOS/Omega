@@ -248,7 +248,22 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     assert!(matches!(
         encode_module(&reordered),
         Err(CodecError::NonCanonicalOrder(
-            "float-meaning projections by dense proof value and source IDs"
+            "float-meaning projections by dense proof value and first-use source IDs"
+        ))
+    ));
+
+    let mut duplicate_value = module.clone();
+    duplicate_value.float_meaning_projections[1].source.id = FloatProjectionInputId(0);
+    duplicate_value.float_meaning_projections[1].source.format = IeeeFloatFormat::Binary32;
+    duplicate_value.float_meaning_projections[1].operation =
+        FloatMeaningProjectionOperation::Meaning32;
+    assert!(matches!(
+        encode_module(&duplicate_value),
+        Err(CodecError::InvalidModule(
+            psi_terminal_verifier::ModuleError::DuplicateFloatMeaningProjection {
+                first: 0,
+                duplicate: 1,
+            }
         ))
     ));
 

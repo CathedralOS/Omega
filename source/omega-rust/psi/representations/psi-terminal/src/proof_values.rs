@@ -35,9 +35,12 @@ pub struct ProofValueDeclaration {
     pub value_type: ProofOnlyValueType,
 }
 
-/// One source-independent projection-input coordinate. It deliberately omits
-/// runtime bits and cannot be evaluated by Terminal Psi. A later producer must
-/// bind the coordinate to one landed runtime value before emitting this fact.
+/// One source-independent projection-input coordinate. Equal checked source
+/// keys reuse one ID, assigned densely by first use; authored projection
+/// occurrences and spans are retained separately and do not enter this row.
+/// The ID still deliberately omits runtime bits and cannot be evaluated by
+/// Terminal Psi. A later producer must bind it to an artifact-reconstructible
+/// landed source before this becomes the complete D40 source carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FloatProjectionInput {
     pub id: FloatProjectionInputId,

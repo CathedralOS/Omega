@@ -1,8 +1,9 @@
 //! Source-handle-free checked plans for proof-only float meaning projection.
 //!
-//! These rows retain only dense plan-local identities, the landed source
-//! format, and the closed projection-catalog operation. They are not runtime
-//! values and do not authorize float evaluation or native lowering.
+//! Canonical rows retain unique plan-local source identities, landed formats,
+//! and closed projection-catalog operations. Authored occurrences and spans
+//! live in a separate provenance table. Neither table contains runtime values
+//! or authorizes float evaluation or native lowering.
 
 use psi_numerics::float_projection::FloatProjectionOperation;
 use psi_typed_trees::types::PrimitiveType;
@@ -17,6 +18,9 @@ pub struct CheckedProofPropositionId(pub u32);
 pub struct CheckedFloatProjectionInputId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CheckedFloatMeaningProjectionOccurrenceId(pub u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedProofOnlyValueType {
     FloatMeaning,
 }
@@ -27,9 +31,10 @@ pub struct CheckedProofValueDeclaration {
     pub value_type: CheckedProofOnlyValueType,
 }
 
-/// One checked float-projection input coordinate. Its identity is local to the
-/// retained proof plan and contains no source symbol, expression handle, or
-/// runtime bits. Binding it to a landed runtime value is a later producer step.
+/// One checked float-projection input coordinate. Equal validated source keys
+/// share an ID assigned densely by first use. The retained row contains no
+/// source symbol, expression handle, or runtime bits; binding it to a landed
+/// artifact value remains a later producer step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedFloatProjectionInput {
     pub id: CheckedFloatProjectionInputId,
@@ -42,6 +47,16 @@ pub struct CheckedFloatMeaningProjection {
     pub result: CheckedProofValueDeclaration,
     pub source: CheckedFloatProjectionInput,
     pub operation: FloatProjectionOperation,
+}
+
+/// Diagnostic provenance for one authored projection call. Multiple
+/// occurrences may name the same canonical proof value; the span is never
+/// part of that value's semantic identity and is erased before Terminal Psi.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedFloatMeaningProjectionOccurrence {
+    pub id: CheckedFloatMeaningProjectionOccurrenceId,
+    pub value: CheckedProofValueId,
+    pub source_span: psi_source::SourceSpan,
 }
 
 /// One proof-only equality whose operands are exact results in the retained

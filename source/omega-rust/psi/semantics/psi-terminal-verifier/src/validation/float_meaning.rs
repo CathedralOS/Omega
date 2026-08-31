@@ -58,6 +58,8 @@ fn validate_equalities(
 }
 
 fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result<(), ModuleError> {
+    let mut sources = Vec::new();
+    let mut projection_keys = Vec::new();
     for (index, projection) in projections.iter().enumerate() {
         let index =
             u32::try_from(index).map_err(|_| ModuleError::NonDenseFloatMeaningProjection {
@@ -65,13 +67,53 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
                 result: projection.result.id.0,
                 source: projection.source.id.0,
             })?;
-        if projection.result.id.0 != index || projection.source.id.0 != index {
+        if projection.result.id.0 != index {
             return Err(ModuleError::NonDenseFloatMeaningProjection {
                 expected: index,
                 result: projection.result.id.0,
                 source: projection.source.id.0,
             });
         }
+        if let Some((_, format)) = sources
+            .iter()
+            .find(|(source, _)| *source == projection.source.id)
+        {
+            if *format != projection.source.format {
+                return Err(
+                    ModuleError::InconsistentFloatMeaningProjectionSourceFormat {
+                        source: projection.source.id.0,
+                    },
+                );
+            }
+        } else {
+            let expected = u32::try_from(sources.len()).map_err(|_| {
+                ModuleError::NonDenseFloatMeaningProjection {
+                    expected: u32::MAX,
+                    result: projection.result.id.0,
+                    source: projection.source.id.0,
+                }
+            })?;
+            if projection.source.id.0 != expected {
+                return Err(ModuleError::NonDenseFloatMeaningProjection {
+                    expected,
+                    result: projection.result.id.0,
+                    source: projection.source.id.0,
+                });
+            }
+            sources.push((projection.source.id, projection.source.format));
+        }
+        let key = (
+            projection.source.id,
+            projection.source.format,
+            projection.operation,
+        );
+        if let Some(first) = projection_keys.iter().position(|existing| *existing == key) {
+            return Err(ModuleError::DuplicateFloatMeaningProjection {
+                first: u32::try_from(first).unwrap_or(u32::MAX),
+                duplicate: index,
+            });
+        }
+        projection_keys.push(key);
         crate::verification::reconstruct_float_meaning_projection(projection)
             .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
     }
@@ -120,6 +162,26 @@ mod tests {
         assert!(matches!(
             validate_rows(&[tampered]),
             Err(ModuleError::InvalidFloatMeaningProjection { .. })
+        ));
+    }
+
+    #[test]
+    fn module_rows_reject_duplicate_values_and_inconsistent_source_formats() {
+        let mut duplicate = projection(1);
+        duplicate.source.id = FloatProjectionInputId(0);
+        assert!(matches!(
+            validate_rows(&[projection(0), duplicate]),
+            Err(ModuleError::DuplicateFloatMeaningProjection {
+                first: 0,
+                duplicate: 1,
+            })
+        ));
+
+        duplicate.source.format = IeeeFloatFormat::Binary64;
+        duplicate.operation = FloatMeaningProjectionOperation::Meaning64;
+        assert!(matches!(
+            validate_rows(&[projection(0), duplicate]),
+            Err(ModuleError::InconsistentFloatMeaningProjectionSourceFormat { source: 0 })
         ));
     }
 
