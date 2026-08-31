@@ -324,14 +324,26 @@ pub(crate) fn validate_external_via_expression(
         );
         return;
     };
+    let producer_leaf = producer
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default();
+    let producer_entry = program
+        .machine_states(producer)
+        .iter()
+        .find(|candidate| candidate.name.as_str() == producer_leaf)
+        .or_else(|| program.machine_states(producer).first());
     if !producer.body_is_present
         || !producer.lifetime_parameters.is_empty()
         || !program.machine_type_parameters(producer).is_empty()
         || !program.state_parameters(state).is_empty()
+        || producer_entry.is_none_or(|entry| entry.symbol != state.symbol)
     {
         diagnostics.push(
             Diagnostic::error(format!(
-                "external realization `{}` selects `via` producer `{}`, but the first evaluated-binding rung requires one body-bearing, non-generic, zero-parameter machine",
+                "external realization `{}` selects `via` producer `{}`, but the first evaluated-binding rung requires its body-bearing, non-generic, zero-parameter entry state",
                 machine.name, producer.name
             ))
             .with_source_span(source_span),

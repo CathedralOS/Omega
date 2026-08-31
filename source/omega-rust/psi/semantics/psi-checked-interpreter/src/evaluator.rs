@@ -275,17 +275,48 @@ pub(crate) fn run_build_time_machine(
     machine_name: &str,
     arguments: Vec<crate::build_time::BuildTimeValue>,
 ) -> Result<MeasuredEvaluation<crate::build_time::BuildTimeValue>, String> {
-    run_build_time_machine_with_operation_receipts(program, machine_name, arguments).map(
-        |evaluation| {
-            let (value, usage, _) = evaluation.into_parts();
-            MeasuredEvaluation::new(value, usage)
-        },
+    run_build_time_machine_entry_with_operation_receipts(
+        program,
+        BuildMachineEntry::Name(machine_name),
+        arguments,
     )
+    .map(|evaluation| {
+        let (value, usage, _) = evaluation.into_parts();
+        MeasuredEvaluation::new(value, usage)
+    })
+}
+
+pub(crate) fn run_build_time_machine_symbol(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<MeasuredEvaluation<crate::build_time::BuildTimeValue>, String> {
+    run_build_time_machine_entry_with_operation_receipts(
+        program,
+        BuildMachineEntry::Symbol(machine_symbol),
+        arguments,
+    )
+    .map(|evaluation| {
+        let (value, usage, _) = evaluation.into_parts();
+        MeasuredEvaluation::new(value, usage)
+    })
 }
 
 pub(crate) fn run_build_time_machine_with_operation_receipts(
     program: &TypedTrees,
     machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
+    run_build_time_machine_entry_with_operation_receipts(
+        program,
+        BuildMachineEntry::Name(machine_name),
+        arguments,
+    )
+}
+
+fn run_build_time_machine_entry_with_operation_receipts(
+    program: &TypedTrees,
+    entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
 ) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
     std::thread::scope(|scope| {
@@ -294,7 +325,14 @@ pub(crate) fn run_build_time_machine_with_operation_receipts(
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, None);
-                let result = evaluator.run_build_time_machine(machine_name, arguments);
+                let result = match entry {
+                    BuildMachineEntry::Name(machine_name) => {
+                        evaluator.run_build_time_machine(machine_name, arguments)
+                    }
+                    BuildMachineEntry::Symbol(machine_symbol) => {
+                        evaluator.run_build_time_machine_symbol(machine_symbol, arguments)
+                    }
+                };
                 evaluator.finish_cell_usage();
                 let mut usage = evaluator.usage;
                 match result {

@@ -229,6 +229,34 @@ impl<'program> Evaluator<'program> {
             .find_machine_by_name(machine_name)
             .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
             .clone();
+        self.run_resolved_build_time_machine(machine, arguments)
+    }
+
+    /// Exact-symbol form of [`Self::run_build_time_machine`]. The selected
+    /// declaration must exist under this identity; spelling is never consulted
+    /// as a fallback.
+    pub(super) fn run_build_time_machine_symbol(
+        &mut self,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        let machine = self
+            .find_machine_by_symbol(machine_symbol)
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+                ))
+            })?
+            .clone();
+        self.run_resolved_build_time_machine(machine, arguments)
+    }
+
+    fn run_resolved_build_time_machine(
+        &mut self,
+        machine: Machine,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        let machine_name = machine.name.as_str();
         let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` has no states to evaluate"
