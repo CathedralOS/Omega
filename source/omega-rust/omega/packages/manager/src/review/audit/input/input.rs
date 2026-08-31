@@ -111,6 +111,7 @@ fn deterministic_decision_recommends_audit(decision: &PackageTriageDecision) -> 
                 PackageTriageReason::BaselineSourceUnavailable
                     | PackageTriageReason::BuildObservationChanged
                     | PackageTriageReason::RepresentationTcbIntroducedOrChanged
+                    | PackageTriageReason::ExternalExecutableSupplyRequiresResolution
                     | PackageTriageReason::RetainedDangerousAuthority(_)
                     | PackageTriageReason::DangerousAuthoritySlack(_)
             )

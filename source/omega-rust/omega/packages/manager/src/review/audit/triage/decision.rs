@@ -41,6 +41,7 @@ pub enum PackageTriageReason {
     RootLostApplicationActivation,
     RepresentationTcbIntroducedOrChanged,
     AcceptedClaimRequiresResolution,
+    ExternalExecutableSupplyRequiresResolution,
     RetainedDangerousAuthority(PackageReviewDangerousAuthorityClass),
     DangerousAuthoritySlack(PackageReviewDangerousAuthorityClass),
 }
@@ -417,16 +418,25 @@ fn append_candidate_blocking_reasons(
     candidate: &CompilerIssuedPackageReview,
     reasons: &mut Vec<PackageTriageReason>,
 ) -> bool {
-    if candidate
+    let accepted_claim = candidate
         .canonical_rows()
         .iter()
-        .any(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
-    {
+        .any(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim);
+    let dangerous_authority = candidate
+        .canonical_rows()
+        .iter()
+        .any(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority);
+    let external_executable_supply = candidate
+        .canonical_rows()
+        .iter()
+        .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply);
+    if accepted_claim {
         reasons.push(PackageTriageReason::AcceptedClaimRequiresResolution);
-        true
-    } else {
-        false
     }
+    if external_executable_supply {
+        reasons.push(PackageTriageReason::ExternalExecutableSupplyRequiresResolution);
+    }
+    accepted_claim || dangerous_authority || external_executable_supply
 }
 
 fn append_candidate_audit_reasons(
@@ -437,6 +447,16 @@ fn append_candidate_audit_reasons(
     let mut recommend = false;
     if representation_changed && !candidate.projection().representation_tcb().is_empty() {
         reasons.push(PackageTriageReason::RepresentationTcbIntroducedOrChanged);
+        recommend = true;
+    }
+    if candidate
+        .canonical_rows()
+        .iter()
+        .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
+    {
+        if !reasons.contains(&PackageTriageReason::ExternalExecutableSupplyRequiresResolution) {
+            reasons.push(PackageTriageReason::ExternalExecutableSupplyRequiresResolution);
+        }
         recommend = true;
     }
     for class in candidate

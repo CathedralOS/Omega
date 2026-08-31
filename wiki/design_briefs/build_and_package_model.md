@@ -3473,22 +3473,27 @@ brings filesystem, network, process, dynamic-loader, signing, secret,
 executable-installation, root-memory,
 DMA/IOMMU, interrupt-publication, or equivalent suspect authority. The conflict
 fingerprints the old and new source identities, old and new package manifests
-or empty baseline, delta identities, dependency path, and canonical rendered
-evidence. The resolution binds the exact conflict fingerprint and the decision
-for every blocking row. Root policy may additionally require reviewer
-identities, signatures, quorum, tickets, or reasons. Missing, stale,
+or an explicit empty baseline, delta identities, dependency path, and canonical
+rendered evidence. The resolution binds the exact conflict fingerprint and the
+decision for every blocking row. Reviewer identities, signatures, quorum,
+tickets, or reasons may be requirements of deployment infrastructure, but
+Omega does not store them as evidence that review occurred. Missing, stale,
 mismatched, duplicated, dependency-supplied, or overbroad resolutions reject
 before lock mutation. `omega.lock` records the admitted result and references
 the resolution; it remains generated/checked state, not an authored policy
 file.
 
-The current review-only implementation establishes the exact in-memory join:
-one closed accept/reject disposition is required for every blocking conflict,
-the complete set binds the candidate-closure commitment, and that commitment
-covers the source graph plus every candidate package's target, compiler,
-source-consumption, build-observation, and whole-review evidence. Each conflict
-also binds its baseline and candidate package observations. Construction rejects
-missing, duplicate, stale/foreign, wrong-candidate, or non-blocking decisions.
+The current review-only implementation establishes the exact in-memory join.
+Fresh accepted claims, dangerous authority, and external executable supply are
+added conflicts against an explicit empty baseline; ordinary API rows have no
+prior compatibility contract on first admission. Existing-package conflicts
+bind their retained baseline and candidate observations. One closed
+accept/reject disposition is required for every blocking conflict, the complete
+set binds the candidate-closure commitment, and that commitment covers the
+source graph plus every candidate package's target, compiler,
+source-consumption, build-observation, and whole-review evidence. Construction
+rejects missing, duplicate, stale/foreign, wrong-candidate, or non-blocking
+decisions.
 Accept means only that root policy accepts that exact candidate row;
 the current object reports only whether all blocking rows were accepted and
 does not decide whether the wider transaction may proceed. Neither disposition

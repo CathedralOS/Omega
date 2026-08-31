@@ -38,6 +38,33 @@ ensures result == 0;
         &scenario.build_root,
     )
     .expect("compile accepted-claim baseline");
+    let initial_claim_conflicts = compare_review_only_initial_capabilities(
+        &accepted_claim_baseline_reviews,
+        &accepted_claim_baseline_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare accepted claim with empty admission baseline");
+    let initial_claim_package = initial_claim_conflicts
+        .packages()
+        .iter()
+        .find(|package| {
+            package
+                .conflicts()
+                .iter()
+                .any(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        })
+        .expect("fresh accepted claim requires exact root policy");
+    assert!(initial_claim_package.baseline().is_empty_admission());
+    let initial_claim = initial_claim_package
+        .conflicts()
+        .iter()
+        .find(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        .expect("fresh accepted claim conflict");
+    assert_eq!(
+        initial_claim.change(),
+        ReviewOnlyCapabilityConflictChange::Added
+    );
+    assert!(initial_claim.is_blocking());
 
     write_package(
         &scenario.live,

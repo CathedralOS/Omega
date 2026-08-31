@@ -248,6 +248,64 @@ pub machine invoke_leaf()
         compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
             .expect("compile external-supply baseline");
 
+    let initial_conflicts = compare_review_only_initial_capabilities(
+        &baseline_reviews,
+        &baseline_sources,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("compare external executable supply with empty admission baseline");
+    let initial_external = initial_conflicts
+        .packages()
+        .iter()
+        .find_map(|package| {
+            package
+                .conflicts()
+                .iter()
+                .find(|conflict| {
+                    conflict.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply
+                })
+                .map(|conflict| (package, conflict))
+        })
+        .expect("fresh external executable supply is an exact policy conflict");
+    assert_eq!(
+        initial_external.0.baseline(),
+        &ReviewOnlyCapabilityConflictBaseline::EmptyAdmission
+    );
+    assert!(initial_external.0.baseline_resolution().is_none());
+    assert_eq!(
+        initial_external.1.change(),
+        ReviewOnlyCapabilityConflictChange::Added
+    );
+    assert_eq!(
+        initial_external.1.risk(),
+        PackageReviewCanonicalRowRisk::OpaqueBlocking
+    );
+    initial_external
+        .0
+        .root_policy_decision(
+            initial_external.1,
+            ReviewOnlyRootPolicyDisposition::RejectCandidateChange,
+        )
+        .expect("fresh external supply accepts an exact root-policy decision");
+    let initial_render = initial_conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render empty-admission external supply conflict");
+    assert!(initial_render.contains("baseline empty_admission\n"));
+    assert!(
+        initial_render
+            .contains("change added\nkind external_executable_supply\nrisk opaque_blocking\n")
+    );
+    let initial_triage = triage_initial_install(&baseline_reviews);
+    assert_eq!(
+        initial_triage.disposition(),
+        PackageTriageDisposition::BlockedCapabilityChange
+    );
+    assert!(initial_triage.decisions().iter().any(|decision| {
+        decision
+            .reasons()
+            .contains(&PackageTriageReason::ExternalExecutableSupplyRequiresResolution)
+    }));
+
     write_package(&live, &source("invoke_v2"));
     let candidate_sources = resolve_external_local_package_closure(
         &live,
@@ -373,7 +431,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render transparent proposition conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n"));
     assert!(rendered.contains("baseline_location proposition_formula package "));
     assert!(rendered.contains("candidate_location proposition_formula package "));
 
@@ -451,7 +509,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public domain proof-fact conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n"));
     assert!(rendered.contains("baseline_location proof_fact package "));
     assert!(rendered.contains("candidate_location proof_fact package "));
 
