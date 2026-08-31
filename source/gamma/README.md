@@ -45,9 +45,10 @@ profile IDs and maxima, the generated-runtime observation block, and the exact
 `GCOUT`/`DCOUT` identities and tables. D33 fixes the bounded request order,
 schema-category priority, absence coordinates, and per-profile code legality.
 The retained compiler now enforces canonical `GCREQ` admission and records
-request/source rejection codes 3 through 18 with exact coordinates. Resource,
-schema, and internal GCOUT judgments, adapter completion, remaining lowering,
-and publication remain open. Complete
+request/source rejection codes 3 through 18, all twelve compiler resources,
+and present emitter-internal classes 2 through 4 with exact quantitative
+fields. Schema and remaining internal GCOUT judgments, adapter completion,
+remaining lowering, and publication remain open. Complete
 fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an

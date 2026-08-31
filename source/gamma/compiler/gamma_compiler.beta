@@ -280,23 +280,32 @@ proc skip_ident() {
 }
 
 proc mark_reject_at(reason, off) {
-    state first {
-        to recorded when (word[2097088] != 0)
-        word[2097056] = off
-        word[2096848] = 1        ; Reject
-        word[2096840] = reason
-        word[2096832] = 1        ; Gamma source byte
-        word[2096824] = off
-        word[2096816] = 0
-        word[2096808] = 0
-        to recorded
+    let open = word[2096848] == 0
+    state record {
+        word[2097056] = word[2097056] * (1 - open) + off * open
+        word[2096848] = word[2096848] * (1 - open) + open
+        word[2096840] = word[2096840] * (1 - open) + reason * open
+        word[2096832] = word[2096832] * (1 - open) + open
+        word[2096824] = word[2096824] * (1 - open) + off * open
+        word[2096816] = word[2096816] * (1 - open)
+        word[2096808] = word[2096808] * (1 - open)
+        word[2097088] = 1
+        return 0
     }
-    state recorded { word[2097088] = 1  return 0 }
 }
 
-proc mark_resource_failed() {
-    word[2097072] = 1
-    return 0
+proc mark_resource_failed(resource, coordinate, limit, requested) {
+    let open = word[2096848] == 0
+    state record {
+        word[2096848] = word[2096848] * (1 - open) + 2 * open
+        word[2096840] = word[2096840] * (1 - open) + resource * open
+        word[2096832] = word[2096832] * (1 - open) + open
+        word[2096824] = word[2096824] * (1 - open) + coordinate * open
+        word[2096816] = word[2096816] * (1 - open) + limit * open
+        word[2096808] = word[2096808] * (1 - open) + requested * open
+        word[2097072] = 1
+        return 0
+    }
 }
 
 proc take_ident() {
@@ -381,7 +390,11 @@ proc alloc(tag, f0, f1, f2) {
     word[2097128] = p + 32
     return p
     }
-    state exhausted { mark_resource_failed()  return 16777216 }
+    state exhausted {
+        mark_resource_failed(7, word[2097048], 114294752,
+                             p - 16777248 + 32)
+        return 16777216
+    }
 }
 
 proc name_eq(o1, o2) {
@@ -730,7 +743,7 @@ proc namespace_duplicate_before(base, stride, count, best_off) {
     }
     state duplicate { to earlier when (name_off < best_off)  return best_off }
     state earlier { return name_off }
-    state exhausted { mark_resource_failed()  return best_off }
+    state exhausted { mark_resource_failed(6, name_off, 65536, 65537)  return best_off }
 }
 
 ; resolve a type name to a type id: Int = 0, Bytes = 1, else nominal, else -1.
@@ -808,7 +821,10 @@ proc parse_expr() {
         word[2097064] = depth
         return result
     }
-    state exhausted { mark_resource_failed()  return 16777216 }
+    state exhausted {
+        mark_resource_failed(8, start, 1024, depth + 1)
+        return 16777216
+    }
 }
 
 proc parse_expr_inner(start) {
@@ -1110,7 +1126,7 @@ proc parse_def() {
     consume_expected(')')
     let i = word[2097120]
     to store when (i < 32768)
-    mark_resource_failed()
+    mark_resource_failed(4, noff, 32768, i + 1)
     return 0
     }
     state store {
@@ -1167,7 +1183,7 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
     state type_name_ok {
     let tid = word[2097104]        ; register the type first (self-recursion resolves)
     to store_type when (tid < 65536)
-    mark_resource_failed()
+    mark_resource_failed(2, toff, 65536, tid + 1)
     tid = 0
     to type_registered
     }
@@ -1198,7 +1214,7 @@ proc parse_data() {               ; (data T (C ArgTy...)...) -> register type + 
         consume_expected(')')
         let ci = word[2097096]
         to store_con when (ci < 65536)
-        mark_resource_failed()
+        mark_resource_failed(3, coff, 65536, ci + 1)
         to loop_after_con
     }
     state store_con {
@@ -1252,7 +1268,7 @@ proc tenv_push(off, t, local_kind, index) {
     word[2097112] = n + 1
     return 1
     }
-    state exhausted { mark_resource_failed()  return 0 }
+    state exhausted { mark_resource_failed(5, off, 65536, n + 1)  return 0 }
 }
 
 ; Commit one local binder only after D20's source duplicate check and both
@@ -1261,13 +1277,22 @@ proc tenv_push(off, t, local_kind, index) {
 ; the packed-profile maximum.
 proc tenv_push_local(off, t, slot, conflict_reason) {
     let n = word[2097112]
+    let failure_resource = 5
+    let failure_limit = 65536
+    let failure_requested = n + 1
     state unique {
         to environment_capacity when (tenv_lookup(off) == 0 - 1)
         mark_reject_at(conflict_reason, off)
         return 0
     }
     state environment_capacity { to slot_capacity when (n < 65536)  to exhausted }
-    state slot_capacity { to commit when (slot < 65535)  to exhausted }
+    state slot_capacity {
+        failure_resource = 9
+        failure_limit = 65535
+        failure_requested = slot + 1
+        to commit when (slot < 65535)
+        to exhausted
+    }
     state commit {
         word[9437184 + n * 16] = off
         word[9437184 + n * 16 + 8] = t + 196608 + slot * 262144
@@ -1277,7 +1302,10 @@ proc tenv_push_local(off, t, slot, conflict_reason) {
     }
     state maximum { to update when (word[2096896] > word[2096888])  return 1 }
     state update { word[2096888] = word[2096896]  return 1 }
-    state exhausted { mark_resource_failed()  return 0 }
+    state exhausted {
+        mark_resource_failed(failure_resource, off, failure_limit, failure_requested)
+        return 0
+    }
 }
 
 proc tenv_lookup(qoff) {
@@ -1740,13 +1768,36 @@ proc tc_inner(expr) {
 ; The canonical compiler authors bytes only in its private final buffer. No
 ; byte is published until lowering, fixup resolution, payload validation, and
 ; the D19-selected adapter all complete. Failure is sticky and records one
-; private code/coordinate pair for the eventual compiler boundary.
+; private code/coordinate pair plus its settled public resource/internal
+; projection. Adapter construction and GCOUT framing remain later boundaries.
 
-proc emit_fail_once(code, coordinate) {
+proc emit_fail_once(code, coordinate, requested) {
     state open { to done when (word[2097016] != 0)  to record }
     state record {
         word[2097016] = code
         word[2097008] = coordinate
+        let public_open = word[2096848] == 0
+        let payload_resource = code == 1
+        let label_resource = code == 3
+        let fixup_resource = code == 6
+        let incomplete = payload_resource + label_resource + fixup_resource
+        let internal = 1 - incomplete
+        let label_contradiction = (code == 4) + (code == 5) + (code == 7)
+        label_contradiction = label_contradiction + (code == 8) + (code == 11)
+        let replay_contradiction = (code == 12) + (code == 16)
+        let public_kind = 2 * incomplete + 3 * internal
+        let public_code = 12 * payload_resource + 10 * label_resource + 11 * fixup_resource
+        public_code = public_code + internal * (2 + label_contradiction + replay_contradiction * 2)
+        let public_space = 2 * payload_resource + 3 * (label_resource + fixup_resource)
+        public_space = public_space + internal * (3 - replay_contradiction)
+        let public_limit = 1048572 * payload_resource + 65536 * label_resource
+        public_limit = public_limit + 116508 * fixup_resource
+        word[2096848] = word[2096848] * (1 - public_open) + public_kind * public_open
+        word[2096840] = word[2096840] * (1 - public_open) + public_code * public_open
+        word[2096832] = word[2096832] * (1 - public_open) + public_space * public_open
+        word[2096824] = word[2096824] * (1 - public_open) + coordinate * public_open
+        word[2096816] = word[2096816] * (1 - public_open) + public_limit * public_open
+        word[2096808] = word[2096808] * (1 - public_open) + requested * incomplete * public_open
         return 0
     }
     state done { return 0 }
@@ -1766,10 +1817,10 @@ proc payload_reserve(count) {
     state nonnegative { to invalid when (count < 0)  to capacity }
     state capacity {
         to available when (count <= 1048572 - word[2097040])
-        emit_fail_once(1, word[2097040])
+        emit_fail_once(1, word[2097040], word[2097040] + count)
         return 0
     }
-    state invalid { emit_fail_once(1, word[2097040])  return 0 }
+    state invalid { emit_fail_once(2, word[2097040], 0)  return 0 }
     state available { return 1 }
     state failed { return 0 }
 }
@@ -1783,7 +1834,7 @@ proc put_byte(value) {
         word[2097040] = word[2097040] + 1
         return 1
     }
-    state invalid { emit_fail_once(2, word[2097040])  return 0 }
+    state invalid { emit_fail_once(2, word[2097040], 0)  return 0 }
 }
 
 proc put_u64(value) {
@@ -1804,7 +1855,7 @@ proc new_label() {
         word[2097032] = label + 1
         return label
     }
-    state exhausted { emit_fail_once(3, label)  return 0 - 1 }
+    state exhausted { emit_fail_once(3, label, label + 1)  return 0 - 1 }
     state failed { return 0 - 1 }
 }
 
@@ -1817,8 +1868,8 @@ proc define_label(label) {
         word[11010048 + label * 8] = word[2097040] + 1
         return 1
     }
-    state duplicate { emit_fail_once(4, label)  return 0 }
-    state invalid { emit_fail_once(5, label)  return 0 }
+    state duplicate { emit_fail_once(4, label, 0)  return 0 }
+    state invalid { emit_fail_once(5, label, 0)  return 0 }
     state failed { return 0 }
 }
 
@@ -1839,8 +1890,8 @@ proc add_fixup(payload_offset, label) {
         word[2097024] = row + 1
         return 1
     }
-    state exhausted { emit_fail_once(6, row)  return 0 }
-    state invalid { emit_fail_once(7, payload_offset)  return 0 }
+    state exhausted { emit_fail_once(6, row, row + 1)  return 0 }
+    state invalid { emit_fail_once(7, payload_offset, 0)  return 0 }
     state failed { return 0 }
 }
 
@@ -1865,8 +1916,8 @@ proc resolve_fixups() {
         row = row + 1
         to loop
     }
-    state missing { emit_fail_once(8, label)  return 0 }
-    state invalid_target { emit_fail_once(11, target)  return 0 }
+    state missing { emit_fail_once(8, label, 0)  return 0 }
+    state invalid_target { emit_fail_once(11, target, 0)  return 0 }
     state complete { return 1 }
     state failed { return 0 }
 }
@@ -1874,7 +1925,7 @@ proc resolve_fixups() {
 proc emit_register(value) {
     state low { to invalid when (value < 0)  to high }
     state high { to invalid when (value > 255)  return put_byte(value) }
-    state invalid { emit_fail_once(9, word[2097040])  return 0 }
+    state invalid { emit_fail_once(9, word[2097040], 0)  return 0 }
 }
 
 proc emit_r(op, reg) {
@@ -1886,7 +1937,7 @@ proc emit_r(op, reg) {
     }
     state accepted { to register when (put_byte(op) == 1)  return 0 }
     state register { return emit_register(reg) }
-    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+    state invalid { emit_fail_once(10, word[2097040], 0)  return 0 }
 }
 
 proc emit_rr(op, left, right) {
@@ -1895,7 +1946,7 @@ proc emit_rr(op, left, right) {
     state first { to second when (put_byte(op) == 1)  return 0 }
     state second { to third when (emit_register(left) == 1)  return 0 }
     state third { return emit_register(right) }
-    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+    state invalid { emit_fail_once(10, word[2097040], 0)  return 0 }
 }
 
 proc emit_imm(reg, value) {
@@ -1912,7 +1963,7 @@ proc emit_jump(op, label) {
     }
     state accepted { to target when (put_byte(op) == 1)  return 0 }
     state target { return put_label_word(label) }
-    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+    state invalid { emit_fail_once(10, word[2097040], 0)  return 0 }
 }
 
 proc emit_rx(op, reg, label) {
@@ -1924,7 +1975,7 @@ proc emit_rx(op, reg, label) {
     state accepted { to register when (put_byte(op) == 1)  return 0 }
     state register { to target when (emit_register(reg) == 1)  return 0 }
     state target { return put_label_word(label) }
-    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+    state invalid { emit_fail_once(10, word[2097040], 0)  return 0 }
 }
 
 proc emit_rrx(op, left, right, label) {
@@ -1937,7 +1988,7 @@ proc emit_rrx(op, left, right, label) {
     state first { to second when (emit_register(left) == 1)  return 0 }
     state second { to target when (emit_register(right) == 1)  return 0 }
     state target { return put_label_word(label) }
-    state invalid { emit_fail_once(10, word[2097040])  return 0 }
+    state invalid { emit_fail_once(10, word[2097040], 0)  return 0 }
 }
 
 proc emit_ret() {
@@ -2041,8 +2092,8 @@ proc emit_gamma_call_frame(stack_label, callee_label, prefix_bytes, parameter_co
         emit_jump(19, callee_label)
         return 1
     }
-    state invalid { emit_fail_once(13, prefix_bytes)  return 0 }
-    state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
+    state invalid { emit_fail_once(13, prefix_bytes, 0)  return 0 }
+    state invalid_count { emit_fail_once(13, parameter_count, 0)  return 0 }
 }
 
 proc emit_gamma_return_frame() {
@@ -2069,8 +2120,8 @@ proc validate_gamma_frame_local(frame_prefix_bytes, local_index) {
         to invalid_index when (local_index >= (frame_prefix_bytes - 16) / 16)
         return 1
     }
-    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes)  return 0 }
-    state invalid_index { emit_fail_once(13, local_index)  return 0 }
+    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes, 0)  return 0 }
+    state invalid_index { emit_fail_once(13, local_index, 0)  return 0 }
 }
 
 proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
@@ -2089,7 +2140,7 @@ proc emit_gamma_frame_local(frame_prefix_bytes, local_index, store_mode) {
         emit_word_store(253, slot_offset + 8, 1)
         return 1
     }
-    state invalid_mode { emit_fail_once(13, store_mode)  return 0 }
+    state invalid_mode { emit_fail_once(13, store_mode, 0)  return 0 }
 }
 
 ; Load one compiler-resolved parameter from the current Gamma frame. Parameters
@@ -2116,9 +2167,9 @@ proc lower_resolved_parameter(frame_prefix_bytes, parameter_count, parameter_ind
         emit_word_load(1, 253, parameter_offset + 8)
         return 1
     }
-    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes)  return 0 }
-    state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
-    state invalid_index { emit_fail_once(13, parameter_index)  return 0 }
+    state invalid_prefix { emit_fail_once(13, frame_prefix_bytes, 0)  return 0 }
+    state invalid_count { emit_fail_once(13, parameter_count, 0)  return 0 }
+    state invalid_index { emit_fail_once(13, parameter_index, 0)  return 0 }
 }
 
 proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
@@ -2165,8 +2216,8 @@ proc emit_gamma_tail_frame(target_prefix_bytes, parameter_count, callee_label,
         emit_jump(12, callee_label)
         return 1
     }
-    state invalid_target { emit_fail_once(13, target_prefix_bytes)  return 0 }
-    state invalid_count { emit_fail_once(13, parameter_count)  return 0 }
+    state invalid_target { emit_fail_once(13, target_prefix_bytes, 0)  return 0 }
+    state invalid_count { emit_fail_once(13, parameter_count, 0)  return 0 }
 }
 
 ; Algebraic constructor tags are compiler-resolved private kinds >= 2. Fields
@@ -2214,8 +2265,8 @@ proc emit_gamma_constructor_value(heap_label, constructor_tag, field_count) {
         emit_rr(2, 1, 6)
         return 1
     }
-    state invalid_tag { emit_fail_once(14, constructor_tag)  return 0 }
-    state invalid_count { emit_fail_once(14, field_count)  return 0 }
+    state invalid_tag { emit_fail_once(14, constructor_tag, 0)  return 0 }
+    state invalid_count { emit_fail_once(14, field_count, 0)  return 0 }
 }
 
 proc emit_gamma_field_load(field_count, field_index, internal_label) {
@@ -2250,7 +2301,7 @@ proc emit_gamma_field_load(field_count, field_index, internal_label) {
         emit_word_load(1, 13, 8)
         return 1
     }
-    state invalid { emit_fail_once(14, field_index)  return 0 }
+    state invalid { emit_fail_once(14, field_index, 0)  return 0 }
 }
 
 proc emit_checked_add(entry_label, failure_label) {
@@ -2454,7 +2505,7 @@ proc emit_gamma_read_sealed_bytes(entry_label, input_resource_label,
         emit_ret()
         return 1
     }
-    state invalid { emit_fail_once(15, maximum_bytes)  return 0 }
+    state invalid { emit_fail_once(15, maximum_bytes, 0)  return 0 }
 }
 
 proc emit_bytes_descriptor_check(pointer_register, internal_label) {
@@ -2733,7 +2784,7 @@ proc validate_payload_structure() {
         to advance
     }
     state advance { pc = pc + width2  to second_loop }
-    state invalid { emit_fail_once(16, pc)  return 0 }
+    state invalid { emit_fail_once(16, pc, 0)  return 0 }
 }
 
 proc validate_payload() {
@@ -2744,7 +2795,7 @@ proc validate_payload() {
         to invalid when (word[2097016] != 0)
         return validate_payload_structure()
     }
-    state empty { emit_fail_once(12, 0)  return 0 }
+    state empty { emit_fail_once(12, 0, 0)  return 0 }
     state invalid { return 0 }
 }
 
@@ -2932,8 +2983,8 @@ proc lower_resolved_arguments(args, failure_code) {
         to argument_loop
     }
     state dispatch { return argument_count }
-    state invalid_list { emit_fail_once(failure_code, cursor)  return 0 - 1 }
-    state invalid_failure_code { emit_fail_once(14, failure_code)  return 0 - 1 }
+    state invalid_list { emit_fail_once(failure_code, cursor, 0)  return 0 - 1 }
+    state invalid_failure_code { emit_fail_once(14, failure_code, 0)  return 0 - 1 }
 }
 
 ; Lower an ordinary or tail call after the resolver has supplied its opaque
@@ -2959,7 +3010,7 @@ proc lower_resolved_call(args, tail_position, callee_label, callee_prefix_bytes)
                                      callee_label, word[2096904])
     }
     state failed { return 0 }
-    state invalid_profile { emit_fail_once(13, callee_prefix_bytes)  return 0 }
+    state invalid_profile { emit_fail_once(13, callee_prefix_bytes, 0)  return 0 }
 }
 
 ; Lower one constructor application after the resolver supplies only its
@@ -2975,7 +3026,7 @@ proc lower_resolved_constructor(args, constructor_tag) {
                                             field_count)
     }
     state failed { return 0 }
-    state invalid_tag { emit_fail_once(14, constructor_tag)  return 0 }
+    state invalid_tag { emit_fail_once(14, constructor_tag, 0)  return 0 }
 }
 
 ; Lower one local reference after the resolver supplies only its opaque fixed
@@ -3010,7 +3061,7 @@ proc lower_resolved_let(value_expr, body_expr, tail_position, frame_local_profil
         return 0
     }
     state body { return lower_expr(body_expr, tail_position) }
-    state invalid_profile { emit_fail_once(13, frame_local_profile)  return 0 }
+    state invalid_profile { emit_fail_once(13, frame_local_profile, 0)  return 0 }
 }
 
 ; A selected match consumes only checked, resolver-owned AST metadata. Validate
@@ -3141,8 +3192,11 @@ proc validate_resolved_match(arms, frame_prefix_bytes) {
         to label_exhausted when (required_labels > 65536 - word[2097032])
         return 1
     }
-    state label_exhausted { emit_fail_once(3, word[2097032])  return 0 }
-    state invalid { emit_fail_once(14, cursor)  return 0 }
+    state label_exhausted {
+        emit_fail_once(3, word[2097032], word[2097032] + 1)
+        return 0
+    }
+    state invalid { emit_fail_once(14, cursor, 0)  return 0 }
 }
 
 ; Evaluate the scrutinee exactly once and retain its complete value in r20/r21.
@@ -3264,8 +3318,8 @@ proc lower_resolved_match(scrutinee, arms, tail_position, internal_label) {
         emit_jump(12, internal_label)
         return define_label(done_label)
     }
-    state invalid_profile { emit_fail_once(14, internal_label)  return 0 }
-    state invalid_scrutinee { emit_fail_once(14, scrutinee)  return 0 }
+    state invalid_profile { emit_fail_once(14, internal_label, 0)  return 0 }
+    state invalid_scrutinee { emit_fail_once(14, scrutinee, 0)  return 0 }
     state invalid_metadata { return 0 }
     state failed { return 0 }
 }
@@ -3326,7 +3380,7 @@ proc lower_expr(expr, tail_position) {
         return lower_resolved_match(word[expr + 8], word[expr + 16],
                                     tail_position, word[2096864])
     }
-    state resolved_invalid { emit_fail_once(13, word[expr] / 256)  return 0 }
+    state resolved_invalid { emit_fail_once(13, word[expr] / 256, 0)  return 0 }
     state if_expr {
         let else_label = new_label()
         let done_label = new_label()
@@ -3672,7 +3726,7 @@ proc validate_gamma_function_rows() {
     state invalid_profile { failure_coordinate = function_index  to invalid }
     state invalid_body { failure_coordinate = body  to invalid }
     state invalid_parameter { failure_coordinate = parameter_cursor  to invalid }
-    state invalid { emit_fail_once(13, failure_coordinate)  return 0 }
+    state invalid { emit_fail_once(13, failure_coordinate, 0)  return 0 }
 }
 
 proc prepare_gamma_function_labels() {
@@ -3700,7 +3754,7 @@ proc prepare_gamma_function_labels() {
     }
     state label_exhausted { failure_coordinate = 65536  to label_failure }
     state label_invalid { failure_coordinate = word[2097032]  to label_failure }
-    state label_failure { emit_fail_once(3, failure_coordinate)  return 0 }
+    state label_failure { emit_fail_once(3, failure_coordinate, failure_coordinate + 1)  return 0 }
     state allocation_failed { return 0 }
     state failed { return 0 }
 }
@@ -3760,7 +3814,7 @@ proc emit_gamma_function_bodies() {
         to function_failure
     }
     state function_failure {
-        emit_fail_once(13, failure_coordinate)
+        emit_fail_once(13, failure_coordinate, 0)
         to restore_failure
     }
     state complete {

@@ -126,6 +126,43 @@ stamp_seed "$T/gcreq-admission.tape" "$SEED" "$T/gcreq-admission.exe" >/dev/null
 }
 stamp_seed "$T/gcout-frontend.tape" "$SEED" "$T/gcout-frontend.exe" >/dev/null 2>&1
 
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc project_frontend_resource() {' \
+    '    let resource = read_byte()' \
+    '    let function_rows = resource == 4' \
+    '    let syntax_arena = resource == 7' \
+    '    let parse_depth = resource == 8' \
+    '    let live_locals = resource == 9' \
+    '    let limit = 65536 - function_rows * 32768' \
+    '        + syntax_arena * 114229216 - parse_depth * 64512 - live_locals' \
+    '    let requested = limit + 1 + syntax_arena * 31' \
+    '    mark_resource_failed(resource, resource * 17, limit, requested)' \
+    '    return 0' \
+    '}'
+  private_outcome_probe_entry project_frontend_resource
+} | "$T/bc.exe" > "$T/gcout-frontend-resource.tape" || {
+  echo "bc(gamma_compiler.beta + private frontend resource projection) failed"
+  exit 1
+}
+stamp_seed "$T/gcout-frontend-resource.tape" "$SEED" "$T/gcout-frontend-resource.exe" >/dev/null 2>&1
+
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc project_emitter_outcome() {' \
+    '    let private_code = read_byte()' \
+    '    emit_fail_once(private_code, 23, 777)' \
+    '    return 0' \
+    '}'
+  private_outcome_probe_entry project_emitter_outcome
+} | "$T/bc.exe" > "$T/gcout-emitter-outcome.tape" || {
+  echo "bc(gamma_compiler.beta + private emitter outcome projection) failed"
+  exit 1
+}
+stamp_seed "$T/gcout-emitter-outcome.tape" "$SEED" "$T/gcout-emitter-outcome.exe" >/dev/null 2>&1
+
 # Exercise the private live-local boundary through a real checked `let` without
 # materializing 65,536 distinct active names (whose duplicate scan is
 # intentionally quadratic at this private limit).  The probe places the same
@@ -2407,7 +2444,7 @@ stamp_seed "$T/function-metadata.tape" "$SEED" "$T/function-metadata.exe" >/dev/
     '        to failed when (word[2097016] != 14)' \
     '        to failed when (word[2097040] != 0)' \
     '        let first_coordinate = word[2097008]' \
-    '        emit_fail_once(13, 999)' \
+    '        emit_fail_once(13, 999, 0)' \
     '        to sticky_checked' \
     '    }' \
     '    state sticky_checked {' \
@@ -2996,6 +3033,17 @@ gcout_case() { # name source reason coordinate
   check_frontend_gcout "$gcout_case_name" "$T/gcout-$gcout_case_name.req" \
     0 1 1 "$gcout_case_reason" 1 "$gcout_case_coordinate" 0 0 "$gcout_case_length"
 }
+frontend_resource_case() { # name resource limit requested
+  frontend_resource_coordinate=$(($2 * 17))
+  gcreq_emit_byte "$2" > "$T/frontend-resource-$1.req"
+  check_private_outcome gcout-frontend-resource "$1" "$T/frontend-resource-$1.req" \
+    0 0 2 "$2" 1 "$frontend_resource_coordinate" "$3" "$4" 0
+}
+emitter_outcome_case() { # name private-code kind public-code space limit requested
+  gcreq_emit_byte "$2" > "$T/emitter-outcome-$1.req"
+  check_private_outcome gcout-emitter-outcome "$1" "$T/emitter-outcome-$1.req" \
+    0 0 "$3" "$4" "$5" 23 "$6" "$7" 0
+}
 
 # D30/D33 request admission: header precedence, complete profile selection,
 # provision-before-body, exact-end, and source-byte validation after exactness.
@@ -3031,6 +3079,25 @@ gcreq_header 1 4194304 > "$T/gcreq-source-exact.req"
 dd if=/dev/zero bs=1048576 count=4 2>/dev/null | tr '\000' 'x' >> "$T/gcreq-source-exact.req"
 check_gcreq source-exact "$T/gcreq-source-exact.req" 0 1 0 0 0 0 0 0 4194304
 unset gcreq_valid_source gcreq_valid_length
+
+# Project every frontend resource plus the emitter's resource/internal classes
+# into the retained public fields. Existing adjacent producer cases separately
+# exercise the real allocation, label, fixup, and payload refusal sites.
+frontend_resource_case type-rows 2 65536 65537
+frontend_resource_case constructor-rows 3 65536 65537
+frontend_resource_case function-rows 4 32768 32769
+frontend_resource_case environment-rows 5 65536 65537
+frontend_resource_case coverage-rows 6 65536 65537
+frontend_resource_case syntax-arena 7 114294752 114294784
+frontend_resource_case parse-depth 8 1024 1025
+frontend_resource_case live-locals 9 65535 65536
+emitter_outcome_case payload-bytes 1 2 12 2 1048572 777
+emitter_outcome_case label-rows 3 2 10 3 65536 777
+emitter_outcome_case fixup-rows 6 2 11 3 116508 777
+emitter_outcome_case emission-metadata 2 3 2 3 0 0
+emitter_outcome_case label-contradiction 4 3 3 3 0 0
+emitter_outcome_case payload-replay 12 3 4 2 0 0
+unset frontend_resource_coordinate
 
 # Ordinary Gamma rejection codes 4..18 retain one exact source coordinate.
 gcout_source='junk'
