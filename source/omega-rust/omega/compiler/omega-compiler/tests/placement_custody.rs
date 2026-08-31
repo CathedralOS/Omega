@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use omega_compiler::compile_to_checked;
-use psi_access_plans::{validate_placement_plan, AccessPlan, PlacementPlan};
+use psi_access_plans::{AccessPlan, PlacementPlan, validate_placement_plan};
 use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
 
 fn write_program(name: &str, source: &str) -> PathBuf {
@@ -296,6 +296,35 @@ machine retain_plan(view: &Placed<Native, Packet>) {{}}
 data Main {{}}
 machine Main::main(&mut self) {{}}
 "#
+    )
+}
+
+fn depth_four_nested_source(
+    header_custody_fields: &str,
+    envelope_custody_fields: &str,
+    frame_custody_fields: &str,
+    boxed_custody_fields: &str,
+    packet_custody_fields: &str,
+) -> String {
+    depth_three_nested_source(
+        header_custody_fields,
+        envelope_custody_fields,
+        frame_custody_fields,
+        packet_custody_fields,
+    )
+    .replacen(
+        "pub data Packet {\n    frame: Frame;\n    sibling: Plain;\n}",
+        "pub data Boxed {\n    frame: Frame;\n    marker: u32;\n}\npub data Packet {\n    frame: Boxed;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 12", "offset: 16", 1)
+    .replacen("size_fixed: 16", "size_fixed: 20", 1)
+    .replacen(
+        &format!("data PacketCustody {{\n{packet_custody_fields}\n}}"),
+        &format!(
+            "data BoxedCustody {{\n{boxed_custody_fields}\n}}\ndata PacketCustody {{\n{packet_custody_fields}\n}}"
+        ),
+        1,
     )
 }
 
@@ -670,7 +699,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_two_wrapper() {
             "Native::plan",
             "Packet.envelope",
             "represented at offset 0 with width 4",
-            "outside the exact three-record",
+            "outside the exact four-record",
         ],
     );
 }
@@ -892,74 +921,172 @@ fn source_placement_custody_rejects_a_zero_layout_depth_three_wrapper() {
             "Native::plan",
             "Packet.frame",
             "represented at offset 0 with width 8",
-            "outside the exact three-record",
+            "outside the exact four-record",
         ],
     );
 }
 
 #[test]
-fn source_placement_custody_keeps_a_fourth_record_level_fenced() {
-    let source = depth_three_nested_source(
+fn source_placement_custody_accepts_four_nested_projection_record_paths() {
+    let source = depth_four_nested_source(
         "    authority: Evidence;",
         "    header: HeaderCustody;",
         "    envelope: EnvelopeCustody;",
         "    frame: FrameCustody;",
-    )
-    .replacen(
-        "pub data Envelope {\n    header: Header;\n    marker: u32;\n}",
-        "pub data Envelope {\n    header: Header;\n    marker: u32;\n    trace [erased]: Evidence;\n}",
-        1,
-    )
-    .replacen(
-        "pub data Packet {\n    frame: Frame;\n    sibling: Plain;\n}",
-        "pub data Boxed {\n    frame: Frame;\n    marker: u32;\n}\npub data Packet {\n    frame: Boxed;\n    sibling: Plain;\n}",
-        1,
-    )
-    .replacen("offset: 12", "offset: 16", 1)
-    .replacen("size_fixed: 16", "size_fixed: 20", 1)
-    .replacen(
-        "data EnvelopeCustody {\n    header: HeaderCustody;\n}",
-        "data EnvelopeCustody {\n    trace: Evidence;\n}",
-        1,
-    )
-    .replacen(
-        "data PacketCustody {\n    frame: FrameCustody;\n}",
-        "data BoxedCustody {\n    frame: FrameCustody;\n}\ndata PacketCustody {\n    frame: BoxedCustody;\n}",
-        1,
+        "    frame: BoxedCustody;",
     );
-    let main = write_program("depth-four-fenced", &source);
-    let diagnostics = compile_to_checked(&main, None)
-        .expect_err("a fourth represented record level must remain fenced");
-    assert_diagnostic(
-        &diagnostics,
-        &[
-            "Native::plan",
-            "Packet.frame",
-            "represented at offset 0 with width 16",
-            "outside the exact three-record",
-        ],
-    );
+    let main = write_program("depth-four-exact", &source);
+    compile_to_checked(&main, None).expect("exact depth-four placement custody should compile");
+}
 
-    let without_root_custody = source.replacen(
-        "data PacketCustody {\n    frame: BoxedCustody;\n}",
-        "data PacketCustody {\n}",
+#[test]
+fn source_placement_custody_rejects_depth_four_projection_drift() {
+    for (name, header, envelope, frame, boxed, packet, expected) in [
+        (
+            "depth-four-missing-leaf",
+            "",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    frame: BoxedCustody;",
+            vec![
+                "Packet.frame.frame.envelope.header.authority",
+                "omits canonical field path",
+            ],
+        ),
+        (
+            "depth-four-missing-projection",
+            "    authority: Evidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "",
+            "    frame: BoxedCustody;",
+            vec![
+                "Packet.frame.frame.envelope.header.authority",
+                "omits canonical field path",
+            ],
+        ),
+        (
+            "depth-four-cross-sibling",
+            "    authority: Evidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    sibling: BoxedCustody;",
+            vec![
+                "Packet.frame.frame.envelope.header.authority",
+                "Packet.sibling",
+            ],
+        ),
+        (
+            "depth-four-represented-leaf",
+            "    authority: Evidence;\n    bits: u32;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    frame: BoxedCustody;",
+            vec!["Packet.frame.frame.envelope.header.bits", "must be absent"],
+        ),
+        (
+            "depth-four-wrong-type",
+            "    authority: OtherEvidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    frame: BoxedCustody;",
+            vec!["exact type", "OtherEvidence"],
+        ),
+        (
+            "depth-four-wrong-multiplicity",
+            "    authority: CopyEvidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    frame: BoxedCustody;",
+            vec!["multiplicity Affine", "multiplicity Unrestricted"],
+        ),
+    ] {
+        let main = write_program(
+            name,
+            &depth_four_nested_source(header, envelope, frame, boxed, packet),
+        );
+        let diagnostics =
+            compile_to_checked(&main, None).expect_err("depth-four custody drift must fail closed");
+        assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
+    }
+}
+
+#[test]
+fn source_placement_custody_rejects_a_zero_layout_depth_four_wrapper() {
+    let source = depth_four_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+        "    frame: FrameCustody;",
+        "    frame: BoxedCustody;",
+    )
+    .replacen(
+        "    bits: u32;\n    authority [erased]: Evidence;",
+        "    phantom [erased]: OtherEvidence;\n    authority [erased]: Evidence;",
         1,
     );
-    let main = write_program(
-        "depth-four-fenced-without-root-custody",
-        &without_root_custody,
-    );
+    let main = write_program("depth-four-zero-wrapper", &source);
     let diagnostics = compile_to_checked(&main, None)
-        .expect_err("hidden fourth-level custody cannot disappear with the root field");
+        .expect_err("a zero-layout fourth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
         &[
             "Native::plan",
             "Packet.frame",
-            "represented at offset 0 with width 16",
-            "outside the exact three-record",
+            "outside the exact four-record",
         ],
     );
+}
+
+#[test]
+fn source_placement_custody_keeps_a_fifth_record_level_fenced() {
+    let source = depth_four_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+        "    frame: FrameCustody;",
+        "    frame: BoxedCustody;",
+    )
+    .replacen(
+        "pub data Packet {\n    frame: Boxed;\n    sibling: Plain;\n}",
+        "pub data Crate {\n    boxed: Boxed;\n    marker: u32;\n}\npub data Packet {\n    frame: Crate;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 16", "offset: 20", 1)
+    .replacen("size_fixed: 20", "size_fixed: 24", 1)
+    .replacen(
+        "data PacketCustody {\n    frame: BoxedCustody;\n}",
+        "data CrateCustody {\n    boxed: BoxedCustody;\n}\ndata PacketCustody {\n    frame: CrateCustody;\n}",
+        1,
+    );
+    for (name, source) in [
+        ("depth-five-fenced", source.clone()),
+        (
+            "depth-five-hidden-fenced",
+            source.replacen(
+                "data PacketCustody {\n    frame: CrateCustody;\n}",
+                "data PacketCustody {\n}",
+                1,
+            ),
+        ),
+    ] {
+        let main = write_program(name, &source);
+        let diagnostics =
+            compile_to_checked(&main, None).expect_err("fifth-level custody must remain fenced");
+        assert_diagnostic(
+            &diagnostics,
+            &[
+                "Native::plan",
+                "Packet.frame",
+                "outside the exact four-record",
+            ],
+        );
+    }
 }
 
 #[test]
@@ -974,7 +1101,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
         (
             "depth-three-array-fenced",
             baseline.replacen("    header: Header;", "    header: [Header; 1];", 1),
-            ["Native::plan", "outside the exact three-record"],
+            ["Native::plan", "outside the exact four-record"],
         ),
         (
             "depth-three-case-fenced",
@@ -993,7 +1120,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
             baseline
                 .replacen("pub data Header {", "pub data Header<T> {", 1)
                 .replacen("    header: Header;", "    header: Header<u32>;", 1),
-            ["Native::plan", "outside the exact three-record"],
+            ["Native::plan", "outside the exact four-record"],
         ),
     ];
     for (name, source, expected) in cases {
