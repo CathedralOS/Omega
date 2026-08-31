@@ -1,4 +1,4 @@
-use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
+use super::type_references::{classify_operator_result_ownership, OperatorResultOwnership};
 use super::*;
 
 pub(super) fn append_move_events_for_expression(
@@ -181,7 +181,9 @@ fn append_move_events_for_call_arguments(
     // by the call-flow argument-move pass. Expression recursion handles only
     // operators/unresolved targets; otherwise a boundary-trait value call
     // would record every owned argument twice.
-    if super::calls::call_target_parameters(program, call.target_symbol).is_some() {
+    if super::calls::call_target_parameters(program, call.target_symbol).is_some()
+        || expression_call_is_owned_by_call_flow(program, state_symbol, call)
+    {
         return;
     }
 
@@ -229,6 +231,54 @@ fn append_move_events_for_call_arguments(
             source,
         );
     }
+}
+
+/// Whether borrow-call discovery owns this expression call even though the
+/// table expression itself does not retain the final target-state symbol.
+///
+/// Attached method calls may carry an invalid `target_symbol` in the typed
+/// expression and resolve through the receiver's exact type instead. Borrow
+/// discovery performs that resolution and emits the parameter-aligned moves.
+/// Expression recursion must make the same classification or its unknown-call
+/// fallback will incorrectly transfer a borrowed receiver wholesale.
+fn expression_call_is_owned_by_call_flow(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> bool {
+    if call.target.as_str().starts_with("accept_boundary#") {
+        return false;
+    }
+    let Some(state) = crate::find_state(program, state_symbol) else {
+        return false;
+    };
+    let Some(machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    }) else {
+        return false;
+    };
+    let (receiver_symbol, receiver_path) =
+        crate::lookup::call_receiver_parts(program, call.receiver);
+    crate::lookup::resolve_state_call_target(
+        program,
+        machine,
+        state,
+        receiver_symbol,
+        call.target_symbol,
+        receiver_path.as_deref(),
+        &call.target,
+    )
+    .is_valid()
+        || crate::lookup::receiver_can_dispatch_to_machine(
+            program,
+            machine,
+            state,
+            receiver_symbol,
+            receiver_path.as_deref(),
+        )
 }
 
 /// Append type-aware move events for the owned by-value arguments of a
