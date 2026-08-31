@@ -973,6 +973,74 @@ fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
 }
 
 #[test]
+fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() {
+    let source = r#"
+        data FloatMeaning { }
+        operator Float::meaning32(value: f32) -> FloatMeaning;
+        operator Float::meaning64(value: f64) -> FloatMeaning;
+
+        machine prove_projection()
+        requires
+            Float::meaning32(0.0f32) == Float::meaning32(0.00f32);
+            Float::meaning32(-0.0f32) == Float::meaning32(-0.00f32);
+            Float::meaning64(0.1f64) == Float::meaning64(0.10f64);
+        { }
+
+        machine terminal_root(value: bool) -> bool
+        requires
+            true == true;
+        ensures
+            true == true;
+        { value }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "terminal_root").expect("lower");
+    assert_eq!(
+        lowered
+            .semantic_module
+            .float_meaning_projections
+            .iter()
+            .map(|projection| projection.source)
+            .collect::<Vec<_>>(),
+        vec![
+            psi_terminal::FloatMeaningSource::ExactBinary32Literal(0x0000_0000),
+            psi_terminal::FloatMeaningSource::ExactBinary32Literal(0x8000_0000),
+            psi_terminal::FloatMeaningSource::ExactBinary64Literal(0.1_f64.to_bits()),
+        ]
+    );
+    assert_eq!(
+        lowered.semantic_module.float_meaning_equalities,
+        vec![
+            psi_terminal::FloatMeaningEqualityProposition {
+                id: psi_terminal::ProofPropositionId(0),
+                left: psi_terminal::ProofValueId(0),
+                right: psi_terminal::ProofValueId(0),
+            },
+            psi_terminal::FloatMeaningEqualityProposition {
+                id: psi_terminal::ProofPropositionId(1),
+                left: psi_terminal::ProofValueId(1),
+                right: psi_terminal::ProofValueId(1),
+            },
+            psi_terminal::FloatMeaningEqualityProposition {
+                id: psi_terminal::ProofPropositionId(2),
+                left: psi_terminal::ProofValueId(2),
+                right: psi_terminal::ProofValueId(2),
+            },
+        ]
+    );
+    psi_terminal_verifier::validate_module(&lowered.semantic_module).expect("verify");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module)
+    );
+}
+
+#[test]
 fn integer_operation_obligations_follow_the_shared_policy_catalog() {
     let operation = operation_id(10);
     let obligation_kinds = [

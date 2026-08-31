@@ -868,6 +868,11 @@ Current ownership is:
   tuples share one proof-value identity; dense encounter order and source spans
   are not semantic correspondence. The checked-to-Terminal join and verifier
   independently replay this key before `FloatMeaningEqual` reaches the kernel.
+  Exact-bit literals now realize this requirement end to end: checked facts
+  retain raw `u32`/`u64` bits, equal tuples deduplicate independently of
+  occurrences, and Terminal/verifier replay uses no producer coordinate.
+  Other source forms remain explicitly transitional pending their artifact-
+  relative carriers.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

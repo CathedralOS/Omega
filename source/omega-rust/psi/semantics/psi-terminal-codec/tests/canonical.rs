@@ -2,10 +2,10 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, PropositionId, ScalarTerm, ScalarType,
-    ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, PropositionId, ScalarTerm, ScalarType, ServiceId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
+    ValueId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -13,13 +13,13 @@ use psi_terminal::{
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
     EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult, OutcomeSpecificEnsure,
-    OutcomeSpecificEvidence, OutcomeSpecificGuard, ProofOnlyValueType, ProofPropositionId,
-    ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    FloatMeaningSource, InstallationReachDependency, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificGuard, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -47,7 +47,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "36a799e35490d7dfcc7877037bb6b228bb0a2f20aeab6491a646ef9347a80ea6"
+        "17c3fd729a9c1a0a277156bbcd566172d108067bf84baaa6c804b46f1fd7fafe"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -96,7 +96,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -217,10 +217,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
                 id: ProofValueId(0),
                 value_type: ProofOnlyValueType::FloatMeaning,
             },
-            source: FloatProjectionInput {
-                id: FloatProjectionInputId(0),
-                format: IeeeFloatFormat::Binary32,
-            },
+            source: FloatMeaningSource::ExactBinary32Literal(0x1234_5678),
             operation: FloatMeaningProjectionOperation::Meaning32,
         },
         FloatMeaningProjection {
@@ -228,10 +225,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
                 id: ProofValueId(1),
                 value_type: ProofOnlyValueType::FloatMeaning,
             },
-            source: FloatProjectionInput {
-                id: FloatProjectionInputId(1),
-                format: IeeeFloatFormat::Binary64,
-            },
+            source: FloatMeaningSource::ExactBinary64Literal(0x8877_6655_4433_2211),
             operation: FloatMeaningProjectionOperation::Meaning64,
         },
     ];
@@ -243,6 +237,28 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     let bytes = encode_module(&module).expect("proof-only projections encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
+    let exact_source_prefix = [0, 0, 0, 0, 1, 2, 0x78, 0x56, 0x34, 0x12, 1];
+    let source_offset = bytes
+        .windows(exact_source_prefix.len())
+        .position(|window| window == exact_source_prefix)
+        .expect("exact binary32 source encoding is unique");
+    let mut unknown_source_kind = bytes.clone();
+    unknown_source_kind[source_offset + 5] = 0xff;
+    assert_eq!(
+        decode_module(&unknown_source_kind),
+        Err(CodecError::InvalidTag("FloatMeaningSource", 0xff))
+    );
+
+    let original_identity = semantic_fingerprint(&module).expect("literal identity");
+    let mut changed_bits = module.clone();
+    changed_bits.float_meaning_projections[0].source =
+        FloatMeaningSource::ExactBinary32Literal(0x8000_0000);
+    assert_ne!(
+        semantic_fingerprint(&changed_bits).expect("changed literal identity"),
+        original_identity,
+        "raw literal bits are Terminal semantic identity"
+    );
+
     let mut reordered = module.clone();
     reordered.float_meaning_projections.swap(0, 1);
     assert!(matches!(
@@ -253,8 +269,8 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     ));
 
     let mut duplicate_value = module.clone();
-    duplicate_value.float_meaning_projections[1].source.id = FloatProjectionInputId(0);
-    duplicate_value.float_meaning_projections[1].source.format = IeeeFloatFormat::Binary32;
+    duplicate_value.float_meaning_projections[1].source =
+        FloatMeaningSource::ExactBinary32Literal(0x1234_5678);
     duplicate_value.float_meaning_projections[1].operation =
         FloatMeaningProjectionOperation::Meaning32;
     assert!(matches!(
@@ -287,7 +303,8 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     ));
 
     let mut cross_format = module;
-    cross_format.float_meaning_projections[0].source.format = IeeeFloatFormat::Binary64;
+    cross_format.float_meaning_projections[0].source =
+        FloatMeaningSource::ExactBinary64Literal(0x0000_0000_0000_0000);
     assert!(matches!(
         encode_module(&cross_format),
         Err(CodecError::InvalidModule(
@@ -392,7 +409,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -405,7 +422,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -440,7 +457,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -2078,10 +2095,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&44_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&45_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(44))
+        Err(CodecError::UnsupportedFormatMarker(45))
     );
 
     let mut stale_format = bytes.clone();
@@ -2823,7 +2840,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()

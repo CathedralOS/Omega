@@ -3153,6 +3153,13 @@ separate provenance. The current dense projection-input IDs are therefore
 migration coordinates, not sufficient correspondence. Local lookalike
 operators and producer-supplied IDs confer no meaning.
 
+The exact-bit-literal source form is now encoded as raw binary32 or binary64
+bits rather than a producer ID. The verifier independently reconstructs its
+format, closed catalog operation, and payload-erased meaning; canonical
+validation rejects duplicate tuples and cross-format substitution. Contract,
+Terminal-value, and structural-leaf sources still use the explicit
+transitional coordinate and confer no artifact-aware correspondence yet.
+
 The relation is structural equality of the already payload-erased
 `FloatMeaning` sum, not IEEE comparison: NaN is reflexive and signed zero is
 distinguished. Distinct landed terms require an explicit theorem. All of this

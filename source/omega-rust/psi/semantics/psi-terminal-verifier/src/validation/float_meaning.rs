@@ -65,48 +65,43 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
             u32::try_from(index).map_err(|_| ModuleError::NonDenseFloatMeaningProjection {
                 expected: u32::MAX,
                 result: projection.result.id.0,
-                source: projection.source.id.0,
+                transitional_source: transitional_source_id(projection.source),
             })?;
         if projection.result.id.0 != index {
             return Err(ModuleError::NonDenseFloatMeaningProjection {
                 expected: index,
                 result: projection.result.id.0,
-                source: projection.source.id.0,
+                transitional_source: transitional_source_id(projection.source),
             });
         }
-        if let Some((_, format)) = sources
-            .iter()
-            .find(|(source, _)| *source == projection.source.id)
-        {
-            if *format != projection.source.format {
-                return Err(
-                    ModuleError::InconsistentFloatMeaningProjectionSourceFormat {
-                        source: projection.source.id.0,
-                    },
-                );
-            }
-        } else {
-            let expected = u32::try_from(sources.len()).map_err(|_| {
-                ModuleError::NonDenseFloatMeaningProjection {
-                    expected: u32::MAX,
-                    result: projection.result.id.0,
-                    source: projection.source.id.0,
+        if let psi_terminal::FloatMeaningSource::TransitionalInput(source) = projection.source {
+            if let Some((_, format)) = sources.iter().find(|(id, _)| *id == source.id) {
+                if *format != source.format {
+                    return Err(
+                        ModuleError::InconsistentFloatMeaningProjectionSourceFormat {
+                            source: source.id.0,
+                        },
+                    );
                 }
-            })?;
-            if projection.source.id.0 != expected {
-                return Err(ModuleError::NonDenseFloatMeaningProjection {
-                    expected,
-                    result: projection.result.id.0,
-                    source: projection.source.id.0,
-                });
+            } else {
+                let expected = u32::try_from(sources.len()).map_err(|_| {
+                    ModuleError::NonDenseFloatMeaningProjection {
+                        expected: u32::MAX,
+                        result: projection.result.id.0,
+                        transitional_source: Some(source.id.0),
+                    }
+                })?;
+                if source.id.0 != expected {
+                    return Err(ModuleError::NonDenseFloatMeaningProjection {
+                        expected,
+                        result: projection.result.id.0,
+                        transitional_source: Some(source.id.0),
+                    });
+                }
+                sources.push((source.id, source.format));
             }
-            sources.push((projection.source.id, projection.source.format));
         }
-        let key = (
-            projection.source.id,
-            projection.source.format,
-            projection.operation,
-        );
+        let key = (projection.source, projection.operation);
         if let Some(first) = projection_keys.iter().position(|existing| *existing == key) {
             return Err(ModuleError::DuplicateFloatMeaningProjection {
                 first: u32::try_from(first).unwrap_or(u32::MAX),
@@ -120,13 +115,21 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
     Ok(())
 }
 
+const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Option<u32> {
+    match source {
+        psi_terminal::FloatMeaningSource::TransitionalInput(input) => Some(input.id.0),
+        psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
+        | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use psi_core::IeeeFloatFormat;
     use psi_terminal::{
         FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-        FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
-        ProofValueDeclaration, ProofValueId,
+        FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType,
+        ProofPropositionId, ProofValueDeclaration, ProofValueId,
     };
 
     use super::*;
@@ -137,10 +140,21 @@ mod tests {
                 id: ProofValueId(index),
                 value_type: ProofOnlyValueType::FloatMeaning,
             },
-            source: FloatProjectionInput {
+            source: FloatMeaningSource::TransitionalInput(FloatProjectionInput {
                 id: FloatProjectionInputId(index),
                 format: IeeeFloatFormat::Binary32,
+            }),
+            operation: FloatMeaningProjectionOperation::Meaning32,
+        }
+    }
+
+    fn exact_binary32_projection(index: u32, bits: u32) -> FloatMeaningProjection {
+        FloatMeaningProjection {
+            result: ProofValueDeclaration {
+                id: ProofValueId(index),
+                value_type: ProofOnlyValueType::FloatMeaning,
             },
+            source: FloatMeaningSource::ExactBinary32Literal(bits),
             operation: FloatMeaningProjectionOperation::Meaning32,
         }
     }
@@ -158,7 +172,10 @@ mod tests {
         ));
 
         let mut tampered = projection(0);
-        tampered.source.format = IeeeFloatFormat::Binary64;
+        tampered.source = FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(0),
+            format: IeeeFloatFormat::Binary64,
+        });
         assert!(matches!(
             validate_rows(&[tampered]),
             Err(ModuleError::InvalidFloatMeaningProjection { .. })
@@ -168,7 +185,10 @@ mod tests {
     #[test]
     fn module_rows_reject_duplicate_values_and_inconsistent_source_formats() {
         let mut duplicate = projection(1);
-        duplicate.source.id = FloatProjectionInputId(0);
+        duplicate.source = FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(0),
+            format: IeeeFloatFormat::Binary32,
+        });
         assert!(matches!(
             validate_rows(&[projection(0), duplicate]),
             Err(ModuleError::DuplicateFloatMeaningProjection {
@@ -177,11 +197,43 @@ mod tests {
             })
         ));
 
-        duplicate.source.format = IeeeFloatFormat::Binary64;
+        duplicate.source = FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(0),
+            format: IeeeFloatFormat::Binary64,
+        });
         duplicate.operation = FloatMeaningProjectionOperation::Meaning64;
         assert!(matches!(
             validate_rows(&[projection(0), duplicate]),
             Err(ModuleError::InconsistentFloatMeaningProjectionSourceFormat { source: 0 })
+        ));
+    }
+
+    #[test]
+    fn exact_literal_identity_ignores_producer_numbering_and_retains_raw_bits() {
+        let positive_zero = exact_binary32_projection(0, 0x0000_0000);
+        let mut duplicate_with_fresh_ids = exact_binary32_projection(1, 0x0000_0000);
+        assert!(matches!(
+            validate_rows(&[positive_zero, duplicate_with_fresh_ids]),
+            Err(ModuleError::DuplicateFloatMeaningProjection {
+                first: 0,
+                duplicate: 1,
+            })
+        ));
+
+        duplicate_with_fresh_ids.source = FloatMeaningSource::ExactBinary32Literal(0x8000_0000);
+        assert_eq!(
+            validate_rows(&[positive_zero, duplicate_with_fresh_ids]),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn exact_literal_rejects_cross_format_operation_substitution() {
+        let mut projection = exact_binary32_projection(0, 0x3f80_0000);
+        projection.operation = FloatMeaningProjectionOperation::Meaning64;
+        assert!(matches!(
+            validate_rows(&[projection]),
+            Err(ModuleError::InvalidFloatMeaningProjection { .. })
         ));
     }
 

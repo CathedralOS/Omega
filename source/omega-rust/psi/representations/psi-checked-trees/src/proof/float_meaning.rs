@@ -41,11 +41,33 @@ pub struct CheckedFloatProjectionInput {
     pub primitive: PrimitiveType,
 }
 
+/// The semantic source retained for one checked float projection.
+///
+/// Exact literals carry their landed raw bits directly. The transitional
+/// coordinate remains only for source forms whose artifact-relative carrier
+/// has not landed; it must never be treated as an exact-literal identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedFloatProjectionSource {
+    TransitionalInput(CheckedFloatProjectionInput),
+    ExactBinary32Literal(u32),
+    ExactBinary64Literal(u64),
+}
+
+impl CheckedFloatProjectionSource {
+    pub const fn primitive(self) -> PrimitiveType {
+        match self {
+            Self::TransitionalInput(input) => input.primitive,
+            Self::ExactBinary32Literal(_) => PrimitiveType::F32,
+            Self::ExactBinary64Literal(_) => PrimitiveType::F64,
+        }
+    }
+}
+
 /// Exact proof-only projection selected from the shared closed catalog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedFloatMeaningProjection {
     pub result: CheckedProofValueDeclaration,
-    pub source: CheckedFloatProjectionInput,
+    pub source: CheckedFloatProjectionSource,
     pub operation: FloatProjectionOperation,
 }
 
@@ -79,7 +101,7 @@ impl CheckedFloatMeaningProjection {
             FloatProjectionOperation::Meaning32 => PrimitiveType::F32,
             FloatProjectionOperation::Meaning64 => PrimitiveType::F64,
         };
-        if self.source.primitive != expected {
+        if self.source.primitive() != expected {
             return Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch);
         }
         Ok(())
@@ -102,10 +124,10 @@ mod tests {
                 id: CheckedProofValueId(3),
                 value_type: CheckedProofOnlyValueType::FloatMeaning,
             },
-            source: CheckedFloatProjectionInput {
+            source: CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(7),
                 primitive: PrimitiveType::F32,
-            },
+            }),
             operation: FloatProjectionOperation::Meaning32,
         }
     }
@@ -115,7 +137,13 @@ mod tests {
         let plan = projection();
         assert_eq!(plan.validate(), Ok(()));
         assert_eq!(plan.result.id, CheckedProofValueId(3));
-        assert_eq!(plan.source.id, CheckedFloatProjectionInputId(7));
+        assert_eq!(
+            plan.source,
+            CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(7),
+                primitive: PrimitiveType::F32,
+            })
+        );
     }
 
     #[test]

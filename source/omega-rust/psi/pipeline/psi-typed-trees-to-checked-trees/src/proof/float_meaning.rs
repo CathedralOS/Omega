@@ -3,8 +3,9 @@
 use psi_checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
     CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
-    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedProofOnlyValueType,
-    CheckedProofPropositionId, CheckedProofValueDeclaration, CheckedProofValueId, ProofFacts,
+    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
+    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
+    CheckedProofValueId, ProofFacts,
 };
 use psi_diagnostics::Diagnostic;
 use psi_numerics::float_projection::FloatProjectionOperation;
@@ -151,31 +152,45 @@ pub(crate) fn bind_float_meaning_projection_facts(
     equality_facts: &[ValidatedFloatMeaningEqualityProposition],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut projections = Vec::with_capacity(facts.len());
-    let mut source_keys = Vec::<CheckedFloatProjectionSourceKey>::new();
-    let mut projection_keys = Vec::<(
-        CheckedFloatProjectionInputId,
-        PrimitiveType,
-        FloatProjectionOperation,
-    )>::new();
+    let mut transitional_source_keys = Vec::<CheckedFloatProjectionSourceKey>::new();
+    let mut projection_keys =
+        Vec::<(CheckedFloatProjectionSource, FloatProjectionOperation)>::new();
     let mut invocation_values = Vec::with_capacity(facts.len());
     let mut occurrences = Vec::with_capacity(facts.len());
     for (index, fact) in facts.iter().copied().enumerate() {
         replay_invocation(program, fact).map_err(|diagnostic| vec![diagnostic])?;
         let source_key = projection_source_key(program, fact);
-        let source_index = match source_keys.iter().position(|key| *key == source_key) {
-            Some(index) => index,
-            None => {
-                source_keys.push(source_key);
-                source_keys.len() - 1
+        let source = match source_key {
+            CheckedFloatProjectionSourceKey::Binary32Literal(bits) => {
+                CheckedFloatProjectionSource::ExactBinary32Literal(bits)
+            }
+            CheckedFloatProjectionSourceKey::Binary64Literal(bits) => {
+                CheckedFloatProjectionSource::ExactBinary64Literal(bits)
+            }
+            transitional => {
+                let source_index = match transitional_source_keys
+                    .iter()
+                    .position(|key| *key == transitional)
+                {
+                    Some(index) => index,
+                    None => {
+                        transitional_source_keys.push(transitional);
+                        transitional_source_keys.len() - 1
+                    }
+                };
+                let source_id =
+                    CheckedFloatProjectionInputId(u32::try_from(source_index).map_err(|_| {
+                        vec![Diagnostic::error(
+                            "float-meaning projection sources exceed their dense identity space",
+                        )]
+                    })?);
+                CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+                    id: source_id,
+                    primitive: fact.source_primitive,
+                })
             }
         };
-        let source_id =
-            CheckedFloatProjectionInputId(u32::try_from(source_index).map_err(|_| {
-                vec![Diagnostic::error(
-                    "float-meaning projection sources exceed their dense identity space",
-                )]
-            })?);
-        let projection_key = (source_id, fact.source_primitive, fact.operation);
+        let projection_key = (source, fact.operation);
         let value_index = match projection_keys
             .iter()
             .position(|key| *key == projection_key)
@@ -193,10 +208,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
                         id: CheckedProofValueId(id),
                         value_type: CheckedProofOnlyValueType::FloatMeaning,
                     },
-                    source: CheckedFloatProjectionInput {
-                        id: source_id,
-                        primitive: fact.source_primitive,
-                    },
+                    source,
                     operation: fact.operation,
                 };
                 projection.validate().map_err(|_| {
@@ -308,19 +320,50 @@ mod tests {
         lower_symbol_resolved_trees(&resolved).expect("type")
     }
 
+    fn typed_literal_projection_program() -> TypedTrees {
+        let source = r#"
+            data FloatMeaning { }
+            operator Float::meaning32(value: f32) -> FloatMeaning;
+            operator Float::meaning64(value: f64) -> FloatMeaning;
+
+            machine prove()
+            requires
+                Float::meaning32(0.0f32) == Float::meaning32(0.00f32);
+                Float::meaning32(-0.0f32) == Float::meaning32(-0.00f32);
+                Float::meaning64(0.1f64) == Float::meaning64(0.10f64);
+            { }
+        "#;
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        lower_symbol_resolved_trees(&resolved).expect("type")
+    }
+
     #[test]
     fn actual_checked_projection_invocations_deduplicate_values_and_retain_occurrences() {
         let checked = crate::lower_typed_trees(typed_projection_program()).expect("checked");
         let projections = &checked.facts.proof.float_meaning_projections;
         assert_eq!(projections.len(), 2);
         assert_eq!(projections[0].result.id, CheckedProofValueId(0));
-        assert_eq!(projections[0].source.id, CheckedFloatProjectionInputId(0));
+        assert_eq!(
+            projections[0].source,
+            CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(0),
+                primitive: PrimitiveType::F32,
+            })
+        );
         assert_eq!(
             projections[0].operation,
             FloatProjectionOperation::Meaning32
         );
         assert_eq!(projections[1].result.id, CheckedProofValueId(1));
-        assert_eq!(projections[1].source.id, CheckedFloatProjectionInputId(1));
+        assert_eq!(
+            projections[1].source,
+            CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(1),
+                primitive: PrimitiveType::F64,
+            })
+        );
         assert_eq!(
             projections[1].operation,
             FloatProjectionOperation::Meaning64
@@ -341,6 +384,44 @@ mod tests {
                 left: CheckedProofValueId(0),
                 right: CheckedProofValueId(0),
             }
+        );
+    }
+
+    #[test]
+    fn exact_literal_bits_are_the_checked_semantic_source_identity() {
+        let checked =
+            crate::lower_typed_trees(typed_literal_projection_program()).expect("checked");
+        let projections = &checked.facts.proof.float_meaning_projections;
+        assert_eq!(projections.len(), 3);
+        assert_eq!(
+            projections[0].source,
+            CheckedFloatProjectionSource::ExactBinary32Literal(0.0_f32.to_bits())
+        );
+        assert_eq!(
+            projections[1].source,
+            CheckedFloatProjectionSource::ExactBinary32Literal((-0.0_f32).to_bits())
+        );
+        assert_eq!(
+            projections[2].source,
+            CheckedFloatProjectionSource::ExactBinary64Literal(0.1_f64.to_bits())
+        );
+        assert_ne!(projections[0].result.id, projections[1].result.id);
+        assert_eq!(
+            checked
+                .facts
+                .proof
+                .float_meaning_projection_occurrences
+                .iter()
+                .map(|occurrence| occurrence.value)
+                .collect::<Vec<_>>(),
+            vec![
+                CheckedProofValueId(0),
+                CheckedProofValueId(0),
+                CheckedProofValueId(1),
+                CheckedProofValueId(1),
+                CheckedProofValueId(2),
+                CheckedProofValueId(2),
+            ]
         );
     }
 

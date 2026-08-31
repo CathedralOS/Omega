@@ -10469,16 +10469,19 @@ Remaining N6/N8 work:
   and relation separation, canonical Terminal coordinates, and quantifier
   substitution. The authoritative tape was rebuilt through the below-Beta
   route and the complete independent diamond agrees. The bounded checked-plan
-  deduplication rung is also live for the currently landed source forms:
-  repeated resolved symbols and exact-bit literals share one dense
-  `ProofValueId`, authored occurrences retain separate span provenance, and
-  Terminal canonicalization/verifier replay rejects duplicate tuples or one
-  source coordinate used with inconsistent formats. Other typed expressions
-  still use their exact lowering-local handle, and the Terminal row still
-  carries only a migration coordinate. Still open are the artifact-aware
-  reconstruction bridge, the complete verifier-reconstructible Terminal source
-  carrier, source contract-owner retention, and production proof-ledger
-  discharge.
+  deduplication rung is also live. Exact-bit literals now retain their raw
+  `u32`/`u64` bits as semantic source identity through checked lowering,
+  Terminal, canonical codec, and independent verifier reconstruction, with no
+  producer coordinate. Equal bit/format/operation tuples share one dense
+  `ProofValueId`; signed zeros remain distinct source terms; distinct NaN
+  payloads remain distinct sources while reconstructing the same payload-erased
+  `FloatMeaning::NaN`; and authored occurrences retain separate span
+  provenance. Terminal validation rejects duplicate tuples, cross-format
+  substitution, and unknown source tags. Resolved symbols and other nonliteral
+  typed expressions still use an explicitly transitional lowering-local
+  coordinate. Still open are artifact-aware carriers for contract parameters/
+  results, Terminal values, and structural float leaves, exact source contract-
+  owner retention, and production proof-ledger discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

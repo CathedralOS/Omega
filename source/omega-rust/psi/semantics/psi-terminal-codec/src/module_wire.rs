@@ -10,12 +10,12 @@ use psi_terminal::{
     ClosedConformanceParameterBinding, ClosedConformanceParameterKind, ClosedConformanceRow,
     EvidenceContractLane, EvidenceContractLaneKind, EvidenceTermDeclaration,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
-    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
-    StructuralDomainDeclaration, TerminalModule, TerminalPlacedViewInput, TerminalRootServiceReach,
-    VocabularyMarker,
+    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency,
+    ProofOnlyValueType, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
+    ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
+    StructuralContentProjection, StructuralDomainDeclaration, TerminalModule,
+    TerminalPlacedViewInput, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -145,11 +145,24 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         writer.u8(match projection.result.value_type {
             ProofOnlyValueType::FloatMeaning => 1,
         });
-        writer.u32(projection.source.id.0);
-        writer.u8(match projection.source.format {
-            IeeeFloatFormat::Binary32 => 1,
-            IeeeFloatFormat::Binary64 => 2,
-        });
+        match projection.source {
+            FloatMeaningSource::TransitionalInput(input) => {
+                writer.u8(1);
+                writer.u32(input.id.0);
+                writer.u8(match input.format {
+                    IeeeFloatFormat::Binary32 => 1,
+                    IeeeFloatFormat::Binary64 => 2,
+                });
+            }
+            FloatMeaningSource::ExactBinary32Literal(bits) => {
+                writer.u8(2);
+                writer.u32(bits);
+            }
+            FloatMeaningSource::ExactBinary64Literal(bits) => {
+                writer.u8(3);
+                writer.u64(bits);
+            }
+        }
         writer.u8(match projection.operation {
             FloatMeaningProjectionOperation::Meaning32 => 1,
             FloatMeaningProjectionOperation::Meaning64 => 2,
@@ -426,13 +439,18 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                     tag => return Err(CodecError::InvalidTag("ProofOnlyValueType", tag)),
                 },
             },
-            source: FloatProjectionInput {
-                id: FloatProjectionInputId(reader.u32()?),
-                format: match reader.u8()? {
-                    1 => IeeeFloatFormat::Binary32,
-                    2 => IeeeFloatFormat::Binary64,
-                    tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-                },
+            source: match reader.u8()? {
+                1 => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                    id: FloatProjectionInputId(reader.u32()?),
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
+                2 => FloatMeaningSource::ExactBinary32Literal(reader.u32()?),
+                3 => FloatMeaningSource::ExactBinary64Literal(reader.u64()?),
+                tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
             },
             operation: match reader.u8()? {
                 1 => FloatMeaningProjectionOperation::Meaning32,

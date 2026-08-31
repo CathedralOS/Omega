@@ -2,13 +2,14 @@
 
 use psi_checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
-    CheckedFloatMeaningProjectionError, CheckedProofOnlyValueType, types::PrimitiveType,
+    CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource, CheckedProofOnlyValueType,
+    types::PrimitiveType,
 };
 use psi_core::IeeeFloatFormat;
 use psi_terminal::{
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
-    ProofValueDeclaration, ProofValueId,
+    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId,
 };
 
 pub fn lower_float_meaning_equality(
@@ -27,10 +28,24 @@ pub fn lower_float_meaning_projection(
     checked
         .validate()
         .map_err(FloatMeaningProjectionLoweringError::InvalidCheckedProjection)?;
-    let format = match checked.source.primitive {
-        PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-        PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-        _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+    let source = match checked.source {
+        CheckedFloatProjectionSource::TransitionalInput(input) => {
+            let format = match input.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+            };
+            FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                id: FloatProjectionInputId(input.id.0),
+                format,
+            })
+        }
+        CheckedFloatProjectionSource::ExactBinary32Literal(bits) => {
+            FloatMeaningSource::ExactBinary32Literal(bits)
+        }
+        CheckedFloatProjectionSource::ExactBinary64Literal(bits) => {
+            FloatMeaningSource::ExactBinary64Literal(bits)
+        }
     };
     let value_type = match checked.result.value_type {
         CheckedProofOnlyValueType::FloatMeaning => ProofOnlyValueType::FloatMeaning,
@@ -48,10 +63,7 @@ pub fn lower_float_meaning_projection(
             id: ProofValueId(checked.result.id.0),
             value_type,
         },
-        source: FloatProjectionInput {
-            id: FloatProjectionInputId(checked.source.id.0),
-            format,
-        },
+        source,
         operation,
     })
 }
@@ -78,20 +90,24 @@ mod tests {
                 id: CheckedProofValueId(4),
                 value_type: CheckedProofOnlyValueType::FloatMeaning,
             },
-            source: CheckedFloatProjectionInput {
+            source: CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(9),
                 primitive: PrimitiveType::F64,
-            },
+            }),
             operation: FloatProjectionOperation::Meaning64,
         }
     }
-
     #[test]
     fn lowering_preserves_dense_identities_and_exact_format() {
         let lowered = lower_float_meaning_projection(checked_projection()).unwrap();
         assert_eq!(lowered.result.id, ProofValueId(4));
-        assert_eq!(lowered.source.id, FloatProjectionInputId(9));
-        assert_eq!(lowered.source.format, IeeeFloatFormat::Binary64);
+        assert_eq!(
+            lowered.source,
+            FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                id: FloatProjectionInputId(9),
+                format: IeeeFloatFormat::Binary64,
+            })
+        );
         assert_eq!(
             lowered.operation,
             FloatMeaningProjectionOperation::Meaning64
@@ -109,6 +125,17 @@ mod tests {
                     CheckedFloatMeaningProjectionError::SourceFormatMismatch,
                 )
             )
+        );
+    }
+
+    #[test]
+    fn lowering_preserves_exact_literal_bits_without_a_producer_coordinate() {
+        let mut checked = checked_projection();
+        checked.source = CheckedFloatProjectionSource::ExactBinary64Literal(0x8000_0000_0000_0000);
+        let lowered = lower_float_meaning_projection(checked).unwrap();
+        assert_eq!(
+            lowered.source,
+            FloatMeaningSource::ExactBinary64Literal(0x8000_0000_0000_0000)
         );
     }
 }

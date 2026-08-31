@@ -47,12 +47,35 @@ pub struct FloatProjectionInput {
     pub format: IeeeFloatFormat,
 }
 
+/// Verifier-reconstructible source of one float-meaning projection.
+///
+/// Exact literals own their raw landed bits and therefore need no producer ID.
+/// The transitional coordinate is retained only for source forms whose
+/// artifact-relative carrier is still open; it is not interchangeable with an
+/// exact literal and cannot manufacture literal correspondence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FloatMeaningSource {
+    TransitionalInput(FloatProjectionInput),
+    ExactBinary32Literal(u32),
+    ExactBinary64Literal(u64),
+}
+
+impl FloatMeaningSource {
+    pub const fn format(self) -> IeeeFloatFormat {
+        match self {
+            Self::TransitionalInput(input) => input.format,
+            Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
+            Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,
+        }
+    }
+}
+
 /// One total proof-only projection. This row is not an executable Terminal
 /// operation and cannot appear in a runtime block's `Operation` list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FloatMeaningProjection {
     pub result: ProofValueDeclaration,
-    pub source: FloatProjectionInput,
+    pub source: FloatMeaningSource,
     pub operation: FloatMeaningProjectionOperation,
 }
 
