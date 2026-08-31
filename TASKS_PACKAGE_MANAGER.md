@@ -159,26 +159,32 @@ stop the item on one precise owner question before adding machinery.
   obligations. Compose dependency results and open obligations transitively;
   never compose producer admission decisions.
 
-  Semantic-schema migration is **OWNER-BLOCKED** on
-  **Require exact evidence-schema equality until a real migration exists** in
-  `OWNER_QUESTIONS.md`. Until resolved, require exact semantic-schema identity;
-  a mismatch receives complete local reconstruction and fresh admission rather
-  than a speculative equivalence classification. Missing, stale,
-  dependency-hidden, or admission-laundered evidence must reject under local
-  replay.
+  Apply **Accepted locks are current-version generated artifacts**. Require
+  exact semantic-schema identity; a mismatch receives complete local
+  reconstruction and fresh admission rather than reuse of old discharge or
+  policy decisions. Missing, stale, dependency-hidden, or admission-laundered
+  evidence rejects under local replay. There is no semantic-schema migration
+  registry or compatibility classifier.
 
 - [ ] **ACCEPTED-LOCK-SCHEMA.** Define and implement the accepted `omega.lock`
   format over the canonical source-closure question, complete package evidence,
   root decisions, and exact immutable resolutions. The lock must not contain
   compiler-private handles, source cache paths, package-authored verdicts, or a
-  compiler/toolchain identity presented as certification.
+  compiler/toolchain identity presented as certification. Begin with fixed
+  magic and one outer accepted-lock format version checked before payload
+  allocation or interpretation. That version covers the complete payload
+  contract, including every nested schema and encoding required for acceptance;
+  an incompatible nested change therefore bumps it. Decode only the current
+  version and reject unknown versions with regeneration guidance.
 
 - [ ] **LOCK-BASELINE-RECOVERY.** Persist and recover accepted baselines with
   strict canonical framing and immediate local reconstruction. Missing lock
   evidence means fresh graph admission. Unavailable old source produces a
   standalone-candidate review packet and audit recommendation; it neither
   proves an audit occurred nor erases a valid accepted baseline. No review-only
-  capsule may be promoted by renaming it.
+  capsule may be promoted by renaming it. An unsupported historical lock is
+  retained opaquely for its matching old toolchain or separate audit tooling;
+  current Omega does not migrate or grandfather its acceptance.
 
 - [ ] **LOCK-CLOSURE-VALIDATION.** Revalidate exact source lineage,
   resolutions, aliases, dependency reachability, obligation schemas,

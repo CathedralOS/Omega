@@ -469,6 +469,16 @@ source caches and expanded artifacts may be ignored. A fingerprint alone is
 not an admission baseline: the lock must embed the normalized accepted security
 projection or retain a mandatory content-addressed copy.
 
+The accepted lock begins with fixed magic and one outer format version. Omega
+checks both before allocating for or interpreting the remaining payload. The
+outer version covers the complete accepted payload contract, including its
+nested source-subject, reconstruction-question, obligation, review, and row
+schemas and encodings. Any incompatible nested change bumps the outer version.
+The ordinary decoder accepts only its exact current version; an unknown version
+rejects with guidance to regenerate `omega.lock` from the exact source closure.
+The payload's own identities remain available for internal reconstruction and
+corruption diagnosis, but they are not a multi-version compatibility surface.
+
 The first resolver does not solve semantic-version ranges. Requests for the
 same `PackageKey` that reach the same immutable source resolution deduplicate,
 including differently spelled requests that resolve to the same commit/tree.
@@ -2322,10 +2332,14 @@ Dependency evidence composes transitively. Each subject retains its own
 obligation-semantics identity. Checked obligations compose upward. Missing or
 unproved obligations also compose upward as open rows, never as a producer's
 already-accepted decision; each consuming project applies its own admission
-policy. The first accepted-evidence boundary requires exact semantic-schema
-identity: a mismatch forces complete local reconstruction and fresh admission.
-Only a concrete checked pairwise migration may later reuse results across
-semantic versions; outer encoding-only revisions remain codec concerns.
+policy. Accepted locks and evidence are exact-current generated artifacts. A
+semantic-schema mismatch forces complete local reconstruction and fresh
+admission; no old discharge or policy decision is reused. Unsupported lock
+versions reject and regenerate rather than entering a compatibility or
+migration classifier. Historical bytes may be retained for their matching old
+toolchain or separate audit tooling, but current admission never grandfathers
+them. Unavailable old source continues through standalone review and audit
+recommendation rather than migration.
 
 Mechanical verification, local admissions, and producer metadata are separate
 report sections. A `verified` verdict contains only locally re-derived facts.
