@@ -114,6 +114,12 @@ pub(crate) fn lower_machine(
                 .type_reference_table
                 .push_type_reference_handle(&mut arguments, argument);
         }
+        let via_expression = conformance
+            .via_expression
+            .is_valid()
+            .then(|| lower_expression_handle(lowerer, conformance.via_expression))
+            .transpose()?
+            .unwrap_or_else(typed::expression::ExpressionHandle::invalid);
         lowerer.typed_trees.push_machine_trait_conformance(
             &mut typed_machine,
             typed::machine::TraitConformance {
@@ -132,6 +138,7 @@ pub(crate) fn lower_machine(
                     .map(|requirement| requirement.source_span()),
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
                 external_binding: conformance.external_binding,
+                via_expression,
                 external_binding_source_span: conformance.external_binding_source_span,
             },
         );

@@ -73,7 +73,7 @@ use crate::state_signatures::{
 use crate::symbols::MachineSymbols;
 pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
-    validate_conformances, validate_external_leaf_native_shapes,
+    validate_conformances, validate_external_leaf_native_shapes, validate_external_via_expression,
     validate_generic_conformance_bounds, validate_machine_trait_conformances,
     validate_trait_conformance_bounds, validate_trait_requirements,
 };
@@ -418,11 +418,22 @@ fn validate_program_internal(
         // one via clause, on a bodyless non-boundary machine, populates
         // ExternalRealization; every other carrier refuses here.
         {
-            let via_count = program
-                .machine_trait_conformances(machine)
+            let conformances = program.machine_trait_conformances(machine);
+            let via_count = conformances
                 .iter()
-                .filter(|conformance| conformance.external_binding.is_some())
+                .filter(|conformance| {
+                    conformance.external_binding.is_some() || conformance.via_expression.is_valid()
+                })
                 .count();
+            for conformance in conformances {
+                if conformance.external_binding.is_some() && conformance.via_expression.is_valid() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` retains both a bootstrap binding and an ordinary `via` expression on one conformance",
+                        machine.name,
+                    )));
+                }
+                validate_external_via_expression(program, machine, conformance, &mut diagnostics);
+            }
             let is_external = matches!(
                 machine.supply_mode,
                 psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }

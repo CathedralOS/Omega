@@ -52,12 +52,11 @@ pub struct ConstDefinition {
     pub value: crate::expression::ExpressionHandle,
 }
 
-/// The compiler-known, CLOSED external `Binding` sum: each leaf binds a
-/// boundary-trait method to ONE mechanism the compiler knows how to lower. A
-/// new mechanism = a new case + new lowering, never user-invented --
-/// same discipline as `FieldPlan`. Each kind also implies the edge's calling
-/// convention (`Syscall` -> the syscall plan; `DllImport`/`VtableField` -> the C
-/// plan), so nobody names a convention in the common case (`calling_plans.md`).
+/// Transitional bootstrap representation for the former magic
+/// `Binding::Case(...)` parser. Durable source uses an ordinary `via`
+/// expression and evaluates the compiler-owned closed `Binding` data sum.
+/// Keeping this enum separate makes every remaining string-backed site
+/// mechanically visible until migration removes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBinding {
     /// Linux's stable ABI is the number table: `Binding::Syscall(1)`.
@@ -707,13 +706,16 @@ pub struct SatisfiesClause {
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,
-    /// PRV4 step 1: `satisfies Requirement via <Binding>` -- the irreducible
-    /// EXTERNAL LEAF. The binding expression is the closed compile-time sum;
-    /// bootstrap lowering currently renders it as text, while the destination
-    /// retains a structured nominal binding beside the exact realization
-    /// symbol. Only legal on a BODYLESS machine (a composite lowering is an
-    /// ordinary checked body).
+    /// Transitional bootstrap spelling parsed as the old compiler-known
+    /// closed sum. New source uses `via_expression`; keeping the carriers
+    /// distinct prevents a string pair from masquerading as an evaluated
+    /// locator.
     pub via: Option<ExternalBinding>,
+    /// Ordinary expression authored after `via`. The first production rung
+    /// admits one exact zero-argument direct machine call whose closed
+    /// compiler-owned `Binding` result is evaluated hermetically. Invalid
+    /// means this clause used no ordinary expression (or used `via`).
+    pub via_expression: crate::expression::ExpressionHandle,
     /// Exact authored `via` keyword occurrence. This is explanatory custody
     /// for package review, independent from the interned binding identity.
     pub via_keyword_source_span: Option<psi_source::SourceSpan>,

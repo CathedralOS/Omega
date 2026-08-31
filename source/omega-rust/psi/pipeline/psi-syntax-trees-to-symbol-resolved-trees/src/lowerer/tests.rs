@@ -4499,15 +4499,62 @@ fn retains_external_realization_mechanism_without_rendering_classification() {
     else {
         panic!("bodyless via leaf must retain external supply");
     };
+    let binding = binding.expect("bootstrap binding identity");
     assert!(binding.is_valid());
     assert_eq!(
         mechanism,
-        psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic
+        Some(psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic)
     );
     let [conformance] = program.machine_trait_conformances(leaf.satisfies) else {
         panic!("external leaf must retain one exact satisfaction row");
     };
     assert_eq!(conformance.external_binding, Some(binding));
+}
+
+#[test]
+fn retains_ordinary_via_call_as_resolved_expression_without_fabricated_binding() {
+    let source = r#"
+        boundary trait Console {
+            machine write(value: u8);
+        }
+
+        machine binding() -> i32 {
+            0
+        }
+
+        machine write_leaf(value: u8)
+        satisfies Console::write
+        via binding();
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
+    let program = lower_syntax_trees(&syntax_trees).expect("resolve ordinary via call");
+    let leaf = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_leaf")
+        .expect("external leaf");
+    assert_eq!(
+        leaf.supply_mode,
+        psi_language_semantics::MachineSupplyMode::ExternalRealization {
+            binding: None,
+            mechanism: None,
+        }
+    );
+    let [conformance] = program.machine_trait_conformances(leaf.satisfies) else {
+        panic!("external leaf must retain one exact satisfaction row");
+    };
+    assert!(conformance.external_binding.is_none());
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Call(call) = program
+        .tables
+        .bodies
+        .expressions
+        .expression(conformance.via_expression)
+    else {
+        panic!("ordinary via source must retain its resolved call");
+    };
+    assert_eq!(call.target.as_str(), "binding");
+    assert!(call.target_symbol.is_valid());
 }
 
 #[test]

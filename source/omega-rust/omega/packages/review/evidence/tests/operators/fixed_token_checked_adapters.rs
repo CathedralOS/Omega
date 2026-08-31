@@ -231,8 +231,8 @@ satisfies CheckedMath::subtract
     let satisfies = external.typed.machines()[provider_index].satisfies;
     external.typed.machines_mut()[provider_index].supply_mode =
         psi_language_semantics::MachineSupplyMode::ExternalRealization {
-            binding,
-            mechanism: psi_language_semantics::ExternalBindingMechanism::Syscall,
+            binding: Some(binding),
+            mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Syscall),
         };
     external.typed.machines_mut()[provider_index].body_is_present = false;
     external

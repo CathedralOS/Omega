@@ -218,6 +218,8 @@ pub struct SatisfiesClauseSnapshot {
     pub alias: Option<IdentifierSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<ExternalBindingSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via_expression: Option<Box<ExpressionSnapshot>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1531,6 +1533,12 @@ fn snapshot_satisfies_clause(
         requirement: clause.requirement.as_ref().map(snapshot_identifier),
         alias: clause.alias.as_ref().map(snapshot_identifier),
         via: clause.via.as_ref().map(snapshot_external_binding),
+        via_expression: clause.via_expression.is_valid().then(|| {
+            Box::new(snapshot_expression_handle(
+                syntax_trees,
+                clause.via_expression,
+            ))
+        }),
     }
 }
 

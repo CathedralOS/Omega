@@ -926,16 +926,29 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
             alias = Some(name);
             rest = next;
         }
-        // The external-leaf suffix constructs the compiler-known closed
-        // `Binding` sum explicitly.
+        // The external-leaf suffix is an ordinary expression in the durable
+        // language. Keep the old `Binding::Case(...)` bootstrap spelling on
+        // its segregated parser until source migration is complete; it must
+        // never be confused with an evaluated locator value.
         let mut via = None;
+        let mut via_expression = psi_syntax_trees::expression::ExpressionHandle::invalid();
         let mut via_keyword_source_span = None;
         if rest.at_contextual("via") {
             via_keyword_source_span = Some(rest.current_source_span());
             let next = rest.take_contextual("via")?;
-            let (binding, next) = crate::parser::item::parse_external_provider_binding(next)?;
-            via = Some(binding);
-            rest = next;
+            let is_bootstrap_binding = next
+                .take_identifier()
+                .is_ok_and(|(root, _)| root.as_str() == "Binding");
+            if is_bootstrap_binding {
+                let (binding, next) = crate::parser::item::parse_external_provider_binding(next)?;
+                via = Some(binding);
+                rest = next;
+            } else {
+                let (expression, next) =
+                    crate::parser::expression::parse_expression_handle(syntax_trees, next)?;
+                via_expression = expression;
+                rest = next;
+            }
         }
 
         let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
@@ -944,6 +957,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
             requirement,
             alias,
             via,
+            via_expression,
             via_keyword_source_span,
         });
         if clause_count == 0 {

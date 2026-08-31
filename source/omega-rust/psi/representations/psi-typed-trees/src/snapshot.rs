@@ -716,8 +716,10 @@ pub enum MachineSupplySnapshot {
     Boundary,
     AdmissionClaim,
     ExternalRealization {
-        binding: u32,
-        mechanism: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        binding: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        mechanism: Option<&'static str>,
     },
 }
 
@@ -1398,8 +1400,8 @@ fn machine_supply_snapshot(
         MachineSupplyMode::AdmissionClaim => MachineSupplySnapshot::AdmissionClaim,
         MachineSupplyMode::ExternalRealization { binding, mechanism } => {
             MachineSupplySnapshot::ExternalRealization {
-                binding: binding.0,
-                mechanism: mechanism.as_str(),
+                binding: binding.map(|binding| binding.0),
+                mechanism: mechanism.map(|mechanism| mechanism.as_str()),
             }
         }
     }

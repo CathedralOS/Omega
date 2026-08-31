@@ -1759,9 +1759,21 @@ pub fn contract_identity(
         MachineSupplyMode::TopLevelRequirement => 6,
     });
     if let MachineSupplyMode::ExternalRealization { binding, mechanism } = supply_mode {
-        fold(mechanism.identity_tag());
-        for byte in binding.0.to_le_bytes() {
-            fold(byte);
+        match mechanism {
+            Some(mechanism) => {
+                fold(1);
+                fold(mechanism.identity_tag());
+            }
+            None => fold(0),
+        }
+        match binding {
+            Some(binding) => {
+                fold(1);
+                for byte in binding.0.to_le_bytes() {
+                    fold(byte);
+                }
+            }
+            None => fold(0),
         }
     }
     // Boundary-service declaration identity, rendered canonically rather than
@@ -2412,8 +2424,10 @@ mod tests {
             MachineSupplyMode::Boundary,
             MachineSupplyMode::AdmissionClaim,
             MachineSupplyMode::ExternalRealization {
-                binding: psi_language_semantics::ExternalBindingId(1),
-                mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+                binding: Some(psi_language_semantics::ExternalBindingId(1)),
+                mechanism: Some(
+                    psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+                ),
             },
             MachineSupplyMode::TopLevelRequirement,
         ]
@@ -2434,8 +2448,8 @@ mod tests {
         let fingerprint = |mechanism| {
             contract_report_fingerprint(
                 MachineSupplyMode::ExternalRealization {
-                    binding: psi_language_semantics::ExternalBindingId(1),
-                    mechanism,
+                    binding: Some(psi_language_semantics::ExternalBindingId(1)),
+                    mechanism: Some(mechanism),
                 },
                 &[],
                 SynchronousInvocationInterface::PublishedCeiling,

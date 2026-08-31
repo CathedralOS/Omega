@@ -294,6 +294,26 @@ pub(super) fn assign_machine_symbols(
                 machine_symbol,
                 conformance.arguments,
             );
+            if conformance.via_expression.is_valid() {
+                assign_expression_table_symbols(
+                    symbols,
+                    &MachineScope {
+                        symbol: machine_symbol,
+                        type_parameters: &local_type_parameters,
+                        attached_data: machine.attached_data.as_ref(),
+                        attached_data_symbol: machine.attached_data_symbol,
+                        owned_data: &[],
+                        inherited_data_members: None,
+                        data_definitions,
+                        data_members,
+                    },
+                    &[],
+                    SymbolHandle::invalid(),
+                    expression_table,
+                    child_type_references,
+                    conformance.via_expression,
+                );
+            }
             if target_is_trait
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()

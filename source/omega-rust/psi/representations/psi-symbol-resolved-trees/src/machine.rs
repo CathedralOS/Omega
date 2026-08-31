@@ -122,8 +122,13 @@ pub struct TraitConformance {
     pub requirement: Option<DiagnosticName>,
     pub alias: Option<DiagnosticName>,
     /// Exact interned identity of the external leaf's structured `via`
-    /// binding. Absence means this is an ordinary checked satisfier.
+    /// bootstrap binding. New source instead retains `via_expression` until
+    /// hermetic evaluation produces the normalized Omega-owned binding.
     pub external_binding: Option<psi_language_semantics::ExternalBindingId>,
+    /// Ordinary authored expression after `via`, lowered through the same
+    /// name-resolution table as every other expression. Invalid for the
+    /// segregated bootstrap binding and for ordinary checked satisfiers.
+    pub via_expression: ExpressionHandle,
     /// Exact authored `via` keyword occurrence retained separately from the
     /// semantic binding identity for package-review source custody.
     pub external_binding_source_span: Option<psi_source::SourceSpan>,
@@ -138,6 +143,7 @@ impl Default for TraitConformance {
             requirement: None,
             alias: None,
             external_binding: None,
+            via_expression: ExpressionHandle::invalid(),
             external_binding_source_span: None,
         }
     }

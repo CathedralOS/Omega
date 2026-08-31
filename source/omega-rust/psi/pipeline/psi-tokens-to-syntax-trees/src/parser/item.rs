@@ -173,7 +173,7 @@ pub(super) fn parse_item<'tokens, 'source>(
             .items
             .satisfies_clauses(item.satisfies)
             .iter()
-            .any(|clause| clause.via.is_some());
+            .any(|clause| clause.via.is_some() || clause.via_expression.is_valid());
         if item.bodyless && !has_via {
             return Err(rest.error_here(
                 "a machine without a body is the ACCEPTED boundary form -- spell it \

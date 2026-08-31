@@ -548,6 +548,54 @@ fn retains_structured_external_binding_table_in_typed_trees() {
 }
 
 #[test]
+fn retains_ordinary_via_call_in_typed_conformance_without_bootstrap_identity() {
+    let source = r#"
+        boundary trait Console {
+            machine write(value: u8);
+        }
+
+        machine binding() -> i32 {
+            0
+        }
+
+        machine write_leaf(value: u8)
+        satisfies Console::write
+        via binding();
+    "#;
+    let typed = lower_source(source).expect("type ordinary via call");
+    let leaf = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "write_leaf")
+        .expect("external leaf");
+    assert_eq!(
+        leaf.supply_mode,
+        psi_language_semantics::MachineSupplyMode::ExternalRealization {
+            binding: None,
+            mechanism: None,
+        }
+    );
+    let [conformance] = typed.machine_trait_conformances(leaf) else {
+        panic!("one exact external conformance")
+    };
+    assert!(conformance.external_binding.is_none());
+    let psi_typed_trees::expression::ExpressionNode::Call(call) = typed
+        .expression_table
+        .expression(conformance.via_expression)
+    else {
+        panic!("ordinary via source must retain its typed call");
+    };
+    assert_eq!(call.target.as_str(), "binding");
+    assert!(call.target_symbol.is_valid());
+    assert!(
+        typed
+            .expression_table
+            .expression_handles(call.arguments)
+            .is_empty()
+    );
+}
+
+#[test]
 fn settles_satisfied_operator_to_its_exact_overload_symbol() {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,

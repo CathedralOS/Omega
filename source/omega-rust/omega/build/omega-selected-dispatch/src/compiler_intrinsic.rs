@@ -176,6 +176,9 @@ fn linux_console_exit_row(
     else {
         return Ok(false);
     };
+    let (Some(binding), Some(mechanism)) = (binding, mechanism) else {
+        return Ok(false);
+    };
     if mechanism != ExternalBindingMechanism::CompilerIntrinsic
         || typed.external_bindings.identity(binding)
             != Some(&ExternalBindingIdentity::CompilerIntrinsic)

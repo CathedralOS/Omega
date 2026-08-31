@@ -461,14 +461,35 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .find(|machine| machine.name.as_str() == "invoke_leaf")
             .expect("external leaf");
         let satisfies = leaf.satisfies;
-        leaf.supply_mode =
-            psi_language_semantics::MachineSupplyMode::ExternalRealization { binding, mechanism };
+        leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+            binding: Some(binding),
+            mechanism: Some(mechanism),
+        };
         checked
             .typed
             .machine_trait_conformances
             .span_mut_or_empty(satisfies)[0]
             .external_binding = Some(binding);
     }
+
+    let mut unevaluated_binding = checked.clone();
+    let leaf = unevaluated_binding
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == "invoke_leaf")
+        .expect("external leaf");
+    leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
+        binding: None,
+        mechanism: None,
+    };
+    let diagnostics = project_checked_package_review(&unevaluated_binding)
+        .expect_err("an unevaluated binding must not enter package evidence");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has not installed its evaluated binding")
+    }));
 
     let mut mechanism_mismatch = checked.clone();
     let leaf = mechanism_mismatch
@@ -484,7 +505,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     };
     leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
         binding,
-        mechanism: psi_language_semantics::ExternalBindingMechanism::Import,
+        mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Import),
     };
     let diagnostics = project_checked_package_review(&mechanism_mismatch)
         .expect_err("mechanism mismatch must fail closed");
@@ -567,8 +588,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .expect("external leaf");
     let satisfies = leaf.satisfies;
     leaf.supply_mode = psi_language_semantics::MachineSupplyMode::ExternalRealization {
-        binding: invalid_binding,
-        mechanism: psi_language_semantics::ExternalBindingMechanism::Syscall,
+        binding: Some(invalid_binding),
+        mechanism: Some(psi_language_semantics::ExternalBindingMechanism::Syscall),
     };
     missing_binding_identity
         .typed

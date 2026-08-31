@@ -213,8 +213,17 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     program.push_machine(Machine {
         name: Identifier::generated("leaf"),
         supply_mode: psi_language_semantics::MachineSupplyMode::ExternalRealization {
-            binding,
-            mechanism: psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
+            binding: Some(binding),
+            mechanism: Some(psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+        },
+        body_is_present: false,
+        ..Machine::default()
+    });
+    program.push_machine(Machine {
+        name: Identifier::generated("pending_leaf"),
+        supply_mode: psi_language_semantics::MachineSupplyMode::ExternalRealization {
+            binding: None,
+            mechanism: None,
         },
         body_is_present: false,
         ..Machine::default()
@@ -230,11 +239,18 @@ fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     assert_eq!(
         snapshot.roots.machines[1].supply,
         MachineSupplySnapshot::ExternalRealization {
-            binding: 1,
-            mechanism: "compiler_intrinsic"
+            binding: Some(1),
+            mechanism: Some("compiler_intrinsic")
         }
     );
     assert!(!snapshot.roots.machines[1].body_is_present);
+    assert_eq!(
+        snapshot.roots.machines[2].supply,
+        MachineSupplySnapshot::ExternalRealization {
+            binding: None,
+            mechanism: None,
+        }
+    );
     assert_eq!(snapshot.external_bindings.len(), 1);
     assert_eq!(snapshot.external_bindings[0].identity, 1);
     assert_eq!(
