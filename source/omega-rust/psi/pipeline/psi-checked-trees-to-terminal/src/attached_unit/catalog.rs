@@ -118,6 +118,46 @@ pub(super) fn lower_unit_structural_types(
     ),
     LoweringError,
 > {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut roots = Vec::new();
+    for symbol in closure {
+        let machine = unique_unit_machine(plans, *symbol)?;
+        roots.push(machine.attachment_type_identity.clone());
+        roots.extend(
+            machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity.clone()),
+        );
+        for local in &machine.trivial_affine_locals {
+            roots.push(local.type_identity.clone());
+            if let Some(construction) = &local.construction {
+                roots.push(construction.root_type_identity.clone());
+            }
+        }
+    }
+    for (boundary, _) in boundaries {
+        roots.extend(boundary.attachment_type_identity.iter().cloned());
+        roots.extend(
+            boundary
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity.clone()),
+        );
+    }
+    lower_unit_structural_type_roots(checked, &roots)
+}
+
+pub(super) fn lower_unit_structural_type_roots(
+    checked: &CheckedTrees,
+    roots: &[String],
+) -> Result<
+    (
+        Vec<StructuralTypeDeclaration>,
+        Vec<(String, StructuralTypeId)>,
+    ),
+    LoweringError,
+> {
     fn collect(
         plans: &psi_checked_trees::CheckedUnitEffectPlans,
         identity: &str,
@@ -191,36 +231,8 @@ pub(super) fn lower_unit_structural_types(
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut selected = Vec::new();
     let mut active = Vec::new();
-    for symbol in closure {
-        let machine = unique_unit_machine(plans, *symbol)?;
-        collect(
-            plans,
-            &machine.attachment_type_identity,
-            &mut active,
-            &mut selected,
-        )?;
-        for parameter in &machine.structural_parameters {
-            collect(plans, &parameter.type_identity, &mut active, &mut selected)?;
-        }
-        for local in &machine.trivial_affine_locals {
-            collect(plans, &local.type_identity, &mut active, &mut selected)?;
-            if let Some(construction) = &local.construction {
-                collect(
-                    plans,
-                    &construction.root_type_identity,
-                    &mut active,
-                    &mut selected,
-                )?;
-            }
-        }
-    }
-    for (boundary, _) in boundaries {
-        if let Some(identity) = &boundary.attachment_type_identity {
-            collect(plans, identity, &mut active, &mut selected)?;
-        }
-        for parameter in &boundary.structural_parameters {
-            collect(plans, &parameter.type_identity, &mut active, &mut selected)?;
-        }
+    for identity in roots {
+        collect(plans, identity, &mut active, &mut selected)?;
     }
     selected.sort();
     selected.dedup();

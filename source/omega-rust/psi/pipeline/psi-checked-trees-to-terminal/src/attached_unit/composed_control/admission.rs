@@ -4,7 +4,6 @@ use super::*;
 
 pub(super) struct AdmittedComposedUnit<'a> {
     pub(super) leaves: [&'a psi_checked_trees::CheckedComposedUnitControlStatePlan; 2],
-    pub(super) attachment: &'a psi_checked_trees::CheckedUnitStructuralTypePlan,
     pub(super) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 }
 
@@ -15,25 +14,22 @@ pub(super) fn admit_composed_unit_control<'a>(
     let [entry, when_true, when_false] = plan.states.as_slice() else {
         return unsupported("composed Unit control requires exactly three states");
     };
-    if !plan.provider_attachment_requirements.is_empty()
-        || !plan.body_qualifications.is_empty()
+    if !plan.body_qualifications.is_empty()
         || !entry.structural_parameters.is_empty()
         || !entry.entry_claims.is_empty()
         || !entry.operations.is_empty()
-        || entry.scalar_parameters.len() != 1
-        || entry.scalar_parameters[0].source_position != 0
-        || entry.scalar_parameters[0].primitive_type != PrimitiveType::Bool
     {
         return unsupported("composed Unit entry is outside the exact scalar-control slice");
     }
-    let CheckedStructuralUnitControlTerminatorPlan::Conditional {
-        guard_scalar_parameter_index: 0,
+    let CheckedComposedUnitControlTerminatorPlan::Conditional {
+        guard,
         when_true: true_edge,
         when_false: false_edge,
     } = &entry.terminator
     else {
         return unsupported("composed Unit entry is not the exact Boolean conditional");
     };
+    validate_guard(guard, &entry.scalar_parameters)?;
     if true_edge.statement_ordinal != 0
         || false_edge.statement_ordinal != 1
         || true_edge.target_state != when_true.state
@@ -64,9 +60,9 @@ pub(super) fn admit_composed_unit_control<'a>(
     };
     if !matches!(
         attachment.shape,
-        CheckedUnitStructuralTypeShape::Record { ref fields } if fields.is_empty()
+        CheckedUnitStructuralTypeShape::Record { .. }
     ) {
-        return unsupported("composed Unit attachment is not an empty record");
+        return unsupported("composed Unit attachment is not a record");
     }
 
     let mut boundaries = Vec::new();
@@ -85,11 +81,53 @@ pub(super) fn admit_composed_unit_control<'a>(
     }) {
         return unsupported("composed Unit boundary is not scalar-only Unit");
     }
+    let called_boundaries = [when_true, when_false]
+        .iter()
+        .filter_map(|state| match &state.operations[0] {
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                Some(*target_machine)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    super::super::provider_attachments::validate_provider_attachment_requirements(
+        attachment,
+        &plan.provider_attachment_requirements,
+        &called_boundaries,
+    )?;
     Ok(AdmittedComposedUnit {
         leaves: [when_true, when_false],
-        attachment,
         boundaries,
     })
+}
+
+fn validate_guard(
+    guard: &CheckedScalarExpression,
+    parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
+) -> Result<(), LoweringError> {
+    let CheckedScalarExpression::Boolean(boolean) = guard else {
+        return unsupported("composed Unit guard is not Boolean");
+    };
+    let admitted = match (parameters, boolean.as_ref()) {
+        ([parameter], CheckedBooleanExpression::Parameter { position: 0 }) => {
+            parameter.source_position == 0 && parameter.primitive_type == PrimitiveType::Bool
+        }
+        ([], CheckedBooleanExpression::Constant(_)) => true,
+        ([], CheckedBooleanExpression::IntegerComparison { left, right, .. }) => {
+            matches!(
+                left.as_ref(),
+                CheckedScalarExpression::IntegerLiteral { .. }
+            ) && matches!(
+                right.as_ref(),
+                CheckedScalarExpression::IntegerLiteral { .. }
+            )
+        }
+        _ => false,
+    };
+    if !admitted {
+        return unsupported("composed Unit guard escaped the exact admitted expression family");
+    }
+    Ok(())
 }
 
 fn validate_contract(
@@ -170,9 +208,7 @@ fn validate_leaf(
         )
         || !matches!(
             state.terminator,
-            CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
-                ref trivial_affine_discard_parameter_positions
-            } if trivial_affine_discard_parameter_positions.is_empty()
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         )
     {
         return unsupported("composed Unit leaf is outside the exact boundary-return slice");

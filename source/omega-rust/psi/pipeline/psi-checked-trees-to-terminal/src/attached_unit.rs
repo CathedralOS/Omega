@@ -10,6 +10,7 @@ mod call_closure;
 mod catalog;
 mod composed_control;
 mod parameters;
+mod provider_attachments;
 mod providers;
 mod selected_operator;
 
@@ -38,6 +39,9 @@ pub(super) use parameters::{
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_structural_path, lower_unit_parameters,
     validate_transfer_shape,
+};
+use provider_attachments::{
+    lower_provider_attachment_places, validate_provider_attachment_requirements,
 };
 use providers::checked_unit_provider_candidates;
 use selected_operator::validate_selected_operator_scalar_call;
@@ -649,112 +653,37 @@ pub(super) fn lower_attached_unit_closure_including(
             .ok_or(LoweringError::Unsupported(
                 "attached Unit machine is missing its checked attachment shape",
             ))?;
-        let checked_provider_fields = match &checked_attachment.shape {
-            CheckedUnitStructuralTypeShape::Record { fields } => fields
-                .iter()
-                .filter(|field| {
-                    matches!(
-                        field.field_type,
-                        CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                    )
-                })
-                .count(),
-            _ => 0,
-        };
-        if (checked_provider_fields == 0) != plan.provider_attachment_requirements.is_empty()
-            || checked_provider_fields > 1
-        {
-            return unsupported(
-                "provider-backed attachment field lacks one complete specialization requirement set",
-            );
-        }
-        if checked_provider_fields == 1 {
-            let mut called_boundaries = plan
-                .operations
-                .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                        target_machine, ..
-                    } => Some(*target_machine),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            called_boundaries
-                .sort_by_key(|boundary| (boundary.arena_index(), boundary.generation()));
-            called_boundaries.dedup();
-            let specialized_boundaries = plan
-                .provider_attachment_requirements
-                .iter()
-                .map(|requirement| requirement.boundary)
-                .collect::<Vec<_>>();
-            if called_boundaries != specialized_boundaries {
-                return unsupported(
-                    "provider-backed attachment requirements do not exactly cover boundary calls",
-                );
-            }
-        }
+        let called_boundaries = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
+                    Some(*target_machine)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        validate_provider_attachment_requirements(
+            checked_attachment,
+            &plan.provider_attachment_requirements,
+            &called_boundaries,
+        )?;
         let attachment_declaration = structural_types
             .iter()
             .find(|declaration| declaration.id == attachment)
             .expect("lowered attachment declaration exists");
-        let attachment_fields = match &attachment_declaration.shape {
-            StructuralTypeShape::Record { fields } => Some(fields.as_slice()),
-            _ => None,
-        };
-        if !plan.provider_attachment_requirements.is_empty() && attachment_fields.is_none() {
-            return unsupported(
-                "provider-backed attachment specialization requires a record attachment",
-            );
-        }
-        let mut provider_roots = plan
-            .provider_attachment_requirements
+        let provider_boundaries = lowered_boundary_parameters
             .iter()
-            .map(|requirement| {
-                let field = attachment_fields
-                    .expect("provider requirements require record attachment")
-                    .iter()
-                    .find(|field| field.identity == requirement.field_identity)
-                    .ok_or(LoweringError::Unsupported(
-                        "provider-backed attachment requirement names an unknown field",
-                    ))?;
-                if field.relevance.is_erased()
-                    || !matches!(&field.field_type,
-                        StructuralFieldType::Erased { type_identity }
-                            if type_identity == &requirement.provider_type_identity)
-                {
-                    return unsupported(
-                        "provider-backed attachment requirement disagrees with its erased carrier",
-                    );
-                }
-                let boundary = lowered_boundary_parameters
-                    .iter()
-                    .find_map(|(symbol, boundary, _, _)| {
-                        (*symbol == requirement.boundary).then_some(*boundary)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "provider-backed attachment requirement names an unlowered boundary",
-                    ))?;
-                Ok((field.id, boundary))
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        provider_roots.sort_by_key(|(_, boundary)| *boundary);
-        if provider_roots.windows(2).any(|pair| pair[0] == pair[1]) {
-            return unsupported("provider-backed attachment requirements contain duplicates");
-        }
-        let provider_places = provider_roots
-            .into_iter()
-            .map(|(field, boundary)| {
-                Ok(StructuralPlaceDeclaration {
-                    id: place_id(allocate_dense(&mut next_place)?),
-                    kind: StructuralPlaceKind::ProviderAttachment {
-                        attachment,
-                        field,
-                        boundary,
-                    },
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+            .map(|(symbol, boundary, _, _)| (*symbol, *boundary))
+            .collect::<Vec<_>>();
+        let provider_places = lower_provider_attachment_places(
+            attachment,
+            attachment_declaration,
+            &plan.provider_attachment_requirements,
+            &provider_boundaries,
+            &mut next_place,
+        )?;
         let local_places = plan
             .trivial_affine_locals
             .iter()

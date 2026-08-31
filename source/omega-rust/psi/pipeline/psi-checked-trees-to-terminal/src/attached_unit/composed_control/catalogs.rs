@@ -3,6 +3,7 @@
 use super::*;
 use crate::attached_unit::catalog::{
     lower_composed_unit_services, lower_program_local_root_introductions,
+    lower_unit_structural_type_roots,
 };
 
 pub(super) struct ComposedCatalogs {
@@ -24,8 +25,10 @@ pub(super) fn lower_composed_catalogs(
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: &admission::AdmittedComposedUnit<'_>,
 ) -> Result<ComposedCatalogs, LoweringError> {
-    let (structural_types, type_ids) =
-        lower_structural_type_plans(std::slice::from_ref(admitted.attachment))?;
+    let (structural_types, type_ids) = lower_unit_structural_type_roots(
+        checked,
+        std::slice::from_ref(&plan.attachment_type_identity),
+    )?;
     let (services, service_ids) =
         lower_composed_unit_services(checked, plan, &admitted.boundaries)?;
     let root_service_reach = lower_root_service_reach(checked, plan.machine, &service_ids)?;

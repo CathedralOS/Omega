@@ -1749,6 +1749,48 @@ fn first_psi_source_slice_stays_fail_closed() {
 }
 
 #[test]
+fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
+    let root = workspace_root();
+    let typed = root.join(
+        "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/flow/terminal_unit",
+    );
+    let terminal = root.join(
+        "source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit",
+    );
+    for (entrance, limit, modules) in [
+        (
+            typed.join("composed_control.rs"),
+            30,
+            &["assembly", "guards", "leaves", "topology"][..],
+        ),
+        (
+            terminal.join("composed_control.rs"),
+            30,
+            &["admission", "catalogs", "emission"][..],
+        ),
+    ] {
+        let source = std::fs::read_to_string(&entrance)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", entrance.display()));
+        assert!(
+            source.lines().count() <= limit,
+            "composed Unit entrance {} exceeds its {limit}-line navigation budget",
+            entrance.display()
+        );
+        let directory = entrance.with_extension("");
+        for module in modules {
+            assert!(
+                source.contains(&format!("mod {module};"))
+                    && directory.join(format!("{module}.rs")).is_file(),
+                "composed Unit entrance {} must name an existing `{module}` rung",
+                entrance.display()
+            );
+        }
+    }
+    assert!(typed.join("providers.rs").is_file());
+    assert!(terminal.join("provider_attachments.rs").is_file());
+}
+
+#[test]
 fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let root = workspace_root();
     let producer_path =

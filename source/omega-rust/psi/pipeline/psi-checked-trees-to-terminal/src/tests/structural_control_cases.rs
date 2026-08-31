@@ -61,6 +61,66 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
     ));
 }
 
+#[test]
+fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
+    let checked = checked_source(
+        r#"
+            boundary trait Console {
+                machine exit_process(return_code: i32) reaches Console;
+            }
+            const PAGE_SIZE: u32 = 64;
+            data Main { console: Console; }
+            machine Main::main(&mut self) reaches Console {
+                transition PAGE_SIZE == 64 { true -> yes() _ -> no() }
+                state yes(&mut self) { self.console.exit_process(70); }
+                state no(&mut self) { self.console.exit_process(71); }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Main::main")
+        .expect("closed guard and provider attachment lower atomically");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("composed provider route emits one machine")
+    };
+    assert!(machine.parameters.is_empty());
+    assert!(machine.structural_parameters.is_empty());
+    assert!(matches!(
+        machine.structural_places.as_slice(),
+        [psi_terminal::StructuralPlaceDeclaration {
+            kind: StructuralPlaceKind::ProviderAttachment { .. },
+            ..
+        }]
+    ));
+    assert!(
+        machine.blocks[0]
+            .operations
+            .iter()
+            .any(|operation| matches!(
+                operation.kind,
+                OperationKind::BooleanConstant { value: true }
+            ))
+    );
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("provider-backed composed Unit module verifies");
+
+    let mut missing_provider = checked;
+    missing_provider
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines[0]
+        .provider_attachment_requirements
+        .clear();
+    assert!(matches!(
+        lower_machine(&missing_provider, "Main::main"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
 fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
     let root = SymbolHandle::from_arena_index(1);
     let entry = SymbolHandle::from_arena_index(11);

@@ -280,6 +280,9 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &locals,
                                 exact_integer_casts,
                             )
+                            .or_else(|| {
+                                lower_closed_integer_literal_guard(program, operators, guard)
+                            })
                         {
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
@@ -368,6 +371,54 @@ pub(crate) fn build_checked_scalar_expression_plans(
         }
     }
     CheckedScalarExpressionPlans { expressions }
+}
+
+fn lower_closed_integer_literal_guard(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    mut expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
+    // Const substitution can leave a comparison of two anonymous literals:
+    // there is deliberately no runtime carrier to land. Preserve its exact
+    // mathematical result as a checked Boolean constant instead of guessing
+    // an integer width downstream.
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+        && binary.operator == BinaryOperator::Equal
+        && operator_is_builtin(operators, expression)
+    {
+        match (
+            program.expression_table.expression(binary.left),
+            program.expression_table.expression(binary.right),
+        ) {
+            (ExpressionNode::Boolean(true), _) => expression = binary.right,
+            (_, ExpressionNode::Boolean(true)) => expression = binary.left,
+            _ => {}
+        }
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !operator_is_builtin(operators, expression) {
+        return None;
+    }
+    let ExpressionNode::Integer(left) = program.expression_table.expression(binary.left) else {
+        return None;
+    };
+    let ExpressionNode::Integer(right) = program.expression_table.expression(binary.right) else {
+        return None;
+    };
+    let left = left.value_bignum()?;
+    let right = right.value_bignum()?;
+    let value = match binary.operator {
+        BinaryOperator::Equal => left == right,
+        BinaryOperator::NotEqual => left != right,
+        BinaryOperator::Less => left < right,
+        BinaryOperator::LessOrEqual => left <= right,
+        BinaryOperator::Greater => left > right,
+        BinaryOperator::GreaterOrEqual => left >= right,
+        _ => return None,
+    };
+    Some(CheckedBooleanExpression::Constant(value))
 }
 
 fn assignment_target_primitive_type(
