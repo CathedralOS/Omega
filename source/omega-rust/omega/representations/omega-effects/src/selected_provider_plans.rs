@@ -33,7 +33,6 @@ pub struct SelectedProviderPlanFacts {
     /// `identity_digest()`.
     report_fingerprint: u64,
     execution_scope: crate::ExecutionScope,
-    indexed_provider_application_coverage: Vec<crate::ProviderAssertedIndexedApplicationCoverage>,
     opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
 }
@@ -44,7 +43,6 @@ impl Default for SelectedProviderPlanFacts {
             plans: Vec::new(),
             report_fingerprint: selected_plans_report_fingerprint(&[]),
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            indexed_provider_application_coverage: Vec::new(),
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
         }
@@ -125,7 +123,6 @@ impl SelectedProviderPlanFacts {
             plans,
             report_fingerprint,
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
-            indexed_provider_application_coverage: Vec::new(),
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
         })
@@ -222,11 +219,6 @@ impl SelectedProviderPlanFacts {
         }
         encoder.execution_scope(self.execution_scope);
 
-        encoder.len(self.indexed_provider_application_coverage.len());
-        for coverage in &self.indexed_provider_application_coverage {
-            encoder.bytes(&coverage.canonical_bytes());
-        }
-
         encoder.len(self.opaque_executable_admissions.len());
         for admission in &self.opaque_executable_admissions {
             encoder.opaque_executable_admission(admission.candidate());
@@ -244,64 +236,6 @@ impl SelectedProviderPlanFacts {
 
     pub const fn execution_scope(&self) -> crate::ExecutionScope {
         self.execution_scope
-    }
-
-    /// Attach canonical provider-asserted indexed-application coverage to
-    /// exact slots in this selected closure. These rows are structural facts,
-    /// not issuance, admission, installation, or custody authority.
-    pub fn with_indexed_provider_application_coverage(
-        mut self,
-        mut coverage: Vec<crate::ProviderAssertedIndexedApplicationCoverage>,
-    ) -> Result<Self, String> {
-        if !self.indexed_provider_application_coverage.is_empty() {
-            return Err(
-                "selected provider closure already has indexed-application coverage".into(),
-            );
-        }
-        coverage.sort();
-        let mut occupied_slots = BTreeSet::new();
-        for row in &coverage {
-            let Some(plan) = self.plan_by_report_fingerprint(row.provider_plan_report_identity())
-            else {
-                return Err(format!(
-                    "indexed-application coverage names unselected provider plan {:#018x}",
-                    row.provider_plan_report_identity()
-                ));
-            };
-            if plan.schema.trait_name != row.schema().trait_name()
-                || plan.schema.trait_package_identity != row.schema().trait_package_identity()
-            {
-                return Err(format!(
-                    "indexed-application coverage schema does not match selected provider plan `{}`",
-                    plan.name
-                ));
-            }
-            let slot = (
-                row.provider_plan_report_identity(),
-                row.schema().trait_package_identity(),
-                row.schema().trait_name(),
-            );
-            if !occupied_slots.insert(slot) {
-                return Err(format!(
-                    "selected provider plan `{}` has more than one indexed-application coverage row for schema `{}`",
-                    plan.name,
-                    row.schema().trait_name()
-                ));
-            }
-        }
-        self.indexed_provider_application_coverage = coverage;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.indexed_provider_application_coverage,
-            &self.installation_reach_resolutions,
-        );
-        Ok(self)
-    }
-
-    pub fn indexed_provider_application_coverage(
-        &self,
-    ) -> &[crate::ProviderAssertedIndexedApplicationCoverage] {
-        &self.indexed_provider_application_coverage
     }
 
     /// Re-scope one selected closure before attaching opaque admissions. The
@@ -454,11 +388,8 @@ impl SelectedProviderPlanFacts {
             }
         }
         self.installation_reach_resolutions = resolutions;
-        self.report_fingerprint = selected_closure_report_fingerprint(
-            &self.plans,
-            &self.indexed_provider_application_coverage,
-            &self.installation_reach_resolutions,
-        );
+        self.report_fingerprint =
+            selected_closure_report_fingerprint(&self.plans, &self.installation_reach_resolutions);
         Ok(self)
     }
 
@@ -534,21 +465,9 @@ fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
 
 fn selected_closure_report_fingerprint(
     plans: &[ProviderPlan],
-    coverage: &[crate::ProviderAssertedIndexedApplicationCoverage],
     resolutions: &[InstallationReachResolution],
 ) -> u64 {
     let mut hash = selected_plans_report_fingerprint(plans);
-    if !coverage.is_empty() {
-        for byte in b"omega.selected-indexed-application-coverage.v1"
-            .iter()
-            .copied()
-            .chain((coverage.len() as u64).to_le_bytes())
-            .chain(coverage.iter().flat_map(|row| row.canonical_bytes()))
-        {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-    }
     for resolution in resolutions {
         for byte in resolution
             .requirement_identity

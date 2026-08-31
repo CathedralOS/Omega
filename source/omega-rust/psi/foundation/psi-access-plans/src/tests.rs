@@ -6243,7 +6243,7 @@ fn device_operation_requirements_close_all_five_non_fence_families_exactly() {
         .iter()
         .rev()
         .map(|requirement| {
-            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(
+            ProviderAssertedDeviceOperationClaim::from_provider_assertion(
                 DeviceOperationProviderPlanId::from_normalized_identity(822)
                     .expect("device provider plan"),
                 requirement,
@@ -6285,7 +6285,7 @@ fn device_operation_structural_closure_rejects_drift_and_returns_retry_custody()
         device_requirement(840, DeviceOperation::DmaPublication, 0, 825, 824),
         device_requirement(840, DeviceOperation::DmaPublication, 0, 823, 826),
     ] {
-        let evidence = ProviderAssertedDeviceOperationCoverage::from_provider_assertion(
+        let evidence = ProviderAssertedDeviceOperationClaim::from_provider_assertion(
             DeviceOperationProviderPlanId::from_normalized_identity(827)
                 .expect("device provider plan"),
             &drifted,
@@ -6303,7 +6303,7 @@ fn device_operation_structural_closure_rejects_drift_and_returns_retry_custody()
             827
         );
 
-        let repaired = ProviderAssertedDeviceOperationCoverage::from_provider_assertion(
+        let repaired = ProviderAssertedDeviceOperationClaim::from_provider_assertion(
             DeviceOperationProviderPlanId::from_normalized_identity(827)
                 .expect("device provider plan"),
             &returned_requirements[0],
@@ -6323,15 +6323,10 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
 
     let missing = structurally_close_device_operation_requirements(
         vec![first.clone(), second.clone()],
-        vec![ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first)],
+        vec![ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first)],
     )
     .expect_err("each equal-looking occurrence needs its own evidence");
-    assert!(
-        missing
-            .diagnostic()
-            .0
-            .contains("no provider coverage assertion")
-    );
+    assert!(missing.diagnostic().0.contains("no provider claim"));
     let (returned_requirements, returned_evidence) = missing.into_parts();
     assert_eq!(returned_requirements, vec![first.clone(), second.clone()]);
     assert_eq!(returned_evidence.len(), 1);
@@ -6339,7 +6334,7 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
 
     let duplicate_requirement = structurally_close_device_operation_requirements(
         vec![first.clone(), first.clone()],
-        vec![ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first)],
+        vec![ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first)],
     )
     .expect_err("duplicate emitted identities reject");
     assert!(
@@ -6352,8 +6347,8 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
     let duplicate_evidence = structurally_close_device_operation_requirements(
         vec![first.clone()],
         vec![
-            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first),
-            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first),
+            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first),
+            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first),
         ],
     )
     .expect_err("duplicate provider assertions reject");
@@ -6361,14 +6356,14 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
         duplicate_evidence
             .diagnostic()
             .0
-            .contains("duplicate provider coverage assertions")
+            .contains("duplicate provider claims")
     );
 
     let extra = structurally_close_device_operation_requirements(
         vec![first.clone()],
         vec![
-            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first),
-            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &second),
+            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first),
+            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &second),
         ],
     )
     .expect_err("evidence for an un-emitted occurrence rejects");

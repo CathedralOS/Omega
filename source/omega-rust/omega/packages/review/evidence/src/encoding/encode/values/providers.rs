@@ -2,9 +2,9 @@ use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
-    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach,
 };
 use omega_effects::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind,
@@ -72,19 +72,6 @@ pub(crate) fn encode_provider_family(
         encoder.string(&coordinate.requirement_identity)?;
         encode_nominal(encoder, &coordinate.operator_declaration)?;
         encoder.u64(coordinate.plan_report_fingerprint);
-        match &coordinate.application_coverage {
-            PackageReviewProviderFamilyApplicationCoverage::NonGeneric => encoder.byte(0),
-            PackageReviewProviderFamilyApplicationCoverage::ExactApplications(applications) => {
-                encoder.byte(1);
-                encoder.sequence(applications, |encoder, application| {
-                    encoder.sequence(&application.arguments, |encoder, argument| {
-                        encoder.string(argument)
-                    })?;
-                    encoder.u64(application.report_fingerprint);
-                    Ok(())
-                })?;
-            }
-        }
         Ok(())
     })
 }
