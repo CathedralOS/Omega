@@ -307,63 +307,7 @@ relation.
   reason without a version ruling, or choose whichever failure traversal
   encounters first.
 
-## Q5 — Retire or explicitly source all-target matrix enumeration
-
-### Context
-
-D42's substantive invariant is complete: dependency projection is one flat
-unconditional set, while each compiler invocation selects, filters, checks,
-and identifies one exact target. The remaining package-manager task proposes
-an unimplemented `omega` command that discovers and checks “all declared
-targets.”
-
-The durable build model also says source does not separately assert a supported
-target set; target admissibility is the successful closure judgment for one
-requested profile. Current root-level `target` declarations include temporary
-compiler-discovery scaffolding, imported target definitions can be reached only
-after target-sensitive discovery, and the compiler's closed profile catalog is
-toolchain capability rather than application intent. CI can already express
-every concrete customer by invoking the ordinary exact-target check repeatedly.
-
-### Problem statement
-
-Does `omega` need an all-target discovery command at all? If it does, which
-immutable input authoritatively defines `all` without adding a project support
-allowlist, letting dependencies expand application intent, or promoting the
-compiler's current hard-coded catalog into project policy?
-
-This is not merely command parsing. Choosing project roots, the discovered
-source frontier, or the toolchain catalog gives the command three different
-meanings. The feature adds no checking power unless Omega also invents one of
-those new ownership rules.
-
-### Proposed solution
-
-Delete the all-target discovery requirement. Keep `omega` exact-target-only;
-CI and release infrastructure own their explicit target matrix and repeat the
-same command against each exact profile. Each invocation retains its own
-checked or Terminal subject, and no aggregate receipt claims broader support,
-testing, audit, or deployment authority.
-
-If repeated invocation later proves ergonomically painful, add a thin
-`--targets <explicit-list>` batch convenience. The caller supplies the complete
-list, each target still runs independently, and the batch adds no semantic or
-security evidence beyond its per-target results.
-
-### Alternates
-
-- Acceptable: make only the selected project roots an explicit authoritative
-  target matrix, but ratify that as a new build-language ownership rule and
-  remove the contrary no-support-set language first.
-- Acceptable: enumerate one immutable compiler/toolchain target catalog, but
-  name the result honestly as catalog coverage rather than application support
-  and define how the catalog is available before target-sensitive discovery.
-- Tempting but wrong: scan the fully discovered source closure, infer support
-  from target-scoped machine rows, iterate `TargetProfile::ALL`, choose an
-  arbitrary bootstrap target to discover the set, or emit an aggregate
-  proof/audit receipt from repeated compiler success.
-
-## Q10 — Bind lifetime arguments on exact machine requirement realizations
+## Q5 — Bind lifetime arguments on exact machine requirement realizations
 
 ### Context
 

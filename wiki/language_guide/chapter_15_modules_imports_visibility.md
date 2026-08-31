@@ -77,12 +77,19 @@ Target declarations own target identity plus host and boundary policy. The
 build machine owns roots, dependencies, generated outputs, subsystem/image
 facts, and provider selections. Platform implementation variation ordinarily
 uses target-scoped declarations inside packages; applications bind entries with
-flat unconditional `roots.bind(target::ProgramEntry, entry)` rows. One build
-invocation filters and checks one exact target closure. CI may repeat that
-operation independently for an explicit target matrix; it never places
-multiple target branches in one Terminal Psi subject. The convenience question
-of whether `omega` itself discovers an `all` set is not language semantics and
-remains open in `OWNER_QUESTIONS.md`.
+flat unconditional `roots.bind(target::ProgramEntry, entry)` rows. A `target X
+{ }` declaration activates and describes one target; it is not an assertion
+that an application supports X or that the declarations collectively enumerate
+every supported target.
+
+One invocation may request one exact target or a nonempty explicit set. The
+compiler reuses target-independent immutable stages and forks at target-
+sensitive checking and realization. Each target child remains identical to a
+standalone exact-target invocation, and no unresolved target branch enters one
+Terminal Psi subject. The caller supplies the set: `all`, wildcards, source or
+dependency inference, and compiler-catalog enumeration are invalid. A batch
+manifest records only the requested children and their independent outcomes;
+it is not application-support or tested-target evidence.
 
 `PackageName` is not globally unique. For Git, `PackageKey` lineage identifies
 the canonical repository namespace and

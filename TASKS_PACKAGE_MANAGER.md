@@ -281,13 +281,25 @@ explicitly.
     `EfiSystemTable`, provider drift, replay drift, and cleanup/multiplicity
     canaries.
 
-- [ ] **D42-ALL-TARGET-CHECK — decide whether the convenience command exists.**
-  **OWNER-BLOCKED — Retire or explicitly source all-target matrix
-  enumeration** in `OWNER_QUESTIONS.md`. Flat unconditional dependency
-  projection, canonical subject encoding, exact-target-only traversal, and
-  rejection of retired conditional forms are complete. Do not invent target
-  discovery or matrix evidence while the remaining command has no
-  authoritative meaning for `all`.
+- [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
+  semantics begin.**
+  - accept one nonempty caller-supplied set of exact target profiles; normalize
+    it to canonical profile order and reject `all`, `*`, empty, inferred, or
+    dependency-expanded target sets;
+  - acquire and retain one immutable source snapshot and reuse parsing, flat
+    build facts, and every other target-independent stage result;
+  - project one independently valid exact-target child at the first
+    target-sensitive stage, preserving the same child subject and identity as
+    a standalone invocation;
+  - reuse an identical checked/Terminal Psi or PCC product across target
+    children only after exact strong-identity equality, then supply each native
+    branch with its own target and lowering-authority inputs;
+  - retain one batch manifest over the explicit request set and child outcomes,
+    without publishing application-support, tested-target, audit, or deployment
+    coverage; and
+  - add one-target/many-target equivalence, sibling-identity stability, shared-
+    Psi/different-lowerer, target-specific-Psi, continue-after-child-failure,
+    and forbidden-discovery controls.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
   authority-bearing outputs.**

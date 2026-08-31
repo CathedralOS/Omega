@@ -1780,21 +1780,17 @@ producers are removed with the retired syntax rather than retained as
 live-looking scaffolding.
 
 Platform implementation variation belongs to target-scoped declarations and
-target-owned packages. For one invocation, the compiler selects one exact
-target, filters to that target's declaration closure before resolution and
-typing, evaluates the corresponding flat build facts, and publishes at most
-that target's Terminal Psi/PCC subject. Merely declaring support for Linux,
-Windows, macOS, or another profile does not place every profile in one build's
-Psi.
+target-owned packages. Each exact-target child filters to that target's
+declaration closure before resolution and typing, evaluates the corresponding
+flat build facts, and publishes at most that child's Terminal Psi/PCC subject.
+Merely declaring support for Linux, Windows, macOS, or another profile does not
+place every profile in one Psi subject or define an application support set.
 
-Any repeated-target checking mode must form, check, and prove each exact target
-closure independently. It may stop before native realization, and no unresolved
-target branch enters Psi or lets one target's authority realize another's
-proposal. Whether `omega` should discover an authoritative all-target set at
-all remains open under **Retire or explicitly source all-target matrix
-enumeration** in `OWNER_QUESTIONS.md`; D42 does not authorize inventing a
-project support allowlist, scanning dependencies for targets, or treating a
-compiler catalog as application intent.
+Multi-target orchestration is settled separately by D54. No unresolved target
+branch enters Psi or lets one target's authority realize another's proposal.
+D42 does not authorize inventing a project support allowlist, scanning
+dependencies for targets, or treating a compiler catalog as application
+intent.
 
 If a concrete future customer requires a target-specific dependency edge, it
 must use an explicit unconditional target-qualified build row, analogous to
@@ -2316,6 +2312,53 @@ premise. Controls cover empty and nonempty blocks, every machine category,
 unused states, closed cycles, each of the five effects, resultless/`never`/value
 machine continuations, constructs after `never`, and exact delimiter/brace
 coordinates. This ruling adds no rejection reason or wire code.
+
+## D54 — Explicit target sets fan out at target-sensitive stages
+
+Omega accepts either one exact target or a caller-supplied nonempty set of exact
+targets. A multi-target request normalizes to canonical profile order with
+duplicates removed. `all`, `*`, an empty set, inference from source or
+dependencies, and iteration over the compiler's complete profile catalog are
+not target-set inputs. Current root-level `target X { }` declarations are
+activation and compiler-discovery scaffolding scheduled for removal, not an
+authored application-support matrix. The toolchain catalog likewise mixes
+deployment profiles with abstract and local modes and therefore cannot define
+deployment intent.
+
+Multi-target compilation is staged fan-out, not an opaque loop around the whole
+compiler. Source acquisition, the immutable source snapshot, parsing, flat
+build facts, and any other target-independent immutable result are formed once.
+The pipeline forks at each first target-sensitive consumer: exact root
+selection, target-scoped declaration filtering, target semantics and admission,
+provider and foreign-binding selection, and native realization. An
+implementation may share more work only when the shared result is exactly the
+same fact each independent child would have consumed; mutable target state or
+one child's authority never enters a sibling.
+
+Each target child has exactly the subject, semantic identity, diagnostics, and
+outcome it would have under a standalone exact-target invocation. Adding or
+removing siblings cannot change that child identity. Every requested child is
+checked even when another rejects, and the orchestration returns one ordered
+outcome per canonical target. A nonzero process result or human summary when
+any child fails is ordinary orchestration behavior, not semantic evidence about
+the application.
+
+Target-neutral checked, Terminal Psi, PCC, or other immutable products may be
+forwarded to several target children. Byte-identical or semantically identical
+products are shared only after their governing strong identities compare equal;
+coincidental structure or names do not authorize reuse. A target-specific Psi
+product remains a separate child. Each native branch receives its own target,
+admission profile, provider plans, external bindings, and consuming-lowerer
+authority and may independently accept or reject the Psi proposal. No
+unresolved target branch is encoded inside Psi.
+
+The optional batch manifest commits to the exact explicit request set and each
+child commitment/outcome. It claims only that those requested compilations were
+performed. It does not assert that the set is complete, supported, tested,
+audited, deployable, or equal to every target known by Omega. CI and release
+configuration may own an operational matrix, including cross-compiling several
+profiles on one host, without promoting that matrix into language or package
+identity.
 
 ## Dependency order
 

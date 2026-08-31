@@ -201,9 +201,11 @@ declared dependency set.
 Platform implementation variation ordinarily stays inside packages as
 target-scoped declarations. A consumer depends on one stable package such as
 `std`; selection of that package's Linux, Windows, macOS, or firmware machines
-happens when the invocation filters the source closure to one exact target.
-Target-qualified application entries are likewise flat unconditional build
-facts:
+happens when an exact-target child filters the source closure. An invocation
+may request one target or a nonempty explicit canonical set; target-independent
+source, parsing, and immutable build facts are shared before the pipeline fans
+out. Target-qualified application entries are flat unconditional build facts,
+not a support matrix:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -589,14 +591,16 @@ authored build data, and assignment to `builder.target` remains invalid.
 
 ### Requested target and target admissibility
 
-The invocation requests one exact `TargetProfile`; the activation presents
-that immutable value as `Build.target`. Source does not separately assert a
-supported-target set or accept the request ceremonially. Instead, the selected
-target is admissible exactly when the artifact-role closure validates:
+The invocation requests one exact `TargetProfile` or a nonempty explicit set.
+Each exact-target child activation presents its immutable value as
+`Build.target`. Source does not separately assert a supported-target set or
+accept the request ceremonially. Instead, each selected target is admissible
+exactly when its artifact-role closure validates:
 
 ```text
 omega build --target linux_arm64   # exact request
 omega build                        # CLI resolves Host to one exact request
+omega build --targets linux_x64,windows_x64  # explicit canonical set
 ```
 
 ```text
@@ -612,9 +616,9 @@ and a target-neutral artifact need not acquire a native entry at all. Thus
 absence of an application root is not a universal declaration of unsupported
 target status. The output role determines which closure must exist.
 
-This rule establishes mechanical target admissibility under one pinned target
-profile and semantic version. It does not assert that a human tested every
-configuration. Any separately reported tested-target matrix is operational
+This rule establishes mechanical target admissibility independently for each
+pinned target profile and semantic version. It does not assert that a human
+tested every configuration. Any separately reported tested-target matrix is operational
 metadata and never substitutes for closure validation. Conversely, because
 new profiles are admitted by successful validation rather than an authored
 allowlist, validation coverage is load-bearing: target-sensitive assumptions
@@ -2835,18 +2839,21 @@ evidence subject rather than selecting dependency edges.
 
 One workspace lock may share that immutable source closure across independently
 accepted evidence sections for exact caller-requested targets. It contains no
-profile columns and makes no claim to have discovered or checked "all" targets.
-In locked mode, missing evidence for the requested target fails without network
-access; an explicit operation may populate a caller-supplied target list by
-running each exact target independently. A retained section for another target
-grants no authority to the current build. Git edges cannot be "resolved but not
+support-profile columns and makes no claim to have discovered or checked
+"all" targets. In locked mode, missing evidence for a requested target fails
+without network access; one explicit multi-target operation may populate the
+caller-supplied set by sharing target-independent stages and forming each exact
+target child at target-sensitive stages. A retained section for another target
+grants no authority to the current child. Git edges cannot be "resolved but not
 fetched": verifying a commit, tree, workspace declaration, and selected member
 already exercises host-routed acquisition and resolver-owned source validation.
 
-Target values are checked against the trusted toolchain target catalog at the
-exact invocation boundary. Package source does not declare a support matrix or
-a dependency condition schema. Locks retain the target's semantic identity,
-never a string, ordinal, or temporary Rust enum case.
+Target values are checked against the trusted toolchain target catalog at each
+exact child boundary. The catalog validates supplied identities; it does not
+provide an `all` deployment set because it may also contain abstract and local
+modes. Package source does not declare a support matrix or a dependency
+condition schema. Locks retain each target's semantic identity, never a string,
+ordinal, or temporary Rust enum case.
 
 The first implementation performs no semantic-version solving. Requests for
 one `PackageKey` that resolve to one immutable source instance deduplicate even

@@ -1,3 +1,6 @@
+// Temporary compiler-discovery activations, not an application support set.
+// Delete these declarations together when immutable CLI target activation
+// supplies each explicitly requested profile directly.
 target windows_x86_64 { }
 target linux_x86_64 { }
 target linux_arm64 { }

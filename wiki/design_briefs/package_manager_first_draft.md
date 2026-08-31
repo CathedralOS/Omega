@@ -183,11 +183,15 @@ the one declared dependency set.
 
 Platform variation ordinarily lives in target-scoped declarations inside the
 selected packages, while application entry selection uses flat unconditional
-`roots.bind(target::ProgramEntry, entry)` rows. One invocation filters and
-checks one exact target closure. CI can repeat that operation for an explicit
-target matrix without placing unresolved target branches in one Psi subject.
-Whether `omega` should discover an authoritative `all` set remains an owner
-question; package resolution does not manufacture one. A future
+`roots.bind(target::ProgramEntry, entry)` rows. One invocation may request one
+exact target or a nonempty caller-supplied canonical set. It acquires and
+parses shared source once, then forks at the first target-sensitive stage and
+produces independently identified exact-target children. Identical immutable
+Psi/PCC products may be strongly rejoined and forwarded to several lowerers;
+unresolved target branches never enter one Psi subject. Package resolution
+does not manufacture an `all` set from roots, dependencies, or the toolchain
+catalog, and `target X { }` declarations are activation facts rather than a
+support matrix. A future
 target-specific dependency surface, if a concrete customer requires one, must
 be an unconditional row naming the exact target; it cannot restore conditional
 dependency discovery.
