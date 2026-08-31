@@ -60,6 +60,33 @@ fn lower_expression_node_into_table(
     syntax_trees: &SyntaxTrees,
     expression: &syntax::expression::ExpressionNode,
 ) -> Result<ExpressionHandle, Diagnostic> {
+    let syntax::expression::ExpressionNode::Binary(binary) = expression else {
+        return lower_nonbinary_expression_node_into_table(lowerer, syntax_trees, expression);
+    };
+    lower_binary_expression_into_table(lowerer, syntax_trees, binary)
+}
+
+fn lower_binary_expression_into_table(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    binary: &syntax::expression::TableBinaryExpression,
+) -> Result<ExpressionHandle, Diagnostic> {
+    let left = lower_expression_into_table(lowerer, syntax_trees, binary.left)?;
+    let right = lower_expression_into_table(lowerer, syntax_trees, binary.right)?;
+    Ok(
+        expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
+            left,
+            operator: lower_binary_operator(binary.operator),
+            right,
+        })),
+    )
+}
+
+fn lower_nonbinary_expression_node_into_table(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    expression: &syntax::expression::ExpressionNode,
+) -> Result<ExpressionHandle, Diagnostic> {
     match expression {
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
             let span = expression_table(lowerer).reserve_expression_handles(values.count());
@@ -95,16 +122,8 @@ fn lower_expression_node_into_table(
                 })),
             )
         }
-        syntax::expression::ExpressionNode::Binary(binary) => {
-            let left = lower_expression_into_table(lowerer, syntax_trees, binary.left)?;
-            let right = lower_expression_into_table(lowerer, syntax_trees, binary.right)?;
-            Ok(
-                expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: lower_binary_operator(binary.operator),
-                    right,
-                })),
-            )
+        syntax::expression::ExpressionNode::Binary(_) => {
+            unreachable!("binary expressions use the stack-bounded lowering path")
         }
         syntax::expression::ExpressionNode::Boolean(value) => {
             Ok(expression_table(lowerer).insert(ExpressionNode::Boolean(*value)))

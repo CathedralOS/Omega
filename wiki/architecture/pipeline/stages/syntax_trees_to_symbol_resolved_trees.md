@@ -138,6 +138,10 @@ task:
 
 - `lowerer.rs` owns stage entry and the top-level lowering conveyor. Integration
   coverage belongs in `lowerer/tests.rs`, not inline with the entrypoint.
+- `expression.rs` keeps recursive binary-expression lowering behind a thin
+  dispatcher/helper pair. Deep left-associated trees therefore do not retain
+  the much larger call/desugaring and aggregate-lowering frame at every node;
+  ordinary frontend correctness must not depend on a larger host thread stack.
 - `signature_free_requirements.rs` owns exact shared resolution policy and the
   pre-normalization overload-compatibility report. Declaration families are
   deduplicated by trait symbol and requirement name; use diagnostics retain

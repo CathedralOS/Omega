@@ -80,7 +80,46 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         expression: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        match self.source.expression(expression) {
+        let node = self.source.expression(expression);
+        let resolved::expression::ExpressionNode::Binary(binary) = node else {
+            return self.lower_nonbinary_node(expression, node);
+        };
+        self.lower_binary_node(binary)
+    }
+
+    fn lower_binary_node(
+        &mut self,
+        binary: &resolved::expression::TableBinaryExpression,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        // `==`/`!=` on a conforming record / payload-bearing sum expands to
+        // synthesized structural equality (decision 11).
+        if matches!(
+            binary.operator,
+            resolved::expression::BinaryOperator::Equal
+                | resolved::expression::BinaryOperator::NotEqual
+        ) && let Some(lowered) = self.try_lower_structural_equality(binary)?
+        {
+            return Ok(lowered);
+        }
+        let left = self.lower(binary.left)?;
+        let right = self.lower(binary.right)?;
+        Ok(self
+            .target()
+            .insert(typed::expression::ExpressionNode::Binary(
+                typed::expression::TableBinaryExpression {
+                    left,
+                    operator: lower_binary_operator(binary.operator),
+                    right,
+                },
+            )))
+    }
+
+    fn lower_nonbinary_node(
+        &mut self,
+        expression: resolved::expression::ExpressionHandle,
+        node: &resolved::expression::ExpressionNode,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        match node {
             resolved::expression::ExpressionNode::ArrayLiteral(values) => {
                 let values = self.lower_expression_handle_span(*values)?;
                 Ok(self
@@ -104,28 +143,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         },
                     )))
             }
-            resolved::expression::ExpressionNode::Binary(binary) => {
-                // `==`/`!=` on a conforming record / payload-bearing sum
-                // expands to synthesized structural equality (decision 11).
-                if matches!(
-                    binary.operator,
-                    resolved::expression::BinaryOperator::Equal
-                        | resolved::expression::BinaryOperator::NotEqual
-                ) && let Some(lowered) = self.try_lower_structural_equality(binary)?
-                {
-                    return Ok(lowered);
-                }
-                let left = self.lower(binary.left)?;
-                let right = self.lower(binary.right)?;
-                Ok(self
-                    .target()
-                    .insert(typed::expression::ExpressionNode::Binary(
-                        typed::expression::TableBinaryExpression {
-                            left,
-                            operator: lower_binary_operator(binary.operator),
-                            right,
-                        },
-                    )))
+            resolved::expression::ExpressionNode::Binary(_) => {
+                unreachable!("binary expressions use the stack-bounded lowering path")
             }
             resolved::expression::ExpressionNode::Boolean(value) => Ok(self
                 .target()

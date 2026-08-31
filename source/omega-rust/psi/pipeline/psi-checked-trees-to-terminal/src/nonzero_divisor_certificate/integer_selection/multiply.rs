@@ -201,6 +201,18 @@ fn prove_correlated_multiply_relation(
         } else {
             integer_type.maximum_value()
         };
+        if !has_correlated_multiply_candidate(
+            integer_type,
+            left,
+            right,
+            lower,
+            positive,
+            expected_endpoint,
+            assumptions,
+            semantic_axioms,
+        ) {
+            continue;
+        }
         let sign_goal = if positive {
             Proposition::LessOrEqual(
                 ScalarTerm::integer(
@@ -391,6 +403,93 @@ fn prove_correlated_multiply_relation(
         }
     }
     None
+}
+
+#[allow(clippy::too_many_arguments)]
+fn has_correlated_multiply_candidate(
+    integer_type: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    lower: bool,
+    positive: bool,
+    expected_endpoint: IntegerValue,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> bool {
+    if cited_facts(assumptions, semantic_axioms).any(|(_, fact)| {
+        let quotient = match fact {
+            Proposition::LessOrEqual(quotient, actual_left)
+                if lower == positive && actual_left == left =>
+            {
+                quotient
+            }
+            Proposition::LessOrEqual(actual_left, quotient)
+                if lower != positive && actual_left == left =>
+            {
+                quotient
+            }
+            _ => return false,
+        };
+        matches!(
+            quotient,
+            ScalarTerm::ExactIntegerDivide {
+                scalar_type,
+                left: endpoint,
+                right: divide_right,
+            } if *scalar_type == integer_type
+                && divide_right.as_ref() == right
+                && endpoint.integer_value() == Some((integer_type, expected_endpoint))
+        )
+    }) {
+        return true;
+    }
+
+    semantic_axioms.iter().enumerate().any(|(index, axiom)| {
+        let Proposition::Equal(equal_left, equal_right) = axiom else {
+            return false;
+        };
+        [(equal_left, equal_right), (equal_right, equal_left)]
+            .into_iter()
+            .any(|(root, expression)| {
+                let ScalarTerm::Value {
+                    scalar_type: ScalarType::Integer(root_type),
+                    ..
+                } = root
+                else {
+                    return false;
+                };
+                let ScalarTerm::ExactIntegerDivide {
+                    scalar_type,
+                    left: endpoint,
+                    right: divide_right,
+                } = expression
+                else {
+                    return false;
+                };
+                if *root_type != integer_type
+                    || *scalar_type != integer_type
+                    || divide_right.as_ref() != right
+                {
+                    return false;
+                }
+                if endpoint.integer_value() == Some((integer_type, expected_endpoint)) {
+                    return true;
+                }
+                semantic_axioms[..index].iter().any(|landing| {
+                    let Proposition::Equal(landing_left, landing_right) = landing else {
+                        return false;
+                    };
+                    let literal = if landing_left == endpoint.as_ref() {
+                        landing_right
+                    } else if landing_right == endpoint.as_ref() {
+                        landing_left
+                    } else {
+                        return false;
+                    };
+                    literal.integer_value() == Some((integer_type, expected_endpoint))
+                })
+            })
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

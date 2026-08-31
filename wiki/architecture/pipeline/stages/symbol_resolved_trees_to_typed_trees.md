@@ -107,7 +107,10 @@ surfaces visible by file:
 - `expression/table.rs` owns only the recursive expression-table export surface.
   `expression/table/lowerer.rs` owns the `ExpressionTableLowerer` context that
   carries the source table, target table, optional program context, and optional
-  self-substitution through recursive lowering.
+  self-substitution through recursive lowering. Its binary-expression path is a
+  thin dispatcher/helper pair, so deep left-associated trees do not retain the
+  much larger nonbinary typing frame at every node; ordinary frontend
+  correctness must not depend on a larger host thread stack.
 - `expression/domain_membership.rs` lowers executable domain membership into
   typed boolean fact expressions.
 - `expression/name_paths.rs` lowers typed name-path members and preserves the
