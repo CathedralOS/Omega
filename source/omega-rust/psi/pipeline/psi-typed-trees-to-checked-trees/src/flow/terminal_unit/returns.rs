@@ -516,7 +516,7 @@ fn build_payloadless_guarded_call_return_machine(
         if parameter.is_const
             || parameter.is_mutable
             || parameter.is_self
-            || !(1..=2).contains(&contracts.len())
+            || !(1..=3).contains(&contracts.len())
             || contracts.iter().any(|contract| {
                 !matches!(contract.kind, SignatureContractKind::Requires)
                     || contract.binding.is_none()
@@ -589,7 +589,7 @@ fn build_payloadless_guarded_call_return_machine(
                     program.statement_table.expression_handles(*arguments),
                     [argument] if expression_is_saved(*argument, statement_index)
                 )
-                && (1..=2).contains(&evidence_arguments.len()) =>
+                && (1..=3).contains(&evidence_arguments.len()) =>
             {
                 tail_arm = Some(statement_index);
             }
@@ -688,7 +688,7 @@ fn build_payloadless_guarded_call_return_machine(
             }
         }
         (Some(tail_state), Some(tail_statement_index)) => {
-            if flow_calls.len() != 2 || !(1..=2).contains(&selected_evidence.len()) {
+            if flow_calls.len() != 2 || !(1..=3).contains(&selected_evidence.len()) {
                 return None;
             }
             if selected_evidence

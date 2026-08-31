@@ -405,16 +405,24 @@ pub(super) fn validate_evidence_contract_lanes(
                 .iter()
                 .flat_map(|binding| &binding.uses)
                 .collect::<Vec<_>>();
+            let mut selected_input_positions = selected_uses
+                .iter()
+                .map(|use_| use_.input_position)
+                .collect::<Vec<_>>();
+            selected_input_positions.sort_unstable();
             if let Some(first_use) = selected_uses.first()
-                && (selected_evidence.len() > 2
+                && (selected_evidence.len() > 3
                     || selected_uses.len() != selected_evidence.len()
                     || selected_evidence
                         .iter()
                         .any(|binding| binding.uses.len() != 1)
-                    || selected_uses.iter().enumerate().any(|(position, use_)| {
-                        use_.target != first_use.target
-                            || u32::try_from(position).ok() != Some(use_.input_position)
-                    }))
+                    || selected_uses
+                        .iter()
+                        .any(|use_| use_.target != first_use.target)
+                    || selected_input_positions
+                        .iter()
+                        .enumerate()
+                        .any(|(position, input)| u32::try_from(position).ok() != Some(*input)))
             {
                 return Err(invalid());
             }
@@ -548,9 +556,12 @@ pub(super) fn validate_evidence_contract_lanes(
                             && use_.target != callee.id
                             && parameter.position == 0
                             && target.contract.requires.len() == target_uses.len()
-                            && target_uses.iter().enumerate().all(|(position, candidate)| {
-                                u32::try_from(position).ok() == Some(candidate.input_position)
-                            })
+                            && target_uses
+                                .iter()
+                                .map(|candidate| candidate.input_position)
+                                .collect::<BTreeSet<_>>()
+                                .len()
+                                == target_uses.len()
                             && !parameter.is_self
                             && parameter.structural_type == result.structural_type
                             && parameter.multiplicity

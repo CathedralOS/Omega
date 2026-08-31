@@ -790,6 +790,32 @@ fn lower_and_install_payloadless_guarded_call_evidence(
             uses,
         });
     }
+    let canonical_target_requirements = if plan
+        .selected_evidence
+        .iter()
+        .any(|selection| selection.tail_use.is_some())
+    {
+        let target = lowered
+            .semantic_module
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == machine_id(3))
+            .ok_or(LoweringError::Unsupported(
+                "guarded selected evidence target machine is absent",
+            ))?;
+        target.contract.requires.sort();
+        if !target
+            .contract
+            .requires
+            .windows(2)
+            .all(|pair| pair[0] < pair[1])
+        {
+            return unsupported("guarded selected evidence target requirements are not distinct");
+        }
+        Some(target.contract.requires.clone())
+    } else {
+        None
+    };
     let caller = &mut lowered.semantic_module.machines[0];
     let [operation] = caller.blocks[0].operations.as_mut_slice() else {
         return unsupported("guarded payloadless caller has no exact call");
@@ -814,6 +840,23 @@ fn lower_and_install_payloadless_guarded_call_evidence(
                 right.output,
             ))
     });
+    if let Some(requirements) = canonical_target_requirements {
+        for binding in selected_evidence {
+            for use_ in &mut binding.uses {
+                let requirement = Proposition::Atom(use_.target_requirement);
+                let position = requirements.binary_search(&requirement).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "guarded selected evidence target requirement was not retained",
+                    )
+                })?;
+                use_.input_position = u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "guarded selected evidence target requirement position exceeds u32",
+                    )
+                })?;
+            }
+        }
+    }
     Ok(())
 }
 
