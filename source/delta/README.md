@@ -49,7 +49,8 @@ compilers and must not both be called “the Delta compiler.”
   source-shaped identity census including D36's receiver restriction and
   case/machine collision registry, D31 structural type formation, the source-
   backed resolution catalog, ordered local-value resolution, exact scalar and
-  aggregate value/place facts, and symbolic Alpha encoding. Remaining final
+  aggregate value/place facts, direct qualified-callable custody/results, and
+  symbolic Alpha encoding. Remaining final
   body/control checking, Q4 entry diagnostics, D36 application classification,
   D37 premise-DAG and D38 `.as_slice` enforcement, storage realization,
   lowering, `main`, and publication are incomplete, so it exposes no compiler

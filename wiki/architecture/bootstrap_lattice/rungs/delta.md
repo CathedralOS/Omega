@@ -66,7 +66,10 @@ entry, state, and arm environments without selecting a final rejection. The
 same walk retains exact-AST facts for settled literal, local-read, group,
 negation, binary scalar, record-field, array/view index, range-slice, and
 `.len` forms without duplicating the recursive checker. Exact field custody
-preserves its owner/member identity for later layout and lowering.
+preserves its owner/member identity for later layout and lowering. Direct
+qualified data constructors and machines retain exact callable custody before
+category, arity, or type checking, and complete applications retain value,
+resultless, or `never` facts without manufacturing recovery facts.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser and
