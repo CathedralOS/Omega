@@ -71,10 +71,11 @@ Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment. D36 settles unqualified receivers and
 constructor/machine collisions; its parser and census enforcement remain
-implementation work. Q5 blocks final composition of dependent parent
-diagnostics and relational statement/projection anchors. Q7 blocks the accepted
-receiver set for `.as_slice`. D34 has settled physical storage
-refusal; its implementation additionally waits on the final nonaliasing map.
+implementation work. D37 settles dependent parent composition and relational
+statement/projection anchors; its full body/control enforcement remains
+implementation work. Q6 blocks only the accepted receiver set for `.as_slice`.
+D34 has settled physical storage refusal; its implementation additionally
+waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns

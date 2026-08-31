@@ -121,7 +121,7 @@ stop the item on one precise owner question before adding machinery.
   Terminal claim.
 
   Native execution of the repaired named checked-adapter canary remains
-  blocked on owner Q6; the fixed-token checked/interpreter canary now passes.
+  blocked on owner Q5; the fixed-token checked/interpreter canary now passes.
   Terminal retains the exact settled join
   `{ authored operator-use coordinate, selected requirement/candidate } ->
   { selected realization machine, selected realization state }` without a

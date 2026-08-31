@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar/aggregate value-place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 dependent-diagnostic composition, settle Q7 `.as_slice` receiver validity, implement D36 callable shape, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar/aggregate value-place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics, settle Q6 `.as_slice` receiver validity, implement D36/D37 callable and premise-DAG rules, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1187,8 +1187,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     machine-local state lookups consume those rows without numeric node IDs or
     a second flattened syntax tree. Structural type equality compares nominal
     names and semantic array lengths, and a neutral final-phase bucket retains
-    every reason tied at the smallest coordinate until Q4/Q5 settle final-phase
-    composition. D36 separately requires the earlier callable collision census.
+    every reason tied at the smallest coordinate until Q4 settles final-phase
+    composition. D36 separately requires the earlier callable collision census,
+    and D37 fixes body/control premise-DAG composition.
     The foundation type-checks through the real Gamma frontend;
     it claims no completed body judgment or behavioral execution.
   - [x] **IMPLEMENTATION — DELTA ORDERED LOCAL RESOLUTION.** Retain the exact
@@ -1227,7 +1228,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       complete array/view ranges as non-place views. Every present index/bound
       must have a complete `i32` fact. Keep receiver-call selectors out of field
       resolution, leave bounds as runtime traps, emit no dependent invalid-
-      projection candidates, and postpone `.as_slice` under Q7. Exact field
+      projection candidates, and postpone `.as_slice` under Q6. Exact field
       custody and result facts remain recoverable by constructor plus span.
   - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Split machine parsing so
     only an owner-qualified declaration accepts `&mut self`; an unqualified
@@ -1240,21 +1241,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     distinction. Resolve one callable identity before arity, expected type,
     statement, or control context. Retain separate constructor/machine catalog
     rows after the census; do not use lookup order to choose one.
-  - [ ] **OWNER-BLOCKED — Q5 DELTA DEPENDENT-DIAGNOSTIC COMPOSITION.** The
-    closed rejection set and earliest-coordinate phase rule do not say whether
-    an enclosing operator/call/place/statement may contribute its own
-    `TypeMismatch`, `ArityMismatch`, or `InvalidPlace` while a required child
-    judgment is absent or already erroneous, nor which expression-versus-
-    statement anchor owns relational let/assignment/assert failures. Retain
-    independent child facts and suppress unsettled parent candidates for now;
-    Q5 blocks only final candidate composition, not continued resolution and
-    typing of complete subtrees.
-  - [ ] **OWNER-BLOCKED — Q7 DELTA `.as_slice` RECEIVER VALIDITY.** Array-to-
+  - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
+    independent child candidate, but derive a parent success or rejection only
+    after every fact consumed by that rule resolves. Implement the callable/
+    argument sibling join, context-before-arity gate, resultless and `never`
+    branches, value-before-place rule, projection reasons, and exact relational
+    anchors. Deduplicate one reason/coordinate and classify distinct reasons at
+    one coordinate as `InternalFailure`. Pin `missing() = 0`, wrong arity plus
+    a failing argument, inadmissible constructor continuation plus arguments,
+    resultless/`never` value use, projection failures, and every statement
+    relation without an error type or traversal-dependent suppression.
+  - [ ] **OWNER-BLOCKED — Q6 DELTA `.as_slice` RECEIVER VALIDITY.** Array-to-
     view conversion is required, but D17 does not say whether applying
     `.as_slice` to an already immutable view is valid identity conversion or an
-    invalid member application. Do not assign that postfix a fact until Q7
-    settles the accepted receiver set and leaves invalid-form diagnostics to
-    Q5.
+    invalid member application. Do not assign that postfix a fact until Q6
+    settles the accepted receiver set; D37 already fixes invalid-form
+    diagnostics.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
     complete body/control checking and the final nonaliasing generated-program
     map exist, derive its selected static-storage limit and expand only

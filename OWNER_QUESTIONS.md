@@ -273,72 +273,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
 
-## Q5 — Total Delta dependent-diagnostic composition
-
-### Context
-
-`CheckDelta` promises one deterministic rejection for every invalid program.
-The phase order and smallest packed-coordinate rule are fixed, but the body
-judgment does not say when an enclosing expression, call, place, return, or
-statement may contribute its own failure while a required child has no complete
-semantic result. For example, in `"text" + missing`, `UnknownName` is certain
-for the right operand while the left operand is certainly not an arithmetic
-`i32`; choosing whether the enclosing binary expression also contributes
-`TypeMismatch` can change the public winner because its coordinate is earlier.
-Even when all premises are complete, the general “offending expression or
-statement” rule does not choose `let` versus initializer, assignment versus
-right operand, or `assert` versus operand anchors for relational failures. It
-also does not total the reason/anchor for a wrong-base or nonexistent postfix
-projection.
-
-This is a product requirement, not a diagnostic test convenience: independent
-Delta compilers must return the same public `DeltaRejectReason` and coordinate
-for every malformed source if their artifacts are to be compared and used as
-cross-checking implementations.
-
-### Problem statement
-
-Total the body/control derivation for parent candidates when:
-
-1. one or more required child value/type/call judgments are absent or failed;
-2. one child already proves a parent operand incompatibility while a sibling
-   remains unresolved;
-3. a structural parent failure such as arity or non-place shape does not need
-   the missing child result; and
-4. independent child failures and one admitted parent failure compete by
-   packed coordinate; and
-5. a complete relational statement or invalid projection needs one exact
-   rejection reason and expression-versus-statement anchor.
-
-### Proposed direction
-
-Make diagnostic dependency follow judgment premises. Visit and retain every
-independent child candidate. Emit a type-dependent parent candidate only after
-every child result required by that rule is complete; otherwise omit that
-parent candidate rather than cascading from a partial derivation. Continue to
-emit a structure-only parent failure whose rule genuinely does not consume the
-missing child result—for example, a known callable's arity mismatch or an
-intrinsically non-place postfix shape. Once admitted, parent and child
-candidates merge solely by packed coordinate; DCOUT code order and traversal
-remain irrelevant. Anchor expression-operator and postfix failures at the
-enclosing expression start, `InvalidPlace` at the left-side place start, and
-let/assignment/assert value-type failures at the initializer, assigned-value,
-or asserted-expression start respectively rather than at their statement
-keywords.
-
-### Alternates
-
-- Acceptable: admit a parent failure as soon as the available premises prove it
-  regardless of unresolved siblings, provided every operator/call/place/
-  statement family gets a total proof rule and exact anchor.
-- Acceptable: define an explicit containment suppression table for particular
-  rejection families, provided it is part of Delta rather than a compiler-
-  private recovery policy.
-- Tempting but wrong: let compiler traversal or short-circuiting decide which
-  candidates exist, suppress every parent mechanically, or emit all imaginable
-  ancestors without proving their semantic premises.
-
-## Q6 — Settle compiler-owned native builtins without fake package evidence
+## Q5 — Settle compiler-owned native builtins without fake package evidence
 
 ### Context
 
@@ -393,7 +328,7 @@ event occurred.
   numeric boundary ID, globally permit unresolved boundaries, or require users
   to install/audit code that is actually shipped inside the compiler backend.
 
-## Q7 — Settle Delta `.as_slice` receiver validity
+## Q6 — Settle Delta `.as_slice` receiver validity
 
 ### Context
 
@@ -416,8 +351,8 @@ Choose whether `.as_slice` is valid on:
 1. fixed arrays only; or
 2. both fixed arrays and immutable views as an identity conversion.
 
-Q5 separately owns the rejection reason and anchor for a receiver outside the
-accepted set.
+D37 fixes the rejection reason and anchor for a receiver outside the accepted
+set.
 
 ### Proposed direction
 

@@ -41,10 +41,11 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 receiver forms, states, and exact nonempty whole-program exhaustion, but the
 parser predates D36's qualified-only receiver restriction. Remaining D36
-syntax/census enforcement, body/control checking, AST-to-symbolic-Alpha
-lowering, `main`, and final publication remain implementation gaps. Q4 blocks
-promotion of the incomplete entry-diagnostic judgment. D31's profile-
-independent structural type-formation judgment is now implemented; its
+syntax/census enforcement, D37 body/control premise-DAG enforcement,
+AST-to-symbolic-Alpha lowering, `main`, and final publication remain
+implementation gaps. Q4 blocks promotion of the incomplete entry-diagnostic
+judgment. D31's profile-independent structural type-formation judgment is now
+implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
 therefore not yet a compiler edge and no validation may describe it as one.
@@ -126,19 +127,21 @@ for callable resolution. Record fields literally named `len` remain ordinary
 fields because contextual array/view members are selected only after base-type
 classification.
 
-A parent receives no fact or dependent diagnostic while a needed child
-judgment is absent. Invalid projections likewise remain neutral until Q5 totals
-their public diagnostics. Q7 owns the accepted receiver set for `.as_slice`;
-call, receiver, constructor, transition-binder, resultless, and `never` facts
-remain with the corresponding body/control judgments. This foundation does not
+The positive fact pass already follows D37 by producing no parent fact or
+dependent diagnostic while a consumed child premise is absent. Negative
+projection, relational, place, resultless, and `never` candidates still require
+the complete D37 premise DAG. Q6 owns only the accepted receiver set for
+`.as_slice`; D37 already fixes the excluded-receiver failure rule. Call,
+receiver, constructor, transition-binder, resultless, and `never` facts remain
+with the corresponding body/control implementation. This foundation does not
 claim final acceptance.
 
 ## Contract-derived conformance plan
 
 This is the compact case matrix for the eventual adjacent executable gate. It
-derives from D17, D22, D24, D36, and `LANGUAGE.md`; it is not an unrun corpus
-and records no execution evidence. Cases become executable only through the
-real Gamma-written compiler and its selected D19 adapter.
+derives from D17, D22, D24, D36, D37, and `LANGUAGE.md`; it is not an unrun
+corpus and records no execution evidence. Cases become executable only through
+the real Gamma-written compiler and its selected D19 adapter.
 
 | Area | Positive controls | Negative controls and exact obligation |
 | --- | --- | --- |
@@ -212,9 +215,11 @@ callable spelling; no body context, arity, or expected type may select between
 colliding declarations. Controls cover both declaration orders, nullary and
 payload cases, a same-spelled field/qualified-machine positive case, an
 unqualified receiver at its `&`, explicit `()` on a zero-parameter machine, and
-a bare machine identity as `TypeMismatch` in an ordinary expression. Q5 totals
-dependent/relational diagnostic composition, and Q7 totals `.as_slice`
-receiver validity.
+a bare machine identity as `TypeMismatch` in an ordinary expression. D37
+premise-DAG controls include unresolved callee versus place checking,
+wrong arity alongside an independently failing argument, resultless/`never`
+value use, projection reason/anchors, and exact let/assignment/assert/return
+relations. Q6 totals only `.as_slice` receiver validity.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,

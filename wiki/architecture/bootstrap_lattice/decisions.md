@@ -1399,6 +1399,58 @@ namespace lookup never choose among callable identities. A future unqualified
 receiver or alternate callable spelling requires an explicit language revision
 with its own owner, initialization, aliasing, and lowering contract.
 
+## D37 — Delta body diagnostics follow a complete premise DAG
+
+Delta body/control checking visits every authored child and retains every
+independent child candidate, but a failure candidate or absent semantic fact
+does not satisfy a parent premise. No error type, guessed value, place, or
+callable is manufactured for recovery. A parent success or rejection candidate
+exists exactly when every fact consumed by that rule has resolved. Thus a
+binary scalar rule consumes both operand results, while arity consumes an
+admitted resolved callable and argument count but not the independently checked
+argument facts.
+
+The callable path is a DAG rather than a traversal chain. Callable resolution
+feeds context/category admission, whose admitted result feeds arity; authored
+argument expressions are checked as a sibling branch from the application
+syntax. Argument-type comparison additionally consumes arity success and
+complete argument facts; only that join produces the call result. An
+inadmissible callable category contributes `InvalidControlTarget` or
+`TypeMismatch` and blocks arity/type derivation without suppressing child
+argument checking. Wrong arity may coexist with a failing argument, but not
+with an unresolved callee or inadmissible category.
+
+Every complete expression result is a value with type and optional place,
+resultless, or `never`. Place checking consumes only a complete value result: a
+value without a place is `InvalidPlace`, while `missing() = 0` has no value fact
+and therefore contributes only its callee `UnknownName`. Resultless in a
+value-required position is `TypeMismatch`; a `never` call outside its exact
+terminal position, or a statement following it, is `InvalidTerminal`.
+Immutable views and other nonassignable values need no separate mutability row;
+they simply carry no place.
+
+Projection likewise consumes complete premises. An absent member is
+`UnknownName` at the member spelling. A known member of the wrong kind, a known
+contextual member on an unsupported receiver, or a non-`i32` index/bound is
+`TypeMismatch` at the enclosing postfix expression start. This failure rule
+also governs whichever `.as_slice` receivers the separate receiver-set decision
+excludes.
+
+Operator, call, constructor, and postfix relational failures anchor at the
+enclosing expression start; arity at the application start; `InvalidPlace` at
+the left-side place start; and let, assignment, assert, return, and transition
+value relations at their initializer, assigned value, asserted expression,
+returned expression, or subject. A required absent return value anchors at the
+`return` keyword. Control and terminal failures anchor at their continuation,
+mispositioned `never` call, or first following statement as applicable.
+
+Candidates merge only by the existing body-phase smallest packed coordinate.
+Duplicate derivation of one reason/coordinate is one candidate. Distinct
+reasons at one exact coordinate after the premise DAG are an internal compiler
+contradiction and yield outer `InternalFailure`; reason-code order never breaks
+the tie. Runtime short-circuiting, transition selection, and compiler traversal
+do not suppress static checking of authored children or arms.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

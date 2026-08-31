@@ -472,7 +472,9 @@
 
 ; Equal-coordinate final-phase reasons are retained as a bucket. Q4 must rule
 ; entry/body composition before this can select one public rejection. D36 owns
-; the earlier receiver grammar and callable-name census rules.
+; the earlier receiver grammar and callable-name census; D37 deduplicates one
+; body reason/coordinate and makes distinct same-coordinate reasons an internal
+; contradiction.
 (data DeltaFinalCandidate
   (NoDeltaFinalCandidate)
   (DeltaFinalCandidateAt Int DeltaFinalReasonList))
