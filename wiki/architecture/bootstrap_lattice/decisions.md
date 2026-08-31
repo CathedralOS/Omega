@@ -1648,6 +1648,14 @@ binary64 format. Authored projection occurrence and source span remain separate
 diagnostic/provenance facts. Dense `ProofValueId` and projection-input numbers
 are canonical encoding coordinates only.
 
+Implementation currently realizes the exact-bit-literal form without a
+producer coordinate. Raw binary32/binary64 bits cross checked lowering,
+Terminal encoding, and independent verifier reconstruction directly; equal
+tuples deduplicate, signed-zero bits remain distinct, and NaN payloads erase
+only when the verifier reconstructs the public meaning. Other landed source
+forms remain explicitly transitional until their artifact-relative carriers
+exist.
+
 The compiler canonicalizes equal tuples to one proof value before equality is
 formed. Multiple authored occurrences may therefore reference the same
 `ProofValueId`; the verifier independently reconstructs the tuple and the

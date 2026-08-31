@@ -41,7 +41,7 @@ pub enum ModuleError {
     NonDenseFloatMeaningProjection {
         expected: u32,
         result: u32,
-        source: u32,
+        transitional_source: Option<u32>,
     },
     InvalidFloatMeaningProjection {
         index: u32,

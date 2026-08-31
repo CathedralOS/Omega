@@ -3,14 +3,20 @@
 use psi_core::IeeeFloatFormat;
 use psi_numerics::{
     float_projection::{FloatProjectionOperation, FloatProjectionRule},
-    float_semantics::FloatFormat,
+    float_semantics::{FloatFormat, FloatMeaning},
 };
-use psi_terminal::{FloatMeaningProjection, FloatMeaningProjectionOperation, ProofOnlyValueType};
+use psi_terminal::{
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource, ProofOnlyValueType,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconstructedFloatMeaningProjection {
     pub result_type: ProofOnlyValueType,
+    pub source: FloatMeaningSource,
     pub source_format: IeeeFloatFormat,
+    /// Exact payload-erased denotation for a literal source. Transitional
+    /// source coordinates cannot populate this field.
+    pub literal_meaning: Option<FloatMeaning>,
     pub operation: FloatMeaningProjectionOperation,
     pub rule: FloatProjectionRule,
 }
@@ -28,7 +34,7 @@ pub fn reconstruct_float_meaning_projection(
         FloatMeaningProjectionOperation::Meaning64 => FloatProjectionOperation::Meaning64,
     };
     let rule = catalog_operation.rule();
-    let source_format = match projection.source.format {
+    let source_format = match projection.source.format() {
         IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
         IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
     };
@@ -42,9 +48,20 @@ pub fn reconstruct_float_meaning_projection(
     {
         return Err(FloatMeaningProjectionVerificationError::IncompleteProjectionLaw);
     }
+    let literal_meaning = match projection.source {
+        FloatMeaningSource::TransitionalInput(_) => None,
+        FloatMeaningSource::ExactBinary32Literal(bits) => {
+            Some(FloatMeaning::from_f32(f32::from_bits(bits)))
+        }
+        FloatMeaningSource::ExactBinary64Literal(bits) => {
+            Some(FloatMeaning::from_f64(f64::from_bits(bits)))
+        }
+    };
     Ok(ReconstructedFloatMeaningProjection {
         result_type: projection.result.value_type,
-        source_format: projection.source.format,
+        source: projection.source,
+        source_format: projection.source.format(),
+        literal_meaning,
         operation: projection.operation,
         rule,
     })
@@ -71,10 +88,10 @@ mod tests {
                 id: ProofValueId(2),
                 value_type: ProofOnlyValueType::FloatMeaning,
             },
-            source: FloatProjectionInput {
+            source: FloatMeaningSource::TransitionalInput(FloatProjectionInput {
                 id: FloatProjectionInputId(6),
                 format: IeeeFloatFormat::Binary32,
-            },
+            }),
             operation: FloatMeaningProjectionOperation::Meaning32,
         }
     }
@@ -104,10 +121,36 @@ mod tests {
         );
 
         tampered = projection();
-        tampered.source.format = IeeeFloatFormat::Binary64;
+        tampered.source = FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(6),
+            format: IeeeFloatFormat::Binary64,
+        });
         assert_eq!(
             reconstruct_float_meaning_projection(&tampered),
             Err(FloatMeaningProjectionVerificationError::SourceFormatMismatch)
         );
+    }
+
+    #[test]
+    fn verifier_reconstructs_literal_bits_and_payload_erased_meaning() {
+        let mut exact = projection();
+        exact.source = FloatMeaningSource::ExactBinary32Literal(0x8000_0000);
+        let reconstructed = reconstruct_float_meaning_projection(&exact).unwrap();
+        assert_eq!(
+            reconstructed.source,
+            FloatMeaningSource::ExactBinary32Literal(0x8000_0000)
+        );
+        assert_eq!(
+            reconstructed.literal_meaning,
+            Some(FloatMeaning::Zero { negative: true })
+        );
+
+        exact.source = FloatMeaningSource::ExactBinary32Literal(0x7fc0_0001);
+        let first_nan = reconstruct_float_meaning_projection(&exact).unwrap();
+        exact.source = FloatMeaningSource::ExactBinary32Literal(0x7fff_ffff);
+        let second_nan = reconstruct_float_meaning_projection(&exact).unwrap();
+        assert_ne!(first_nan.source, second_nan.source);
+        assert_eq!(first_nan.literal_meaning, Some(FloatMeaning::NaN));
+        assert_eq!(first_nan.literal_meaning, second_nan.literal_meaning);
     }
 }
