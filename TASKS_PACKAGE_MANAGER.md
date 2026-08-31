@@ -134,12 +134,21 @@ stop the item on one precise owner question before adding machinery.
   result, exact per-function ABI, native call/relocation custody on all four
   ordinary targets, independent object byte replay, and installation format 46
   transport. Broader mixed scalar forms remain incremental engineering.
-  Compiler-owned target builtins still require a distinct compiler/target TCB
-  lane. Do not fabricate
-  package-installation `ProviderExecutionEvidence` for a compiler-owned builtin
-  merely to satisfy the existing settlement API. Current `main` does exactly
-  that through `CompilerIntrinsicSettlementEvidence`; Q4 blocks extending or
-  ratifying that lane and requires its replacement.
+  D41 requires a distinct consuming-lowerer TCB lane for compiler-owned target
+  builtins. Delete `CompilerIntrinsicSettlementEvidence` and its self-issued
+  compact coordinates; they are not package-installation
+  `ProviderExecutionEvidence`. Rejoin the exact Terminal requirement and
+  selected structural intrinsic proposal to the receiving lowerer's target
+  catalog, then bind emission through D32's physical child. Installed and
+  foreign implementations retain their actual execution custody.
+
+  Make the standalone Psi product sufficient for an independent realization
+  consumer: selected provider-plan facts, external-binding requirements, and
+  the requested target/profile proposal must be canonical product sections or
+  an exact strongly bound companion, never hidden `CheckedCompilation` state.
+  Add a reload canary that discards all frontend objects, decodes only the
+  published Psi product plus an independently supplied `NativeRealizationRequest`,
+  and either reproduces the native result or rejects an unavailable proposal.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Add D26 consumer demand only for an
   actual runtime by-value use, consuming the exact retained
@@ -159,7 +168,7 @@ stop the item on one precise owner question before adding machinery.
   General target layout now consumes the exact selected opaque-to-carrier
   application and derives by-value size/alignment from the carrier while
   references remain representation-free and a direct unselected by-value
-  demand rejects. Complete movement/finalization planning next; Q6 owns the
+  demand rejects. Complete movement/finalization planning next; Q5 owns the
   carrier-cleanup rule. Do not publish a partial demand row from
   calling-convention shape or size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
@@ -281,7 +290,7 @@ explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
   - [x] carry the same application into general target layout;
-  - [ ] complete physical move/finalization planning, including the Q6 cleanup
+  - [ ] complete physical move/finalization planning, including the Q5 cleanup
     ruling and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
     consumer demand from retained compiler custody, rejoin foreign demand to
@@ -294,12 +303,19 @@ explicitly.
     `EfiSystemTable`, provider drift, replay drift, and cleanup/multiplicity
     canaries.
 
-- [ ] **STATIC-TARGET-CONDITIONED-DEPENDENCIES — consume the projected profile
-  columns downstream.**
-  - add independently populated per-profile accepted-lock/review sections,
-    fail-closed missing-column behavior, and explicit all-column population;
-  - add accepted-lock catalog-growth, stale-profile-identity, replay/tamper, and
-    missing-locked-column canaries when those lock sections land.
+- [ ] **D42-FLAT-TARGET-BUILD-CLEANUP — delete unused conditional projection.**
+  - reject and remove graph-forming `transition builder.target`,
+    `depend_when`, and `depend_as_when` dependency discovery;
+  - collapse `ProjectedDependencies` and its lock/subject encoding to the one
+    unconditional dependency set, deleting `by_profile`, target-column schema,
+    tainted-path traversal, and tests that exist only for those retired forms;
+  - preserve target declarations as target identity/host/boundary policy and
+    preserve flat target-qualified `roots.bind` facts in the build machine;
+  - add a matrix-checking command/gate that enumerates every declared target,
+    independently filters, checks, and proves its closure, and may stop at the
+    separately committed Psi/PCC products without native realization;
+  - keep ordinary one-shot compilation exact-target-only: declarations for
+    other targets never enter the selected invocation's Psi.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
   authority-bearing outputs.**

@@ -175,32 +175,20 @@ only validated member paths and the selected path in return. Source then opens
 and publishes the selected subtree from the already verified graph. The
 raw declarations remain replay evidence outside the compilation root.
 
-Target-conditioned requests use those same operations under exact branches of
-the immutable `builder.target` value. There is no `depend_when` family or
-condition string:
+Dependency requests are unconditional, directly projectable build rows.
+Graph-forming control flow on `builder.target`, `depend_when`, and
+`depend_as_when` is retired; the package manager does not execute or statically
+interpret a build-machine state graph to discover edges. Aliases are unique in
+the one declared dependency set.
 
-```omega
-transition builder.target {
-    TargetProfile::WindowsX86_64 -> windows(builder)
-    TargetProfile::LinuxX86_64 -> linux(builder)
-    _ -> portable(builder)
-}
-```
-
-The package manager does not execute the machine. Static state-graph projection
-follows unconditional transitions and exact target arms, intersects nested
-target constraints, merges shared states, and closes cycles by fixpoint. It
-produces one target-independent map with `common` edges and exact `by_profile`
-columns. Dependencies reached through another runtime subject, a wildcard
-target arm, both an authorized and tainted path, or no path reject. The wildcard
-restriction ensures that adding a profile to the catalog cannot silently change
-an existing package's dependency map.
-
-For profile `P`, aliases must be unique across `common + by_profile[P]`.
-Mutually exclusive columns may reuse a local alias. Projection validates exact
-profile identities against the toolchain target catalog and retains only the
-condition-schema version and referenced identities, so unrelated catalog growth
-does not invalidate the package.
+Platform variation ordinarily lives in target-scoped declarations inside the
+selected packages, while application entry selection uses flat unconditional
+`roots.bind(target::ProgramEntry, entry)` rows. One invocation filters and
+checks one exact target closure. A matrix checker repeats that operation for
+every declared target rather than placing unresolved target branches in one
+Psi subject. A future target-specific dependency surface, if a concrete
+customer requires one, must be an unconditional row naming the exact target;
+it cannot restore conditional dependency discovery.
 
 The resolver obtains the selected package's name from its own
 `builder.package` declaration. The default in-code alias is the mechanical

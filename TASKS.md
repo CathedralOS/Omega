@@ -9026,7 +9026,7 @@ compiler concept is introduced.
   enabled facets. Evidence over the current raw `i32` descriptors may claim
   operation classes only. Add typed unforgeable descriptor handles and checked
   attenuation before claiming that reads or writes are confined to objects
-  opened with corresponding authority. The redirect is owner-blocked on Q7's
+  opened with corresponding authority. The redirect is owner-blocked on Q6's
   first closed target/binding classification table; the containment formula
   alone does not determine authority for current syscall, import, firmware,
   table, or checked-physical coordinates.

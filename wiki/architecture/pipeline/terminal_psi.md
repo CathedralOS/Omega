@@ -30,10 +30,19 @@ Omega
     -> bounded physical assignment -> machine code -> object -> executable image
 ```
 
-Compilation stops at the requested in-memory product. Publishing an executable
-is a subsequent product operation that stages and replays the retained image
-bytes; installation is a separate authority-bearing operation again. Neither
-publication nor installation is a compiler fork.
+Compilation may stop at canonical Terminal Psi and publish it as a standalone
+product. A later interpreter or native lowerer may consume that product on a
+different machine under a different realization authority. Target-constrained
+provider plans and external-binding requirements travel as a canonical bound
+proposal beside the target-neutral semantic module; they do not grant the
+consumer authority. The consumer accepts the exact proposal using its target
+catalog and local admissions or rejects realization without invalidating the
+Psi semantics.
+
+Publishing an executable is a subsequent product operation that stages and
+replays the retained image bytes; installation is a separate authority-bearing
+operation again. The ordinary source-to-native path uses the same Psi consumer
+boundary and gains no hidden frontend-state shortcut.
 
 Optimization is not optional control flow. An empty selected set is its identity
 transformation: every native compile still reconstructs and validates the

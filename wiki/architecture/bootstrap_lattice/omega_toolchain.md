@@ -3,8 +3,10 @@
 [Lattice overview](bootstrap_lattice.md) | [Delta](rungs/delta.md) |
 [Compiler source profile](compiler_source_profile.md)
 
-Omega is the product-language endpoint. Psi remains an internal target-neutral
-product compiler boundary; it is not a bootstrap rung.
+Omega is the product-language endpoint. Psi is the publishable target-neutral
+product compiler boundary; it is not a bootstrap rung. Compilation may stop
+after PCC at a canonical Terminal Psi product, which a later interpreter or
+native lowerer consumes under its own realization authority.
 
 ```text
 Gamma-written Delta compiler ─▶ delta_compiler.tape
