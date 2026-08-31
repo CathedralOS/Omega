@@ -56,6 +56,7 @@ pub struct StateOperational {
 pub struct CallOperational {
     pub statement_index: usize,
     pub call_ordinal: usize,
+    pub target_name: String,
     pub target_state_symbol: SymbolHandle,
     pub target_machine_symbol: SymbolHandle,
     pub direct_may_suspend: bool,
@@ -92,6 +93,7 @@ struct StateWork {
 struct CallWork {
     statement_index: usize,
     call_ordinal: usize,
+    target_name: String,
     target_state_symbol: SymbolHandle,
     target_machine_symbol: SymbolHandle,
     direct_may_suspend: bool,
@@ -272,6 +274,7 @@ fn push_statement_call(
 ) {
     push_call(
         program,
+        call.target.as_str(),
         call.target_symbol,
         call.operational_acknowledgement,
         statement_index,
@@ -378,6 +381,7 @@ fn push_expression_call(
 ) {
     push_call(
         program,
+        call.target.as_str(),
         call.target_symbol,
         call.operational_acknowledgement,
         statement_index,
@@ -388,6 +392,7 @@ fn push_expression_call(
 
 fn push_call(
     program: &TypedTrees,
+    target_name: &str,
     target_state_symbol: SymbolHandle,
     acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     statement_index: usize,
@@ -399,6 +404,7 @@ fn push_call(
     calls.push(CallWork {
         statement_index,
         call_ordinal: *call_ordinal,
+        target_name: target_name.to_owned(),
         target_state_symbol,
         target_machine_symbol,
         direct_may_suspend: direct.may_suspend,
@@ -617,6 +623,7 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
                     CallOperational {
                         statement_index: call.statement_index,
                         call_ordinal: call.call_ordinal,
+                        target_name: call.target_name,
                         target_state_symbol: call.target_state_symbol,
                         target_machine_symbol: call.target_machine_symbol,
                         direct_may_suspend: call.direct_may_suspend,

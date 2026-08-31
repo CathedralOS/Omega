@@ -40,7 +40,8 @@ stop the item on one precise owner question before adding machinery.
 
   - canonical const values beyond the completed public named acyclic,
     monomorphic checked-record/pure-sum cohort, and closed conformance static
-    applications beyond the completed lifetime-free, type-only cohort, but
+    applications beyond the completed lifetime-free cohort whose conformance
+    and target-trait telescopes are both type-only, but
     only where successful checking retains an exact structural value and call-
     occurrence witness. Direct named public integer and Boolean const values,
     checked structured values with nested literal arrays, forwarded caller
@@ -341,12 +342,17 @@ explicitly.
   every std import or provider selection, and no name, alias, path, repository,
   filename, or same-spelled declaration may restore it.
 
-  Remove the build protocol's dependency on std: delete
-  `Build.filesystem: FilesystemHost`, replace the std-owned `Path` in the
-  `BuildSource`/`BuildOutput` surface with a compiler-owned relative-path
-  carrier or direct rooted operations, move sponsored reads and writes onto
-  those existing facets. Build evaluation must admit no ordinary runtime
-  boundary service merely because it is filesystem- or console-shaped.
+  The ordinary package path now uses compiler-owned `BuildPath`, `BuildSource`,
+  and `BuildOutput`; exact reachable facet calls activate the existing sponsor,
+  and the live `generated-table -> generated-consumer` canary proves Source
+  open/read/close, Output create/write/close, explicit handoff, and dependency
+  injection without rerunning the producer. Finish the migration by deleting
+  the explicit-`FilesystemHost` compatibility prelude, migrating its remaining
+  compiler tests and any concrete build customers, and removing the std-owned
+  `Path`/`Build.filesystem` route entirely. Do not duplicate the raw std
+  filesystem matrix on the Build facets without a package-build customer.
+  Build evaluation must admit no ordinary runtime boundary service merely
+  because it is filesystem- or console-shaped.
   `FilesystemSponsor` remains the enforcement boundary for source/output
   roots, symlinks, limits, descriptors, and staging custody.
 
@@ -357,9 +363,7 @@ explicitly.
   recognition, carry an accepted-closure-scoped binding to the exact nominal
   declaration and normalized schema fingerprint rather than granting a role to
   its whole package. Candidate review designations remain non-authoritative;
-  accepted bindings come only from consumer policy. Clear the
-  `generated-table -> generated-consumer` canary through the sponsored Build
-  facets, not through a std authority exception.
+  accepted bindings come only from consumer policy.
 
 - [ ] Complete generic and non-empty exact-application coverage for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**. Derive concrete static applications

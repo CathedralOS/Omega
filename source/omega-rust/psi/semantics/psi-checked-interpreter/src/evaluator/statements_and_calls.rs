@@ -398,6 +398,12 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Unit);
         }
+        if self
+            .try_build_facet_filesystem_statement(call, frame)?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
         if self.try_build_output_include_source_statement(call, frame)? {
             return Ok(Value::Unit);
         }

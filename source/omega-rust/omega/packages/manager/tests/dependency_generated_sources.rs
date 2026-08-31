@@ -51,7 +51,6 @@ fn resolve_workspace_package_closure(
 }
 
 #[test]
-#[ignore = "OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS: generated-table must use compiler-owned Build facets"]
 fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_build() {
     let temporary = temporary_root();
     let fixtures = workspace_root().join("tests/fixtures/packages");
