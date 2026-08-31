@@ -20,6 +20,15 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    NonCanonicalPlacedViewInputOrder,
+    DuplicatePlacedViewInput {
+        machine: MachineId,
+        position: u32,
+    },
+    InvalidPlacedViewInput {
+        machine: MachineId,
+        position: u32,
+    },
     NonCanonicalQuotientCorrespondenceOrder,
     DuplicateQuotientCorrespondenceIdentity,
     DuplicateQuotientCorrespondenceOwner,

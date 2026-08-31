@@ -26,8 +26,8 @@ use psi_terminal::{
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalPlacedViewInput, TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge,
+    TerminalRankedSuccessorArgument, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     CodecError, decode_module, encode_module, semantic_fingerprint, terminal_psi_identity,
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 42_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -47,7 +47,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "977116f4ca86bf55e529dee5a4f6febf43643b30e152d07d90f533875c165d08"
+        "36a799e35490d7dfcc7877037bb6b228bb0a2f20aeab6491a646ef9347a80ea6"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -56,10 +56,40 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
 }
 
 #[test]
+fn placed_view_input_round_trips_with_exact_semantic_identity() {
+    let mut module = unit_fixture();
+    let identity = |name: &str| format!("package:{}::{name}", "01".repeat(32));
+    let policy_identity = identity("Uart");
+    let schema_identity = identity("Registers");
+    module.placed_view_inputs.push(TerminalPlacedViewInput {
+        machine: module.entry,
+        position: 0,
+        source_machine_identity: identity("inspect"),
+        source_state_identity: identity("inspect::entry"),
+        source_parameter_identity: identity("inspect::entry::view"),
+        access: StructuralAccess::MutableBorrow,
+        binding_is_const: false,
+        binding_is_mutable: true,
+        view_identity: psi_terminal::canonical_placed_view_identity(
+            &policy_identity,
+            &schema_identity,
+        ),
+        policy_identity,
+        policy_plan_machine_identity: identity("Uart::plan"),
+        schema_identity,
+        placement_report_fingerprint: 41,
+        placement_commitment: [0x5a; 32],
+    });
+
+    let bytes = encode_module(&module).expect("placed-view input should encode");
+    assert_eq!(decode_module(&bytes), Ok(module));
+}
+
+#[test]
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 42_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -340,7 +370,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 42_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -353,7 +383,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 42_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -388,7 +418,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 42_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -841,6 +871,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2025,10 +2056,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&43_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&44_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(43))
+        Err(CodecError::UnsupportedFormatMarker(44))
     );
 
     let mut stale_format = bytes.clone();
@@ -2201,6 +2232,7 @@ fn partial_affine_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2428,6 +2460,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2595,6 +2628,7 @@ fn structural_effect_fixture() -> TerminalModule {
             concrete: vec![service],
             installation_dependencies: Vec::new(),
         },
+        placed_view_inputs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_machine_id(1),
             identity: "example::Occurrence::settle".to_owned(),
@@ -2767,7 +2801,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 42_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 43_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -3280,6 +3314,7 @@ fn unit_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3493,6 +3528,7 @@ fn fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3638,6 +3674,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3862,6 +3899,7 @@ fn call_fixture() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

@@ -14,6 +14,7 @@ pub(super) fn boolean_plan(value: bool) -> AbstractOperationPlan {
         },
         entry: machine,
         structural_types: Vec::new(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {

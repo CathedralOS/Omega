@@ -268,6 +268,7 @@ pub(crate) fn exact_cast_unit(value: u128) -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -353,6 +354,7 @@ pub(crate) fn goal_free_unary_unit(widen: bool) -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -423,6 +425,7 @@ pub(crate) fn boolean_unit(equal: bool) -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -511,6 +514,7 @@ pub(crate) fn integer_comparison_unit(kind: ComparisonFixtureKind) -> PsiOptimiz
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -583,6 +587,7 @@ pub(crate) fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

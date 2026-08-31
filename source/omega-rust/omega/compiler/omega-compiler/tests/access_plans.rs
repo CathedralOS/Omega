@@ -11,6 +11,7 @@ use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use omega_target::NativeTarget;
+use psi_checked_trees_to_terminal::lower_machine;
 use psi_access_plans::{
     AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, BoundaryReach, EffectiveSupplyKind, ExternalCapability, ExternalRead,
@@ -27,6 +28,7 @@ use psi_extents::{
     ExtentProvenanceId, ExtentProviderIssuance, ExtentRightId, ExtentRights, ExtentRootGrant,
     MappingEraId, ResidentClaimId,
 };
+use psi_language_core::ReferenceAccess;
 use psi_language_core::atomic::{
     AtomicObservingCompareExchangeOperation, AtomicObservingCompareExchangeResultShape,
     AtomicOrderingPlan, MemoryOrdering,
@@ -699,6 +701,153 @@ data Main {}
             .as_str(),
         "read"
     );
+
+    let inspect = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .expect("placed-view consumer");
+    let entry = checked
+        .typed
+        .machine_states(inspect)
+        .first()
+        .expect("placed-view consumer entry");
+    let inputs = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .filter(|input| input.machine == inspect.symbol)
+        .collect::<Vec<_>>();
+    let [input] = inputs.as_slice() else {
+        panic!("one direct checked placed-view input")
+    };
+    let view = checked
+        .typed
+        .placed_view_plans
+        .iter()
+        .find(|view| view.policy_name == "UartPlacement")
+        .expect("source-derived placed-view plan");
+    assert_eq!(input.state, entry.symbol);
+    assert_eq!(input.position, 0);
+    assert_eq!(input.reference_access, ReferenceAccess::Mutable);
+    assert_eq!(input.view, view.data_symbol);
+    assert_eq!(input.policy, view.policy_symbol);
+    assert_eq!(input.policy_plan_machine, view.policy_plan_machine_symbol);
+    assert_eq!(input.schema, view.schema_symbol);
+    assert_eq!(input.placement, view.placement);
+}
+
+#[test]
+fn direct_placed_view_input_crosses_terminal_with_exact_source_custody() {
+    let (main, inputs) = write_cross_package_program(
+        "placed-view-terminal-input",
+        r#"
+data Sink {}
+machine Sink::fill(destination: &write i32) {
+    destination = 2;
+}
+
+data Inspector {}
+machine Inspector::inspect(
+    &mut self,
+    view: &mut Placed<UartPlacement, Registers>,
+    destination: &mut i32
+) {
+    Sink::fill(&write destination);
+}
+"#,
+    );
+    let checked = compile_to_checked_with_packages(&main, None, inputs)
+        .expect("direct placed-view input should compile");
+    let inspect = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Inspector::inspect")
+        .expect("placed-view consumer");
+    let input = checked
+        .facts
+        .placed_view_inputs
+        .iter()
+        .find(|input| input.machine == inspect.symbol)
+        .expect("checked placed-view input");
+    let lowered = lower_machine(&checked, "Inspector::inspect")
+        .expect("direct placed-view input should cross the Terminal boundary");
+    let [terminal_input] = lowered.semantic_module.placed_view_inputs.as_slice() else {
+        panic!("one direct Terminal placed-view input")
+    };
+    assert_eq!(terminal_input.machine, lowered.semantic_module.entry);
+    assert_eq!(terminal_input.position, input.position);
+    assert_eq!(terminal_input.access, psi_terminal::StructuralAccess::MutableBorrow);
+    assert_eq!(
+        terminal_input.source_machine_identity,
+        checked
+            .typed
+            .normalized_hermetic_symbol_identity(input.machine)
+            .unwrap()
+    );
+    assert_eq!(
+        terminal_input.source_state_identity,
+        checked
+            .typed
+            .normalized_hermetic_symbol_identity(input.state)
+            .unwrap()
+    );
+    assert_eq!(
+        terminal_input.source_parameter_identity,
+        checked
+            .typed
+            .normalized_hermetic_symbol_identity(input.parameter)
+            .unwrap()
+    );
+    assert_eq!(
+        terminal_input.placement_report_fingerprint,
+        input.placement.identity().compatibility_fingerprint()
+    );
+    assert_eq!(
+        terminal_input.placement_commitment,
+        input.placement.content_interpretation().commitment()
+    );
+    let encoded = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("placed-view Terminal module should encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&encoded),
+        Ok(lowered.semantic_module)
+    );
+}
+
+#[test]
+fn placed_view_input_custody_excludes_open_and_nonchecked_machines() {
+    let source = POLICY_SOURCE.replace(
+        "data Main {}",
+        r#"
+machine generic_inspect<Element>(view: &Placed<UartPlacement, Registers>) {}
+machine lifetime_inspect<'view>(view: &'view Placed<UartPlacement, Registers>) {}
+boundary machine boundary_inspect(view: &Placed<UartPlacement, Registers>);
+
+data Main {}
+"#,
+    );
+    let main = write_program("placed-view-input-fences", &source);
+    let checked = compile_to_checked(&main, None)
+        .expect("open and non-checked placed-view declarations should remain fenced");
+    for name in ["generic_inspect", "lifetime_inspect", "boundary_inspect"] {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("fenced placed-view declaration");
+        assert!(
+            checked
+                .facts
+                .placed_view_inputs
+                .iter()
+                .all(|input| input.machine != machine.symbol),
+            "{name} must not gain checked placed-view input custody"
+        );
+    }
 }
 
 #[test]

@@ -45,6 +45,7 @@ fn custody_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

@@ -24,8 +24,8 @@ use psi_terminal::{
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalPlacedViewInput, Terminator,
+    ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
@@ -45,6 +45,85 @@ fn unit_machine_is_a_value_less_normal_return() {
 
     assert_eq!(verified.module(), &module);
     assert!(verified.accepted_facts().is_empty());
+}
+
+fn placed_view_input(machine: MachineId, position: u32) -> TerminalPlacedViewInput {
+    let identity = |name: &str| format!("package:{}::{name}", "01".repeat(32));
+    let policy_identity = identity("Uart");
+    let schema_identity = identity("Registers");
+    TerminalPlacedViewInput {
+        machine,
+        position,
+        source_machine_identity: identity("inspect"),
+        source_state_identity: identity("inspect::entry"),
+        source_parameter_identity: identity(&format!("inspect::entry::view{position}")),
+        access: StructuralAccess::MutableBorrow,
+        binding_is_const: false,
+        binding_is_mutable: true,
+        view_identity: psi_terminal::canonical_placed_view_identity(
+            &policy_identity,
+            &schema_identity,
+        ),
+        policy_identity,
+        policy_plan_machine_identity: identity("Uart::plan"),
+        schema_identity,
+        placement_report_fingerprint: 41,
+        placement_commitment: [0x5a; 32],
+    }
+}
+
+#[test]
+fn placed_view_inputs_require_exact_canonical_custody() {
+    let mut module = unit_module();
+    let row = placed_view_input(module.entry, 0);
+    module.placed_view_inputs.push(row.clone());
+    validate_module(&module).expect("exact placed-view input should validate");
+
+    let mut zero_commitment = module.clone();
+    zero_commitment.placed_view_inputs[0].placement_commitment = [0; 32];
+    assert!(matches!(
+        validate_module(&zero_commitment),
+        Err(ModuleError::InvalidPlacedViewInput { .. })
+    ));
+
+    let mut missing_machine = module.clone();
+    missing_machine.placed_view_inputs[0].machine = MachineId::new(999).unwrap();
+    assert!(matches!(
+        validate_module(&missing_machine),
+        Err(ModuleError::InvalidPlacedViewInput { .. })
+    ));
+
+    let mut nonhermetic = module.clone();
+    nonhermetic.placed_view_inputs[0].schema_identity =
+        "package:not-a-digest::Registers".to_owned();
+    assert!(matches!(
+        validate_module(&nonhermetic),
+        Err(ModuleError::InvalidPlacedViewInput { .. })
+    ));
+
+    let mut redirected_view = module.clone();
+    redirected_view.placed_view_inputs[0].view_identity.push('x');
+    assert!(matches!(
+        validate_module(&redirected_view),
+        Err(ModuleError::InvalidPlacedViewInput { .. })
+    ));
+
+    let mut duplicate = module.clone();
+    duplicate.placed_view_inputs.push(row);
+    assert!(matches!(
+        validate_module(&duplicate),
+        Err(ModuleError::DuplicatePlacedViewInput { .. })
+    ));
+
+    let mut reordered = module;
+    reordered
+        .placed_view_inputs
+        .push(placed_view_input(reordered.entry, 1));
+    reordered.placed_view_inputs.reverse();
+    assert!(matches!(
+        validate_module(&reordered),
+        Err(ModuleError::NonCanonicalPlacedViewInputOrder)
+    ));
 }
 
 #[test]
@@ -379,6 +458,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -481,6 +561,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -617,6 +698,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -762,6 +844,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -929,6 +1012,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -1085,6 +1169,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -1220,6 +1305,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1335,6 +1421,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1478,6 +1565,7 @@ fn preserves_address_carrier_identity() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1549,6 +1637,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1666,6 +1755,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1759,6 +1849,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1851,6 +1942,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1928,6 +2020,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2005,6 +2098,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2090,6 +2184,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2193,6 +2288,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2269,6 +2365,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2345,6 +2442,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2421,6 +2519,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2497,6 +2596,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2602,6 +2702,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -4277,6 +4378,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             }],
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -4474,6 +4576,7 @@ fn structural_call_module() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -4797,6 +4900,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
             }],
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: vec![boundary],
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -4939,6 +5043,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5449,6 +5554,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5542,6 +5648,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5635,6 +5742,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5728,6 +5836,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5821,6 +5930,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5914,6 +6024,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),
@@ -5940,6 +6051,7 @@ fn unit_module() -> TerminalModule {
         structural_domains: Vec::new(),
         services: Vec::new(),
         root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -6302,6 +6414,7 @@ impl Fixture {
                 structural_domains: Vec::new(),
                 services: Vec::new(),
                 root_service_reach: Default::default(),
+                placed_view_inputs: Vec::new(),
                 boundary_machines: Vec::new(),
                 provider_candidates: Vec::new(),
                 float_meaning_projections: Vec::new(),

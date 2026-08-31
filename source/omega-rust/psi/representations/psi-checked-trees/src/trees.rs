@@ -30,6 +30,26 @@ pub struct CheckedIntrinsicCallFact {
         psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
 }
 
+/// Source-span-free compiler-internal custody for one direct concrete placed-
+/// view machine input. The complete validated placement is retained because
+/// its compact compatibility fingerprint is not semantic authority. Symbol
+/// handles remain private joins and never cross the Terminal boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPlacedViewInput {
+    pub machine: psi_symbols::SymbolHandle,
+    pub state: psi_symbols::SymbolHandle,
+    pub position: u32,
+    pub parameter: psi_symbols::SymbolHandle,
+    pub reference_access: psi_language_core::ReferenceAccess,
+    pub binding_is_const: bool,
+    pub binding_is_mutable: bool,
+    pub view: psi_symbols::SymbolHandle,
+    pub policy: psi_symbols::SymbolHandle,
+    pub policy_plan_machine: psi_symbols::SymbolHandle,
+    pub schema: psi_symbols::SymbolHandle,
+    pub placement: psi_access_plans::ValidatedPlacementPlan,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckFacts {
     pub semantic: psi_facts::FactPlan,
@@ -83,6 +103,10 @@ pub struct CheckFacts {
     /// Compiler-owned call meanings selected only after exact receiver and
     /// owner checking.
     pub intrinsic_calls: Vec<CheckedIntrinsicCallFact>,
+    /// Direct entry inputs whose opaque placed-view meaning has been joined to
+    /// its exact source-derived placement plan. These rows grant no runtime
+    /// storage, accessor, provider, or ABI authority.
+    pub placed_view_inputs: Vec<CheckedPlacedViewInput>,
 }
 
 impl CheckFacts {
@@ -132,6 +156,7 @@ impl CheckFacts {
             carry,
             fact_call_projections,
             intrinsic_calls: Vec::new(),
+            placed_view_inputs: Vec::new(),
         }
     }
 }

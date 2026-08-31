@@ -263,6 +263,7 @@ pub(super) fn lower_structural_return_machine(
             structural_domains,
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

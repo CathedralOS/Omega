@@ -546,6 +546,7 @@ pub(super) fn constant_conditional_plan(select_true: bool) -> AbstractOperationP
         psi: identity(),
         entry: machine,
         structural_types: Vec::new(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -658,6 +659,7 @@ fn parameter_return_plan(parameter_count: usize) -> AbstractOperationPlan {
         psi: identity(),
         entry: machine,
         structural_types: Vec::new(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -707,6 +709,7 @@ fn direct_call_plan(parameter_count: usize) -> AbstractOperationPlan {
         psi: identity(),
         entry: caller,
         structural_types: Vec::new(),
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

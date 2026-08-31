@@ -1604,6 +1604,7 @@ dependencies = [
 name = "psi-checked-trees"
 version = "0.1.0"
 dependencies = [
+ "psi-access-plans",
  "psi-arena",
  "psi-core",
  "psi-effects",
@@ -1624,6 +1625,7 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-core",
+ "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
  "psi-proof-admission",

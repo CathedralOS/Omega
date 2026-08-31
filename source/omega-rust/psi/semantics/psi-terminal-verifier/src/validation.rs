@@ -200,6 +200,64 @@ pub(crate) fn reconstruct_validated_structural_ownership_frontiers(
     })
 }
 
+fn validate_placed_view_inputs(
+    module: &TerminalModule,
+    machines: &BTreeMap<psi_core::MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let inputs = &module.placed_view_inputs;
+    let mut coordinates = BTreeSet::new();
+    for input in inputs {
+        if !coordinates.insert((input.machine, input.position)) {
+            return Err(ModuleError::DuplicatePlacedViewInput {
+                machine: input.machine,
+                position: input.position,
+            });
+        }
+        let invalid = !machines.contains_key(&input.machine)
+            || matches!(input.access, psi_terminal::StructuralAccess::Owned)
+            || !is_canonical_hermetic_identity(&input.source_machine_identity)
+            || !is_canonical_hermetic_identity(&input.source_state_identity)
+            || !is_canonical_hermetic_identity(&input.source_parameter_identity)
+            || !is_canonical_hermetic_identity(&input.policy_identity)
+            || !is_canonical_hermetic_identity(&input.policy_plan_machine_identity)
+            || !is_canonical_hermetic_identity(&input.schema_identity)
+            || input.view_identity
+                != psi_terminal::canonical_placed_view_identity(
+                    &input.policy_identity,
+                    &input.schema_identity,
+                )
+            || input.placement_report_fingerprint == 0
+            || input.placement_commitment == [0; 32];
+        if invalid {
+            return Err(ModuleError::InvalidPlacedViewInput {
+                machine: input.machine,
+                position: input.position,
+            });
+        }
+    }
+    if !inputs.windows(2).all(|pair| pair[0] < pair[1]) {
+        return Err(ModuleError::NonCanonicalPlacedViewInputOrder);
+    }
+    Ok(())
+}
+
+fn is_canonical_hermetic_identity(identity: &str) -> bool {
+    if let Some(path) = identity.strip_prefix("toolchain::") {
+        return !path.is_empty();
+    }
+    let Some(package) = identity.strip_prefix("package:") else {
+        return false;
+    };
+    let Some((digest, path)) = package.split_once("::") else {
+        return false;
+    };
+    digest.len() == 64
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && !path.is_empty()
+}
+
 /// Validate the representation-wide invariants needed by canonical codecs.
 ///
 /// This remains a distinct entry point so canonical representation checks do
@@ -266,6 +324,7 @@ fn validate_module_with_policy(
         .iter()
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
+    validate_placed_view_inputs(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;

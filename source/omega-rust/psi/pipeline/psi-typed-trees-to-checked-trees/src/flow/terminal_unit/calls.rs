@@ -1646,6 +1646,20 @@ fn structural_signature_with_affine_pair(
         if parameter.is_const {
             return None;
         }
+        if !parameter.is_self
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference { referee, .. }
+                    if program.placed_view_plan_for_type_reference(*referee).is_some()
+            )
+        {
+            // A direct concrete Placed<P, T> reference is retained by the
+            // separate semantic-custody row and intentionally has no runtime
+            // structural parameter or ABI carrier.
+            continue;
+        }
         // Primitive values remain in the scalar namespace. Only a reference
         // to a primitive may become a structural place for the bounded
         // write-only store/call closure.

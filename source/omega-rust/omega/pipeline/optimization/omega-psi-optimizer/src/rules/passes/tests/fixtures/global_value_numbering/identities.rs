@@ -287,6 +287,7 @@ pub(crate) fn wrapping_neutral_identity_unit_with_value_and_identity_types_and_l
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {
@@ -351,6 +352,7 @@ pub(crate) fn wrapping_multiply_literal_pair_unit(
             },
             entry: machine,
             structural_types: Vec::new(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

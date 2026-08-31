@@ -23,6 +23,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: vec![declaration.clone()],
+            placed_view_inputs: Vec::new(),
             boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
                 id: boundary,
                 identity: "validation::byte-literal-boundary".into(),
@@ -592,6 +593,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
                 psi_terminal::ByteSequenceCarrier::BorrowedView,
             ),
         }],
+        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

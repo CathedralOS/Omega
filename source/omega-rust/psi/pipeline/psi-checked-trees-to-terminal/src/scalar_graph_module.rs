@@ -1044,6 +1044,7 @@ pub(super) fn build_scalar_graph_module(
             structural_domains: Vec::new(),
             services: Vec::new(),
             root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

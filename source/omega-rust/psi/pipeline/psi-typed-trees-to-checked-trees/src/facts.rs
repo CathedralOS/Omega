@@ -181,7 +181,7 @@ pub(crate) fn build_check_facts(
         return Err(fact_call_projection_diagnostics);
     }
 
-    Ok(CheckFacts::with_roots(
+    let mut facts = CheckFacts::with_roots(
         semantic,
         borrow,
         proof,
@@ -203,7 +203,58 @@ pub(crate) fn build_check_facts(
         contract_plans,
         carry,
         fact_call_projections,
-    ))
+    );
+    facts.placed_view_inputs = build_checked_placed_view_inputs(program);
+    Ok(facts)
+}
+
+fn build_checked_placed_view_inputs(
+    program: &TypedTrees,
+) -> Vec<psi_checked_trees::CheckedPlacedViewInput> {
+    let mut inputs = Vec::new();
+    for machine in program.machines() {
+        if machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+            || !machine.body_is_present
+            || !machine.lifetime_parameters.is_empty()
+            || !program.machine_type_parameters(machine).is_empty()
+        {
+            continue;
+        }
+        let Some(entry) = program.machine_states(machine).first() else {
+            continue;
+        };
+        for (position, parameter) in program.state_parameters(entry).iter().enumerate() {
+            let psi_typed_trees::types::TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime: _,
+            } = program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                continue;
+            };
+            let Some(view) = program.placed_view_plan_for_type_reference(*referee) else {
+                continue;
+            };
+            inputs.push(psi_checked_trees::CheckedPlacedViewInput {
+                machine: machine.symbol,
+                state: entry.symbol,
+                position: u32::try_from(position)
+                    .expect("state parameter count must fit checked input position"),
+                parameter: parameter.symbol,
+                reference_access: *access,
+                binding_is_const: parameter.is_const,
+                binding_is_mutable: parameter.is_mutable,
+                view: view.data_symbol,
+                policy: view.policy_symbol,
+                policy_plan_machine: view.policy_plan_machine_symbol,
+                schema: view.schema_symbol,
+                placement: view.placement.clone(),
+            });
+        }
+    }
+    inputs
 }
 
 /// Crash refinement gains path-conditioned and permission-frontier evidence
