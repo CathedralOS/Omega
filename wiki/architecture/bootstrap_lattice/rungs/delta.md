@@ -79,7 +79,7 @@ classifier plus complete index/slice joins now retain settled projection
 failures and resultless/`never` categories without manufacturing relations from
 missing sibling facts. Scalar operators retain complete category branches;
 application arguments retain their explicitly anchored `never` branch while
-Q8 blocks the resultless anchor. Let/assignment/assert relations consume only
+Q6 blocks the resultless anchor. Let/assignment/assert relations consume only
 their complete value/place premises and preserve storage `u8` establishment.
 Explicit terminal and arm returns consume the enclosing machine return type
 with D37's exact absence/value anchors. A private statement-flow relation
@@ -100,20 +100,20 @@ Transition subjects are retained once as scalar `i32` or an exact nominal sum.
 Resolved case patterns retain exact case custody; payload arity and subject
 compatibility gate typed D24 binders. Completed non-wildcard selectors/cases
 retain positive semantic identity, and each sum transition retains complete,
-missing, or unresolved coverage without inventing Q10's pending negative
+missing, or unresolved coverage without inventing Q8's pending negative
 pattern or coverage order.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q3 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
 case/machine collision census, direct qualified applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
-only Q6's bare-state spelling and Q7's invalid-`self` diagnostic remain from
-that category boundary. Q8's resultless-argument anchor, Q10's transition-
+only Q4's bare-state spelling and Q5's invalid-`self` diagnostic remain from
+that category boundary. Q6's resultless-argument anchor, Q8's transition-
 pattern and coverage diagnostic totality, and reachability remain open. D37's
 field/index/slice projection failures, scalar categories,
 argument-`never` branch, let/assignment/assert and explicit-return relations,
 and first-following-statement terminal flow are implemented;
-Q9 blocks explicit terminals after `never`, forbidden falloff, machine-call
+Q7 blocks explicit terminals after `never`, forbidden falloff, machine-call
 continuation exit behavior, and the complete reachability judgment; its
 remaining control and terminal-flow composition remains open. D38
 settles the place-

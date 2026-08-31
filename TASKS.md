@@ -9025,28 +9025,40 @@ compiler concept is introduced.
   filename-and-trait keyed dangerous-authority classifier with the settled
   service/terminal containment model. Preserve normalized service reach as the
   package-stable preinstallation axis. Independently traverse each exact
-  selected-provider closure to static target-qualified terminal bindings,
-  normalize `StringBackedImportBootstrap` through the ordinary foreign-locator
-  identity, classify exact bindings under closed compiler/target policy, and
-  reject or report any exercised class outside the exact service identity and
-  schema's permitted set. Unknown terminal mechanisms fail closed; risk labels,
-  package names, aliases, paths, and model verdicts grant nothing. Cite the
+  selected-provider closure to D45's closed post-normalization terminal-
+  mechanism sum. Classify every demanded leaf under the receiving lowerer's
+  accepted, versioned target policy and reject or report any exercised class
+  outside the exact service identity and schema's permitted set. Provider and
+  service context join the axes but never narrow physical classification.
+  Unknown, duplicate, cyclic, substituted, or unclassified terminal mechanisms
+  fail closed; risk labels, package names, aliases, paths, and model verdicts
+  grant nothing. Cite the
   authored `providers/external_leaf_syscall_compile` canary and the rejection
   in `providers/via_runtime_binding_rejected` as the static-coordinate fences,
   and require the same property of every future binding kind.
 
-  Land this redirect and delete the blessed filename table before faceting
-  `FilesystemHost`. Then migrate its requirements and the existing
+  Land the first demand-complete table over the closed
+  `CompilerIntrinsicExecutionIdentity` families, including explicit empty
+  dispositions and no wildcard default. Next add a structural Mach-O locator,
+  make ordinary source binding evaluation produce exact PE-by-name,
+  PE-by-ordinal, versioned-ELF, and Mach-O locators, and supply target-policy
+  rows for admitted imports. Only then replace the blessed filename table with
+  the exact service/schema permission table and binding-derived containment.
+  String-backed imports never enter accepted classification directly.
+
+  Classify runtime-polymorphic arguments by the conservative union of all
+  reachable authority. Narrow only when a retained checked constant, range,
+  handle provenance, or other exact constraint proof enters mechanism identity.
+  Then migrate `FilesystemHost` requirements and the existing
   `reaches FilesystemHost` rows to portable content-read, content-write,
   metadata-query, directory-enumeration, namespace-mutation, and
   metadata-mutation facets while retaining exact requirement/method identity.
-  Split flag-polymorphic operations or conservatively publish the union of all
-  enabled facets. Evidence over the current raw `i32` descriptors may claim
-  operation classes only. Add typed unforgeable descriptor handles and checked
-  attenuation before claiming that reads or writes are confined to objects
-  opened with corresponding authority. The redirect is owner-blocked on Q5's
-  first closed target/binding classification table; the containment formula
-  alone does not determine authority for current syscall, import, firmware,
+  A narrower method name alone proves nothing. Evidence over the current raw
+  `i32` descriptors may claim operation classes only. Add typed unforgeable
+  descriptor handles and checked attenuation before claiming that reads or
+  writes are confined to objects opened with corresponding authority. D45 now
+  owns the complete classification rule; the containment formula alone does
+  not determine authority for current syscall, import, firmware,
   table, or checked-physical coordinates.
 - **R5:** continue exact inferred may-write summaries and relational candidates.
   Exact frames compose through transparent returns/helpers, caller-isolated

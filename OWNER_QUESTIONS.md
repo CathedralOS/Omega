@@ -215,70 +215,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
 
-## Q4 — Define the closed terminal-authority classification policy
-
-### Context
-
-The two-axis authority model settles the containment judgment: an exact
-service identity and normalized schema permit terminal-authority classes, and
-a target-qualified exact selected binding plus provider context exercises
-classes. Package review must reject an exercised class outside the permitted
-set, and unknown terminal mechanisms fail closed.
-
-The implementation has exact selected-provider rows for normalized imports,
-the temporary string-backed import bootstrap, syscalls, compiler intrinsics,
-vtable/table operations, and checked adapters. It does not have the normative
-closed policy that assigns classes to arbitrary target-qualified syscall,
-import, firmware, or table coordinates. The existing seven service risk
-classes do not determine those assignments. For example, neither a Linux
-syscall number nor a Windows export name says whether it performs filesystem
-content access, namespace mutation, process control, or no authority without a
-compiler-owned target policy row.
-
-### Problem statement
-
-Define the first closed terminal-authority policy, including:
-
-1. the exact target, binding payload, provider-context, and service-schema
-   coordinates that key every row;
-2. the exercised class set for each currently admitted syscall, import,
-   compiler intrinsic, vtable/table operation, and checked physical operation;
-3. whether known authority-free terminal mechanisms require explicit empty
-   rows or are derived by a separately closed purity catalog; and
-4. the normalization rule for `StringBackedImportBootstrap` where its current
-   payload cannot express an ordinary target locator (notably versioned ELF
-   and Mach-O).
-
-Without these rows, deleting the filename classifier either rejects existing
-supported provider closures as unknown or invents authority semantics from
-names and numeric coordinates. That choice changes the language's installed
-authority claim rather than merely selecting an implementation strategy.
-
-### Proposed direction
-
-Publish a versioned compiler-owned table keyed by the complete tuple above.
-Require explicit rows, including explicit empty exercised sets, for every
-terminal mechanism accepted into package review. Reuse the existing closed
-compiler-intrinsic execution atoms where available. Normalize the bootstrap
-form before lookup only when it reconstructs one exact ordinary foreign
-locator; otherwise reject it until the retained carrier is enriched. Traverse
-checked adapters only through their exact selected closure and reject cycles,
-missing leaves, and unclassified physical operations.
-
-### Alternates
-
-- Acceptable: land a first table covering only the already closed compiler
-  intrinsics and reject every other terminal binding until target policy rows
-  are supplied, provided existing supported-package fallout is intentional.
-- Acceptable: define policy in target-owned modules rather than one central
-  table, provided the combined vocabulary is closed, versioned, exact, and
-  exhaustively validated.
-- Tempting but wrong: classify by service name, source filename, package role,
-  import spelling alone, or syscall number without target and context; assume
-  unknown means harmless; or map every binding beneath a service to that
-  service's permitted class set.
-
-## Q5 — Fix the zero-parameter Delta state-transfer spelling
+## Q4 — Fix the zero-parameter Delta state-transfer spelling
 
 ### Context
 
@@ -314,7 +251,7 @@ before arity rather than letting zero arity select a meaning.
   declaration has matching arity, or let source order choose state versus
   machine.
 
-## Q6 — Assign invalid Delta `self` diagnostics
+## Q5 — Assign invalid Delta `self` diagnostics
 
 ### Context
 
@@ -348,7 +285,7 @@ place; receiver mutability is therefore not guessed from use.
 - Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
   recovery receiver, or defer the failure until a later field/call suffix.
 
-## Q7 — Anchor a resultless Delta call used as an argument
+## Q6 — Anchor a resultless Delta call used as an argument
 
 ### Context
 
@@ -393,7 +330,7 @@ value-use expression rather than moving the anchor to the callee.
   failed, choose an anchor by traversal order, or manufacture a value/error
   type for the resultless call.
 
-## Q8 — Total Delta block exits and machine continuations
+## Q7 — Total Delta block exits and machine continuations
 
 ### Context
 
@@ -462,7 +399,7 @@ obligation; it does not manufacture a return value.
   reachable; infer termination from a bounded simulation; or call the missing
   diagnostic an implementation detail.
 
-## Q9 — Total Delta transition-pattern and coverage diagnostics
+## Q8 — Total Delta transition-pattern and coverage diagnostics
 
 ### Context
 
@@ -549,7 +486,7 @@ relation.
   reason without a version ruling, or choose whichever failure traversal
   encounters first.
 
-## Q10 — Retire compiler-executable path-byte commitments that cannot identify execution
+## Q9 — Retire compiler-executable path-byte commitments that cannot identify execution
 
 ### Context
 
@@ -604,7 +541,7 @@ toolchain under policies they actually control.
   as evidence invalidation without a semantic/schema delta, or present host
   executable observation as certification of compiler behavior.
 
-## Q11 — Decide whether boundary qualifications mint proof obligations
+## Q10 — Decide whether boundary qualifications mint proof obligations
 
 ### Context
 
@@ -659,7 +596,7 @@ unaffected.
   `Proposition::Truth`, accept nonempty rows without reconstructing a goal, or
   reuse ordinary scalar-call requirement logic for structural domains.
 
-## Q12 — Retire or explicitly source all-target matrix enumeration
+## Q11 — Retire or explicitly source all-target matrix enumeration
 
 ### Context
 
