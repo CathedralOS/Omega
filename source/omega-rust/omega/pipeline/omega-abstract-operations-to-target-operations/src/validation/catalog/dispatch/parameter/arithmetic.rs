@@ -32,6 +32,13 @@ pub(in crate::validation::catalog) const SATURATING_INTEGER_ADD: TranslationFami
         saturating_integer_add,
     );
 
+pub(in crate::validation::catalog) const SATURATING_INTEGER_SUBTRACT: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractParameters,
+        straight_line_parameter::integer::arithmetic::saturating_subtract::is_candidate,
+        saturating_integer_subtract,
+    );
+
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_SUBTRACT: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters,
@@ -100,6 +107,24 @@ pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerSubtractParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerSubtractParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn saturating_integer_subtract(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::saturating_subtract::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(
+        AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerSubtractParameters,
+    )
+    .map_err(
+        AbstractToTargetTranslationFamilyError::StraightLineSaturatingIntegerSubtractParameters,
+    )
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_multiply(

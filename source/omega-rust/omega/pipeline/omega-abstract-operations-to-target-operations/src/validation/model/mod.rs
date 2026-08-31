@@ -21,6 +21,7 @@ pub use error::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineScalarCrashTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
@@ -46,6 +47,7 @@ pub use receipt::{
     StraightLineIntegerParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationReceipt,
     StraightLineSaturatingIntegerAddParametersTranslationReceipt,
+    StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineScalarCrashTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
@@ -74,6 +76,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineExactIntegerAddParameters,
     StraightLineSaturatingIntegerAddParameters,
     StraightLineWrappingIntegerAddParameters,
+    StraightLineSaturatingIntegerSubtractParameters,
     StraightLineWrappingIntegerSubtractParameters,
     StraightLineWrappingIntegerMultiplyParameters,
 }

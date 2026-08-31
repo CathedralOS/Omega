@@ -353,11 +353,11 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty-one abstract-to-target families, including
-  proof-bearing exact and saturating parameterized integer addition, selected
-  incoming u12 folds, current machine substitutions, structural-Unit encoding,
-  resolved layout, and ranked-u32 publication routes are covered; the remaining
-  source families and publication routes are not.
+  machine-rule family. Twenty-two abstract-to-target families, including
+  proof-bearing exact addition and saturating parameterized integer addition
+  and subtraction, selected incoming u12 folds, current machine substitutions,
+  structural-Unit encoding, resolved layout, and ranked-u32 publication routes
+  are covered; the remaining source families and publication routes are not.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
@@ -421,6 +421,11 @@ decision. Only true language-semantic questions belong in
   Its distinct catalog row reconstructs source and ABI custody without calling
   lowering, retains the exact overflow-obligation identity in its receipt, and
   rejects wrapping/saturating substitution and independent obligation drift.
+- [x] Add independent saturating-add and saturating-subtract parameter
+  translation families. Each exact catalog row reconstructs ordered source
+  operands, whole-roster ABI placement, provenance, and its matching target
+  expression; wrapping and proof-bearing exact policy substitution fails
+  closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

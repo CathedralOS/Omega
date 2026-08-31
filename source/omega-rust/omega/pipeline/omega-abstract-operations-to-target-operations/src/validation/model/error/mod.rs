@@ -24,6 +24,7 @@ pub use parameter::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
@@ -63,6 +64,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineWrappingIntegerAddParameters(
         StraightLineWrappingIntegerAddParametersTranslationError,
+    ),
+    StraightLineSaturatingIntegerSubtractParameters(
+        StraightLineSaturatingIntegerSubtractParametersTranslationError,
     ),
     StraightLineWrappingIntegerSubtractParameters(
         StraightLineWrappingIntegerSubtractParametersTranslationError,
