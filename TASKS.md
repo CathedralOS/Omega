@@ -3727,9 +3727,11 @@ Remaining:
   bounded rung now admits exactly four enclosing acyclic relevant record fields
   before that sole mixed occurrence. The same complete path, call-rebase,
   codec, verifier, fuel, interpreter, and per-prefix mutation replay covers all
-  four ordered field identities. Five or more enclosing fields, case-payload
-  or mixed-under-mixed placement, two mixed sibling fields, direct projected
-  mixed comparisons, recursive cycles,
+  four ordered field identities. A fifth bounded rung now admits exactly five
+  enclosing acyclic relevant record fields before that sole mixed occurrence,
+  with the same replay covering all five ordered field identities. Six or more
+  enclosing fields, case-payload or mixed-under-mixed placement, two mixed
+  sibling fields, direct projected mixed comparisons, recursive cycles,
   address and erased payload equality, and runtime sum layout remain fenced.
   Semantic codec format 33 / vocabulary
   35, proof-bundle v19, and installation-record v40 retain the structural

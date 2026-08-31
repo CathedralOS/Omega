@@ -805,6 +805,61 @@ const FOUR_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const FIVE_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Message {
+        active: bool;
+        case Empty;
+        case Data(value: i32);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Inner { message: Message; }
+    InnerEquatable: Inner satisfies Equatable;
+
+    data Middle { inner: Inner; }
+    MiddleEquatable: Middle satisfies Equatable;
+
+    data Envelope { middle: Middle; }
+    EnvelopeEquatable: Envelope satisfies Equatable;
+
+    data Exterior { envelope: Envelope; }
+    ExteriorEquatable: Exterior satisfies Equatable;
+
+    data Outside { exterior: Exterior; }
+    OutsideEquatable: Outside satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Outside, right: Outside)
+    crashes Abort
+        left == right
+    {}
+
+    machine Helper::different(left: Outside, right: Outside)
+    crashes Abort
+        left != right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Outside, right: Outside)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data Different {}
+    machine Different::enter(left: Outside, right: Outside)
+    crashes Abort
+        left != right
+    {
+        Helper::different(left, right);
+    }
+"#;
+
 const MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 3] = [
     r#"
         trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
@@ -847,8 +902,10 @@ const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 6] = [
         ExteriorEquatable: Exterior satisfies Equatable;
         data Outside { exterior: Exterior; }
         OutsideEquatable: Outside satisfies Equatable;
+        data Beyond { outside: Outside; }
+        BeyondEquatable: Beyond satisfies Equatable;
         data Root {}
-        machine Root::enter(left: Outside, right: Outside)
+        machine Root::enter(left: Beyond, right: Beyond)
         crashes Abort left == right {}
     "#,
     r#"
@@ -5898,6 +5955,14 @@ fn four_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
     assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
         FOUR_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
         &["envelope", "middle", "inner", "message"],
+    );
+}
+
+#[test]
+fn five_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
+    assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
+        FIVE_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
+        &["exterior", "envelope", "middle", "inner", "message"],
     );
 }
 
