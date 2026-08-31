@@ -77,9 +77,12 @@ decision. Only true language-semantic questions belong in
    jump fusion, unreachable-machine pruning, and shared merge-ownership
    custody now own explicit dependencies too, shrinking the control-flow
    entrance to its module map and seven-row ordered roster. A family-wide guard
-   keeps all control-flow leaves independent of inherited parent globs. The
-   remaining production parent-glob debt is confined to GVN (18); remove those
-   dependencies before extending it.
+   keeps all control-flow leaves independent of inherited parent globs. The GVN
+   expression-key group now owns its closed model and exact total,
+   proof-certified, and compatible-policy classifiers without inheriting the
+   pass entrance namespace; a guard covers that vocabulary subtree. The
+   remaining production parent-glob debt is confined to GVN traversal and
+   accounting leaves (13); remove those dependencies before extending it.
 
 ## P0 — Source navigation and taxonomy
 

@@ -10,7 +10,7 @@ mod model;
 mod proof_certified;
 mod total;
 
-use super::*;
+use psi_core::{OperationId, ScalarType, ValueId};
 
 pub(in crate::rules::passes) use compatible_policy::{
     compatible_policy_scalar_leader, compatible_policy_scalar_redundant,

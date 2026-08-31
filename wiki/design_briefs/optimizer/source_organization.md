@@ -129,6 +129,11 @@ The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
 
+GVN's `expression_keys/` group owns a closed key model and three explicit
+classifiers: total, proof-certified, and directional compatible-policy. Those
+vocabulary leaves import their own operation and scalar types rather than
+inheriting the broader traversal namespace from the GVN entrance.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.

@@ -59,9 +59,10 @@ pub(crate) fn check(audit: &mut Audit) {
 
     for (family, relative_root) in [
         ("proof-check elision", "proof_check_elision/"),
+        ("control-flow cleanup", "control_flow_cleanup/"),
         (
-            "control-flow cleanup",
-            "control_flow_cleanup/",
+            "GVN expression keys",
+            "global_value_numbering/expression_keys/",
         ),
     ] {
         let family_root = format!("{psi_pass_root}{relative_root}");

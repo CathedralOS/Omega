@@ -1,6 +1,11 @@
 //! Obligation-free scalar-operation classification.
 
-use super::*;
+use std::collections::BTreeMap;
+
+use omega_abstract_operations::AbstractOperation as O;
+use psi_core::{ScalarType, ValueId};
+
+use super::{ScalarExpressionRow, TotalScalarExpressionKey, canonical_pair};
 
 pub(in crate::rules::passes::global_value_numbering) fn total_scalar_expression(
     operation: &O,

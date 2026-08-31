@@ -2,7 +2,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -13,7 +12,7 @@ use omega_optimization_unit::{
     ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite,
     PsiRewriteCandidate,
 };
-use psi_core::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
+use psi_core::{BlockId, MachineId};
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
