@@ -1708,13 +1708,14 @@ that target's Terminal Psi/PCC subject. Merely declaring support for Linux,
 Windows, macOS, or another profile does not place every profile in one build's
 Psi.
 
-An all-target checking mode enumerates the declared target set and forms,
-checks, and proves each target closure independently. It may stop before native
-realization, allowing CI to detect stale platform source without possessing
-each platform's deployment authority. Semantically different closures publish
-distinct committed Psi subjects. Exact byte-identical Terminal/PCC products may
-be storage-deduplicated, but no unresolved target branch enters Psi and no one
-target's authority realizes another's proposal.
+Any repeated-target checking mode must form, check, and prove each exact target
+closure independently. It may stop before native realization, and no unresolved
+target branch enters Psi or lets one target's authority realize another's
+proposal. Whether `omega` should discover an authoritative all-target set at
+all remains open under **Retire or explicitly source all-target matrix
+enumeration** in `OWNER_QUESTIONS.md`; D42 does not authorize inventing a
+project support allowlist, scanning dependencies for targets, or treating a
+compiler catalog as application intent.
 
 If a concrete future customer requires a target-specific dependency edge, it
 must use an explicit unconditional target-qualified build row, analogous to

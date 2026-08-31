@@ -312,19 +312,13 @@ explicitly.
     `EfiSystemTable`, provider drift, replay drift, and cleanup/multiplicity
     canaries.
 
-- [ ] **D42-FLAT-TARGET-BUILD-CLEANUP — delete unused conditional projection.**
-  - reject and remove graph-forming `transition builder.target`,
-    `depend_when`, and `depend_as_when` dependency discovery;
-  - collapse `ProjectedDependencies` and its lock/subject encoding to the one
-    unconditional dependency set, deleting `by_profile`, target-column schema,
-    tainted-path traversal, and tests that exist only for those retired forms;
-  - preserve target declarations as target identity/host/boundary policy and
-    preserve flat target-qualified `roots.bind` facts in the build machine;
-  - add a matrix-checking command/gate that enumerates every declared target,
-    independently filters, checks, and proves its closure, and may stop at the
-    separately committed Psi/PCC products without native realization;
-  - keep ordinary one-shot compilation exact-target-only: declarations for
-    other targets never enter the selected invocation's Psi.
+- [ ] **D42-ALL-TARGET-CHECK — decide whether the convenience command exists.**
+  **OWNER-BLOCKED — Retire or explicitly source all-target matrix
+  enumeration** in `OWNER_QUESTIONS.md`. Flat unconditional dependency
+  projection, canonical subject encoding, exact-target-only traversal, and
+  rejection of retired conditional forms are complete. Do not invent target
+  discovery or matrix evidence while the remaining command has no
+  authoritative meaning for `all`.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
   authority-bearing outputs.**
