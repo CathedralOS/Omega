@@ -102,6 +102,14 @@ two-prefix canaries cover boundary and internal-call leaves. Admission rejects
 changed scalar maps, target states, attachments, contracts, custody, or leaf
 effects rather than silently routing the graph through a shorter family.
 
+A disjoint nested-control family retains two Boolean machine inputs at an
+outer conditional, transfers the second input to one inner-dispatch block, and
+routes the other outer arm directly to a third effect leaf. Independent
+lowering reconstructs five blocks, four edges, and a distinct inner block
+parameter before publishing either boundary leaves or one deduplicated
+internal target closure. Scalar-handoff and inner-target corruption reject the
+route before verifier or codec publication.
+
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common
 condition context and selects exactly one row from its adjacent seven-row

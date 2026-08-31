@@ -97,7 +97,8 @@ with parameterless target closure isolated in `internal_calls`. Both nested
 consumer entrances descend through independent `admission` and `emission`
 rungs: `internal_calls` owns target-plan and transitive-closure replay while
 `prefixed_control` owns finite scalar-prefix chains before one conditional
-frontier. The nested
+frontier, and `nested_control` owns the exact two-frontier/three-leaf graph.
+The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
 after independently admitting the scalar prefix rather than copying their
@@ -116,8 +117,10 @@ Focused source and replay tests live in the `composed_claims`,
 `composed_unit_internal_calls` files; the exact four-state family lives in
 `composed_prefixed_control` and `composed_unit_prefixed_control`. The transitive
 internal target closure lives in `composed_transitive_internal_calls` and
-`composed_unit_transitive_internal_calls`. Extending the carrier therefore
-does not grow the legacy call or structural-control matrices.
+`composed_unit_transitive_internal_calls`; the two-frontier family lives in
+`composed_nested_control` and `composed_unit_nested_control`. Extending the
+carrier therefore does not grow the legacy call or structural-control
+matrices.
 
 ## Rule-owning stage entrances
 

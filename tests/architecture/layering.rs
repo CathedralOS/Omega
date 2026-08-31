@@ -1765,6 +1765,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
                 "custody",
                 "guards",
                 "leaves",
+                "nested_control",
                 "prefixed_control",
                 "topology",
             ][..],
@@ -1778,6 +1779,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
                 "custody",
                 "emission",
                 "internal_calls",
+                "nested_control",
                 "prefixed_control",
             ][..],
         ),
@@ -1800,7 +1802,11 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
             );
         }
     }
-    for (name, limit) in [("prefixed_control", 20), ("internal_calls", 10)] {
+    for (name, limit) in [
+        ("prefixed_control", 20),
+        ("nested_control", 20),
+        ("internal_calls", 10),
+    ] {
         let directory = terminal.join("composed_control").join(name);
         let entrance = directory.join("mod.rs");
         let source = std::fs::read_to_string(&entrance)
