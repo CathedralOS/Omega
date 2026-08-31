@@ -11312,9 +11312,17 @@ checked-result arithmetic decision listed below.
   consume that token through symbol-only interpreter entry and reject a token
   from another prepared program even when its arena-local handle collides; the
   maintained build evaluator no longer rediscovers the executed machine by
-  name. The activation-local admitted checkpoint carrier, retained-base
-  continuation, final rebuild/rebind deletion, and the remaining
-  configuration/evidence canaries are still open.
+  name. The evaluator now admits one opaque, consuming build-program carrier
+  that owns the prepared program and exact entry together with reach plans,
+  authority verdict, initial `Build` snapshot, target inputs, filesystem scope,
+  and sponsor. Checked orchestration couples that carrier to the coherent base
+  frontend, package authority/source-consumption verdict, and frozen
+  transitional syntax in one activation-local checkpoint, and verifies that
+  execution returns the admitted exact symbol. The still-transitional final
+  frontend rebuild now recovers the selected machine only by its exact source
+  occurrence and normalized callable identity rather than by name. Continuing
+  final checking from the retained base, deleting that rebuild/rebind, and the
+  remaining no-reread and configuration/evidence canaries are still open.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

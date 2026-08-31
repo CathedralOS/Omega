@@ -258,6 +258,29 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
 }
 
 #[test]
+fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
+    let repo_root = repo_root();
+    let checked_entry_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/checked_entry.rs");
+    let checked_entry = fs::read_to_string(&checked_entry_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));
+    let checked_entry = without_ascii_whitespace(&checked_entry);
+
+    assert!(
+        checked_entry.contains("structAdmittedBuildCheckpoint"),
+        "checked orchestration must retain the admitted build inputs in one activation-local checkpoint"
+    );
+    assert!(
+        checked_entry.contains("admit_build_program("),
+        "checked orchestration must admit the build program before executing it"
+    );
+    assert!(
+        !checked_entry.contains("compute_build_config("),
+        "checked orchestration must consume the admitted carrier instead of using the compatibility wrapper"
+    );
+}
+
+#[test]
 fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() {
     let repo_root = repo_root();
     let transition_path = repo_root

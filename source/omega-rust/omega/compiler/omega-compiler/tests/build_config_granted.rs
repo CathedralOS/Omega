@@ -5024,6 +5024,15 @@ machine authored_bare_conformance(item: &Item) -> i32 { consume(item) }
     assert_eq!(bundle.sources()[0].bytes(), ALPHA.as_bytes());
     assert_eq!(bundle.sources()[1].relative_path(), b"beta.omg");
     assert_eq!(bundle.sources()[1].bytes(), BETA.as_bytes());
+    assert_ne!(
+        checked
+            .base_source_consumption_commitment()
+            .expect("package build retains the admitted base commitment"),
+        checked
+            .source_consumption_commitment()
+            .expect("final package subject retains its post-generation commitment"),
+        "own current-activation generated source must extend, not rewrite, the admitted base"
+    );
     assert_eq!(
         checked
             .build_observation_summary()

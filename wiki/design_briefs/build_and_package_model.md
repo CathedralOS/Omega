@@ -287,10 +287,16 @@ custody or counts. This rung
 also binds the selected exact build-machine symbol to its prepared-program
 identity. Primary execution and filesystem replay consume that bound entry
 through symbol-only interpreter lookup, and cross-program entry substitution
-rejects even when raw arena-local handles collide. It deliberately retains the
-full final frontend rebuild; the activation-local admitted checkpoint,
-continuation from its retained base, and removal of the nominal final
-build-machine rebind remain open.
+rejects even when raw arena-local handles collide. The evaluator now exposes
+one opaque consuming admitted-program carrier that owns the prepared program
+and entry, reach plans, authority verdict, initial `Build` snapshot, exact
+target inputs, filesystem scope, and sponsor. Compiler orchestration keeps that
+carrier with the coherent base frontend, package authority/source-consumption
+verdict, and frozen transitional syntax until execution, then verifies the
+returned exact symbol. It deliberately retains the full final frontend rebuild;
+the transitional rebind now requires the exact source occurrence and normalized
+callable identity rather than a name. Continuation from the retained base and
+removal of the full rebuild/rebind remain open.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

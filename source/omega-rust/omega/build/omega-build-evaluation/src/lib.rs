@@ -50,7 +50,8 @@ use psi_build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
     BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
     BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
-    BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineProgram,
+    BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineEntry,
+    PreparedBuildMachineProgram,
 };
 use psi_checked_interpreter::{
     FilesystemMetadataField, FilesystemMetadataFieldLayout, FilesystemSponsorEntry,
@@ -1270,6 +1271,187 @@ pub struct ComputedBuildConfig {
     pub observation_summary: Option<BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     pub generated_sources: Vec<PackageGeneratedSource>,
+}
+
+/// Whether one admitted build activation has an executable build machine.
+///
+/// The selected entry itself is deliberately absent from this public
+/// projection. It remains coupled to the prepared program inside
+/// [`AdmittedBuildProgram`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedBuildProgramDisposition {
+    NoBuildMachine,
+    SelectedBuildMachine,
+}
+
+/// Compiler-owned authority decision retained by an admitted build program.
+///
+/// This is an audit projection of the exact interpreter mode held by the
+/// checkpoint. It cannot be used to construct or replace that mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedBuildAuthorityVerdict {
+    NoBuildMachine,
+    Pure,
+    Granted {
+        filesystem_service_reachable: bool,
+        filesystem_facet_reachable: bool,
+    },
+}
+
+/// Exact target vocabulary admitted for one selected build activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdmittedBuildTargetInputs {
+    profile: omega_target::TargetProfile,
+    build_symbol: SymbolHandle,
+    target_field_symbol: SymbolHandle,
+}
+
+impl AdmittedBuildTargetInputs {
+    pub const fn profile(self) -> omega_target::TargetProfile {
+        self.profile
+    }
+
+    pub const fn build_symbol(self) -> SymbolHandle {
+        self.build_symbol
+    }
+
+    pub const fn target_field_symbol(self) -> SymbolHandle {
+        self.target_field_symbol
+    }
+}
+
+struct SelectedAdmittedBuildMachine {
+    entry: PreparedBuildMachineEntry,
+    symbol: SymbolHandle,
+    name: String,
+    normalized_callable_identity: String,
+    optimization_admission: optimization::BuildOptimizationAdmission,
+    target_vocabulary: Option<TargetBuildVocabulary>,
+    filesystem_service_reachable: bool,
+    filesystem_facet_reachable: bool,
+    filesystem_reachable: bool,
+    execution_mode: BuildMachineExecutionMode,
+    initial_build: BuildTimeValue,
+}
+
+enum AdmittedBuildMachine {
+    None,
+    Selected(SelectedAdmittedBuildMachine),
+}
+
+/// Opaque activation-local checkpoint for build-machine execution.
+///
+/// Preparation, exact entry selection, reach inference, target admission, and
+/// authority validation all finish before this value is issued. The prepared
+/// program and its entry token never leave the carrier independently, so a
+/// caller cannot replace either half before primary or replay execution.
+///
+/// The custody boundary is enforced by privacy, not a convention:
+///
+/// ```compile_fail
+/// use omega_build_evaluation::AdmittedBuildProgram;
+/// use psi_build_time_evaluation::PreparedBuildMachineProgram;
+///
+/// fn substitute_program(
+///     admitted: &mut AdmittedBuildProgram,
+///     foreign: PreparedBuildMachineProgram,
+/// ) {
+///     admitted.prepared = foreign;
+/// }
+/// ```
+#[must_use = "an admitted build program must be consumed by execute"]
+pub struct AdmittedBuildProgram {
+    prepared: PreparedBuildMachineProgram,
+    machine: AdmittedBuildMachine,
+    operational_plan: psi_effects::OperationalPlan,
+    service_reach_plan: psi_effects::ServiceReachInferencePlan,
+    filesystem_scope: BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<BuildEvaluationSponsor>,
+    selected_target_profile: Option<omega_target::TargetProfile>,
+}
+
+impl AdmittedBuildProgram {
+    pub fn disposition(&self) -> AdmittedBuildProgramDisposition {
+        match &self.machine {
+            AdmittedBuildMachine::None => AdmittedBuildProgramDisposition::NoBuildMachine,
+            AdmittedBuildMachine::Selected(_) => {
+                AdmittedBuildProgramDisposition::SelectedBuildMachine
+            }
+        }
+    }
+
+    pub fn authority_verdict(&self) -> AdmittedBuildAuthorityVerdict {
+        match &self.machine {
+            AdmittedBuildMachine::None => AdmittedBuildAuthorityVerdict::NoBuildMachine,
+            AdmittedBuildMachine::Selected(selected) => match &selected.execution_mode {
+                BuildMachineExecutionMode::Pure => AdmittedBuildAuthorityVerdict::Pure,
+                BuildMachineExecutionMode::Granted { .. } => {
+                    AdmittedBuildAuthorityVerdict::Granted {
+                        filesystem_service_reachable: selected.filesystem_service_reachable,
+                        filesystem_facet_reachable: selected.filesystem_facet_reachable,
+                    }
+                }
+            },
+        }
+    }
+
+    pub const fn selected_build_machine_symbol(&self) -> Option<SymbolHandle> {
+        match &self.machine {
+            AdmittedBuildMachine::None => None,
+            AdmittedBuildMachine::Selected(selected) => Some(selected.symbol),
+        }
+    }
+
+    pub fn selected_build_machine_callable_identity(&self) -> Option<&str> {
+        match &self.machine {
+            AdmittedBuildMachine::None => None,
+            AdmittedBuildMachine::Selected(selected) => {
+                Some(&selected.normalized_callable_identity)
+            }
+        }
+    }
+
+    pub const fn selected_target_profile(&self) -> Option<omega_target::TargetProfile> {
+        self.selected_target_profile
+    }
+
+    pub fn selected_target_inputs(&self) -> Option<AdmittedBuildTargetInputs> {
+        let AdmittedBuildMachine::Selected(selected) = &self.machine else {
+            return None;
+        };
+        let Some(vocabulary) = selected.target_vocabulary else {
+            return None;
+        };
+        let Some(profile) = self.selected_target_profile else {
+            return None;
+        };
+        Some(AdmittedBuildTargetInputs {
+            profile,
+            build_symbol: vocabulary.build_symbol,
+            target_field_symbol: vocabulary.target_field_symbol,
+        })
+    }
+
+    pub const fn initial_build_snapshot(&self) -> Option<&BuildTimeValue> {
+        match &self.machine {
+            AdmittedBuildMachine::None => None,
+            AdmittedBuildMachine::Selected(selected) => Some(&selected.initial_build),
+        }
+    }
+
+    pub const fn operational_plan(&self) -> &psi_effects::OperationalPlan {
+        &self.operational_plan
+    }
+
+    pub const fn service_reach_plan(&self) -> &psi_effects::ServiceReachInferencePlan {
+        &self.service_reach_plan
+    }
+
+    /// Consume the exact admitted program through primary evaluation and any
+    /// verifier-owned replay.
+    pub fn execute(self) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+        execute_admitted_build_program(self)
+    }
 }
 
 pub fn reject_uncompiled_generated_sources(
@@ -3417,31 +3599,36 @@ fn source_read_chain_close_is_exact(
         && close.retired_logical_handles() == [identity]
 }
 
-/// Evaluate the program's `build` machine (if any) and extract the config.
-/// No `build` machine -> the default. Every failure names the machine.
-pub fn compute_build_config(
+/// Prepare and admit the program's exact build-machine activation.
+///
+/// This stage performs every selection and authority decision but executes no
+/// authored code. The returned carrier owns the only entry token accepted by
+/// its prepared program.
+pub fn admit_build_program(
     typed: &TypedTrees,
     build_source_id: Option<psi_source::SourceId>,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     selected_target_profile: Option<omega_target::TargetProfile>,
-) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
+    let operational_plan = psi_effects::infer_operational_may(typed);
+    let service_reach_plan = psi_effects::infer_service_reaches(typed, &operational_plan);
 
     let mut build_machines = typed
         .machines()
         .iter()
         .filter(|machine| is_build_machine(typed, machine, build_source_id));
     let Some(machine) = build_machines.next() else {
-        return Ok(ComputedBuildConfig {
-            config: BuildConfig::default(),
-            optimization_report_request:
-                omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
-            evaluation_usage: None,
-            observation_summary: None,
-            selected_build_machine_symbol: None,
-            generated_sources: Vec::new(),
+        return Ok(AdmittedBuildProgram {
+            prepared,
+            machine: AdmittedBuildMachine::None,
+            operational_plan,
+            service_reach_plan,
+            filesystem_scope: filesystem_scope.clone(),
+            evaluation_sponsor: evaluation_sponsor.cloned(),
+            selected_target_profile,
         });
     };
     if let Some(second) = build_machines.next() {
@@ -3451,12 +3638,21 @@ pub fn compute_build_config(
             second.name.as_str(),
         ))]);
     }
-    let machine_name = machine.name.as_str();
-    let machine_entry = prepared.entry(machine.symbol).map_err(|reason| {
+    let machine_symbol = machine.symbol;
+    let machine_name = machine.name.as_str().to_owned();
+    let machine_entry = prepared.entry(machine_symbol).map_err(|reason| {
         vec![Diagnostic::error(format!(
             "could not bind the selected build machine to its prepared program: {reason}"
         ))]
     })?;
+    let normalized_callable_identity = typed
+        .normalized_machine_overload_identity(machine)
+        .map(|identity| identity.identity().to_owned())
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected build machine has no canonical callable identity",
+            )]
+        })?;
     let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
     let target_vocabulary = target_build_vocabulary(typed, selected_target_profile)?;
     if let Some(target_vocabulary) = target_vocabulary {
@@ -3466,11 +3662,9 @@ pub fn compute_build_config(
     // The build gate admits only the pinned standard staging service from
     // build_and_package_model.md. BuildLog is a compiler-owned facet, not the
     // runtime Console boundary. Custom boundary wrappers remain distinct.
-    let effect_plan = psi_effects::infer_operational_may(typed);
-    let service_plan = psi_effects::infer_service_reaches(typed, &effect_plan);
-    let transitive = service_plan
+    let transitive = service_reach_plan
         .for_machine(machine.symbol)
-        .map(|entry| service_plan.services(entry.inferred_transitive))
+        .map(|entry| service_reach_plan.services(entry.inferred_transitive))
         .unwrap_or(&[]);
     let transitive_names = transitive
         .iter()
@@ -3556,7 +3750,7 @@ pub fn compute_build_config(
         is_exact_toolchain_build_service(typed, *service, "FilesystemHost", "filesystem_host.omg")
     });
     let filesystem_facet_reachable =
-        build_reaches_filesystem_facet(typed, &effect_plan, machine.symbol);
+        build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
     let filesystem_reachable = filesystem_service_reachable || filesystem_facet_reachable;
 
     let mut build_fields = Vec::new();
@@ -3651,14 +3845,82 @@ pub fn compute_build_config(
             filesystem_metadata_layout,
         }
     };
-    let initial_arguments = vec![zero_build];
+    Ok(AdmittedBuildProgram {
+        prepared,
+        machine: AdmittedBuildMachine::Selected(SelectedAdmittedBuildMachine {
+            entry: machine_entry,
+            symbol: machine_symbol,
+            name: machine_name,
+            normalized_callable_identity,
+            optimization_admission,
+            target_vocabulary,
+            filesystem_service_reachable,
+            filesystem_facet_reachable,
+            filesystem_reachable,
+            execution_mode,
+            initial_build: zero_build,
+        }),
+        operational_plan,
+        service_reach_plan,
+        filesystem_scope: filesystem_scope.clone(),
+        evaluation_sponsor: evaluation_sponsor.cloned(),
+        selected_target_profile,
+    })
+}
+
+/// Consume one admitted build activation and extract its durable configuration
+/// and evaluation evidence.
+pub fn execute_admitted_build_program(
+    admitted: AdmittedBuildProgram,
+) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+    let AdmittedBuildProgram {
+        prepared,
+        machine,
+        operational_plan: _,
+        service_reach_plan: _,
+        filesystem_scope,
+        evaluation_sponsor,
+        selected_target_profile,
+    } = admitted;
+    let AdmittedBuildMachine::Selected(selected) = machine else {
+        return Ok(ComputedBuildConfig {
+            config: BuildConfig::default(),
+            optimization_report_request:
+                omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
+            evaluation_usage: None,
+            observation_summary: None,
+            selected_build_machine_symbol: None,
+            generated_sources: Vec::new(),
+        });
+    };
+    let SelectedAdmittedBuildMachine {
+        entry: machine_entry,
+        symbol: machine_symbol,
+        name: machine_name,
+        normalized_callable_identity: _,
+        optimization_admission,
+        target_vocabulary,
+        filesystem_service_reachable,
+        filesystem_facet_reachable: _,
+        filesystem_reachable,
+        execution_mode,
+        initial_build,
+    } = selected;
+    let typed = prepared.typed();
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .expect("admitted build entry remains in its owned prepared program");
+    let initial_arguments = vec![initial_build];
+    let evaluation_sponsor = evaluation_sponsor.as_ref();
     let measured = match evaluation_sponsor {
         Some(sponsor) => {
             psi_build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
                 &prepared,
                 &machine_entry,
                 initial_arguments.clone(),
-                execution_mode,
+                execution_mode.clone(),
                 sponsor,
             )
         }
@@ -4512,6 +4774,25 @@ pub fn compute_build_config(
     })
 }
 
+/// Compatibility entry point for callers that do not yet retain the admitted
+/// checkpoint beyond build evaluation.
+pub fn compute_build_config(
+    typed: &TypedTrees,
+    build_source_id: Option<psi_source::SourceId>,
+    filesystem_scope: &BuildMachineFilesystemScope,
+    evaluation_sponsor: Option<&BuildEvaluationSponsor>,
+    selected_target_profile: Option<omega_target::TargetProfile>,
+) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+    admit_build_program(
+        typed,
+        build_source_id,
+        filesystem_scope,
+        evaluation_sponsor,
+        selected_target_profile,
+    )?
+    .execute()
+}
+
 /// Collect `builder.roots.bind(Target::Slot, Machine::entry);` declarations
 /// from the one authoritative build machine. Slot membership and schema
 /// checking belong to the selected target profile; this stage establishes the
@@ -5073,8 +5354,10 @@ fn extract_build_config(
 #[cfg(test)]
 mod tests {
     use super::{
-        BuildConfig, BuildMachineFilesystemScope, RootBinding, SelectedCompilerProgramEntry,
-        select_compiler_program_entry, selected_program_entry_machine,
+        AdmittedBuildAuthorityVerdict, AdmittedBuildProgramDisposition, BuildConfig,
+        BuildMachineFilesystemScope, RootBinding, SelectedCompilerProgramEntry,
+        admit_build_program, compute_build_config, select_compiler_program_entry,
+        selected_program_entry_machine,
     };
     use psi_build_time_evaluation::BuildMachineFilesystemAccess;
     use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorLimits};
@@ -5105,6 +5388,42 @@ mod tests {
                 .collect(),
             ..BuildConfig::default()
         }
+    }
+
+    #[test]
+    fn admitted_no_build_checkpoint_preserves_default_configuration_and_evidence() {
+        let typed = psi_typed_trees::TypedTrees::default();
+        let scope = BuildMachineFilesystemScope::for_root(
+            std::path::Path::new("main.omg"),
+            PathBuf::from("build"),
+            None,
+        );
+        let admitted = admit_build_program(&typed, None, &scope, None, None)
+            .expect("the empty program has an explicit no-build disposition");
+
+        assert_eq!(
+            admitted.disposition(),
+            AdmittedBuildProgramDisposition::NoBuildMachine
+        );
+        assert_eq!(
+            admitted.authority_verdict(),
+            AdmittedBuildAuthorityVerdict::NoBuildMachine
+        );
+        assert_eq!(admitted.selected_build_machine_symbol(), None);
+        assert_eq!(admitted.selected_build_machine_callable_identity(), None);
+        assert_eq!(admitted.initial_build_snapshot(), None);
+        assert!(admitted.operational_plan().machines().is_empty());
+        assert!(admitted.service_reach_plan().machines().is_empty());
+
+        let executed = admitted.execute().expect("consume no-build checkpoint");
+        let compatibility = compute_build_config(&typed, None, &scope, None, None)
+            .expect("compatibility wrapper executes the same checkpoint");
+        assert_eq!(executed, compatibility);
+        assert_eq!(executed.config, BuildConfig::default());
+        assert_eq!(executed.evaluation_usage, None);
+        assert_eq!(executed.observation_summary, None);
+        assert_eq!(executed.selected_build_machine_symbol, None);
+        assert!(executed.generated_sources.is_empty());
     }
 
     fn source_only_program_entry_settlement() -> SelectedCompilerProgramEntry {
