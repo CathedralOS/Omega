@@ -97,11 +97,16 @@ compiler phases explicitly.
 ### Context
 
 D23 fixes the Alpha-written Beta compiler at 1,024 non-builtin procedure-call
-references. The retained `gamma_compiler.beta` now consumes exactly 991 rows
+references. The retained `gamma_compiler.beta` now consumes exactly 965 rows
 before any production entry, total returned-`Bytes` preflight, publication
-replay, or D19 adapter is added. An adjacent probe accepts thirty-three additional
-calls and canonically refuses the thirty-fourth as
+replay, or D19 adapter is added. An adjacent probe accepts fifty-nine additional
+calls and canonically refuses the sixtieth as
 `Incomplete(call_rows, 1024, 1025)`.
+
+An ordinary source-visible refactor already centralizes thirty repeated
+immediate/conditional-jump pairs through two Beta helpers while preserving the
+exact emitted instructions. It removed twenty-six call rows; the measurement
+above is after that reduction, not the pre-refactor estimate.
 
 This is the realistic next-rung compiler closure named by D12, not a synthetic
 stress case. A straightforward allocation-ordered, cycle-rejecting and

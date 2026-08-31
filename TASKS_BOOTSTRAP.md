@@ -663,12 +663,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
   - [ ] **OWNER-BLOCKED — Q2 Beta call-row profile for the complete Gamma
-    compiler.** The retained source consumes exactly 991 of D23's 1,024
+    compiler.** The retained source consumes exactly 965 of D23's 1,024
     non-builtin call rows before a production entry or either adapter. A focused
-    adjacent probe admits thirty-three further calls and refuses the thirty-fourth as
+    adjacent probe admits fifty-nine further calls and refuses the sixtieth as
     canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
     total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
     publication, or silently revise the Alpha-written compiler profile.
+    Two ordinary Beta immediate-branch helpers now centralize thirty
+    repeated `imm`/conditional-jump pairs while preserving each emitted opcode,
+    scratch register, immediate, and target exactly; that audit-visible refactor
+    removes twenty-six retained call rows without changing Alpha or Beta.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
