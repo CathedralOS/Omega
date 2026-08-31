@@ -56,9 +56,11 @@ decision. Only true language-semantic questions belong in
    an executable-coverage gap: Unit-effect planning admits only one-state
    machines, structural Unit control cannot carry effect operations, and the
    consumer reports the same transitive-plan error when the root itself was
-   omitted. First repair the smaller dispatch-order regression where static
-   requirement evidence preempts an available exact plan family. Then add the
-   first composed per-state Unit slice: an acyclic conditional root over
+   omitted. The smaller dispatch-order regression is repaired: checked-to-
+   Terminal lowering now returns the exact selected plan family as typed route
+   data, and static-requirement evidence only influences closure after the
+   attached-Unit fallback is genuinely selected. Next add the first composed
+   per-state Unit slice: an acyclic conditional root over
    effectful boundary-call-and-return leaves, with atomic closure pruning and
    focused typed-to-checked and checked-to-Terminal tests. This is engineering,
    not an owner language decision. A smaller recurring custody class leaves
