@@ -8825,7 +8825,7 @@ Owners:
   duplicate cited placement, and a machine requirement substituted for the
   required named slot conformance. Two distinct cited slots at one physical
   extent also reject as overlapping supply. The first direct-source and
-  application-v2 rung is complete under the settled design. A bodyless
+  application-v3 rung is complete under the settled design. A bodyless
   boundary requirement may interleave `native callback procedure from Binder`
   with ordinary parameters; syntax, resolved, and typed signatures retain its
   separate authored native position and exact nominal binder while source-call
@@ -8851,16 +8851,22 @@ Owners:
   `OperationId` join for both Unit and scalar boundary calls. The compiler
   consumes that source-bearing row while checked and Terminal representations
   coexist and retains one placement-index-to-`BoundaryCall` occurrence in the
-  target-owned native-realization proposal. Missing, duplicate, unreachable,
-  wrong-target, non-boundary-operation, and artifact drift reject; source
-  handles do not enter canonical Terminal Psi. Native production remains
-  deliberately fenced rather than discarding this custody.
+  target-owned native-realization proposal. That occurrence also retains the
+  exact target-closed direct native-parameter application mapping
+  `NativeParameterId` to authored ordinal, function-pointer shape, and
+  `ValuePlacement`; retained-product replay rejoins it structurally to the
+  independently validated placement and exact registrar plan. Missing,
+  duplicate, unreachable, wrong-target, non-boundary-operation, native-
+  application, and artifact drift reject; source handles do not enter canonical
+  Terminal Psi. Native production remains deliberately fenced rather than
+  discarding this custody.
 
-  Remaining direct-form engineering is to retain the exact target-closed
-  native-telescope row mapping `NativeParameterId` to authored ordinal,
-  function-pointer shape, and `ValuePlacement`, then carry it through exact
-  abstract/target/assigned operand and call emission plus downstream artifact
-  replay, and complete the
+  Remaining direct-form engineering is to feed that target-owned application
+  into native realization keyed by stable Terminal `OperationId`, then carry it
+  through exact abstract/target/assigned operand and call emission plus
+  downstream artifact replay. The canonical pipeline currently has no native-
+  only callback-argument carrier, and the removed custom/unknown host-operation
+  prototype must not be treated as live implementation. Also complete the
   negative matrix for authored `addr`, undeclared insertion, inferred or
   duplicate/wrong binder/requirement, policy-created parameters, and stale v1
   or legacy application-v2 evidence (the live application domain is v3). Add the same

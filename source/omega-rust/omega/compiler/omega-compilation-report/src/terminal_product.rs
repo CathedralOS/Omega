@@ -12,26 +12,38 @@ pub struct TerminalCompilerBuiltinProposal {
 /// boundary-call operation produced from its authored registrar occurrence.
 /// The source handles used to establish this row do not cross the Psi/Omega
 /// boundary; the placement index rejoins the separately retained exact row.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
     terminal_operation: psi_core::OperationId,
+    direct_parameter_application: Option<omega_calling_conventions::NativeParameterApplication>,
 }
 
 impl TerminalCallbackOccurrenceProposal {
-    pub const fn new(placement_index: usize, terminal_operation: psi_core::OperationId) -> Self {
+    pub fn new(
+        placement_index: usize,
+        terminal_operation: psi_core::OperationId,
+        direct_parameter_application: Option<omega_calling_conventions::NativeParameterApplication>,
+    ) -> Self {
         Self {
             placement_index,
             terminal_operation,
+            direct_parameter_application,
         }
     }
 
-    pub const fn placement_index(self) -> usize {
+    pub const fn placement_index(&self) -> usize {
         self.placement_index
     }
 
-    pub const fn terminal_operation(self) -> psi_core::OperationId {
+    pub const fn terminal_operation(&self) -> psi_core::OperationId {
         self.terminal_operation
+    }
+
+    pub const fn direct_parameter_application(
+        &self,
+    ) -> Option<&omega_calling_conventions::NativeParameterApplication> {
+        self.direct_parameter_application.as_ref()
     }
 }
 
@@ -311,15 +323,27 @@ impl RetainedTerminalArtifact {
                 );
             }
             for placement_index in 0..self.callback_placements.len() {
-                if proposal
+                let matching = proposal
                     .callback_occurrences
                     .iter()
                     .filter(|occurrence| occurrence.placement_index == placement_index)
-                    .count()
-                    != 1
-                {
+                    .collect::<Vec<_>>();
+                let [occurrence] = matching.as_slice() else {
                     return Err(
                         "Terminal native proposal does not uniquely bind a retained callback placement",
+                    );
+                };
+                let expected_application = self.callback_placements[placement_index]
+                    .private_materialization
+                    .as_ref()
+                    .and_then(|materialization| {
+                        materialization
+                            .direct_registrar_parameter_application
+                            .as_ref()
+                    });
+                if occurrence.direct_parameter_application() != expected_application {
+                    return Err(
+                        "Terminal callback occurrence native parameter application drifted from its retained placement",
                     );
                 }
             }

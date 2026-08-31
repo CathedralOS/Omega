@@ -1,6 +1,6 @@
 //! Nominal callback-binder to native-place plans for outbound registrars.
 
-use crate::plans::PlanDiagnostic;
+use crate::plans::{PlanDiagnostic, ValuePlacement, ValueShape};
 
 macro_rules! nominal_plan_id {
     ($name:ident) => {
@@ -29,6 +29,20 @@ nominal_plan_id!(NativeParameterId);
 nominal_plan_id!(LayoutPlanId);
 nominal_plan_id!(LayoutSlotId);
 nominal_plan_id!(CallbackRequirementId);
+
+/// Exact target-closed application of one nominal native parameter.
+///
+/// The nominal identity is not an ordinal and the ordinal is not a physical
+/// placement. Keeping all four fields together lets later consumers replay
+/// the authored telescope row against the exact evaluated call plan without
+/// inferring any part from another.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeParameterApplication {
+    pub parameter: NativeParameterId,
+    pub native_ordinal: u32,
+    pub shape: ValueShape,
+    pub placement: ValuePlacement,
+}
 
 fn callback_nominal_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
     let mut report_fingerprint = 0xcbf2_9ce4_8422_2325u64;

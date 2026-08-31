@@ -126,6 +126,21 @@ impl Drop for Fixture {
     }
 }
 
+fn replay_copy_terminal_artifact(
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+) -> psi_terminal_codec::CanonicalTerminalArtifact {
+    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("decode copied Terminal semantics");
+    let proof = psi_terminal_codec::decode_proof_bundle(artifact.proof_bytes())
+        .expect("decode copied Terminal proof");
+    let debug = artifact.debug_bytes().map(|bytes| {
+        psi_terminal_codec::decode_debug_map(&module, bytes)
+            .expect("decode copied Terminal debug map")
+    });
+    psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, debug.as_ref())
+        .expect("rebuild independently replayed Terminal artifact")
+}
+
 fn assert_custody_diagnostic(
     diagnostics: &[psi_diagnostics::Diagnostic],
     product: &str,
@@ -201,6 +216,32 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         panic!("one exact Terminal registrar occurrence must be retained");
     };
     assert_eq!(occurrence.placement_index(), 0);
+    let application = occurrence
+        .direct_parameter_application()
+        .expect("direct callback occurrence retains its target-closed telescope row");
+    let materialization = placement
+        .private_materialization
+        .as_ref()
+        .expect("direct callback target-closed materialization");
+    let omega_calling_conventions::NativePlace::Parameter(destination) =
+        &materialization.destination
+    else {
+        panic!("direct callback must target one native parameter");
+    };
+    assert_eq!(application.parameter, *destination);
+    assert_eq!(application.native_ordinal, 1);
+    assert_eq!(
+        application.shape,
+        omega_calling_conventions::ValueShape::integer(8, 8)
+    );
+    assert!(matches!(
+        application.placement.locations.as_slice(),
+        [omega_calling_conventions::ValueLocation::Register {
+            register: omega_calling_conventions::MachineRegister::X86Rdx,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }]
+    ));
     let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
         .expect("decode canonical Terminal semantics");
     let matching = module
@@ -243,6 +284,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
                     0,
                     wrong_operation,
+                    Some(application.clone()),
                 )
             ],
         )
@@ -259,10 +301,39 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
             proposal.compiler_builtins().to_vec(),
-            vec![*occurrence, *occurrence],
+            vec![occurrence.clone(), occurrence.clone()],
         )
         .is_err(),
         "duplicate placement occurrence rows must reject",
+    );
+    let mut drifted_application = application.clone();
+    drifted_application.native_ordinal = 0;
+    let drifted_proposal = omega_compilation_report::TerminalNativeRealizationProposal::new(
+        retained.artifact(),
+        proposal.target_profile(),
+        proposal.native_target(),
+        proposal.subsystem(),
+        proposal.program_entry().clone(),
+        proposal.selected_provider_plans().clone(),
+        proposal.external_binding_rows().to_vec(),
+        proposal.compiler_builtins().to_vec(),
+        vec![
+            omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
+                0,
+                occurrence.terminal_operation(),
+                Some(drifted_application),
+            ),
+        ],
+    )
+    .expect("artifact-local replay cannot infer the checked native telescope");
+    assert!(
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            replay_copy_terminal_artifact(retained.artifact()),
+            retained.callback_placements().to_vec(),
+            drifted_proposal,
+        )
+        .is_err(),
+        "retained-product replay must reject native telescope drift",
     );
     let missing = omega_compilation_report::TerminalNativeRealizationProposal::new(
         retained.artifact(),

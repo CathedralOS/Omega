@@ -338,6 +338,88 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
             .len(),
         3
     );
+    let application = materialization
+        .direct_registrar_parameter_application
+        .as_ref()
+        .expect("direct callback retains one exact target-closed telescope row");
+    let omega_calling_conventions::NativePlace::Parameter(destination) =
+        &materialization.destination
+    else {
+        unreachable!();
+    };
+    assert_eq!(application.parameter, *destination);
+    assert_eq!(application.native_ordinal, 1);
+    assert_eq!(
+        application.shape,
+        omega_calling_conventions::ValueShape::integer(8, 8)
+    );
+    assert_eq!(
+        application.placement,
+        materialization
+            .registrar_boundary_entry_plan
+            .call
+            .parameters[1]
+    );
+
+    let mutations: [(
+        &str,
+        fn(&mut omega_calling_conventions::NativeParameterApplication),
+    ); 3] = [
+        (
+            "identity",
+            |application: &mut omega_calling_conventions::NativeParameterApplication| {
+                application.parameter =
+                    omega_calling_conventions::NativeParameterId::new(0xdead).unwrap();
+            },
+        ),
+        ("ordinal", |application| application.native_ordinal = 0),
+        ("shape", |application| {
+            application.shape = omega_calling_conventions::ValueShape::float(8);
+        }),
+    ];
+    for (label, mutate) in mutations {
+        let mut drifted = placement.clone();
+        let application = drifted
+            .private_materialization
+            .as_mut()
+            .unwrap()
+            .direct_registrar_parameter_application
+            .as_mut()
+            .unwrap();
+        mutate(application);
+        assert!(
+            omega_backend_plan::validate_bound_nominal_callback_placement(&drifted).is_err(),
+            "{label} drift must reject independently",
+        );
+    }
+    let mut missing_application = placement.clone();
+    missing_application
+        .private_materialization
+        .as_mut()
+        .unwrap()
+        .direct_registrar_parameter_application = None;
+    assert!(
+        omega_backend_plan::validate_bound_nominal_callback_placement(&missing_application)
+            .is_err(),
+        "a direct destination cannot lose its target-closed application",
+    );
+    let mut placement_drift = placement.clone();
+    placement_drift
+        .private_materialization
+        .as_mut()
+        .unwrap()
+        .direct_registrar_parameter_application
+        .as_mut()
+        .unwrap()
+        .placement = materialization
+        .registrar_boundary_entry_plan
+        .call
+        .parameters[0]
+        .clone();
+    assert!(
+        omega_backend_plan::validate_bound_nominal_callback_placement(&placement_drift).is_err(),
+        "physical placement substitution must reject independently",
+    );
 }
 
 #[test]
