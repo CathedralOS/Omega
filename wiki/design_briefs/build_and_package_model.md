@@ -296,7 +296,12 @@ verdict, and frozen transitional syntax until execution, then verifies the
 returned exact symbol. It deliberately retains the full final frontend rebuild;
 the transitional rebind now requires the exact source occurrence and normalized
 callable identity rather than a name. Continuation from the retained base and
-removal of the full rebuild/rebind remain open.
+removal of the full rebuild/rebind remain open. Own generated outputs are now
+parsed once into an extension-only syntax carrier retaining exact unit-to-root
+ownership, source bytes/map, custody, and its base-frontier binding. It is
+consumed into the unchanged transitional combined pass without source reread or
+reparse. Seeded syntax-to-resolved and resolved-to-typed lowering are the next
+engineering prerequisites for the retained-base continuation.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

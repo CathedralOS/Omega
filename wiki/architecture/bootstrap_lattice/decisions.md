@@ -466,7 +466,12 @@ consumes the carrier and verifies its returned exact symbol. The compiler still
 performs the full final frontend rebuild; its transitional rebind now requires
 the exact source occurrence and normalized callable identity rather than a
 name. Continuing final checking from the retained base and deleting that
-rebuild/rebind remain the next D18 continuation.
+rebuild/rebind remain the next D18 continuation. The source-side prerequisite
+is now explicit: own generated outputs are parsed once into a retained
+extension-only syntax carrier bound to the exact base source frontier, unit
+roots, bytes, and custody. The carrier feeds the unchanged transitional
+combined pass without rereading or reparsing generated source. Seeded
+syntax-to-resolved and resolved-to-typed lowering remain implementation work.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between

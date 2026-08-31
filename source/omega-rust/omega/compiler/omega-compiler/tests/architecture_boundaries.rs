@@ -275,6 +275,10 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
         "checked orchestration must admit the build program before executing it"
     );
     assert!(
+        checked_entry.contains("retain_generated_syntax_extension("),
+        "checked orchestration must retain generated syntax as an explicit extension before the transitional whole-program pass"
+    );
+    assert!(
         !checked_entry.contains("compute_build_config("),
         "checked orchestration must consume the admitted carrier instead of using the compatibility wrapper"
     );
