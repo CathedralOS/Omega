@@ -6,7 +6,7 @@ pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
     preceding_operations: &[TargetUnitOperation],
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, AssignmentError> {
-    if scalar_arguments.len() > 4 {
+    if scalar_arguments.len() > 5 {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
     let signature = CallSignature {

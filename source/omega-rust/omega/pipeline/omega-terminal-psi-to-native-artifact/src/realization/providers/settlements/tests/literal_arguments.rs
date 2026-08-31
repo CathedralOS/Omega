@@ -1,7 +1,36 @@
 use super::*;
 
 #[test]
-fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
+fn exact_rejoined_five_literal_import_reaches_dynamic_elf_on_both_targets() {
+    for (fifth_type, fifth_immediate, fifth_type_identity, expected_x86_prefix) in [
+        (
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap(),
+            psi_core::IntegerValue::Unsigned(0x89ab_cdef),
+            "u32",
+            0x41,
+        ),
+        (
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+            psi_core::IntegerValue::Unsigned(0x0123_4567_89ab_cdef),
+            "u64",
+            0x49,
+        ),
+    ] {
+        assert_exact_rejoined_five_literal_import_reaches_dynamic_elf(
+            fifth_type,
+            fifth_immediate,
+            fifth_type_identity,
+            expected_x86_prefix,
+        );
+    }
+}
+
+fn assert_exact_rejoined_five_literal_import_reaches_dynamic_elf(
+    fifth_type: psi_core::IntegerType,
+    fifth_immediate: psi_core::IntegerValue,
+    fifth_type_identity: &str,
+    expected_x86_prefix: u8,
+) {
     let requirement = "omega::test::Foreign::leaf()";
     let machine = psi_core::MachineId::new(810).unwrap();
     let block = psi_core::BlockId::new(810).unwrap();
@@ -10,12 +39,14 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
     let second_constant_operation = psi_core::OperationId::new(811).unwrap();
     let third_constant_operation = psi_core::OperationId::new(812).unwrap();
     let fourth_constant_operation = psi_core::OperationId::new(813).unwrap();
-    let call_operation = psi_core::OperationId::new(814).unwrap();
+    let fifth_constant_operation = psi_core::OperationId::new(814).unwrap();
+    let call_operation = psi_core::OperationId::new(815).unwrap();
     let return_edge = psi_core::EdgeId::new(810).unwrap();
     let first_value = psi_core::ValueId::new(810).unwrap();
     let second_value = psi_core::ValueId::new(811).unwrap();
     let third_value = psi_core::ValueId::new(812).unwrap();
     let fourth_value = psi_core::ValueId::new(813).unwrap();
+    let fifth_value = psi_core::ValueId::new(814).unwrap();
     let first_type = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 16).unwrap();
     let second_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 64).unwrap();
     let third_type = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap();
@@ -41,6 +72,7 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
                 psi_core::ScalarType::Integer(second_type),
                 psi_core::ScalarType::Integer(third_type),
                 psi_core::ScalarType::Integer(fourth_type),
+                psi_core::ScalarType::Integer(fifth_type),
             ],
             structural_parameters: Vec::new(),
             result: None,
@@ -89,11 +121,23 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
                     scalar_type: psi_core::ScalarType::Integer(fourth_type),
                     value: fourth_immediate,
                 },
+                omega_abstract_operations::AbstractOperation::IntegerConstant {
+                    psi_operation: fifth_constant_operation,
+                    result: fifth_value,
+                    scalar_type: psi_core::ScalarType::Integer(fifth_type),
+                    value: fifth_immediate,
+                },
                 omega_abstract_operations::AbstractOperation::BoundaryCall {
                     psi_operation: call_operation,
                     result: None,
                     boundary,
-                    arguments: vec![first_value, second_value, third_value, fourth_value],
+                    arguments: vec![
+                        first_value,
+                        second_value,
+                        third_value,
+                        fourth_value,
+                        fifth_value,
+                    ],
                     structural_arguments: Vec::new(),
                     completion_claim_sources: Vec::new(),
                     completion_receipts: Vec::new(),
@@ -112,9 +156,14 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
     ] {
         let target = profile.native_target();
         let mut selected_plan = import_plan(b"selected_integer_leaf", profile);
-        selected_plan.schema.methods[0].parameter_count = 4;
-        selected_plan.schema.methods[0].parameter_type_identities =
-            vec!["u16".into(), "i64".into(), "u32".into(), "u8".into()];
+        selected_plan.schema.methods[0].parameter_count = 5;
+        selected_plan.schema.methods[0].parameter_type_identities = vec![
+            "u16".into(),
+            "i64".into(),
+            "u32".into(),
+            "u8".into(),
+            fifth_type_identity.into(),
+        ];
         let report_identity = selected_plan.report_fingerprint();
         let locator = match &selected_plan.rows[0].binding {
             ProviderBinding::Import { locator } => locator.clone(),
@@ -128,6 +177,10 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
                     omega_calling_conventions::ValueShape::integer(8, 8),
                     omega_calling_conventions::ValueShape::integer(4, 4),
                     omega_calling_conventions::ValueShape::integer(1, 1),
+                    omega_calling_conventions::ValueShape::integer(
+                        fifth_type.bits().div_ceil(8),
+                        fifth_type.bits().div_ceil(8),
+                    ),
                 ],
                 result: None,
             },
@@ -195,14 +248,19 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
         let omega_target_operations::TargetUnitOperation::NormalizedForeignCall {
             scalar_arguments,
             ..
-        } = &target_body.operations[4]
+        } = &target_body.operations[5]
         else {
             panic!("literal import remains a normalized foreign call")
         };
-        let [first_target, second_target, third_target, fourth_target] =
-            scalar_arguments.as_slice()
+        let [
+            first_target,
+            second_target,
+            third_target,
+            fourth_target,
+            fifth_target,
+        ] = scalar_arguments.as_slice()
         else {
-            panic!("four target arguments")
+            panic!("five target arguments")
         };
         assert_eq!(first_target.source_value, first_value);
         assert_eq!(first_target.scalar_type, first_type);
@@ -220,19 +278,23 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
         assert_eq!(fourth_target.scalar_type, fourth_type);
         assert_eq!(fourth_target.immediate, fourth_immediate);
         assert_eq!(fourth_target.parameter_index, 3);
-        let expected_fourth_register = match profile {
+        assert_eq!(fifth_target.source_value, fifth_value);
+        assert_eq!(fifth_target.scalar_type, fifth_type);
+        assert_eq!(fifth_target.immediate, fifth_immediate);
+        assert_eq!(fifth_target.parameter_index, 4);
+        let expected_fifth_register = match profile {
             omega_target::TargetProfile::LinuxX64 => {
-                omega_calling_conventions::MachineRegister::X86Rcx
+                omega_calling_conventions::MachineRegister::X86R8
             }
             omega_target::TargetProfile::LinuxArm64 => {
-                omega_calling_conventions::MachineRegister::Aarch64X(3)
+                omega_calling_conventions::MachineRegister::Aarch64X(4)
             }
             _ => unreachable!(),
         };
         assert!(matches!(
-            fourth_target.placement.locations.as_slice(),
+            fifth_target.placement.locations.as_slice(),
             [omega_calling_conventions::ValueLocation::Register { register, .. }]
-                if *register == expected_fourth_register
+                if *register == expected_fifth_register
         ));
 
         let assigned =
@@ -246,7 +308,7 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
         let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
             scalar_arguments,
             ..
-        } = &assigned_body.operations[4]
+        } = &assigned_body.operations[5]
         else {
             panic!("assigned literal import remains a normalized foreign call")
         };
@@ -257,10 +319,11 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
                 second_target.clone(),
                 third_target.clone(),
                 fourth_target.clone(),
+                fifth_target.clone(),
             ]
         );
 
-        let mutate_fourth =
+        let mutate_fifth =
             |mut candidate: omega_assigned_target_operations::AssignedOperationPlan,
              mutate: &dyn Fn(&mut omega_target_operations::NormalizedForeignScalarArgument)| {
                 let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
@@ -271,23 +334,23 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
                 let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
                     scalar_arguments,
                     ..
-                } = &mut body.operations[4]
+                } = &mut body.operations[5]
                 else {
                     unreachable!()
                 };
-                mutate(&mut scalar_arguments[3]);
+                mutate(&mut scalar_arguments[4]);
                 assert!(omega_machine_emission::emit_machine_code(&candidate).is_err());
             };
-        mutate_fourth(assigned.clone(), &|argument| {
+        mutate_fifth(assigned.clone(), &|argument| {
             argument.parameter_index = 0;
         });
-        mutate_fourth(assigned.clone(), &|argument| {
+        mutate_fifth(assigned.clone(), &|argument| {
             argument.source_value = first_value;
         });
-        mutate_fourth(assigned.clone(), &|argument| {
-            argument.immediate = psi_core::IntegerValue::Unsigned(0xa6);
+        mutate_fifth(assigned.clone(), &|argument| {
+            argument.immediate = psi_core::IntegerValue::Unsigned(1);
         });
-        mutate_fourth(assigned.clone(), &|argument| {
+        mutate_fifth(assigned.clone(), &|argument| {
             argument.placement = first_target.placement.clone();
         });
         let mut reordered_assignment = assigned.clone();
@@ -299,27 +362,27 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
         let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
             scalar_arguments,
             ..
-        } = &mut body.operations[4]
+        } = &mut body.operations[5]
         else {
             unreachable!()
         };
         scalar_arguments.swap(0, 1);
         assert!(omega_machine_emission::emit_machine_code(&reordered_assignment).is_err());
-        let mut fifth_assignment = assigned.clone();
+        let mut sixth_assignment = assigned.clone();
         let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
-            &mut fifth_assignment.functions[0].operation
+            &mut sixth_assignment.functions[0].operation
         else {
             unreachable!()
         };
         let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
             scalar_arguments,
             ..
-        } = &mut body.operations[4]
+        } = &mut body.operations[5]
         else {
             unreachable!()
         };
-        scalar_arguments.push(fourth_target.clone());
-        assert!(omega_machine_emission::emit_machine_code(&fifth_assignment).is_err());
+        scalar_arguments.push(fifth_target.clone());
+        assert!(omega_machine_emission::emit_machine_code(&sixth_assignment).is_err());
 
         let machine_code = omega_machine_emission::emit_machine_code(&assigned).unwrap();
         let [call] = machine_code.functions[0].foreign_calls.as_slice() else {
@@ -330,9 +393,10 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
             second_argument,
             third_argument,
             fourth_argument,
+            fifth_argument,
         ] = call.scalar_arguments.as_slice()
         else {
-            panic!("four retained machine arguments")
+            panic!("five retained machine arguments")
         };
         assert_eq!(call.locator, locator);
         assert_eq!(call.call_plan, boundary_entry_plan.call);
@@ -341,6 +405,7 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
             (second_argument, second_target),
             (third_argument, third_target),
             (fourth_argument, fourth_target),
+            (fifth_argument, fifth_target),
         ] {
             assert_eq!(argument.source_value, target_argument.source_value);
             assert_eq!(argument.scalar_type, target_argument.scalar_type);
@@ -361,28 +426,38 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
             third_argument.code_offset + third_argument.byte_count,
             fourth_argument.code_offset
         );
+        assert_eq!(
+            fourth_argument.code_offset + fourth_argument.byte_count,
+            fifth_argument.code_offset
+        );
+        if profile == omega_target::TargetProfile::LinuxX64 {
+            assert_eq!(
+                machine_code.functions[0].bytes[fifth_argument.code_offset],
+                expected_x86_prefix
+            );
+        }
 
         let mut changed_value = machine_code.clone();
-        changed_value.functions[0].foreign_calls[0].scalar_arguments[3].immediate =
-            psi_core::IntegerValue::Unsigned(0xa6);
+        changed_value.functions[0].foreign_calls[0].scalar_arguments[4].immediate =
+            psi_core::IntegerValue::Unsigned(1);
         assert!(omega_image_emission::build_object_artifact(&changed_value).is_err());
         let mut changed_carrier = machine_code.clone();
-        changed_carrier.functions[0].foreign_calls[0].scalar_arguments[3].scalar_type =
-            psi_core::IntegerType::address(32).unwrap();
+        changed_carrier.functions[0].foreign_calls[0].scalar_arguments[4].scalar_type =
+            psi_core::IntegerType::address(fifth_type.bits()).unwrap();
         assert!(omega_image_emission::build_object_artifact(&changed_carrier).is_err());
         let mut changed_bytes = machine_code.clone();
-        changed_bytes.functions[0].bytes[fourth_argument.code_offset] ^= 1;
+        changed_bytes.functions[0].bytes[fifth_argument.code_offset] ^= 1;
         assert!(omega_image_emission::build_object_artifact(&changed_bytes).is_err());
         let mut reordered = machine_code.clone();
         reordered.functions[0].foreign_calls[0]
             .scalar_arguments
-            .swap(2, 3);
+            .swap(3, 4);
         assert!(omega_image_emission::build_object_artifact(&reordered).is_err());
         let mut changed_interval = machine_code.clone();
-        changed_interval.functions[0].foreign_calls[0].scalar_arguments[3].code_offset -= 1;
+        changed_interval.functions[0].foreign_calls[0].scalar_arguments[4].code_offset -= 1;
         assert!(omega_image_emission::build_object_artifact(&changed_interval).is_err());
         let mut changed_register = machine_code.clone();
-        changed_register.functions[0].foreign_calls[0].scalar_arguments[3]
+        changed_register.functions[0].foreign_calls[0].scalar_arguments[4]
             .placement
             .locations = first_argument.placement.locations.clone();
         assert!(omega_image_emission::build_object_artifact(&changed_register).is_err());
@@ -391,12 +466,12 @@ fn exact_rejoined_four_literal_import_reaches_dynamic_elf_on_both_targets() {
             .scalar_arguments
             .pop();
         assert!(omega_image_emission::build_object_artifact(&stripped_custody).is_err());
-        let mut fifth_argument = machine_code.clone();
-        let extra = fifth_argument.functions[0].foreign_calls[0].scalar_arguments[3].clone();
-        fifth_argument.functions[0].foreign_calls[0]
+        let mut sixth_argument = machine_code.clone();
+        let extra = sixth_argument.functions[0].foreign_calls[0].scalar_arguments[4].clone();
+        sixth_argument.functions[0].foreign_calls[0]
             .scalar_arguments
             .push(extra);
-        assert!(omega_image_emission::build_object_artifact(&fifth_argument).is_err());
+        assert!(omega_image_emission::build_object_artifact(&sixth_argument).is_err());
 
         let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
         assert_eq!(object.object().layout.normalized_imports.len(), 1);

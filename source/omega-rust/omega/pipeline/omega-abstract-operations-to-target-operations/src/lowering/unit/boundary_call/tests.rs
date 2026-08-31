@@ -233,46 +233,41 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
         );
     }
 
-    let four_parameter_declaration = declaration(
-        boundary,
-        vec![
-            ScalarType::Integer(i32_type),
-            ScalarType::Integer(i32_type),
-            ScalarType::Integer(i32_type),
-            ScalarType::Integer(i32_type),
-        ],
-    );
-    let four_plan = entry_plan(
-        NativeTarget::linux_x64(),
-        &[i32_type, i32_type, i32_type, i32_type],
-    );
-    let four_arguments = lower_normalized_foreign_scalar_arguments(
-        boundary,
-        &four_parameter_declaration,
-        &[source, source, source, source],
-        &four_plan,
-        &constants,
-    )
-    .expect("four register-resident literal arguments");
-    assert_eq!(
-        four_arguments
-            .iter()
-            .map(|argument| argument.parameter_index)
-            .collect::<Vec<_>>(),
-        vec![0, 1, 2, 3]
-    );
-
-    let five_parameter_declaration = declaration(
-        boundary,
-        vec![ScalarType::Integer(i32_type); 5],
-    );
-    let five_plan = entry_plan(NativeTarget::linux_x64(), &[i32_type; 5]);
-    assert!(
-        lower_normalized_foreign_scalar_arguments(
+    let five_parameter_declaration = declaration(boundary, vec![ScalarType::Integer(i32_type); 5]);
+    for (target, expected_fifth_register) in [
+        (NativeTarget::linux_x64(), MachineRegister::X86R8),
+        (NativeTarget::linux_arm64(), MachineRegister::Aarch64X(4)),
+    ] {
+        let five_plan = entry_plan(target, &[i32_type; 5]);
+        let five_arguments = lower_normalized_foreign_scalar_arguments(
             boundary,
             &five_parameter_declaration,
             &[source; 5],
             &five_plan,
+            &constants,
+        )
+        .expect("five register-resident literal arguments");
+        assert_eq!(
+            five_arguments
+                .iter()
+                .map(|argument| argument.parameter_index)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4]
+        );
+        assert!(matches!(
+            five_arguments[4].placement.locations.as_slice(),
+            [ValueLocation::Register { register, .. }] if *register == expected_fifth_register
+        ));
+    }
+
+    let six_parameter_declaration = declaration(boundary, vec![ScalarType::Integer(i32_type); 6]);
+    let six_plan = entry_plan(NativeTarget::linux_x64(), &[i32_type; 6]);
+    assert!(
+        lower_normalized_foreign_scalar_arguments(
+            boundary,
+            &six_parameter_declaration,
+            &[source; 6],
+            &six_plan,
             &constants,
         )
         .is_err()
