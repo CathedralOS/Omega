@@ -67,7 +67,7 @@ The committed tree still has two important gaps:
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
   D31 structural type formation, a source-backed resolution catalog, and
-  symbolic Alpha encoding. Remaining Q4-blocked entry diagnostics, Q6
+  symbolic Alpha encoding. Remaining Q4-blocked entry diagnostics, Q5
   receiver/callable ambiguity, body/control checking, D34 physical storage
   refusal, lowering, tape publication, and refinement are still open. The
   restricted

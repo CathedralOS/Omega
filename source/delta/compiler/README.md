@@ -81,7 +81,7 @@ classifies qualified machine owners without numeric node IDs, provides exact
 owner/machine/member/state lookups, and compares types structurally using
 nominal name equality and semantic array lengths. Constructor and qualified-
 machine lookup remain deliberately separate, and an unqualified receiver stays
-ownerless: Q6 must settle those ambiguous cases before the checker may select a
+ownerless: Q5 must settle those ambiguous cases before the checker may select a
 public result. A neutral minimum-coordinate bucket retains all tied final-phase
 reasons rather than choosing by traversal or DCOUT order.
 
@@ -148,7 +148,7 @@ demand without taking a Gamma trap.
 Resolution-catalog controls remain planned, not claimed execution: forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
 distinct qualified/unqualified machines, constructor/machine collision
-preservation, and state-name reuse across separate machines. Q6 decides only
+preservation, and state-name reuse across separate machines. Q5 decides only
 the two ambiguous consumers; the catalog must never erase either identity in
 advance.
 

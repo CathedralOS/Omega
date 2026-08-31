@@ -2759,21 +2759,16 @@ installation then binds the exact concrete occurrences. A separately indexed
 slot family is introduced only when distinct applications genuinely require
 independent provider selection.
 
-The representation foundation now has a non-authorizing final-composition
-calculus for this rule. It retains an exact package-qualified indexed schema
-and arity plus a generic or exact-family coverage assertion inside one already
-selected provider closure, substitutes artifact-qualified symbolic parameters,
-canonically closes concrete demand, and checks exact-family containment. Its
-closed identity retains the selected provider closure, exact plan, application
-set, and complete coverage assertion; multiple applications still name one
-slot. Terminal emission of verifier-derived concrete and symbolic demand and
-coverage rows, their composition wiring, and installation issuance binding
-remain open. Native realization does retain the exact nonzero selected-closure
-identity beside its source-free provider-plan projection. Component-candidate
-replay requires both identities to agree independently, so indexed coverage or
-resolved-reach drift cannot be masked by unchanged plan rows. Until the
-remaining joins land, this structural closure and identity replay grant no
-provider admission, resident custody, transfer, or installation authority.
+D35 retires the representation-layer final-composition calculus that retained
+an indexed arity/string schema and provider-authored generic or exact-family
+assertion. Matching that assertion to closed demand did not establish a
+checked realization. Terminal emission instead consumes D29's compiler-derived
+tagged concrete and symbolic demands only after final specialization has
+rejoined and rechecked the selected role-specific realization. Native replay
+continues to bind the exact selected provider closure and source-free plan on
+their own terms; no indexed-coverage identity is retained while the D29 join is
+absent. Missing semantic coverage remains fail-closed and grants no provider
+admission, resident custody, transfer, or installation authority.
 
 ### Crash-control slice
 

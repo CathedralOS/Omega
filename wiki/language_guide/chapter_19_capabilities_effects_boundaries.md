@@ -1196,21 +1196,21 @@ separately supplied realizations cannot acquire universal coverage from an
 authored claim and remain exact-only. A foreign universal contract would need
 a distinct independently recheckable verifier.
 
-The compiler foundation currently represents the closure through a
-non-authorizing indexed-application scaffold. It combines exact concrete
-demands with substituted, artifact-qualified symbolic demands and canonicalizes
-the reconstructed set, but its arity/string schema and provider-asserted
-coverage are not D29 evidence. Production must replace those identities with
-the compiler-derived typed application and role-specific recheck above. The
-closed structural result does not create a slot for each application or
-authorize execution. Binding exact provider issuance occurrences at
-installation remains separate engineering work, so application coverage alone
-grants no resident content or transfer authority.
+The former non-authorizing indexed-application scaffold is retired by D35. Its
+arity/string schema and provider assertion were never D29 evidence: equality
+between an authored claim and compiler demand does not establish a checked
+realization. Compiler-derived tagged applications are demands. Coverage exists
+only after the compiler independently rejoins and rechecks the selected role-
+specific realization. Until that join lands, generic provider-family review
+fails closed. An empty telescope is one canonical empty application, not proof
+of coverage, and application evidence alone grants no resident-content,
+transfer, or installation authority.
+
 Native realization also retains the exact nonzero selected-closure identity
 beside its source-free provider-plan projection. Component-candidate replay
-requires both to match independently, preventing indexed coverage or
-resolved-reach drift from hiding behind unchanged plan rows without treating
-either identity as authority.
+requires both to match independently, preventing selected-closure or resolved-
+reach drift from hiding behind unchanged plan rows without treating either
+identity as authority.
 
 This is the same proof shape as a library import:
 

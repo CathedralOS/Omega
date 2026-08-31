@@ -1309,6 +1309,49 @@ canonical arbitrary-precision tail or distinct overflow code requires a
 future version only if an actual consumer needs to distinguish exact
 `INT64_MAX` from a larger demand.
 
+## D35 — Provider assertions are not indexed-application coverage
+
+The pre-D29 indexed-provider application subsystem is retired. Its display
+identity plus arity, normalized string arguments, substitutions, provider-
+asserted generic or exact families, closure hashes, selected-plan attachment,
+and package-review `NonGeneric` / `ExactApplications` rows do not establish
+that a selected realization implements a demanded application. Production has
+no issuer for those assertions; matching one to a compiler demand would prove
+only that two descriptions agree.
+
+D29's compiler-derived tagged type/const applications remain the sole
+application demand vocabulary. `Demand` means a requirement reconstructed by
+the compiler or consumer; `Claim` or `Candidate` means a provider-supplied
+statement; `Coverage` is reserved for an independently reconstructed relation
+that rejoins the exact demand, selected role-specific semantic realization,
+and its successful recheck. An empty telescope is one canonical empty
+application, not proof of coverage. Generic provider-family review therefore
+remains fail-closed until final specialization can reconstruct that complete
+join.
+
+Delete the indexed-provider module, attachment and fingerprint surfaces,
+planning rejoin, package-review field and encoding, and fixtures built around
+the obsolete schema. Useful malformed-order and substitution cases may be
+rewritten against D29's tagged arguments and artifact-qualified binders, but
+the arity/string schema does not survive in production or tests. A demand-only
+substitution utility may be introduced only for a real final-composition
+consumer and may neither attach to a provider nor be serialized as coverage.
+
+The device-operation carrier is independent foundation-layer scaffolding for
+runtime custody protocols, not a dependency of the representation-layer
+indexed-provider model and not a D29 static-application carrier. D27 continues
+to retain it. Its provider-authored `Coverage` terminology must become
+`Claim` or `Candidate`; this naming correction does not grant authority or
+change the D27 lifecycle.
+
+Removing the canonical package-review field advances the next evidence schema
+from 96 to 97 and row schema from 54 to 55. New encoders never emit the retired
+row. Package-review and obligation-ledger recovery remain current-version-only:
+current admission and decoding reject earlier vocabularies. Historical bytes
+may be retained opaquely and interpreted by their corresponding old toolchain
+or a separately authorized migration tool, but no legacy row or decode-and-
+discard parser enters the current record model.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;
