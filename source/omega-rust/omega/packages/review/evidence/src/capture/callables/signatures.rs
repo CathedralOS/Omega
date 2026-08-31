@@ -22,14 +22,28 @@ pub(super) fn project_external_callable_signature(
     }
     let static_parameters = type_parameters
         .iter()
-        .map(|parameter| match parameter.kind {
+        .map(|parameter| match &parameter.kind {
             psi_typed_trees::data::TypeParameterKind::Type => {
                 Ok(PackageReviewExternalStaticParameter::Type {
                     properties: project_data_properties(parameter.bounds),
                 })
             }
-            psi_typed_trees::data::TypeParameterKind::Const { .. }
-            | psi_typed_trees::data::TypeParameterKind::Machine { .. }
+            psi_typed_trees::data::TypeParameterKind::Const { type_reference } => {
+                if parameter.bounds != psi_typed_trees::data::DataProperties::default() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{subject}` gives a const parameter inapplicable type-property bounds"
+                    ))]);
+                }
+                Ok(PackageReviewExternalStaticParameter::Const {
+                    type_identity: review_signature_type_identity_with_binders(
+                        compilation,
+                        *type_reference,
+                        binders,
+                        &machine.lifetime_parameters,
+                    )?,
+                })
+            }
+            psi_typed_trees::data::TypeParameterKind::Machine { .. }
             | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
                 Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{subject}` uses a static parameter kind not yet represented by its executable-supply signature"

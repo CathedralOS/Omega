@@ -2621,6 +2621,15 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v109/canonical row v67 admits const parameters in external
+realization and top-level requirement signatures. Each side retains the exact
+const carrier; authored binder names alpha-normalize out of callable carrier
+identity, while positional const use in fixed-array lengths is revalidated
+against the exact requirement-to-provider binder relation. Post-check carrier
+substitution and inapplicable type-property bounds reject. Static-machine,
+proposition, and conformance-bound external forms remain fail-closed.
+Canonical-row recovery remains v15.
+
 Package review v108/canonical row v66 replaces the external realization's
 static-parameter count with an ordered structural telescope and retains the
 independently projected top-level requirement signature in the same supply

@@ -42,6 +42,7 @@ pub(super) fn project_top_level_requirement_external_supply(
         !matches!(
             parameter.kind,
             psi_typed_trees::data::TypeParameterKind::Type
+                | psi_typed_trees::data::TypeParameterKind::Const { .. }
         )
     };
     if !requirement.conformance_bounds.is_empty()

@@ -131,6 +131,10 @@ pub(super) fn encode_external_callable_signature(
                 encoder.byte(0);
                 encode_data_properties(encoder, *properties);
             }
+            PackageReviewExternalStaticParameter::Const { type_identity } => {
+                encoder.byte(1);
+                encode_type_identity(encoder, type_identity)?;
+            }
         }
         Ok(())
     })?;

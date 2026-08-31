@@ -6,5 +6,7 @@ mod boundary_bodies;
 mod external_executable_supply;
 #[path = "boundary_supply/primitive_float_supply.rs"]
 mod primitive_float_supply;
+#[path = "boundary_supply/static_telescopes.rs"]
+mod static_telescopes;
 #[path = "boundary_supply/supply_validation.rs"]
 mod supply_validation;

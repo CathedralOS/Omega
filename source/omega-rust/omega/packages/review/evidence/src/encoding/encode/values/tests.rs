@@ -109,7 +109,10 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
     let mut changed_bounds = changed_telescope;
     {
         let PackageReviewExternalStaticParameter::Type { properties } =
-            &mut changed_bounds.signature.static_parameters[0];
+            &mut changed_bounds.signature.static_parameters[0]
+        else {
+            unreachable!("type static parameter fixture")
+        };
         properties.multiplicity = psi_language_semantics::Multiplicity::Unrestricted;
     }
     let multiplicity_key = encode_key(&changed_bounds);
@@ -117,7 +120,10 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
 
     {
         let PackageReviewExternalStaticParameter::Type { properties } =
-            &mut changed_bounds.signature.static_parameters[0];
+            &mut changed_bounds.signature.static_parameters[0]
+        else {
+            unreachable!("type static parameter fixture")
+        };
         properties.multiplicity = psi_language_semantics::Multiplicity::Affine;
         properties.carry = Some(psi_language_semantics::CarryPolicy::PERMISSIVE);
     }
@@ -138,7 +144,29 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
                 carry: None,
             },
         });
-    assert_ne!(carry_key, encode_key(&changed_requirement));
+    let requirement_key = encode_key(&changed_requirement);
+    assert_ne!(carry_key, requirement_key);
+
+    let mut changed_const_telescope = changed_requirement;
+    changed_const_telescope.signature.static_parameters.push(
+        PackageReviewExternalStaticParameter::Const {
+            type_identity: PackageReviewTypeIdentity {
+                canonical: "nominal(toolchain:u64)".to_owned(),
+            },
+        },
+    );
+    let const_key = encode_key(&changed_const_telescope);
+    assert_ne!(requirement_key, const_key);
+    let PackageReviewExternalStaticParameter::Const { type_identity } = changed_const_telescope
+        .signature
+        .static_parameters
+        .last_mut()
+        .expect("const static parameter")
+    else {
+        unreachable!("const static parameter fixture")
+    };
+    type_identity.canonical = "nominal(toolchain:i32)".to_owned();
+    assert_ne!(const_key, encode_key(&changed_const_telescope));
 }
 
 pub(crate) fn normalized_import_row(

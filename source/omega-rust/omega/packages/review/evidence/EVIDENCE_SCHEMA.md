@@ -1,8 +1,16 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 108 and row schema version 66. This file
+The canonical review schema is version 109 and row schema version 67. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v109 / row v67 admits const parameters in external realization and
+top-level requirement signatures. Each side retains the exact const carrier;
+authored binder names alpha-normalize out of callable carrier identity, while
+positional const use in fixed-array lengths is revalidated against the exact
+requirement-to-provider binder relation. Post-check carrier substitution and
+inapplicable type-property bounds reject. Static-machine, proposition, and
+conformance-bound external forms remain fail-closed.
 
 Schema v108 / row v66 replaces the external realization's static-parameter
 count with an ordered structural telescope and retains the independently
