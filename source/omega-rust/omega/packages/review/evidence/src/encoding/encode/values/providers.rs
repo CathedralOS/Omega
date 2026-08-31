@@ -3,7 +3,7 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, PackageReviewBoundaryApplication,
-    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewBoundaryApplicationRealization, PackageReviewCompilerIntrinsicExecution,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
     PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
 };
@@ -93,12 +93,22 @@ pub(crate) fn encode_boundary_application_realization(
 ) -> Result<(), PackageReviewEncodingError> {
     encode_boundary_application_realization_key(encoder, realization)?;
     encoder.fixed_bytes(&realization.selected_plan_digest);
-    encoder.byte(match realization.role {
-        PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody => 0,
-    });
-    encode_nominal(encoder, &realization.realization_machine)?;
-    encode_nominal(encoder, &realization.realization_state)?;
-    encoder.fixed_bytes(&realization.realization_contract_commitment);
+    match &realization.realization {
+        PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {
+            realization_machine,
+            realization_state,
+            realization_contract_commitment,
+        } => {
+            encoder.byte(0);
+            encode_nominal(encoder, realization_machine)?;
+            encode_nominal(encoder, realization_state)?;
+            encoder.fixed_bytes(realization_contract_commitment);
+        }
+        PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {
+            encoder.byte(1);
+            encode_compiler_intrinsic_execution(encoder, execution)?;
+        }
+    }
     Ok(())
 }
 

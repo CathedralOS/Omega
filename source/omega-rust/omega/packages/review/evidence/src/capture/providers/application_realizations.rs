@@ -7,9 +7,10 @@
 
 use super::super::semantics::declarations::nominal_identity;
 use super::super::source::locations::canonical_source_span_location;
+use super::intrinsics::project_compiler_intrinsic_execution;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
-    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCanonicalRowSource,
+    PackageReviewBoundaryApplicationRealization, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };
 use omega_compiler::CheckedCompilation;
@@ -65,35 +66,33 @@ pub(crate) fn project_boundary_application_realizations(
             operator_declaration: nominal_identity(compilation, realization.requirement_operator)?,
             application: PackageReviewBoundaryApplication::Empty,
             selected_plan_digest: *realization.provider_plan_commitment.as_bytes(),
-            role: PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody,
-            realization_machine: nominal_identity(compilation, realization.realization_machine)?,
-            realization_state: nominal_identity(compilation, realization.realization_state)?,
-            realization_contract_commitment: realization.realization_contract_commitment.as_bytes(),
+            realization: PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {
+                realization_machine: nominal_identity(
+                    compilation,
+                    realization.realization_machine,
+                )?,
+                realization_state: nominal_identity(compilation, realization.realization_state)?,
+                realization_contract_commitment: realization
+                    .realization_contract_commitment
+                    .as_bytes(),
+            },
         };
-        if row.selected_plan_digest == [0; 32] || row.realization_contract_commitment == [0; 32] {
+        let PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {
+            realization_contract_commitment,
+            ..
+        } = &row.realization
+        else {
+            unreachable!("newly constructed checked-body realization changed role")
+        };
+        if row.selected_plan_digest == [0; 32] || *realization_contract_commitment == [0; 32] {
             return Err(vec![Diagnostic::error(
                 "boundary application realization lost a strong plan or contract commitment",
             )]);
         }
-
-        if let Some(existing) = staged
-            .iter_mut()
-            .find(|existing| same_application_key(&existing.row, &row))
-        {
-            if existing.row != row {
-                return Err(vec![Diagnostic::error(format!(
-                    "boundary application `{}` has contradictory selected checked-body realizations",
-                    row.requirement_identity,
-                ))]);
-            }
-            existing.locations.push(location);
-        } else {
-            staged.push(StagedRealization {
-                row,
-                locations: vec![location],
-            });
-        }
+        stage_realization(&mut staged, row, location)?;
     }
+
+    project_exact_compiler_intrinsic_applications(compilation, package, &mut staged)?;
 
     staged.sort_by(|left, right| application_key(&left.row).cmp(&application_key(&right.row)));
     let mut rows = Vec::with_capacity(staged.len());
@@ -107,6 +106,255 @@ pub(crate) fn project_boundary_application_realizations(
         ));
     }
     Ok(ProjectedBoundaryApplicationRealizations { rows, sources })
+}
+
+fn project_exact_compiler_intrinsic_applications(
+    compilation: &CheckedCompilation,
+    package: PackageKeyIdentity,
+    staged: &mut Vec<StagedRealization>,
+) -> Result<(), Vec<Diagnostic>> {
+    let selected_plans = compilation.selected_provider_plans().plans();
+    let provenance = compilation.selected_provider_provenance();
+    if selected_plans.len() != provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "selected-provider plans and intrinsic review provenance are not aligned",
+        )]);
+    }
+
+    for application in &compilation.facts.operators.boundary_applications {
+        if !application.arguments.is_empty() {
+            continue;
+        }
+        let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+            expression,
+            origin,
+        } = application.site
+        else {
+            continue;
+        };
+        let uses = exact_application_uses(
+            compilation,
+            expression,
+            origin,
+            application.requirement_symbol,
+        );
+        let [actual_use] = uses.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "boundary application at expression {expression:?} retains {} exact selected uses; expected one",
+                uses.len(),
+            ))]);
+        };
+        let location = canonical_source_span_location(
+            compilation,
+            authored_application_source_span(
+                compilation,
+                expression,
+                actual_use.kind,
+                application.requirement_symbol,
+            )?,
+            PackageReviewSourceLocationRole::BoundaryApplicationUse,
+        )?;
+        if location.owner != PackageReviewSourceLocationOwner::Package(package) {
+            continue;
+        }
+        let matching_plans = selected_plans
+            .iter()
+            .zip(provenance)
+            .filter(|(plan, retained)| {
+                retained.plan == **plan
+                    && plan.report_fingerprint() == actual_use.plan_report_fingerprint
+                    && plan.identity_digest().as_bytes() == actual_use.plan_commitment.as_bytes()
+            })
+            .collect::<Vec<_>>();
+        let [(plan, retained)] = matching_plans.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "boundary application at expression {expression:?} rejoins {} exact selected provider plans; expected one",
+                matching_plans.len(),
+            ))]);
+        };
+        if retained.provider.row_requirements.len() != plan.rows.len()
+            || retained.provider.row_realizations.len() != plan.rows.len()
+            || retained.row_compiler_intrinsic_executions.len() != plan.rows.len()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` has incomplete intrinsic application provenance",
+                plan.name,
+            ))]);
+        }
+        let matching_rows = plan
+            .rows
+            .iter()
+            .zip(&retained.provider.row_requirements)
+            .zip(&retained.provider.row_realizations)
+            .zip(&retained.row_compiler_intrinsic_executions)
+            .filter(|(((_, requirement), _), _)| **requirement == application.requirement_symbol)
+            .collect::<Vec<_>>();
+        let [(((row, requirement_symbol), realization_symbol), retained_execution)] =
+            matching_rows.as_slice()
+        else {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` has {} rows for actual boundary requirement {:?}; expected one",
+                plan.name,
+                matching_rows.len(),
+                application.requirement_symbol,
+            ))]);
+        };
+        if !matches!(
+            row.binding,
+            omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+        ) {
+            continue;
+        }
+        let execution = project_compiler_intrinsic_execution(
+            compilation,
+            plan,
+            row,
+            retained.provider.schema,
+            **requirement_symbol,
+            **realization_symbol,
+            compilation
+                .selected_target_profile()
+                .map(omega_target::TargetProfile::target_name),
+            **retained_execution,
+        )?
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "actual boundary application at expression {expression:?} selects compiler intrinsic `{}`, but no closed execution identity exists",
+                plan.name,
+            ))]
+        })?;
+        let operator = compilation
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == application.requirement_symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "actual compiler-intrinsic application lost its operator declaration",
+                )]
+            })?;
+        let requirement_identity =
+            psi_typed_trees::operator::boundary_operator_requirement_identity(
+                &compilation.typed,
+                operator,
+            );
+        if requirement_identity.is_empty() || actual_use.plan_commitment.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "actual compiler-intrinsic application lost a strong semantic identity",
+            )]);
+        }
+        stage_realization(
+            staged,
+            CheckedPackageBoundaryApplicationRealizationReview {
+                requirement_identity,
+                operator_declaration: nominal_identity(
+                    compilation,
+                    application.requirement_symbol,
+                )?,
+                application: PackageReviewBoundaryApplication::Empty,
+                selected_plan_digest: *actual_use.plan_commitment.as_bytes(),
+                realization: PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic {
+                    execution,
+                },
+            },
+            location,
+        )?;
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct ExactApplicationUse {
+    kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
+    plan_report_fingerprint: u64,
+    plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+}
+
+fn exact_application_uses(
+    compilation: &CheckedCompilation,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    origin: psi_checked_trees::CheckedValueOrigin,
+    requirement: psi_symbols::SymbolHandle,
+) -> Vec<ExactApplicationUse> {
+    let operator = compilation
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == requirement);
+    compilation
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .filter_map(|(_, operator_use)| {
+            (operator_use.expression == expression
+                && operator_use.origin == origin
+                && operator_use.selected_operator_symbol == requirement)
+                .then_some(ExactApplicationUse {
+                    kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind::Named,
+                    plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+                    plan_commitment: operator_use.provider_plan_commitment,
+                })
+        })
+        .chain(
+            compilation
+                .facts
+                .operators
+                .uses
+                .iter()
+                .filter_map(|(_, operator_use)| {
+                    (operator_use.expression == expression
+                        && operator_use.origin == origin
+                        && operator_use.selected_operator_symbol == requirement
+                        && operator_use.status
+                            == psi_checked_trees::CheckedOperatorResolutionStatus::Resolved
+                        && operator.is_some_and(|operator| {
+                            operator.is_boundary
+                                && operator.spelling == Some(operator_use.spelling)
+                                && compilation
+                                    .facts
+                                    .operators
+                                    .selected_candidate(operator_use)
+                                    .is_some_and(|candidate| {
+                                        candidate.operator_symbol == requirement
+                                            && candidate.is_boundary
+                                    })
+                        }))
+                    .then_some(ExactApplicationUse {
+                        kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(
+                            operator_use.spelling,
+                        ),
+                        plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+                        plan_commitment: operator_use.provider_plan_commitment,
+                    })
+                }),
+        )
+        .collect()
+}
+
+fn stage_realization(
+    staged: &mut Vec<StagedRealization>,
+    row: CheckedPackageBoundaryApplicationRealizationReview,
+    location: PackageReviewSourceLocation,
+) -> Result<(), Vec<Diagnostic>> {
+    if let Some(existing) = staged
+        .iter_mut()
+        .find(|existing| same_application_key(&existing.row, &row))
+    {
+        if existing.row != row {
+            return Err(vec![Diagnostic::error(format!(
+                "boundary application `{}` has contradictory selected semantic realizations",
+                row.requirement_identity,
+            ))]);
+        }
+        existing.locations.push(location);
+    } else {
+        staged.push(StagedRealization {
+            row,
+            locations: vec![location],
+        });
+    }
+    Ok(())
 }
 
 fn authored_application_source_span(

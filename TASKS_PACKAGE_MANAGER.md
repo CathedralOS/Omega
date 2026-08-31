@@ -55,6 +55,12 @@ stop the item on one precise owner question before adding machinery.
     independently checked application-specific realization may authorize a
     row.
 
+  D29's actual monomorphic compiler-intrinsic role is complete: package review
+  rejoins each package-owned checked use to its strong selected plan, exact
+  requirement row, row-aligned compiler provenance, and independently
+  rederived closed execution identity. It carries no checked-body fields and
+  makes no Terminal/native or generic-coverage claim.
+
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
   nominal Chi stage merely to collect private compiler state.

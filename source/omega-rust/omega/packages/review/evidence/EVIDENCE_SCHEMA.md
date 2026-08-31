@@ -1,8 +1,16 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 113 and row schema version 71. This file
+The canonical review schema is version 114 and row schema version 72. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v114 / row v72 adds D29's exact compiler-intrinsic realization role for
+actual monomorphic boundary-operator applications. The application rejoins its
+authored checked use, strong selected-plan identity, exact requirement row,
+row-aligned compiler provenance, and independently rederived closed intrinsic
+execution identity. Its role-specific payload carries that closed execution;
+it does not invent checked-machine contracts, native emission, or generic
+coverage. Unsupported intrinsic execution and contradictory roles reject.
 
 Schema v113 / row v71 admits the atomic Mach-O dylib install-name and dyld
 symbol locator case.

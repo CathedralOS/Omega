@@ -148,18 +148,25 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         realization.operator_declaration().path(),
         "CheckedMath::offset_zero"
     );
+    let PackageReviewBoundaryApplicationRealization::NongenericCheckedBody {
+        realization_machine,
+        realization_state,
+        realization_contract_commitment,
+    } = realization.realization()
+    else {
+        panic!("checked adapter must retain the checked-body payload")
+    };
     assert_eq!(
-        realization.realization_machine().path(),
+        realization_machine.path(),
         "CheckedMathProvider::offset_zero_impl"
     );
     assert!(
-        realization
-            .realization_state()
+        realization_state
             .path()
             .starts_with("CheckedMathProvider::offset_zero_impl::")
     );
     assert_ne!(realization.selected_plan_digest(), &[0; 32]);
-    assert_ne!(realization.realization_contract_commitment(), &[0; 32]);
+    assert_ne!(realization_contract_commitment, &[0; 32]);
 
     let rows = review
         .canonical_rows()
