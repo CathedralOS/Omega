@@ -39,13 +39,13 @@ through the current Gamma frontend gate.
 
 It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
-receiver forms, states, and exact nonempty whole-program exhaustion, but the
-parser predates D36's qualified-only receiver restriction. Remaining D36
-syntax/census enforcement, D37 body/control premise-DAG enforcement,
-AST-to-symbolic-Alpha lowering, `main`, and final publication remain
-implementation gaps. Q4 blocks promotion of the incomplete entry-diagnostic
-judgment. D31's profile-independent structural type-formation judgment is now
-implemented; its
+qualified-only receiver forms, states, and exact nonempty whole-program
+exhaustion. D36's declaration syntax and cross-kind callable census are now
+implemented; qualified-expression application classification remains with
+body/control checking, including D37's premise-DAG composition. AST-to-
+symbolic-Alpha lowering, `main`, and final publication remain implementation
+gaps. Q4 blocks promotion of the incomplete entry-diagnostic judgment. D31's
+profile-independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
 therefore not yet a compiler edge and no validation may describe it as one.
@@ -57,11 +57,14 @@ first collects every owner row and exact qualified machine identity from source
 spans, then scans member, parameter, state, let, and transition-binder scopes.
 It compares authored bytes exactly, keeps local identities source-shaped,
 collects transition binders independently of later case and arity validity,
-and returns the globally earliest declaration-start failure. Any duplicate
-owner row is ambiguous, including same-kind duplication, so it contributes no
-inferred boundary kind and suppresses `InvalidBoundary` until repaired. The
-current source type-checks through the Gamma frontend; no census behavior is
-claimed as executed while the canonical Gamma compiler edge is incomplete.
+and returns the globally earliest declaration-start failure. Its D36 extension
+compares every case against every qualified machine admitted beneath the same
+unique data owner, ignores fields and arity, and anchors a collision at the
+later callable declaration. Any duplicate owner row is ambiguous, including
+same-kind duplication, so it contributes no inferred owner kind and admits no
+machine to a data-owner callable registry until repaired. The current source
+type-checks through the Gamma frontend; no census behavior is claimed as
+executed while the canonical Gamma compiler edge is incomplete.
 
 Type formation walks every authored type after that census with an explicit
 stored/parameter/local/return/nested placement. It derives array-length,
@@ -88,10 +91,11 @@ classifies qualified machine owners without numeric node IDs, provides exact
 owner/machine/member/state lookups, and compares types structurally using
 nominal name equality and semantic array lengths. Constructor and qualified-
 machine lookup remain structurally distinct after D36's census rejects any
-shared owner/name callable spelling. An unqualified receiver is now a syntax
-rejection rather than an ownerless catalog row. A neutral minimum-coordinate
-bucket retains all tied final-phase reasons rather than choosing by traversal
-or DCOUT order.
+shared owner/name callable spelling. An unqualified receiver is a syntax
+rejection at its `&` rather than an ownerless catalog row. The retained bare-
+versus-parenthesized qualified-expression distinction still awaits application
+classification. A neutral minimum-coordinate bucket retains all tied final-
+phase reasons rather than choosing by traversal or DCOUT order.
 
 Ordered local resolution then walks every expression-bearing entry, state, and
 transition position. Machine parameters remain active across the invocation;

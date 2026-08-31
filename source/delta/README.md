@@ -43,10 +43,11 @@ compilers and must not both be called “the Delta compiler.”
 - `compiler/` owns the in-progress `delta_compiler.gamma`, its eventual
   canonical Alpha tape, and refinement evidence. The retained source currently
   contains final compiler material through complete parsing, the D22/D24
-  source-shaped identity census, D31 structural type formation, the source-
+  source-shaped identity census including D36's receiver restriction and
+  case/machine collision registry, D31 structural type formation, the source-
   backed resolution catalog, ordered local-value resolution, exact scalar and
   aggregate value/place facts, and symbolic Alpha encoding. Remaining final
-  body/control checking, Q4 entry diagnostics, D36 callable-shape enforcement,
+  body/control checking, Q4 entry diagnostics, D36 application classification,
   D37 premise-DAG enforcement, Q6 `.as_slice` receiver validity, storage
   realization, lowering, `main`, and publication are incomplete, so it exposes
   no compiler artifact yet.

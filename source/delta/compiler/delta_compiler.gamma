@@ -2676,7 +2676,7 @@
         (delta_machine_inputs_reject_at source
           (delta_token_end source receiverStart))))))
 
-(def delta_parse_machine_inputs ((source Bytes) (openStart Int)
+(def delta_parse_plain_machine_inputs ((source Bytes) (openStart Int)
   (cursor Int)) DeltaMachineInputsParseOutcome
   (let start (delta_token_start source cursor)
     (let code (delta_token_code source start)
@@ -2684,7 +2684,7 @@
         (DeltaMachineInputsParsed
           (NoDeltaMachineInputs openStart (delta_token_end source start)) start)
         (if (eq code 40)
-          (delta_parse_receiver_inputs source openStart start)
+          (DeltaMachineInputsParseRejected UnexpectedToken start)
           (let parametersOutcome
             (delta_parse_parameters_acc source start 33 NoDeltaParameters)
             (match parametersOutcome
@@ -2695,6 +2695,22 @@
                   (DeltaPlainMachineInputs openStart
                     (delta_token_end source closeStart) parameters)
                   closeStart)))))))))
+
+(def delta_parse_qualified_machine_inputs ((source Bytes) (openStart Int)
+  (cursor Int)) DeltaMachineInputsParseOutcome
+  (let start (delta_token_start source cursor)
+    (if (eq (delta_token_code source start) 40)
+      (delta_parse_receiver_inputs source openStart start)
+      (delta_parse_plain_machine_inputs source openStart start))))
+
+(def delta_parse_machine_inputs_for_name ((source Bytes)
+  (nameValue DeltaQualifiedName) (openStart Int)
+  (cursor Int)) DeltaMachineInputsParseOutcome
+  (match nameValue
+    ((DeltaUnqualifiedName start end name)
+      (delta_parse_plain_machine_inputs source openStart cursor))
+    ((DeltaQualifiedNameSyntax start end owner name)
+      (delta_parse_qualified_machine_inputs source openStart cursor))))
 
 (def delta_finish_machine_declaration ((source Bytes) (machineStart Int)
   (nameValue DeltaQualifiedName) (inputs DeltaMachineInputs)
@@ -2726,8 +2742,8 @@
           (let openStart (delta_token_start source
             (delta_qualified_name_end nameValue))
             (if (eq (delta_token_code source openStart) 32)
-              (let inputsOutcome (delta_parse_machine_inputs source openStart
-                (delta_token_end source openStart))
+              (let inputsOutcome (delta_parse_machine_inputs_for_name source
+                nameValue openStart (delta_token_end source openStart))
                 (match inputsOutcome
                   ((DeltaMachineInputsParseRejected reasonValue errorOffset)
                     (DeltaDeclarationParseRejected reasonValue errorOffset))
@@ -3279,6 +3295,77 @@
             (MoreDeltaMachineRows (DeltaMachineRowSyntax start name)
               accumulator)))))))
 
+; D36 adds one narrow cross-kind callable registry without flattening the
+; accepted catalog. A case collides only with a qualified machine whose owner
+; resolves uniquely to that data declaration. Unknown, boundary, and ambiguous
+; owners therefore remain in their existing later resolution/classification
+; judgments rather than acquiring an inferred data-owner kind here.
+(def delta_census_later_callable_start ((leftStart Int)
+  (rightStart Int)) Int
+  (if (lt leftStart rightStart) rightStart leftStart))
+
+(def delta_census_case_against_machine_rows ((source Bytes)
+  (owner DeltaName) (caseStart Int) (caseName DeltaName)
+  (machines DeltaMachineRowList)) DeltaCensusCandidate
+  (match machines
+    (NoDeltaMachineRows NoDeltaCensusCandidate)
+    ((MoreDeltaMachineRows item rest)
+      (match item
+        ((DeltaMachineRowSyntax machineStart qualifiedName)
+          (let current
+            (match qualifiedName
+              ((DeltaUnqualifiedName nameStart nameEnd machineName)
+                NoDeltaCensusCandidate)
+              ((DeltaQualifiedNameSyntax nameStart nameEnd machineOwner
+                machineName)
+                (if (if (delta_names_equal source owner machineOwner)
+                      (delta_names_equal source caseName machineName)
+                      0)
+                  (delta_census_duplicate
+                    (delta_census_later_callable_start caseStart machineStart))
+                  NoDeltaCensusCandidate)))
+            (delta_census_min current
+              (delta_census_case_against_machine_rows source owner caseStart
+                caseName rest))))))))
+
+(def delta_census_data_callable_members ((source Bytes) (owner DeltaName)
+  (members DeltaDataMemberList)
+  (machines DeltaMachineRowList)) DeltaCensusCandidate
+  (match members
+    (NoDeltaDataMembers NoDeltaCensusCandidate)
+    ((MoreDeltaDataMembers item rest)
+      (match item
+        ((DeltaFieldMember start end name typeValue)
+          (delta_census_data_callable_members source owner rest machines))
+        ((DeltaCaseMember start end name payload)
+          (delta_census_min
+            (delta_census_case_against_machine_rows source owner start name
+              machines)
+            (delta_census_data_callable_members source owner rest machines)))))))
+
+(def delta_census_callable_collisions ((source Bytes)
+  (declarations DeltaDeclarationList) (owners DeltaOwnerRowList)
+  (machines DeltaMachineRowList)) DeltaCensusCandidate
+  (match declarations
+    (NoDeltaDeclarations NoDeltaCensusCandidate)
+    ((MoreDeltaDeclarations item rest)
+      (let current
+        (match item
+          ((DeltaBoundaryDeclaration start end name boundaryMachines)
+            NoDeltaCensusCandidate)
+          ((DeltaDataDeclaration start end name members)
+            (match (delta_owner_identity_for_rows source name owners)
+              (OneDeltaDataOwner
+                (delta_census_data_callable_members source name members
+                  machines))
+              (NoDeltaOwnerIdentity NoDeltaCensusCandidate)
+              (OneDeltaBoundaryOwner NoDeltaCensusCandidate)
+              (AmbiguousDeltaOwnerIdentity NoDeltaCensusCandidate)))
+          ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+            NoDeltaCensusCandidate))
+        (delta_census_min current
+          (delta_census_callable_collisions source rest owners machines))))))
+
 (def delta_census_owner_name_against ((source Bytes) (nameValue DeltaName)
   (declarations DeltaDeclarationList)) DeltaCensusCandidate
   (match declarations
@@ -3404,7 +3491,10 @@
         (let machines
           (delta_collect_machine_rows_acc declarations NoDeltaMachineRows)
           (let candidate
-            (delta_census_declarations source declarations owners)
+            (delta_census_min
+              (delta_census_declarations source declarations owners)
+              (delta_census_callable_collisions source declarations owners
+                machines))
             (match candidate
               (NoDeltaCensusCandidate
                 (DeltaCensusAccepted

@@ -69,13 +69,13 @@ negation, binary scalar, record-field, array/view index, range-slice, and
 preserves its owner/member identity for later layout and lowering.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
-incomplete entry-diagnostic judgment. D36 settles unqualified receivers and
-constructor/machine collisions; its parser and census enforcement remain
-implementation work. D37 settles dependent parent composition and relational
-statement/projection anchors; its full body/control enforcement remains
-implementation work. Q6 blocks only the accepted receiver set for `.as_slice`.
-D34 has settled physical storage refusal; its implementation additionally
-waits on the final nonaliasing map.
+incomplete entry-diagnostic judgment. D36's qualified-only receiver parser and
+case/machine collision census are implemented; its qualified-expression
+application classification remains open. D37 settles dependent parent
+composition and relational statement/projection anchors; its full body/control
+enforcement remains implementation work. Q6 blocks only the accepted receiver
+set for `.as_slice`. D34 has settled physical storage refusal; its
+implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns
