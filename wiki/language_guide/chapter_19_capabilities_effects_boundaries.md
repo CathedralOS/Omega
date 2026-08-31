@@ -481,42 +481,73 @@ mechanisms one installed artifact will execute.
 
 Installation derives that second view from the complete selected-provider
 closure. Traversal continues through checked adapters and selected providers
-until it reaches exact terminal bindings such as a normalized foreign import,
-target syscall number, compiler-owned intrinsic, firmware/vtable operation, or
-checked port operation. A binding is interpreted only with its target and
-provider context: the same integer or slot number is not a cross-target
-authority identity. Binding payloads are compile-time values. A runtime-valued
-syscall, import, slot, or future physical coordinate cannot become exact
-installation evidence.
+until it reaches exact terminal mechanisms. Checked adapters are composites,
+not leaves; cycles, missing leaves, duplicates, substitutions, and unclassified
+physical operations reject.
 
-The two views meet through compiler-owned policy, not through spelling:
+Each leaf uses one role of a closed post-normalization sum: a structural
+compiler-intrinsic execution identity; target ABI, syscall number, and checked
+argument contract; normalized foreign locator and admitted implementation
+contract; exact firmware/table identity and receiver contract; or exact checked
+physical-operation catalog entry. The role discriminant and its complete
+payload enter identity. The same integer or slot number on different targets
+is not one mechanism. Provider context and service schema remain join inputs,
+not fields that can change a physical leaf's classification.
+
+The two views meet through accepted target policy, not through spelling:
 
 ```text
 exact service identity + normalized schema
     -> permitted terminal-authority classes
 
-target + exact selected binding + provider context
+exact post-normalization terminal-mechanism identity
     -> exercised terminal-authority classes
 
 exercised terminal authority <= permitted terminal authority
 ```
 
 Review reports an excess as an explicit containment failure, and accepted
-installation rejects it.
-For example, a filesystem provider whose selected Linux binding reaches a
-process-execution syscall does not become safe because it satisfies a
-filesystem requirement. Unknown or opaque terminal mechanisms fail closed
-until target policy classifies their exact identities. Risk labels are review
-metadata over those identities; they never grant authority and package source
-cannot mint them. Package-controlled names, aliases, filenames, and lookalike
-declarations classify nothing.
+realization rejects it. For example, a filesystem provider whose selected
+Linux binding reaches a process-execution syscall does not become safe because
+it satisfies a filesystem requirement. The receiving D41 interpreter or
+lowerer owns the versioned target policy and independently accepts or rejects
+the producer's realization proposal. Its accepted policy commitment enters
+realization evidence; inability to realize does not invalidate source or
+target-neutral Terminal Psi.
 
-The temporary string-backed import bridge must normalize to the same exact
-foreign-locator identity as ordinary imports before classification. It is not
-a second durable terminal-root vocabulary. The historical package-review
-classifier keyed by blessed `(filename, trait-name)` pairs is transitional and
-must be removed once binding-derived containment is live; extending that table
-for new service facets is forbidden.
+Target policy may be partial over all possible operating-system coordinates,
+but it is demand-complete for an accepted artifact: every demanded leaf has
+exactly one row. Known authority-free mechanisms have explicit empty rows or
+an exhaustive empty disposition for a closed structural family. Missing,
+unknown, duplicate, or wildcard-default rows reject. Empty means only that the
+mechanism exercises no class in this dangerous-authority vocabulary; it does
+not prove purity, absence of other side effects, foreign-code trust, or
+provider custody. Risk labels remain review metadata and package source cannot
+mint them.
+
+A row publishes the union of every authority reachable through its argument
+values. It may narrow only when retained compiler-checked constants, ranges,
+handle provenance, or another exact constraint proof excludes the broader
+behavior, and that constraint identity enters the mechanism key. A service or
+provider method named `open_read` proves no flag restriction by itself.
+
+The closed terminal-class vocabulary distinguishes filesystem content read,
+filesystem content write, filesystem metadata query, directory enumeration,
+filesystem namespace mutation, filesystem metadata mutation, process output,
+process termination, machine control, port I/O, interrupt control, interrupt
+entry, and root-memory access. Exact service and mechanism identities remain
+beside these grouping classes. Older broad `Filesystem` and `Process` risk
+labels are transitional review summaries, not terminal-policy identities.
+
+The temporary string-backed import bridge must normalize losslessly to the
+same exact foreign-locator identity as ordinary imports before classification.
+It is not a second durable terminal-root vocabulary. The normalized locator
+sum must cover PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O before
+Darwin imports can enter installed-authority review. Source binding evaluation
+produces that structural locator before the historical package-review
+classifier keyed by blessed `(filename, trait-name)` pairs is replaced by the
+exact service/schema permission table and binding-derived containment;
+extending the transitional filename table for new service facets is forbidden.
 
 Portable requirements do not enumerate operating systems. A Linux syscall, a
 Windows import, and a firmware-table call may separately satisfy the same exact
@@ -528,9 +559,10 @@ one `FilesystemHost` class. The portable minimum distinguishes content read,
 content write, metadata query, directory enumeration, namespace mutation, and
 metadata mutation. Exact requirement/method identity remains in evidence
 alongside the facet; facets group authority without erasing which operation was
-selected. An operation controlled by runtime flags must either split into
-authoritatively narrower operations or publish the conservative union of every
-facet those flags can enable.
+selected. An operation controlled by runtime flags must publish the
+conservative union of every facet those flags can enable. Splitting the service
+surface improves precision only when the selected lowering also pins or proves
+the narrower argument contract.
 
 These facets constrain which operations code may name, not which filesystem
 objects it may touch. Today's raw integer descriptors are forgeable and carry

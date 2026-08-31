@@ -493,14 +493,37 @@ row is derived afterward by walking the exact selected-provider closure to
 target-qualified imports, syscalls, compiler intrinsics, firmware/vtable
 operations, and checked physical operations. Neither replaces the other.
 
-The verifier classifies a terminal binding only as the tuple of target, exact
-binding payload, and provider context. Every payload is static and canonically
-retained. The exact service identity and normalized schema map to permitted
-terminal classes; the selected binding tuple maps to exercised classes; every
-exercised class must be contained in the permitted set. Unknown bindings and
-unclassified compiler mechanisms fail closed. Names, filenames, aliases,
-package roles, reviewer judgments, and risk labels are never authority
-identity.
+The receiving D41 realization authority classifies a terminal mechanism under
+its accepted versioned target policy. The key is a closed role-tagged post-
+normalization sum rather than a flat tuple: structural compiler intrinsic;
+target ABI, syscall, and checked argument contract; normalized foreign locator
+and admitted contract; exact firmware/table identity and receiver contract; or
+an exact checked physical-operation catalog entry. Each role carries only its
+meaningful coordinates and its discriminant enters identity. Provider context
+and service schema remain join inputs and cannot narrow physical authority.
+
+The exact service identity and normalized schema map to permitted terminal
+classes; the structural mechanism maps to exercised classes; every exercised
+class must be contained in the permitted set. Policy may be partial over the
+operating system's coordinate universe but is demand-complete for an admitted
+artifact: every terminal leaf has exactly one explicit row, including explicit
+empty rows. Unknown, duplicate, cyclic, string-only, or missing leaves fail
+closed. Names, filenames, aliases, package roles, reviewer judgments, and risk
+labels are never authority identity.
+
+A row publishes the union over every authority reachable through its argument
+values. Narrowing requires retained compiler-checked constants, ranges, handle
+provenance, or another exact constraint proof whose identity enters the
+mechanism role. A narrower service name is not such proof. An explicit empty
+row says only that no dangerous-authority class is exercised; it is not a
+purity, side-effect, foreign-code-trust, or provider-custody claim.
+
+The closed classes are filesystem content read/write, filesystem metadata
+query/mutation, directory enumeration, filesystem namespace mutation, process
+output, process termination, machine control, port I/O, interrupt control,
+interrupt entry, and root-memory access. Exact service and mechanism identity
+remain retained beside those groups. Broad historical `Filesystem` and
+`Process` risk labels are review summaries rather than terminal-policy keys.
 
 Cross-platform provider choice is expressed by separate realizations
 satisfying one portable requirement. It is not expressed by adding Linux,
@@ -512,10 +535,16 @@ remains retained. Until raw integer descriptors migrate to typed unforgeable
 handles, those groups bound operations but make no object-confinement claim.
 
 The current filename-and-trait keyed dangerous-authority classifier is a
-transitional implementation defect. Binding-derived containment lands before
-filesystem faceting, so the faceting migration never expands that obsolete
-table. String-backed import bootstrap rows normalize to exact foreign locators
-rather than becoming a parallel identity system.
+transitional implementation defect. The first policy rung exhaustively
+classifies the closed `CompilerIntrinsicExecutionIdentity` families. Before
+foreign-import classification replaces the transitional table, the normalized
+locator sum gains Mach-O, source binding evaluation converts authored imports
+to exact locators, and target policy supplies locator rows. PE-by-name,
+PE-by-ordinal, versioned ELF, and Mach-O remain distinct. String-backed import
+bootstrap rows never become a parallel identity system. The obsolete filename
+table is replaced by an exact service/schema permission table plus binding-
+derived containment before filesystem faceting, so that migration never
+expands the filename classifier.
 
 ### Resources
 

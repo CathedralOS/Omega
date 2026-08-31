@@ -1850,6 +1850,98 @@ success, failure and retry, return, abandonment, and partial construction.
 Existing inert conformances acquire no new obligation merely because that
 richer relationship is introduced.
 
+## D45 — Target policy classifies every demanded terminal-authority leaf
+
+Declared service reach and installed terminal authority remain separate review
+axes. An exact service identity plus normalized schema maps to the closed set
+of terminal-authority classes it permits. The receiving interpreter or native
+lowerer independently maps each exact physical terminal mechanism it accepts
+to the classes that mechanism exercises. The selected provider row joins those
+facts, and realization rejects unless every exercised class is permitted. A
+service, provider, package, filename, alias, or risk label never determines the
+physical mechanism's class and cannot launder an excessive binding.
+
+Classification authority resumes at D41's standalone Terminal-Psi consumer
+boundary. Versioned target-policy modules belong to the receiving realization
+authority; a compiler distribution may ship default modules, but a Psi
+producer cannot force their acceptance. The accepted policy version and strong
+commitment enter the realization evidence. Rejection means that consumer cannot
+realize the otherwise valid Psi product and is not a retroactive source or
+Terminal-semantic rejection.
+
+The policy key is one closed, role-tagged, post-normalization terminal-
+mechanism sum rather than a common row with optional or redundant fields. Its
+roles include structural compiler-intrinsic execution identities; target ABI,
+syscall number, and checked argument contract; normalized foreign locator and
+admitted implementation contract; exact target firmware/table declaration,
+field, and checked receiver contract; and exact checked physical-operation
+catalog entries. Each role carries only its meaningful coordinates, and its
+discriminant enters identity. Provider context and service schema remain join
+inputs, not mechanism-key fields. Checked adapters are not terminal roles:
+admission traverses their exact selected closures and rejects cycles, missing
+leaves, duplicates, substitutions, and unclassified physical operations.
+
+Target policy is deliberately partial over the universe of possible syscalls,
+exports, and firmware coordinates, but demand-complete for each admitted
+artifact. Every demanded terminal leaf has exactly one row. Known
+authority-free mechanisms have explicit empty class sets, whether written as
+individual rows or an exhaustive match over a closed structural family. There
+is no complement/default-pure rule and no wildcard empty arm: absent, unknown,
+or multiply classified leaves reject. An empty dangerous-authority set says
+nothing about purity, general side effects, foreign-code trust, or provider
+custody.
+
+Rows classify the conservative union over every reachable argument value. A
+narrower set is valid only when compiler-checked constants, ranges, handle
+provenance, or another exact constraint proof excludes the broader behavior;
+that constraint identity is part of the mechanism role. A requirement named
+`open_read` narrows nothing by itself. Flag-polymorphic filesystem operations
+therefore publish the union of content read, content write, metadata query,
+directory enumeration, namespace mutation, and metadata mutation until their
+lowerings pin or prove narrower flags. Faceted service requirements improve
+precision but are not required for sound conservative containment. Raw integer
+descriptors still establish operation classes, not object confinement.
+
+The first closed terminal-class vocabulary distinguishes filesystem content
+read, filesystem content write, filesystem metadata query, directory
+enumeration, filesystem namespace mutation, filesystem metadata mutation,
+process output, process termination, machine control, port I/O, interrupt
+control, interrupt entry, and root-memory access. Exact requirement and
+mechanism identities remain alongside these grouping classes. The existing
+broad `Filesystem` and `Process` package-risk labels are transitional review
+summaries, not terminal-policy identities and not permission grants.
+
+The first implementation rung classifies the existing closed
+`CompilerIntrinsicExecutionIdentity` families, including explicit empty sets
+for authority-free numeric families and the nonempty process-termination class
+for `LinuxExitGroupI32`. It does not infer a verdict from authored
+`Binding::CompilerIntrinsic` spelling or use a wildcard for future family
+members. Every new catalog role must receive an explicit exhaustive policy
+disposition before admission can accept it.
+
+String-backed imports are never durable classification identities. Before
+foreign-import classification replaces the transitional filename-and-trait
+review, the structural locator vocabulary first gains Mach-O, ordinary source
+binding evaluation then converts authored `DllImport` values to exact
+`NormalizedForeignLocator` roles, and target policy supplies rows for those
+locators. PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O identities remain
+distinct. A string bridge may normalize only when it losslessly reconstructs
+one exact structural locator; otherwise the receiving lowerer rejects that
+realization proposal. The same structural-identity requirement applies to
+table, firmware, and intrinsic strings that have not completed their catalog
+join.
+
+Once the intrinsic table and the locator/evaluator/policy joins are live,
+package review replaces the blessed `(filename, trait-name)` dangerous-
+authority classifier with the exact service-identity/schema permission table
+and binding-derived containment. The filename table is not extended during
+filesystem faceting. Tests retain at
+least: explicit-empty versus unknown, target-distinct equal syscall numbers,
+argument-union versus proof-bound narrowing, adapter cycles and missing leaves,
+unknown intrinsic family members, every normalized import role including
+Mach-O, string-only rejection, and an exercised-not-permitted containment
+failure.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;
