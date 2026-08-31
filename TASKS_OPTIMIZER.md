@@ -314,6 +314,12 @@ decision. Only true language-semantic questions belong in
   optimization arrays across Omega, and replace the duplicated build and
   filesystem prelude switch schemas with one canonical projection whose tests
   pin every exact case -> counter -> transition -> increment mapping.
+- [x] Replace SCCP's 491-line nine-rule range-comparison aggregate with a
+  23-line family map over range/constant and range/range groups. All nine exact
+  identities now own a 40-50-line executable entrance; shared proposal and
+  interval evaluation mechanics sit at the nearest evidence-family ancestor,
+  the 39-row pass roster is unchanged, and mirrored tests descend by evidence
+  family and catalog custody.
 
 ## P1 — Opt-in, catalogs, and compatibility firewall
 
