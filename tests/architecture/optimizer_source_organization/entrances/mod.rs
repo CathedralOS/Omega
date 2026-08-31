@@ -160,6 +160,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "function-relative realization codec",
             REQUIRED_FUNCTION_RELATIVE_REALIZATION_CODEC_LEAVES,
         ),
+        (
+            "control-flow merge mechanics",
+            REQUIRED_CONTROL_FLOW_MERGE_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {

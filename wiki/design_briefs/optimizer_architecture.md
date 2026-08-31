@@ -113,6 +113,14 @@ Remaining forwarding entrances, oversized semantic leaves, and broad fixtures
 are active organization debt, not evidence that the small-file rule alone has
 been satisfied.
 
+Within that shape, `control_flow_cleanup/mod.rs` remains the sole local
+rule-order entrance. Its `block_merging/mod.rs` child is intentionally a
+non-executable family map: adjacent and non-adjacent merging keep separate
+stable registrations, contracts, and proposal rows, while descending into
+their own accounting leaves, shared exact substitution reconstruction, and a
+merge-boundary ownership leaf shared with jump fusion. The subgroup therefore
+does not invent a second catalog or hide the parent schedule.
+
 ## Pipeline
 
 ```text

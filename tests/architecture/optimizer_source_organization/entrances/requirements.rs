@@ -1003,3 +1003,16 @@ pub(super) const REQUIRED_FUNCTION_RELATIVE_REALIZATION_CODEC_LEAVES: &[&str] = 
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/cursor.rs",
     "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/error.rs",
 ];
+
+/// Adjacent and non-adjacent block merging retain separate rule and accounting
+/// leaves beneath a non-executable family map. Ownership-frontier custody sits
+/// at the nearest ancestor shared with jump fusion.
+pub(super) const REQUIRED_CONTROL_FLOW_MERGE_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/adjacent.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/adjacent_accounting.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/non_adjacent.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/non_adjacent_accounting.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging/substitutions.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/merge_boundary_ownership.rs",
+];

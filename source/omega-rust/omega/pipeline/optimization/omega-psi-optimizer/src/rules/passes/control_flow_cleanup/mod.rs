@@ -28,6 +28,7 @@ use super::{
 mod block_merging;
 mod constant_conditionals;
 mod empty_block_threading;
+mod merge_boundary_ownership;
 mod shared_jump_fusion;
 mod unreachable_private_machines;
 
@@ -37,7 +38,7 @@ pub use empty_block_threading::*;
 pub use shared_jump_fusion::*;
 pub use unreachable_private_machines::*;
 
-use block_merging::adjacent_merge_ownership_is_identity;
+use merge_boundary_ownership::merge_boundary_ownership_is_identity;
 #[cfg(test)]
 pub(in crate::rules::passes) use unreachable_private_machines::rule_unreachable_private_machine_complement;
 

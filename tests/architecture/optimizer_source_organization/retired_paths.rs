@@ -32,6 +32,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/representations/omega-optimization-unit/src/rewrite/model.rs",
         "source/omega-rust/omega/representations/omega-optimization-unit/src/construction.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/block_merging.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
