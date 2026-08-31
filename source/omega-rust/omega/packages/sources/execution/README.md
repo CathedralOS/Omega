@@ -1,37 +1,37 @@
 # Omega Resolver Execution
 
 This crate owns native process preparation and lifecycle for package-source
-resolution. Callers choose one compiler-defined phase and supply already
-verified executable and custody paths. They cannot author sandbox policy text,
-invent containment claims, or extract an unrestricted native command.
+resolution. D43 narrows it to structured command construction, concrete
+resource limits, and whole-process-tree cleanup. Callers choose one
+compiler-defined phase and supply the absolute Git path frozen before package
+input. The legacy guarantee, canonical execution-observation, and
+filesystem/executable-confinement surfaces are implementation debt to delete.
 
 ## Structure
 
 ```text
 src/
 ├── lib.rs          public entrance and closed reexports
-├── model/          phases, native guarantees, and policy observations
+├── model/          transitional phase/policy carriers; retain only runtime needs
 ├── request.rs      validated executable and custody-path requests
 ├── backend/        host selection, request validation, and preparation
-├── prepared.rs     opaque command configuration and exact command identity
+├── prepared.rs     opaque structured command configuration
 ├── process/        limits, descriptor custody, lifecycle, and completion
-└── confinement/    optional native hardening
-    ├── macos/          optional Seatbelt policy for compatible closed commands
-    ├── linux.rs        Landlock and Unix resource-limit integration
-    └── windows/        Job Object launch, limits, and whole-job cleanup
+└── confinement/    migration area: delete attestation/filesystem policy;
+                    retain only honest limits and cleanup in their proper owner
 ```
 
-The dependency direction is deliberate. `model/` and `request.rs` define the
-closed vocabulary; `backend/` validates it and produces `prepared.rs` values;
-`process/` consumes those values; platform confinement only realizes and
-classifies compiler-owned policy. Package declarations never reach this crate.
+The dependency direction remains deliberate. Request construction feeds an
+opaque prepared command, and process execution consumes it. Package
+declarations never reach this crate. A preparation or completion value is an
+internal control-flow carrier, not canonical evidence and not source identity.
 
 ## Phase authority
 
-`RepositoryInitialization` and `RepositoryInspection` are local-only semantic
-phases: compiler-owned arguments request no transport and only initialization
-requests repository mutation. Native denial guarantees apply only when they do
-not change selected host executable behavior.
+`RepositoryInitialization` and `RepositoryInspection` are local-only phases:
+compiler-owned arguments request no transport and only initialization requests
+repository mutation. They receive no universal Seatbelt/Landlock executable or
+filesystem policy.
 
 `TransportDiscovery` and `Fetch` are host-routed phases. The selected system
 Git and its descendants use the invoking user's ordinary Git/SSH configuration,
@@ -46,9 +46,9 @@ performs a bare-name lookup from a package or repository working directory.
 The frozen primary coordinate does not close or attest the descendant helper
 graph selected by ordinary host Git configuration.
 
-This distinction prevents local object inspection from acquiring unnecessary
-authority without pretending that Omega can reproduce or safely broker the
-host's complete transport ecosystem.
+This distinction prevents package input from selecting the executable without
+pretending that Omega can reproduce or safely broker the host's complete
+transport ecosystem.
 
 ## Enforced boundary
 
@@ -58,27 +58,18 @@ ceilings. Standard streams are compiler-owned null handles or pipes; arbitrary
 caller-opened handles and implicit stream inheritance are not representable.
 Spawning consumes the prepared value.
 
-Successful completion is issued only after the primary process has been reaped
-and the backend has terminated or observed the absence of the owned process
-tree. Policy and completion observations bind the selected primary executable,
-phase, command identity, limits, native guarantee dispositions, exit status,
-and cleanup result. They report only controls that the backend actually
-established.
+Successful completion is returned only after the primary process has been
+reaped and the backend has terminated or observed the absence of the owned
+process tree. The caller may inspect the exit status and bounded output needed
+for ordinary control flow and diagnostics; those facts are not hashed into an
+execution receipt.
 
-Native hardening is defense in depth:
-
-- macOS applies compiler-authored Seatbelt policy to compatible closed
-  executable preparations. Operator-selected host Git may itself be a launcher
-  or select descendants, so its local-phase route preserves that host behavior
-  and truthfully records Seatbelt-specific guarantees as unavailable;
-- Linux applies resource limits and uses Landlock where its incomplete
-  filesystem mediation is useful and honestly classifiable; and
-- Windows launches through a kill-on-close Job Object with process, memory,
-  and CPU ceilings.
-
-Network phases deliberately do not use executable or write allowlists that
-would block host-selected Git helpers. Stronger host or CI isolation is an
-operator concern; Omega does not convert it into package evidence.
+Native mechanisms survive only when they directly implement an honest bound or
+lifecycle guarantee. Windows may use a kill-on-close Job Object with process,
+memory, and CPU ceilings; Unix may apply concrete resource limits. Seatbelt,
+Landlock filesystem mediation, executable/write allowlists, native-guarantee
+matrices, and canonical policy/completion observations are retired. Stronger
+host or CI isolation is an operator concern, not package evidence.
 
 The full source-resolution contract is maintained in
 [`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).

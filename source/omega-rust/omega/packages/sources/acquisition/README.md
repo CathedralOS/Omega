@@ -2,7 +2,7 @@
 
 This crate turns hostile local or Git input into an immutable, content-verified
 source tree. It owns source identity, bounded tree capture, snapshot
-publication, cache custody, and successful source receipts.
+publication, cache custody, and direct resolved-source custody.
 
 Start at `src/lib.rs`, then follow the source lifecycle:
 
@@ -21,20 +21,22 @@ src/
 ├── git/            Git transport adapter, object verification, and resolution
 │   ├── request.rs      validate transport, locator, revision, and endpoint
 │   ├── cache/          create, verify, repair, and invalidate retained stores
-│   ├── executable/     freeze operator-selected Git and check operation drift
-│   ├── commands/       construct and reconcile bounded Git commands
+│   ├── executable/     freeze operator-selected Git before package input
+│   ├── commands/       construct and run bounded Git commands
 │   ├── objects/        verify commit/tree/blob object graphs and identities
 │   │   └── batch/         bounded transfer, exact protocol, and request custody
 │   ├── resolution/     acquire, verify, materialize, and issue custody
 │   ├── snapshot.rs     Git-specific verified tree materialization
 │   └── workspace/      syntax-neutral workspace declaration exchange
-├── observations/   execution, accounting, retained-storage, and receipts
+├── observations/   transitional execution/accounting carriers to retire under D43
 ├── limits.rs       compiler-owned acquisition ceilings
 └── error.rs        fail-closed acquisition errors
 ```
 
-Native child-process confinement lives in the peer
-[`execution/`](../execution/README.md) crate.
+Native process lifecycle and concrete resource limits live in the peer
+[`execution/`](../execution/README.md) crate. D43 retires that crate's
+execution-attestation and filesystem/executable-confinement surface; no such
+row participates in source custody.
 Package declarations, graph reconciliation, review, and admission remain
 manager responsibilities. `SourceRelativePath` is lexical source navigation,
 not an authored workspace-member declaration.

@@ -215,81 +215,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
 
-## Q4 — Retire resolver execution custody that adds no source guarantee
-
-### Context
-
-The settled source-resolver boundary delegates Git, HTTPS, SSH, credentials,
-helpers, proxies, and same-user operating-system authority to the invoking
-host. Omega still owns the package-controlled boundary: bounded locators and
-commands, immutable commit/tree selection, object and path validation,
-compiler-owned snapshot materialization, drift rejection, process cleanup, and
-concrete resource ceilings.
-
-The implementation also retains an older execution-attestation layer. It
-hashes and repeatedly checkpoints the selected Git executable, constructs a
-closed matrix of native confinement “guarantees,” records every prepared
-command and completion under those rows, hashes the result into a
-`GitSourceReceipt`, and requires local Seatbelt/Landlock machinery even though
-networked Git deliberately uses ordinary host authority. No package admission,
-lock, compiler, or manager consumer relies on these rows. They cannot close a
-same-user check-to-exec race or attest Git, SSH, credentials, the operating
-system, or an audit.
-
-The command policy also permits only the locator's original HTTPS or SSH
-transport. Normal host `insteadOf` configuration that rewrites one admitted
-transport to the other therefore fails even though both transports are valid
-and host Git configuration is otherwise an operator input.
-
-### Problem statement
-
-Decide which execution controls are actually part of Omega's source guarantee,
-without preserving self-issued telemetry as security evidence or overriding
-ordinary host Git behavior. In particular:
-
-1. whether executable content hashes and metadata checkpoints survive after
-   one absolute Git path has been selected outside package-controlled roots;
-2. whether execution-policy observations, command-completion provenance, and
-   `GitSourceReceipt` have any admitting consumer or enforceable claim;
-3. whether local repository initialization/inspection should impose
-   Seatbelt/Landlock executable and filesystem policy on the operator's Git;
-   and
-4. whether host configuration may rewrite between the two admitted production
-   transports, HTTPS and SSH.
-
-### Proposed solution
-
-Delete executable hashing and drift checkpoints, the execution-guarantee
-matrix, canonical command/completion provenance, `GitSourceReceipt`, and
-Seatbelt/Landlock executable/filesystem confinement. Select one absolute Git
-path before package-controlled input, reject paths inside controlled roots,
-and use that exact path for the complete operation without a later bare-name
-lookup.
-
-Retain argument separation, noninteractive execution, protocol closure to
-HTTPS and SSH, redirect/hook/replacement/filter/submodule rejection, object
-fsck, bounded output and command count, deadlines, process-tree cleanup,
-portable resource ceilings, verified object traversal, immutable snapshot
-materialization, cache/source-size bounds, and ordinary concurrent-drift
-checks. Permit host configuration to rewrite between HTTPS and SSH while
-continuing to deny HTTP, `git://`, `file`, `ext`, and every unselected
-production protocol.
-
-### Alternates
-
-- Acceptable: retain local-phase OS confinement only if it protects a concrete
-  package-controlled mutation boundary without restricting operator-selected
-  Git wrappers or descendants, and describe it solely as optional defense in
-  depth rather than source evidence.
-- Acceptable: retain bounded operational diagnostics outside canonical source,
-  review, lock, or admission identity, provided their absence cannot reject an
-  otherwise valid resolution.
-- Tempting but wrong: keep self-hashed policy rows because they are detailed,
-  treat a Git binary hash as trust or continuous immutability, require an
-  unused sandbox executable to remain unchanged, or forbid an operator's
-  HTTPS-to-SSH rewrite while claiming host Git configuration is inherited.
-
-## Q5 — Keep carrier cleanup out of opaque semantic ownership
+## Q4 — Keep carrier cleanup out of opaque semantic ownership
 
 ### Context
 
@@ -339,7 +265,7 @@ resource-owning representation protocol.
   treat an ABI copy as semantic copying, or publish a D26 demand before the
   lifecycle join is complete.
 
-## Q6 — Define the closed terminal-authority classification policy
+## Q5 — Define the closed terminal-authority classification policy
 
 ### Context
 
@@ -402,7 +328,7 @@ missing leaves, and unclassified physical operations.
   unknown means harmless; or map every binding beneath a service to that
   service's permitted class set.
 
-## Q7 — Fix the zero-parameter Delta state-transfer spelling
+## Q6 — Fix the zero-parameter Delta state-transfer spelling
 
 ### Context
 
@@ -438,7 +364,7 @@ before arity rather than letting zero arity select a meaning.
   declaration has matching arity, or let source order choose state versus
   machine.
 
-## Q8 — Assign invalid Delta `self` diagnostics
+## Q7 — Assign invalid Delta `self` diagnostics
 
 ### Context
 
@@ -472,7 +398,7 @@ place; receiver mutability is therefore not guessed from use.
 - Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
   recovery receiver, or defer the failure until a later field/call suffix.
 
-## Q9 — Anchor a resultless Delta call used as an argument
+## Q8 — Anchor a resultless Delta call used as an argument
 
 ### Context
 
@@ -517,7 +443,7 @@ value-use expression rather than moving the anchor to the callee.
   failed, choose an anchor by traversal order, or manufacture a value/error
   type for the resultless call.
 
-## Q10 — Total Delta block exits and machine continuations
+## Q9 — Total Delta block exits and machine continuations
 
 ### Context
 
@@ -586,7 +512,7 @@ obligation; it does not manufacture a return value.
   reachable; infer termination from a bounded simulation; or call the missing
   diagnostic an implementation detail.
 
-## Q11 — Total Delta transition-pattern and coverage diagnostics
+## Q10 — Total Delta transition-pattern and coverage diagnostics
 
 ### Context
 

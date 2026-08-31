@@ -157,7 +157,7 @@ arity, complete argument typing, and value/resultless/`never` production for
 direct-qualified, unqualified, data-receiver, and sealed-boundary spellings.
 Exact catalog ownership gives `self` its nominal value and storage place only
 inside a receiver-bearing qualified data machine and all of that machine's
-states; invalid `self` remains factless pending Q8's rejection ruling.
+states; invalid `self` remains factless pending Q7's rejection ruling.
 Grouped named-receiver heads preserve exact data-machine or boundary-member
 custody before receiver-place and signature checks. Static machines are never
 inferred to have a receiver. Same-spelled record fields fall back to ordinary
@@ -192,7 +192,7 @@ authored continuation anchor, and state/local spelling reuse selects the state
 only in this exact control syntax. Constructors, bare machine selectors,
 static receiver spellings, and complete field/scalar values receive category
 failures before dependent checking; same-spelled authored fields remain fields
-without call syntax. Q7 leaves only a state-only bare spelling open, while Q10
+without call syntax. Q6 leaves only a state-only bare spelling open, while Q9
 separately owns machine-continuation exit effects and reachability.
 
 Each complete transition subject is retained once as scalar `i32` or one exact
@@ -205,7 +205,7 @@ its D24 binder locals; `u8` payloads therefore read as `i32` while retaining
 their storage type. Resolved-but-incomplete patterns retain no guessed
 category, arity, or duplicate candidate. Every continuation remains
 independently checked, and each sum transition retains complete, missing, or
-unresolved coverage. Q11 owns the total negative pattern/coverage premise DAG,
+unresolved coverage. Q10 owns the total negative pattern/coverage premise DAG,
 including duplicate and wildcard ordering and the missing-coverage coordinate.
 
 Named-record projection retains both the exact owner declaration and authored
@@ -238,7 +238,7 @@ argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
 an embedded `never` result is `InvalidTerminal`. Every authored argument keeps
 its explicitly anchored `never` branch independently of callee admission and
-arity; Q9 blocks the unspecified resultless-argument anchor. Let and `assert`
+arity; Q8 blocks the unspecified resultless-argument anchor. Let and `assert`
 relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into
@@ -248,7 +248,7 @@ returns. Explicit absence/value relations use D37's exact anchors and category
 premises without resolving the expression twice. A source-shaped statement
 flow fact retains a successful standalone `never` result, diagnoses only the
 first following ordinary statement, and still visits every later authored
-child. Q10 blocks explicit terminals after that `never`, forbidden falloff,
+child. Q9 blocks explicit terminals after that `never`, forbidden falloff,
 and machine-continuation exit effects; remaining transition/control and
 terminal-flow candidates still require the rest of the D37 premise DAG. The
 fact pass now

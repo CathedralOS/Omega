@@ -169,7 +169,7 @@ stop the item on one precise owner question before adding machinery.
   General target layout now consumes the exact selected opaque-to-carrier
   application and derives by-value size/alignment from the carrier while
   references remain representation-free and a direct unselected by-value
-  demand rejects. Complete movement/finalization planning next; Q5 owns the
+  demand rejects. Complete movement/finalization planning next; Q4 owns the
   carrier-cleanup rule. Do not publish a partial demand row from
   calling-convention shape or size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
@@ -264,12 +264,30 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Source integration and fixtures
 
-- [ ] **RESOLVER-EXECUTION-CUSTODY.** Owner-blocked on **Retire resolver
-  execution custody that adds no source guarantee** in `OWNER_QUESTIONS.md`.
-  Do not extend executable hashing, self-issued execution guarantees/receipts,
-  native Git confinement, or per-locator transport locking while that boundary
-  is unsettled. Verified object/snapshot custody, process cleanup, and concrete
-  resource ceilings remain independent.
+- [ ] **D43-RESOLVER-EXECUTION-CUSTODY — delete ambient-executor
+  attestation.**
+  - remove executable content hashing and metadata drift checkpoints, the
+    native guarantee matrix, canonical command/completion provenance,
+    `GitSourceReceipt`, and their acquisition-only encoding/tests;
+  - remove Seatbelt/Landlock executable and filesystem confinement from the
+    universal and local Git phases; retain platform code only where it directly
+    enforces an honest resource ceiling or whole-process-tree cleanup;
+  - preserve one absolute Git path selected before package input, controlled-
+    root exclusion, exact-path reuse, argument separation, noninteractive
+    execution, protocol closure, source/object/path validation, and immutable
+    snapshot custody;
+  - admit host `insteadOf` routing between HTTPS and SSH while continuing to
+    reject HTTP, `git://`, `file`, `ext`, and every protocol outside the closed
+    production class;
+  - keep authored canonical lineage independent of effective routing: normalize
+    only adapter-proven namespaces and retain generic transport/user/host/port/
+    path distinctions;
+  - update locks/review callers to consume commit/tree/content/snapshot custody
+    directly, and keep any bounded process diagnostics outside canonical
+    identity and admission; and
+  - add controls proving package roots cannot select Git, late bare-name lookup
+    is impossible, HTTPS↔SSH host rewrites work, forbidden protocols still
+    reject, and executor telemetry no longer changes source identity.
 
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
   controls and negative cases on a native Windows worker and retain the results
@@ -291,7 +309,7 @@ explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
   - [x] carry the same application into general target layout;
-  - [ ] complete physical move/finalization planning, including the Q5 cleanup
+  - [ ] complete physical move/finalization planning, including the Q4 cleanup
     ruling and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
     consumer demand from retained compiler custody, rejoin foreign demand to
