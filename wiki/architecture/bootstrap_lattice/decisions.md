@@ -1942,6 +1942,42 @@ unknown intrinsic family members, every normalized import role including
 Mach-O, string-only rejection, and an exercised-not-permitted containment
 failure.
 
+## D46 — Same-process package review does not observe its executable pathname
+
+Package orchestration drives compiler review inside the same loaded `omega`
+process. Reading the bytes reachable through `current_exe()` before and after
+that review observes only the current pathname target. Replacing that file
+cannot change the image already executing the bracketed review, so equality or
+drift establishes no property of that operation. Internal reconstruction of
+compiler-issued rows remains a canonical and semantic consistency check; it is
+not a process-isolation boundary or executable attestation.
+
+No compiler-executable path-byte commitment enters package-review envelopes or
+rows, closure commitments, comparison, conflicts, locks, admission, or source
+rendering. Mixed executable digests never reject. The unconsumed
+`omega-build-provenance` carrier is retired, and no evidence-format migration
+is required because the commitment never entered the encoded review schema.
+
+Cross-invocation compatibility uses the exact subject's obligation-semantics
+and evidence-schema identities plus the versioned package-review and row
+encodings. A meaning-changing revision changes its semantic identity; an
+encoding change changes the corresponding encoding version. Executable byte
+identity is an overstrict proxy for those explicit contracts and cannot replace
+them.
+
+No executable digest is retained merely because a future cache might exist. A
+concrete cache must first state whether it partitions exact implementation
+artifacts or reuses semantically compatible results, then key that claim on the
+appropriate artifact or semantic/build/schema identity. Cache absence or miss
+never changes package validity.
+
+This ruling is scoped to a same-process producer pathname. Exact bytes remain
+load-bearing when the artifact itself is the proof subject, as on bootstrap
+edges, and an explicitly selected sealed compiler artifact may remain a
+deployment or reproduction subject. Real process/image attestation is separate
+deployment evidence until a concrete Omega claim and independent verifier
+consume it.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

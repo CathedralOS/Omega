@@ -72,10 +72,10 @@ stop the item on one precise owner question before adding machinery.
   language change may add a task only with its own semantic owner and concrete
   customer.
 
-  Do not add a producer-executable path-byte commitment to review rows,
-  closure commitments, conflicts, or admission while **Retire
-  compiler-executable path-byte commitments that cannot identify execution**
-  remains open in `OWNER_QUESTIONS.md`.
+  D46 forbids producer-executable path-byte commitments in review rows,
+  closure commitments, conflicts, locks, or admission. Same-process review
+  compatibility uses the explicit semantic and evidence-encoding identities;
+  it never substitutes the bytes readable through `current_exe()`.
 
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Extend the closed exact replay lanes for
   candidates that require receipted builds. The implemented grammar, versions,

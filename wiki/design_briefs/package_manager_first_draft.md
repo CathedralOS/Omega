@@ -448,9 +448,10 @@ selected root's explicit package/application role, `PackageInstance`, dependency
 closure, per-subject obligation-semantics and
 evidence-schema identity, exact certificate provenance, normalized capability
 baseline, transitive open obligations, build observations, and policy-resolution
-references. Compiler and toolchain identifiers remain separately labeled
-review metadata that supports reproduction and cache partitioning; they do not
-authorize truth or prove that anyone audited it.
+references. Cross-invocation compatibility is governed by those semantic
+identities and the explicit review and row encoding versions. The bytes
+readable through the running process's executable pathname are not review,
+lock, conflict, or admission identity.
 
 The lock contains independently populated closure/review sections for exact
 target-profile identities. The projected request map is complete for each
@@ -524,15 +525,28 @@ the normalized public contract changed. Resolver custody retains immutable
 source resolutions independently and verifies both whole snapshots and the
 compiler-retained bytes around compilation.
 
-The envelope also retains a separate compiler-executable commitment. Package
-orchestration derives it from the bytes readable at the current producer's
-executable path before reviewing the closure, derives it again after review,
-and rejects a changed observation. Every review row from that operation carries
-the same verified commitment. It is provenance, not capability/API comparison
-material, and it neither certifies the compiler, identifies the compiler's
-source closure, nor proves that the observed file is exactly the process image
-already loaded by the operating system. Complete compiler/toolchain source and
-rebuild provenance remain admission work.
+Ratified by D46: package orchestration and compiler review run in one `omega`
+process. Rereading the bytes at `current_exe()` before and after review observes
+a pathname target that cannot alter the image already loaded for that review.
+No compiler-executable path-byte commitment enters the envelope, its rows,
+comparison, conflicts, locks, or admission. Internal reconstruction validates
+canonical and semantic joins; it is not process isolation or executable
+attestation.
+
+Reviews produced by different invocations use the explicit obligation-
+semantics, evidence-schema, review-encoding, and row-encoding identities for
+compatibility. A meaning-changing revision changes its semantic identity; a
+pure encoding change changes the corresponding encoding version. Executable
+byte equality is neither required nor substituted as a proxy. No executable
+digest is retained speculatively for caching. A future cache must first define
+whether it keys exact implementation artifacts or semantically reusable
+results and then use an identity that states that claim.
+
+This does not forbid exact artifact custody. When a compiler or tape is itself
+the subject of a bootstrap, reproduction, or deployment proof, that subject's
+bytes are bound exactly. That is distinct from observing the pathname of a
+same-process producer. Real process/image attestation likewise remains
+separate deployment evidence until a concrete claim and verifier consume it.
 
 Ratified 2026-08-26: implementation should consume the earliest coherent
 compiler-owned representation in which each required fact is semantically
@@ -712,12 +726,15 @@ domain path retains its semantic spelling separately from the authored span
 that supplies package provenance. Transparent aliases recursively flatten to
 sorted, deduplicated package-qualified atomic domains. Authored toolchain
 nominals bind a canonical toolchain-relative source path plus exact source-byte
-commitment in review evidence; this records semantic origin without making
-producer pedigree authoritative. Compiler carry aliases expand to closed
+commitment in review evidence; this records semantic origin without treating
+the running executable pathname as review identity. Compiler carry aliases
+expand to closed
 `CarryPermission` atoms in a distinct tagged lane, not fabricated nominal
 declarations. Only compiler-reserved unresolved constituents enter that lane;
 a valid package declaration remains package-owned regardless of a resembling
-diagnostic path. Whole compiler/toolchain commitment remains separate.
+diagnostic path. Exact compiler/toolchain artifact custody remains separate
+and applies only when that artifact is itself a bootstrap or deployment
+subject.
 Predicate-body presence and the currently representable
 structural expression/membership facts retain the domain carrier, package-qualified
 members/domains, and canonical fact ordering. Each fact joins its exact typed
@@ -2131,9 +2148,10 @@ commitment. Provider/configuration and CLI wiring remain. The implemented join
 requires a
 bijection between the complete candidate closure and compiler rows by exact key
 and immutable resolution. Its shared validator also rejects duplicate reviews,
-package/projection identity mismatch, mixed deployment targets, and mixed
-compiler-executable commitments before either capability comparison or source
-rendering. It validates every recovered baseline custody against its row and
+package/projection identity mismatch, mixed deployment targets, and
+incompatible obligation-semantics, evidence-schema, review-encoding, or row-
+encoding identities before either capability comparison or source rendering.
+It validates every recovered baseline custody against its row and
 derives unavailable-old-source state from absence. Initial and newly transitive
 source packets follow compiler-recommended audit policy; changed or unavailable
 existing update sources receive an exact diff or standalone candidate packet.
@@ -2304,15 +2322,16 @@ explicit mechanically checked proposition, but not that the surrounding source
 was understood, that an LLM resisted manipulation, or that an upgrade is safe.
 
 The people and infrastructure allowed to land accepted project state remain an
-outer trust boundary, but the selected local compiler is an untrusted producer
-for package soundness. Package review is regenerated locally so a dependency
-cannot declare its own capability result; package acceptance independently
-reconstructs the question and checks the certificates. Obligation-semantics,
-schema, source, artifact, and target identities define or scope that check.
-Compiler, toolchain, and execution observations remain in review metadata for
-replay, cache correctness, and reproducibility—not as proof that the producer
-or review process was honest. A compiler change may require regeneration, but
-hashing the compiler does not confer authority on it.
+outer trust boundary. Package review is regenerated locally so a dependency
+cannot declare its own capability result; package acceptance reconstructs the
+question and checks the certificates. In the current pipeline the package
+manager drives that compiler review inside the same `omega` process, so this is
+an internal canonical and semantic consistency check, not isolation from the
+compiler executable. Obligation-semantics, evidence-schema, review-encoding,
+row-encoding, source, artifact, and target identities define or scope the
+check. D46 excludes the bytes readable through `current_exe()` from review and
+cache identity. Exact compiler artifact custody remains separate when that
+artifact is itself a bootstrap, reproduction, or deployment subject.
 
 Omega's responsibility is to produce deterministic, bounded review facts,
 recommend an audit for dangerous retained authority, stop on unresolved policy

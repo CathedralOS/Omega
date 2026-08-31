@@ -279,7 +279,8 @@ decision. Only true language-semantic questions belong in
   rejects every nonempty boundary `requirement_obligations` roster as
   `BoundaryStructuralRequirementsMintObligations`, so an optimizer carrier
   cannot honestly add the requested nonempty mutation canary. See
-  `OWNER_QUESTIONS.md` Q11; do not manufacture proof meaning while it is open.
+  **Decide whether boundary qualifications mint proof obligations** in
+  `OWNER_QUESTIONS.md`; do not manufacture proof meaning while it is open.
 - [x] Add fixed-view-copy v5 as a versioned envelope and structural selected
   subtree. Public encoding emits v5; decoding accepts v4/v5; v4 bytes and
   rejection order remain pinned. V5 authenticates the exact selected-plan

@@ -486,62 +486,7 @@ relation.
   reason without a version ruling, or choose whichever failure traversal
   encounters first.
 
-## Q9 — Retire compiler-executable path-byte commitments that cannot identify execution
-
-### Context
-
-The package design briefs currently require orchestration to hash the bytes
-readable at the selected compiler executable path before and after closure
-review, reject if those observations differ, copy one commitment onto every
-review row, and reject mixed commitments before comparison or source rendering.
-The text also concedes that this does not identify the process image already
-loaded by the operating system, certify the compiler, identify its source
-closure, or establish a reproducible build.
-
-The corrected implementation has not added this field. Compiler-issued review
-instead retains the exact package/source-consumption question, semantic and
-evidence-schema identity, checked obligations, build replay evidence, and
-canonical review rows. Acceptance is intended to reconstruct those claims
-locally; the selected compiler remains an untrusted producer for package
-soundness.
-
-### Problem statement
-
-Decide whether executable-path byte observations belong in any authoritative
-package-review, conflict, closure, or admission identity. The observation can
-prove only that two reads of one pathname returned equal bytes. It cannot bind
-those bytes to the running process, loaded libraries, interpreter, helpers,
-operating system, or source/rebuild pedigree. Making it blocking therefore
-adds regeneration and availability coupling while shifting trust to a value
-that establishes none of the package claims it accompanies.
-
-### Proposed solution
-
-Delete the compiler-executable path-byte commitment from authoritative review
-rows, closure commitments, comparison validation, conflicts, locks, and
-admission requirements. Bind admission to the exact source/artifact question,
-obligation semantics, evidence schema, locally reconstructed results, and
-explicit open assumptions instead.
-
-If a concrete cache or incident-response consumer needs the observed file
-digest, retain it as non-blocking metadata outside package evidence. Its
-absence or change must not reject an otherwise valid review or imply any
-compiler trust. Deployment systems may separately measure or attest their
-toolchain under policies they actually control.
-
-### Alternates
-
-- Acceptable: retain the digest solely as an optional cache partition or
-  diagnostic field with no admission, comparison, or conflict effect.
-- Acceptable: a future deployment integration may supply real process/image
-  attestation, but that remains deployment evidence until one concrete Omega
-  claim and independent verifier consume it.
-- Tempting but wrong: thread the pathname digest through every row because it
-  is cheap, call equality provenance or replay safety, treat a changed digest
-  as evidence invalidation without a semantic/schema delta, or present host
-  executable observation as certification of compiler behavior.
-
-## Q10 — Decide whether boundary qualifications mint proof obligations
+## Q9 — Decide whether boundary qualifications mint proof obligations
 
 ### Context
 
@@ -596,7 +541,7 @@ unaffected.
   `Proposition::Truth`, accept nonempty rows without reconstructing a goal, or
   reuse ordinary scalar-call requirement logic for structural domains.
 
-## Q11 — Retire or explicitly source all-target matrix enumeration
+## Q10 — Retire or explicitly source all-target matrix enumeration
 
 ### Context
 
