@@ -50,6 +50,40 @@ no non-whitespace form may follow the one goal/proof pair.
 Artifact-bound callers use the binary frame below; legacy plain certificate
 input remains available for generic judgments.
 
+### Closed FloatMeaning correspondence
+
+D40's first rooted-checker slice adds one proof-only term and one proposition:
+
+```text
+(fm FORMAT OP DECL CATALOG SOURCE_KIND SOURCE_A SOURCE_B)
+(FloatMeaningEqual LEFT RIGHT)
+(fmrefl TERM)
+```
+
+The canonical Binary32 contract tuple is `(32, 1, 1, 1)` and the Binary64
+tuple is `(64, 2, 2, 1)`: format, projection operation, exact recognized core
+declaration, and numeric-catalog version. Any cross-format, lookalike
+declaration, or catalog substitution rejects before proof checking. Source
+kinds `0..4` identify a contract parameter, contract result, Terminal value,
+structural float leaf, or exact-bit literal. The two source words retain the
+owner/ordinal, value coordinate, root/leaf coordinate, or low/high literal
+bits respectively; a Terminal value has a canonical zero second word and a
+Binary32 literal has a canonical zero high word. All fields are unsigned
+32-bit values.
+
+The checker compares this complete tuple structurally. Equal independently
+encoded tuples therefore have one semantic identity; a source coordinate,
+signed-zero bit, or any other field mutation does not coalesce and requires an
+explicit checked theorem. `fmrefl` proves reflexivity, including projected NaN.
+Ordinary `=`, `Pred`, and `Rel` reject the term, preserving separation from
+runtime IEEE equality and preventing the proof carrier from entering generic
+runtime-shaped data. The term is closed, so quantifier shifting and
+substitution preserve its identity without copying or rewriting it.
+
+The checker does not decide that a source coordinate belongs to a Terminal
+artifact. The artifact-aware owner must reconstruct this exact key from the
+canonical subject, just as it reconstructs every other kernel proposition.
+
 ```text
 "OMGCHK1\n"
 u64le source_length | raw source bytes

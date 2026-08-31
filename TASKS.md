@@ -10450,6 +10450,21 @@ Remaining N6/N8 work:
   controls for NaN reflexivity, signed-zero distinction, IEEE-relation
   separation, lookalike declarations, cross-format/catalog substitution,
   arbitrary producer IDs, false coalescing, and proof erasure from runtime.
+  The rooted-checker milestone is complete: the canonical Alpha-written Beta
+  checker and its independent diagnostic comparator now parse, validate,
+  substitute, and compare one closed source/format/projection/exact-core-
+  declaration/catalog tuple through carrier-specific `FloatMeaningEqual` and
+  `fmrefl`. Equal independently encoded tuples share structural identity;
+  distinct source coordinates and exact bits require an explicit theorem.
+  Retained gates cover Binary32/Binary64 NaN reflexivity, signed-zero
+  distinction, source-coordinate mutation, explicit distinct-term premises,
+  lookalike declarations, cross-format/catalog substitution, generic-equality
+  and relation separation, canonical Terminal coordinates, and quantifier
+  substitution. The authoritative tape was rebuilt through the below-Beta
+  route and the complete independent diamond agrees. Still open are the
+  artifact-aware reconstruction bridge, the complete Terminal source carrier
+  and `ProofValueId` deduplication/provenance split, source contract-owner
+  retention, and production proof-ledger discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

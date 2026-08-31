@@ -21,7 +21,9 @@
 #        | (inl PROP p) | (inr PROP p) | (case s l r) | (absurd PROP p)
 #        | (gen p) | (inst p t) | (wit PROP t p) | (unpack p handler)       -- first-order
 # Prop  := ATOM | (-> A B) | (& A B) | (+ A B) | (bot) | (All B) | (Exists B) | (Pred n t) | (Rel n t t)
-# Term  := z | (s t) | (v i)                                                -- (v i) is a de Bruijn Ivar
+#        | (FloatMeaningEqual fm fm)
+# Term  := z | (s t) | (v i) | (fm format operation declaration catalog source-kind source-a source-b)
+#                                                                              -- (v i) is a de Bruijn Ivar
 # infer(proof, ctx, idep) returns the proposition proved, or None (ill-typed -> reject). `ctx` is the list
 # of (prop, push_idep) pushed by enclosing `lam`s; `idep` is the individual-binder depth (All/Exists entered).
 # `(hyp i)` is de Bruijn (0 = innermost lam); its stored prop is lifted by (idep - push_idep) on lookup, so
@@ -150,6 +152,8 @@ def normalize(t, fuel=FUEL):
         if isinstance(a, list) and a[0] == 'cons':
             return ['s', normalize(['len', a[2]], fuel - 1)]
         return ['len', a]
+    if h == 'fm':                                      # closed PCC identity; never evaluated as a float
+        return t
     if h == 'k':                                       # constructor value: normalize its fields
         return ['k', t[1]] + [normalize(a, fuel - 1) for a in t[2:]]
     if h == 'f':                                        # user-function application (f fid scrut [extra])
@@ -200,6 +204,40 @@ def instantiate(t, fid, fields, extra):                # substitute a rule body 
 def conv(a, b):                                        # definitional equality of terms
     return normalize(a) == normalize(b)
 
+def float_meaning_key(t):
+    """Validate and return the canonical closed FloatMeaning correspondence key."""
+    if not isinstance(t, list) or len(t) != 8 or t[0] != 'fm':
+        return None
+    try:
+        fields = tuple(int(field) for field in t[1:])
+    except (TypeError, ValueError):
+        return None
+    fmt, operation, declaration, catalog, source_kind, source_a, source_b = fields
+    if not all(0 <= field <= 0xffff_ffff for field in fields):
+        return None
+    if catalog != 1 or source_kind not in range(5):
+        return None
+    if source_kind == 2 and source_b != 0:
+        return None
+    if fmt == 32:
+        if operation != 1 or declaration != 1:
+            return None
+        if source_kind == 4 and source_b != 0:
+            return None
+    elif fmt == 64:
+        if operation != 2 or declaration != 2:
+            return None
+    else:
+        return None
+    return fields
+
+def term_contains_float_meaning(t):
+    if not isinstance(t, list):
+        return False
+    if t and t[0] == 'fm':
+        return True
+    return any(term_contains_float_meaning(child) for child in t[1:])
+
 def prop_eq(p, q):                                     # proposition equality up to conversion (check.beta type_eq)
     if not isinstance(p, list) or not isinstance(q, list):
         return p == q                                  # bare atoms
@@ -209,11 +247,24 @@ def prop_eq(p, q):                                     # proposition equality up
     if h == 'bot':
         return True
     if h == '=':
+        if term_contains_float_meaning(p[1]) or term_contains_float_meaning(p[2]):
+            return False
         return conv(p[1], q[1]) and conv(p[2], q[2])
     if h == 'Pred':
+        if term_contains_float_meaning(p[2]):
+            return False
         return p[1] == q[1] and conv(p[2], q[2])
     if h == 'Rel':
+        if term_contains_float_meaning(p[2]) or term_contains_float_meaning(p[3]):
+            return False
         return p[1] == q[1] and conv(p[2], q[2]) and conv(p[3], q[3])
+    if h == 'FloatMeaningEqual':
+        left = float_meaning_key(p[1])
+        right = float_meaning_key(p[2])
+        other_left = float_meaning_key(q[1])
+        other_right = float_meaning_key(q[2])
+        return (left is not None and right is not None and left[0] == right[0]
+                and left == other_left and right == other_right)
     if h in ('All', 'Exists'):
         return prop_eq(p[1], q[1])
     if h in ('->', '&', '+'):
@@ -248,6 +299,8 @@ def shift_prop(p, d, cut):
         return ['Pred', p[1], shift_term(p[2], d, cut)]
     if h == 'Rel':
         return ['Rel', p[1], shift_term(p[2], d, cut), shift_term(p[3], d, cut)]
+    if h == 'FloatMeaningEqual':
+        return p
     if h in ('All', 'Exists'):
         return [h, shift_prop(p[1], d, cut + 1)]
     return [h, shift_prop(p[1], d, cut), shift_prop(p[2], d, cut)]   # -> & +
@@ -281,6 +334,8 @@ def subst_prop(p, s, depth):
         return ['Pred', p[1], subst_term(p[2], s, depth)]
     if h == 'Rel':
         return ['Rel', p[1], subst_term(p[2], s, depth), subst_term(p[3], s, depth)]
+    if h == 'FloatMeaningEqual':
+        return p
     if h in ('All', 'Exists'):
         return [h, subst_prop(p[1], shift_term(s, 1, 0), depth + 1)]   # lift s across the binder
     return [h, subst_prop(p[1], s, depth), subst_prop(p[2], s, depth)]
@@ -311,6 +366,8 @@ def subst_prop_keep(p, s, depth):                      # for induction's P(s n):
         return ['Pred', p[1], subst_term_keep(p[2], s, depth)]
     if h == 'Rel':
         return ['Rel', p[1], subst_term_keep(p[2], s, depth), subst_term_keep(p[3], s, depth)]
+    if h == 'FloatMeaningEqual':
+        return p
     if h in ('All', 'Exists'):
         return [h, subst_prop_keep(p[1], shift_term(s, 1, 0), depth + 1)]
     return [h, subst_prop_keep(p[1], s, depth), subst_prop_keep(p[2], s, depth)]
@@ -342,6 +399,8 @@ def mentions_ivar(p, k):                               # does Ivar k occur free 
         return term_has(p[2], k)
     if h == 'Rel':
         return term_has(p[2], k) or term_has(p[3], k)
+    if h == 'FloatMeaningEqual':
+        return False
     if h in ('All', 'Exists'):
         return mentions_ivar(p[1], k + 1)
     if h == '=':                                       # an equation: its children are TERMS, not props
@@ -406,7 +465,12 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         p = infer(pf[2], ctx, idep)                    # (absurd C p): p:bot -> C
         return pf[1] if p == ['bot'] else None
     if h == 'refl':
+        if term_contains_float_meaning(pf[1]):
+            return None                                # FloatMeaning has its carrier-specific equality only
         return ['=', pf[1], pf[1]]                      # (refl t) : (= t t)  — conversion does the rest
+    if h == 'fmrefl':
+        key = float_meaning_key(pf[1])
+        return ['FloatMeaningEqual', pf[1], pf[1]] if key is not None else None
     if h == 'gen':                                     # (gen p): forall-intro over a fresh individual
         t = infer(pf[1], ctx, idep + 1)
         return None if t is None else ['All', t]
