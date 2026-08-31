@@ -48,8 +48,10 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/control_flow_cleanup/empty_block_threading.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/accounting.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/identity_rewrite.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate.rs",
         "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
@@ -67,6 +69,10 @@ pub(crate) fn check(audit: &mut Audit) {
         (
             "SCCP range comparisons",
             "sparse_conditional_constant_propagation/range_comparisons/",
+        ),
+        (
+            "SCCP constant evaluation",
+            "sparse_conditional_constant_propagation/constant_evaluation/",
         ),
     ] {
         let family_root = format!("{psi_pass_root}{relative_root}");

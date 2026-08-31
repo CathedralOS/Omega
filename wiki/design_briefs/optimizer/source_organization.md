@@ -148,6 +148,16 @@ construction, proposal traversal, and interval evaluation are shared within
 the matching evidence family. The architecture guard pins every exact proposal
 join and rejects restoration of the former mixed producer or flat test path.
 
+Boolean-result SCCP constant evaluation uses the same rule-first route.
+`constant_evaluation/boolean/` is a group map over five exact executable rule
+entrances; each entrance owns its canonical contract and chooses one member of
+the closed Boolean-evaluation kind model. Typed operation/fact evaluation and
+candidate assembly are distinct shared leaves. Tests mirror Boolean versus
+integer result families and separately pin the Boolean rules' positions in the
+sole 39-row pass roster. The guard rejects restoration of the mixed producer,
+the flat test leaf, or inherited parent-glob dependencies anywhere below
+constant evaluation.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.

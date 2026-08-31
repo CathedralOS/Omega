@@ -1,4 +1,4 @@
-//! Literal constant-evaluation rule tests.
+//! Integer-result constant-evaluation rule tests.
 
 use super::*;
 
@@ -134,12 +134,10 @@ fn proof_bearing_division_folds_only_when_the_declared_operation_is_defined() {
 
     let zero = exact_divide_unit(true);
     let constants = compute_analysis(&zero, AnalysisKind::ScalarConstants).unwrap();
-    assert!(
-        ExactIntegerDivideConstantsRule
-            .propose(&zero, RuleAnalysisView::new(&[constants]))
-            .unwrap()
-            .is_empty()
-    );
+    assert!(ExactIntegerDivideConstantsRule
+        .propose(&zero, RuleAnalysisView::new(&[constants]))
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -205,12 +203,10 @@ fn exact_and_wrapping_shift_rules_use_psi_integer_semantics() {
 fn exact_shift_left_declines_an_overflowing_constant_evaluation() {
     let unit = shift_unit(ShiftFixtureKind::ExactLeft, 250, 2);
     let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-    assert!(
-        ExactIntegerShiftLeftConstantsRule
-            .propose(&unit, RuleAnalysisView::new(&[constants]))
-            .unwrap()
-            .is_empty()
-    );
+    assert!(ExactIntegerShiftLeftConstantsRule
+        .propose(&unit, RuleAnalysisView::new(&[constants]))
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -279,12 +275,10 @@ fn exact_cast_rule_uses_unary_evidence_and_target_integer_semantics() {
 fn exact_cast_rule_declines_a_constant_outside_the_target_domain() {
     let unit = exact_cast_unit(300);
     let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-    assert!(
-        ExactIntegerCastConstantsRule
-            .propose(&unit, RuleAnalysisView::new(&[constants]))
-            .unwrap()
-            .is_empty()
-    );
+    assert!(ExactIntegerCastConstantsRule
+        .propose(&unit, RuleAnalysisView::new(&[constants]))
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -316,65 +310,6 @@ fn widen_and_bitwise_not_rules_reuse_typed_unary_evidence() {
                 value: IntegerValue::Unsigned(value),
                 ..
             } if value == expected && scalar_type.bits() == expected_bits
-        ));
-    }
-}
-
-#[test]
-fn boolean_not_and_equal_use_typed_boolean_patches() {
-    let cases: [(bool, &dyn PsiOptimizationRule); 2] = [
-        (false, &BooleanNotConstantsRule),
-        (true, &BooleanEqualConstantsRule),
-    ];
-    for (equal, rule) in cases {
-        let unit = boolean_unit(equal);
-        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-        let candidates = rule
-            .propose(&unit, RuleAnalysisView::new(&[constants]))
-            .unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert!(matches!(
-            candidates[0].patch(),
-            omega_optimization_unit::PsiRewritePatch::ReplaceBooleanOperationWithConstant(_)
-        ));
-        let accepted = validate_boolean_evaluation_candidate(&unit, &candidates[0]).unwrap();
-        assert!(matches!(
-            accepted.unit().functions[0].blocks[0].nodes[2].operation,
-            AbstractOperation::BooleanConstant { value: false, .. }
-        ));
-    }
-}
-
-#[test]
-fn integer_comparison_rules_reconstruct_operand_types_and_boolean_results() {
-    let cases: [(ComparisonFixtureKind, &dyn PsiOptimizationRule, bool); 3] = [
-        (
-            ComparisonFixtureKind::Equal,
-            &IntegerEqualConstantsRule,
-            false,
-        ),
-        (
-            ComparisonFixtureKind::LessThan,
-            &IntegerLessThanConstantsRule,
-            true,
-        ),
-        (
-            ComparisonFixtureKind::LessOrEqual,
-            &IntegerLessOrEqualConstantsRule,
-            true,
-        ),
-    ];
-    for (kind, rule, expected) in cases {
-        let unit = integer_comparison_unit(kind);
-        let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-        let candidates = rule
-            .propose(&unit, RuleAnalysisView::new(&[constants]))
-            .unwrap();
-        assert_eq!(candidates.len(), 1);
-        let accepted = validate_boolean_evaluation_candidate(&unit, &candidates[0]).unwrap();
-        assert!(matches!(
-            accepted.unit().functions[0].blocks[0].nodes[2].operation,
-            AbstractOperation::BooleanConstant { value, .. } if value == expected
         ));
     }
 }

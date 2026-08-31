@@ -11,7 +11,7 @@ use psi_core::{MachineId, OperationId};
 use crate::rules::passes::support::accepted_obligation_fact;
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-use super::super::integer_evaluation_contract;
+use super::super::constant_evaluation_contract;
 use super::integer_constant;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -19,7 +19,7 @@ pub struct ExactIntegerCastConstantsRule;
 
 impl ExactIntegerCastConstantsRule {
     pub fn contract() -> OptimizationRuleContract {
-        integer_evaluation_contract(
+        constant_evaluation_contract(
             b"omega.psi-rule.exact-integer-cast-constants.v1",
             OptimizationSafetyClass::ProofCertified,
         )

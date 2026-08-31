@@ -33,6 +33,15 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "SCCP Boolean-result constant-evaluation rules",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/evaluation.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean/proposal.rs",
+        ],
+    },
+    SemanticLadder {
         family: "SCCP range-against-constant rules",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/mod.rs",

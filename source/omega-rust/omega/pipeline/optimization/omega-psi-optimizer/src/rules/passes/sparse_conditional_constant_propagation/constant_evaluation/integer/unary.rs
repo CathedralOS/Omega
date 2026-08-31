@@ -7,7 +7,7 @@ use omega_optimization_unit::{
 
 use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-use super::super::integer_evaluation_contract;
+use super::super::constant_evaluation_contract;
 use super::integer_constant;
 
 macro_rules! integer_unary_rule {
@@ -17,7 +17,7 @@ macro_rules! integer_unary_rule {
 
         impl $name {
             pub fn contract() -> OptimizationRuleContract {
-                integer_evaluation_contract(
+                constant_evaluation_contract(
                     $rule_name,
                     OptimizationSafetyClass::ExactOperationSemantics,
                 )
