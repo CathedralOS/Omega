@@ -149,9 +149,12 @@ that value enters the binary frame; borrow/reference and other contextual
 unary forms remain incomplete. Postfix indexing may start from a retained path
 in any framed-value consumer or continue a completed literal, call, cast, or
 indexed value. Repeated brackets retain a left-to-right expression chain; each
-bracket independently reuses the canonical index/range representation. An
-index operand that itself contains indexing remains incomplete until the parser
-owns a bounded nested-index context stack.
+bracket independently reuses the canonical index/range representation. Index
+operands may themselves contain that same postfix form. A 128-frame context
+stack suspends every live outer bracket coordinate while the inner indexed
+expression is retained, then rejoins the completed inner handle as the outer
+operand. This covers nested range starts and ends without copying syntax rows;
+adjacent depth fails as the existing private `ExpressionDepth` resource.
 Shallow struct literals
 accept an exact one-member record or two-member case type path and a comma-
 separated named field list with an optional trailing comma. Canonical adjacent
@@ -200,9 +203,7 @@ the value and target-type handles, exact cast span, and an optional single-name
 `in Domain` suffix. Ordinary assignment, local, and call-argument casts may
 also wrap a completed grouped primary and then continue through the shared
 binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
-expressions, nested indexing inside an index operand, and other richer
-initializers remain
-implementation-incomplete.
+expressions, and other richer initializers remain implementation-incomplete.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,
@@ -303,7 +304,7 @@ indexed-expression/
 argument/transition-pattern-field/static-machine-
 argument/struct-literal/struct-field rows,
 plus 128 scratch type-array frames and 128 expression values, binary operators,
-unary prefixes, and group boundaries.
+unary prefixes, group boundaries, and nested-index contexts.
 Only rows below their corresponding count may be inspected after `Complete`;
 every other status may leave unowned partial prefixes and authorizes no
 syntax-tree consumer. A repeated invocation invalidates old rows by resetting

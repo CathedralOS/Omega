@@ -618,6 +618,28 @@ data OmegaExpressionConsumer {
     case TransitionPatternFieldValue;
 }
 
+// Nested index operands suspend one in-progress outer bracket while the same
+// postfix builder retains the inner indexed expression. The frame owns every
+// outer-builder coordinate that the inner bracket may overwrite; expression
+// result and scan custody stay live outside the frame so the completed inner
+// expression can become the outer index operand without copying syntax rows.
+data OmegaIndexedExpressionFrame {
+    base_expression: i32;
+    index_expression: i32;
+    result_consumer: OmegaExpressionConsumer;
+    start: i32;
+    is_value: i32;
+    index_is_range_start: i32;
+    range_has_start: i32;
+    range_start_expression: i32;
+    range_has_end: i32;
+    range_end_expression: i32;
+    range_end_inclusive: i32;
+    range_parsing_end: i32;
+    range_operator_start: i32;
+    range_operator_end: i32;
+}
+
 data OmegaStructLiteralFieldSyntax {
     name: OmegaRelativeSpan;
     value: i32;
@@ -845,6 +867,7 @@ data OmegaParser {
     expression_group_operator_bases: [i32; 128];
     expression_group_prefix_bases: [i32; 128];
     expression_group_starts: [i32; 128];
+    indexed_expression_frames: [OmegaIndexedExpressionFrame; 128];
     root_count: i32;
     member_count: i32;
     use_count: i32;
@@ -1042,6 +1065,7 @@ data OmegaParser {
     expression_frame_operator_count: i32;
     expression_group_count: i32;
     expression_prefix_count: i32;
+    indexed_expression_frame_count: i32;
     expression_pending_operator: OmegaBinaryOperatorKind;
     expression_pending_precedence: i32;
     expression_pending_operator_start: i32;
@@ -3409,6 +3433,7 @@ machine OmegaParser::parse_view(
     self.expression_frame_operator_count = 0;
     self.expression_group_count = 0;
     self.expression_prefix_count = 0;
+    self.indexed_expression_frame_count = 0;
     self.expression_pending_operator = OmegaBinaryOperatorKind::Add;
     self.expression_pending_precedence = 0;
     self.expression_pending_operator_start = 0;
@@ -7932,7 +7957,63 @@ machine OmegaParser::parse_view(
     }
 
     state resume_indexed_value() {
+        transition self.indexed_expression_frame_count {
+            0 -> resume_outermost_indexed_value()
+            _ -> resume_nested_indexed_value()
+        }
+    }
+
+    state resume_outermost_indexed_value() {
         self.expression_consumer = self.indexed_result_consumer;
+        transition true { true -> scan_semantic(54) }
+    }
+
+    state resume_nested_indexed_value() {
+        self.indexed_expression_frame_count =
+            self.indexed_expression_frame_count - 1;
+        self.indexed_base_expression = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].base_expression;
+        self.indexed_index_expression = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].index_expression;
+        self.indexed_result_consumer = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].result_consumer;
+        self.indexed_start = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].start;
+        self.indexed_is_value = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].is_value;
+        self.indexed_index_is_range_start = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].index_is_range_start;
+        self.indexed_range_has_start = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_has_start;
+        self.indexed_range_start_expression = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_start_expression;
+        self.indexed_range_has_end = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_has_end;
+        self.indexed_range_end_expression = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_end_expression;
+        self.indexed_range_end_inclusive = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_end_inclusive;
+        self.indexed_range_parsing_end = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_parsing_end;
+        self.indexed_range_operator_start = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_operator_start;
+        self.indexed_range_operator_end = self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_operator_end;
+        self.expression_consumer = OmegaExpressionConsumer::IndexedIndex;
         transition true { true -> scan_semantic(54) }
     }
 
@@ -8444,7 +8525,71 @@ machine OmegaParser::parse_view(
                 retain_path_indexed_base()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 retain_path_indexed_base()
+            OmegaExpressionConsumer::IndexedIndex ->
+                push_indexed_expression_frame(0)
             _ -> incomplete_root()
+        }
+    }
+
+    state push_indexed_expression_frame(continuation: i32) {
+        transition self.indexed_expression_frame_count < 128 {
+            true -> push_indexed_expression_frame_bounded(continuation)
+            _ -> resource_failure(
+                OmegaParserResource::ExpressionDepth,
+                128,
+                self.indexed_expression_frame_count + 1
+            )
+        }
+    }
+
+    state push_indexed_expression_frame_bounded(continuation: i32) {
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].base_expression = self.indexed_base_expression;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].index_expression = self.indexed_index_expression;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].result_consumer = self.indexed_result_consumer;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].start = self.indexed_start;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].is_value = self.indexed_is_value;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].index_is_range_start = self.indexed_index_is_range_start;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_has_start = self.indexed_range_has_start;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_start_expression = self.indexed_range_start_expression;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_has_end = self.indexed_range_has_end;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_end_expression = self.indexed_range_end_expression;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_end_inclusive = self.indexed_range_end_inclusive;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_parsing_end = self.indexed_range_parsing_end;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_operator_start = self.indexed_range_operator_start;
+        self.indexed_expression_frames[
+            self.indexed_expression_frame_count
+        ].range_operator_end = self.indexed_range_operator_end;
+        self.indexed_expression_frame_count =
+            self.indexed_expression_frame_count + 1;
+        transition continuation {
+            0 -> retain_path_indexed_base()
+            _ -> begin_completed_indexed_value()
         }
     }
 
@@ -9701,6 +9846,8 @@ machine OmegaParser::parse_view(
                 begin_completed_indexed_value()
             OmegaExpressionConsumer::TransitionTargetArgument ->
                 begin_completed_indexed_value()
+            OmegaExpressionConsumer::IndexedIndex ->
+                push_indexed_expression_frame(1)
             _ -> incomplete_root()
         }
     }

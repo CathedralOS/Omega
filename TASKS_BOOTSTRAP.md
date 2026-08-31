@@ -2330,6 +2330,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
       live outer builder. The current `C` census is unchanged; exact chain,
       precedence, assignment-place, capacity, reset, and no-partial-publication
       vectors remain assigned to the real Delta-compiler gate.
+    - [x] Add the bounded nested-index context stack required by that postfix
+      builder. Before an admitted path or completed primary begins an index
+      while already serving as an outer index operand, one 128-row frame saves
+      every outer base/consumer/range coordinate. Completing the inner bracket
+      restores that frame and rejoins the exact inner expression handle as the
+      outer index or range-bound operand, so `outer[inner[index]]`, deeper
+      nesting, and nested range starts/ends retain source-shaped postorder rows
+      without flattening or copying. Depth 128 is admitted; the adjacent push
+      is the existing private `ExpressionDepth` refusal, and invocation reset
+      invalidates every old frame by zeroing its count. This adds no syntax
+      variant, semantic rule, or resource identity. The current `C` census is
+      unchanged; exact nesting, range, depth, reset, and no-partial-publication
+      vectors remain assigned to the real Delta-compiler gate.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
