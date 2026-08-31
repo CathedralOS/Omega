@@ -39,7 +39,8 @@ compilers and must not both be called “the Delta compiler.”
   canonical Alpha tape, and refinement evidence. The retained source currently
   contains final compiler material through complete parsing, the D22/D24
   source-shaped identity census, D31 structural type formation, the source-
-  backed resolution catalog, and symbolic Alpha encoding. Remaining final
+  backed resolution catalog, ordered local-value resolution, and symbolic
+  Alpha encoding. Remaining final
   body/control checking, Q4 entry diagnostics, Q5 receiver/callable ambiguity,
   storage realization, lowering, `main`, and publication are incomplete, so it
   exposes no compiler artifact yet.

@@ -4,8 +4,9 @@
 ; parse the complete Delta surface and provide the final pure symbolic-Alpha
 ; encoder. The D22/D24 source-shaped semantic identity census and D31's
 ; complete profile-independent structural type formation are implemented. A
-; source-backed resolution catalog now begins the final checking phase; entry,
-; body/control checking and AST-to-Alpha lowering remain incomplete.
+; source-backed catalog and ordered local-value resolution now begin the final
+; checking phase; entry, remaining body/control checking, and AST-to-Alpha
+; lowering remain incomplete.
 ; This source intentionally exposes no `main` and emits no
 ; placeholder artifact until those intervening phases exist.
 
@@ -46,9 +47,9 @@
 ; D19's sealed DeltaCompilerV1 profile selects no boundary from these names.
 ; After main exists, the Gamma compiler resolves this source-owned nominal
 ; schema and checks the complete DeltaRejectReason-to-DCOUT-code bijection
-; before it may emit the application adapter.  D31's two storage-refusal cases
-; are the only authored path to outer Incomplete; the adapter validates their
-; selected limit, requested extent, and optional source coordinate.
+; before it may emit the application adapter. D31/D34's two storage-refusal
+; cases are the only authored path to outer Incomplete; the adapter validates
+; their selected limit, requested extent, and optional source coordinate.
 
 (data DeltaLexicalOutcome
   (LexicallyValid)
@@ -424,7 +425,7 @@
 ; rediscovering declaration ownership or assigning opaque numeric node ids.
 ; Each row retains one original top-level syntax value. Fields, cases, boundary
 ; members, and states stay inside that owner instead of becoming a second flat
-; tree. Q6 entry candidates and all body/control candidates remain later facts.
+; tree. Q4 entry candidates and all body/control candidates remain later facts.
 (data DeltaCatalogMachineOwner
   (DeltaCatalogUnqualifiedMachine)
   (DeltaCatalogDataMachineOwner DeltaDeclaration)
@@ -469,8 +470,8 @@
   (NoDeltaFinalReasons)
   (MoreDeltaFinalReasons DeltaRejectReason DeltaFinalReasonList))
 
-; Equal-coordinate final-phase reasons are retained as a bucket. Q6 must rule
-; their composition before this can select one public rejection.
+; Equal-coordinate final-phase reasons are retained as a bucket. Q4 and Q5
+; must rule their remaining cases before this can select one public rejection.
 (data DeltaFinalCandidate
   (NoDeltaFinalCandidate)
   (DeltaFinalCandidateAt Int DeltaFinalReasonList))
@@ -488,6 +489,50 @@
   (DeltaCatalogAccepted DeltaCatalogedProgram)
   (DeltaCatalogRejected DeltaRejectReason Int)
   (DeltaCatalogInternal Int))
+
+; Ordered body resolution keeps the exact source declaration behind every
+; bare local-value reference. A transition binder retains its complete pattern
+; because its eventual type comes from the resolved case payload position.
+(data DeltaLocalBinding
+  (DeltaMachineParameterLocal DeltaParameter)
+  (DeltaStateParameterLocal DeltaParameter)
+  (DeltaLetLocal DeltaName DeltaType DeltaStatement)
+  (DeltaTransitionBinderLocal DeltaPattern DeltaName))
+
+(data DeltaLocalBindingList
+  (NoDeltaLocalBindings)
+  (MoreDeltaLocalBindings DeltaLocalBinding DeltaLocalBindingList))
+
+(data DeltaLocalBindingLookup
+  (NoDeltaLocalBinding)
+  (OneDeltaLocalBinding DeltaLocalBinding))
+
+(data DeltaResolvedLocalReference
+  (DeltaResolvedLocalReferenceSyntax DeltaExpression DeltaLocalBinding))
+
+(data DeltaResolvedLocalReferenceList
+  (NoDeltaResolvedLocalReferences)
+  (MoreDeltaResolvedLocalReferences DeltaResolvedLocalReference DeltaResolvedLocalReferenceList))
+
+(data DeltaResolvedLocalReferenceLookup
+  (NoDeltaResolvedLocalReference)
+  (OneDeltaResolvedLocalReference DeltaLocalBinding))
+
+; The scan accumulates references in reverse traversal order and carries the
+; same neutral final-phase candidate bucket established by the catalog.
+(data DeltaLocalResolutionScan
+  (DeltaLocalResolutionScanSyntax DeltaResolvedLocalReferenceList DeltaFinalCandidate))
+
+(data DeltaLocalBlockScan
+  (DeltaLocalBlockScanSyntax DeltaLocalBindingList DeltaLocalBindingList DeltaLocalResolutionScan))
+
+(data DeltaLocallyResolvedProgram
+  (DeltaLocallyResolvedProgramSyntax DeltaCatalogedProgram DeltaResolvedLocalReferenceList DeltaFinalCandidate))
+
+(data DeltaLocalResolutionOutcome
+  (DeltaLocalResolutionAccepted DeltaLocallyResolvedProgram)
+  (DeltaLocalResolutionRejected DeltaRejectReason Int)
+  (DeltaLocalResolutionInternal Int))
 
 (data DeltaOwnerIdentity
   (NoDeltaOwnerIdentity)
@@ -4308,6 +4353,427 @@
       (DeltaCatalogInternal errorOffset))
     ((DeltaTypeFormationAccepted formed)
       (DeltaCatalogAccepted (delta_catalog_formed_program source formed)))))
+
+; ---- ordered local-value resolution --------------------------------------
+
+(def delta_local_binding_name ((bindingValue DeltaLocalBinding)) DeltaName
+  (match bindingValue
+    ((DeltaMachineParameterLocal parameterValue)
+      (match parameterValue
+        ((DeltaParameterSyntax start end name typeValue) name)))
+    ((DeltaStateParameterLocal parameterValue)
+      (match parameterValue
+        ((DeltaParameterSyntax start end name typeValue) name)))
+    ((DeltaLetLocal name typeValue statementValue) name)
+    ((DeltaTransitionBinderLocal patternValue name) name)))
+
+(def delta_local_find_binding ((source Bytes) (target DeltaName)
+  (bindings DeltaLocalBindingList)) DeltaLocalBindingLookup
+  (match bindings
+    (NoDeltaLocalBindings NoDeltaLocalBinding)
+    ((MoreDeltaLocalBindings item rest)
+      (if (delta_names_equal source target
+        (delta_local_binding_name item))
+        (OneDeltaLocalBinding item)
+        (delta_local_find_binding source target rest)))))
+
+(def delta_add_machine_parameter_bindings
+  ((parameters DeltaParameterList) (bindings DeltaLocalBindingList))
+  DeltaLocalBindingList
+  (match parameters
+    (NoDeltaParameters bindings)
+    ((MoreDeltaParameters item rest)
+      (delta_add_machine_parameter_bindings rest
+        (MoreDeltaLocalBindings
+          (DeltaMachineParameterLocal item) bindings)))))
+
+(def delta_add_state_parameter_bindings
+  ((parameters DeltaParameterList) (bindings DeltaLocalBindingList))
+  DeltaLocalBindingList
+  (match parameters
+    (NoDeltaParameters bindings)
+    ((MoreDeltaParameters item rest)
+      (delta_add_state_parameter_bindings rest
+        (MoreDeltaLocalBindings
+          (DeltaStateParameterLocal item) bindings)))))
+
+(def delta_add_transition_binder_names ((patternValue DeltaPattern)
+  (names DeltaNameList) (bindings DeltaLocalBindingList))
+  DeltaLocalBindingList
+  (match names
+    (NoDeltaNames bindings)
+    ((MoreDeltaNames item rest)
+      (delta_add_transition_binder_names patternValue rest
+        (MoreDeltaLocalBindings
+          (DeltaTransitionBinderLocal patternValue item) bindings)))))
+
+(def delta_add_transition_pattern_bindings ((patternValue DeltaPattern)
+  (bindings DeltaLocalBindingList)) DeltaLocalBindingList
+  (match patternValue
+    ((DeltaIntegerPattern start end literal) bindings)
+    ((DeltaTruePattern start end) bindings)
+    ((DeltaFalsePattern start end) bindings)
+    ((DeltaWildcardPattern start end) bindings)
+    ((DeltaCasePattern start end owner name binder)
+      (match binder
+        (NoDeltaBinder bindings)
+        ((SomeDeltaBinder binderStart binderEnd names)
+          (delta_add_transition_binder_names patternValue names bindings))))))
+
+(def delta_collect_pending_lets ((statements DeltaStatementList)
+  (pending DeltaLocalBindingList)) DeltaLocalBindingList
+  (match statements
+    (NoDeltaStatements pending)
+    ((MoreDeltaStatements item rest)
+      (match item
+        ((DeltaLetStatement start end name typeValue initializer)
+          (delta_collect_pending_lets rest
+            (MoreDeltaLocalBindings
+              (DeltaLetLocal name typeValue item) pending)))
+        ((DeltaAssignmentStatement start end placeValue assignedValue)
+          (delta_collect_pending_lets rest pending))
+        ((DeltaPostfixStatement start end expressionValue)
+          (delta_collect_pending_lets rest pending))
+        ((DeltaAssertStatement start end expressionValue)
+          (delta_collect_pending_lets rest pending))))))
+
+(def delta_remove_pending_binding ((source Bytes) (target DeltaName)
+  (pending DeltaLocalBindingList)) DeltaLocalBindingList
+  (match pending
+    (NoDeltaLocalBindings NoDeltaLocalBindings)
+    ((MoreDeltaLocalBindings item rest)
+      (if (delta_names_equal source target
+        (delta_local_binding_name item))
+        rest
+        (MoreDeltaLocalBindings item
+          (delta_remove_pending_binding source target rest))))))
+
+(def delta_reverse_resolved_local_references
+  ((input DeltaResolvedLocalReferenceList)
+   (output DeltaResolvedLocalReferenceList)) DeltaResolvedLocalReferenceList
+  (match input
+    (NoDeltaResolvedLocalReferences output)
+    ((MoreDeltaResolvedLocalReferences item rest)
+      (delta_reverse_resolved_local_references rest
+        (MoreDeltaResolvedLocalReferences item output)))))
+
+(def delta_find_resolved_local_reference ((offset Int)
+  (references DeltaResolvedLocalReferenceList))
+  DeltaResolvedLocalReferenceLookup
+  (match references
+    (NoDeltaResolvedLocalReferences NoDeltaResolvedLocalReference)
+    ((MoreDeltaResolvedLocalReferences item rest)
+      (match item
+        ((DeltaResolvedLocalReferenceSyntax expressionValue bindingValue)
+          (if (eq offset (delta_expression_start expressionValue))
+            (OneDeltaResolvedLocalReference bindingValue)
+            (delta_find_resolved_local_reference offset rest)))))))
+
+(def delta_local_scan_add_reference ((expressionValue DeltaExpression)
+  (bindingValue DeltaLocalBinding) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax references candidate)
+      (DeltaLocalResolutionScanSyntax
+        (MoreDeltaResolvedLocalReferences
+          (DeltaResolvedLocalReferenceSyntax expressionValue bindingValue)
+          references)
+        candidate))))
+
+(def delta_local_scan_add_candidate ((reasonValue DeltaRejectReason)
+  (offset Int) (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax references candidate)
+      (DeltaLocalResolutionScanSyntax references
+        (delta_final_candidate_add reasonValue offset candidate)))))
+
+(def delta_resolve_local_value_name ((source Bytes)
+  (expressionValue DeltaExpression) (name DeltaName)
+  (active DeltaLocalBindingList) (pending DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match (delta_local_find_binding source name active)
+    ((OneDeltaLocalBinding bindingValue)
+      (delta_local_scan_add_reference expressionValue bindingValue scan))
+    (NoDeltaLocalBinding
+      (match (delta_local_find_binding source name pending)
+        ((OneDeltaLocalBinding bindingValue)
+          (delta_local_scan_add_candidate UseBeforeInitialization
+            (delta_expression_start expressionValue) scan))
+        (NoDeltaLocalBinding
+          (delta_local_scan_add_candidate UnknownName
+            (delta_expression_start expressionValue) scan))))))
+
+(def delta_resolve_local_expression_list ((source Bytes)
+  (expressions DeltaExpressionList) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match expressions
+    (NoDeltaExpressions scan)
+    ((MoreDeltaExpressions item rest)
+      (delta_resolve_local_expression_list source rest active pending
+        (delta_resolve_local_expression source item active pending scan)))))
+
+(def delta_resolve_local_optional_expression ((source Bytes)
+  (expressionValue DeltaOptionalExpression)
+  (active DeltaLocalBindingList) (pending DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match expressionValue
+    (NoDeltaExpression scan)
+    ((SomeDeltaExpression item)
+      (delta_resolve_local_expression source item active pending scan))))
+
+; `bareValue` selects only the direct-name namespace. Normal value positions
+; pass one. Direct or grouped call/control heads pass zero because those names
+; belong to later callable/state resolution. Every nested operand, argument,
+; base, or bound remains an ordinary value position.
+(def delta_resolve_local_expression_context ((source Bytes)
+  (expressionValue DeltaExpression) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan)
+  (bareValue Int))
+  DeltaLocalResolutionScan
+  (match expressionValue
+    ((DeltaIntegerExpression start end literal) scan)
+    ((DeltaCharacterExpression start end literal) scan)
+    ((DeltaStringExpression start end literal) scan)
+    ((DeltaTrueExpression start end) scan)
+    ((DeltaFalseExpression start end) scan)
+    ((DeltaSelfExpression start end) scan)
+    ((DeltaNameExpression start end name)
+      (if bareValue
+        (delta_resolve_local_value_name source expressionValue name active
+          pending scan)
+        scan))
+    ((DeltaQualifiedExpression start end owner name arguments)
+      (match arguments
+        (NoDeltaArguments scan)
+        ((SomeDeltaArguments openStart closeEnd values)
+          (delta_resolve_local_expression_list source values active pending
+            scan))))
+    ((DeltaGroupedExpression start end inner)
+      (delta_resolve_local_expression_context source inner active pending scan
+        bareValue))
+    ((DeltaFieldExpression start end base member)
+      (delta_resolve_local_expression source base active pending scan))
+    ((DeltaCallExpression start end base arguments)
+      (delta_resolve_local_expression_list source arguments active pending
+        (delta_resolve_local_expression_context source base active pending scan
+          0)))
+    ((DeltaIndexExpression start end base indexValue)
+      (delta_resolve_local_expression source indexValue active pending
+        (delta_resolve_local_expression source base active pending scan)))
+    ((DeltaSliceExpression start end base low high)
+      (delta_resolve_local_optional_expression source high active pending
+        (delta_resolve_local_optional_expression source low active pending
+          (delta_resolve_local_expression source base active pending scan))))
+    ((DeltaNegateExpression start end operand)
+      (delta_resolve_local_expression source operand active pending scan))
+    ((DeltaBinaryExpression start end operatorValue operatorStart operatorEnd
+      left right)
+      (delta_resolve_local_expression source right active pending
+        (delta_resolve_local_expression source left active pending scan)))))
+
+(def delta_resolve_local_expression ((source Bytes)
+  (expressionValue DeltaExpression) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (delta_resolve_local_expression_context source expressionValue active
+    pending scan 1))
+
+; A continuation or neutral postfix statement may denote a state or machine.
+; Its direct bare spelling remains for that grammar-selected namespace pass.
+(def delta_resolve_local_control_expression ((source Bytes)
+  (expressionValue DeltaExpression) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (delta_resolve_local_expression_context source expressionValue active
+    pending scan 0))
+
+(def delta_resolve_local_statement_expressions ((source Bytes)
+  (statementValue DeltaStatement) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match statementValue
+    ((DeltaLetStatement start end name typeValue initializer)
+      (delta_resolve_local_expression source initializer active pending scan))
+    ((DeltaAssignmentStatement start end placeValue assignedValue)
+      (delta_resolve_local_expression source assignedValue active pending
+        (delta_resolve_local_expression source placeValue active pending
+          scan)))
+    ((DeltaPostfixStatement start end expressionValue)
+      (delta_resolve_local_control_expression source expressionValue active
+        pending scan))
+    ((DeltaAssertStatement start end expressionValue)
+      (delta_resolve_local_expression source expressionValue active pending
+        scan))))
+
+(def delta_local_activate_statement ((statementValue DeltaStatement)
+  (active DeltaLocalBindingList)) DeltaLocalBindingList
+  (match statementValue
+    ((DeltaLetStatement start end name typeValue initializer)
+      (MoreDeltaLocalBindings
+        (DeltaLetLocal name typeValue statementValue) active))
+    ((DeltaAssignmentStatement start end placeValue assignedValue) active)
+    ((DeltaPostfixStatement start end expressionValue) active)
+    ((DeltaAssertStatement start end expressionValue) active)))
+
+(def delta_local_pending_after_statement ((source Bytes)
+  (statementValue DeltaStatement) (pending DeltaLocalBindingList))
+  DeltaLocalBindingList
+  (match statementValue
+    ((DeltaLetStatement start end name typeValue initializer)
+      (delta_remove_pending_binding source name pending))
+    ((DeltaAssignmentStatement start end placeValue assignedValue) pending)
+    ((DeltaPostfixStatement start end expressionValue) pending)
+    ((DeltaAssertStatement start end expressionValue) pending)))
+
+(def delta_resolve_local_statements ((source Bytes)
+  (statements DeltaStatementList) (active DeltaLocalBindingList)
+  (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalBlockScan
+  (match statements
+    (NoDeltaStatements
+      (DeltaLocalBlockScanSyntax active pending scan))
+    ((MoreDeltaStatements item rest)
+      (delta_resolve_local_statements source rest
+        (delta_local_activate_statement item active)
+        (delta_local_pending_after_statement source item pending)
+        (delta_resolve_local_statement_expressions source item active pending
+          scan)))))
+
+(def delta_resolve_local_continuation ((source Bytes)
+  (continuation DeltaContinuation) (active DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match continuation
+    ((DeltaExpressionContinuation start end expressionValue)
+      (delta_resolve_local_control_expression source expressionValue active
+        NoDeltaLocalBindings scan))
+    ((DeltaReturnContinuation start end expressionValue)
+      (delta_resolve_local_optional_expression source expressionValue active
+        NoDeltaLocalBindings scan))))
+
+(def delta_resolve_local_arms ((source Bytes) (arms DeltaArmList)
+  (active DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match arms
+    (NoDeltaArms scan)
+    ((MoreDeltaArms item rest)
+      (match item
+        ((DeltaArmSyntax start end patternValue continuation)
+          (delta_resolve_local_arms source rest active
+            (delta_resolve_local_continuation source continuation
+              (delta_add_transition_pattern_bindings patternValue active)
+              scan)))))))
+
+(def delta_resolve_local_terminal ((source Bytes)
+  (terminalValue DeltaOptionalTerminal) (active DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match terminalValue
+    (NoDeltaTerminal scan)
+    ((SomeDeltaTerminal terminal)
+      (match terminal
+        ((DeltaTransitionTerminal start end subject arms)
+          (delta_resolve_local_arms source arms active
+            (delta_resolve_local_expression source subject active
+              NoDeltaLocalBindings scan)))
+        ((DeltaReturnTerminal start end expressionValue)
+          (delta_resolve_local_optional_expression source expressionValue
+            active NoDeltaLocalBindings scan))))))
+
+(def delta_resolve_state_body_locals ((source Bytes)
+  (bodyValue DeltaStateBody) (active DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match bodyValue
+    ((DeltaStateBodySyntax start end statements terminalValue)
+      (match (delta_resolve_local_statements source statements active
+        (delta_collect_pending_lets statements NoDeltaLocalBindings) scan)
+        ((DeltaLocalBlockScanSyntax finalActive finalPending nextScan)
+          (delta_resolve_local_terminal source terminalValue finalActive
+            nextScan))))))
+
+(def delta_resolve_state_locals ((source Bytes) (stateValue DeltaState)
+  (machineBindings DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match stateValue
+    ((DeltaStateSyntax start end name parameters bodyValue)
+      (delta_resolve_state_body_locals source bodyValue
+        (delta_add_state_parameter_bindings parameters machineBindings)
+        scan))))
+
+(def delta_resolve_states_locals ((source Bytes) (states DeltaStateList)
+  (machineBindings DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match states
+    (NoDeltaStates scan)
+    ((MoreDeltaStates item rest)
+      (delta_resolve_states_locals source rest machineBindings
+        (delta_resolve_state_locals source item machineBindings scan)))))
+
+(def delta_resolve_machine_body_locals ((source Bytes)
+  (bodyValue DeltaMachineBody) (machineBindings DeltaLocalBindingList)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match bodyValue
+    ((DeltaMachineBodySyntax start end statements terminalValue states)
+      (match (delta_resolve_local_statements source statements machineBindings
+        (delta_collect_pending_lets statements NoDeltaLocalBindings) scan)
+        ((DeltaLocalBlockScanSyntax finalActive finalPending nextScan)
+          (delta_resolve_states_locals source states machineBindings
+            (delta_resolve_local_terminal source terminalValue finalActive
+              nextScan)))))))
+
+(def delta_resolve_declaration_locals ((source Bytes)
+  (declarationValue DeltaDeclaration) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match declarationValue
+    ((DeltaBoundaryDeclaration start end name machines) scan)
+    ((DeltaDataDeclaration start end name members) scan)
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue)
+      (delta_resolve_machine_body_locals source bodyValue
+        (delta_add_machine_parameter_bindings
+          (delta_machine_input_parameters inputs) NoDeltaLocalBindings)
+        scan))))
+
+(def delta_resolve_declarations_locals ((source Bytes)
+  (declarations DeltaDeclarationList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match declarations
+    (NoDeltaDeclarations scan)
+    ((MoreDeltaDeclarations item rest)
+      (delta_resolve_declarations_locals source rest
+        (delta_resolve_declaration_locals source item scan)))))
+
+(def delta_resolve_cataloged_locals ((source Bytes)
+  (cataloged DeltaCatalogedProgram)) DeltaLocallyResolvedProgram
+  (match cataloged
+    ((DeltaCatalogedProgramSyntax formed catalogState)
+      (match catalogState
+        ((DeltaCatalogStateSyntax catalog candidate)
+          (match formed
+            ((DeltaFormedProgramSyntax collected shapes valueEdges)
+              (match collected
+                ((DeltaCollectedProgramSyntax program owners machines)
+                  (match program
+                    ((DeltaSyntaxProgram start end declarations)
+                      (match (delta_resolve_declarations_locals source
+                        declarations
+                        (DeltaLocalResolutionScanSyntax
+                          NoDeltaResolvedLocalReferences candidate))
+                        ((DeltaLocalResolutionScanSyntax references
+                          finalCandidate)
+                          (DeltaLocallyResolvedProgramSyntax cataloged
+                            (delta_reverse_resolved_local_references references
+                              NoDeltaResolvedLocalReferences)
+                            finalCandidate))))))))))))))
+
+(def delta_parse_collect_form_catalog_and_resolve_locals ((source Bytes))
+  DeltaLocalResolutionOutcome
+  (match (delta_parse_collect_form_and_catalog source)
+    ((DeltaCatalogRejected reasonValue errorOffset)
+      (DeltaLocalResolutionRejected reasonValue errorOffset))
+    ((DeltaCatalogInternal errorOffset)
+      (DeltaLocalResolutionInternal errorOffset))
+    ((DeltaCatalogAccepted cataloged)
+      (DeltaLocalResolutionAccepted
+        (delta_resolve_cataloged_locals source cataloged)))))
 
 ; ---- direct symbolic Alpha encoding ----------------------------------------
 
