@@ -18,10 +18,28 @@ impl CanonicalSourceClosureSubject {
         dependency_requests: Vec<CanonicalDependencySourceSelection>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        Self::finish_for_target(
+            TargetProfile::CrossPlatformCli,
+            root,
+            packages,
+            package_navigations,
+            dependency_requests,
+            limits,
+        )
+    }
+
+    pub(super) fn finish_for_target(
+        target_profile: TargetProfile,
+        root: CanonicalRootSourceSelection,
+        packages: Vec<ResolvedSourceIdentity>,
+        package_navigations: Vec<PackageSourceNavigation>,
+        dependency_requests: Vec<CanonicalDependencySourceSelection>,
+        limits: CanonicalSourceClosureSubjectLimits,
+    ) -> Result<Self, CanonicalSourceClosureSubjectError> {
         let package_dependency_projections =
             unconditional_projections(&packages, &dependency_requests)?;
         Self::finish_with_projections(
-            TargetProfile::CrossPlatformCli,
+            target_profile,
             root,
             packages,
             package_navigations,

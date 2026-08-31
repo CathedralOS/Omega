@@ -6,20 +6,17 @@ use super::super::{
     CanonicalSourceClosureSubjectLimits,
 };
 use super::dependency::{validate_dependency_request, validate_dependency_selection_kind};
-use super::projection::validate_dependency_projection;
 use super::root::validate_root_request;
 use super::source::{validate_package_navigation, validate_source_identity};
-use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::ProjectedDependencies;
+use crate::declarations::{PackageKey, PackageName};
 use crate::resolution::graph::{
     ResolvedDependency, ResolvedPackageClosure, ResolvedPackageNode, ResolvedSourceIdentity,
 };
 use crate::resolution::source::PackageSourceNavigation;
-use omega_target::TargetProfile;
 use std::collections::BTreeMap;
 
 pub(in super::super) fn validate_subject(
-    target_profile: TargetProfile,
     root: &CanonicalRootSourceSelection,
     packages: &[ResolvedSourceIdentity],
     package_navigations: &[PackageSourceNavigation],
@@ -44,35 +41,32 @@ pub(in super::super) fn validate_subject(
     for source in packages {
         validate_source_identity(source, limits.maximum_identity_bytes)?;
     }
-    let maximum_memberships = limits
-        .maximum_dependency_requests
-        .checked_mul(TargetProfile::ALL.len())
-        .ok_or_else(|| {
-            CanonicalSourceClosureSubjectError::new(
-                "source-closure dependency membership limit overflowed",
-            )
-        })?;
-    let mut occurrence_count = 0usize;
-    let mut membership_count = 0usize;
-    for projection in package_dependency_projections {
-        let (projection_occurrences, projection_memberships) =
-            validate_dependency_projection(projection, limits)?;
-        occurrence_count = occurrence_count
-            .checked_add(projection_occurrences)
+    let mut authored_request_count = 0usize;
+    for dependencies in package_dependency_projections {
+        if dependencies.authored_dependencies().len() > limits.maximum_dependency_requests {
+            return Err(CanonicalSourceClosureSubjectError::new(
+                "source-closure dependency projection exceeds its request-count limit",
+            ));
+        }
+        for request in dependencies.authored_dependencies() {
+            validate_dependency_request(
+                &CanonicalDependencySourceRequest::from(request),
+                limits.maximum_request_bytes,
+            )?;
+        }
+        authored_request_count = authored_request_count
+            .checked_add(dependencies.authored_dependencies().len())
             .filter(|count| *count <= limits.maximum_dependency_requests)
             .ok_or_else(|| {
                 CanonicalSourceClosureSubjectError::new(
                     "source-closure dependency projections exceed their request-count limit",
                 )
             })?;
-        membership_count = membership_count
-            .checked_add(projection_memberships)
-            .filter(|count| *count <= maximum_memberships)
-            .ok_or_else(|| {
-                CanonicalSourceClosureSubjectError::new(
-                    "source-closure dependency projections exceed their membership limit",
-                )
-            })?;
+    }
+    if authored_request_count != dependency_requests.len() {
+        return Err(CanonicalSourceClosureSubjectError::new(
+            "source-closure authored and selected dependency counts disagree",
+        ));
     }
     if packages
         .windows(2)
@@ -115,7 +109,7 @@ pub(in super::super) fn validate_subject(
 
     let mut previous: Option<(&PackageKey, usize)> = None;
     let mut dependencies = BTreeMap::<PackageKey, Vec<ResolvedDependency>>::new();
-    let mut selected_occurrences = BTreeMap::<PackageKey, Vec<usize>>::new();
+    let mut selected_dependencies = BTreeMap::<PackageKey, Vec<(usize, PackageName)>>::new();
     for selection in dependency_requests {
         validate_source_identity(&selection.selected, limits.maximum_identity_bytes)?;
         validate_dependency_request(&selection.request, limits.maximum_request_bytes)?;
@@ -188,26 +182,43 @@ pub(in super::super) fn validate_subject(
                 selection.alias.clone(),
                 selection.selected.key().clone(),
             ));
-        selected_occurrences
+        selected_dependencies
             .entry(selection.requester.clone())
             .or_default()
-            .push(selection.dependency_index);
+            .push((
+                selection.dependency_index,
+                selection.selected.key().name().clone(),
+            ));
         previous = Some((&selection.requester, selection.dependency_index));
     }
 
     for source in packages {
-        let expected = projection_by_key[source.key()]
-            .occurrence_indices_for_profile(target_profile)
-            .collect::<Vec<_>>();
-        let actual = selected_occurrences
+        let dependencies = projection_by_key[source.key()];
+        let selected = selected_dependencies
             .get(source.key())
             .map(Vec::as_slice)
             .unwrap_or_default();
-        if actual != expected {
+        if selected.len() != dependencies.authored_dependencies().len()
+            || selected
+                .iter()
+                .enumerate()
+                .any(|(expected, (actual, _))| expected != *actual)
+        {
             return Err(CanonicalSourceClosureSubjectError::new(
-                "active dependency selections do not match the selected target profile",
+                "dependency selections do not match the authored dependency list",
             ));
         }
+        let selected_package_names = selected
+            .iter()
+            .map(|(_, package_name)| package_name.clone())
+            .collect::<Vec<_>>();
+        dependencies
+            .validate_aliases(&selected_package_names)
+            .map_err(|_| {
+                CanonicalSourceClosureSubjectError::new(
+                    "dependency aliases are not unique within their requester",
+                )
+            })?;
     }
 
     let nodes = packages
