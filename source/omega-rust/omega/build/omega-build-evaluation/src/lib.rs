@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 74;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 75;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2706,8 +2706,19 @@ const fn unknown_descriptor_bad_descriptor_failure_tag(operation_tag: u16) -> bo
 fn exact_source_write_refusal(
     attempt: &psi_checked_interpreter::FilesystemOperationAttempt,
 ) -> bool {
-    let [mode] = attempt.scalar_operands() else {
-        return false;
+    let operation_is_exact = match attempt.operation_tag() {
+        1 => {
+            let [mode] = attempt.scalar_operands() else {
+                return false;
+            };
+            mode.operand_ordinal() == 1
+                && mode.value()
+                    == psi_checked_interpreter::FilesystemScalarOperandValue::I32(
+                        psi_checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE,
+                    )
+        }
+        9 => attempt.scalar_operands().is_empty(),
+        _ => false,
     };
     let [rooted] = attempt.rooted_path_operand_resolutions() else {
         return false;
@@ -2715,18 +2726,13 @@ fn exact_source_write_refusal(
     let [refusal] = attempt.grant_refusals() else {
         return false;
     };
-    attempt.operation_tag() == 1
+    operation_is_exact
         && attempt.provider() == psi_checked_interpreter::FilesystemObservationProvider::RealScoped
         && attempt.result()
             == Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
                 -1,
             ))
         && attempt.post_error() == Some(13)
-        && mode.operand_ordinal() == 1
-        && mode.value()
-            == psi_checked_interpreter::FilesystemScalarOperandValue::I32(
-                psi_checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE,
-            )
         && rooted.operand_ordinal() == 0
         && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
         && refusal.operand_ordinal() == 0

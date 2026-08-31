@@ -997,17 +997,19 @@ sequences replay against a fresh namespace and retain empty staged-output
 custody. This receipts those observed attempts only. It is not a claim that a
 host path is globally or durably absent.
 
-Summary v74 and replay-record v54 add the first exact grant-policy denial: one
-tag-1 `create` through a compiler-issued Source coordinate, with exact mode
-`438`, scalar `-1`, post-error `13`, and one operand-0
-`Write`/`OutsideGrantedRoots` refusal. The rooted operand is retained before
+Summary v75 and replay-record v55 extend the exact grant-policy denial to one
+tag-1 `create` or tag-9 `remove` through a compiler-issued Source coordinate.
+Both bind scalar `-1`, post-error `13`, and one operand-0
+`Write`/`OutsideGrantedRoots` refusal; create additionally fixes mode `438`,
+while remove has no scalar operand. The rooted operand is retained before
 physical provider lowering, so no compiler-host absolute path participates in
 identity. Provider-free replay validates that coordinate and injects the
-compiler-owned denial without executing a virtual create; the row is handled
-before generic Output-create classification and leaves the replayed Output
-tree empty. This first rung also carries no BuildLog output. Other grant
+compiler-owned denial without executing a virtual mutation. Source rows are
+handled before generic Output-create or Output-remove classification and leave
+the replayed Output tree empty. They carry no BuildLog output. Other grant
 failures, multiple or mixed attempts, alternate modes, and host-derived denial
-text remain non-receipted.
+text remain non-receipted. This receipts Omega's grant-policy decision only;
+it does not claim host filesystem containment.
 
 Runtime WCET and target instruction cost remain a different resource theory.
 A fixed-IR logical-work certificate does not alter native execution and its

@@ -4431,6 +4431,69 @@ fn canonical_source_root_cannot_be_used_for_writes() {
     let _ = std::fs::remove_dir_all(&project);
 }
 
+#[test]
+fn canonical_source_root_cannot_remove_existing_file() {
+    let (project, profile) = rooted_build_probe_project(
+        "source-remove",
+        r#"    let path: &[u8] in Path = builder.source.resolve("blocked.bin");
+    self.code = self.filesystem.remove(path);"#,
+    );
+    std::fs::write(project.join("blocked.bin"), b"retained\n").expect("seed canonical Source file");
+
+    let checked = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("a denied source-root remove is an observed build result");
+    let observations = checked
+        .build_observation_summary()
+        .cloned()
+        .expect("source-root remove denial remains observable");
+    let [remove] = observations.filesystem_operation_attempts() else {
+        panic!("source-root remove must retain one attempted operation")
+    };
+    assert_eq!(observations.realized(), BuildObservationClass::Receipted);
+    assert_eq!(
+        observations.filesystem_replay_verdict().disposition(),
+        BuildFilesystemReplayDisposition::Complete
+    );
+    assert_eq!(remove.operation_tag(), 9);
+    assert_eq!(
+        remove.observation_class(),
+        omega_build_evaluation::BuildFilesystemOperationObservationClass::Receipted
+    );
+    assert_eq!(remove.result(), BuildFilesystemOperationResult::Scalar(-1));
+    assert_eq!(remove.post_error(), 13);
+    assert!(remove.scalar_operands().is_empty());
+    let [rooted] = remove.rooted_path_operand_resolutions() else {
+        panic!("source-root remove must retain one rooted input coordinate")
+    };
+    assert_eq!(rooted.operand_ordinal(), 0);
+    assert_eq!(rooted.root(), BuildFilesystemRoot::Source);
+    assert_eq!(rooted.relative_path(), b"blocked.bin");
+    assert!(remove.authorized_paths().is_empty());
+    let [refusal] = remove.grant_refusals() else {
+        panic!("source-root remove must retain its refused path")
+    };
+    assert_eq!(refusal.operand_ordinal(), 0);
+    assert_eq!(refusal.access(), BuildFilesystemGrantAccess::Write);
+    assert_eq!(
+        refusal.reason(),
+        BuildFilesystemGrantRefusalReason::OutsideGrantedRoots
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(&observations, limits)
+        .expect("refused Source remove replay record must encode")
+        .expect("complete refused Source remove replay retains restart custody");
+    recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+        .expect("refused Source remove replay record must recover canonically");
+    // This guards evaluator ordering only; it is not evidence that Omega
+    // contains arbitrary host processes or globally protects this path.
+    assert_eq!(
+        std::fs::read(project.join("blocked.bin")).expect("read retained Source file"),
+        b"retained\n"
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
 #[cfg(any(unix, windows))]
 #[test]
 fn source_root_follow_rejects_a_symlink_escape_before_the_requested_operation() {

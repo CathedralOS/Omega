@@ -140,7 +140,9 @@ pub(crate) use source_directories::{
 };
 pub use source_read_links::FilesystemSourceReadLinkReplayRecord;
 pub(crate) use source_read_links::{source_read_link_attempt, source_read_link_attempt_is_exact};
-pub use source_write_refusals::FilesystemSourceWriteRefusalReplayRecord;
+pub use source_write_refusals::{
+    FilesystemSourceWriteRefusalReplayKind, FilesystemSourceWriteRefusalReplayRecord,
+};
 pub(crate) use source_write_refusals::{
     source_write_refusal_attempt, source_write_refusal_record_from_attempt,
 };
