@@ -145,11 +145,18 @@ pub(crate) fn build_checked_unit_effect_plans(
             break;
         }
     }
+    let checked_symbols = candidates
+        .iter()
+        .map(|plan| plan.machine)
+        .collect::<Vec<_>>();
     composed_machines.retain(|plan| {
         plan.states
             .iter()
             .flat_map(|state| &state.operations)
             .all(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                    checked_symbols.contains(target_machine)
+                }
                 CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
                     boundary_symbols.contains(target_machine)
                 }

@@ -32,32 +32,41 @@ pub(super) fn build(
         false,
         None,
     )?;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        target_machine,
-        structural_arguments,
-        completion_receipts,
-        ..
-    } = &operation
-    else {
-        return None;
-    };
-    let matching_boundaries = boundaries
-        .iter()
-        .filter(|plan| plan.machine == *target_machine)
-        .collect::<Vec<_>>();
-    let [boundary] = matching_boundaries.as_slice() else {
-        return None;
-    };
-    if !exact_boundary_custody(
-        structural_parameters,
-        entry_claims,
-        structural_arguments,
-        completion_receipts,
-        &boundary.structural_parameters,
-    ) || !boundary.domain_requirements.is_empty()
-        || boundary.result_type.is_some()
-    {
-        return None;
+    match &operation {
+        CheckedUnitEffectOperationPlan::BoundaryCall {
+            target_machine,
+            structural_arguments,
+            completion_receipts,
+            ..
+        } => {
+            let matching_boundaries = boundaries
+                .iter()
+                .filter(|plan| plan.machine == *target_machine)
+                .collect::<Vec<_>>();
+            let [boundary] = matching_boundaries.as_slice() else {
+                return None;
+            };
+            if !exact_boundary_custody(
+                structural_parameters,
+                entry_claims,
+                structural_arguments,
+                completion_receipts,
+                &boundary.structural_parameters,
+            ) || !boundary.domain_requirements.is_empty()
+                || boundary.result_type.is_some()
+            {
+                return None;
+            }
+        }
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            claim_transfers,
+            ..
+        } if structural_parameters.is_empty()
+            && entry_claims.is_empty()
+            && structural_arguments.is_empty()
+            && claim_transfers.is_empty() => {}
+        _ => return None,
     }
     Some(CheckedComposedUnitControlStatePlan {
         state: state.symbol,

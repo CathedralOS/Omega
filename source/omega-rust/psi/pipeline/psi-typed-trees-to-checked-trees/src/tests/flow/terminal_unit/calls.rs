@@ -188,7 +188,7 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
         machine Root::enter(flag: bool) {
             transition flag { true -> yes() _ -> no() }
             state yes() { Host::exit(1); }
-            state no() { Helper::touch(); }
+            state no() { Helper::touch(); Helper::touch(); }
         }
         "#,
     );

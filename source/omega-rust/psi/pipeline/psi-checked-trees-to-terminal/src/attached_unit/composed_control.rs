@@ -9,6 +9,7 @@ mod admission;
 mod catalogs;
 mod custody;
 mod emission;
+mod internal_calls;
 
 use admission::admit_composed_unit_control;
 use catalogs::lower_composed_catalogs;

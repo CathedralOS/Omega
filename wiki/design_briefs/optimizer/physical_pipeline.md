@@ -77,6 +77,12 @@ consumes its alias with an exact completion receipt. Checked-to-Terminal
 lowering independently replays those events and binds the aliases to one
 Terminal claim before verifier and codec publication.
 
+A disjoint composed leaf family admits parameterless internal Unit calls. Each
+leaf rejoins the exact checked target state, contract fingerprint, service
+reach, and retained ordinary Unit plan. Lowering emits repeated calls to one
+deduplicated qualification-free empty-body target machine; it does not copy the
+target into each branch or treat a missing transitive plan as an empty body.
+
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common
 condition context and selects exactly one row from its adjacent seven-row

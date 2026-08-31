@@ -6,6 +6,7 @@ pub(super) struct AdmittedComposedUnit<'a> {
     pub(super) entry: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
     pub(super) leaves: [&'a psi_checked_trees::CheckedComposedUnitControlStatePlan; 2],
     pub(super) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+    pub(super) internal_targets: Vec<(&'a psi_checked_trees::CheckedUnitEffectMachinePlan, String)>,
     pub(super) custody: custody::ComposedCustody,
 }
 
@@ -69,12 +70,34 @@ pub(super) fn admit_composed_unit_control<'a>(
     }
 
     let mut boundaries = Vec::new();
+    let mut internal_targets = Vec::new();
     for state in [when_true, when_false] {
-        retain_leaf_boundary(checked, plan.machine, state, plans, &mut boundaries)?;
+        match &state.operations[0] {
+            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
+                retain_leaf_boundary(checked, plan.machine, state, plans, &mut boundaries)?;
+            }
+            CheckedUnitEffectOperationPlan::CallUnit { .. } => {
+                internal_calls::retain_leaf_target(
+                    checked,
+                    plan.machine,
+                    state,
+                    plans,
+                    &mut internal_targets,
+                )?;
+            }
+            _ => unreachable!("leaf shape was validated"),
+        }
     }
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
     if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
         return unsupported("composed Unit boundaries have duplicate canonical identities");
+    }
+    internal_targets.sort_by(|left, right| left.1.cmp(&right.1));
+    if internal_targets
+        .windows(2)
+        .any(|pair| pair[0].1 == pair[1].1 && pair[0].0.machine != pair[1].0.machine)
+    {
+        return unsupported("composed Unit internal targets have duplicate canonical identities");
     }
     for (boundary, _) in &boundaries {
         custody::validate_boundary(custody, boundary)?;
@@ -97,6 +120,7 @@ pub(super) fn admit_composed_unit_control<'a>(
         entry,
         leaves: [when_true, when_false],
         boundaries,
+        internal_targets,
         custody,
     })
 }
@@ -187,19 +211,20 @@ fn validate_leaf(
     if !state.scalar_parameters.is_empty()
         || !matches!(
             state.operations.as_slice(),
-            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                | CheckedUnitEffectOperationPlan::CallUnit { .. }]
         )
         || !matches!(
             state.terminator,
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
         )
     {
-        return unsupported("composed Unit leaf is outside the exact boundary-return slice");
+        return unsupported("composed Unit leaf is outside the exact call-and-return slice");
     }
     Ok(())
 }
 
-fn retain_exact_flow_call(
+pub(super) fn retain_exact_flow_call(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
     state: psi_symbols::SymbolHandle,

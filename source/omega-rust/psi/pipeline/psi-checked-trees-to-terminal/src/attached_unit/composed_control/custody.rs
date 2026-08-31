@@ -30,15 +30,22 @@ pub(super) fn admit(
                 || !successor
                     .trivial_affine_discard_parameter_positions
                     .is_empty()
-        }) || leaves.iter().any(|leaf| {
-            !matches!(
-                leaf.operations.as_slice(),
-                [CheckedUnitEffectOperationPlan::BoundaryCall {
+        }) || leaves.iter().any(|leaf| match leaf.operations.as_slice() {
+            [
+                CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
                     completion_receipts,
                     ..
-                }] if structural_arguments.is_empty() && completion_receipts.is_empty()
-            )
+                },
+            ] => !structural_arguments.is_empty() || !completion_receipts.is_empty(),
+            [
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                },
+            ] => !structural_arguments.is_empty() || !claim_transfers.is_empty(),
+            _ => true,
         }) {
             return unsupported("composed Unit empty custody drifted across an edge or leaf");
         }

@@ -545,38 +545,7 @@ pub(super) fn lower_unit_services(
     lower_selected_unit_services(checked, selected)
 }
 
-pub(super) fn lower_composed_unit_services(
-    checked: &CheckedTrees,
-    machine: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
-    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
-) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
-    let facts = &checked.facts.service_reaches;
-    let mut selected = Vec::new();
-    collect_installation_machine_contract_services(
-        checked,
-        machine.machine,
-        machine.contract_service_reach,
-        machine.service_reach,
-        &mut selected,
-    )?;
-    for operation in machine.states.iter().flat_map(|state| &state.operations) {
-        let CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. } = operation else {
-            return unsupported("composed Unit control contains a non-boundary operation");
-        };
-        collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
-    }
-    for (boundary, _) in boundaries {
-        collect_published_contract_services(
-            &facts.rows,
-            boundary.contract_service_reach,
-            boundary.service_reach,
-            &mut selected,
-        )?;
-    }
-    lower_selected_unit_services(checked, selected)
-}
-
-fn lower_selected_unit_services(
+pub(super) fn lower_selected_unit_services(
     checked: &CheckedTrees,
     mut selected: Vec<ServiceReachId>,
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
