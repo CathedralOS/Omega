@@ -3,6 +3,7 @@
 mod assembly;
 mod encoding;
 mod model;
+mod results;
 mod validation;
 
 pub use model::{
@@ -10,6 +11,7 @@ pub use model::{
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
     CanonicalPackageReconstructionQuestionLimits,
 };
+pub use results::{LocallyComposedPackageObligationEntry, LocallyComposedPackageObligationResults};
 
 const RECONSTRUCTION_QUESTION_MAGIC: &[u8] = b"OMEGA-PACKAGE-RECONSTRUCTION-QUESTION\0";
 pub const PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION: u16 = 1;

@@ -128,9 +128,13 @@ fn reconcile_compiler_intrinsic_execution(
                 execution_identity_label(expected),
             )),
         },
-        Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported) => Err(format!(
-            "selected provider plan `{plan_name}` uses a compiler-intrinsic execution child without a closed package-review identity",
-        )),
+        Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported) => match retained {
+            None => Ok(None),
+            Some(identity) => Err(format!(
+                "selected provider plan `{plan_name}` unsupported compiler-intrinsic row carries spoofed compiler execution identity {}",
+                execution_identity_label(identity),
+            )),
+        },
         None => Err(format!(
             "selected provider plan `{plan_name}` declares a compiler intrinsic without exact compiler-owned execution identity",
         )),
@@ -278,16 +282,32 @@ mod tests {
                 }),
                 "retains compiler execution identity named-float conversion `f64 -> f32` in `Wrapping` arithmetic, but exact selected execution rederives named-float conversion `f64 -> f32` in `Exact` arithmetic",
             ),
-            (
-                Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
-                None,
-                "without a closed package-review identity",
-            ),
         ] {
             let error = reconcile_compiler_intrinsic_execution("minimum", true, derived, retained)
                 .expect_err("invalid intrinsic custody must reject");
             assert!(error.contains(expected), "unexpected diagnostic: {error}");
         }
+
+        assert_eq!(
+            reconcile_compiler_intrinsic_execution(
+                "unresolved",
+                true,
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
+                None,
+            ),
+            Ok(None),
+            "review evidence discloses an unsupported selected intrinsic without authorizing it",
+        );
+        let spoofed_unresolved = reconcile_compiler_intrinsic_execution(
+            "unresolved",
+            true,
+            Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
+            Some(LinuxExitGroupI32),
+        )
+        .expect_err("an unsupported intrinsic cannot retain a closed execution identity");
+        assert!(spoofed_unresolved.contains(
+            "unsupported compiler-intrinsic row carries spoofed compiler execution identity Linux exit-group with one `i32` argument"
+        ));
 
         let spoofed = reconcile_compiler_intrinsic_execution(
             "ordinary",

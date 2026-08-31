@@ -2287,6 +2287,15 @@ fingerprint remain inert: the type contains no compiler pedigree, build
 observation, artifact, certificate, result, open obligation, admission,
 accepted-lock state, or `PackageInstance` promotion route.
 
+The first ordinary result lane is deliberately smaller than accepted evidence.
+For every bodyless accepted claim, local reconstruction rejoins the typed
+callable—including its exact signature and contracts—to the matching canonical
+obligation row and assigns only `OpenRootAdmission`. The manager then composes
+those open claims over the exact reconstruction question; a dependency claim
+reaches the selected root with its original package owner. No certificate or
+producer decision is representable, and the result has no codec, lock-promotion
+route, or `PackageInstance` constructor.
+
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup
 requirements, and contract guarantees, retaining each exact proposition,

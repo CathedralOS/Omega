@@ -47,5 +47,6 @@ pub use decision::{
 pub use reconstruction::{
     CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
-    CanonicalPackageReconstructionQuestionLimits, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
+    CanonicalPackageReconstructionQuestionLimits, LocallyComposedPackageObligationEntry,
+    LocallyComposedPackageObligationResults, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
 };

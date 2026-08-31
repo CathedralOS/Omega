@@ -11,7 +11,7 @@ src/
 ├── record/      what stable package-review facts exist
 ├── capture/     how checked compiler state produces those facts
 ├── encoding/    how facts are canonically encoded and recovered
-└── ledger/      how recovered rows are reconstructed and checked locally
+└── ledger/      how rows and the first open result are reconstructed locally
 ```
 
 ## Record
@@ -53,6 +53,13 @@ stable records and does not inspect compiler IR. `ledger/` owns the distinct
 local reconstruction question: recovered producer rows remain inert until the
 selected local compiler reconstructs the complete row set and requires exact
 equality.
+
+The first result lane does not pretend to prove a bodyless accepted claim.
+`ledger/results.rs` rejoins its typed callable and canonical row, assigns only
+`OpenRootAdmission`, and supports fresh local equality checking. The manager
+may propagate that open claim to a consuming root, but this crate provides no
+certificate, policy decision, persistence codec, accepted lock, or
+`PackageInstance` route.
 
 The crate root exports `project_checked_package_review` as its operation. The
 manager owns comparison and policy; this crate never admits a package.

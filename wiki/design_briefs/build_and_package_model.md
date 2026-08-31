@@ -2058,9 +2058,8 @@ aggregate retained-ledger ceiling across the review session.
 
 This is not yet the ordinary accepted artifact described above. The current
 review vocabulary remains incomplete, and the ledger has no lock-promotion
-route. Exact produced-artifact subjects, certificate replay and results,
-transitive open obligations, certificate/evidence-schema identity and checked
-migration, dependency composition, and local admission decisions remain
+route. Exact produced-artifact subjects, remaining certificate routes and
+result classes, evidence-schema identity, and local admission decisions remain
 separate required joins before a `PackageInstance` can exist. Canonical decode
 or a matching ledger fingerprint cannot substitute for local reconstruction.
 
@@ -2102,7 +2101,15 @@ associations reject. Fresh matching reconstructs the aggregate from current
 resolver custody and a newly compiler-issued review set. Canonical recovery and
 the domain-separated aggregate fingerprint grant no authority and expose no
 route to an accepted lock or `PackageInstance`; artifacts, certificates,
-results, open obligations, build observations, and admissions remain separate.
+build observations, and admissions remain separate.
+
+The first in-memory ordinary result lane handles only bodyless accepted claims.
+Local reconstruction rejoins each typed callable, including its exact signature
+and contracts, to the matching canonical accepted-claim row and assigns the
+closed status `OpenRootAdmission`. Composition over the exact source/question
+closure propagates every such dependency claim to the selected root while
+retaining its original package owner. No producer decision, certificate,
+accepted-lock state, or `PackageInstance` route is representable in this type.
 
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
@@ -2121,12 +2128,11 @@ The closure is heterogeneous and transitive. Every package or other subject
 retains its own obligation-semantics and evidence-schema identity. Checked
 dependency obligations compose upward, while open obligations remain visible
 at every parent and are re-evaluated under each consumer's policy. A producer's
-admission decision never settles a downstream consumer's decision. A versioned
-schema migration may support incremental reuse only through a checked delta
-that identifies unchanged, added, strengthened, reinterpreted, retired, or
-encoding-only obligation classes. Unknown or meaning-changing deltas force
-reconstruction; newly exposed gaps are open obligations, not automatic
-admissions.
+admission decision never settles a downstream consumer's decision. The first
+accepted-evidence boundary requires exact semantic-schema identity; a mismatch
+forces complete local reconstruction and fresh admission. A checked pairwise
+migration may be added only for a concrete adjacent schema transition. Outer
+encoding-only revisions remain codec concerns.
 
 The compiler-issued envelope also carries a separate canonical commitment to
 the reconciled package/alias input graph and every exact package or toolchain
