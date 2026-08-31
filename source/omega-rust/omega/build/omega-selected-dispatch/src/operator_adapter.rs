@@ -7,9 +7,12 @@
 //! compiler intrinsics remain in `float_intrinsic_dispatch`.
 
 mod spelled;
+mod unit;
 
 use omega_effects::provider_plan::ProviderBinding;
-use psi_checked_trees::CheckedTrees;
+use psi_checked_trees::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedValueOrigin, CheckedValueStatementRole,
+};
 use psi_diagnostics::Diagnostic;
 use psi_language_core::CallOperationalAcknowledgementOrigin;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -18,6 +21,11 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OperatorAdapterRewrite {
     expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    requirement_operator: psi_symbols::SymbolHandle,
+    provider_plan_report_fingerprint: u64,
+    provider_plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    machine_symbol: psi_symbols::SymbolHandle,
     machine: String,
     entry_symbol: psi_symbols::SymbolHandle,
     source: OperatorAdapterSource,
@@ -38,7 +46,22 @@ pub fn settle_selected_operator_adapter_dispatch(
         return Ok(());
     }
 
-    apply_selected_operator_adapter_rewrites(Arc::make_mut(checked), rewrites);
+    let applications = rewrites
+        .iter()
+        .map(|rewrite| unit::selected_unit_application(checked, rewrite))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let mut staged = checked.as_ref().clone();
+    psi_typed_trees_to_checked_trees::rebuild_checked_unit_effect_plans_with_selected_operators(
+        &mut staged,
+        &applications,
+    );
+    for rewrite in &rewrites {
+        unit::validate_selected_unit_application(&staged, rewrite)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    }
+    apply_selected_operator_adapter_rewrites(&mut staged, &rewrites);
+    *Arc::make_mut(checked) = staged;
     Ok(())
 }
 
@@ -120,10 +143,10 @@ fn stage_operator_adapter_rewrite(
 
 fn apply_selected_operator_adapter_rewrites(
     checked: &mut CheckedTrees,
-    rewrites: Vec<OperatorAdapterRewrite>,
+    rewrites: &[OperatorAdapterRewrite],
 ) {
     for rewrite in rewrites {
-        let replacement = match rewrite.source {
+        let replacement = match &rewrite.source {
             OperatorAdapterSource::NamedCall => {
                 let ExpressionNode::Call(mut call) = checked
                     .typed
@@ -134,7 +157,7 @@ fn apply_selected_operator_adapter_rewrites(
                     unreachable!("validated named operator rewrite ceased to be a call")
                 };
                 call.receiver = ExpressionHandle::invalid();
-                call.target = psi_typed_trees::name::Identifier::generated(rewrite.machine);
+                call.target = psi_typed_trees::name::Identifier::generated(rewrite.machine.clone());
                 call.target_symbol = rewrite.entry_symbol;
                 ExpressionNode::Call(call)
             }
@@ -146,7 +169,7 @@ fn apply_selected_operator_adapter_rewrites(
                 ExpressionNode::Call(TableCallExpression {
                     receiver: ExpressionHandle::invalid(),
                     target_symbol: rewrite.entry_symbol,
-                    target: psi_typed_trees::name::Identifier::generated(rewrite.machine),
+                    target: psi_typed_trees::name::Identifier::generated(rewrite.machine.clone()),
                     static_requirement_dispatch: None,
                     machine_arguments: Box::new([]),
                     quotient_operation: None,
@@ -220,7 +243,7 @@ fn resolve_operator_adapter_call(
         )));
     }
 
-    let Some((machine, entry_symbol)) =
+    let Some((machine_symbol, machine, entry_symbol)) =
         resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
     else {
         return Ok(None);
@@ -228,6 +251,11 @@ fn resolve_operator_adapter_call(
 
     Ok(Some(OperatorAdapterRewrite {
         expression: operator_use.expression,
+        origin: operator_use.origin,
+        requirement_operator: operator_use.selected_operator_symbol,
+        provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+        provider_plan_commitment: operator_use.provider_plan_commitment,
+        machine_symbol,
         machine,
         entry_symbol,
         source: OperatorAdapterSource::NamedCall,
@@ -239,7 +267,7 @@ pub(super) fn resolve_checked_adapter_for_operator(
     operator: &psi_typed_trees::operator::OperatorDefinition,
     plan: &omega_effects::provider_plan::ProviderPlan,
     expression: ExpressionHandle,
-) -> Result<Option<(String, psi_symbols::SymbolHandle)>, Diagnostic> {
+) -> Result<Option<(psi_symbols::SymbolHandle, String, psi_symbols::SymbolHandle)>, Diagnostic> {
     let overload_identity =
         psi_typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator);
     if overload_identity.is_empty() {
@@ -335,7 +363,11 @@ pub(super) fn resolve_checked_adapter_for_operator(
         )));
     }
 
-    Ok(Some((provider.name.as_str().to_owned(), entry.symbol)))
+    Ok(Some((
+        provider.symbol,
+        provider.name.as_str().to_owned(),
+        entry.symbol,
+    )))
 }
 
 pub(super) fn exact_operator_definition<'program>(
@@ -429,6 +461,11 @@ mod tests {
 
         machine run() -> i32 {
             transition { _ -> (CheckedMath::offset_zero(70)) }
+        }
+
+        data Main {}
+        machine Main::main(&mut self) {
+            let result: i32 = CheckedMath::offset_zero(70);
         }
     "#;
 
@@ -783,6 +820,86 @@ mod tests {
             &retained,
             "execution redirection must not rewrite retained semantic evidence",
         );
+    }
+
+    #[test]
+    fn selected_local_result_retains_exact_unit_realization_application() {
+        let mut fixture = fixture();
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (use_handle, mut operator_use) = fixture
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .map(|(handle, operator_use)| (handle, *operator_use))
+            .find(|(_, operator_use)| {
+                matches!(
+                    operator_use.origin,
+                    CheckedValueOrigin::StateStatement {
+                        machine_symbol,
+                        state_symbol,
+                        statement_index: 0,
+                        role: CheckedValueStatementRole::LocalInitializer,
+                    } if machine_symbol == main_symbol && state_symbol == main_state
+                )
+            })
+            .expect("selected operator local in Unit fixture");
+        operator_use.provider_plan_report_fingerprint = fixture.checked_plan.report_fingerprint();
+        operator_use.provider_plan_commitment =
+            psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
+                *fixture.checked_plan.identity_digest().as_bytes(),
+            );
+        *fixture
+            .checked
+            .facts
+            .operators
+            .named_uses
+            .get_mut(use_handle) = operator_use;
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
+            std::slice::from_ref(&fixture.checked_plan),
+            std::slice::from_ref(&fixture.checked_plan.name),
+        )
+        .expect("select exact checked-operator plan");
+        let mut settled = Arc::new(fixture.checked);
+
+        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect("selected Unit operator application settles");
+
+        let unit_plan = settled
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| plan.machine == main_symbol && plan.state == main_state)
+            .expect("selected Unit plan");
+        assert!(unit_plan.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    requirement_operator,
+                    realization_machine,
+                    ..
+                } if *requirement_operator == operator_use.selected_operator_symbol
+                    && settled
+                        .typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == *realization_machine)
+                        .is_some_and(|machine| {
+                            machine.name.as_str() == "CheckedMathProvider::offset_zero_impl"
+                        })
+            )
+        }));
     }
 
     #[test]

@@ -1876,6 +1876,61 @@ pub(crate) fn lower_state_scalar_expression(
     )
 }
 
+/// Lower one scalar argument inside a structural/Unit state. Structural
+/// parameters retain their separate custody namespace; only primitive
+/// parameters and earlier immutable primitive locals occupy scalar positions.
+pub(crate) fn lower_unit_scalar_argument(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    state: &psi_typed_trees::state::State,
+    before_statement: usize,
+    expression: ExpressionHandle,
+    expected_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let parameter_types = parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let prefix = statements.get(..before_statement)?;
+    let mut locals = Vec::new();
+    for statement in prefix {
+        let StatementNode::LocalData(local) = statement else {
+            return None;
+        };
+        if local.is_mutable || !local.initial_value.is_valid() {
+            return None;
+        }
+        let primitive_type = program.primitive_type_reference(local.type_reference)?;
+        locals.push(ScalarLocal {
+            symbol: local.symbol,
+            name: local.name.as_str().to_owned(),
+            primitive_type,
+            arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
+        });
+    }
+    lower_return_expression(
+        program,
+        operators,
+        expression,
+        &parameters,
+        &parameter_types,
+        &locals,
+        expected_type,
+        &[],
+    )
+}
+
 fn lower_return_expression(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
@@ -2052,7 +2107,7 @@ fn lower_scalar_expression(
                 locals,
                 exact_integer_casts,
             )?;
-            let (right, right_domain) = lower_scalar_expression(
+            let (mut right, right_domain) = lower_scalar_expression(
                 program,
                 operators,
                 binary.right,
@@ -2071,18 +2126,27 @@ fn lower_scalar_expression(
                 combine_arithmetic_domains(left_domain, right_domain)?
             };
             let kind = checked_integer_binary_kind(binary.operator, domain)?;
-            let right_type = scalar_expression_type(&right)?;
+            let mut left_type = scalar_expression_type(&left);
+            let mut right_type = scalar_expression_type(&right);
             // Unary `-value` is parsed as a compiler-generated anonymous
             // `0 - value`. That zero has no parse-site suffix from which the
             // ordinary literal stamper can learn a carrier, so retain the
             // binary expression's already-checked operand carrier here. This
             // is contextual literal landing, not a new negation meaning.
-            if binary.operator == BinaryOperator::Subtract
-                && scalar_expression_type(&left).is_none()
-            {
-                left = land_anonymous_zero(left, right_type)?;
+            if binary.operator == BinaryOperator::Subtract && left_type.is_none() {
+                left = land_anonymous_zero(left, right_type?)?;
+                left_type = scalar_expression_type(&left);
             }
-            let primitive_type = scalar_expression_type(&left)?;
+            if left_type.is_none() {
+                left = land_contextual_integer_literal(left, right_type?)?;
+                left_type = scalar_expression_type(&left);
+            }
+            if right_type.is_none() {
+                right = land_contextual_integer_literal(right, left_type?)?;
+                right_type = scalar_expression_type(&right);
+            }
+            let primitive_type = left_type?;
+            let right_type = right_type?;
             if !is_integer(primitive_type)
                 || !is_integer(right_type)
                 || (!shift && right_type != primitive_type)

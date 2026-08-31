@@ -509,6 +509,10 @@ pub(super) fn lower_unit_services(
                 CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { service_reach, .. }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    service_reach,
+                    ..
+                }
                 | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }

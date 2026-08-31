@@ -51,6 +51,7 @@ mod calls;
 mod cleanup;
 pub(crate) mod control;
 pub(crate) mod returns;
+mod selected_operator;
 pub(crate) mod shared_convergence;
 pub(super) mod types;
 
@@ -58,6 +59,7 @@ use calls::*;
 use cleanup::*;
 use control::*;
 use returns::*;
+use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 use types::*;
 
@@ -68,6 +70,7 @@ use types::*;
 pub(crate) fn build_checked_unit_effect_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
+    selected_operator_applications: &[crate::SelectedOperatorUnitApplication],
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
@@ -89,7 +92,15 @@ pub(crate) fn build_checked_unit_effect_plans(
         .machines()
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| build_checked_machine(program, facts, &mut shapes, machine))
+        .filter_map(|machine| {
+            build_checked_machine(
+                program,
+                facts,
+                &mut shapes,
+                machine,
+                selected_operator_applications,
+            )
+        })
         .collect::<Vec<_>>();
 
     loop {
@@ -109,6 +120,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. } => {
                     boundary_symbols.contains(target_machine)
                 }
+                // Exact realization custody was already joined by selected
+                // execution before this plan was minted.
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. } => true,
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

@@ -120,17 +120,16 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Repair Terminal planning for an attached Unit machine that binds a scalar
-  named or fixed-token boundary-operator result and consumes it in a later
-  call. The missing checked join is exact:
+  Native execution of the repaired named checked-adapter canary remains
+  blocked on owner Q6; the fixed-token checked/interpreter canary now passes.
+  Terminal retains the exact settled join
   `{ authored operator-use coordinate, selected requirement/candidate } ->
-  { selected realization machine, selected realization state }`. Current use
-  and realization facts retain the two sides separately; the authoritative
-  application appears only in provider-plan settlement after Unit planning.
-  Retain that application before Unit planning or intentionally move planning
-  after settlement. Do not infer the target by globally scanning for a unique
-  satisfying conformance. The existing named and fixed-token canaries reach
-  checked execution while native production rejects the absent Unit plan.
+  { selected realization machine, selected realization state }` without a
+  global conformance scan. Native production proceeds through that operation,
+  then rejects the unrelated `Console::exit_process` boundary because the
+  compiler driver supplies no boundary settlement. Do not fabricate package-
+  installation execution evidence for a compiler-owned target builtin merely
+  to satisfy the existing settlement interface.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
   representation projection according to D26. Add separate producer-

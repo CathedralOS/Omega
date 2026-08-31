@@ -71,7 +71,7 @@ pub(super) fn resolve_selected_spelled_operator_adapter_call(
             operands.len(),
         )));
     }
-    let Some((machine, entry_symbol)) =
+    let Some((machine_symbol, machine, entry_symbol)) =
         resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
     else {
         return Ok(None);
@@ -79,6 +79,11 @@ pub(super) fn resolve_selected_spelled_operator_adapter_call(
 
     Ok(Some(OperatorAdapterRewrite {
         expression: operator_use.expression,
+        origin: operator_use.origin,
+        requirement_operator: operator_use.selected_operator_symbol,
+        provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+        provider_plan_commitment: operator_use.provider_plan_commitment,
+        machine_symbol,
         machine,
         entry_symbol,
         source: OperatorAdapterSource::Spelled(operands.into_boxed_slice()),
