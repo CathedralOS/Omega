@@ -464,3 +464,53 @@ production protocol.
   treat a Git binary hash as trust or continuous immutability, require an
   unused sandbox executable to remain unchanged, or forbid an operator's
   HTTPS-to-SSH rewrite while claiming host Git configuration is inherited.
+
+## Q8 — Keep carrier cleanup out of opaque semantic ownership
+
+### Context
+
+D26 gives a semantic opaque value one build-selected concrete carrier. General
+layout can now derive the carrier's exact target shape, while existing checked
+ownership and Terminal plans retain semantic multiplicity, transfers, and
+cleanup for ordinary source values. The missing join is finalization when the
+selected carrier itself has an attached nominal cleanup machine or otherwise
+owns independently disposable state.
+
+The opaque declaration's multiplicity and discharge belong to the semantic
+type. Importing the carrier's source-level ownership policy would silently add
+semantics to an empty `OpaqueRepresentation<Opaque>` relationship; ignoring a
+real carrier finalizer would be equally unsound.
+
+### Problem statement
+
+Decide whether D26 v1 admits carriers with independent nominal cleanup and, if
+so, how one exact carrier finalizer is reconciled with opaque transfer,
+success/failure ownership, and the rule that ABI byte copies relocate one
+logical owner rather than manufacture another.
+
+### Proposed solution
+
+Keep D26 v1 narrow: a selected carrier must be compiler-proven transitively
+relocatable and independently cleanup-free. The opaque declaration remains the
+sole authority for semantic multiplicity and discharge. ABI-required byte
+copies are physical relocation of that one semantic value, never semantic
+copying; finalization of the representation itself is no-code. Reject a
+selection whose carrier requires nominal cleanup instead of guessing how its
+resource ownership maps onto the opaque value.
+
+This is sufficient for the current interrupt carriers and lets the compiler
+finish an honest movement/finalization commitment without inventing a general
+resource-owning representation protocol.
+
+### Alternates
+
+- Acceptable: define a later explicit, compiler-checked lifecycle relationship
+  that binds the opaque application to one exact carrier finalizer and total
+  ownership rules for success, failure, return, and abandonment.
+- Acceptable: admit a broader structurally derived cleanup-free carrier class,
+  provided the compiler can prove it has no independently invoked finalizer and
+  its physical copies remain relocations of one semantic owner.
+- Tempting but wrong: require opaque and carrier multiplicities to be equal,
+  automatically run the carrier's ordinary `drop`, ignore carrier cleanup,
+  treat an ABI copy as semantic copying, or publish a D26 demand before the
+  lifecycle join is complete.

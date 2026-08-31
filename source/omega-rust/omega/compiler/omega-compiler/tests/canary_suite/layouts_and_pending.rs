@@ -62,8 +62,9 @@ fn plan_laid_erased_field_is_semantic_but_not_physical() {
     assert_eq!(plan.offsets, [0, 16], "erased proof has no plan entry");
     assert_eq!(plan.size, 32);
 
-    let layouts = omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host())
-        .expect("erased-stripped native layout should build");
+    let layouts =
+        omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host(), &[])
+            .expect("erased-stripped native layout should build");
     let physical = layouts
         .data_layouts
         .iter()

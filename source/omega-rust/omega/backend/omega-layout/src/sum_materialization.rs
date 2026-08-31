@@ -1734,7 +1734,7 @@ mod tests {
             .iter()
             .find(|definition| definition.name.as_str() == "Choice")
             .unwrap();
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let report =
             project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
                 .unwrap();
@@ -1804,7 +1804,7 @@ mod tests {
             .iter()
             .find(|definition| definition.name.as_str() == "Event")
             .unwrap();
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let error =
             project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
                 .unwrap_err();
@@ -1830,7 +1830,7 @@ mod tests {
             .iter()
             .find(|definition| definition.name.as_str() == "Inner")
             .unwrap();
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let path = project_conventional_record_with_nested_sum_record_materialization_layout(
             &checked,
             &plan,
@@ -2136,7 +2136,7 @@ mod tests {
             data OuterArraySibling [copy] { inner: Inner; sibling: [Choice; 1]; }
             "#,
         );
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         for name in [
             "DirectOuter",
             "TwoInner",
@@ -2199,7 +2199,7 @@ mod tests {
             .iter()
             .find(|definition| definition.name.as_str() == "Outer")
             .unwrap();
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let paths = project_conventional_record_with_nested_sum_records_materialization_layout(
             &checked,
             &plan,
@@ -2452,7 +2452,7 @@ mod tests {
             data OuterArray [copy] { middle: Middle; choices: [Choice; 1]; }
             "#,
         );
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let definition = |name: &str| {
             checked
                 .data_definitions()
@@ -2805,7 +2805,7 @@ mod tests {
             data OuterArray [copy] { first: First; choices: [Choice; 1]; }
             "#,
         );
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let definition = |name: &str| {
             checked
                 .data_definitions()
@@ -3334,7 +3334,7 @@ mod tests {
             data OuterMixed [copy] { #1 first: Middle; #2 mixed: Mixed; }
             "#,
         );
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let definition = |name: &str| {
             checked
                 .data_definitions()
@@ -3759,7 +3759,7 @@ mod tests {
             .iter()
             .find(|definition| definition.name.as_str() == "Outer")
             .unwrap();
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let path = project_conventional_record_with_nested_sum_record_materialization_layout(
             &checked,
             &plan,
@@ -3845,7 +3845,7 @@ mod tests {
             .iter()
             .find(|definition| definition.name.as_str() == "Envelope")
             .unwrap();
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let (outer, nested_rows) = project_conventional_record_with_sum_materialization_layout(
             &checked,
             &plan,
@@ -3915,7 +3915,7 @@ mod tests {
             data MixedOwner [copy] { mixed: Mixed; }
             "#,
         );
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host()).unwrap();
+        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
         let multiple = checked
             .data_definitions()
             .iter()

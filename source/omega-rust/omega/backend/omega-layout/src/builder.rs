@@ -12,6 +12,7 @@ use omega_calling_conventions::{
     callback_layout_field_slot_id, callback_layout_plan_id, callback_layout_slot_id,
     callback_plan_laid_layout_id, callback_requirement_id,
 };
+use omega_representation_planning::{OpaqueRepresentationSelection, selection_for_opaque};
 use omega_target::NativeTarget;
 use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
@@ -24,11 +25,24 @@ use psi_checked_trees::types::{
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{BuiltinType, SymbolHandle};
 
+/// Build the selected target's general physical layout plan.
+///
+/// Opaque declarations remain absent from the eager top-level catalog. When a
+/// by-value layout reaches one through another concrete shape, the exact
+/// compiler-validated selection redirects physical derivation to its carrier.
+/// Merely supplying a selection does not create a package demand or expose the
+/// carrier as the semantic source type.
 pub fn build_layout_plan(
     program: &CheckedTrees,
     target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<LayoutPlan, Diagnostic> {
-    let mut builder = LayoutBuilder::new(program, target);
+    let mut builder = LayoutBuilder::new(
+        program,
+        target,
+        opaque_representation_selections,
+        OpaqueRepresentationDemand::CatalogConstruction,
+    );
 
     // Math roster N1: proof-only data (recursive, or holding proof-only
     // inline) HAS no layout, by definition -- skip it the way generic
@@ -79,13 +93,33 @@ pub fn build_layout_plan(
 
 /// Compute the selected target's concrete size/alignment for one checked type
 /// reference. Task activation elaboration uses this for argument, outcome, and
-/// continuation-live values without duplicating layout rules.
+/// continuation-live values without duplicating layout rules. References do
+/// not descend into their referee and therefore never demand or consume an
+/// opaque representation selection. A direct by-value opaque request is an
+/// actual layout demand and rejects when the authoritative build selected no
+/// representation.
 pub fn layout_type_reference(
     program: &CheckedTrees,
     target: NativeTarget,
+    opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<TypeLayout, Diagnostic> {
-    LayoutBuilder::new(program, target).layout_type_reference_handle(type_reference)
+    LayoutBuilder::new(
+        program,
+        target,
+        opaque_representation_selections,
+        OpaqueRepresentationDemand::ByValue,
+    )
+    .layout_type_reference_handle(type_reference)
+}
+
+/// The complete layout catalog eagerly visits declarations that may never be
+/// used. Only an explicit type-layout request is proof that an unselected
+/// opaque is demanded by value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OpaqueRepresentationDemand {
+    CatalogConstruction,
+    ByValue,
 }
 
 struct LayoutBuilder<'program> {
@@ -98,6 +132,8 @@ struct LayoutBuilder<'program> {
     repeated_fields: Vec<RepeatedFieldLayout>,
     private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
     plan_laid_layout_identities: Vec<TargetClosedPlanLaidDataLayoutIdentity>,
+    opaque_representation_selections: &'program [OpaqueRepresentationSelection],
+    opaque_representation_demand: OpaqueRepresentationDemand,
     /// One recorded MONOMORPHIZED instance per generic data definition: the
     /// definition symbol paired with the canonical display of its type
     /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
@@ -173,7 +209,12 @@ impl LayoutVisitStack {
 }
 
 impl<'program> LayoutBuilder<'program> {
-    fn new(program: &'program CheckedTrees, target: NativeTarget) -> Self {
+    fn new(
+        program: &'program CheckedTrees,
+        target: NativeTarget,
+        opaque_representation_selections: &'program [OpaqueRepresentationSelection],
+        opaque_representation_demand: OpaqueRepresentationDemand,
+    ) -> Self {
         let data_definitions = program.data_definitions();
         let machine_definitions = program.machines();
         let field_capacity = data_definitions
@@ -214,6 +255,8 @@ impl<'program> LayoutBuilder<'program> {
             repeated_fields: Vec::new(),
             private_callback_demands: Vec::new(),
             plan_laid_layout_identities: Vec::new(),
+            opaque_representation_selections,
+            opaque_representation_demand,
             generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
@@ -1125,11 +1168,23 @@ impl<'program> LayoutBuilder<'program> {
             )));
         }
 
-        if self
+        if let Some(definition) = self
             .data_definitions
             .iter()
-            .any(|definition| definition.symbol == symbol)
+            .find(|definition| definition.symbol == symbol)
         {
+            if definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
+                if let Some(selection) =
+                    selection_for_opaque(self.opaque_representation_selections, symbol)
+                {
+                    return self.layout_data_definition(selection.carrier());
+                }
+                if self.opaque_representation_demand == OpaqueRepresentationDemand::ByValue {
+                    return Err(Diagnostic::error(format!(
+                        "by-value layout for boundary-opaque data `{name}` requires one exact representation selected by the authoritative build"
+                    )));
+                }
+            }
             return self.layout_data_definition(symbol);
         }
 
@@ -2092,7 +2147,7 @@ mod tests {
         "#;
         let checked = checked(source);
 
-        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
         let packed = plan
             .data_layouts
             .iter()
@@ -2127,7 +2182,7 @@ mod tests {
             "#,
         );
 
-        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
         let data = plan
             .data_layouts
             .iter()
@@ -2163,7 +2218,7 @@ mod tests {
             }
             "#,
         );
-        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
         let message = plan
             .data_layouts
             .iter()
@@ -2212,7 +2267,7 @@ mod tests {
             }
             "#,
         );
-        let plan = build_layout_plan(&checked, NativeTarget::host()).expect("layout");
+        let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
         let event = plan
             .data_layouts
             .iter()
