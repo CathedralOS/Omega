@@ -118,10 +118,12 @@ pub enum PackageReviewContractStaticArgument {
     /// The exact selected concrete machine entry, including package or
     /// compiler/toolchain ownership.
     ConcreteMachine(PackageReviewNominalIdentity),
-    /// One exact lifetime-free, type-only closed conformance application used
-    /// as a proof-expression call's static argument. The checked occurrence
-    /// row independently rejoins the complete closed application; this
-    /// portable form replaces private symbols and occurrence handles.
+    /// One exact lifetime-free closed conformance application used as a
+    /// proof-expression call's static argument. Its declaration telescope is
+    /// limited to exact types and parser-canonical integer-literal consts; its
+    /// target-trait telescope remains type-only. The checked occurrence row
+    /// independently rejoins the complete closed application; this portable
+    /// form replaces private symbols and occurrence handles.
     ConformanceApplication {
         declaration: PackageReviewNominalIdentity,
         arguments: Vec<PackageReviewContractStaticArgument>,

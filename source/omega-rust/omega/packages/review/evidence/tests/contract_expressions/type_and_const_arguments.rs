@@ -933,6 +933,182 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_integer_const_conformance_arguments_without_aliasing_values() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |rank: u64| {
+        format!(
+            r#"pub trait Ranked {{}}
+pub data Card {{}}
+pub FieldOrder<Element, const Rank: u64>: Element satisfies Ranked {{}}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 {{ 0 }}
+boundary machine trusted() -> u64
+ensures result == tag<Card, FieldOrder<Card, {rank}>>();
+"#,
+        )
+    };
+    original.write("main.omg", &source(7));
+    changed.write("main.omg", &source(8));
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    original.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("integer-const conformance contract argument should check");
+        project_checked_package_review(&checked)
+            .expect("integer-const conformance contract argument should project")
+    };
+
+    let review = project(&original);
+    let changed = project(&changed);
+    let trusted = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted")
+        .expect("trusted boundary callable");
+    let [contract] = trusted.contracts() else {
+        panic!("one trusted contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [
+        PackageReviewContractStaticArgument::Type(_),
+        PackageReviewContractStaticArgument::ConformanceApplication {
+            arguments, subject, ..
+        },
+    ] = static_arguments.as_slice()
+    else {
+        panic!("type and closed-conformance static arguments")
+    };
+    assert!(matches!(
+        arguments.as_slice(),
+        [
+            PackageReviewContractStaticArgument::Type(argument),
+            PackageReviewContractStaticArgument::ConstInteger(rank),
+        ] if argument.canonical().contains("Card") && rank == "7"
+    ));
+    assert!(matches!(
+        subject.as_ref(),
+        PackageReviewContractStaticArgument::Type(argument)
+            if argument.canonical().contains("Card")
+    ));
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "changing an integer const in the selected conformance must change review identity",
+    );
+}
+
+#[test]
+fn review_rejects_forwarded_const_binders_in_closed_contract_conformances() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Ranked {}
+pub data Card {}
+pub FieldOrder<Element, const Rank: u64>: Element satisfies Ranked {}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 { 0 }
+boundary machine trusted<const Rank: u64>() -> u64
+ensures result == tag<Card, FieldOrder<Card, Rank>>();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("forwarded-const conformance contract argument should check");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("a forwarded const binder is outside the closed literal cohort");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "outside the lifetime-free cohort with type parameters and integer-literal const parameters",
+        )
+    }));
+}
+
+#[test]
+fn review_rejects_integer_const_conformance_occurrence_value_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Ranked {}
+pub data Card {}
+pub FieldOrder<Element, const Rank: u64>: Element satisfies Ranked {}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 { 0 }
+boundary machine trusted() -> u64
+ensures result == tag<Card, FieldOrder<Card, 7>>();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("integer-const conformance occurrence fixture should check");
+    checked
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .application
+        .const_arguments[0] = "8".to_owned();
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("checked const-value drift must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("retained checked occurrence disagrees with the authored application")
+    }));
+}
+
+#[test]
 fn review_rejects_type_erasure_of_machine_parameterized_conformance_targets() {
     let Some(target) = host_target_name() else {
         return;

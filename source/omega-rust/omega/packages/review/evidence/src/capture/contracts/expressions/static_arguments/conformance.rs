@@ -136,19 +136,40 @@ pub(super) fn project_contract_conformance_application(
         )));
     };
     let parameters = compilation.conformance_type_parameters(declaration);
-    if !declaration.lifetime_parameters.is_empty()
-        || parameters.iter().any(|parameter| {
-            !matches!(
-                parameter.kind,
-                psi_typed_trees::data::TypeParameterKind::Type
-            )
+    let supplied = argument
+        .application
+        .as_ref()
+        .map_or(&[][..], |application| application.arguments.as_ref());
+    let literal_const_arguments = parameters
+        .iter()
+        .zip(supplied)
+        .filter_map(|(parameter, argument)| match parameter.kind {
+            psi_typed_trees::data::TypeParameterKind::Const { .. } => argument
+                .const_literal
+                .as_ref()
+                .map(|literal| literal.text().to_owned()),
+            _ => None,
         })
+        .collect::<Vec<_>>();
+    if !declaration.lifetime_parameters.is_empty()
+        || parameters.len() != supplied.len()
+        || parameters
+            .iter()
+            .zip(supplied)
+            .any(|(parameter, argument)| match parameter.kind {
+                psi_typed_trees::data::TypeParameterKind::Type => false,
+                psi_typed_trees::data::TypeParameterKind::Const { .. } => {
+                    argument.const_literal.is_none()
+                }
+                psi_typed_trees::data::TypeParameterKind::Machine { .. }
+                | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => true,
+            })
         || !closed.lifetime_arguments.is_empty()
-        || !closed.const_arguments.is_empty()
+        || closed.const_arguments != literal_const_arguments
         || !closed.machine_arguments.is_empty()
     {
         return Err(rejected(
-            "outside the lifetime-free, type-only closed cohort",
+            "outside the lifetime-free cohort with type parameters and integer-literal const parameters",
         ));
     }
     let projected =

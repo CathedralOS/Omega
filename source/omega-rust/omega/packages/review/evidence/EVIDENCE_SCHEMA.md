@@ -1,8 +1,18 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 102 and row schema version 60. This file
+The canonical review schema is version 103 and row schema version 61. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v103 / row v61 extends the exact closed-conformance contract-argument
+lane to declaration telescopes containing parser-canonical integer-literal
+const arguments. The portable row retains each const in declaration order and
+the checked occurrence still rejoins the complete closed application, so
+`FieldOrder<Card, 7>` and `FieldOrder<Card, 8>` cannot share review identity.
+Forwarded const binders, named or structured const values, lifetime, machine,
+and proposition parameters remain fail-closed. The target-trait telescope
+remains type-only; this revision does not relabel const target arguments as
+types or add a generic conformance surface.
 
 Schema v102 / row v60 admits a selected public named const in a contract-call
 static slot when its carrier is an acyclic, monomorphic checked record or pure

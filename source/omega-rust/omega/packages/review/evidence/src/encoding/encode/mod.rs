@@ -11,9 +11,9 @@ pub(super) mod rows;
 mod values;
 
 pub(crate) const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 102;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 103;
 pub(crate) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 60;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 61;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
