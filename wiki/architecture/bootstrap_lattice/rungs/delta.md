@@ -80,7 +80,11 @@ failures and resultless/`never` categories without manufacturing relations from
 missing sibling facts. Scalar operators retain complete category branches;
 application arguments retain their explicitly anchored `never` branch while
 Q11 blocks the resultless anchor. Let/assignment/assert relations consume only
-their complete value/place premises and preserve storage `u8` establishment. Expression
+their complete value/place premises and preserve storage `u8` establishment.
+Explicit terminal and arm returns consume the enclosing machine return type
+with D37's exact absence/value anchors. A private statement-flow relation
+retains a successful standalone `never` call, rejects the first following
+ordinary statement, and continues checking later authored children. Expression
 use distinguishes an ordinary value, call head, discarded postfix statement,
 and transition continuation rather than collapsing the latter three. Grouped
 qualified heads now transfer bare-machine custody to the outer call suffix,
@@ -94,8 +98,11 @@ grouped/unqualified plus named-receiver application slices are implemented;
 continuation/state classification including Q9's state-transfer spelling,
 Q10's invalid-`self` diagnostic, and Q11's resultless-argument anchor remain
 open. D37's field/index/slice projection failures, scalar categories,
-argument-`never` branch, and let/assignment/assert relations are implemented;
-its remaining control, return, and terminal-flow composition remains open. D38
+argument-`never` branch, let/assignment/assert and explicit-return relations,
+and first-following-statement terminal flow are implemented;
+Q12 blocks explicit terminals after `never`, forbidden falloff, machine-call
+continuation exit behavior, and the complete reachability judgment; its
+remaining control and terminal-flow composition remains open. D38
 settles the place-
 valued fixed-array receiver
 and non-place full-view result for `.as_slice`; its source fact relation is

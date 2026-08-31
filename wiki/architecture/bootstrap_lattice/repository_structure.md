@@ -73,11 +73,13 @@ The committed tree still has two important gaps:
   receiver, and sealed-boundary receiver results plus postfix-statement
   category admission, positive receiver-scoped
   `self`, settled field/index/slice projection failures, D37 scalar and
-  argument-`never` category joins and let/assignment/assert relations, D38's source fact
+  argument-`never` category joins, let/assignment/assert and explicit-return
+  relations, first-following-statement terminal flow, D38's source fact
   relation, and symbolic Alpha encoding.
   Remaining Q4-blocked entry diagnostics, Q9 state-transfer spelling, Q10
-  invalid-`self`, Q11 resultless-argument anchoring, D36 continuation/state
-  classification, and D37 remaining control/return/terminal closure, D38
+  invalid-`self`, Q11 resultless-argument anchoring, Q12 block-exit totality,
+  D36 continuation/state classification, and D37 remaining control/terminal
+  closure, D38
   lowering/executable
   controls, body/control checking, D34 physical storage refusal, lowering, tape
   publication, and refinement are still open.

@@ -639,3 +639,72 @@ value-use expression rather than moving the anchor to the callee.
   `InternalFailure`, suppress the argument because arity or callee admission
   failed, choose an anchor by traversal order, or manufacture a value/error
   type for the resultless call.
+
+## Q12 — Total Delta block exits and machine continuations
+
+### Context
+
+D17 requires a resultless machine to return without a value or fall off a
+reachable block, a value-returning machine to return a value on every reachable
+normal path, and a `never` machine to have no normal return path. D37 completely
+anchors an authored return relation and makes the first ordinary statement
+after a successful standalone `never` call `InvalidTerminal` at that following
+statement. The compiler can implement those two relations without guessing.
+
+Three adjacent exits are not total. An explicit `return` or `transition` after
+the standalone `never` call is not an ordinary statement, so D37 assigns no
+failure or coordinate. Reachable falloff in a value-returning or `never`
+machine violates D17 but has no rejection reason or anchor. Finally, a
+transition continuation may invoke an unqualified machine, but the language
+does not say whether that call is a tail return whose result category/type must
+match the enclosing machine, a discarded call followed by falloff, or a
+separate nonreturning control transfer.
+
+These are product semantics for the compiler-host language, not implementation
+recovery choices. Until they are fixed, a state/control-flow graph cannot
+honestly classify every reachable block exit or prove the return obligation.
+
+### Problem statement
+
+Define one total block-exit judgment covering:
+
+1. an explicit return or transition after a successful standalone `never`
+   call, including reason and exact coordinate;
+2. reachable falloff from resultless, value-returning, and `never` machines,
+   including reason and exact coordinate; and
+3. the return/termination effect of an unqualified machine application used as
+   a transition continuation.
+
+Also state whether transition reachability conservatively includes every
+authored arm or may use subject-value feasibility. The judgment must support
+cyclic states without mistaking divergence for a normal return path.
+
+### Proposed direction
+
+Give every reachable block one closed exit fact: resultless falloff, explicit
+return, exact `never`, state transfer, or machine tail transfer. Treat every
+authored transition arm as a possible edge; constant-value feasibility is an
+optimization and does not suppress static checking or return obligations.
+Diagnose an explicit terminal after `never` as `InvalidTerminal` at that
+terminal's first byte, matching the existing first-following-statement rule.
+Diagnose forbidden falloff as `TypeMismatch` at the closing brace of the
+falling-off machine entry or state body. A machine continuation is a tail
+transfer and must have the same resultless/value/`never` return category and,
+for values, the same structural type as the enclosing machine.
+
+Compute the obligation by a cycle-safe fixed point over exact retained machine
+and state identities. A cycle with no normal-exit edge satisfies a `never`
+obligation; it does not manufacture a return value.
+
+### Alternates
+
+- Acceptable: anchor forbidden falloff at the owning body or state declaration
+  start, provided the coordinate is explicit and stable for empty and nonempty
+  bodies.
+- Acceptable: define machine continuations as discarded calls followed by
+  falloff, provided that behavior and its effect on each enclosing return
+  category are explicit.
+- Tempting but wrong: choose a brace, earlier `never` call, or continuation
+  result based on compiler traversal; treat only the first transition arm as
+  reachable; infer termination from a bounded simulation; or call the missing
+  diagnostic an implementation detail.
