@@ -40,17 +40,18 @@ decision. Only true language-semantic questions belong in
    of varying with the host. Package-review fixtures now use the current
    representation-TCB kind and give `process-exit` its own Linux-pinned
    fail-closed canary instead of treating incomplete Console custody as
-   reviewable. A clean frozen-tree audit now passes the 78-check layering
+   reviewable. The pre-rebase frozen-tree audit passed the 78-check layering
    suite, the optimizer organization guard, all affected optimizer/lowering
    suites, all 67 build-configuration cases (one intentional ignore), the
    descriptor-lock canary, all six output-tree canaries, and all eight call-
-   acknowledgement canaries. The broader no-fail-fast audit remains blocked
-   beyond that boundary by existing native-production closure failures: the
-   1,258-case language canary reports 1,144 failures, predominantly missing a
-   checked transitive machine plan or exact selected program entry, with a
-   smaller unresolved `CheckedOperator` class; the following native filesystem
-   suite fails through the same production route. Do not attribute that broad
-   compiler repair campaign to the optimizer taxonomy milestone.
+   acknowledgement canaries. Beyond that boundary, its 1,258-case language
+   canary exposed 1,144 native-production closure failures, predominantly a
+   missing checked transitive machine plan or exact selected program entry,
+   with a smaller unresolved `CheckedOperator` class. Upstream then landed
+   attached-Unit installation and placed-view custody changes during this
+   checkpoint; their affected focused suites are green after rebase, so run a
+   new frozen full-workspace audit before classifying which broad failures
+   remain.
 
 ## P0 — Source navigation and taxonomy
 
