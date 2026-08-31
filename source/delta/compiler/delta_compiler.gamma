@@ -5084,7 +5084,7 @@
                           DeltaArgumentsCompatible
                           DeltaArgumentsTypeMismatch))
                       (DeltaResultlessExpressionResult
-                        DeltaArgumentsTypeMismatch)
+                        DeltaArgumentsIncomplete)
                       (DeltaNeverExpressionResult
                         DeltaArgumentsIncomplete))))
                 (delta_argument_type_join_merge current
@@ -5131,6 +5131,33 @@
         ((DeltaViewType typeStart typeEnd element)
           (delta_local_scan_add_value expressionValue typeValue
             NoDeltaPlaceType scan))))))
+
+; An argument's explicitly anchored `never` category is a sibling of callable
+; admission and arity, so retain it for every authored application before
+; lookup. D37 does not yet assign an anchor to a resultless argument's required
+; TypeMismatch; leave that owner-blocked category factless rather than guessing.
+; The later all-value type join owns application-anchored type mismatch.
+(def delta_local_scan_argument_terminal_candidates
+  ((arguments DeltaExpressionList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match arguments
+    (NoDeltaExpressions scan)
+    ((MoreDeltaExpressions item rest)
+      (let nextScan
+        (match scan
+          ((DeltaLocalResolutionScanSyntax catalog references fields callables
+            types candidate)
+            (match (delta_find_expression_result item types)
+              (NoDeltaExpressionResult scan)
+              ((OneDeltaExpressionResult resultValue)
+                (match resultValue
+                  ((DeltaValueExpressionResult typeValue placeType) scan)
+                  (DeltaResultlessExpressionResult scan)
+                  (DeltaNeverExpressionResult
+                    (delta_local_scan_add_candidate InvalidTerminal
+                      (delta_expression_start (delta_call_head_core item))
+                      scan)))))))
+        (delta_local_scan_argument_terminal_candidates rest nextScan)))))
 
 ; Every admitted callable spelling converges here after identity and category
 ; resolution. Arity depends on the signature plus authored argument count; the
@@ -5895,10 +5922,11 @@
                 scan))))))))
 
 ; Resultless and `never` are complete expression categories whose invalid use
-; is independent of sibling projection premises. Value-type relations remain
-; in the enclosing field/index/slice join and therefore wait for every value
-; fact that relation consumes.
-(def delta_local_scan_projection_value_use_candidate
+; is independent of sibling premises. The relation anchor owns a resultless
+; value-use mismatch, while a mispositioned `never` result remains anchored at
+; the exact call beneath any grouping. Value-type and place relations stay in
+; their enclosing joins and therefore wait for every fact they consume.
+(def delta_local_scan_value_use_candidate
   ((expressionValue DeltaExpression) (child DeltaExpression)
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match scan
@@ -5921,8 +5949,8 @@
   (base DeltaExpression) (indexValue DeltaExpression)
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (let categoryScan
-    (delta_local_scan_projection_value_use_candidate expressionValue indexValue
-      (delta_local_scan_projection_value_use_candidate expressionValue base
+    (delta_local_scan_value_use_candidate expressionValue indexValue
+      (delta_local_scan_value_use_candidate expressionValue base
         scan))
     (match categoryScan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables types
@@ -5999,13 +6027,13 @@
             (DeltaResultlessExpressionResult 0)
             (DeltaNeverExpressionResult 0)))))))
 
-(def delta_local_scan_optional_projection_value_use_candidate
+(def delta_local_scan_optional_value_use_candidate
   ((expressionValue DeltaExpression) (bound DeltaOptionalExpression)
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match bound
     (NoDeltaExpression scan)
     ((SomeDeltaExpression child)
-      (delta_local_scan_projection_value_use_candidate expressionValue child
+      (delta_local_scan_value_use_candidate expressionValue child
         scan))))
 
 (def delta_local_scan_slice_fact ((expressionValue DeltaExpression)
@@ -6013,11 +6041,11 @@
   (high DeltaOptionalExpression) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
   (let categoryScan
-    (delta_local_scan_optional_projection_value_use_candidate expressionValue
+    (delta_local_scan_optional_value_use_candidate expressionValue
       high
-      (delta_local_scan_optional_projection_value_use_candidate
+      (delta_local_scan_optional_value_use_candidate
         expressionValue low
-        (delta_local_scan_projection_value_use_candidate expressionValue base
+        (delta_local_scan_value_use_candidate expressionValue base
           scan)))
     (match categoryScan
       ((DeltaLocalResolutionScanSyntax catalog references fields callables types
@@ -6082,34 +6110,39 @@
 (def delta_local_scan_require_i32 ((expressionValue DeltaExpression)
   (child DeltaExpression) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
-  (match scan
+  (let categoryScan
+    (delta_local_scan_value_use_candidate expressionValue child scan)
+    (match categoryScan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables types
       candidate)
       (match (delta_find_expression_result child types)
-        (NoDeltaExpressionResult scan)
+        (NoDeltaExpressionResult categoryScan)
         ((OneDeltaExpressionResult resultValue)
           (match resultValue
             ((DeltaValueExpressionResult typeValue placeType)
               (if (delta_type_is_i32 typeValue)
                 (delta_local_scan_add_value expressionValue
                   (delta_expression_i32_type expressionValue)
-                  NoDeltaPlaceType scan)
+                  NoDeltaPlaceType categoryScan)
                 (delta_local_scan_add_candidate TypeMismatch
-                  (delta_expression_start expressionValue) scan)))
-            (DeltaResultlessExpressionResult scan)
-            (DeltaNeverExpressionResult scan)))))))
+                  (delta_expression_start expressionValue) categoryScan)))
+            (DeltaResultlessExpressionResult categoryScan)
+            (DeltaNeverExpressionResult categoryScan))))))))
 
 (def delta_local_scan_binary_i32 ((expressionValue DeltaExpression)
   (left DeltaExpression) (right DeltaExpression)
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
-  (match scan
+  (let categoryScan
+    (delta_local_scan_value_use_candidate expressionValue right
+      (delta_local_scan_value_use_candidate expressionValue left scan))
+    (match categoryScan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables types
       candidate)
       (match (delta_find_expression_result left types)
-        (NoDeltaExpressionResult scan)
+        (NoDeltaExpressionResult categoryScan)
         ((OneDeltaExpressionResult leftResult)
           (match (delta_find_expression_result right types)
-            (NoDeltaExpressionResult scan)
+            (NoDeltaExpressionResult categoryScan)
             ((OneDeltaExpressionResult rightResult)
               (match leftResult
                 ((DeltaValueExpressionResult leftType leftPlace)
@@ -6119,15 +6152,17 @@
                         (if (delta_type_is_i32 rightType)
                           (delta_local_scan_add_value expressionValue
                             (delta_expression_i32_type expressionValue)
-                            NoDeltaPlaceType scan)
+                            NoDeltaPlaceType categoryScan)
                           (delta_local_scan_add_candidate TypeMismatch
-                            (delta_expression_start expressionValue) scan))
+                            (delta_expression_start expressionValue)
+                            categoryScan))
                         (delta_local_scan_add_candidate TypeMismatch
-                          (delta_expression_start expressionValue) scan)))
-                    (DeltaResultlessExpressionResult scan)
-                    (DeltaNeverExpressionResult scan)))
-                (DeltaResultlessExpressionResult scan)
-                (DeltaNeverExpressionResult scan)))))))))
+                          (delta_expression_start expressionValue)
+                          categoryScan)))
+                    (DeltaResultlessExpressionResult categoryScan)
+                    (DeltaNeverExpressionResult categoryScan)))
+                (DeltaResultlessExpressionResult categoryScan)
+                (DeltaNeverExpressionResult categoryScan))))))))))
 
 (def delta_expression_use_resolves_local_value ((useValue DeltaExpressionUse))
   Int
@@ -6185,11 +6220,14 @@
             owner name arguments
             (delta_expression_use_checks_qualified_value useValue) scan))
         ((SomeDeltaArguments openStart closeEnd values)
-          (delta_local_scan_qualified_callable_fact source expressionValue
-            owner name arguments
-            (delta_expression_use_checks_qualified_value useValue)
-            (delta_resolve_local_expression_list source values active pending
-              scan)))))
+          (let argumentScan
+            (delta_local_scan_argument_terminal_candidates values
+              (delta_resolve_local_expression_list source values active pending
+                scan))
+            (delta_local_scan_qualified_callable_fact source expressionValue
+              owner name arguments
+              (delta_expression_use_checks_qualified_value useValue)
+              argumentScan)))))
     ((DeltaGroupedExpression start end inner)
       (delta_local_scan_propagate_result expressionValue inner
         (delta_resolve_local_expression_context source inner active pending
@@ -6206,16 +6244,18 @@
         (delta_resolve_local_expression_list source arguments active pending
           (delta_resolve_local_expression_context source base active pending
             scan DeltaCallHeadExpressionUse))
-        (let contextualScan
-          (delta_local_scan_non_named_call_head_field_fact source base
-            childScan)
+        (let argumentScan
+          (delta_local_scan_argument_terminal_candidates arguments childScan)
+          (let contextualScan
+            (delta_local_scan_non_named_call_head_field_fact source base
+              argumentScan)
           (let receiverScan
             (delta_local_scan_receiver_application source expressionValue base
               arguments contextualScan)
             (delta_local_scan_unqualified_machine_application source
               expressionValue base arguments active pending useValue
               (delta_local_scan_reject_value_call expressionValue base
-                receiverScan))))))
+                receiverScan)))))))
     ((DeltaIndexExpression start end base indexValue)
       (delta_local_scan_index_fact expressionValue base indexValue
         (delta_resolve_local_expression source indexValue active pending
@@ -6255,23 +6295,115 @@
   (delta_resolve_local_expression_context source expressionValue active
     NoDeltaLocalBindings scan DeltaTransitionContinuationExpressionUse))
 
+; A statement value relation first consumes a complete value category, then
+; compares its type. Category failures remain independent of the comparison;
+; an unresolved child manufactures neither a mismatch nor an error type.
+(def delta_local_scan_statement_value_type_relation ((source Bytes)
+  (expressionValue DeltaExpression) (expectedType DeltaType)
+  (storedEstablishment Int) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (let categoryScan
+    (delta_local_scan_value_use_candidate expressionValue expressionValue scan)
+    (match categoryScan
+      ((DeltaLocalResolutionScanSyntax catalog references fields callables types
+        candidate)
+        (match (delta_find_expression_result expressionValue types)
+          (NoDeltaExpressionResult categoryScan)
+          ((OneDeltaExpressionResult resultValue)
+            (match resultValue
+              ((DeltaValueExpressionResult actualType placeType)
+                (if (delta_argument_value_type_compatible source actualType
+                  expectedType storedEstablishment)
+                  categoryScan
+                  (delta_local_scan_add_candidate TypeMismatch
+                    (delta_expression_start expressionValue) categoryScan)))
+              (DeltaResultlessExpressionResult categoryScan)
+              (DeltaNeverExpressionResult categoryScan))))))))
+
+; Assignment place admission consumes only a complete value result. The
+; retained place type is the storage type (not the zero-extended read type),
+; which is required for the later assignment value join and `u8` establishment.
+(def delta_local_scan_statement_place_relation
+  ((placeValue DeltaExpression) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (let categoryScan
+    (delta_local_scan_value_use_candidate placeValue placeValue scan)
+    (match categoryScan
+      ((DeltaLocalResolutionScanSyntax catalog references fields callables types
+        candidate)
+        (match (delta_find_expression_result placeValue types)
+          (NoDeltaExpressionResult categoryScan)
+          ((OneDeltaExpressionResult resultValue)
+            (match resultValue
+              ((DeltaValueExpressionResult valueType placeType)
+                (match placeType
+                  (NoDeltaPlaceType
+                    (delta_local_scan_add_candidate InvalidPlace
+                      (delta_expression_start placeValue) categoryScan))
+                  ((SomeDeltaPlaceType storageType) categoryScan)))
+              (DeltaResultlessExpressionResult categoryScan)
+              (DeltaNeverExpressionResult categoryScan))))))))
+
+; The assignment type relation consumes both a valid left place and a complete
+; right value. It therefore cannot derive a second failure from a missing or
+; non-place left premise, while the right-side category branch is still kept.
+(def delta_local_scan_assignment_relation ((source Bytes)
+  (placeValue DeltaExpression) (assignedValue DeltaExpression)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (let categoryScan
+    (delta_local_scan_value_use_candidate assignedValue assignedValue
+      (delta_local_scan_statement_place_relation placeValue scan))
+    (match categoryScan
+      ((DeltaLocalResolutionScanSyntax catalog references fields callables types
+        candidate)
+        (match (delta_find_expression_result placeValue types)
+          (NoDeltaExpressionResult categoryScan)
+          ((OneDeltaExpressionResult placeResult)
+            (match placeResult
+              ((DeltaValueExpressionResult readType placeType)
+                (match placeType
+                  (NoDeltaPlaceType categoryScan)
+                  ((SomeDeltaPlaceType storageType)
+                    (match (delta_find_expression_result assignedValue types)
+                      (NoDeltaExpressionResult categoryScan)
+                      ((OneDeltaExpressionResult assignedResult)
+                        (match assignedResult
+                          ((DeltaValueExpressionResult assignedType
+                            assignedPlace)
+                            (if (delta_argument_value_type_compatible source
+                              assignedType storageType 1)
+                              categoryScan
+                              (delta_local_scan_add_candidate TypeMismatch
+                                (delta_expression_start assignedValue)
+                                categoryScan)))
+                          (DeltaResultlessExpressionResult categoryScan)
+                          (DeltaNeverExpressionResult categoryScan)))))))
+              (DeltaResultlessExpressionResult categoryScan)
+              (DeltaNeverExpressionResult categoryScan))))))))
+
 (def delta_resolve_local_statement_expressions ((source Bytes)
   (statementValue DeltaStatement) (active DeltaLocalBindingList)
   (pending DeltaLocalBindingList) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
   (match statementValue
     ((DeltaLetStatement start end name typeValue initializer)
-      (delta_resolve_local_expression source initializer active pending scan))
-    ((DeltaAssignmentStatement start end placeValue assignedValue)
-      (delta_resolve_local_expression source assignedValue active pending
-        (delta_resolve_local_expression source placeValue active pending
+      (delta_local_scan_statement_value_type_relation source initializer
+        typeValue 0
+        (delta_resolve_local_expression source initializer active pending
           scan)))
+    ((DeltaAssignmentStatement start end placeValue assignedValue)
+      (delta_local_scan_assignment_relation source placeValue assignedValue
+        (delta_resolve_local_expression source assignedValue active pending
+          (delta_resolve_local_expression source placeValue active pending
+            scan))))
     ((DeltaPostfixStatement start end expressionValue)
       (delta_resolve_local_postfix_statement_expression source expressionValue
         active pending scan))
     ((DeltaAssertStatement start end expressionValue)
-      (delta_resolve_local_expression source expressionValue active pending
-        scan))))
+      (delta_local_scan_statement_value_type_relation source expressionValue
+        (delta_expression_i32_type expressionValue) 0
+        (delta_resolve_local_expression source expressionValue active pending
+          scan)))))
 
 (def delta_local_activate_statement ((statementValue DeltaStatement)
   (active DeltaLocalBindingList)) DeltaLocalBindingList

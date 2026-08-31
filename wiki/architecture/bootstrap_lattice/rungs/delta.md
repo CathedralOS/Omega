@@ -77,18 +77,23 @@ receiver-place and shared signature joins; authored-field fallback and
 case/machine collision neutrality preserve D36's namespace rules. One field
 classifier plus complete index/slice joins now retain settled projection
 failures and resultless/`never` categories without manufacturing relations from
-missing sibling facts. Expression use distinguishes an ordinary value, call
-head, discarded postfix statement, and transition continuation rather than
-collapsing the latter three.
+missing sibling facts. Scalar operators retain complete category branches;
+application arguments retain their explicitly anchored `never` branch while
+Q12 blocks the resultless anchor. Let/assignment/assert relations consume only
+their complete value/place premises and preserve storage `u8` establishment. Expression
+use distinguishes an ordinary value, call head, discarded postfix statement,
+and transition continuation rather than collapsing the latter three.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
 case/machine collision census, direct qualified applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
 continuation/state classification including Q10's state-transfer spelling,
-and Q11's invalid-`self` diagnostic remain open. D37's field/index/slice
-projection failures are implemented; its place, statement, remaining control,
-return, and terminal-flow composition remains open. D38 settles the place-
+Q11's invalid-`self` diagnostic, and Q12's resultless-argument anchor remain
+open. D37's field/index/slice projection failures, scalar categories,
+argument-`never` branch, and let/assignment/assert relations are implemented;
+its postfix-statement, remaining control, return, and terminal-flow composition
+remains open. D38 settles the place-
 valued fixed-array receiver
 and non-place full-view result for `.as_slice`; its source fact relation is
 implemented while lowering and executable controls remain. D34 has settled

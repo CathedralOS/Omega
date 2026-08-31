@@ -127,7 +127,9 @@ parameter/local reads retain both their value type and their assignable storage
 type. Reading `u8` storage will yield `i32` while preserving a `u8` place for
 the later store check. Groups preserve the complete value/place result;
 negation and every binary operator consume complete `i32` operands and produce
-a non-place `i32`.
+a non-place `i32`. Their resultless/`never` branches are retained independently
+at D37's enclosing-relation or exact-call anchors, and a missing sibling never
+manufactures an operator mismatch or result.
 
 Direct qualified constructors and data machines retain exact callable custody
 before context, arity, or argument typing. The same generalized ledger retains
@@ -189,9 +191,16 @@ while a consumed child premise is absent. Admitted callable arity is a sibling
 judgment and can therefore coexist with an independently failing
 argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
-an embedded `never` result is `InvalidTerminal`. Place, statement, remaining
-call/control context, return, and terminal-flow candidates still require the
-rest of the D37 premise DAG. The fact pass now
+an embedded `never` result is `InvalidTerminal`. Every authored argument keeps
+its explicitly anchored `never` branch independently of callee admission and
+arity; Q12 blocks the unspecified resultless-argument anchor. Let and `assert`
+relations consume only complete values. Assignment checks its left value/place
+and right value branches independently, and compares against the retained
+storage type only after both facts exist; this admits `i32` establishment into
+`u8` storage without treating its zero-extended read type as the place type.
+Postfix-statement category admission, remaining call/control context, return,
+and terminal-flow candidates still require the rest of the D37 premise DAG.
+The fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining
 nested failure candidates compose. This foundation does not claim final

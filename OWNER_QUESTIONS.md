@@ -657,3 +657,48 @@ place; receiver mutability is therefore not guessed from use.
   than an absent binding.
 - Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
   recovery receiver, or defer the failure until a later field/call suffix.
+
+## Q12 — Anchor a resultless Delta call used as an argument
+
+### Context
+
+D37 makes authored argument checking a sibling of callable admission and
+arity. It requires a resultless call used where a value is required to
+contribute `TypeMismatch`, and it requires a wrong-arity application to retain
+independent failures inside its arguments. `InvalidTerminal` already anchors a
+`never` argument at that exact call. The contract does not assign the analogous
+resultless value-use failure a coordinate.
+
+The general call relational anchor is the enclosing application start, but
+`ArityMismatch` uses that same coordinate. Applying both clauses to a
+wrong-arity call with a resultless argument creates two distinct reasons at one
+coordinate, which D37 classifies as outer `InternalFailure`. Anchoring the
+failure at the argument expression avoids that contradiction, but would be a
+new language rule rather than an implementation choice.
+
+### Problem statement
+
+Assign the exact source anchor for `TypeMismatch` when a resultless call is
+used directly as a call or constructor argument. The rule must preserve D37's
+independent argument branch when the callee is unresolved or inadmissible and
+when arity is wrong, without turning ordinary rejected Delta into compiler
+`InternalFailure`.
+
+### Proposed direction
+
+Anchor the category failure at the resultless argument expression's first
+byte. Reserve the enclosing application start for arity and the later
+all-value argument-type relation. This lets a wrong-arity candidate coexist
+with the independently checked argument without a same-coordinate reason
+collision, and it treats grouping around the resultless call as the authored
+value-use expression rather than moving the anchor to the callee.
+
+### Alternates
+
+- Acceptable: assign another explicit argument-owned coordinate, provided it is
+  stable under callee resolution and cannot collide with the application-
+  anchored arity/type relations by construction.
+- Tempting but wrong: silently use the application start and produce
+  `InternalFailure`, suppress the argument because arity or callee admission
+  failed, choose an anchor by traversal order, or manufacture a value/error
+  type for the resultless call.
