@@ -425,7 +425,8 @@
 ; rediscovering declaration ownership or assigning opaque numeric node ids.
 ; Each row retains one original top-level syntax value. Fields, cases, boundary
 ; members, and states stay inside that owner instead of becoming a second flat
-; tree. Q4 entry candidates and all body/control candidates remain later facts.
+; tree. Pending entry candidates and all body/control candidates remain later
+; facts.
 (data DeltaCatalogMachineOwner
   (DeltaCatalogUnqualifiedMachine)
   (DeltaCatalogDataMachineOwner DeltaDeclaration)
@@ -474,8 +475,9 @@
   (NoDeltaFinalReasons)
   (MoreDeltaFinalReasons DeltaRejectReason DeltaFinalReasonList))
 
-; Equal-coordinate final-phase reasons are retained as a bucket. Q4 must rule
-; entry/body composition before this can select one public rejection. D36 owns
+; Equal-coordinate final-phase reasons are retained as a bucket. The pending
+; entry-shape ruling must total entry/body composition before this can select
+; one public rejection. D36 owns
 ; the earlier receiver grammar and callable-name census; D37 deduplicates one
 ; body reason/coordinate and makes distinct same-coordinate reasons an internal
 ; contradiction.
@@ -595,6 +597,74 @@
   (OneDeltaStateApplicationReference DeltaDeclaration DeltaState
     DeltaStateApplicationProgress))
 
+; A transition subject is classified once from its complete expression fact.
+; Later pattern, reachability, and lowering passes consume this exact terminal
+; custody rather than re-resolving the subject expression.
+(data DeltaTransitionSubjectKind
+  (DeltaScalarTransitionSubject)
+  (DeltaSumTransitionSubject DeltaDeclaration))
+
+(data DeltaTransitionSubjectReference
+  (DeltaTransitionSubjectReferenceSyntax DeltaTerminal
+    DeltaTransitionSubjectKind))
+
+(data DeltaTransitionSubjectReferenceList
+  (NoDeltaTransitionSubjectReferences)
+  (MoreDeltaTransitionSubjectReferences DeltaTransitionSubjectReference
+    DeltaTransitionSubjectReferenceList))
+
+(data DeltaTransitionSubjectReferenceLookup
+  (NoDeltaTransitionSubjectReference)
+  (OneDeltaTransitionSubjectReference DeltaTransitionSubjectKind))
+
+(data DeltaTransitionPatternProgress
+  (DeltaTransitionPatternResolved)
+  (DeltaTransitionPatternComplete))
+
+(data DeltaTransitionPatternKind
+  (DeltaScalarPatternSelector Int)
+  (DeltaTransitionWildcard)
+  (DeltaSumCasePattern DeltaDeclaration DeltaDataMember))
+
+; Pattern identity is independent of subject compatibility. Complete custody
+; additionally proves the subject category, and for a case proves payload
+; arity, so binder-to-parameter typing may consume it without a guessed fact.
+(data DeltaTransitionPatternReference
+  (DeltaTransitionPatternReferenceSyntax DeltaTerminal DeltaPattern
+    DeltaTransitionPatternKind DeltaTransitionPatternProgress))
+
+(data DeltaTransitionPatternReferenceList
+  (NoDeltaTransitionPatternReferences)
+  (MoreDeltaTransitionPatternReferences DeltaTransitionPatternReference
+    DeltaTransitionPatternReferenceList))
+
+(data DeltaTransitionPatternReferenceLookup
+  (NoDeltaTransitionPatternReference)
+  (OneDeltaTransitionPatternReference DeltaTransitionPatternKind
+    DeltaTransitionPatternProgress))
+
+(data DeltaTransitionCoverageState
+  (DeltaTransitionCoverageComplete)
+  (DeltaTransitionCoverageMissing)
+  (DeltaTransitionCoverageUnresolved))
+
+; Missing coverage is retained without publishing `NonexhaustiveSum` until
+; the owner assigns that absence an exact source coordinate. Unresolved keeps
+; an invalid or incomplete pattern premise from manufacturing a coverage fact.
+(data DeltaTransitionCoverageReference
+  (DeltaTransitionCoverageReferenceSyntax DeltaTerminal DeltaDeclaration
+    DeltaTransitionCoverageState))
+
+(data DeltaTransitionCoverageReferenceList
+  (NoDeltaTransitionCoverageReferences)
+  (MoreDeltaTransitionCoverageReferences DeltaTransitionCoverageReference
+    DeltaTransitionCoverageReferenceList))
+
+(data DeltaControlReferenceLedger
+  (DeltaControlReferenceLedgerSyntax DeltaStateApplicationReferenceList
+    DeltaTransitionSubjectReferenceList DeltaTransitionPatternReferenceList
+    DeltaTransitionCoverageReferenceList))
+
 (data DeltaOptionalPlaceType
   (NoDeltaPlaceType)
   (SomeDeltaPlaceType DeltaType))
@@ -640,7 +710,7 @@
 (data DeltaLocalResolutionScan
   (DeltaLocalResolutionScanSyntax DeltaResolutionCatalog
     DeltaResolvedLocalReferenceList DeltaResolvedFieldReferenceList
-    DeltaResolvedCallableReferenceList DeltaStateApplicationReferenceList
+    DeltaResolvedCallableReferenceList DeltaControlReferenceLedger
     DeltaTypedExpressionList
     DeltaFinalCandidate))
 
@@ -656,7 +726,7 @@
 (data DeltaLocallyResolvedProgram
   (DeltaLocallyResolvedProgramSyntax DeltaCatalogedProgram
     DeltaResolvedLocalReferenceList DeltaResolvedFieldReferenceList
-    DeltaResolvedCallableReferenceList DeltaStateApplicationReferenceList
+    DeltaResolvedCallableReferenceList DeltaControlReferenceLedger
     DeltaTypedExpressionList
     DeltaFinalCandidate))
 
@@ -4956,6 +5026,174 @@
                       laterProgress)))))
             (delta_find_state_application_reference target rest)))))))
 
+(def delta_patterns_same_identity ((left DeltaPattern) (right DeltaPattern)) Int
+  (match left
+    ((DeltaIntegerPattern leftStart leftEnd leftLiteral)
+      (match right
+        ((DeltaIntegerPattern rightStart rightEnd rightLiteral)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((DeltaTruePattern rightStart rightEnd) 0)
+        ((DeltaFalsePattern rightStart rightEnd) 0)
+        ((DeltaWildcardPattern rightStart rightEnd) 0)
+        ((DeltaCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((DeltaTruePattern leftStart leftEnd)
+      (match right
+        ((DeltaIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((DeltaTruePattern rightStart rightEnd)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((DeltaFalsePattern rightStart rightEnd) 0)
+        ((DeltaWildcardPattern rightStart rightEnd) 0)
+        ((DeltaCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((DeltaFalsePattern leftStart leftEnd)
+      (match right
+        ((DeltaIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((DeltaTruePattern rightStart rightEnd) 0)
+        ((DeltaFalsePattern rightStart rightEnd)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((DeltaWildcardPattern rightStart rightEnd) 0)
+        ((DeltaCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((DeltaWildcardPattern leftStart leftEnd)
+      (match right
+        ((DeltaIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((DeltaTruePattern rightStart rightEnd) 0)
+        ((DeltaFalsePattern rightStart rightEnd) 0)
+        ((DeltaWildcardPattern rightStart rightEnd)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((DeltaCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          0)))
+    ((DeltaCasePattern leftStart leftEnd leftOwner leftName leftBinder)
+      (match right
+        ((DeltaIntegerPattern rightStart rightEnd rightLiteral) 0)
+        ((DeltaTruePattern rightStart rightEnd) 0)
+        ((DeltaFalsePattern rightStart rightEnd) 0)
+        ((DeltaWildcardPattern rightStart rightEnd) 0)
+        ((DeltaCasePattern rightStart rightEnd rightOwner rightName rightBinder)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def delta_terminals_same_identity ((left DeltaTerminal)
+  (right DeltaTerminal)) Int
+  (match left
+    ((DeltaTransitionTerminal leftStart leftEnd leftSubject leftArms)
+      (match right
+        ((DeltaTransitionTerminal rightStart rightEnd rightSubject rightArms)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((DeltaReturnTerminal rightStart rightEnd rightExpression) 0)))
+    ((DeltaReturnTerminal leftStart leftEnd leftExpression)
+      (match right
+        ((DeltaTransitionTerminal rightStart rightEnd rightSubject rightArms) 0)
+        ((DeltaReturnTerminal rightStart rightEnd rightExpression)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def delta_reverse_transition_subject_references
+  ((input DeltaTransitionSubjectReferenceList)
+   (output DeltaTransitionSubjectReferenceList))
+  DeltaTransitionSubjectReferenceList
+  (match input
+    (NoDeltaTransitionSubjectReferences output)
+    ((MoreDeltaTransitionSubjectReferences item rest)
+      (delta_reverse_transition_subject_references rest
+        (MoreDeltaTransitionSubjectReferences item output)))))
+
+(def delta_find_transition_subject_reference ((target DeltaTerminal)
+  (references DeltaTransitionSubjectReferenceList))
+  DeltaTransitionSubjectReferenceLookup
+  (match references
+    (NoDeltaTransitionSubjectReferences NoDeltaTransitionSubjectReference)
+    ((MoreDeltaTransitionSubjectReferences item rest)
+      (match item
+        ((DeltaTransitionSubjectReferenceSyntax terminalValue kind)
+          (if (delta_terminals_same_identity target terminalValue)
+            (OneDeltaTransitionSubjectReference kind)
+            (delta_find_transition_subject_reference target rest)))))))
+
+(def delta_reverse_transition_pattern_references
+  ((input DeltaTransitionPatternReferenceList)
+   (output DeltaTransitionPatternReferenceList))
+  DeltaTransitionPatternReferenceList
+  (match input
+    (NoDeltaTransitionPatternReferences output)
+    ((MoreDeltaTransitionPatternReferences item rest)
+      (delta_reverse_transition_pattern_references rest
+        (MoreDeltaTransitionPatternReferences item output)))))
+
+(def delta_reverse_transition_coverage_references
+  ((input DeltaTransitionCoverageReferenceList)
+   (output DeltaTransitionCoverageReferenceList))
+  DeltaTransitionCoverageReferenceList
+  (match input
+    (NoDeltaTransitionCoverageReferences output)
+    ((MoreDeltaTransitionCoverageReferences item rest)
+      (delta_reverse_transition_coverage_references rest
+        (MoreDeltaTransitionCoverageReferences item output)))))
+
+(def delta_find_transition_pattern_reference ((target DeltaPattern)
+  (references DeltaTransitionPatternReferenceList))
+  DeltaTransitionPatternReferenceLookup
+  (match references
+    (NoDeltaTransitionPatternReferences NoDeltaTransitionPatternReference)
+    ((MoreDeltaTransitionPatternReferences item rest)
+      (match item
+        ((DeltaTransitionPatternReferenceSyntax terminalValue patternValue kind
+          progress)
+          (if (delta_patterns_same_identity target patternValue)
+            (OneDeltaTransitionPatternReference kind progress)
+            (delta_find_transition_pattern_reference target rest)))))))
+
+(def delta_data_members_same_identity ((left DeltaDataMember)
+  (right DeltaDataMember)) Int
+  (match left
+    ((DeltaFieldMember leftStart leftEnd leftName leftType)
+      (match right
+        ((DeltaFieldMember rightStart rightEnd rightName rightType)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))
+        ((DeltaCaseMember rightStart rightEnd rightName rightPayload) 0)))
+    ((DeltaCaseMember leftStart leftEnd leftName leftPayload)
+      (match right
+        ((DeltaFieldMember rightStart rightEnd rightName rightType) 0)
+        ((DeltaCaseMember rightStart rightEnd rightName rightPayload)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
+
+(def delta_control_find_state_application ((target DeltaExpression)
+  (control DeltaControlReferenceLedger)) DeltaStateApplicationReferenceLookup
+  (match control
+    ((DeltaControlReferenceLedgerSyntax stateApplications subjects cases
+      coverages)
+      (delta_find_state_application_reference target stateApplications))))
+
+(def delta_control_find_transition_subject ((target DeltaTerminal)
+  (control DeltaControlReferenceLedger))
+  DeltaTransitionSubjectReferenceLookup
+  (match control
+    ((DeltaControlReferenceLedgerSyntax stateApplications subjects patterns
+      coverages)
+      (delta_find_transition_subject_reference target subjects))))
+
+(def delta_control_find_transition_pattern ((target DeltaPattern)
+  (control DeltaControlReferenceLedger))
+  DeltaTransitionPatternReferenceLookup
+  (match control
+    ((DeltaControlReferenceLedgerSyntax stateApplications subjects patterns
+      coverages)
+      (delta_find_transition_pattern_reference target patterns))))
+
+(def delta_reverse_control_references ((control DeltaControlReferenceLedger))
+  DeltaControlReferenceLedger
+  (match control
+    ((DeltaControlReferenceLedgerSyntax stateApplications subjects cases
+      coverages)
+      (DeltaControlReferenceLedgerSyntax
+        (delta_reverse_state_application_references stateApplications
+          NoDeltaStateApplicationReferences)
+        (delta_reverse_transition_subject_references subjects
+          NoDeltaTransitionSubjectReferences)
+        (delta_reverse_transition_pattern_references cases
+          NoDeltaTransitionPatternReferences)
+        (delta_reverse_transition_coverage_references coverages
+          NoDeltaTransitionCoverageReferences)))))
+
 (def delta_reverse_typed_expressions ((input DeltaTypedExpressionList)
   (output DeltaTypedExpressionList)) DeltaTypedExpressionList
   (match input
@@ -4975,7 +5213,50 @@
             (OneDeltaExpressionResult resultValue)
             (delta_find_expression_result target rest)))))))
 
-(def delta_local_binding_type ((bindingValue DeltaLocalBinding))
+(def delta_binder_parameter_type ((source Bytes) (target DeltaName)
+  (names DeltaNameList) (parameters DeltaParameterList))
+  DeltaLocalBindingTypeLookup
+  (match names
+    (NoDeltaNames NoDeltaLocalBindingType)
+    ((MoreDeltaNames name restNames)
+      (match parameters
+        (NoDeltaParameters NoDeltaLocalBindingType)
+        ((MoreDeltaParameters parameterValue restParameters)
+          (if (delta_names_equal source target name)
+            (match parameterValue
+              ((DeltaParameterSyntax start end parameterName typeValue)
+                (OneDeltaLocalBindingType typeValue)))
+            (delta_binder_parameter_type source target restNames
+              restParameters)))))))
+
+(def delta_transition_binder_type ((source Bytes) (patternValue DeltaPattern)
+  (target DeltaName) (control DeltaControlReferenceLedger))
+  DeltaLocalBindingTypeLookup
+  (match (delta_control_find_transition_pattern patternValue control)
+    (NoDeltaTransitionPatternReference NoDeltaLocalBindingType)
+    ((OneDeltaTransitionPatternReference kind progress)
+      (match progress
+        (DeltaTransitionPatternResolved NoDeltaLocalBindingType)
+        (DeltaTransitionPatternComplete
+          (match kind
+            ((DeltaScalarPatternSelector value) NoDeltaLocalBindingType)
+            (DeltaTransitionWildcard NoDeltaLocalBindingType)
+            ((DeltaSumCasePattern ownerValue caseValue)
+              (match patternValue
+                ((DeltaIntegerPattern start end literal)
+                  NoDeltaLocalBindingType)
+                ((DeltaTruePattern start end) NoDeltaLocalBindingType)
+                ((DeltaFalsePattern start end) NoDeltaLocalBindingType)
+                ((DeltaWildcardPattern start end) NoDeltaLocalBindingType)
+                ((DeltaCasePattern start end owner name binder)
+                  (match binder
+                    (NoDeltaBinder NoDeltaLocalBindingType)
+                    ((SomeDeltaBinder binderStart binderEnd names)
+                      (delta_binder_parameter_type source target names
+                        (delta_constructor_parameters caseValue)))))))))))))
+
+(def delta_local_binding_type ((source Bytes)
+  (bindingValue DeltaLocalBinding) (control DeltaControlReferenceLedger))
   DeltaLocalBindingTypeLookup
   (match bindingValue
     ((DeltaSelfLocal ownerDeclaration) NoDeltaLocalBindingType)
@@ -4990,7 +5271,15 @@
     ((DeltaLetLocal name typeValue statementValue)
       (OneDeltaLocalBindingType typeValue))
     ((DeltaTransitionBinderLocal patternValue name)
-      NoDeltaLocalBindingType)))
+      (delta_transition_binder_type source patternValue name control))))
+
+(def delta_local_scan_binding_type ((source Bytes)
+  (bindingValue DeltaLocalBinding) (scan DeltaLocalResolutionScan))
+  DeltaLocalBindingTypeLookup
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (delta_local_binding_type source bindingValue control))))
 
 ; `u8` names storage, not an arithmetic value type. Reading one storage slot
 ; yields a zero-extended `i32`; every other complete value keeps its type.
@@ -5077,12 +5366,66 @@
   (match scan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables
       stateApplications types candidate)
-      (DeltaLocalResolutionScanSyntax catalog references fields callables
-        (MoreDeltaStateApplicationReferences
-          (DeltaStateApplicationReferenceSyntax expressionValue machineValue
-            stateValue progress)
-          stateApplications)
-        types candidate))))
+      (match stateApplications
+        ((DeltaControlReferenceLedgerSyntax states subjects patterns coverages)
+          (DeltaLocalResolutionScanSyntax catalog references fields callables
+            (DeltaControlReferenceLedgerSyntax
+              (MoreDeltaStateApplicationReferences
+                (DeltaStateApplicationReferenceSyntax expressionValue
+                  machineValue stateValue progress)
+                states)
+              subjects patterns coverages)
+            types candidate))))))
+
+(def delta_local_scan_add_transition_subject ((terminalValue DeltaTerminal)
+  (kind DeltaTransitionSubjectKind) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((DeltaControlReferenceLedgerSyntax states subjects patterns coverages)
+          (DeltaLocalResolutionScanSyntax catalog references fields callables
+            (DeltaControlReferenceLedgerSyntax states
+              (MoreDeltaTransitionSubjectReferences
+                (DeltaTransitionSubjectReferenceSyntax terminalValue kind)
+                subjects)
+              patterns coverages)
+            types candidate))))))
+
+(def delta_local_scan_add_transition_pattern ((terminalValue DeltaTerminal)
+  (patternValue DeltaPattern) (kind DeltaTransitionPatternKind)
+  (progress DeltaTransitionPatternProgress)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((DeltaControlReferenceLedgerSyntax states subjects patterns coverages)
+          (DeltaLocalResolutionScanSyntax catalog references fields callables
+            (DeltaControlReferenceLedgerSyntax states subjects
+              (MoreDeltaTransitionPatternReferences
+                (DeltaTransitionPatternReferenceSyntax terminalValue
+                  patternValue kind progress)
+                patterns)
+              coverages)
+            types candidate))))))
+
+(def delta_local_scan_add_transition_coverage ((terminalValue DeltaTerminal)
+  (ownerValue DeltaDeclaration) (state DeltaTransitionCoverageState)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((DeltaControlReferenceLedgerSyntax states subjects patterns coverages)
+          (DeltaLocalResolutionScanSyntax catalog references fields callables
+            (DeltaControlReferenceLedgerSyntax states subjects patterns
+              (MoreDeltaTransitionCoverageReferences
+                (DeltaTransitionCoverageReferenceSyntax terminalValue
+                  ownerValue state)
+                coverages))
+            types candidate))))))
 
 (def delta_local_scan_add_candidate ((reasonValue DeltaRejectReason)
   (offset Int) (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
@@ -5103,6 +5446,31 @@
     (NoDeltaParameters 0)
     ((MoreDeltaParameters item rest)
       (+ 1 (delta_parameter_list_count rest)))))
+
+(def delta_name_list_count ((names DeltaNameList)) Int
+  (match names
+    (NoDeltaNames 0)
+    ((MoreDeltaNames item rest) (+ 1 (delta_name_list_count rest)))))
+
+(def delta_optional_binder_count ((binder DeltaOptionalBinder)) Int
+  (match binder
+    (NoDeltaBinder 0)
+    ((SomeDeltaBinder start end names) (delta_name_list_count names))))
+
+(def delta_data_declarations_same_identity ((left DeltaDeclaration)
+  (right DeltaDeclaration)) Int
+  (match left
+    ((DeltaBoundaryDeclaration leftStart leftEnd leftName leftMachines) 0)
+    ((DeltaMachineDeclaration leftStart leftEnd leftName leftInputs
+      leftReturn leftBody) 0)
+    ((DeltaDataDeclaration leftStart leftEnd leftName leftMembers)
+      (match right
+        ((DeltaBoundaryDeclaration rightStart rightEnd rightName rightMachines)
+          0)
+        ((DeltaMachineDeclaration rightStart rightEnd rightName rightInputs
+          rightReturn rightBody) 0)
+        ((DeltaDataDeclaration rightStart rightEnd rightName rightMembers)
+          (if (eq leftStart rightStart) (eq leftEnd rightEnd) 0))))))
 
 (def delta_optional_arguments_count ((arguments DeltaOptionalArguments)) Int
   (match arguments
@@ -5987,7 +6355,7 @@
   (match scan
     ((DeltaLocalResolutionScanSyntax catalog references fields callables
       stateApplications types candidate)
-      (match (delta_find_state_application_reference
+      (match (delta_control_find_state_application
         (delta_call_head_core expressionValue) stateApplications)
         ((OneDeltaStateApplicationReference machineValue stateValue progress)
           scan)
@@ -6053,7 +6421,7 @@
     ((OneDeltaLocalBinding bindingValue)
       (let nextScan
         (delta_local_scan_add_reference expressionValue bindingValue scan)
-        (match (delta_local_binding_type bindingValue)
+        (match (delta_local_scan_binding_type source bindingValue nextScan)
           (NoDeltaLocalBindingType nextScan)
           ((OneDeltaLocalBindingType typeValue)
             (delta_local_scan_add_value expressionValue
@@ -7088,6 +7456,316 @@
           (delta_local_scan_statement_value_type_relation source item
             expectedType 0 scan))))))
 
+(def delta_local_scan_named_transition_subject ((source Bytes)
+  (terminalValue DeltaTerminal) (subject DeltaExpression) (name DeltaName)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match catalog
+        ((DeltaResolutionCatalogSyntax rows)
+          (match (delta_catalog_find_owner source name rows)
+            (NoDeltaCatalogOwner scan)
+            ((OneDeltaCatalogBoundaryOwner ownerValue)
+              (delta_local_scan_add_candidate TypeMismatch
+                (delta_expression_start subject) scan))
+            ((OneDeltaCatalogDataOwner ownerValue shape)
+              (match shape
+                (DeltaRecordShape
+                  (delta_local_scan_add_candidate TypeMismatch
+                    (delta_expression_start subject) scan))
+                (DeltaSumShape
+                  (delta_local_scan_add_transition_subject terminalValue
+                    (DeltaSumTransitionSubject ownerValue) scan))))))))))
+
+(def delta_local_scan_transition_subject ((source Bytes)
+  (terminalValue DeltaTerminal) (subject DeltaExpression)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (let categoryScan
+    (delta_local_scan_value_use_candidate subject subject scan)
+    (match categoryScan
+      ((DeltaLocalResolutionScanSyntax catalog references fields callables
+        control types candidate)
+        (match (delta_find_expression_result subject types)
+          (NoDeltaExpressionResult categoryScan)
+          ((OneDeltaExpressionResult resultValue)
+            (match resultValue
+              (DeltaResultlessExpressionResult categoryScan)
+              (DeltaNeverExpressionResult categoryScan)
+              ((DeltaValueExpressionResult typeValue placeType)
+                (match typeValue
+                  ((DeltaI32Type start end)
+                    (delta_local_scan_add_transition_subject terminalValue
+                      DeltaScalarTransitionSubject categoryScan))
+                  ((DeltaNamedType start end name)
+                    (delta_local_scan_named_transition_subject source
+                      terminalValue subject name categoryScan))
+                  ((DeltaU8Type start end)
+                    (delta_local_scan_add_candidate TypeMismatch
+                      (delta_expression_start subject) categoryScan))
+                  ((DeltaNeverType start end)
+                    (delta_local_scan_add_candidate TypeMismatch
+                      (delta_expression_start subject) categoryScan))
+                  ((DeltaArrayType start end element lengthValue)
+                    (delta_local_scan_add_candidate TypeMismatch
+                      (delta_expression_start subject) categoryScan))
+                  ((DeltaViewType start end element)
+                    (delta_local_scan_add_candidate TypeMismatch
+                      (delta_expression_start subject) categoryScan)))))))))))
+
+(def delta_local_scan_scalar_transition_pattern ((terminalValue DeltaTerminal)
+  (patternValue DeltaPattern) (selector Int)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match (delta_control_find_transition_subject terminalValue control)
+        (NoDeltaTransitionSubjectReference
+          (delta_local_scan_add_transition_pattern terminalValue patternValue
+            (DeltaScalarPatternSelector selector)
+            DeltaTransitionPatternResolved scan))
+        ((OneDeltaTransitionSubjectReference subjectKind)
+          (match subjectKind
+            (DeltaScalarTransitionSubject
+              (delta_local_scan_add_transition_pattern terminalValue patternValue
+                (DeltaScalarPatternSelector selector)
+                DeltaTransitionPatternComplete scan))
+            ((DeltaSumTransitionSubject ownerValue)
+              (delta_local_scan_add_transition_pattern terminalValue patternValue
+                (DeltaScalarPatternSelector selector)
+                DeltaTransitionPatternResolved scan))))))))
+
+(def delta_local_scan_wildcard_transition_pattern
+  ((terminalValue DeltaTerminal) (patternValue DeltaPattern)
+   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match (delta_control_find_transition_subject terminalValue control)
+        (NoDeltaTransitionSubjectReference
+          (delta_local_scan_add_transition_pattern terminalValue patternValue
+            DeltaTransitionWildcard DeltaTransitionPatternResolved scan))
+        ((OneDeltaTransitionSubjectReference subjectKind)
+          (delta_local_scan_add_transition_pattern terminalValue patternValue
+            DeltaTransitionWildcard DeltaTransitionPatternComplete scan))))))
+
+(def delta_local_scan_resolved_case_transition_pattern ((source Bytes)
+  (terminalValue DeltaTerminal) (patternValue DeltaPattern)
+  (binder DeltaOptionalBinder) (ownerValue DeltaDeclaration)
+  (caseValue DeltaDataMember) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (let kind (DeltaSumCasePattern ownerValue caseValue)
+    (if (eq (delta_optional_binder_count binder)
+      (delta_parameter_list_count (delta_constructor_parameters caseValue)))
+      (match scan
+        ((DeltaLocalResolutionScanSyntax catalog references fields callables
+          control types candidate)
+          (match (delta_control_find_transition_subject terminalValue control)
+            (NoDeltaTransitionSubjectReference
+              (delta_local_scan_add_transition_pattern terminalValue patternValue kind
+                DeltaTransitionPatternResolved scan))
+            ((OneDeltaTransitionSubjectReference subjectKind)
+              (match subjectKind
+                (DeltaScalarTransitionSubject
+                  (delta_local_scan_add_transition_pattern terminalValue patternValue kind
+                    DeltaTransitionPatternResolved scan))
+                ((DeltaSumTransitionSubject subjectOwner)
+                  (if (delta_data_declarations_same_identity subjectOwner
+                    ownerValue)
+                    (delta_local_scan_add_transition_pattern terminalValue patternValue kind
+                      DeltaTransitionPatternComplete scan)
+                    (delta_local_scan_add_transition_pattern terminalValue patternValue kind
+                      DeltaTransitionPatternResolved scan))))))))
+      (delta_local_scan_add_transition_pattern terminalValue patternValue kind
+        DeltaTransitionPatternResolved scan))))
+
+(def delta_local_scan_case_transition_pattern ((source Bytes)
+  (terminalValue DeltaTerminal) (patternValue DeltaPattern)
+  (owner DeltaName) (name DeltaName) (binder DeltaOptionalBinder)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match catalog
+        ((DeltaResolutionCatalogSyntax rows)
+          (match (delta_catalog_find_owner source owner rows)
+            (NoDeltaCatalogOwner
+              (delta_local_scan_add_candidate UnknownName
+                (delta_name_start owner) scan))
+            ((OneDeltaCatalogBoundaryOwner ownerValue)
+              scan)
+            ((OneDeltaCatalogDataOwner ownerValue shape)
+              (match shape
+                (DeltaRecordShape
+                  scan)
+                (DeltaSumShape
+                  (match (delta_catalog_find_data_member source owner name rows)
+                    (NoDeltaCatalogDataMember
+                      (delta_local_scan_add_candidate UnknownName
+                        (delta_name_start name) scan))
+                    ((OneDeltaCatalogField fieldOwner fieldValue)
+                      scan)
+                    ((OneDeltaCatalogCase caseOwner caseValue)
+                      (delta_local_scan_resolved_case_transition_pattern source
+                        terminalValue patternValue binder caseOwner caseValue
+                        scan))))))))))))
+
+(def delta_local_scan_transition_pattern ((source Bytes)
+  (terminalValue DeltaTerminal) (patternValue DeltaPattern)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match patternValue
+    ((DeltaIntegerPattern start end literal)
+      (delta_local_scan_scalar_transition_pattern terminalValue patternValue
+        (delta_integer_literal_value literal) scan))
+    ((DeltaTruePattern start end)
+      (delta_local_scan_scalar_transition_pattern terminalValue patternValue 1
+        scan))
+    ((DeltaFalsePattern start end)
+      (delta_local_scan_scalar_transition_pattern terminalValue patternValue 0
+        scan))
+    ((DeltaWildcardPattern start end)
+      (delta_local_scan_wildcard_transition_pattern terminalValue patternValue
+        scan))
+    ((DeltaCasePattern start end owner name binder)
+      (delta_local_scan_case_transition_pattern source terminalValue
+        patternValue owner name binder scan))))
+
+(def delta_pattern_is_wildcard ((patternValue DeltaPattern)) Int
+  (match patternValue
+    ((DeltaIntegerPattern start end literal) 0)
+    ((DeltaTruePattern start end) 0)
+    ((DeltaFalsePattern start end) 0)
+    ((DeltaWildcardPattern start end) 1)
+    ((DeltaCasePattern start end owner name binder) 0)))
+
+(def delta_arms_have_nonfinal_wildcard ((arms DeltaArmList)) Int
+  (match arms
+    (NoDeltaArms 0)
+    ((MoreDeltaArms item rest)
+      (match item
+        ((DeltaArmSyntax start end patternValue continuation)
+          (if (delta_pattern_is_wildcard patternValue)
+            (match rest
+              (NoDeltaArms 0)
+              ((MoreDeltaArms nextItem nextRest) 1))
+            (delta_arms_have_nonfinal_wildcard rest)))))))
+
+(def delta_arms_have_final_wildcard ((arms DeltaArmList)) Int
+  (match arms
+    (NoDeltaArms 0)
+    ((MoreDeltaArms item rest)
+      (match rest
+        (NoDeltaArms
+          (match item
+            ((DeltaArmSyntax start end patternValue continuation)
+              (delta_pattern_is_wildcard patternValue))))
+        ((MoreDeltaArms nextItem nextRest)
+          (delta_arms_have_final_wildcard rest))))))
+
+(def delta_arms_have_complete_patterns ((arms DeltaArmList)
+  (control DeltaControlReferenceLedger)) Int
+  (match arms
+    (NoDeltaArms 1)
+    ((MoreDeltaArms item rest)
+      (match item
+        ((DeltaArmSyntax start end patternValue continuation)
+          (match (delta_control_find_transition_pattern patternValue control)
+            (NoDeltaTransitionPatternReference 0)
+            ((OneDeltaTransitionPatternReference kind progress)
+              (match progress
+                (DeltaTransitionPatternResolved 0)
+                (DeltaTransitionPatternComplete
+                  (delta_arms_have_complete_patterns rest control))))))))))
+
+(def delta_transition_case_is_covered ((terminalValue DeltaTerminal)
+  (ownerValue DeltaDeclaration) (caseValue DeltaDataMember)
+  (references DeltaTransitionPatternReferenceList)) Int
+  (match references
+    (NoDeltaTransitionPatternReferences 0)
+    ((MoreDeltaTransitionPatternReferences item rest)
+      (match item
+        ((DeltaTransitionPatternReferenceSyntax priorTerminal priorPattern
+          priorKind priorProgress)
+          (if (delta_terminals_same_identity terminalValue priorTerminal)
+            (match priorProgress
+              (DeltaTransitionPatternResolved
+                (delta_transition_case_is_covered terminalValue ownerValue
+                  caseValue rest))
+              (DeltaTransitionPatternComplete
+                (match priorKind
+                  ((DeltaScalarPatternSelector value)
+                    (delta_transition_case_is_covered terminalValue ownerValue
+                      caseValue rest))
+                  (DeltaTransitionWildcard
+                    (delta_transition_case_is_covered terminalValue ownerValue
+                      caseValue rest))
+                  ((DeltaSumCasePattern priorOwner priorCase)
+                    (if (delta_data_declarations_same_identity ownerValue
+                      priorOwner)
+                      (if (delta_data_members_same_identity caseValue priorCase)
+                        1
+                        (delta_transition_case_is_covered terminalValue
+                          ownerValue caseValue rest))
+                      (delta_transition_case_is_covered terminalValue
+                        ownerValue caseValue rest))))))
+            (delta_transition_case_is_covered terminalValue ownerValue caseValue
+              rest)))))))
+
+(def delta_sum_members_are_covered ((terminalValue DeltaTerminal)
+  (ownerValue DeltaDeclaration) (members DeltaDataMemberList)
+  (references DeltaTransitionPatternReferenceList)) Int
+  (match members
+    (NoDeltaDataMembers 1)
+    ((MoreDeltaDataMembers item rest)
+      (match item
+        ((DeltaFieldMember start end name typeValue) 0)
+        ((DeltaCaseMember start end name payload)
+          (if (delta_transition_case_is_covered terminalValue ownerValue item
+            references)
+            (delta_sum_members_are_covered terminalValue ownerValue rest
+              references)
+            0))))))
+
+(def delta_sum_owner_is_covered ((terminalValue DeltaTerminal)
+  (ownerValue DeltaDeclaration)
+  (references DeltaTransitionPatternReferenceList)) Int
+  (match ownerValue
+    ((DeltaBoundaryDeclaration start end name machines) 0)
+    ((DeltaMachineDeclaration start end name inputs returnType bodyValue) 0)
+    ((DeltaDataDeclaration start end name members)
+      (delta_sum_members_are_covered terminalValue ownerValue members
+        references))))
+
+(def delta_local_scan_transition_coverage ((terminalValue DeltaTerminal)
+  (arms DeltaArmList) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax catalog references fields callables
+      control types candidate)
+      (match control
+        ((DeltaControlReferenceLedgerSyntax states subjects patterns coverages)
+          (match (delta_find_transition_subject_reference terminalValue subjects)
+            (NoDeltaTransitionSubjectReference scan)
+            ((OneDeltaTransitionSubjectReference subjectKind)
+              (match subjectKind
+                (DeltaScalarTransitionSubject scan)
+                ((DeltaSumTransitionSubject ownerValue)
+                  (if (delta_arms_have_complete_patterns arms control)
+                    (if (delta_arms_have_nonfinal_wildcard arms)
+                      (delta_local_scan_add_transition_coverage terminalValue
+                        ownerValue DeltaTransitionCoverageUnresolved scan)
+                      (if (delta_arms_have_final_wildcard arms)
+                        (delta_local_scan_add_transition_coverage terminalValue
+                          ownerValue DeltaTransitionCoverageComplete scan)
+                        (if (delta_sum_owner_is_covered terminalValue ownerValue
+                          patterns)
+                          (delta_local_scan_add_transition_coverage terminalValue
+                            ownerValue DeltaTransitionCoverageComplete scan)
+                          (delta_local_scan_add_transition_coverage terminalValue
+                            ownerValue DeltaTransitionCoverageMissing scan))))
+                    (delta_local_scan_add_transition_coverage terminalValue
+                      ownerValue DeltaTransitionCoverageUnresolved scan)))))))))))
+
 (def delta_resolve_local_continuation ((source Bytes)
   (continuation DeltaContinuation) (active DeltaLocalBindingList)
   (machineValue DeltaDeclaration) (returnType DeltaOptionalType)
@@ -7101,19 +7779,23 @@
         (delta_resolve_local_optional_expression source expressionValue active
           NoDeltaLocalBindings scan)))))
 
-(def delta_resolve_local_arms ((source Bytes) (arms DeltaArmList)
-  (active DeltaLocalBindingList) (machineValue DeltaDeclaration)
-  (returnType DeltaOptionalType) (scan DeltaLocalResolutionScan))
-  DeltaLocalResolutionScan
+(def delta_resolve_local_arms ((source Bytes) (terminalValue DeltaTerminal)
+  (arms DeltaArmList) (active DeltaLocalBindingList)
+  (machineValue DeltaDeclaration) (returnType DeltaOptionalType)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match arms
     (NoDeltaArms scan)
     ((MoreDeltaArms item rest)
       (match item
         ((DeltaArmSyntax start end patternValue continuation)
-          (delta_resolve_local_arms source rest active machineValue returnType
-            (delta_resolve_local_continuation source continuation
-              (delta_add_transition_pattern_bindings patternValue active)
-              machineValue returnType scan)))))))
+          (let patternScan
+            (delta_local_scan_transition_pattern source terminalValue
+              patternValue scan)
+            (delta_resolve_local_arms source terminalValue rest active
+              machineValue returnType
+              (delta_resolve_local_continuation source continuation
+                (delta_add_transition_pattern_bindings patternValue active)
+                machineValue returnType patternScan))))))))
 
 (def delta_resolve_local_terminal ((source Bytes)
   (terminalValue DeltaOptionalTerminal) (active DeltaLocalBindingList)
@@ -7124,9 +7806,15 @@
     ((SomeDeltaTerminal terminal)
       (match terminal
         ((DeltaTransitionTerminal start end subject arms)
-          (delta_resolve_local_arms source arms active machineValue returnType
+          (let subjectScan
             (delta_resolve_local_expression source subject active
-              NoDeltaLocalBindings scan)))
+              NoDeltaLocalBindings scan)
+            (let classifiedScan
+              (delta_local_scan_transition_subject source terminal subject
+                subjectScan)
+              (delta_local_scan_transition_coverage terminal arms
+                (delta_resolve_local_arms source terminal arms active
+                  machineValue returnType classifiedScan)))))
         ((DeltaReturnTerminal start end expressionValue)
           (delta_local_scan_return_relation source start expressionValue
             returnType
@@ -7230,7 +7918,11 @@
                                 NoDeltaResolvedLocalReferences
                                 NoDeltaResolvedFieldReferences
                                 NoDeltaResolvedCallableReferences
-                                NoDeltaStateApplicationReferences
+                                (DeltaControlReferenceLedgerSyntax
+                                  NoDeltaStateApplicationReferences
+                                  NoDeltaTransitionSubjectReferences
+                                  NoDeltaTransitionPatternReferences
+                                  NoDeltaTransitionCoverageReferences)
                                 NoDeltaTypedExpressions candidate))
                             ((DeltaLocalResolutionScanSyntax finalCatalog
                               references fields callables stateApplications
@@ -7243,9 +7935,8 @@
                                   NoDeltaResolvedFieldReferences)
                                 (delta_reverse_resolved_callable_references
                                   callables NoDeltaResolvedCallableReferences)
-                                (delta_reverse_state_application_references
-                                  stateApplications
-                                  NoDeltaStateApplicationReferences)
+                                (delta_reverse_control_references
+                                  stateApplications)
                                 (delta_reverse_typed_expressions types
                                   NoDeltaTypedExpressions)
                                 finalCandidate))))))))))))))))

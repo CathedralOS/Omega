@@ -55,16 +55,17 @@ compilers and must not both be called “the Delta compiler.”
   contexts, positive receiver-scoped `self`, named-data
   receiver applications, exact sealed-`Console` receiver applications, and
   explicit transition state applications with state/machine collision
-  rejection and separate state completion custody,
+  rejection and separate state completion custody, transition subject,
+  resolved-case, complete payload-binder, and retained sum-coverage facts,
   settled field/index/slice projection failures, D37 scalar and argument-
   `never` category joins, let/assignment/assert and explicit-return relations,
   first-following-statement terminal flow, and symbolic Alpha encoding.
   Remaining final body/control checking, Q3-blocked entry diagnostics, Q7
   bare-state-transfer spelling, Q8 invalid-`self` diagnostic, Q9
   resultless-argument anchor, the Q10-blocked exit/falloff judgment,
-  transition subject/pattern/binder and remaining D37 control/terminal premise
-  DAG, D38
-  executable controls, storage realization/lowering,
+  Q11-blocked transition-pattern/coverage diagnostics, reachability, and the
+  remaining D37 control/terminal premise DAG, D38 executable controls, storage
+  realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact
   yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
