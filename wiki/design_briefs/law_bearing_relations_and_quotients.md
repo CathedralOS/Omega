@@ -248,13 +248,13 @@ caller application plus a structured `(argument position, callee result,
 caller result)` row. Terminal validation rejoins both applications to the same
 declaration, binders, and evidence interface before guarded implication replay.
 One bounded later-use successor permits the matching payloadless arm to pass
-one, two, or three distinct selected terms once each as dense ordered named requirements
-of one direct tail state. The tail accepts only the saved whole result and
+one, two, three, or four distinct selected terms once each as dense ordered
+named requirements of one direct tail state. The tail accepts only the saved whole result and
 returns it unchanged. Terminal retains the tail as a third, verifier-resolvable
 machine plus one exact use row per term; the machine's ordered requirement
 lanes, parameter/result shape, identity return, applications, interfaces,
 terms, and input positions are replayed independently, without adding a runtime
-call or fuel. Payload projections, four-or-more arguments, repeated term use,
+call or fuel. Payload projections, five-or-more arguments, repeated term use,
 later invalidation, and all wider call shapes remain fenced.
 
 A transparent logical definition uses `=`:
