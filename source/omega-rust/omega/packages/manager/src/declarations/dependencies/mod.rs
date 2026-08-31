@@ -12,10 +12,7 @@ pub use edit::{
     plan_dependency_addition, plan_dependency_replacement,
 };
 pub use read::{
-    ActiveDependencyAliasError, ActiveDependencyAliasScope, BuildDependencyProjection,
-    DependencyPathProvenance, DependencyPathTaint, DependencyProjectionError,
+    BuildDependencyProjection, DependencyAliasError, DependencyProjectionError,
     DependencySourceRequest, PackageSelection, ProjectedDependencies,
-    TARGET_DEPENDENCY_CONDITION_SCHEMA_VERSION, TargetDependencyColumn,
-    TargetDependencyConditionSchema, extract_build_dependency_projection,
-    extract_dependency_projection,
+    extract_build_dependency_projection, extract_dependency_projection,
 };

@@ -1,6 +1,6 @@
 use super::super::*;
 use super::support::*;
-use crate::declarations::dependencies::read::ActiveDependencyAliasError;
+use crate::declarations::dependencies::read::DependencyAliasError;
 use std::collections::BTreeMap;
 
 #[test]
@@ -70,8 +70,8 @@ fn rejects_duplicate_requester_local_alias_after_resolution() {
 
     assert!(matches!(
         error,
-        PackageSourceClosureResolutionError::InvalidActiveAliases {
-            error: ActiveDependencyAliasError::DuplicateAlias { ref alias, .. },
+        PackageSourceClosureResolutionError::InvalidAliases {
+            error: DependencyAliasError::DuplicateAlias { ref alias, .. },
             ..
         } if alias.as_str() == "math"
     ));
