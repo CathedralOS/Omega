@@ -90,14 +90,21 @@ and transition continuation rather than collapsing the latter three. Grouped
 qualified heads now transfer bare-machine custody to the outer call suffix,
 and discarded postfix statements admit only exact machine custody with authored
 application syntax while carrying the statement anchor through grouping.
+Explicit transition applications now join the current machine's state
+namespace with the global unqualified-machine namespace before arity. A dual
+match is `InvalidControlTarget`; a state-only application retains exactly one
+exact-AST resolved-or-complete state row outside both callable and expression-
+result custody. Grouping preserves this identity, ordinary field spelling wins
+without call syntax, and every argument remains an independent sibling branch.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q3 blocks the
 incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
 case/machine collision census, direct qualified applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
-continuation/state classification including Q8's state-transfer spelling,
-Q9's invalid-`self` diagnostic, and Q10's resultless-argument anchor remain
-open. D37's field/index/slice projection failures, scalar categories,
+only Q8's bare-state spelling and Q9's invalid-`self` diagnostic remain from
+that category boundary. Q10's resultless-argument anchor, transition
+subject/pattern/binder rules, and reachability remain open. D37's
+field/index/slice projection failures, scalar categories,
 argument-`never` branch, let/assignment/assert and explicit-return relations,
 and first-following-statement terminal flow are implemented;
 Q11 blocks explicit terminals after `never`, forbidden falloff, machine-call

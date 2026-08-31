@@ -43,7 +43,8 @@ qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D36's declaration syntax and cross-kind callable census are now
 implemented. Direct-qualified, unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
-facts; continuation/state classification and the remaining body/control
+facts; explicit state applications and state/machine collision classification
+are retained separately, while bare states and the remaining body/control
 judgments stay with the rest of D37's premise-DAG composition.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
@@ -173,7 +174,24 @@ a successful `never` result remains input to the later block-flow judgment.
 The bare head and outer application intentionally retain distinct exact-AST
 callable rows; lowering must query the exact application row and must not treat
 every ledger row as an executable call.
-Full continuation/state admission remains with the wider body/control judgment.
+Bare state spelling and the wider transition judgment remain open as described
+below.
+
+Explicit transition applications now join the enclosing machine's state
+namespace with the global unqualified-machine namespace before arity or
+argument typing. A dual match is `InvalidControlTarget` and retains neither
+target. A state-only explicit application retains exactly one exact-AST state
+row, resolved on incomplete/failed parameter premises and complete only after
+the all-value join; state custody is neither callable custody nor an expression
+result. Machine-only and qualified/receiver/boundary applications preserve the
+existing callable ledger. Grouping normalizes lookup without changing the
+authored continuation anchor, and state/local spelling reuse selects the state
+only in this exact control syntax. Constructors, bare machine selectors,
+static receiver spellings, and complete field/scalar values receive category
+failures before dependent checking; same-spelled authored fields remain fields
+without call syntax. Q8 leaves only a state-only bare spelling open, while Q11
+separately owns machine-continuation exit effects. Subject/pattern/binder and
+reachability checking remain later body/control work.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
