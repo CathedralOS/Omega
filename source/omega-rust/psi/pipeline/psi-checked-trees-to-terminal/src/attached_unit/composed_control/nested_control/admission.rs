@@ -33,8 +33,8 @@ pub(super) fn admit<'a>(
         || controls.iter().any(|state| {
             !state.structural_parameters.is_empty()
                 || !state.entry_claims.is_empty()
-                || !state.operations.is_empty()
                 || !exact_parameters(state)
+                || !super::operations::validate(state)
                 || !matches!(
                     state.terminator,
                     CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
@@ -61,9 +61,28 @@ pub(super) fn admit<'a>(
         else {
             unreachable!("control shape was admitted")
         };
-        validate_parameter_guard(guard, &control.scalar_parameters)?;
-        validate_edge(checked, plan, control, when_true, 0)?;
-        validate_edge(checked, plan, control, when_false, 1)?;
+        let transition_offset = u32::try_from(control.operations.len()).map_err(|_| {
+            LoweringError::Unsupported("nested control operation count exceeds u32")
+        })?;
+        validate_parameter_guard(
+            checked,
+            control,
+            transition_offset,
+            guard,
+            &control.scalar_parameters,
+        )?;
+        validate_edge(checked, plan, control, when_true, transition_offset)?;
+        validate_edge(
+            checked,
+            plan,
+            control,
+            when_false,
+            transition_offset
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "nested control statement ordinal is exhausted",
+                ))?,
+        )?;
     }
     for leaf in leaves {
         super::super::admission::validate_leaf(leaf)?;
@@ -73,10 +92,15 @@ pub(super) fn admit<'a>(
     super::super::admission::validate_contract(checked, plan)?;
     let attachment = super::super::admission::exact_attachment(checked, plan)?;
     let leaf_refs = leaves.iter().collect::<Vec<_>>();
-    let (boundaries, internal_targets) = super::super::admission::admit_leaf_targets(
+    let mut call_states = controls
+        .iter()
+        .filter(|state| !state.operations.is_empty())
+        .collect::<Vec<_>>();
+    call_states.extend(leaf_refs.iter().copied());
+    let (boundaries, internal_targets) = super::super::admission::admit_call_targets(
         checked,
         plan.machine,
-        &leaf_refs,
+        &call_states,
         super::super::custody::ComposedCustody::Empty,
         attachment,
         &plan.provider_attachment_requirements,
@@ -106,6 +130,9 @@ fn exact_parameters(state: &psi_checked_trees::CheckedComposedUnitControlStatePl
 }
 
 fn validate_parameter_guard(
+    checked: &CheckedTrees,
+    state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    statement_ordinal: u32,
     guard: &CheckedScalarExpression,
     parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> Result<(), LoweringError> {
@@ -118,8 +145,13 @@ fn validate_parameter_guard(
     if parameters
         .get(*position)
         .is_none_or(|parameter| parameter.primitive_type != PrimitiveType::Bool)
+        || checked.facts.values.scalar_expressions.expression_at(
+            state.state,
+            statement_ordinal,
+            CheckedScalarExpressionRole::Guard,
+        ) != Some(guard)
     {
-        return unsupported("nested composed Unit guard names an unknown Boolean parameter");
+        return unsupported("nested composed Unit guard drifted from checked scalar facts");
     }
     Ok(())
 }

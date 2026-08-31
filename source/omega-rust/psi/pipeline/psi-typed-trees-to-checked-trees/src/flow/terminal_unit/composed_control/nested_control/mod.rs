@@ -3,6 +3,7 @@
 use super::*;
 
 mod assembly;
+mod operations;
 mod topology;
 
 pub(super) fn build(

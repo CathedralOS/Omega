@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(in crate::attached_unit::composed_control) fn retain_leaf_target<'a>(
+pub(in crate::attached_unit::composed_control) fn retain_call_target<'a>(
     checked: &'a CheckedTrees,
     root: psi_symbols::SymbolHandle,
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,

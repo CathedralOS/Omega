@@ -4,6 +4,7 @@ use super::*;
 
 mod admission;
 mod emission;
+mod operations;
 
 pub(super) fn lower(
     checked: &CheckedTrees,

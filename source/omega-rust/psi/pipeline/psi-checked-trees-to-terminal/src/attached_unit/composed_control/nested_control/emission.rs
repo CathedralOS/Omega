@@ -43,6 +43,11 @@ pub(super) fn emit(
         let parameter_types = vec![ScalarType::Boolean; control_parameters[index].len()];
         validate_direct_parameter_types(&guard, &parameter_types)?;
         let mut operations = OperationBuffer::new(next_operation - 1);
+        super::operations::emit(
+            &admitted.controls[index],
+            &catalogs.internal_targets,
+            &mut operations,
+        )?;
         let condition = emit_direct_expression(
             &guard,
             &control_parameters[index],

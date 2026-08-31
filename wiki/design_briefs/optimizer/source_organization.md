@@ -99,11 +99,13 @@ rungs: `internal_calls` owns target-plan and transitive-closure replay while
 `prefixed_control` owns finite scalar-prefix chains before one conditional
 frontier, and `nested_control` owns general finite acyclic Boolean control
 graphs with arbitrary checked state targets, exact scalar handoffs, and shared
-effect leaves. Its typed producer has a small coordinator over `topology` and
-`assembly`; its consumer retains the parallel `admission` and `emission` split.
-The topology/admission rungs own graph classification and independent
-reachability/cycle walks; balanced, right-deep, and convergent shapes do not
-receive sibling routes.
+effect leaves. Its typed producer has a small coordinator over `topology`,
+`operations`, and `assembly`; its consumer retains the parallel `admission`,
+`operations`, and `emission` split. The topology/admission rungs own graph
+classification and independent reachability/cycle walks; the operation rungs
+own the exact pre-terminator sequence and preserve effect-before-branch order.
+Balanced, right-deep, convergent, and call-prefixed shapes do not receive
+sibling routes.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -112,8 +114,9 @@ policy into a second route. Prefix depth remains a loop inside the existing
 producer leaf and the consumer's `admission`/`emission` pair; it does not create
 depth-named modules or routes. Internal-call recursion remains inside its
 `admission` leaf; adding tested closure depth does not add a depth-named module
-or another orchestration layer. Shared provider discovery and leaf-target
-catalog admission take variable-length leaf slices. The exact two-arm linear
+or another orchestration layer. Shared provider discovery and call-target
+catalog admission take variable-length state slices, so a control-state call
+and a leaf call share one independently rejoined target closure. The exact two-arm linear
 custody proof retains its fixed pair because widening catalog arity does not
 silently widen ownership semantics.
 Shared state-entry claim construction lives at the honest

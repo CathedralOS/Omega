@@ -37,26 +37,32 @@ pub(super) fn finish(
         &topology.attachment,
         &provider_inputs,
     )?;
+    let control_operations = topology
+        .controls
+        .iter()
+        .map(|state| super::operations::build(program, facts, machine, state))
+        .collect::<Option<Vec<_>>>()?;
     let mut checked_states = topology
         .controls
         .iter()
         .zip(topology.control_parameters)
         .zip(topology.guards)
         .zip(topology.edges)
-        .map(
-            |(((state, parameters), guard), edges)| CheckedComposedUnitControlStatePlan {
+        .zip(control_operations)
+        .map(|((((state, parameters), guard), edges), operations)| {
+            CheckedComposedUnitControlStatePlan {
                 state: state.symbol,
                 structural_parameters: Vec::new(),
                 scalar_parameters: parameters,
                 entry_claims: Vec::new(),
-                operations: Vec::new(),
+                operations,
                 terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
                     guard,
                     when_true: edges[0].clone(),
                     when_false: edges[1].clone(),
                 },
-            },
-        )
+            }
+        })
         .collect::<Vec<_>>();
     checked_states.extend(leaves);
     super::super::assembly::finish(

@@ -89,6 +89,25 @@ fn checked_four_state_nested_control() -> CheckedTrees {
     )
 }
 
+fn checked_call_prefixed_nested_control() -> CheckedTrees {
+    checked_source(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::quiet() {}
+            machine Root::enter(first: bool, second: bool) {
+                Root::quiet();
+                transition first { true -> dispatch(second) _ -> no() }
+                state dispatch(flag: bool) {
+                    transition flag { true -> yes() _ -> no() }
+                }
+                state yes() { Host::exit(1); }
+                state no() { Host::exit(2); }
+            }
+        "#,
+    )
+}
+
 #[test]
 fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
     let checked = checked_nested_control();
@@ -180,6 +199,61 @@ fn lowers_the_smallest_two_frontier_convergent_graph() {
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("four-state convergent module verifies");
+}
+
+#[test]
+fn lowers_an_internal_unit_call_before_a_conditional() {
+    let checked = checked_call_prefixed_nested_control();
+    let lowered = lower_machine(&checked, "Root::enter").expect("call-prefixed conditional lowers");
+    let [root, quiet] = lowered.semantic_module.machines.as_slice() else {
+        panic!("root and one deduplicated internal target form the module")
+    };
+    let [entry, dispatch, _, _] = root.blocks.as_slice() else {
+        panic!("call-prefixed graph retains four root blocks")
+    };
+    assert!(matches!(
+        entry.operations.as_slice(),
+        [Operation {
+            kind: OperationKind::CallUnit { callee, .. },
+            ..
+        }] if *callee == quiet.id
+    ));
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("the call is followed by the source conditional")
+    };
+    assert_eq!(when_true.target, dispatch.id);
+    assert!(when_false.arguments.is_empty());
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("call-prefixed conditional module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn call_prefixed_control_rejects_coordinate_drift() {
+    let mut checked = checked_call_prefixed_nested_control();
+    let CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
+        &mut checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].operations[0]
+    else {
+        unreachable!()
+    };
+    coordinate.statement_index = 1;
+    assert!(matches!(
+        lower_machine(&checked, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
 }
 
 #[test]
@@ -414,6 +488,23 @@ fn balanced_control_rejects_convergent_edge_drift() {
         unreachable!()
     };
     when_false.target_state = no;
+    assert!(matches!(
+        lower_machine(&checked, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
+#[test]
+fn balanced_control_rejects_guard_drift() {
+    let mut checked = checked_balanced_nested_control();
+    let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } =
+        &mut checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].terminator
+    else {
+        unreachable!()
+    };
+    *guard = CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Parameter {
+        position: 1,
+    }));
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(_))
