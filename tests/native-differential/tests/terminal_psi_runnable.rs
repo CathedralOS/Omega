@@ -1,6 +1,7 @@
 use omega_abstract_operations::AbstractOperation;
 use omega_abstract_operations_to_target_operations::{
-    AdmittedBoundarySettlement, LoweringError, lower_to_target_operations_with_provider_executions,
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, LoweringError,
+    lower_to_target_operations_with_provider_executions,
 };
 use omega_calling_conventions::{CallSignature, ValueShape};
 use omega_image_emission::{
@@ -521,12 +522,12 @@ fn canonical_o0_agrees_from_terminal_meaning_through_runnable_linux_image() {
         let settlements = [
             AdmittedBoundarySettlement {
                 boundary: write_boundary,
-                provider_execution: &write_provider,
+                execution: AdmittedBoundaryExecution::Provider(&write_provider),
                 realization: LinuxWriteLineRealization.into(),
             },
             AdmittedBoundarySettlement {
                 boundary: exit_boundary,
-                provider_execution: &exit_provider,
+                execution: AdmittedBoundaryExecution::Provider(&exit_provider),
                 realization: LinuxExitGroupI32Realization.into(),
             },
         ];
@@ -664,13 +665,13 @@ fn straight_line_console_o1_agrees_for_zero_one_two_and_sixteen_writes() {
             if let (Some(boundary), Some(provider)) = (write_boundary, write_provider.as_ref()) {
                 settlements.push(AdmittedBoundarySettlement {
                     boundary,
-                    provider_execution: provider,
+                    execution: AdmittedBoundaryExecution::Provider(provider),
                     realization: LinuxWriteLineRealization.into(),
                 });
             }
             settlements.push(AdmittedBoundarySettlement {
                 boundary: exit_boundary,
-                provider_execution: &exit_provider,
+                execution: AdmittedBoundaryExecution::Provider(&exit_provider),
                 realization: LinuxExitGroupI32Realization.into(),
             });
 
@@ -779,12 +780,12 @@ fn native_o0_lowering_rejects_a_provider_admitted_for_another_requirement() {
             &[
                 AdmittedBoundarySettlement {
                     boundary: write_boundary,
-                    provider_execution: &wrong_write_provider,
+                    execution: AdmittedBoundaryExecution::Provider(&wrong_write_provider),
                     realization: LinuxWriteLineRealization.into(),
                 },
                 AdmittedBoundarySettlement {
                     boundary: exit_boundary,
-                    provider_execution: &exit_provider,
+                    execution: AdmittedBoundaryExecution::Provider(&exit_provider),
                     realization: LinuxExitGroupI32Realization.into(),
                 },
             ],
