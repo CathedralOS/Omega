@@ -1,4 +1,4 @@
-//! Windows Job Object confinement.
+//! Windows Job Object resource limits and process-tree lifecycle.
 //!
 //! Launch setup creates and configures a compiler-owned Job Object before the
 //! child is released. Lifecycle tracking does not report completion until the

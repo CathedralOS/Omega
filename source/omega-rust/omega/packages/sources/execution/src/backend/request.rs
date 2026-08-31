@@ -1,6 +1,8 @@
 use super::ResolverExecutionAuthorityRoots;
-use crate::model::ResolverExecutionPhase;
-use crate::request::{require_absolute, require_canonical_bounded_path, require_regular_file};
+use crate::ResolverExecutionPhase;
+use crate::request::{
+    require_absolute, require_lexically_canonical_bounded_path, require_outside_roots,
+};
 use std::io;
 use std::path::Path;
 
@@ -9,14 +11,20 @@ pub(super) fn validate_launch_request(
     phase: ResolverExecutionPhase,
     roots: ResolverExecutionAuthorityRoots<'_>,
 ) -> io::Result<()> {
-    require_absolute(executable, "resolver executable")?;
-    require_regular_file(executable, "resolver executable")?;
-    require_canonical_bounded_path(executable, "resolver executable")?;
+    let controlled_roots = [
+        roots.discovery_read_root,
+        roots.inspection_read_root,
+        roots.mutable_root,
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+    require_outside_roots(executable, &controlled_roots, "resolver executable")?;
 
     match (phase.requires_mutable_root(), roots.mutable_root) {
         (true, Some(root)) => {
             require_absolute(root, "resolver mutable root")?;
-            require_canonical_bounded_path(root, "resolver mutable root")?;
+            require_lexically_canonical_bounded_path(root, "resolver mutable root")?;
         }
         (true, None) => {
             return Err(io::Error::new(
@@ -35,7 +43,7 @@ pub(super) fn validate_launch_request(
     match (phase, roots.inspection_read_root) {
         (ResolverExecutionPhase::RepositoryInspection, Some(root)) => {
             require_absolute(root, "resolver inspection read root")?;
-            require_canonical_bounded_path(root, "resolver inspection read root")?;
+            require_lexically_canonical_bounded_path(root, "resolver inspection read root")?;
         }
         (ResolverExecutionPhase::RepositoryInspection, None) => {
             return Err(io::Error::new(
@@ -54,7 +62,7 @@ pub(super) fn validate_launch_request(
     match (phase, roots.discovery_read_root) {
         (ResolverExecutionPhase::TransportDiscovery, Some(root)) => {
             require_absolute(root, "resolver discovery read root")?;
-            require_canonical_bounded_path(root, "resolver discovery read root")?;
+            require_lexically_canonical_bounded_path(root, "resolver discovery read root")?;
         }
         (ResolverExecutionPhase::TransportDiscovery, None) => {
             return Err(io::Error::new(

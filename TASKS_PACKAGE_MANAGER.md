@@ -278,31 +278,6 @@ stop the item on one precise owner question before adding machinery.
 
 ## P6 — Source integration and fixtures
 
-- [ ] **D43-RESOLVER-EXECUTION-CUSTODY — delete ambient-executor
-  attestation.**
-  - remove executable content hashing and metadata drift checkpoints, the
-    native guarantee matrix, canonical command/completion provenance,
-    `GitSourceReceipt`, and their acquisition-only encoding/tests;
-  - remove Seatbelt/Landlock executable and filesystem confinement from the
-    universal and local Git phases; retain platform code only where it directly
-    enforces an honest resource ceiling or whole-process-tree cleanup;
-  - preserve one absolute Git path selected before package input, controlled-
-    root exclusion, exact-path reuse, argument separation, noninteractive
-    execution, protocol closure, source/object/path validation, and immutable
-    snapshot custody;
-  - admit host `insteadOf` routing between HTTPS and SSH while continuing to
-    reject HTTP, `git://`, `file`, `ext`, and every protocol outside the closed
-    production class;
-  - keep authored canonical lineage independent of effective routing: normalize
-    only adapter-proven namespaces and retain generic transport/user/host/port/
-    path distinctions;
-  - update locks/review callers to consume commit/tree/content/snapshot custody
-    directly, and keep any bounded process diagnostics outside canonical
-    identity and admission; and
-  - add controls proving package roots cannot select Git, late bare-name lookup
-    is impossible, HTTPS↔SSH host rewrites work, forbidden protocols still
-    reject, and executor telemetry no longer changes source identity.
-
 - [ ] **WINDOWS-RESOLVER-CANARIES.** Run the compiled Job Object exhaustion
   controls and negative cases on a native Windows worker and retain the results
   in the normal test lane.

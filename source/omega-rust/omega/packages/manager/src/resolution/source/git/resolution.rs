@@ -34,9 +34,8 @@ fn resolve_git_root_package_source_in_lane(
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
-    let lineage = request.lineage().clone();
     let source = resolve_git_source_in_lane(request, lane, limits)?;
-    bind_git_root_package_source(lineage, source, limits, application_root_allowed)
+    bind_git_root_package_source(source, application_root_allowed)
 }
 
 fn resolve_selected_git_package_source_in_lanes(
@@ -130,13 +129,7 @@ fn resolve_selected_git_declared_source_from_pin_in_lanes(
                 }
             })?;
             let (source, evidence) = projected.into_parts();
-            bind_projected_git_package_source(
-                request.acquisition().lineage().clone(),
-                source,
-                limits,
-                evidence,
-                application_root_allowed,
-            )
+            bind_projected_git_package_source(source, evidence, application_root_allowed)
         }
     }
 }

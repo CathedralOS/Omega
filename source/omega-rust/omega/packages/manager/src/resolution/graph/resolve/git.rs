@@ -9,7 +9,6 @@ use super::errors::ResolveGitPackageClosureError;
 use crate::resolution::source::{
     GitPackageSourceRequest, PackageSourceNavigation, ResolvePackageSourceError,
 };
-use omega_package_source::SourceLineage;
 use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
@@ -190,24 +189,21 @@ pub fn resolve_selected_git_project_closure_with_storage(
 pub(crate) fn git_root_request_matches(
     request: &GitSourceRequest,
     resolved: &ResolvedGitSource,
-    lineage: &SourceLineage,
 ) -> bool {
     resolved.requested_locator() == request.requested_locator()
         && resolved.locator_identity() == request.locator_identity()
         && resolved.requested_revision() == request.requested_revision()
         && resolved.transport_profile() == request.transport_profile()
-        && lineage == request.lineage()
+        && resolved.lineage() == request.lineage()
 }
 
 fn git_package_root_request_matches(
     request: &GitPackageSourceRequest,
     resolved: &crate::resolution::source::ResolvedPackageSource<ResolvedGitSource>,
 ) -> bool {
-    if !git_root_request_matches(
-        request.acquisition(),
-        resolved.source(),
-        resolved.key().source_lineage(),
-    ) {
+    if !git_root_request_matches(request.acquisition(), resolved.source())
+        || resolved.key().source_lineage() != resolved.source().lineage()
+    {
         return false;
     }
     match (request.selection(), resolved.navigation()) {

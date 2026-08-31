@@ -27,11 +27,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
         LocalSourceLimits::default(),
     )
     .expect("resolve root for exact request validation");
-    assert!(git_root_request_matches(
-        &request,
-        resolved.source(),
-        resolved.key().source_lineage()
-    ));
+    assert!(git_root_request_matches(&request, resolved.source()));
     let wrong_revision = GitSourceRequest::for_local_test_repository_with_lineage(
         &repository,
         Some("different-revision".to_owned()),
@@ -40,8 +36,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     .expect("alternate revision request");
     assert!(!git_root_request_matches(
         &wrong_revision,
-        resolved.source(),
-        resolved.key().source_lineage()
+        resolved.source()
     ));
     let wrong_locator = GitSourceRequest::for_local_test_repository_with_lineage(
         &repository,
@@ -49,11 +44,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
         "https://github.com/CathedralOS/other-root.git",
     )
     .expect("alternate locator request");
-    assert!(!git_root_request_matches(
-        &wrong_locator,
-        resolved.source(),
-        resolved.key().source_lineage()
-    ));
+    assert!(!git_root_request_matches(&wrong_locator, resolved.source()));
 
     let closure = resolve_git_package_closure_with_storage(
         &request,

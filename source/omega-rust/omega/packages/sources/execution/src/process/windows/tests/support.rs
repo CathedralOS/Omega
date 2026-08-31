@@ -7,7 +7,7 @@ use super::super::limits::WindowsJobLimits;
 
 pub(super) const WORKER_MODE: &str = "OMEGA_RESOLVER_WINDOWS_JOB_WORKER";
 pub(super) const WORKER_VALUE: &str = "OMEGA_RESOLVER_WINDOWS_JOB_WORKER_VALUE";
-pub(super) const WORKER_TEST: &str = "confinement::windows::tests::worker::job_limit_worker";
+pub(super) const WORKER_TEST: &str = "process::windows::tests::worker::job_limit_worker";
 pub(super) const MIB: u64 = 1024 * 1024;
 pub(super) static JOB_LIMIT_TEST_LOCK: Mutex<()> = Mutex::new(());
 
