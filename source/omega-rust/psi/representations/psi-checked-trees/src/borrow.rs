@@ -515,6 +515,36 @@ pub struct CheckedReborrowContainmentCertificate {
     pub containment: CheckedReborrowContainmentKind,
 }
 
+/// Checked-only evidence that one directly restored mutable parent carrier is
+/// consumed by the exact next mutating call at the child's weakening boundary.
+///
+/// The call's argument access is retained separately from `access`: reading a
+/// reference carrier is a `Read` access even when the target's mutable
+/// parameter uses the referent mutably. This certificate therefore rejoins the
+/// exact call and access rows to the replayed suspension, reactivation, entry
+/// constraint, carrier occurrence, and restored referent. It neither changes
+/// borrow admission nor grants Terminal authority.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedReborrowRestoredCallUseCertificate {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub child_loan: Handle<BorrowLoanFact>,
+    pub child_resource: Handle<CheckedReborrowLoanResource>,
+    pub parent_loan: Handle<BorrowLoanFact>,
+    pub parent_resource: Handle<CheckedDirectBorrowLoanResource>,
+    pub disposition: Handle<CheckedReborrowResourceDispositionEvent>,
+    pub containment: Handle<CheckedReborrowContainmentCertificate>,
+    pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub call: Handle<crate::FlowCallFact>,
+    pub borrow_call: Handle<BorrowCallFact>,
+    pub call_access: Handle<BorrowArgumentAccessFact>,
+    pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
+    pub carrier_place: CapturedPlace,
+    pub restored_place: CapturedPlace,
+    pub access: BorrowAccessKind,
+    pub target_symbol: SymbolHandle,
+}
+
 /// Checked-only resource closure for one explicit direct reborrow.
 ///
 /// The row retains the child's exact activation/weakening lifecycle and a
@@ -581,6 +611,9 @@ pub struct BorrowFacts {
     /// from exact resource and lifecycle identity. Read/read releases need no
     /// suspension or freeze row.
     pub reborrow_containment_certificates: Arena<CheckedReborrowContainmentCertificate>,
+    /// Narrow one-hop certificates for a directly restored mutable parent used
+    /// by the exact next receiver-free, single-argument mutating call.
+    pub reborrow_restored_call_use_certificates: Arena<CheckedReborrowRestoredCallUseCertificate>,
 }
 
 impl BorrowFacts {
@@ -606,6 +639,7 @@ impl BorrowFacts {
             reborrow_loan_resources: Arena::new(),
             reborrow_disposition_events: Arena::new(),
             reborrow_containment_certificates: Arena::new(),
+            reborrow_restored_call_use_certificates: Arena::new(),
         }
     }
 

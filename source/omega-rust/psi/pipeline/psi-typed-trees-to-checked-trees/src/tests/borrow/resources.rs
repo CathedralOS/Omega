@@ -122,18 +122,18 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
                     .reborrow_loan_resources
                     .iter()
                     .find(|(_, resource)| {
-                            let actual_parent = match &resource.parent_access {
-                                psi_checked_trees::BorrowAccessKind::Read => "Read",
-                                psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
-                                psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
-                            };
-                            let actual_child = match &resource.access {
-                                psi_checked_trees::BorrowAccessKind::Read => "Read",
-                                psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
-                                psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
-                            };
-                            actual_parent == parent && actual_child == child
-                        })
+                        let actual_parent = match &resource.parent_access {
+                            psi_checked_trees::BorrowAccessKind::Read => "Read",
+                            psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
+                            psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+                        };
+                        let actual_child = match &resource.access {
+                            psi_checked_trees::BorrowAccessKind::Read => "Read",
+                            psi_checked_trees::BorrowAccessKind::Mutable => "Mutable",
+                            psi_checked_trees::BorrowAccessKind::WriteOnly => "WriteOnly",
+                        };
+                        actual_parent == parent && actual_child == child
+                    })
                     .expect("accepted direct reborrow retains its exact resource");
                 let containments = checked
                     .facts
@@ -156,10 +156,7 @@ fn direct_reborrow_source_matrix_uses_borrow_diagnostics_for_all_nine_cells() {
                     assert_eq!(containment.child_access, resource.1.access);
                     assert_eq!(containment.access_effect, resource.1.access_effect);
                     assert_eq!(containment.child_place, resource.1.captured_place);
-                    assert_eq!(
-                        containment.parent_resource,
-                        resource.1.parent_resource
-                    );
+                    assert_eq!(containment.parent_resource, resource.1.parent_resource);
                 }
             }
             (Err(diagnostics), false) => {
@@ -231,8 +228,7 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
         .collect::<Vec<_>>();
     assert_eq!(containments.len(), 2);
     assert!(containments.iter().all(|certificate| {
-        certificate.containment
-            == psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+        certificate.containment == psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
             && certificate.parent_resource == shared[0].1.parent_resource
     }));
     let events = checked
@@ -679,18 +675,22 @@ fn retains_topological_reborrow_resources_and_remaps_parent_handles() {
             .find(|(handle, _)| *handle == certificate.child_resource)
             .expect("containment child resource");
         let parent_place = match &certificate.parent_resource {
-            psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource } => &checked
-                .facts
-                .borrow
-                .direct_loan_resources
-                .get(*resource)
-                .captured_place,
-            psi_checked_trees::CheckedParentBorrowResource::Reborrow { resource } => &before
-                .iter()
-                .find(|(handle, _)| handle == resource)
-                .expect("containment parent resource")
-                .1
-                .captured_place,
+            psi_checked_trees::CheckedParentBorrowResource::DirectRoot { resource } => {
+                &checked
+                    .facts
+                    .borrow
+                    .direct_loan_resources
+                    .get(*resource)
+                    .captured_place
+            }
+            psi_checked_trees::CheckedParentBorrowResource::Reborrow { resource } => {
+                &before
+                    .iter()
+                    .find(|(handle, _)| handle == resource)
+                    .expect("containment parent resource")
+                    .1
+                    .captured_place
+            }
         };
         assert_eq!(certificate.machine_symbol, child.machine_symbol);
         assert_eq!(certificate.state_symbol, child.state_symbol);
@@ -920,12 +920,11 @@ fn retains_projected_direct_reborrow_parent() {
 fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_child() {
     let checked = lower(
         r#"
-        data Cell { value: i32; }
-        data Main { cell: Cell; }
-        machine write(value: &mut Cell) { value.value = 1; }
+        data Main { value: i32; }
+        machine write(value: &mut i32) { value = 1; }
         machine Main::exercise(&mut self) {
-            let parent: &mut Cell = &mut self.cell;
-            let child: &mut Cell = &mut parent;
+            let parent: &mut i32 = &mut self.value;
+            let child: &mut i32 = &mut parent;
             write(child);
             write(parent);
         }
@@ -1001,6 +1000,253 @@ fn retains_the_same_suspension_boundary_when_the_parent_is_reused_after_the_chil
         psi_checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
             child.parent_resource.clone()
         )
+    );
+    let (_, restored_use) = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .next()
+        .expect("exact restored-parent mutating-call use");
+    assert_eq!(restored_use.child_loan, child.loan);
+    assert_eq!(restored_use.parent_loan, child.parent_loan);
+    assert_eq!(restored_use.parent_resource, parent);
+    assert_eq!(
+        restored_use.child_weakening,
+        child.parent_end_status.child_weakening
+    );
+    assert_eq!(
+        restored_use.access,
+        psi_checked_trees::BorrowAccessKind::Mutable
+    );
+    assert_eq!(
+        restored_use.carrier_place.root_symbol,
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .get(parent)
+            .owner_symbol
+    );
+    assert!(restored_use.carrier_place.segments.is_empty());
+    assert_eq!(
+        restored_use.restored_place,
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .get(parent)
+            .captured_place
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .argument_accesses
+            .get(restored_use.call_access)
+            .kind,
+        psi_checked_trees::BorrowAccessKind::Read,
+        "the carrier read is not itself mutable-use authority"
+    );
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .contexts
+            .constraint_refs
+            .get(restored_use.parent_entry_constraint)
+            .kind,
+        psi_checked_trees::FlowConstraintKind::BorrowLoan {
+            loan: child.parent_loan,
+        }
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .get(restored_use.disposition)
+            .disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .get(restored_use.containment)
+            .containment,
+        psi_checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension
+    );
+}
+
+fn mutable_parent_write_only_child_restored_use() -> psi_checked_trees::CheckedTrees {
+    lower(
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine mutate(value: &mut Cell) { value = Cell { value: 2 }; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &write Cell = &write parent;
+            child.value = 1;
+            mutate(parent);
+        }
+        "#,
+    )
+}
+
+#[test]
+fn write_only_child_reactivates_the_exact_mutable_parent_at_the_next_mutating_call() {
+    let mut checked = mutable_parent_write_only_child_restored_use();
+    let certificates = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    let [certificate] = certificates.as_slice() else {
+        panic!("one write-only-child restored-use certificate")
+    };
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .get(certificate.child_resource)
+            .access,
+        psi_checked_trees::BorrowAccessKind::WriteOnly
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .direct_loan_resources
+            .get(certificate.parent_resource)
+            .access,
+        psi_checked_trees::BorrowAccessKind::Mutable
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("restored call use independently replays");
+}
+
+#[test]
+fn rejects_each_restored_call_use_axis_transactionally() {
+    for axis in 0..19 {
+        let mut checked = mutable_parent_write_only_child_restored_use();
+        let direct_before = checked.facts.borrow.direct_loan_resources.clone();
+        let reborrows_before = checked.facts.borrow.reborrow_loan_resources.clone();
+        let dispositions_before = checked.facts.borrow.reborrow_disposition_events.clone();
+        let containments_before = checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .clone();
+        let handle = checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .iter()
+            .next()
+            .expect("restored use")
+            .0;
+        let certificate = checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .get_mut(handle);
+        match axis {
+            0 => certificate.machine_symbol = psi_symbols::SymbolHandle::invalid(),
+            1 => certificate.state_symbol = psi_symbols::SymbolHandle::invalid(),
+            2 => certificate.child_loan = psi_arena::Handle::invalid(),
+            3 => certificate.child_resource = psi_arena::Handle::invalid(),
+            4 => certificate.parent_loan = psi_arena::Handle::invalid(),
+            5 => certificate.parent_resource = psi_arena::Handle::invalid(),
+            6 => certificate.disposition = psi_arena::Handle::invalid(),
+            7 => certificate.containment = psi_arena::Handle::invalid(),
+            8 => certificate.child_weakening = psi_arena::Handle::invalid(),
+            9 => certificate.call = psi_arena::Handle::invalid(),
+            10 => certificate.borrow_call = psi_arena::Handle::invalid(),
+            11 => certificate.call_access = psi_arena::Handle::invalid(),
+            12 => certificate.parent_entry_constraint = psi_arena::Handle::invalid(),
+            13 => certificate.carrier_place.root_symbol = psi_symbols::SymbolHandle::invalid(),
+            14 => certificate
+                .carrier_place
+                .segments
+                .push(psi_facts::PlaceSegment::FixedIndex { index: usize::MAX }),
+            15 => certificate.restored_place.root_symbol = psi_symbols::SymbolHandle::invalid(),
+            16 => certificate
+                .restored_place
+                .segments
+                .push(psi_facts::PlaceSegment::FixedIndex { index: usize::MAX }),
+            17 => certificate.access = psi_checked_trees::BorrowAccessKind::Read,
+            18 => certificate.target_symbol = psi_symbols::SymbolHandle::invalid(),
+            _ => unreachable!(),
+        }
+        let restored_uses_tampered = checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .clone();
+        let diagnostics =
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .expect_err("restored-call use drift must be rejected");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("restored mutating-call use drifted")
+        }));
+        assert_eq!(checked.facts.borrow.direct_loan_resources, direct_before);
+        assert_eq!(
+            checked.facts.borrow.reborrow_loan_resources,
+            reborrows_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_disposition_events,
+            dispositions_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_containment_certificates,
+            containments_before
+        );
+        assert_eq!(
+            checked.facts.borrow.reborrow_restored_call_use_certificates,
+            restored_uses_tampered
+        );
+    }
+}
+
+#[test]
+fn rejects_missing_and_duplicate_restored_call_use_rows() {
+    let mut missing = mutable_parent_write_only_child_restored_use();
+    missing
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .reset_retain_capacity();
+    assert!(
+        crate::checks::check_checked_facts_recording(&missing.typed, &mut missing.facts).is_err()
+    );
+
+    let mut duplicate = mutable_parent_write_only_child_restored_use();
+    let certificate = duplicate
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .next()
+        .expect("restored use")
+        .1
+        .clone();
+    duplicate
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .insert(certificate);
+    assert!(
+        crate::checks::check_checked_facts_recording(&duplicate.typed, &mut duplicate.facts)
+            .is_err()
     );
 }
 
@@ -1363,21 +1609,21 @@ fn rejects_each_suspension_containment_axis_transactionally() {
                     }
             }
             15 => {
-                certificate.child_weakening_reason =
-                    match certificate.child_weakening_reason {
-                        psi_checked_trees::FlowBorrowWeakeningReason::StateExit => {
-                            psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
-                        }
-                        _ => psi_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                certificate.child_weakening_reason = match certificate.child_weakening_reason {
+                    psi_checked_trees::FlowBorrowWeakeningReason::StateExit => {
+                        psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
                     }
+                    _ => psi_checked_trees::FlowBorrowWeakeningReason::StateExit,
+                }
             }
             16 => certificate.parent_place.root_symbol = psi_symbols::SymbolHandle::invalid(),
-            17 => certificate.child_place.segments.push(
-                psi_facts::PlaceSegment::FixedIndex { index: usize::MAX },
-            ),
-            18 => certificate.projection_remainder.push(
-                psi_facts::PlaceSegment::FixedIndex { index: usize::MAX },
-            ),
+            17 => certificate
+                .child_place
+                .segments
+                .push(psi_facts::PlaceSegment::FixedIndex { index: usize::MAX }),
+            18 => certificate
+                .projection_remainder
+                .push(psi_facts::PlaceSegment::FixedIndex { index: usize::MAX }),
             19 => {
                 certificate.containment =
                     psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
@@ -1524,6 +1770,109 @@ fn sequential_children_reactivate_then_resuspend_the_exact_parent() {
     }));
     assert_eq!(events[0].parent_resource, events[1].parent_resource);
     assert_ne!(events[0].child_resource, events[1].child_resource);
+    assert!(
+        checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .is_empty(),
+        "sequential children remain outside the single-child restored-use rung"
+    );
+}
+
+#[test]
+fn restored_call_use_fences_unsupported_lifecycle_and_call_shapes() {
+    let sources = [
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine observe(value: &Cell) {}
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &Cell = &parent;
+            observe(child);
+            mutate(parent);
+        }
+        "#,
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine observe(value: &Cell) {}
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            mutate(child);
+            observe(parent);
+        }
+        "#,
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine mutate(value: &mut Cell, amount: i32) { value.value = amount; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            mutate(child, 1);
+            mutate(parent, 2);
+        }
+        "#,
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            mutate(child);
+            parent.value = 2;
+        }
+        "#,
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            mutate(child);
+        }
+        "#,
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let child: &mut Cell = &mut parent;
+            let grandchild: &mut Cell = &mut child;
+            mutate(grandchild);
+        }
+        "#,
+        r#"
+        data Main { value: i32; }
+        machine mutate(value: &mut i32) { value = 1; }
+        machine shared_binding_only(mut value: &i32) {}
+        machine Main::exercise(&mut self) {
+            let parent: &mut i32 = &mut self.value;
+            let child: &mut i32 = &mut parent;
+            mutate(child);
+            shared_binding_only(parent);
+        }
+        "#,
+    ];
+    for source in sources {
+        let checked = lower(source);
+        assert!(
+            checked
+                .facts
+                .borrow
+                .reborrow_restored_call_use_certificates
+                .is_empty(),
+            "unsupported restored-use shape must not acquire a certificate"
+        );
+    }
 }
 
 #[test]

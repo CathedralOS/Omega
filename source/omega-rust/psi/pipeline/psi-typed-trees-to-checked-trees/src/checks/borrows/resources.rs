@@ -4,11 +4,11 @@ use psi_checked_trees::{
     CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
     CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
     CheckedReborrowAccessEffect, CheckedReborrowContainmentCertificate,
-    CheckedReborrowContainmentKind, CheckedReborrowLoanResource,
-    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
-    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
-    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep, FlowFacts,
-    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
+    CheckedReborrowContainmentKind, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedReborrowRestoredCallUseCertificate, CheckedRetiredParentResourceDispositionStep,
+    FlowFacts, FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -24,8 +24,17 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     let installation = plan_resource_installation(&direct, &reborrows)?;
     let dispositions =
         plan_reborrow_disposition_events(&facts.flow, &direct, &reborrows, &installation)?;
-    let containments =
-        plan_reborrow_containment_certificates(&direct, &reborrows, &installation)?;
+    let containments = plan_reborrow_containment_certificates(&direct, &reborrows, &installation)?;
+    let restored_uses = plan_reborrow_restored_call_uses(
+        program,
+        &facts.borrow,
+        &facts.flow,
+        &direct,
+        &reborrows,
+        &installation,
+        &dispositions,
+        &containments,
+    )?;
     install_borrow_resources(
         &mut facts.borrow,
         direct,
@@ -33,6 +42,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
         &installation,
         &dispositions,
         &containments,
+        &restored_uses,
     );
     Ok(())
 }
@@ -83,6 +93,24 @@ pub(super) fn replay_checked_direct_borrow_resources(
         &expected_reborrows,
         &containments,
     )?;
+    let restored_uses = plan_reborrow_restored_call_uses(
+        program,
+        &facts.borrow,
+        &facts.flow,
+        &expected_direct,
+        &expected_reborrows,
+        &installation,
+        &dispositions,
+        &containments,
+    )?;
+    validate_retained_restored_call_uses(
+        &facts.borrow,
+        &expected_direct,
+        &expected_reborrows,
+        &dispositions,
+        &containments,
+        &restored_uses,
+    )?;
 
     install_borrow_resources(
         &mut facts.borrow,
@@ -91,6 +119,7 @@ pub(super) fn replay_checked_direct_borrow_resources(
         &installation,
         &dispositions,
         &containments,
+        &restored_uses,
     );
     Ok(())
 }
@@ -367,6 +396,56 @@ impl CheckedReborrowContainmentCertificateDraft {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CheckedReborrowRestoredCallUseCertificateDraft {
+    machine_symbol: psi_symbols::SymbolHandle,
+    state_symbol: psi_symbols::SymbolHandle,
+    child_loan: psi_arena::Handle<BorrowLoanFact>,
+    child_resource: usize,
+    parent_loan: psi_arena::Handle<BorrowLoanFact>,
+    parent_resource: usize,
+    disposition: usize,
+    containment: usize,
+    child_weakening: psi_arena::Handle<psi_checked_trees::FlowBorrowWeakeningFact>,
+    call: psi_arena::Handle<psi_checked_trees::FlowCallFact>,
+    borrow_call: psi_arena::Handle<psi_checked_trees::BorrowCallFact>,
+    call_access: psi_arena::Handle<psi_checked_trees::BorrowArgumentAccessFact>,
+    parent_entry_constraint: psi_arena::Handle<psi_checked_trees::FlowConstraintRef>,
+    carrier_place: psi_checked_trees::CapturedPlace,
+    restored_place: psi_checked_trees::CapturedPlace,
+    access: psi_checked_trees::BorrowAccessKind,
+    target_symbol: psi_symbols::SymbolHandle,
+}
+
+impl CheckedReborrowRestoredCallUseCertificateDraft {
+    fn close(
+        &self,
+        resources: &ResourceHandles,
+        dispositions: &[psi_arena::Handle<CheckedReborrowResourceDispositionEvent>],
+        containments: &[psi_arena::Handle<CheckedReborrowContainmentCertificate>],
+    ) -> CheckedReborrowRestoredCallUseCertificate {
+        CheckedReborrowRestoredCallUseCertificate {
+            machine_symbol: self.machine_symbol,
+            state_symbol: self.state_symbol,
+            child_loan: self.child_loan,
+            child_resource: resources.reborrows[self.child_resource],
+            parent_loan: self.parent_loan,
+            parent_resource: resources.direct[self.parent_resource],
+            disposition: dispositions[self.disposition],
+            containment: containments[self.containment],
+            child_weakening: self.child_weakening,
+            call: self.call,
+            borrow_call: self.borrow_call,
+            call_access: self.call_access,
+            parent_entry_constraint: self.parent_entry_constraint,
+            carrier_place: self.carrier_place.clone(),
+            restored_place: self.restored_place.clone(),
+            access: self.access.clone(),
+            target_symbol: self.target_symbol,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum LifecyclePhase {
     LastUseExpired,
@@ -592,6 +671,316 @@ fn plan_reborrow_containment_certificates(
             projection_remainder: child.captured_place.segments[parent_place.segments.len()..]
                 .to_vec(),
             containment,
+        });
+    }
+    Ok(certificates)
+}
+
+/// Retain the first deliberately narrow post-reactivation use shape: a single
+/// direct exclusive child ends by last use immediately before one receiver-free
+/// call mutates the whole restored mutable parent carrier. Unsupported shapes
+/// remain unclassified rather than receiving inferred authority.
+#[allow(clippy::too_many_arguments)]
+fn plan_reborrow_restored_call_uses(
+    program: &psi_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    flow: &FlowFacts,
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    installation: &[ParentResourceIndex],
+    dispositions: &[CheckedReborrowDispositionEventDraft],
+    containments: &[CheckedReborrowContainmentCertificateDraft],
+) -> Result<Vec<CheckedReborrowRestoredCallUseCertificateDraft>, Vec<Diagnostic>> {
+    if installation.len() != reborrows.len() {
+        return Err(reborrow_restored_call_use_drift());
+    }
+
+    let mut certificates = Vec::new();
+    let mut mutation_summaries = crate::flow::StateMutationSummaryCache::default();
+    for (child_index, child) in reborrows.iter().enumerate() {
+        let ParentResourceIndex::Direct(parent_index) = installation[child_index] else {
+            continue;
+        };
+        let Some(parent) = direct.get(parent_index) else {
+            return Err(reborrow_restored_call_use_drift());
+        };
+        if parent.loan != child.parent_loan
+            || parent.machine_symbol != child.machine_symbol
+            || parent.state_symbol != child.state_symbol
+            || parent.access != psi_checked_trees::BorrowAccessKind::Mutable
+            || !parent.owner_path.is_empty()
+            || !matches!(
+                child.access,
+                psi_checked_trees::BorrowAccessKind::Mutable
+                    | psi_checked_trees::BorrowAccessKind::WriteOnly
+            )
+            || child.access_effect != CheckedReborrowAccessEffect::ExclusiveSuspension
+            || child.parent_lexical_status != ParentLexicalStatusAtChildEnd::LivePastChild
+            || child.weakening_reason
+                != psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+            || reborrows
+                .iter()
+                .filter(|candidate| candidate.parent_loan == parent.loan)
+                .count()
+                != 1
+            || reborrows
+                .iter()
+                .any(|candidate| candidate.parent_loan == child.loan)
+        {
+            continue;
+        }
+        let FlowInvalidationSource::Statement { statement_index } = child.weakening_source else {
+            continue;
+        };
+
+        let matching_dispositions = dispositions
+            .iter()
+            .enumerate()
+            .filter(|(_, disposition)| {
+                disposition.child_resource == child_index
+                    && disposition.child_loan == child.loan
+                    && disposition.parent_loan == parent.loan
+                    && disposition.parent_resource == ParentResourceIndex::Direct(parent_index)
+                    && disposition.boundary_source == child.weakening_source
+                    && disposition.boundary_phase
+                        == CheckedBorrowResourceLifecyclePhase::LastUseExpired
+                    && disposition.shared_cohort.is_empty()
+                    && disposition.retired_parent_path.is_empty()
+                    && disposition.final_target
+                        == DispositionTargetIndex::ParentResource(ParentResourceIndex::Direct(
+                            parent_index,
+                        ))
+                    && disposition.disposition == CheckedReborrowResourceDisposition::Reactivate
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        let [disposition] = matching_dispositions.as_slice() else {
+            continue;
+        };
+        let matching_containments = containments
+            .iter()
+            .enumerate()
+            .filter(|(_, containment)| {
+                containment.child_resource == child_index
+                    && containment.child_loan == child.loan
+                    && containment.parent_loan == parent.loan
+                    && containment.parent_resource == ParentResourceIndex::Direct(parent_index)
+                    && containment.access_effect == CheckedReborrowAccessEffect::ExclusiveSuspension
+                    && containment.containment
+                        == CheckedReborrowContainmentKind::ExclusiveSuspension
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        let [containment] = matching_containments.as_slice() else {
+            continue;
+        };
+
+        let matching_flow_states = flow
+            .control
+            .states
+            .iter()
+            .filter(|(_, state)| {
+                state.machine_symbol == child.machine_symbol
+                    && state.state_symbol == child.state_symbol
+            })
+            .map(|(_, state)| state)
+            .collect::<Vec<_>>();
+        let [flow_state] = matching_flow_states.as_slice() else {
+            continue;
+        };
+        let calls = flow
+            .control
+            .calls
+            .span_or_empty(flow_state.calls)
+            .iter()
+            .enumerate()
+            .filter(|(_, call)| call.statement_index == statement_index)
+            .filter_map(|(offset, call)| {
+                span_handle(flow_state.calls, offset).map(|handle| (handle, call))
+            })
+            .collect::<Vec<_>>();
+        let [(call_handle, call)] = calls.as_slice() else {
+            continue;
+        };
+        if call.has_receiver {
+            continue;
+        }
+
+        let matching_borrow_states = borrow
+            .states
+            .iter()
+            .filter(|(_, state)| {
+                state.machine_symbol == child.machine_symbol
+                    && state.state_symbol == child.state_symbol
+            })
+            .map(|(_, state)| state)
+            .collect::<Vec<_>>();
+        let [borrow_state] = matching_borrow_states.as_slice() else {
+            continue;
+        };
+        let borrow_calls = borrow
+            .calls
+            .span_or_empty(borrow_state.calls)
+            .iter()
+            .enumerate()
+            .filter(|(_, borrow_call)| {
+                borrow_call.statement_index == call.statement_index
+                    && borrow_call.call_ordinal == call.call_ordinal
+                    && borrow_call.target_symbol == call.target_symbol
+                    && borrow_call.receiver_symbol == call.receiver_symbol
+                    && borrow_call.has_receiver == call.has_receiver
+                    && borrow_call.accesses == call.accesses
+            })
+            .filter_map(|(offset, borrow_call)| {
+                span_handle(borrow_state.calls, offset).map(|handle| (handle, borrow_call))
+            })
+            .collect::<Vec<_>>();
+        let [(borrow_call_handle, borrow_call)] = borrow_calls.as_slice() else {
+            continue;
+        };
+
+        let Some(target_state) = crate::semantic_calls::find_state(program, call.target_symbol)
+        else {
+            continue;
+        };
+        let parameters = program
+            .state_parameters(target_state)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .collect::<Vec<_>>();
+        let [parameter] = parameters.as_slice() else {
+            continue;
+        };
+        if !parameter.is_mutable
+            || program
+                .state_parameters(target_state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        {
+            continue;
+        }
+        let psi_typed_trees::types::TypeReferenceNode::Reference {
+            access: psi_language_core::ReferenceAccess::Mutable,
+            ..
+        } = program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            continue;
+        };
+
+        let accesses = borrow.argument_accesses.span_or_empty(call.accesses);
+        let [access] = accesses else {
+            continue;
+        };
+        let Some(access_handle) = span_handle(call.accesses, 0) else {
+            continue;
+        };
+        if access.root_symbol != parent.owner_symbol
+            || !borrow.access_segments(access).is_empty()
+            || access.kind != psi_checked_trees::BorrowAccessKind::Read
+        {
+            continue;
+        }
+
+        let constraints = flow
+            .contexts
+            .constraint_refs
+            .span_or_empty(call.entry_constraints);
+        let borrow_call_constraints = constraints
+            .iter()
+            .filter(|constraint| {
+                matches!(
+                    constraint.kind,
+                    psi_checked_trees::FlowConstraintKind::BorrowCall { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        let access_constraints = constraints
+            .iter()
+            .filter(|constraint| {
+                matches!(
+                    constraint.kind,
+                    psi_checked_trees::FlowConstraintKind::BorrowAccess { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        let parent_constraints = constraints
+            .iter()
+            .enumerate()
+            .filter(|(_, constraint)| {
+                constraint.kind
+                    == psi_checked_trees::FlowConstraintKind::BorrowLoan { loan: parent.loan }
+            })
+            .filter_map(|(offset, _)| span_handle(call.entry_constraints, offset))
+            .collect::<Vec<_>>();
+        let child_constraint_count = constraints
+            .iter()
+            .filter(|constraint| {
+                constraint.kind
+                    == psi_checked_trees::FlowConstraintKind::BorrowLoan { loan: child.loan }
+            })
+            .count();
+        let [borrow_call_constraint] = borrow_call_constraints.as_slice() else {
+            continue;
+        };
+        let [access_constraint] = access_constraints.as_slice() else {
+            continue;
+        };
+        let [parent_entry_constraint] = parent_constraints.as_slice() else {
+            continue;
+        };
+        if borrow_call_constraint.kind
+            != (psi_checked_trees::FlowConstraintKind::BorrowCall {
+                call: *borrow_call_handle,
+            })
+            || access_constraint.kind
+                != (psi_checked_trees::FlowConstraintKind::BorrowAccess {
+                    access: access_handle,
+                })
+            || child_constraint_count != 0
+        {
+            continue;
+        }
+
+        let mutated_places = crate::flow::call_mutated_places(
+            program,
+            child.machine_symbol,
+            child.state_symbol,
+            borrow,
+            borrow_call,
+            &mut mutation_summaries,
+        );
+        let [mutated_place] = mutated_places.as_slice() else {
+            continue;
+        };
+        if mutated_place.root != psi_facts::PlaceRoot::Symbol(parent.owner_symbol)
+            || !mutated_place.segments.is_empty()
+        {
+            continue;
+        }
+
+        certificates.push(CheckedReborrowRestoredCallUseCertificateDraft {
+            machine_symbol: child.machine_symbol,
+            state_symbol: child.state_symbol,
+            child_loan: child.loan,
+            child_resource: child_index,
+            parent_loan: parent.loan,
+            parent_resource: parent_index,
+            disposition: *disposition,
+            containment: *containment,
+            child_weakening: child.child_weakening,
+            call: *call_handle,
+            borrow_call: *borrow_call_handle,
+            call_access: access_handle,
+            parent_entry_constraint: *parent_entry_constraint,
+            carrier_place: psi_checked_trees::CapturedPlace {
+                root_symbol: parent.owner_symbol,
+                segments: Vec::new(),
+            },
+            restored_place: parent.captured_place.clone(),
+            access: parent.access.clone(),
+            target_symbol: call.target_symbol,
         });
     }
     Ok(certificates)
@@ -1269,6 +1658,61 @@ fn validate_retained_containment_certificates(
     Ok(())
 }
 
+fn validate_retained_restored_call_uses(
+    borrow: &BorrowFacts,
+    direct: &[CheckedDirectBorrowLoanResource],
+    reborrows: &[CheckedReborrowLoanResourceDraft],
+    dispositions: &[CheckedReborrowDispositionEventDraft],
+    containments: &[CheckedReborrowContainmentCertificateDraft],
+    expected: &[CheckedReborrowRestoredCallUseCertificateDraft],
+) -> Result<(), Vec<Diagnostic>> {
+    let resources = ResourceHandles {
+        direct: borrow
+            .direct_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect(),
+        reborrows: borrow
+            .reborrow_loan_resources
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect(),
+    };
+    let disposition_handles = borrow
+        .reborrow_disposition_events
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    let containment_handles = borrow
+        .reborrow_containment_certificates
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    if resources.direct.len() != direct.len()
+        || resources.reborrows.len() != reborrows.len()
+        || disposition_handles.len() != dispositions.len()
+        || containment_handles.len() != containments.len()
+    {
+        return Err(reborrow_restored_call_use_drift());
+    }
+    let retained = borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    if retained.len() != expected.len()
+        || retained
+            .into_iter()
+            .zip(expected)
+            .any(|(retained, expected)| {
+                retained != &expected.close(&resources, &disposition_handles, &containment_handles)
+            })
+    {
+        return Err(reborrow_restored_call_use_drift());
+    }
+    Ok(())
+}
+
 fn reborrow_disposition_drift() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "checked reborrow resource-lifecycle disposition drifted from semantic-phase replay",
@@ -1281,6 +1725,12 @@ fn reborrow_containment_drift() -> Vec<Diagnostic> {
     )]
 }
 
+fn reborrow_restored_call_use_drift() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "checked reborrow restored mutating-call use drifted from exact lifecycle and call replay",
+    )]
+}
+
 fn install_borrow_resources(
     borrow: &mut BorrowFacts,
     direct: Vec<CheckedDirectBorrowLoanResource>,
@@ -1288,12 +1738,16 @@ fn install_borrow_resources(
     installation: &[ParentResourceIndex],
     dispositions: &[CheckedReborrowDispositionEventDraft],
     containments: &[CheckedReborrowContainmentCertificateDraft],
+    restored_uses: &[CheckedReborrowRestoredCallUseCertificateDraft],
 ) {
     borrow.direct_loan_resources.reset_retain_capacity();
     borrow.reborrow_loan_resources.reset_retain_capacity();
     borrow.reborrow_disposition_events.reset_retain_capacity();
     borrow
         .reborrow_containment_certificates
+        .reset_retain_capacity();
+    borrow
+        .reborrow_restored_call_use_certificates
         .reset_retain_capacity();
 
     let mut direct_handles = Vec::with_capacity(direct.len());
@@ -1323,15 +1777,25 @@ fn install_borrow_resources(
         direct: direct_handles,
         reborrows: reborrow_handles,
     };
-    for containment in containments {
+    let containment_handles = containments
+        .iter()
+        .map(|containment| {
+            borrow
+                .reborrow_containment_certificates
+                .insert(containment.close(&handles))
+        })
+        .collect::<Vec<_>>();
+    let disposition_handles = dispositions
+        .iter()
+        .map(|disposition| {
+            let disposition = disposition.close(borrow, &handles);
+            borrow.reborrow_disposition_events.insert(disposition)
+        })
+        .collect::<Vec<_>>();
+    for restored_use in restored_uses {
         borrow
-            .reborrow_containment_certificates
-            .insert(containment.close(&handles));
-    }
-    for disposition in dispositions {
-        borrow
-            .reborrow_disposition_events
-            .insert(disposition.close(borrow, &handles));
+            .reborrow_restored_call_use_certificates
+            .insert(restored_use.close(&handles, &disposition_handles, &containment_handles));
     }
 }
 
