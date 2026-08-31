@@ -246,6 +246,102 @@ fn validate_placed_view_inputs(
     Ok(())
 }
 
+fn valid_borrow_boundary(source: &psi_terminal::TerminalBorrowBoundarySource) -> bool {
+    match source {
+        psi_terminal::TerminalBorrowBoundarySource::Statement { .. } => true,
+        psi_terminal::TerminalBorrowBoundarySource::Call {
+            target_identity, ..
+        } => is_canonical_borrow_identity(target_identity),
+    }
+}
+
+fn valid_owner_path(path: &[psi_terminal::TerminalBorrowOwnerSegment]) -> bool {
+    path.iter().all(|segment| match segment {
+        psi_terminal::TerminalBorrowOwnerSegment::Field(identity)
+        | psi_terminal::TerminalBorrowOwnerSegment::Case(identity) => {
+            is_canonical_borrow_identity(identity)
+        }
+        psi_terminal::TerminalBorrowOwnerSegment::FixedIndex(_)
+        | psi_terminal::TerminalBorrowOwnerSegment::DynamicIndex => true,
+    })
+}
+
+fn valid_place_segment(segment: &psi_terminal::TerminalBorrowPlaceSegment) -> bool {
+    match segment {
+        psi_terminal::TerminalBorrowPlaceSegment::Field(identity)
+        | psi_terminal::TerminalBorrowPlaceSegment::Case(identity) => {
+            is_canonical_borrow_identity(identity)
+        }
+        psi_terminal::TerminalBorrowPlaceSegment::FixedIndex(_) => true,
+        psi_terminal::TerminalBorrowPlaceSegment::FixedRange { start, end } => start <= end,
+    }
+}
+
+fn validate_reborrow_root_handoffs(
+    module: &TerminalModule,
+    machines: &BTreeMap<psi_core::MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let rows = &module.reborrow_root_handoffs;
+    let mut coordinates = BTreeSet::new();
+    for row in rows {
+        if !coordinates.insert((
+            row.machine,
+            row.source_state_identity.as_str(),
+            row.child_owner_identity.as_str(),
+            row.child_activation.clone(),
+        )) {
+            return Err(ModuleError::DuplicateReborrowRootHandoff);
+        }
+        let parent_segments = &row.direct_root_place.segments;
+        let child_segments = &row.child_place.segments;
+        let invalid = !machines.contains_key(&row.machine)
+            || !is_canonical_borrow_identity(&row.source_machine_identity)
+            || !is_canonical_borrow_identity(&row.source_state_identity)
+            || !is_canonical_borrow_identity(&row.direct_root_owner_identity)
+            || !is_canonical_borrow_identity(&row.child_owner_identity)
+            || !is_canonical_borrow_identity(&row.direct_root_place.root_identity)
+            || !is_canonical_borrow_identity(&row.child_place.root_identity)
+            || !is_canonical_borrow_identity(&row.direct_root_lifetime_identity)
+            || !valid_owner_path(&row.direct_root_owner_path)
+            || !valid_owner_path(&row.child_owner_path)
+            || !parent_segments.iter().all(valid_place_segment)
+            || !child_segments.iter().all(valid_place_segment)
+            || !row.projection_remainder.iter().all(valid_place_segment)
+            || row.direct_root_access != psi_terminal::StructuralAccess::MutableBorrow
+            || !matches!(
+                row.child_access,
+                psi_terminal::StructuralAccess::MutableBorrow
+                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
+            )
+            || row.direct_root_place.root_identity != row.child_place.root_identity
+            || row.direct_root_lifetime_identity != row.direct_root_place.root_identity
+            || !child_segments.starts_with(parent_segments)
+            || child_segments[parent_segments.len()..] != row.projection_remainder
+            || row.formation_boundary != row.child_activation
+            || !valid_borrow_boundary(&row.direct_root_activation)
+            || !valid_borrow_boundary(&row.child_activation)
+            || !valid_borrow_boundary(&row.formation_boundary)
+            || !valid_borrow_boundary(&row.child_weakening)
+            || !valid_borrow_boundary(&row.direct_root_weakening);
+        if invalid {
+            return Err(ModuleError::InvalidReborrowRootHandoff {
+                machine: row.machine,
+            });
+        }
+    }
+    if !rows.windows(2).all(|pair| pair[0] < pair[1]) {
+        return Err(ModuleError::NonCanonicalReborrowRootHandoffOrder);
+    }
+    Ok(())
+}
+
+fn is_canonical_borrow_identity(identity: &str) -> bool {
+    if let Some(digest) = identity.strip_prefix("terminal-borrow:") {
+        return digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit());
+    }
+    is_canonical_hermetic_identity(identity)
+}
+
 fn is_canonical_hermetic_identity(identity: &str) -> bool {
     if let Some(path) = identity.strip_prefix("toolchain::") {
         return !path.is_empty();
@@ -330,6 +426,7 @@ fn validate_module_with_policy(
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
     validate_placed_view_inputs(module, &machines)?;
+    validate_reborrow_root_handoffs(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;

@@ -237,6 +237,7 @@ fn finish_module(
             services: catalogs.services,
             root_service_reach: catalogs.root_service_reach,
             placed_view_inputs: Vec::new(),
+            reborrow_root_handoffs: Vec::new(),
             boundary_machines: catalogs.boundary_machines,
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

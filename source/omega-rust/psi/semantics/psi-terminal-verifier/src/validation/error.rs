@@ -20,6 +20,11 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    NonCanonicalReborrowRootHandoffOrder,
+    DuplicateReborrowRootHandoff,
+    InvalidReborrowRootHandoff {
+        machine: MachineId,
+    },
     NonCanonicalPlacedViewInputOrder,
     DuplicatePlacedViewInput {
         machine: MachineId,

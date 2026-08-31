@@ -603,9 +603,10 @@ distinct checked-only outcomes. The former requires the final retained carrier
 to end at the child's exact semantic boundary; the latter requires `StateExit`
 and an exact direct-root-lifetime target. Independent replay reconstructs that
 phase/path/target conjunction and rejects swapped labels transactionally. No
-checked disposition is yet Terminal authority. Terminal may publish restored
-use or root custody only after independently replaying exact lineage, polarity,
-semantic boundary, projection, and suspension/freeze-containment evidence.
+checked disposition is Terminal authority by itself. Terminal may publish
+restored use or root custody only after independently replaying exact lineage,
+polarity, semantic boundary, projection, and suspension/freeze-containment
+evidence.
 
 The checked side now retains that containment evidence in a separate sibling
 arena after its complete lifecycle replay succeeds. Each permitted exclusive
@@ -615,9 +616,22 @@ typed parent resources, both accesses and their classified effect, activation
 and parent-entry formation identities, both weakening identities, and frozen
 parent/child places plus the exact projection remainder. Missing, duplicate,
 reordered, amplified, or retargeted rows reject transactionally before resource
-rebuild. The checked certificate is non-authorizing: Terminal replay and
-publication remain open, and reaching a root grants no cleanup, transfer, or
-linear-discharge authority to the borrow layer.
+rebuild. The checked certificate is non-authorizing, and reaching a root grants
+no cleanup, transfer, or linear-discharge authority to the borrow layer.
+
+The first bounded Terminal publication consumes that complete checked join for
+one direct-root `Mutable`-to-`Mutable` or `Mutable`-to-`WriteOnly` exclusive
+child ending at state exit. A canonical root-handoff row retains the exact
+machine and state identities, owner paths, parent and child captured places,
+projection remainder, access pair, activation/formation/weakening boundaries,
+and direct-root lifetime. Production requires the exact
+`StateExitDirectRootHandoff` disposition and `ExclusiveSuspension` containment;
+format 45 / vocabulary 48 round-trip the row, and Terminal verification rejects
+amplified access, malformed identities or projections, redirected formation,
+duplicates, and noncanonical order. The row publishes only direct-root custody.
+It has no cleanup, transfer, linear-discharge, or runtime-operation vocabulary;
+multihop restoration, shared cohorts, post-reborrow use, and broader branching
+remain outside this rung.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the

@@ -120,6 +120,7 @@ fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) ->
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -170,7 +171,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         psi_terminal::VocabularyMarker::CURRENT.get().to_le_bytes()

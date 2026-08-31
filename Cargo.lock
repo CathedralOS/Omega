@@ -1605,6 +1605,7 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-core",
+ "psi-facts",
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",
@@ -1624,6 +1625,7 @@ dependencies = [
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
  "psi-validation",
+ "sha2",
 ]
 
 [[package]]

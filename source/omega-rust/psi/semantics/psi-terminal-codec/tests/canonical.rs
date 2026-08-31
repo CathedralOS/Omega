@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -47,7 +47,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "17c3fd729a9c1a0a277156bbcd566172d108067bf84baaa6c804b46f1fd7fafe"
+        "9d35a9e553f07285d52143c5190d2ed22449c7493557314ae6690fa7d0b99479"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -96,7 +96,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -409,7 +409,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -422,7 +422,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -457,7 +457,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -911,6 +911,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2095,10 +2096,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&45_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&46_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(45))
+        Err(CodecError::UnsupportedFormatMarker(46))
     );
 
     let mut stale_format = bytes.clone();
@@ -2272,6 +2273,7 @@ fn partial_affine_fixture() -> TerminalModule {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2500,6 +2502,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -2668,6 +2671,7 @@ fn structural_effect_fixture() -> TerminalModule {
             installation_dependencies: Vec::new(),
         },
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_machine_id(1),
             identity: "example::Occurrence::settle".to_owned(),
@@ -2840,7 +2844,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 44_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 45_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -3354,6 +3358,7 @@ fn unit_fixture() -> TerminalModule {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3568,6 +3573,7 @@ fn fixture() -> TerminalModule {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3714,6 +3720,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3939,6 +3946,7 @@ fn call_fixture() -> TerminalModule {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
