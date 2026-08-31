@@ -7,7 +7,12 @@ mod compatible_policy;
 mod obligation_free;
 mod proof_certified;
 
-use super::*;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+
+use super::super::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 
 pub use compatible_policy::DominatorProofCertifiedCompatiblePolicyScalarGvnRule;
 pub use obligation_free::DominatorTotalScalarGvnRule;
@@ -27,10 +32,7 @@ fn dominating_contract(
             AnalysisKind::UseDefinition,
             AnalysisKind::EffectSummaries,
         ]),
-        AnalysisInvalidationSet::new([
-            AnalysisKind::UseDefinition,
-            AnalysisKind::EffectSummaries,
-        ]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
         safety,
     )
     .expect("built-in rule has nonzero version")

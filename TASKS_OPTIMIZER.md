@@ -52,14 +52,23 @@ decision. Only true language-semantic questions belong in
    fail and native-filesystem is 0/89; repeated-runtime, recast-view, sample,
    service-contract, subslice, and wire-plan targets share the dominant
    `attached Unit closure is missing a checked transitive machine plan`
-   diagnostic. A smaller recurring custody class leaves `CheckedStructLiteralType`,
-   `CheckedOperator`, or compiler-derived member access unresolved. Independent
-   failures remain in layering, the legacy `Pair` layout fixture, one generic
-   erased-record instance, nominal-affine lowering (stack overflow), and the
-   compiler/compilation-report doctests. Repair checked Unit transitive-plan
-   custody first, then authored checked selections, then the isolated fixtures
-   and docs. Run the full gate again only after that coherent repair batch; no
-   result here permits implicit optimizer enablement.
+   diagnostic. The producer-to-consumer audit now shows that this is primarily
+   an executable-coverage gap: Unit-effect planning admits only one-state
+   machines, structural Unit control cannot carry effect operations, and the
+   consumer reports the same transitive-plan error when the root itself was
+   omitted. First repair the smaller dispatch-order regression where static
+   requirement evidence preempts an available exact plan family. Then add the
+   first composed per-state Unit slice: an acyclic conditional root over
+   effectful boundary-call-and-return leaves, with atomic closure pruning and
+   focused typed-to-checked and checked-to-Terminal tests. This is engineering,
+   not an owner language decision. A smaller recurring custody class leaves
+   `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
+   access unresolved. Independent failures remain in layering, the legacy
+   `Pair` layout fixture, one generic erased-record instance, nominal-affine
+   lowering (stack overflow), and the compiler/compilation-report doctests.
+   Repair the Unit plan lane first, then authored checked selections, then the
+   isolated fixtures and docs. Run the full gate again only after that coherent
+   repair batch; no result here permits implicit optimizer enablement.
 6. [>] Finish the exact-rule navigation refactor across Psi passes. Copy
    propagation and dead-scalar elimination now use exact named leaves, the
    dead-scalar entrance is a 31-line ordered roster, and the guard rejects new
@@ -80,9 +89,12 @@ decision. Only true language-semantic questions belong in
    keeps all control-flow leaves independent of inherited parent globs. The GVN
    expression-key group now owns its closed model and exact total,
    proof-certified, and compatible-policy classifiers without inheriting the
-   pass entrance namespace; a guard covers that vocabulary subtree. The
-   remaining production parent-glob debt is confined to GVN traversal and
-   accounting leaves (13); remove those dependencies before extending it.
+   pass entrance namespace. GVN now has no production parent-glob imports:
+   exact-purity admission lives in a named pass-level leaf, join-parameter
+   provenance accounting lives with phi translation, and all three traversal
+   families name their dependencies directly. The local obligation-free rule
+   consumes the shared effect query instead of duplicating it, and a
+   family-wide guard rejects regression.
 
 ## P0 — Source navigation and taxonomy
 
@@ -125,6 +137,10 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
+- [x] Remove GVN's inherited namespace bucket. Put shared exact-effect
+  admission at the pass ancestor, phi-only provenance accounting beside phi
+  translation, and make every traversal leaf import its exact dependencies.
+  Reject both the retired mixed accounting path and family-wide parent globs.
 - [x] Audit every governed `lib.rs`/`mod.rs` file and explicitly classify each
   at its source as
   crate map, stage group, or executable entrance. Only executable entrances

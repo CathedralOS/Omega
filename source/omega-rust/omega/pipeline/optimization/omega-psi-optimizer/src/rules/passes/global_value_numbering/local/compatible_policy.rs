@@ -1,6 +1,21 @@
 //! Same-block elimination from proof-bearing redundants to total-policy leaders.
 
-use super::*;
+use std::collections::BTreeMap;
+
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use omega_optimization_unit::{
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
+    PsiRewriteCandidate,
+};
+
+use crate::rules::passes::support::{accepted_obligation_fact, node_elision_accounting};
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{
+    effect_admission::exact_pure_scalar_effect,
+    expression_keys::{compatible_policy_scalar_leader, compatible_policy_scalar_redundant},
+};
+use super::same_block_contract;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockProofCertifiedCompatiblePolicyScalarCseRule;

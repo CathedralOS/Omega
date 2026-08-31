@@ -5,7 +5,7 @@ use omega_optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 
-use super::super::GLOBAL_VALUE_NUMBERING_PASS_NAME;
+use super::super::super::GLOBAL_VALUE_NUMBERING_PASS_NAME;
 
 const REQUIRED_ANALYSES: [AnalysisKind; 3] = [
     AnalysisKind::ScalarConstants,

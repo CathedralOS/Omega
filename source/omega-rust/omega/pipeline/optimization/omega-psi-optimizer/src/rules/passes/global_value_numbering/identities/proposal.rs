@@ -9,10 +9,10 @@ use omega_optimization_unit::{
 };
 use psi_core::ScalarType;
 
-use crate::rules::passes::literal_integer_constant;
+use crate::rules::passes::support::{literal_integer_constant, node_elision_accounting};
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-use super::super::{exact_pure_scalar_effect, node_elision_accounting};
+use super::super::effect_admission::exact_pure_scalar_effect;
 use super::TotalScalarIdentityShape;
 
 pub(super) fn propose_total_scalar_identities(

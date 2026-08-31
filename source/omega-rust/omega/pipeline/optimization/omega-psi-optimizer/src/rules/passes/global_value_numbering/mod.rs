@@ -1,29 +1,9 @@
 //! Optimizer module role: executable entrance. Global value numbering, arranged by expression identity and traversal scope.
 
-use std::collections::{BTreeMap, BTreeSet};
-
-use omega_optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-};
-use omega_optimization_unit::{
-    DominatingScalarCommonSubexpressionRewrite, LocalScalarCommonSubexpressionRewrite,
-    NodeLocation, OptimizationFact, PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming,
-    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate,
-};
-use psi_core::{BlockId, MachineId};
-
 use crate::rules::catalog::BuiltInRuleRegistration;
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
-use super::{
-    GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligation_fact,
-    support::{block_dominates, node_elision_accounting},
-};
-
-mod accounting;
 mod dominating;
+mod effect_admission;
 mod expression_keys;
 mod identities;
 mod local;
@@ -34,8 +14,7 @@ pub use identities::*;
 pub use local::*;
 pub use phi_translated::*;
 
-use accounting::*;
-use expression_keys::*;
+#[cfg(test)]
 pub(in crate::rules::passes) use expression_keys::{
     compatible_policy_scalar_leader, compatible_policy_scalar_redundant,
     proof_certified_scalar_expression,
