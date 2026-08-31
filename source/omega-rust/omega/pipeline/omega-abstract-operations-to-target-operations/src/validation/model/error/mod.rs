@@ -23,6 +23,7 @@ pub use parameter::{
     StraightLineIntegerLessThanParametersTranslationError,
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
+    StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
@@ -57,6 +58,9 @@ pub enum AbstractToTargetTranslationFamilyError {
         StraightLineIntegerBitwiseXorParametersTranslationError,
     ),
     StraightLineExactIntegerAddParameters(StraightLineExactIntegerAddParametersTranslationError),
+    StraightLineSaturatingIntegerAddParameters(
+        StraightLineSaturatingIntegerAddParametersTranslationError,
+    ),
     StraightLineWrappingIntegerAddParameters(
         StraightLineWrappingIntegerAddParametersTranslationError,
     ),

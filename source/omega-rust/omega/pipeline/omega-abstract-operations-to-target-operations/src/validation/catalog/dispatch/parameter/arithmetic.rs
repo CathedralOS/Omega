@@ -1,4 +1,4 @@
-//! Exact-semantics and wrapping integer-arithmetic expression adapters.
+//! Exact, saturating, and wrapping integer-arithmetic expression adapters.
 
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
@@ -23,6 +23,13 @@ pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamily
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
         straight_line_parameter::integer::arithmetic::wrapping_add::is_candidate,
         wrapping_integer_add,
+    );
+
+pub(in crate::validation::catalog) const SATURATING_INTEGER_ADD: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters,
+        straight_line_parameter::integer::arithmetic::saturating_add::is_candidate,
+        saturating_integer_add,
     );
 
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_SUBTRACT: TranslationFamilyDescriptor =
@@ -51,6 +58,20 @@ pub(in crate::validation::catalog::dispatch) fn wrapping_integer_add(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerAddParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerAddParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn saturating_integer_add(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::saturating_add::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerAddParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineSaturatingIntegerAddParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn exact_integer_add(
