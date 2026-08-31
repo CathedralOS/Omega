@@ -15,3 +15,6 @@ omega-image = { path = "../omega-image" }
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
 omega-object-file = { path = "../../object/omega-object-file" }
 sha2 = "0.10"
+
+[dev-dependencies]
+omega-target = { path = "../../../representations/omega-target" }

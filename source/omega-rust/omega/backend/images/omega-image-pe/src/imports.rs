@@ -107,6 +107,12 @@ pub(crate) fn install_import_thunks(
                             locator.non_authoritative_compatibility_fingerprint(),
                         )));
                     }
+                    ForeignLocatorCandidate::MachODylibSymbol { .. } => {
+                        return Err(Diagnostic::error(format!(
+                            "Mach-O foreign locator 0x{:016x} cannot be emitted in a PE import table",
+                            locator.non_authoritative_compatibility_fingerprint(),
+                        )));
+                    }
                 }
             }
             FinalImageImportPlan::None => {

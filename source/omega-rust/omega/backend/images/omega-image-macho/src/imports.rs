@@ -355,6 +355,7 @@ mod tests {
         FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageImportPlan,
         FinalImageLayout, FinalImageRelocation, FinalImageSymbol,
     };
+    use omega_target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
     use psi_arena::Handle;
 
     fn image_with_referenced_import() -> FinalImage {
@@ -437,5 +438,38 @@ mod tests {
         let diagnostic = validate_import_thunk_footprints(&mut image, &thunks)
             .expect_err("mutated Mach-O thunk opcode must reject");
         assert!(diagnostic.message.contains("ADRP X16"));
+    }
+
+    #[test]
+    fn normalized_macho_locator_stays_fail_closed_before_image_mutation() {
+        let mut image = image_with_referenced_import();
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
+                symbol: b"_write".to_vec(),
+            },
+            TargetProfile::MacosArm64,
+        )
+        .expect("valid structural Mach-O locator");
+        let import_handle = image
+            .symbol_table
+            .imports
+            .iter()
+            .next()
+            .expect("one referenced import")
+            .0;
+        image.symbol_table.imports.get_mut(import_handle).import =
+            FinalImageImportPlan::Normalized(locator);
+
+        let diagnostic = install_import_thunks(&mut image)
+            .expect_err("normalized Mach-O realization remains fail closed");
+        assert!(
+            diagnostic
+                .message
+                .contains("cannot be reconstructed through Mach-O symbol spellings")
+        );
+        assert!(image.memory.text.is_empty());
+        assert!(image.memory.data.is_empty());
+        assert!(image.executable_regions.is_empty());
     }
 }

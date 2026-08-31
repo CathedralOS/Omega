@@ -613,6 +613,14 @@ impl SelectedProviderClosureDigestEncoder {
                         self.bytes(symbol);
                         self.bytes(version);
                     }
+                    crate::ForeignLocatorCandidate::MachODylibSymbol {
+                        install_name,
+                        symbol,
+                    } => {
+                        self.byte(3);
+                        self.bytes(install_name);
+                        self.bytes(symbol);
+                    }
                 }
             }
             crate::OpaqueInProcessBinding::StringBackedImportBootstrap { library, symbol } => {
@@ -1038,6 +1046,39 @@ mod tests {
         assert_ne!(
             selected(b"read_raw").report_fingerprint(),
             selected(b"write_raw").report_fingerprint(),
+        );
+    }
+
+    #[test]
+    fn selected_plan_identity_retains_macho_install_name_and_symbol() {
+        fn selected(install_name: &[u8], symbol: &[u8]) -> SelectedProviderPlanFacts {
+            let mut plan = candidate("OpaqueLeaf", "read_raw");
+            plan.target = "macos_arm64".into();
+            plan.rows[0].binding = ProviderBinding::Import {
+                locator: crate::normalize_foreign_locator(
+                    crate::ForeignLocatorCandidate::MachODylibSymbol {
+                        install_name: install_name.to_vec(),
+                        symbol: symbol.to_vec(),
+                    },
+                    omega_target::TargetProfile::MacosArm64,
+                )
+                .expect("normalized selected Mach-O import"),
+            };
+            SelectedProviderPlanFacts::from_selection(
+                std::slice::from_ref(&plan),
+                std::slice::from_ref(&plan.name),
+            )
+            .expect("selected normalized Mach-O import")
+        }
+
+        let baseline = selected(b"/usr/lib/libSystem.B.dylib", b"_read");
+        assert_ne!(
+            baseline.identity_digest(),
+            selected(b"/usr/lib/libobjc.A.dylib", b"_read").identity_digest(),
+        );
+        assert_ne!(
+            baseline.identity_digest(),
+            selected(b"/usr/lib/libSystem.B.dylib", b"_write").identity_digest(),
         );
     }
 

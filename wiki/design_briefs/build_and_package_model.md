@@ -2629,6 +2629,9 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v113/canonical row v71 admits the atomic Mach-O dylib
+install-name and dyld symbol locator case. Canonical-row recovery remains v15.
+
 Package review v112/canonical row v70 admits conformance-bound weakening for
 top-level external requirement supply. Every provider demand must match one
 distinct requirement demand after alpha normalization; requirement-only

@@ -1875,6 +1875,14 @@ impl ProviderPlanDigestEncoder {
                         self.bytes(symbol);
                         self.bytes(version);
                     }
+                    omega_target::ForeignLocatorCandidate::MachODylibSymbol {
+                        install_name,
+                        symbol,
+                    } => {
+                        self.byte(3);
+                        self.bytes(install_name);
+                        self.bytes(symbol);
+                    }
                 }
             }
             ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
@@ -1947,6 +1955,19 @@ mod tests {
                 omega_target::TargetProfile::WindowsX64,
             )
             .expect("valid normalized Windows import"),
+        }
+    }
+
+    fn normalized_macos_import(install_name: &[u8], symbol: &[u8]) -> ProviderBinding {
+        ProviderBinding::Import {
+            locator: crate::normalize_foreign_locator(
+                crate::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: install_name.to_vec(),
+                    symbol: symbol.to_vec(),
+                },
+                omega_target::TargetProfile::MacosArm64,
+            )
+            .expect("valid normalized Mach-O import"),
         }
     }
 
@@ -3125,5 +3146,24 @@ mod tests {
         let mut changed_export = baseline.clone();
         changed_export.rows[0].binding = normalized_windows_import(b"kernel32.dll", b"ReadFile");
         assert_ne!(baseline_identity, changed_export.report_fingerprint());
+    }
+
+    #[test]
+    fn macho_locator_coordinates_enter_provider_plan_identity_atomically() {
+        let mut baseline = windows_console_plan();
+        baseline.target = "macos_arm64".to_owned();
+        baseline.rows[0].binding =
+            normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_write");
+        let baseline_identity = baseline.identity_digest();
+
+        let mut changed_install_name = baseline.clone();
+        changed_install_name.rows[0].binding =
+            normalized_macos_import(b"/usr/lib/libobjc.A.dylib", b"_write");
+        assert_ne!(baseline_identity, changed_install_name.identity_digest());
+
+        let mut changed_symbol = baseline;
+        changed_symbol.rows[0].binding =
+            normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_read");
+        assert_ne!(baseline_identity, changed_symbol.identity_digest());
     }
 }

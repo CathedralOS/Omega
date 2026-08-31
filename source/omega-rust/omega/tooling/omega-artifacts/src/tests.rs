@@ -63,6 +63,19 @@ fn normalized_windows_import(library: &[u8], export: &[u8]) -> TrustProviderReal
     }
 }
 
+fn normalized_macos_import(install_name: &[u8], symbol: &[u8]) -> TrustProviderRealization {
+    TrustProviderRealization::Import {
+        locator: normalize_foreign_locator(
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: install_name.to_vec(),
+                symbol: symbol.to_vec(),
+            },
+            TargetProfile::MacosArm64,
+        )
+        .expect("valid normalized Mach-O import"),
+    }
+}
+
 fn test_provider_plan_digest() -> omega_effects::provider_plan::ProviderPlanDigest {
     omega_effects::provider_plan::ProviderPlan::default().identity_digest()
 }
@@ -558,6 +571,30 @@ fn normalized_foreign_locator_mutations_change_trust_identity_and_exact_output()
             .report_text()
             .starts_with("string-backed import bootstrap")
     );
+}
+
+#[test]
+fn macho_locator_trust_report_keeps_raw_install_name_and_symbol() {
+    let baseline = normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_write\xff");
+    assert_ne!(
+        baseline.foreign_locator_compatibility_report_identity(),
+        normalized_macos_import(b"/usr/lib/libobjc.A.dylib", b"_write\xff")
+            .foreign_locator_compatibility_report_identity(),
+    );
+    assert_ne!(
+        baseline.foreign_locator_compatibility_report_identity(),
+        normalized_macos_import(b"/usr/lib/libSystem.B.dylib", b"_read\xff")
+            .foreign_locator_compatibility_report_identity(),
+    );
+
+    let text = baseline.report_text();
+    assert!(text.contains("MachODylibSymbol ["));
+    assert!(text.contains("target `macos_arm64`"));
+    assert!(
+        text.contains("install-name bytes 0x2f7573722f6c69622f6c696253797374656d2e422e64796c6962")
+    );
+    assert!(text.contains("symbol bytes 0x5f7772697465ff"));
+    assert!(!text.contains("_write"));
 }
 
 #[test]

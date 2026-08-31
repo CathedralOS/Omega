@@ -9173,11 +9173,18 @@ compiler concept is introduced.
   permissions, admit native execution, or carry the accepted policy identity
   in realization evidence.
 
-  Next add a structural Mach-O locator, make ordinary source binding evaluation
-  produce exact PE-by-name, PE-by-ordinal, versioned-ELF, and Mach-O locators,
-  and supply target-policy rows for admitted imports. Only then replace the
-  blessed filename table with the exact service/schema permission table and
-  binding-derived containment. String-backed imports never enter accepted
+  The structural Mach-O prerequisite is now live. `MachODylibSymbol` seals one
+  raw `LC_LOAD_DYLIB` install-name identity together with one exact dyld symbol
+  spelling, is applicable only to macOS AArch64, and preserves non-UTF-8 bytes
+  without path or text reconstruction. Both coordinates enter normalized,
+  provider-plan, selected-plan, package-review, trust-report, and manifest
+  identity atomically. PE emission rejects this distinct object-format case;
+  Mach-O realization remains fail closed until it consumes the structural row
+  directly. Next make ordinary source binding evaluation produce exact
+  PE-by-name, PE-by-ordinal, versioned-ELF, and Mach-O locators, then supply
+  target-policy rows for admitted imports. Only then replace the blessed
+  filename table with the exact service/schema permission table and binding-
+  derived containment. String-backed imports never enter accepted
   classification directly.
 
   Classify runtime-polymorphic arguments by the conservative union of all
@@ -10659,14 +10666,18 @@ boundary without its corresponding checked law.
   The dependency-light locator foundation is implemented in `omega-target`
   with compatibility reexports from `omega-effects`.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
-  `PeByOrdinal`, and `ElfVersioned` candidates, rejecting empty/NUL coordinates,
-  zero PE ordinals, UEFI/PE conflation, and non-Linux versioned ELF use. Every
-  target, case, byte, length boundary, and ordinal participates in its normalized
-  identity. The first coordinated representation join is now live:
+  `PeByOrdinal`, `ElfVersioned`, and `MachODylibSymbol` candidates, rejecting
+  empty/NUL coordinates, zero PE ordinals, UEFI/PE conflation, non-Linux
+  versioned ELF use, and non-macOS Mach-O use. The Mach-O case owns the raw
+  `LC_LOAD_DYLIB` install-name identity and exact dyld symbol spelling; its
+  image-local ordinal is derived during later image construction rather than
+  entering locator identity. Every applicable target profile, case tag,
+  coordinate byte and length boundary, and PE ordinal participates in
+  normalized identity. The first coordinated representation join is now live:
   `ProviderBinding::Import` owns the whole normalized locator, validates its
   target against the provider plan, and carries its atomic identity through
-  selected-plan/opaque-TCB facts, package-review format 57, and manifest JSON
-  with exact raw coordinates. Trust artifacts now retain the same sealed locator
+  selected-plan/opaque-TCB facts, canonical package-review encoding, and
+  manifest JSON with exact raw coordinates. Trust artifacts now retain the same sealed locator
   and render target, case, normalized identity, and raw hex coordinates/ordinal;
   target drift rejects before report installation. The atomic calling-
   convention bridge is now live: the sealed locator survives compiler provider
@@ -10679,7 +10690,9 @@ boundary without its corresponding checked law.
   rows. PE final emission consumes raw `PeByName` library/export bytes without
   UTF-8 reconstruction and emits `PeByOrdinal` through the ordinal flag in both
   lookup tables; malformed coordinates, duplicate rows, and target drift reject
-  before mutation. Versioned ELF and Mach-O normalized rows remain explicit
+  before mutation. The Mach-O row now survives representation, provider,
+  selected-plan, package-review, trust-report, and manifest identity with exact
+  raw coordinates. Versioned ELF and Mach-O final realization remain explicit
   fail-closed boundaries rather than being reconstructed as text. Ordinary
   authored outbound machine emission now retains the complete `HostImportLocator`
   in all seven scalar/float/aggregate validation variants, and final instruction

@@ -346,6 +346,14 @@ pub(crate) fn encode_provider_row(
                     encoder.bytes(symbol)?;
                     encoder.bytes(version)?;
                 }
+                omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name,
+                    symbol,
+                } => {
+                    encoder.byte(3);
+                    encoder.bytes(install_name)?;
+                    encoder.bytes(symbol)?;
+                }
             }
         }
         ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
