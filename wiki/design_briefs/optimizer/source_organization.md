@@ -119,6 +119,12 @@ typed zero/one vocabulary. Generic provenance accounting for deleting a node
 lives in `passes/support/node_elision_accounting.rs`, where GVN and proof-check
 elision consume it as peers; neither pass reaches through the other's module.
 
+Control-flow cleanup follows the same rule when two transformations share a
+concept but not an accounting contract. `empty_block_threading/` exposes
+separate `linear.rs` and `path_qualified.rs` rule leaves over shared binding
+composition and ownership-identity checks; their distinct provenance/effect
+accounting remains in separately named leaves.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.

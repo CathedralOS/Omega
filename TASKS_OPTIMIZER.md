@@ -63,9 +63,12 @@ decision. Only true language-semantic questions belong in
    its shared identity-rewrite group is split into model/proposal/typed-literal
    rungs, and a guard forbids restoring either the 552-line flat hub or parent
    glob imports in that family. Its generic node-elision accounting now lives
-   under pass support instead of GVN. The remaining production parent-glob
-   debt is confined to control-flow cleanup (10) and GVN (18); remove those 28
-   dependencies before extending either family.
+   under pass support instead of GVN. Control-flow cleanup's former 566-line
+   mixed empty-block leaf is now a seven-file semantic ladder: exact linear and
+   path-qualified rule leaves share only binding composition and ownership
+   identity, while retaining separate accounting leaves. The remaining
+   production parent-glob debt is confined to control-flow cleanup (9) and GVN
+   (18); remove those 27 dependencies before extending either family.
 
 ## P0 — Source navigation and taxonomy
 
