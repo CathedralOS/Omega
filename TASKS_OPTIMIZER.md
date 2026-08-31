@@ -25,9 +25,14 @@ decision. Only true language-semantic questions belong in
    add/subtract goals are still represented by `KernelDerived(Truth)`. Use
    checked certificate-derived proofs; do not weaken proof admission.
 5. [>] Finish workspace validation and rollout canaries before promoting any
-   rule beyond explicit opt-in. Two native-differential canaries are currently
-   red on the unmodified baseline: the canonical-nonzero divide/remainder
-   reducer expectation and the scalar-call Terminal-byte golden fixture.
+   rule beyond explicit opt-in. The stale canonical-nonzero reducer assertion,
+   scalar-call Terminal-byte golden, and its exact published fingerprint are
+   repaired for Terminal format 42/vocabulary 45; the complete 128-test source
+   and four-test call native-differential suites are green. The broader
+   no-fail-fast audit next needs the stale compact-identity and top-level-target
+   architecture inventories repaired, the 537-line projection leaf classified
+   against its 525-line ratchet, and the access-plan/build-output canaries
+   isolated from the recent provider-application changes.
 
 ## P0 — Source navigation and taxonomy
 
