@@ -2351,9 +2351,12 @@ fields and replays the same complete ordered path. A sixth bounded form admits
 exactly six enclosing relevant record fields and replays the same complete
 ordered path through whole-root equality, inequality, Unit-call rebasing,
 codecs, verification, fixed fuel, interpretation, and independent prefix
-mutation. Seven or more enclosing fields, mixed values below case payloads or
-another mixed shape, two mixed sibling fields, direct projected mixed
-comparisons, recursive cycles, address
+mutation. A seventh bounded form admits exactly seven enclosing relevant record
+fields and replays the same complete ordered path through whole-root equality,
+inequality, Unit-call rebasing, codecs, verification, fixed fuel,
+interpretation, and independent prefix mutation. Eight or more enclosing
+fields, mixed values below case payloads or another mixed shape, two mixed
+sibling fields, direct projected mixed comparisons, recursive cycles, address
 and erased payload equality, written
 `equals` bodies, and runtime sum layout remain outside this bounded terminal
 slice. When an acyclic

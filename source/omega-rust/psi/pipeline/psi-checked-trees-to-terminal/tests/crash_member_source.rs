@@ -918,6 +918,67 @@ const SIX_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
     }
 "#;
 
+const SEVEN_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE: &str = r#"
+    trait Equatable {
+        machine equals(&self, rhs: &Self) -> bool;
+    }
+
+    data Message {
+        active: bool;
+        case Empty;
+        case Data(value: i32);
+    }
+    MessageEquatable: Message satisfies Equatable;
+
+    data Inner { message: Message; }
+    InnerEquatable: Inner satisfies Equatable;
+
+    data Middle { inner: Inner; }
+    MiddleEquatable: Middle satisfies Equatable;
+
+    data Envelope { middle: Middle; }
+    EnvelopeEquatable: Envelope satisfies Equatable;
+
+    data Exterior { envelope: Envelope; }
+    ExteriorEquatable: Exterior satisfies Equatable;
+
+    data Outside { exterior: Exterior; }
+    OutsideEquatable: Outside satisfies Equatable;
+
+    data Beyond { outside: Outside; }
+    BeyondEquatable: Beyond satisfies Equatable;
+
+    data Further { beyond: Beyond; }
+    FurtherEquatable: Further satisfies Equatable;
+
+    data Helper {}
+    machine Helper::inspect(left: Further, right: Further)
+    crashes Abort
+        left == right
+    {}
+
+    machine Helper::different(left: Further, right: Further)
+    crashes Abort
+        left != right
+    {}
+
+    data Root {}
+    machine Root::enter(left: Further, right: Further)
+    crashes Abort
+        left == right
+    {
+        Helper::inspect(left, right);
+    }
+
+    data Different {}
+    machine Different::enter(left: Further, right: Further)
+    crashes Abort
+        left != right
+    {
+        Helper::different(left, right);
+    }
+"#;
+
 const MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 3] = [
     r#"
         trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
@@ -964,8 +1025,10 @@ const NESTED_MIXED_AGGREGATE_EQUALITY_FENCE_SOURCES: [&str; 6] = [
         BeyondEquatable: Beyond satisfies Equatable;
         data Further { beyond: Beyond; }
         FurtherEquatable: Further satisfies Equatable;
+        data Furthest { further: Further; }
+        FurthestEquatable: Furthest satisfies Equatable;
         data Root {}
-        machine Root::enter(left: Further, right: Further)
+        machine Root::enter(left: Furthest, right: Furthest)
         crashes Abort left == right {}
     "#,
     r#"
@@ -6032,6 +6095,16 @@ fn six_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
         SIX_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
         &[
             "outside", "exterior", "envelope", "middle", "inner", "message",
+        ],
+    );
+}
+
+#[test]
+fn seven_field_nested_mixed_aggregate_equality_replays_every_prefixed_path() {
+    assert_nested_mixed_aggregate_equality_replays_every_prefixed_path(
+        SEVEN_FIELD_NESTED_MIXED_AGGREGATE_EQUALITY_SOURCE,
+        &[
+            "beyond", "outside", "exterior", "envelope", "middle", "inner", "message",
         ],
     );
 }
