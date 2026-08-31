@@ -127,6 +127,18 @@ the private firmware-ledger authority, both physical occurrences, and the live
 phase lease before it can match the adapter-readiness carrier; equal public
 report coordinates from another ledger do not substitute.
 
+The first address-free adapter composition now consumes that private-ledger
+readiness and numeric plan together with the compiler's optimized semantic
+entry contract. It independently revalidates the receiver-free Microsoft-x64
+two-root Unit ABI, exact Image/InitialStorage order, distinct physical and
+semantic requirements, and byte-for-byte equality of the target-owned physical
+contract retained on both sides. The non-clone result keeps the complete
+semantic contract and stack plan private while exposing only stable identities,
+the strong semantic calling-plan commitment, and bounded planning observations.
+Rejection returns all three inputs. This establishes neither WCSU producer
+provenance nor shell emission, provider installation, semantic roots,
+invocation, or an `EfiStatus` result.
+
 The installation receipt joins the physical invocation, target schema,
 provider realizations, physical-input provenance, root geometry and evidence,
 stack plan, semantic requirement, and selected continuation. Failure before

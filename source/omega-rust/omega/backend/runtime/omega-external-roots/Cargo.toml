@@ -28,5 +28,6 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 psi-proof-admission = { path = "../../../../psi/semantics/psi-proof-admission" }
+psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
 psi-terminal-verifier = { path = "../../../../psi/semantics/psi-terminal-verifier" }
 omega-target = { path = "../../../representations/omega-target" }
