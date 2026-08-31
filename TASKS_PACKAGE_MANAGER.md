@@ -38,12 +38,14 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - canonical structured const values and closed conformance static
+  - canonical const values beyond the completed public named acyclic,
+    monomorphic checked-record/pure-sum cohort, and closed conformance static
     applications beyond the completed lifetime-free, type-only cohort, but
     only where successful checking retains an exact structural value and call-
     occurrence witness. Direct named public integer and Boolean const values,
-    forwarded caller const binders, and the first exact closed-conformance
-    occurrence lane are complete;
+    checked structured values with nested literal arrays, forwarded caller
+    const binders, and the first exact closed-conformance occurrence lane are
+    complete;
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand and installation-issuance joins;
@@ -80,17 +82,16 @@ stop the item on one precise owner question before adding machinery.
   families remain below; add one only for a concrete receipted-build need,
   not to fill out an operation matrix.
 
-  Remaining work:
-
-  - replay each still-admitted build service and staged-output lifecycle needed
-    by a receipted candidate, without inferring operations from an equivalent
-    final tree;
-  - retain exact failed and denied outcomes, including their rooted/refused
-    operands, without turning host-specific path spellings into portable
-    coordinates or treating provider error text as identity;
-  - add peak-live accounts only where the compiler owns the complete allocation
-    lifetime. Do not duplicate existing per-operation bounds or present partial
-    allocator/RSS participation as containment;
+  No additional replay operation is currently queued. The concrete
+  `generated-table` package already closes its complete Source
+  open/read/close, Output create/write/close, and generated-source handoff
+  lifecycle through provider-free replay and canonical recovery. Add another
+  operation or failed/denied outcome only with an otherwise admission-eligible
+  package fixture that remains volatile solely because that exact replay is
+  missing. Do not complete the raw filesystem operation matrix speculatively.
+  Add peak-live accounts only where the compiler owns the complete allocation
+  lifetime; do not duplicate per-operation bounds or present partial
+  allocator/RSS participation as containment.
   Host CPU/RSS limits are deployment availability policy, not package evidence
   and not a precondition that turns review into authority. Projects that need
   stronger availability isolation run `omega` under their selected CI,

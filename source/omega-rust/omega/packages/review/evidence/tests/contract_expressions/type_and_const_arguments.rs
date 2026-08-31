@@ -385,7 +385,7 @@ ensures result == selected<ENABLED>();
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("not a supported canonical value for its exact declared carrier")),
+            .contains("with a malformed canonical value encoding")),
         "unexpected diagnostics: {diagnostics:#?}",
     );
 
@@ -425,8 +425,156 @@ ensures result == selected<ENABLED>();
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("not a supported canonical value for its exact declared carrier")),
+            .contains("does not replay against its exact declared carrier")),
         "unexpected diagnostics: {diagnostics:#?}",
+    );
+}
+
+#[test]
+fn review_projects_named_structured_consts_with_exact_carrier_replay() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let compile = |left_x: u8| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+r#"pub data Point {{ x: u8; y: u8; }}
+pub data Pair {{ left: Point; right: Point; flags: [bool; 2]; }}
+pub data Mode {{ case Idle; case Count(value: u8); }}
+pub data Alternate {{ value: u64; }}
+pub const SELECTED: Pair = Pair {{ left: Point {{ x: {left_x}, y: 2 }}, right: Point {{ x: 3, y: 4 }}, flags: [true, false] }};
+pub const ACTIVE: Mode = Mode::Count {{ value: 5 }};
+pub const OTHER: Alternate = Alternate {{ value: 0 }};
+pub machine selected<const Value: Pair, const State: Mode>() -> u64 {{ 0 }}
+boundary machine trusted_pair() -> u64
+ensures result == selected<SELECTED, ACTIVE>();
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("named structured const static contract argument should check")
+    };
+    let static_argument = |review: &CheckedPackageReviewProjection| {
+        let callable = review
+            .callables()
+            .iter()
+            .find(|callable| callable.identity().path() == "trusted_pair")
+            .expect("trusted structured-const callable");
+        let [contract] = callable.contracts() else {
+            panic!("one trusted-pair contract")
+        };
+        let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+            right,
+            ..
+        }) = contract.fact()
+        else {
+            panic!("trusted-pair equality contract")
+        };
+        let PackageReviewContractExpression::Call {
+            static_arguments, ..
+        } = right.as_ref()
+        else {
+            panic!("named structured-const call")
+        };
+        static_arguments.clone()
+    };
+
+    let checked = compile(1);
+    let review = project_checked_package_review(&checked)
+        .expect("structured const should replay through its exact checked carrier");
+    let arguments = static_argument(&review);
+    let [
+        PackageReviewContractStaticArgument::ConstStructured {
+            declared_type: pair_type,
+            canonical_value_encoding: pair_encoding,
+        },
+        PackageReviewContractStaticArgument::ConstStructured {
+            declared_type: mode_type,
+            canonical_value_encoding: mode_encoding,
+        },
+    ] = arguments.as_slice()
+    else {
+        panic!("record and pure-sum structured const review values")
+    };
+    assert!(pair_type.canonical().contains("Pair"));
+    assert!(pair_encoding.starts_with("record"));
+    assert!(mode_type.canonical().contains("Mode"));
+    assert!(mode_encoding.starts_with("variant"));
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        project_checked_package_review(&compile(9))
+            .unwrap()
+            .canonical_review_bytes()
+            .unwrap(),
+        "changing one nested scalar must change canonical package identity",
+    );
+
+    let mut field_spoof = checked.clone();
+    let selected = field_spoof
+        .typed
+        .tables
+        .const_declarations
+        .iter()
+        .find_map(|(handle, declaration)| {
+            (field_spoof.symbols.name(declaration.symbol) == "SELECTED").then_some(handle)
+        })
+        .expect("SELECTED declaration");
+    let encoding = field_spoof
+        .typed
+        .tables
+        .const_declarations
+        .get(selected)
+        .canonical_value_encoding
+        .clone()
+        .expect("canonical structured value");
+    field_spoof
+        .typed
+        .tables
+        .const_declarations
+        .get_mut(selected)
+        .canonical_value_encoding = Some(encoding.replacen("left", "rift", 1));
+    let diagnostics = project_checked_package_review(&field_spoof)
+        .expect_err("a framed field-name spoof must fail exact carrier replay");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not replay against its exact declared carrier")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+
+    let mut carrier_spoof = checked;
+    let alternate_type = carrier_spoof
+        .const_declarations()
+        .iter()
+        .find(|declaration| carrier_spoof.symbols.name(declaration.symbol) == "OTHER")
+        .expect("OTHER declaration")
+        .declared_type;
+    carrier_spoof
+        .typed
+        .tables
+        .const_declarations
+        .get_mut(selected)
+        .declared_type = alternate_type;
+    let diagnostics = project_checked_package_review(&carrier_spoof)
+        .expect_err("structured value under a substituted carrier must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not replay against its exact declared carrier")),
+        "unexpected diagnostics: {diagnostics:#?}"
     );
 }
 

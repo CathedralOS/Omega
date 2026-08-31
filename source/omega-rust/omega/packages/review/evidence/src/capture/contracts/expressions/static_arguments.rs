@@ -1,4 +1,5 @@
 mod conformance;
+mod const_values;
 
 use super::names::portable_parameter_position;
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -8,11 +9,11 @@ use crate::capture::semantics::types::missing_exact_toolchain_type_owner;
 use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdentity};
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
-use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use psi_symbols::SymbolHandle;
 
 use conformance::project_contract_conformance_application;
 pub(crate) use conformance::require_exact_conformance_static_argument_selections;
+use const_values::project_named_const_static_argument;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ContractCallStaticParameterKind {
@@ -424,24 +425,12 @@ pub(crate) fn project_static_argument(
                     "whose selected const does not rejoin exactly one checked declaration",
                 ));
             };
-            let Some(encoding) = declaration.canonical_value_encoding.as_deref() else {
-                return Err(rejected(
-                    "whose selected const has no admitted canonical public value",
-                ));
-            };
-            if let Some(value) = canonical_integer_value(encoding) {
-                return Ok(PackageReviewContractStaticArgument::ConstInteger(value));
-            }
-            return match decode_canonical_const_value(encoding) {
-                Some(DecodedCanonicalConstValue::Boolean(value))
-                    if exact_boolean_type(compilation, declaration.declared_type) =>
-                {
-                    Ok(PackageReviewContractStaticArgument::ConstBoolean(value))
-                }
-                _ => Err(rejected(
-                    "whose selected const is not a supported canonical value for its exact declared carrier",
-                )),
-            };
+            return project_named_const_static_argument(
+                compilation,
+                subject_kind,
+                subject_name,
+                declaration,
+            );
         }
         return Err(rejected(
             "from a forwarded or symbolic const not yet represented by package review",
@@ -468,63 +457,4 @@ pub(crate) fn project_static_argument(
     Ok(PackageReviewContractStaticArgument::ConcreteMachine(
         nominal_identity(compilation, argument.symbol)?,
     ))
-}
-
-/// Recover the canonical decimal payload from the closed public-const
-/// encoding. The encoder is length-delimited, so this never interprets source
-/// text or a diagnostic display as semantic identity.
-fn canonical_integer_value(encoding: &str) -> Option<String> {
-    let DecodedCanonicalConstValue::Integer { type_name, value } =
-        decode_canonical_const_value(encoding)?
-    else {
-        return None;
-    };
-    canonical_integer_type_name(type_name.as_str()).then(|| value.to_string())
-}
-
-fn decode_canonical_const_value(encoding: &str) -> Option<DecodedCanonicalConstValue> {
-    CanonicalConstValue::new("", encoding, "").decode_encoding()
-}
-
-fn canonical_integer_type_name(type_name: &str) -> bool {
-    matches!(
-        type_name,
-        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
-    )
-}
-
-fn exact_boolean_type(
-    compilation: &CheckedCompilation,
-    type_reference: psi_typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } = compilation
-        .typed
-        .type_reference_table
-        .type_reference(type_reference)
-    else {
-        return false;
-    };
-    name.as_str() == "bool"
-        && compilation.typed.symbols.builtin_type_atom(*symbol)
-            == Some(psi_symbols::BuiltinTypeAtom::Bool)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::canonical_integer_value;
-
-    #[test]
-    fn canonical_integer_value_decodes_only_closed_integer_encodings() {
-        assert_eq!(
-            canonical_integer_value("integer3:u642:42"),
-            Some("42".to_owned())
-        );
-        assert_eq!(
-            canonical_integer_value("integer3:i642:-1"),
-            Some("-1".to_owned())
-        );
-        assert_eq!(canonical_integer_value("integer3:u642:07"), None);
-        assert_eq!(canonical_integer_value("boolean4:true"), None);
-        assert_eq!(canonical_integer_value("integer3:u641:7tail"), None);
-    }
 }

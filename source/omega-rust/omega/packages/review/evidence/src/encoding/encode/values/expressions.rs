@@ -304,6 +304,14 @@ pub(crate) fn encode_contract_static_argument(
             encoder.byte(7);
             encoder.byte(u8::from(*value));
         }
+        PackageReviewContractStaticArgument::ConstStructured {
+            declared_type,
+            canonical_value_encoding,
+        } => {
+            encoder.byte(9);
+            encode_type_identity(encoder, declared_type)?;
+            encoder.string(canonical_value_encoding)?;
+        }
         PackageReviewContractStaticArgument::GenericConstBinder(position) => {
             encoder.byte(6);
             encoder.u32(*position);

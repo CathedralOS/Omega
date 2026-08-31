@@ -6,6 +6,7 @@ use crate::parser::expression::{
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::type_reference::parse_type_reference_handle;
 use psi_numerics::literals::IntegerLiteral;
+use psi_source::{SourceSpan, Span};
 use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableStructLiteral,
@@ -372,6 +373,8 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     case_name: Option<Identifier>,
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
+    let start = input;
+    let type_name_span = type_name.source_span();
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut fields = Vec::new();
 
@@ -390,14 +393,21 @@ fn parse_struct_literal_handle<'tokens, 'source>(
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     let fields = syntax_trees.expressions.insert_struct_fields(fields);
-    Ok((
-        syntax_trees
-            .expressions
-            .insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                type_name,
-                case_name,
-                fields,
-            })),
-        input,
-    ))
+    let expression = syntax_trees
+        .expressions
+        .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+            type_name,
+            case_name,
+            fields,
+        }));
+    let literal_tail_span = start.source_span_until(input);
+    debug_assert_eq!(type_name_span.source_id, literal_tail_span.source_id);
+    syntax_trees.expressions.set_source_span(
+        expression,
+        SourceSpan::new(
+            type_name_span.source_id,
+            Span::new(type_name_span.span.start, literal_tail_span.span.end),
+        ),
+    );
+    Ok((expression, input))
 }

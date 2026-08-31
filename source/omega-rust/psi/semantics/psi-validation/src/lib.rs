@@ -78,6 +78,7 @@ use crate::traits::{
     validate_trait_conformance_bounds, validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
+pub use crate::type_references::validate_exact_const_value_encoding;
 use crate::type_references::{
     TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,
 };

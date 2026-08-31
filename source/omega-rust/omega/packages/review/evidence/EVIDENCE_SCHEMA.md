@@ -1,8 +1,20 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 101 and row schema version 59. This file
+The canonical review schema is version 102 and row schema version 60. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v102 / row v60 admits a selected public named const in a contract-call
+static slot when its carrier is an acyclic, monomorphic checked record or pure
+sum recursively composed from exact integer/Boolean primitives, literal fixed
+arrays, and the same checked-data cohort. Review reruns the compiler's
+syntax-free canonical-value validator against the exact resolved declared
+carrier, then emits that carrier and the display-free canonical encoding.
+Exact authored static-argument selection custody remains mandatory. Malformed
+encoding, embedded field/case/type spoofing, carrier substitution, private
+selection, top-level arrays, and broader generic or recursive carriers reject.
+The encoded names are consistency claims under resolved carrier replay, not
+type authority. Canonical-row recovery remains v15.
 
 Schema v101 / row v59 admits one exact lifetime-free, type-only closed
 conformance application in a public contract-expression call's static

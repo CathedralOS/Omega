@@ -2552,6 +2552,18 @@ declarations, missing or malformed canonical values, carrier disagreement,
 other value families, and selection drift reject. Source names and diagnostic
 displays are not value identity, and recovery remains v14.
 
+Package review v102/canonical row v60 admits selected public named constants in
+contract-call static slots when the carrier is an acyclic, monomorphic checked
+record or pure sum recursively composed from exact integer/Boolean primitives,
+literal fixed arrays, and the same checked-data cohort. Projection reruns the
+compiler's syntax-free canonical-value validator against the exact resolved
+declared carrier, requires exact authored static-argument selection custody,
+and emits the carrier beside the display-free canonical encoding. Encoded
+field, case, and type names are consistency claims under resolved carrier
+replay, not type authority. Malformed encoding, embedded-name spoofing,
+carrier substitution, private selection, top-level arrays, and broader generic
+or recursive carriers reject. Canonical-row recovery remains v15.
+
 Package review v101/canonical row v59 admits the first checked non-data nested
 static application in a contract-expression call: one lifetime-free,
 type-only, public closed conformance supplied to an explicit conformance-binder

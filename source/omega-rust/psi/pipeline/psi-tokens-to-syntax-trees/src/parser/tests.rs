@@ -449,6 +449,24 @@ fn parses_public_and_private_const_declarations() {
 }
 
 #[test]
+fn struct_literal_retains_its_complete_authored_source_span() {
+    let source = "const ORIGIN: Point = Point { x: 1, y: 2 };";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize structured const declaration");
+    let parsed = parse_syntax_trees(&tokens).expect("parse structured const declaration");
+    let declaration = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Const(declaration) => Some(declaration),
+            _ => None,
+        })
+        .expect("structured const declaration");
+    let span = parsed.expressions.source_span(declaration.value).span;
+    assert_eq!(&source[span.start..span.end], "Point { x: 1, y: 2 }");
+}
+
+#[test]
 fn parses_public_and_private_named_conformances() {
     let source = r#"
         trait Shape {}
