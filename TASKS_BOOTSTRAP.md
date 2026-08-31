@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables and postfix-statement category, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q3/Q8/Q9/Q10/Q11 diagnostics, complete D36 continuation/state and the remaining D37 control/terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, and explicit state applications, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q3/Q8/Q9/Q10/Q11 diagnostics, complete transition subject/pattern/control and the remaining D37 terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1283,7 +1283,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
         neither. Chained resultless and `never` receivers retain D37's
         category/terminal failures. This closes the positive `self`, data
         receiver, and exact `Console` receiver-call slice. Projection closure
-        is recorded under D37 below; continuation/state judgments remain open.
+        is recorded under D37 below; continuation/state judgments remained
+        open at this submilestone and are addressed by the later bullet.
       - [x] Complete settled qualified call-head and discarded postfix-
         statement admission without adding a second callable registry. A
         grouped bare qualified machine transfers exact custody to the outer
@@ -1298,9 +1299,30 @@ code, discover a closure, manufacture proof premises, or decide admission.
         dependent failure. Wrong arity/type and Q10-incomplete admitted calls
         retain custody without a second mismatch. Value/resultless results may
         be discarded and a successful `never` result is left for the later
-        block-flow judgment. This does not claim transition-continuation/state
-        admission or post-`never` flow. The Gamma gate proves source formation
-        only until the real compiler edge exists.
+        block-flow judgment. At this submilestone, transition-continuation/state
+        admission and post-`never` flow remained open; the later bullet closes
+        the settled explicit-state slice. The Gamma gate proves source
+        formation only until the real compiler edge exists.
+      - [x] Implement Q8-independent transition-continuation admission. Thread
+        the exact enclosing machine only through continuation resolution; join
+        an explicit bare-name application against its state namespace and the
+        global unqualified-machine namespace before arity; and reject a dual
+        match as `InvalidControlTarget` at the outer continuation start without
+        retaining either target. A state-only application retains one exact-
+        AST state row: `Resolved` on wrong arity/type or an incomplete argument
+        premise, and `Complete` only after the all-value parameter join. State
+        identity never enters the callable or expression-result ledgers.
+        Machine-only, qualified, grouped, receiver, and boundary applications
+        retain their existing callable custody; constructors, known bare
+        machine selectors, static receiver spellings, and complete non-control
+        values use continuation-category failures before dependent checking.
+        Same-spelled ordinary fields remain fields when no call syntax exists,
+        and explicit state/local reuse selects the state namespace. All
+        authored arguments keep their sibling failures. Q8 leaves only the
+        state-only bare spelling unresolved; Q11 separately owns machine-call
+        exit effects. Transition subject/pattern/binder and reachability rules
+        remain open. The Gamma gate establishes source formation only until the
+        real compiler edge exists.
       - [ ] **OWNER-BLOCKED — DELTA BARE STATE TRANSFER.** The continuation
         grammar and D36 do not decide whether a zero-parameter state transfer
         may be a bare state spelling or must author `()`. Implement explicit

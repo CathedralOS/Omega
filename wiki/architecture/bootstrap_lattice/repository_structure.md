@@ -71,15 +71,16 @@ The committed tree still has two important gaps:
   resolution, scalar/aggregate value-place facts, one generalized callable
   ledger with direct-qualified, settled grouped/unqualified, named-data
   receiver, and sealed-boundary receiver results plus postfix-statement
-  category admission, positive receiver-scoped
+  category admission, separate resolved/complete explicit-state custody and
+  state/machine collision rejection, positive receiver-scoped
   `self`, settled field/index/slice projection failures, D37 scalar and
   argument-`never` category joins, let/assignment/assert and explicit-return
   relations, first-following-statement terminal flow, D38's source fact
   relation, and symbolic Alpha encoding.
   Remaining Q3-blocked entry diagnostics, Q8 state-transfer spelling, Q9
   invalid-`self`, Q10 resultless-argument anchoring, Q11 block-exit totality,
-  D36 continuation/state classification, and D37 remaining control/terminal
-  closure, D38
+  transition subject/pattern/binder and reachability checking, and D37
+  remaining terminal closure, D38
   lowering/executable
   controls, body/control checking, D34 physical storage refusal, lowering, tape
   publication, and refinement are still open.
