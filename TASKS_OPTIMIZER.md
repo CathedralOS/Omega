@@ -49,6 +49,11 @@ decision. Only true language-semantic questions belong in
    instance, package-review, and native-coverage failures remain. Run the full
    gate again only after the next coherent repair batch; no result here permits
    implicit optimizer enablement.
+6. [>] Finish the exact-rule navigation refactor across Psi passes. Copy
+   propagation and dead-scalar elimination now use exact named leaves, the
+   dead-scalar entrance is a 31-line ordered roster, and the guard rejects new
+   production `rule.rs`/`rules.rs` catch-alls. Remove inherited parent glob
+   dependencies from the remaining pass families before extending them.
 
 ## P0 — Source navigation and taxonomy
 
@@ -66,6 +71,11 @@ decision. Only true language-semantic questions belong in
   stage-wide `rules/catalog.rs` remains the sole exact-selection enable/disable
   table; each pass entrance now owns its visible local rule order instead of
   re-exporting a sibling catalog function.
+- [x] Replace copy propagation's generic `rule.rs` and dead-scalar
+  elimination's mixed `rules.rs` with exact named rule leaves. Keep shared
+  family, proposal, shape, and accounting mechanics at their honest common
+  ancestor, and reject generic Psi production rule leaves in the architecture
+  guard.
 - [x] Split the 967-line optimization manifest into a 37-line wire-family
   entrance over decision-v5, pass-v1, work usage, fact reference, framing, and
   error leaves. Its tests now mirror those record families, and the guard

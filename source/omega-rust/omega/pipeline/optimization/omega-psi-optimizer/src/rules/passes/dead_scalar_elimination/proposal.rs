@@ -5,7 +5,9 @@ use omega_optimization_unit::{
 
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-use super::{DeadScalarFamily, accounting::dead_scalar_node_accounting, shapes::dead_scalar_shape};
+use super::{
+    accounting::dead_scalar_node_accounting, family::DeadScalarFamily, shapes::dead_scalar_shape,
+};
 use crate::rules::passes::accepted_obligation_fact;
 
 pub(super) fn propose_dead_scalar_nodes(

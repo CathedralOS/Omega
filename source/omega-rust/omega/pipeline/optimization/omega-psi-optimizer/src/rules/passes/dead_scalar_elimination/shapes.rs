@@ -1,7 +1,7 @@
 use omega_abstract_operations::AbstractOperation as O;
 use psi_core::{OperationId, ScalarType, ValueId};
 
-use super::DeadScalarFamily;
+use super::family::DeadScalarFamily;
 
 /// Exhaustively partitions the complete abstract-operation vocabulary. Adding
 /// an operation is therefore a compile-time request to decide whether unused
