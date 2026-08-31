@@ -4159,10 +4159,10 @@ Remaining:
   mapped conclusion, and records every selected definition in accepted premise
   closure. Non-order or wrong-root children, stale/reordered/malformed words,
   target/carrier drift, arithmetic overflow, or a mismatched mapped bound
-  reject. Proof-bundle v18 retains tag 12; the registered calculus is v15 and
-  the Rust kernel v7, with the affine and cast checkers included in both
+  reject. Proof-bundle v19 retains tag 12; the registered calculus is v16 and
+  the Rust kernel v8, with the affine and cast checkers included in both
   trust-graph source sets. The first bounded producer family now uses the rule
-  for one to six prior signed fixed affine definitions whose exact retained
+  for one to seven prior signed fixed affine definitions whose exact retained
   root bound maps directly to a canonical safe-divisor arm. Reconstruction and
   production enumerate shortest words first and advance only prefixes accepted by the
   affine witness checker; within each depth, semantic-axiom indices stay
@@ -4170,9 +4170,9 @@ Remaining:
   mapped conclusion, and accepted-premise custody. Missing root custody,
   incomplete, reversed, redirected, or stale words, wrong targets, and
   noncanonical mapped arms reject.
-  The six-definition successor changes only that fixed producer-enumeration
+  The seven-definition successor changes only that fixed producer-enumeration
   ceiling. Proof vocabulary, codec, calculus, kernel identities, and logical
-  and fixed-fuel accounting remain unchanged: the six source arithmetic
+  and fixed-fuel accounting remain unchanged: the seven source arithmetic
   operations retain their ordinary charges, while certificate replay adds no
   executable units. Root custody may now also use one exact prior landed
   literal or value-alias transport. A typed `root == literal`
@@ -4186,7 +4186,7 @@ Remaining:
   value endpoint. A missing bound, equality, or order leg, unsafe or mistyped
   literal, identity, non-value, disconnected, redirected, cross-carrier, or
   same-citation join rejects. Three-or-more-alias or three-or-more-leg root
-  reconstruction, words of seven or
+  reconstruction, words of eight or
   more definitions, joins, cast/shift compositions, and correlated results
   remain on trusted reduction; neither complete exact row changes trust and
   `fully-derived false` remains. An exact mapped affine bound may also close to
@@ -4198,13 +4198,13 @@ Remaining:
   mistyped, redirected, or weaker bridge rejects, and no variable-endpoint or
   cited-fact search is added. Affine completion now lives in dedicated,
   side-local `affine_custody` modules. Production and reconstruction
-  independently own the fixed six-definition witness frontier, exact mapped
+  independently own the fixed seven-definition witness frontier, exact mapped
   bound, and optional closed relaxation; no authority is shared. Fixed affine-
   witness candidate enumeration now lives in independent side-local
   `affine_custody/frontier` modules. Production and reconstruction each
   enumerate shortest definition words first, preserve source-ordered semantic-
   axiom indices, advance only prefixes independently accepted by the affine
-  witness checker, and stop at the explicit six-definition ceiling. Candidate
+  witness checker, and stop at the explicit seven-definition ceiling. Candidate
   pruning grants no proof authority: mapped-bound construction, optional closed
   relaxation, and final proof or retained-bound checking remain in each side's
   affine-custody parent. Witness order, rejection behavior, proof shapes, and
@@ -4213,8 +4213,8 @@ Remaining:
   reconstruction independently validate each indexed equality row, retain
   left-before-right Value-target precedence, and ask the proof kernel to replay
   the exact accumulated definition word before that prefix advances. Fixed-
-  depth frontier expansion, proof shape, rejection behavior, and the five-
-  definition boundary remain unchanged.
+  depth frontier expansion, proof shape, rejection behavior, and the
+  seven-definition boundary remain unchanged.
   Ordered affine-witness candidates now live in paired, side-local
   `affine_custody/candidates` modules. Producer and reconstruction independently
   require an exact `LessOrEqual` goal, enumerate left-before-right Value targets
@@ -4264,21 +4264,21 @@ Remaining:
   independent producer/verifier `boundary` modules for strict post-boundary
   completion and `mapped` modules for exact pre-boundary mapping, while the
   parent retains ordinary root completion. Citation order, strict inequalities,
-  proof shapes, rejection, and the fixed six-definition frontier are
+  proof shapes, rejection, and the fixed seven-definition frontier are
   unchanged. Pre-boundary affine-mapping completion now lives in paired, side-
   local `affine_custody/mapped/completion` modules. Producer and reconstruction
   independently enforce strict definition- and literal-axiom boundaries,
   validate every enumerated witness, and construct or replay its exact mapped
   bound; only production materializes and kernel-checks the proof. The `mapped`
   parents retain requested-target and definition-word order, so proof bytes,
-  candidate rejection, and the fixed six-definition frontier remain
+  candidate rejection, and the fixed seven-definition frontier remain
   unchanged. Post-boundary affine-custody completion now lives in paired, side-
   local `affine_custody/boundary/completion` modules. Producer and reconstruction
   independently enforce strict definition- and literal-axiom boundaries before
   delegating every eligible witness to ordinary affine custody; only production
   materializes and kernel-checks the proof. The `boundary` parents retain goal-
   target and definition-word order, so proof bytes, candidate rejection, and
-  the fixed six-definition frontier remain unchanged. Direct
+  the fixed seven-definition frontier remain unchanged. Direct
   affine-root custody now lives in independent side-local
   `affine_selection/direct` modules. Production alone retains the exact root-
   bound citation and tries its left then right value endpoints before
@@ -4837,21 +4837,21 @@ Remaining:
   independently require a `LessOrEqual` goal, retain left-before-right endpoint
   order, and admit only exact `Value` targets. Candidate parents retain source-
   ordered definition-word enumeration and independent proof completion, so
-  witness order, proof shape, rejection behavior, and the fixed six-definition
+  witness order, proof shape, rejection behavior, and the fixed seven-definition
   frontier remain unchanged.
   Affine witness candidate authorities now independently build one invocation-
   local fixed definition-word catalog after confirming an eligible goal target,
   then reuse that exact source-ordered catalog across left-before-right `Value`
   targets. Producer and reconstruction retain separate catalogs and completion
   logic; invalid goals still reject before frontier replay, while witness order,
-  kernel checking, proof shapes, rejection behavior, and the six-definition
+  kernel checking, proof shapes, rejection behavior, and the seven-definition
   frontier remain unchanged.
   One-layer affine frontier expansion now lives in paired, side-local
   `affine_custody/frontier/layer` modules. Producer and reconstruction
   independently retain each prefix word, next admissible source index, and
   current exact `Value` endpoint; each layer advances through its own ordered
   definition index and invokes its own kernel-checked prefix replay. Frontier
-  parents retain the exact six-layer limit and accumulated word order, so
+  parents retain the exact seven-layer limit and accumulated word order, so
   candidate order, witness/proof shape, rejection behavior, and the fixed
   frontier remain unchanged.
   Affine-definition input projection now lives in paired, side-local
@@ -4860,7 +4860,7 @@ Remaining:
   input order, subtract-left-only projection, and unsupported-operation
   rejection; parent catalogs retain equality orientation, source order,
   `Value` eligibility, and index insertion. Proof replay, witness shape,
-  rejection behavior, and the fixed six-definition frontier remain unchanged.
+  rejection behavior, and the fixed seven-definition frontier remain unchanged.
   Affine-definition equality orientation now lives in paired, side-local
   `affine_custody/definition_index/candidates/orientations` modules. Producer
   and reconstruction independently require an equality with an exact `Value`
@@ -4868,20 +4868,20 @@ Remaining:
   row traversal, affine input projection, input `Value` eligibility, and index
   insertion remain in their existing owners. A mirrored accepted regression
   now pins the reversed equality orientation. Witness order, proof shape,
-  rejection behavior, and the fixed six-definition frontier remain unchanged.
+  rejection behavior, and the fixed seven-definition frontier remain unchanged.
   Affine-definition input owners now complete operand eligibility locally.
   Producer and reconstruction independently project the supported exact add,
   multiply, and subtract inputs and admit only `Value` operands before
   returning their ordered streams; parent catalogs now solely retain semantic-
   row traversal, oriented expression selection, and index recording. Input
-  order, witness/proof shape, rejection behavior, and the fixed six-definition
+  order, witness/proof shape, rejection behavior, and the fixed seven-definition
   frontier remain unchanged.
   Ordered affine-prefix target projection now lives in paired, side-local
   `affine_custody/frontier/prefix/targets` modules. Producer and reconstruction
   independently require the indexed definition to remain an equality and
   enumerate only its `Value` endpoints left before right; prefix parents retain
   independent witness construction and proof-kernel replay. Definition-word
-  order, proof shape, rejection behavior, and the fixed six-layer frontier
+  order, proof shape, rejection behavior, and the fixed seven-layer frontier
   remain unchanged.
   Unique earlier affine-sibling literal-landing discovery now lives in paired,
   side-local `affine_custody/frontier/prefix/literals/landing` modules. Producer
@@ -4891,7 +4891,7 @@ Remaining:
   signed-literal match. Their `literals` parents retain definition-word replay,
   arithmetic-step orientation, sibling position, and target completion.
   Witness bytes, missing/late/redirected/ambiguous rejection, and the fixed
-  six-definition frontier remain unchanged.
+  seven-definition frontier remain unchanged.
   Landed affine-sibling definition-step decoding now lives in paired, side-local
   `affine_custody/frontier/prefix/literals/step` modules. Producer and
   reconstruction independently require an exact same-carrier `Value` target,
@@ -4899,7 +4899,7 @@ Remaining:
   precedence, and permit the right operand only for commutative add/multiply.
   Their `literals` parents retain definition-word traversal, unique landing
   alignment, equality orientation, and final-target completion. Witness bytes,
-  arithmetic orientation, rejection, and the fixed six-definition frontier
+  arithmetic orientation, rejection, and the fixed seven-definition frontier
   remain unchanged.
   Source-ordered `Value`-keyed affine candidate storage now lives in paired,
   side-local `affine_selection/value_index` modules and is reused by literal-
@@ -4915,13 +4915,13 @@ Remaining:
   preserve source-row order, and adjacent-deduplicate repeated inputs from the
   same row before constructing their immutable `Value`-to-definition maps.
   Query behavior, prefix replay, witness/proof shape, rejection, and the fixed
-  six-definition frontier remain unchanged.
+  seven-definition frontier remain unchanged.
   Affine-definition recording owners now retain the complete invocation-local
   index carrier, ordered candidate insertion, adjacent-row deduplication, and
   empty-miss query behavior. Producer and reconstruction expose the unchanged
   side-local `DefinitionIndex` path through narrow re-exports, while syntactic
   discovery and prefix replay remain independently implemented. Source order,
-  witness/proof shape, rejection behavior, and the fixed six-definition
+  witness/proof shape, rejection behavior, and the fixed seven-definition
   frontier remain unchanged.
   Exact affine evidence precedence now lives in paired, side-local
   `affine_selection/dispatch` modules. Producer and reconstruction
@@ -4934,21 +4934,21 @@ Remaining:
   index owners. Producer and reconstruction independently select the exact
   source-ordered suffix with `partition_point`, while frontier layers consume
   that iterator without reaching into raw candidate slices. Prefix replay,
-  witness/proof shape, rejection behavior, and the fixed six-definition
+  witness/proof shape, rejection behavior, and the fixed seven-definition
   frontier remain unchanged.
   Affine frontier cursor custody now lives in paired, side-local
   `affine_custody/frontier/layer/entry` modules. Producer and reconstruction
   independently retain each prefix word, next admissible source index, and
   current exact `Value`; cursor fields remain private to the owning layer and
   only root construction is exposed to the frontier parent. Expansion order,
-  prefix replay, witness/proof shape, rejection, and the fixed six-layer
+  prefix replay, witness/proof shape, rejection, and the fixed seven-layer
   frontier remain unchanged.
   Affine frontier cursor owners now complete their custody boundary: fields are
   fully private, and producer/reconstruction cursors independently enumerate
   exact start-bounded definition extensions, clone and append each source index,
   and construct accepted successor cursors. Layer parents retain kernel prefix
   replay and accepted-word accumulation. Source order, witness/proof shape,
-  rejection behavior, and the fixed six-layer frontier remain unchanged.
+  rejection behavior, and the fixed seven-layer frontier remain unchanged.
   Affine selection dispatch now expresses its complete fixed precedence as one
   lazy side-local short-circuit chain. Producer and reconstruction independently
   retain direct bound, landed literal, one-alias, direct two-citation, one-alias
@@ -4957,7 +4957,7 @@ Remaining:
   frontier remain unchanged.
   Fixed affine frontier parents now terminate immediately when an expansion
   layer yields no successor cursors. Producer and reconstruction independently
-  preserve every accumulated word and the exact six-layer ceiling while
+  preserve every accumulated word and the exact seven-layer ceiling while
   avoiding redundant empty-layer allocation on rejected or shorter chains.
   Source order, prefix replay, witness/proof shape, and rejection behavior
   remain unchanged.
@@ -4966,7 +4966,7 @@ Remaining:
   reconstruction independently preserve the same source-ordered prefix replay
   and accumulated definition words, while final-layer acceptance moves each
   word directly into the catalog instead of cloning it into a dead cursor.
-  Proof shapes, rejection behavior, and the exact six-definition frontier
+  Proof shapes, rejection behavior, and the exact seven-definition frontier
   remain unchanged; the measured 5.45s versus 5.44s mixed-shift hotspot shows
   this is allocation cleanup, not a material end-to-end speedup.
   One-equality transitive affine completion now lives in independent side-local
@@ -5805,7 +5805,7 @@ Remaining:
   Each immutable invocation maps an exact current Value term to source-ordered
   semantic equality rows that can extend the fixed add/subtract/multiply
   definition frontier; candidate prefixes and completed proofs are still
-  independently replayed by the proof kernel, so six-definition depth,
+  independently replayed by the proof kernel, so seven-definition depth,
   citation precedence, proof shapes, rejection, and the producer/verifier trust
   boundary are unchanged. The exact mixed nominal regression fell from
   approximately 306s to 27.50s test-body time (29.29s wall; 476,823,552-byte
@@ -5815,7 +5815,7 @@ Remaining:
   definition candidate indexing now lives in paired, side-local
   `affine_custody/definition_index` modules. Producer and reconstruction
   independently own their immutable source-order Value-to-definition indexes,
-  while frontier modules only enumerate the existing six-definition words and
+  while frontier modules only enumerate the existing seven-definition words and
   replay each candidate through the proof kernel. This responsibility split
   changes no citation order, proof shape, rejection, or search frontier. The
   complete checked-to-Terminal package suite consequently fell from 401.56s to
@@ -5885,7 +5885,7 @@ Remaining:
   relaxed fallback; reconstruction independently normalizes the same enumerated
   witness and checks direct conversion before its own relaxation replay. Parent
   custody retains exact goal-endpoint and source-ordered definition-word
-  enumeration, so precedence, proof shape, rejection, and the six-definition
+  enumeration, so precedence, proof shape, rejection, and the seven-definition
   frontier are unchanged.
   Direct affine-witness completion now lives in paired, side-local
   `affine_custody/completion/direct` modules. Reconstruction independently

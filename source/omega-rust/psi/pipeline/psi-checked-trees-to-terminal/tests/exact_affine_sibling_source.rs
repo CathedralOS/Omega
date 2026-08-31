@@ -46,6 +46,27 @@ const SIX_DEFINITION_SOURCE: &str = r#"
     }
 "#;
 
+const SEVEN_DEFINITION_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::divide_after_seven_definitions(token: Token, root: i8) -> bool
+    requires -6i8 <= root, root <= 120i8
+    {
+        let first: i8 = root + 1i8;
+        let second: i8 = first + 1i8;
+        let third: i8 = second + 1i8;
+        let fourth: i8 = third + 1i8;
+        let fifth: i8 = fourth + 1i8;
+        let sixth: i8 = fifth + 1i8;
+        let divisor: i8 = sixth + 1i8;
+        let quotient: i8 = 6i8 / divisor;
+        quotient <= 6i8
+    }
+"#;
+
 const AFFINE_CAST_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -181,20 +202,20 @@ fn landed_affine_sibling_custody_crosses_source_codec_and_independent_verificati
     );
 }
 
-#[test]
-fn six_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
-    let tokens = Lexer::new(SIX_DEFINITION_SOURCE)
+fn definition_affine_divisor_crosses_source_codec_and_independent_verification(
+    source: &str,
+    machine_name: &str,
+    definition_count: usize,
+) {
+    let tokens = Lexer::new(source)
         .tokenize()
-        .expect("tokenize six-definition source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse six-definition source");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve six-definition source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type six-definition affine divisor");
-    let checked = lower_typed_trees(typed).expect("check six-definition affine divisor");
-    let lowered = psi_checked_trees_to_terminal::lower_machine(
-        &checked,
-        "Root::divide_after_six_definitions",
-    )
-    .expect("six-definition affine divisor lowers with a checked certificate");
+        .expect("tokenize bounded-definition source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse bounded-definition source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve bounded-definition source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type bounded-definition divisor");
+    let checked = lower_typed_trees(typed).expect("check bounded-definition affine divisor");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, machine_name)
+        .expect("bounded-definition affine divisor lowers with a checked certificate");
 
     let entry = lowered
         .semantic_module
@@ -221,12 +242,12 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         .evidence
         .iter()
         .find(|evidence| evidence.obligation == exact_divide)
-        .expect("six-definition exact divide has evidence");
+        .expect("bounded-definition exact divide has evidence");
     let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
         panic!("the exact divide uses the canonical certificate route")
     };
     let ProofRule::DisjunctionIntroduction { disjunct, index: 1 } = &certificate.proof.rule else {
-        panic!("the six-definition divisor selects the signed positive-divisor arm")
+        panic!("the bounded-definition divisor selects the signed positive-divisor arm")
     };
     let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
         panic!("the positive-divisor arm retains its affine custody")
@@ -236,10 +257,17 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         witness.target,
         ScalarTerm::value(exact_divisor, root.scalar_type),
     );
-    assert_eq!(witness.definition_axioms, vec![1, 3, 5, 7, 9, 11]);
+    assert_eq!(
+        witness.definition_axioms,
+        (0..definition_count)
+            .map(|index| 2 * index + 1)
+            .collect::<Vec<_>>(),
+    );
     assert_eq!(
         witness.literal_axioms,
-        vec![Some(0), Some(2), Some(4), Some(6), Some(8), Some(10)],
+        (0..definition_count)
+            .map(|index| Some(2 * index))
+            .collect::<Vec<_>>(),
     );
 
     let verified = psi_terminal_verifier::verify_module(
@@ -247,11 +275,11 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("independent verification replays all six affine definitions");
+    .expect("independent verification replays every affine definition");
     let fixed = derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
-        .expect("the six-definition entry has fixed fuel");
+        .expect("the bounded-definition entry has fixed fuel");
     validate_fixed_entry_fuel(&verified, &fixed)
-        .expect("the six-definition fixed-fuel ceiling independently recomputes");
+        .expect("the bounded-definition fixed-fuel ceiling independently recomputes");
     drop(verified);
 
     let module_bytes = encode_module(&lowered.semantic_module).expect("encode module");
@@ -283,7 +311,7 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         &structural_arguments,
         &mut handler,
     )
-    .expect("verified six-definition artifact interprets");
+    .expect("verified bounded-definition artifact interprets");
     assert_eq!(
         measured.value(),
         TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(true)),
@@ -296,7 +324,7 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         .evidence
         .iter_mut()
         .find(|evidence| evidence.obligation == exact_divide)
-        .expect("decoded six-definition exact-divide evidence");
+        .expect("decoded bounded-definition exact-divide evidence");
     let EvidenceRoute::CertificateDerived(certificate) = &mut reordered_evidence.route else {
         unreachable!("selected certificate-derived evidence")
     };
@@ -306,7 +334,9 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
     let ProofRule::IntegerAffineBound { witness, .. } = &mut disjunct.rule else {
         unreachable!("selected affine child")
     };
-    witness.definition_axioms.swap(4, 5);
+    witness
+        .definition_axioms
+        .swap(definition_count - 2, definition_count - 1);
     assert!(
         psi_terminal_verifier::verify_module(
             &decoded_module,
@@ -315,6 +345,24 @@ fn six_definition_affine_divisor_crosses_source_codec_and_independent_verificati
         )
         .is_err(),
         "reordering the final two definition rows invalidates the certificate",
+    );
+}
+
+#[test]
+fn six_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
+    definition_affine_divisor_crosses_source_codec_and_independent_verification(
+        SIX_DEFINITION_SOURCE,
+        "Root::divide_after_six_definitions",
+        6,
+    );
+}
+
+#[test]
+fn seven_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
+    definition_affine_divisor_crosses_source_codec_and_independent_verification(
+        SEVEN_DEFINITION_SOURCE,
+        "Root::divide_after_seven_definitions",
+        7,
     );
 }
 
