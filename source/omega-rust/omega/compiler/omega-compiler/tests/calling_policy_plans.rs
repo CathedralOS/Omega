@@ -745,6 +745,43 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         INTERRUPT_REPRESENTATION_BUILD,
     );
     let checked = compile_to_checked(&main_path, None).expect("interrupt policy should compile");
+    let restore = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptMaskGuard::restore")
+        .expect("checked-in core restore requirement");
+    assert!(restore.is_public);
+    assert_eq!(
+        restore.supply_mode,
+        psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+    );
+    assert!(!restore.body_is_present);
+    assert!(!restore.service_reach_is_installation_bound);
+    let restore_snapshot = checked
+        .typed
+        .snapshot()
+        .roots
+        .machines
+        .into_iter()
+        .find(|machine| machine.name == "InterruptMaskGuard::restore")
+        .expect("restore requirement snapshot");
+    assert_eq!(restore_snapshot.service_reach, ["MachineControl"]);
+    let [restore_contract] = restore_snapshot.contracts.as_slice() else {
+        panic!("restore requirement must retain only its Active precondition")
+    };
+    assert_eq!(restore_contract.kind, "requires");
+    let [psi_typed_trees::snapshot::ProofFactSnapshot::Membership { domain, value, .. }] =
+        restore_contract.facts.as_slice()
+    else {
+        panic!("restore requirement must retain one membership precondition")
+    };
+    assert_eq!(domain, &["InterruptMaskGuard", "Active"]);
+    assert!(matches!(
+        value,
+        psi_typed_trees::snapshot::ExpressionSnapshot::Name { path }
+            if path == &["self"]
+    ));
     let selection = retained_interrupt_representation(&checked);
     let timer_entry = checked
         .typed

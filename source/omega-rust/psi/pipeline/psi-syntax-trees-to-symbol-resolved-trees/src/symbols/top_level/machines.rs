@@ -4,7 +4,7 @@ use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::expressions::assign_expression_table_symbols;
-use crate::symbols::lookup::{top_level_symbol, top_level_symbol_for_source};
+use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::scope::MachineScope;
 use crate::symbols::targets::assign_static_argument_symbols;
 use crate::symbols::top_level::{assign_machine_parameter_signature_symbols, next_child_of_kind};
@@ -45,7 +45,7 @@ pub(super) fn assign_machine_symbols(
         .iter()
         .map(|trait_definition| {
             (
-                trait_definition.name.as_str().to_owned(),
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &trait_definition.name),
                 program
                     .tables
                     .declarations
@@ -68,7 +68,7 @@ pub(super) fn assign_machine_symbols(
         .iter()
         .map(|definition| {
             (
-                definition.name.as_str().to_owned(),
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &definition.name),
                 program
                     .tables
                     .declarations
@@ -106,17 +106,17 @@ pub(super) fn assign_machine_symbols(
     } = &mut program.roots;
 
     machines.for_each_mut(|machine| {
-        let inherited_field_count = inherited_field_count(
-            data_definitions.iter(),
-            data_members,
-            machine.attached_data.as_ref(),
-        );
         machine.symbol = next_child_of_kind(root_children, symbols, SymbolKind::Machine);
         machine.attached_data_symbol = machine
             .attached_data
             .as_ref()
             .map(|attached| top_level_symbol_for_source(symbols, SymbolKind::Data, attached))
             .unwrap_or_else(SymbolHandle::invalid);
+        let inherited_field_count = inherited_field_count(
+            data_definitions.iter(),
+            data_members,
+            machine.attached_data_symbol,
+        );
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
@@ -214,6 +214,7 @@ pub(super) fn assign_machine_symbols(
                         symbol: machine_symbol,
                         type_parameters: &local_type_parameters,
                         attached_data: machine.attached_data.as_ref(),
+                        attached_data_symbol: machine.attached_data_symbol,
                         owned_data: &[],
                         inherited_data_members: None,
                         data_definitions,
@@ -256,8 +257,11 @@ pub(super) fn assign_machine_symbols(
                     false
                 }
                 Some((path, _, source_span)) => {
-                    conformance.symbol =
-                        top_level_symbol(symbols, SymbolKind::Trait, conformance.name.as_str());
+                    conformance.symbol = top_level_symbol_for_source(
+                        symbols,
+                        SymbolKind::Trait,
+                        &conformance.name,
+                    );
                     let names_operator = symbols
                         .find_top_level_by_name_and_kinds_from_source(
                             &path,
@@ -290,8 +294,8 @@ pub(super) fn assign_machine_symbols(
             );
             if target_is_trait
                 && let Some((_, proposition_slots)) = trait_proposition_slots
-                .iter()
-                .find(|(name, _)| name == conformance.name.as_str())
+                    .iter()
+                    .find(|(symbol, _)| *symbol == conformance.symbol)
             {
                 assign_proposition_family_argument_symbols(
                     symbols,
@@ -303,8 +307,8 @@ pub(super) fn assign_machine_symbols(
             }
             if target_is_trait
                 && let Some((_, machine_slots)) = trait_machine_identity_slots
-                .iter()
-                .find(|(name, _)| name == conformance.name.as_str())
+                    .iter()
+                    .find(|(symbol, _)| *symbol == conformance.symbol)
             {
                 assign_machine_declaration_identity_argument_symbols(
                     symbols,
@@ -324,12 +328,18 @@ pub(super) fn assign_machine_symbols(
                 .unwrap_or_else(SymbolHandle::invalid);
 
             if let Some(selected) = &mut bound.selected_conformance {
-                bound.carrier =
-                    top_level_symbol(symbols, SymbolKind::Data, bound.carrier_name.as_str());
+                bound.carrier = top_level_symbol_for_source(
+                    symbols,
+                    SymbolKind::Data,
+                    &bound.carrier_name,
+                );
                 assign_static_argument_symbols(symbols, machine_symbol, selected, true);
             } else {
-                bound.carrier =
-                    top_level_symbol(symbols, SymbolKind::Trait, bound.carrier_name.as_str());
+                bound.carrier = top_level_symbol_for_source(
+                    symbols,
+                    SymbolKind::Trait,
+                    &bound.carrier_name,
+                );
             }
             assign_type_reference_argument_symbols_with_constraints(
                 symbols,
@@ -342,7 +352,7 @@ pub(super) fn assign_machine_symbols(
             if bound.selected_conformance.is_none()
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()
-                    .find(|(name, _)| name == bound.carrier_name.as_str())
+                    .find(|(symbol, _)| *symbol == bound.carrier)
             {
                 assign_proposition_family_argument_symbols(
                     symbols,
@@ -355,7 +365,7 @@ pub(super) fn assign_machine_symbols(
             if bound.selected_conformance.is_none()
                 && let Some((_, machine_slots)) = trait_machine_identity_slots
                     .iter()
-                    .find(|(name, _)| name == bound.carrier_name.as_str())
+                    .find(|(symbol, _)| *symbol == bound.carrier)
             {
                 assign_machine_declaration_identity_argument_symbols(
                     symbols,
@@ -421,15 +431,15 @@ pub(super) fn assign_machine_symbols(
 fn inherited_field_count<'data>(
     data_definitions: impl IntoIterator<Item = &'data psi_symbol_resolved_trees::data::DataDefinition>,
     data_members: &Arena<psi_symbol_resolved_trees::data::DataMember>,
-    attached_data: Option<&psi_symbol_resolved_trees::name::DiagnosticName>,
+    attached_data_symbol: SymbolHandle,
 ) -> usize {
-    let Some(attached_data) = attached_data else {
+    if !attached_data_symbol.is_valid() {
         return 0;
-    };
+    }
 
     data_definitions
         .into_iter()
-        .find(|data_definition| data_definition.name == *attached_data)
+        .find(|data_definition| data_definition.symbol == attached_data_symbol)
         .map(|data_definition| {
             data_members
                 .span_or_empty(data_definition.members)

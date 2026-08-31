@@ -211,6 +211,7 @@ fn namespaced_toolchain_source(namespace: &str, relative_path: &str, source: &st
         package_root,
         package_identity: None,
         origin: SourceOrigin::Toolchain,
+        resolution_stratum: psi_source::SourceResolutionStratum::Base,
         source: Arc::from(source),
     }
 }
@@ -222,6 +223,7 @@ fn virtual_toolchain_source(path: &str, source: &str) -> SourceFile {
         package_root: PathBuf::from("toolchain/std"),
         package_identity: None,
         origin: SourceOrigin::Toolchain,
+        resolution_stratum: psi_source::SourceResolutionStratum::Base,
         source: Arc::from(source),
     }
 }

@@ -286,9 +286,9 @@ pub(crate) fn lower_machine_signature_contracts(
             Diagnostic::error("outcome-specific ensures requires a machine result state")
         })?;
     let result_data_name = match root_state.return_type.as_ref() {
-        Some(psi_symbol_resolved_trees::types::TypeReference::Named { name, .. }) => name.as_str(),
+        Some(psi_symbol_resolved_trees::types::TypeReference::Named { name, .. }) => name,
         Some(psi_symbol_resolved_trees::types::TypeReference::Generic(generic)) => {
-            generic.base_name.as_str()
+            &generic.base_name
         }
         _ => {
             return Err(Diagnostic::error(
@@ -300,7 +300,21 @@ pub(crate) fn lower_machine_signature_contracts(
         .symbol_resolved_trees
         .data_definitions
         .iter()
-        .find(|data| data.name.as_str() == result_data_name)
+        .filter(|data| {
+            data.name.as_str() == result_data_name.as_str()
+                && lowerer.source_reference_can_see_declaration(
+                    result_data_name.source_span(),
+                    data.name.source_span(),
+                )
+        })
+        .min_by_key(|data| {
+            let declaration = data.name.source_span();
+            let reference = result_data_name.source_span();
+            (
+                declaration.source_id != reference.source_id,
+                lowerer.source_resolution_strata_separate(reference, declaration),
+            )
+        })
         .ok_or_else(|| {
             Diagnostic::error(
                 "outcome-specific ensures result does not resolve to a declared data sum",
@@ -383,7 +397,11 @@ fn lower_signature_contracts_with_result_sum(
                         result_data: psi_symbols::SymbolHandle::invalid(),
                         result_case: psi_symbols::SymbolHandle::invalid(),
                     },
-                    Some((result_sum.data_name.clone(), result_case_name)),
+                    Some((
+                        result_sum.data_name.clone(),
+                        result_name.source_span(),
+                        result_case_name,
+                    )),
                 )
             }
             syntax::item::CapabilityContractKind::Crashes { cause } => (
@@ -416,11 +434,13 @@ fn lower_signature_contracts_with_result_sum(
                     token_count: contract.token_count,
                 },
             );
-        if let Some((result_data_name, result_case_name)) = pending_outcome {
+        if let Some((result_data_name, result_data_source_span, result_case_name)) = pending_outcome
+        {
             lowerer.pending_outcome_specific_contracts.push(
                 crate::lowerer::PendingOutcomeSpecificContract {
                     contract: handle,
                     result_data_name,
+                    result_data_source_span,
                     result_case_name,
                 },
             );
@@ -436,10 +456,18 @@ pub(crate) fn finalize_outcome_specific_contract_symbols(
 ) -> Result<(), Diagnostic> {
     for pending in pending {
         let (result_data, result_case) = {
+            let data_symbol = program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    &pending.result_data_name,
+                    &[psi_symbols::SymbolKind::Data],
+                    pending.result_data_source_span,
+                )
+                .unwrap_or_else(SymbolHandle::invalid);
             let data = program
                 .data_definitions
                 .iter()
-                .find(|data| data.name.as_str() == pending.result_data_name)
+                .find(|data| data.symbol == data_symbol)
                 .ok_or_else(|| {
                     Diagnostic::error(format!(
                         "outcome-specific ensures lost declared result sum `{}` during symbol assignment",

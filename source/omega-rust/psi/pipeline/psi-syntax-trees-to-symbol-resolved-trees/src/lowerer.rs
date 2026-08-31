@@ -39,6 +39,7 @@ pub(crate) struct PendingConstSelection {
 pub(crate) struct PendingOutcomeSpecificContract {
     pub(crate) contract: psi_arena::Handle<psi_symbol_resolved_trees::signature::SignatureContract>,
     pub(crate) result_data_name: String,
+    pub(crate) result_data_source_span: psi_source::SourceSpan,
     pub(crate) result_case_name: String,
 }
 
@@ -235,6 +236,26 @@ impl Lowerer {
             pending_synthesized_transition_argument_states: Vec::new(),
             arm_state_counter: 0,
         }
+    }
+
+    pub(crate) fn source_reference_can_see_declaration(
+        &self,
+        reference: psi_source::SourceSpan,
+        declaration: psi_source::SourceSpan,
+    ) -> bool {
+        self.sources
+            .as_deref()
+            .is_none_or(|sources| sources.reference_can_see_declaration(reference, declaration))
+    }
+
+    pub(crate) fn source_resolution_strata_separate(
+        &self,
+        left: psi_source::SourceSpan,
+        right: psi_source::SourceSpan,
+    ) -> bool {
+        self.sources
+            .as_deref()
+            .is_some_and(|sources| sources.resolution_strata_separate(left, right))
     }
 
     pub(crate) fn next_arm_state_name(&mut self) -> String {

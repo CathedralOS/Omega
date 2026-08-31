@@ -49,11 +49,10 @@ pub boundary trait InterruptEntry {
     reaches <= MachineControl + PortIo;
 }
 
-boundary machine InterruptMaskGuard::restore(self)
+pub boundary requirement InterruptMaskGuard::restore(self)
 reaches MachineControl
 requires
-    self in InterruptMaskGuard::Active
-ensures true;
+    self in InterruptMaskGuard::Active;
 
 boundary machine InterruptAcknowledgement::complete(self)
 reaches PortIo

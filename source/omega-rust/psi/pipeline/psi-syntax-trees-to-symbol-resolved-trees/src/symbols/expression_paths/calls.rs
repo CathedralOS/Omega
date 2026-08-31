@@ -47,6 +47,7 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
                 symbols,
                 owner.as_str(),
                 call.target.as_str(),
+                call.target.source_span(),
             );
         }
         return SymbolHandle::invalid();

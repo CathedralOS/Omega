@@ -4275,9 +4275,19 @@ carrier accepts only the exact one-machine unsigned countdown, and the checker
 recomputes `preheader + (upper_bound - lower_bound) * (header + decrement) +
 (header + exit)`. Under the current schedule the `u32` source countdown costs
 `5 + 6n` and has all-input ceiling `25_769_803_775`. Arithmetic and final `u64`
-conversion are checked; an unrepresentable ceiling rejects. Ranked safe-point
-segments, tail calls, and relevant-precondition refinements require later
-vertical slices.
+conversion are checked; an unrepresentable ceiling rejects. The same exact
+verified `u32` subject now has a distinct sealed safe-point catalog. It retains
+five block-local per-traversal rows in canonical block/terminator order:
+preheader jump, true and false header outcomes, decrement backedge, and return,
+with current-schedule ceilings `1, 3, 3, 3, 1`. Whole-roster replay binds
+terminal identity, schedule, machine, start block, edge, empty current
+preconditions, and ceiling, and rejects omission, duplication, reordering,
+semantic drift, schedule drift, or a wider rank carrier. This is
+non-authorizing analysis/PCC evidence: it is neither a whole-entry theorem nor
+execution, native, installation, composition, or bulk-charge authority.
+Its row and catalog types are not accepted by the acyclic installation binders.
+Acyclic segment authority is unchanged. Tail calls and relevant-precondition
+refinements require later vertical slices.
 
 The general resource report treats a derived cyclic component as one semantic
 subject. Its structured absence-of-bound verdict names the

@@ -7,6 +7,7 @@ pub(super) struct MachineScope<'program> {
     pub(super) symbol: SymbolHandle,
     pub(super) type_parameters: &'program [psi_symbol_resolved_trees::data::TypeParameter],
     pub(super) attached_data: Option<&'program psi_symbol_resolved_trees::name::DiagnosticName>,
+    pub(super) attached_data_symbol: SymbolHandle,
     pub(super) inherited_data_members:
         Option<&'program [psi_symbol_resolved_trees::data::DataMember]>,
     pub(super) owned_data: &'program [psi_symbol_resolved_trees::machine::OwnedData],
@@ -59,12 +60,16 @@ impl MachineScope<'_> {
         if *root != "self" {
             return None;
         }
+        let mut current_symbol = self.attached_data_symbol;
+        if !current_symbol.is_valid() {
+            return None;
+        }
         let mut current_type = self.attached_data?.as_str();
         for hop in hops {
             let definition = self
                 .data_definitions
                 .iter()
-                .find(|definition| definition.name.as_str() == current_type)?;
+                .find(|definition| definition.symbol == current_symbol)?;
             let field = self
                 .data_members
                 .span_or_empty(definition.storage.members)
@@ -73,8 +78,10 @@ impl MachineScope<'_> {
                     DataMember::Field(field) if field.name.as_str() == *hop => Some(field),
                     _ => None,
                 })?;
-            current_type = match &field.type_reference {
-                TypeReference::Named { name, .. } => name.as_str(),
+            (current_symbol, current_type) = match &field.type_reference {
+                TypeReference::Named { symbol, name } if symbol.is_valid() => {
+                    (*symbol, name.as_str())
+                }
                 _ => return None,
             };
         }

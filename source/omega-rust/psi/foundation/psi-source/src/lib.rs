@@ -8,7 +8,7 @@ mod source_map;
 mod source_span;
 mod source_text;
 
-pub use source_file::{SourceFile, SourceOrigin, SourcePosition};
+pub use source_file::{SourceFile, SourceOrigin, SourcePosition, SourceResolutionStratum};
 pub use source_id::SourceId;
 pub use source_map::SourceMap;
 pub use source_span::SourceSpan;

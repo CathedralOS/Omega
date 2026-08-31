@@ -582,7 +582,17 @@ provenance, and logical-fuel rows at object emission. This prevents coordinated
 rewrites of otherwise self-consistent projected coordinates from replacing the
 verified subject. Ordinary publication rejoins canonical installation plus
 source-free native-artifact custody without changing the countdown body.
-Acyclic segment checking is not widened.
+A distinct non-authorizing semantic-analysis carrier now seals the complete
+safe-point partition for only that exact verified `u32` subject. It retains the
+preheader edge, both header outcomes, decrement backedge, and return as five
+block-local per-traversal certificates in canonical block/terminator order,
+with current-schedule ceilings `1, 3, 3, 3, 1`. Independent whole-roster replay
+binds terminal identity, schedule, machine, start block, edge, empty current
+preconditions, and ceiling. Omission, duplication, reordering, semantic or
+schedule drift, and a wider rank carrier reject. This catalog is neither a
+whole-entry theorem nor execution, native, installation, composition, or
+bulk-charge authority; its row and catalog types are not accepted by the
+acyclic installation binders. Acyclic segment checking is not widened.
 
 Every verifier, reduction-family, denotation-row, composition theorem, and
 irreducible semantic dependency has an exact versioned node in a closed trust

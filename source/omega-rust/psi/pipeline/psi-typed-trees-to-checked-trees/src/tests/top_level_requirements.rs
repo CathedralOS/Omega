@@ -40,6 +40,55 @@ fn completion_program(provider_parameter: &str, provider_clauses: &str) -> Strin
     )
 }
 
+fn restore_program(provider_parameter: &str, provider_reach: &str) -> String {
+    format!(
+        r#"
+        boundary trait MachineControl {{}}
+        boundary trait PortIo {{}}
+
+        pub data InterruptMaskGuard [copy] {{
+            token: u64;
+        }}
+        pub domain InterruptMaskGuard::Active;
+
+        pub boundary requirement InterruptMaskGuard::restore(self)
+        reaches MachineControl
+        requires
+            self in InterruptMaskGuard::Active;
+
+        machine CpuMask::restore({provider_parameter})
+        satisfies InterruptMaskGuard::restore
+        reaches {provider_reach}
+        {{
+        }}
+        "#,
+    )
+}
+
+fn restore_call_program(caller_parameter: &str) -> String {
+    format!(
+        r#"
+        boundary trait MachineControl {{}}
+
+        pub data InterruptMaskGuard [copy] {{
+            token: u64;
+        }}
+        pub domain InterruptMaskGuard::Active;
+
+        pub boundary requirement InterruptMaskGuard::restore(self)
+        reaches MachineControl
+        requires
+            self in InterruptMaskGuard::Active;
+
+        machine misuse({caller_parameter})
+        reaches MachineControl
+        {{
+            guard.restore();
+        }}
+        "#,
+    )
+}
+
 fn diagnostic_text(diagnostics: &[psi_diagnostics::Diagnostic]) -> String {
     diagnostics
         .iter()
@@ -77,6 +126,33 @@ fn top_level_requirement_maps_self_to_one_explicit_exact_carrier_parameter() {
     );
     assert_eq!(conformance.symbol, requirement.symbol);
     assert_eq!(conformance.requirement_symbol, requirement.symbol);
+}
+
+#[test]
+fn fixed_reach_restore_requirement_rejects_a_call_without_active_custody() {
+    let diagnostics = checked_source(&restore_call_program("guard: InterruptMaskGuard"))
+        .expect_err("restore requires exact Active custody at the call site");
+    let text = diagnostic_text(&diagnostics);
+    assert!(
+        text.contains("call restore") && text.contains("InterruptMaskGuard::Active"),
+        "unexpected diagnostics: {text}"
+    );
+}
+
+#[test]
+fn fixed_reach_restore_requirement_rejects_provider_reach_drift() {
+    let diagnostics = checked_source(&restore_program(
+        "guard: InterruptMaskGuard in Active",
+        "PortIo",
+    ))
+    .expect_err("the restore provider must stay within the fixed MachineControl reach");
+    let text = diagnostic_text(&diagnostics);
+    assert!(
+        text.contains("InterruptMaskGuard::restore")
+            && text.contains("PortIo")
+            && text.contains("reach"),
+        "unexpected diagnostics: {text}"
+    );
 }
 
 #[test]

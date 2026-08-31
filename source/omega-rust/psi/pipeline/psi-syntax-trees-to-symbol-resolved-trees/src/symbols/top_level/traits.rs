@@ -1,7 +1,7 @@
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::lookup::top_level_symbol;
+use crate::symbols::lookup::top_level_symbol_for_source;
 use crate::symbols::targets::assign_static_argument_symbols;
 use crate::symbols::top_level::{
     assign_machine_parameter_signature_symbols, assign_proposition_parameter_signature_symbols,
@@ -25,7 +25,7 @@ pub(super) fn assign_trait_symbols(
         .iter()
         .map(|trait_definition| {
             (
-                trait_definition.name.as_str().to_owned(),
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &trait_definition.name),
                 program
                     .tables
                     .declarations
@@ -48,7 +48,7 @@ pub(super) fn assign_trait_symbols(
         .iter()
         .map(|definition| {
             (
-                definition.name.as_str().to_owned(),
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &definition.name),
                 program
                     .tables
                     .declarations
@@ -156,11 +156,11 @@ pub(super) fn assign_trait_symbols(
                 .unwrap_or_else(SymbolHandle::invalid);
             if let Some(selected) = &mut bound.selected_conformance {
                 bound.carrier =
-                    top_level_symbol(symbols, SymbolKind::Data, bound.carrier_name.as_str());
+                    top_level_symbol_for_source(symbols, SymbolKind::Data, &bound.carrier_name);
                 assign_static_argument_symbols(symbols, trait_symbol, selected, true);
             } else {
                 bound.carrier =
-                    top_level_symbol(symbols, SymbolKind::Trait, bound.carrier_name.as_str());
+                    top_level_symbol_for_source(symbols, SymbolKind::Trait, &bound.carrier_name);
             }
             assign_type_reference_argument_symbols_with_constraints(
                 symbols,
@@ -173,7 +173,7 @@ pub(super) fn assign_trait_symbols(
             if bound.selected_conformance.is_none()
                 && let Some((_, proposition_slots)) = trait_proposition_slots
                     .iter()
-                    .find(|(name, _)| name == bound.carrier_name.as_str())
+                    .find(|(symbol, _)| *symbol == bound.carrier)
             {
                 assign_proposition_family_argument_symbols(
                     symbols,
@@ -186,7 +186,7 @@ pub(super) fn assign_trait_symbols(
             if bound.selected_conformance.is_none()
                 && let Some((_, machine_slots)) = trait_machine_identity_slots
                     .iter()
-                    .find(|(name, _)| name == bound.carrier_name.as_str())
+                    .find(|(symbol, _)| *symbol == bound.carrier)
             {
                 assign_machine_declaration_identity_argument_symbols(
                     symbols,
@@ -200,7 +200,7 @@ pub(super) fn assign_trait_symbols(
 
         for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
             requirement.symbol =
-                top_level_symbol(symbols, SymbolKind::Trait, requirement.name.as_str());
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &requirement.name);
             assign_type_reference_argument_symbols_with_constraints(
                 symbols,
                 child_type_references,
@@ -211,7 +211,7 @@ pub(super) fn assign_trait_symbols(
             );
             if let Some((_, proposition_slots)) = trait_proposition_slots
                 .iter()
-                .find(|(name, _)| name == requirement.name.as_str())
+                .find(|(symbol, _)| *symbol == requirement.symbol)
             {
                 assign_proposition_family_argument_symbols(
                     symbols,
@@ -223,7 +223,7 @@ pub(super) fn assign_trait_symbols(
             }
             if let Some((_, machine_slots)) = trait_machine_identity_slots
                 .iter()
-                .find(|(name, _)| name == requirement.name.as_str())
+                .find(|(symbol, _)| *symbol == requirement.symbol)
             {
                 assign_machine_declaration_identity_argument_symbols(
                     symbols,

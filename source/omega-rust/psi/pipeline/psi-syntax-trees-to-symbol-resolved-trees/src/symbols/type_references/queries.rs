@@ -45,17 +45,22 @@ pub(in crate::symbols) fn call_target_for_type_reference(
     symbols: &SymbolTable,
     child_type_references: &Arena<psi_symbol_resolved_trees::types::TypeReference>,
     type_reference: &psi_symbol_resolved_trees::types::TypeReference,
-    target_name: &str,
+    target: &psi_symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     let type_symbol = type_reference_symbol(child_type_references, type_reference);
     let direct_child =
-        child_symbol_by_kinds(symbols, type_symbol, &[SymbolKind::State], target_name);
+        child_symbol_by_kinds(symbols, type_symbol, &[SymbolKind::State], target.as_str());
     if direct_child.is_valid() {
         return direct_child;
     }
 
     if type_symbol.is_valid() && matches!(symbols.get(type_symbol).kind, SymbolKind::Data) {
-        return call_target_for_attached_data(symbols, symbols.name(type_symbol), target_name);
+        return call_target_for_attached_data(
+            symbols,
+            symbols.name(type_symbol),
+            target.as_str(),
+            target.source_span(),
+        );
     }
 
     SymbolHandle::invalid()

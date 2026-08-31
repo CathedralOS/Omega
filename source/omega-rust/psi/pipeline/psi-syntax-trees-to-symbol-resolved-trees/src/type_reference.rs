@@ -73,7 +73,7 @@ pub(crate) fn lower_type_reference_handle(
             Ok(TypeReference::ConstExpression(expression))
         }
         syntax::types::TypeReferenceNode::DynamicTrait { name, conformance } => {
-            lower_dynamic_trait_reference(syntax_trees, name, conformance.as_ref())
+            lower_dynamic_trait_reference(lowerer, syntax_trees, name, conformance.as_ref())
         }
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
             symbol: SymbolHandle::invalid(),
@@ -87,6 +87,7 @@ pub(crate) fn lower_type_reference_handle(
 }
 
 fn lower_dynamic_trait_reference(
+    lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     name: &syntax::identifier::Identifier,
     conformance_name: Option<&syntax::identifier::Identifier>,
@@ -108,7 +109,11 @@ fn lower_dynamic_trait_reference(
                 if matches!(
                     &conformance.subject,
                     syntax::item::ConformanceSubject::Carrier(type_name) if type_name == name
-                ) && conformance.alias.as_ref() == Some(conformance_name) =>
+                ) && conformance.alias.as_ref() == Some(conformance_name)
+                    && lowerer.source_reference_can_see_declaration(
+                        name.source_span(),
+                        conformance.trait_name.source_span(),
+                    ) =>
             {
                 Some(conformance)
             }

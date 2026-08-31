@@ -2,7 +2,9 @@ use psi_arena::{Arena, Handle, HandleSpan};
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
-use crate::symbols::lookup::top_level_type_symbol_for_source;
+use crate::symbols::lookup::{
+    diagnostic_path_source_span, top_level_symbol_for_source, top_level_type_symbol_for_source,
+};
 use crate::symbols::targets::resolve_free_machine_entry_state_symbol;
 
 pub(in crate::symbols) fn assign_type_reference_symbols(
@@ -15,7 +17,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         .iter()
         .map(|trait_definition| {
             (
-                trait_definition.name.as_str().to_owned(),
+                trait_definition.symbol,
                 program
                     .tables
                     .declarations
@@ -38,7 +40,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         .iter()
         .map(|trait_definition| {
             (
-                trait_definition.name.as_str().to_owned(),
+                trait_definition.symbol,
                 program
                     .tables
                     .declarations
@@ -106,33 +108,43 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     &type_parameters,
                     &mut quotient.carrier,
                 );
+                let relation_name = quotient
+                    .relation
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
                 quotient.relation_symbol = symbols
-                    .find_descendant_by_path(
-                        symbols.root(),
-                        quotient.relation.iter().map(|member| member.as_str()),
+                    .find_top_level_by_name_and_kinds_from_source(
+                        &relation_name,
+                        &[SymbolKind::Proposition],
+                        diagnostic_path_source_span(&quotient.relation),
                     )
                     .unwrap_or_else(SymbolHandle::invalid);
                 if let Some(selection) = &mut quotient.equivalence {
+                    let relation_name = selection
+                        .relation
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::");
                     selection.relation_symbol = symbols
-                        .find_descendant_by_path(
-                            symbols.root(),
-                            selection.relation.iter().map(|member| member.as_str()),
+                        .find_top_level_by_name_and_kinds_from_source(
+                            &relation_name,
+                            &[SymbolKind::Proposition],
+                            diagnostic_path_source_span(&selection.relation),
                         )
                         .unwrap_or_else(SymbolHandle::invalid);
-                    selection.trait_symbol = symbols
-                        .find_child_by_name_and_kind(
-                            symbols.root(),
-                            selection.trait_name.as_str(),
-                            SymbolKind::Trait,
-                        )
-                        .unwrap_or_else(SymbolHandle::invalid);
-                    selection.conformance_symbol = symbols
-                        .find_child_by_name_and_kind(
-                            symbols.root(),
-                            selection.conformance_name.as_str(),
-                            SymbolKind::Conformance,
-                        )
-                        .unwrap_or_else(SymbolHandle::invalid);
+                    selection.trait_symbol = top_level_symbol_for_source(
+                        symbols,
+                        SymbolKind::Trait,
+                        &selection.trait_name,
+                    );
+                    selection.conformance_symbol = top_level_symbol_for_source(
+                        symbols,
+                        SymbolKind::Conformance,
+                        &selection.conformance_name,
+                    );
                     assign_type_reference_argument_symbols_with_constraints(
                         symbols,
                         child_type_references,
@@ -143,7 +155,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     );
                     if let Some((_, proposition_slots)) = trait_proposition_slots
                         .iter()
-                        .find(|(name, _)| name == selection.trait_name.as_str())
+                        .find(|(symbol, _)| *symbol == selection.trait_symbol)
                     {
                         assign_proposition_family_argument_symbols(
                             symbols,
@@ -155,7 +167,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     }
                     if let Some((_, machine_slots)) = trait_machine_identity_slots
                         .iter()
-                        .find(|(name, _)| name == selection.trait_name.as_str())
+                        .find(|(symbol, _)| *symbol == selection.trait_symbol)
                     {
                         assign_machine_declaration_identity_argument_symbols(
                             symbols,
@@ -293,10 +305,10 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                     .find(|parameter| parameter.name == *name)
                     .map(|parameter| parameter.symbol)
                     .unwrap_or_else(|| {
-                        crate::symbols::lookup::top_level_symbol(
+                        crate::symbols::lookup::top_level_symbol_for_source(
                             symbols,
                             SymbolKind::Data,
-                            name.as_str(),
+                            name,
                         )
                     })
             }
@@ -304,10 +316,10 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 SymbolHandle::invalid()
             }
         };
-        conformance.trait_symbol = crate::symbols::lookup::top_level_symbol(
+        conformance.trait_symbol = crate::symbols::lookup::top_level_symbol_for_source(
             symbols,
             SymbolKind::Trait,
-            conformance.trait_name.as_str(),
+            &conformance.trait_name,
         );
         assign_type_parameter_constraint_symbols(
             symbols,
@@ -326,7 +338,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         );
         if let Some((_, proposition_slots)) = trait_proposition_slots
             .iter()
-            .find(|(name, _)| name == conformance.trait_name.as_str())
+            .find(|(symbol, _)| *symbol == conformance.trait_symbol)
         {
             assign_proposition_family_argument_symbols(
                 symbols,
@@ -338,7 +350,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
         }
         if let Some((_, machine_slots)) = trait_machine_identity_slots
             .iter()
-            .find(|(name, _)| name == conformance.trait_name.as_str())
+            .find(|(symbol, _)| *symbol == conformance.trait_symbol)
         {
             assign_machine_declaration_identity_argument_symbols(
                 symbols,
@@ -391,14 +403,21 @@ pub(in crate::symbols) fn assign_machine_declaration_identity_argument_symbols(
         }
 
         let rendered = name.as_str();
-        let exact_requirement = symbols
-            .find_descendant_by_path(symbols.root(), rendered.split("::"))
-            .filter(|candidate| symbols.get(*candidate).kind == SymbolKind::State)
+        let exact_requirement = rendered
+            .rsplit_once("::")
+            .and_then(|(owner, requirement)| {
+                let owner = symbols.find_top_level_by_name_and_kinds_from_source(
+                    owner,
+                    &[SymbolKind::Trait],
+                    name.source_span(),
+                )?;
+                symbols.find_child_by_name_and_kind(owner, requirement, SymbolKind::State)
+            })
             .unwrap_or_else(SymbolHandle::invalid);
         *symbol = if exact_requirement.is_valid() {
             exact_requirement
         } else {
-            resolve_free_machine_entry_state_symbol(symbols, rendered)
+            resolve_free_machine_entry_state_symbol(symbols, name)
         };
     }
 }
@@ -436,10 +455,10 @@ pub(in crate::symbols) fn assign_proposition_family_argument_symbols(
         *symbol = if local.is_valid() {
             local
         } else {
-            crate::symbols::lookup::top_level_symbol(
+            crate::symbols::lookup::top_level_symbol_for_source(
                 symbols,
                 SymbolKind::Proposition,
-                name.as_str(),
+                name,
             )
         };
     }
@@ -572,21 +591,24 @@ fn assign_type_reference_symbol_with_context(
             conformance_carrier,
             conformance_name,
         } => {
-            *symbol =
-                crate::symbols::lookup::top_level_symbol(symbols, SymbolKind::Trait, name.as_str());
+            *symbol = crate::symbols::lookup::top_level_symbol_for_source(
+                symbols,
+                SymbolKind::Trait,
+                name,
+            );
             if let (Some(data_name), Some(conformance_name)) =
                 (conformance_carrier, conformance_name)
             {
-                let carrier = crate::symbols::lookup::top_level_symbol(
+                let carrier = crate::symbols::lookup::top_level_symbol_for_source(
                     symbols,
                     SymbolKind::Data,
-                    data_name.as_str(),
+                    data_name,
                 );
                 let selected = if carrier.is_valid() {
-                    crate::symbols::lookup::top_level_symbol(
+                    crate::symbols::lookup::top_level_symbol_for_source(
                         symbols,
                         SymbolKind::Conformance,
-                        conformance_name.as_str(),
+                        conformance_name,
                     )
                 } else {
                     SymbolHandle::invalid()

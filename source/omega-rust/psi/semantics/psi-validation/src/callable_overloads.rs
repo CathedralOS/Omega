@@ -17,29 +17,40 @@ pub(crate) fn validate_named_callable_overload_declarations(
 }
 
 fn validate_machine_overloads(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    let mut seen: Vec<NormalizedNamedCallableIdentity> = Vec::new();
+    let mut seen: Vec<(NormalizedNamedCallableIdentity, psi_symbols::SymbolHandle)> = Vec::new();
     for machine in program.machines() {
         let Some(identity) = program.normalized_machine_overload_identity(machine) else {
             continue;
         };
-        if seen.contains(&identity) {
+        if seen.iter().any(|(previous_identity, previous_symbol)| {
+            previous_identity == &identity
+                && !program
+                    .symbols
+                    .source_scopes_separate(*previous_symbol, machine.symbol)
+        }) {
             diagnostics.push(duplicate_diagnostic("machine", &identity));
         } else {
-            seen.push(identity);
+            seen.push((identity, machine.symbol));
         }
     }
 }
 
 fn validate_trait_requirement_overloads(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for trait_definition in program.traits() {
-        let mut seen: Vec<NormalizedNamedCallableIdentity> = Vec::new();
+        let mut seen: Vec<(NormalizedNamedCallableIdentity, psi_symbols::SymbolHandle)> =
+            Vec::new();
         for requirement in program.trait_machine_signatures(trait_definition) {
             let identity = program
                 .normalized_trait_requirement_overload_identity(trait_definition, requirement);
-            if seen.contains(&identity) {
+            if seen.iter().any(|(previous_identity, previous_symbol)| {
+                previous_identity == &identity
+                    && !program
+                        .symbols
+                        .source_scopes_separate(*previous_symbol, requirement.symbol)
+            }) {
                 diagnostics.push(duplicate_diagnostic("requirement", &identity));
             } else {
-                seen.push(identity);
+                seen.push((identity, requirement.symbol));
             }
         }
     }

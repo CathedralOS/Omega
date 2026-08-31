@@ -1,5 +1,23 @@
 use psi_symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
+pub(super) fn diagnostic_path_source_span(
+    members: &[psi_symbol_resolved_trees::name::DiagnosticName],
+) -> psi_source::SourceSpan {
+    let Some(first) = members.first() else {
+        return psi_source::SourceSpan::default();
+    };
+    let Some(last) = members.last() else {
+        return first.source_span();
+    };
+    if first.source_span().source_id != last.source_span().source_id {
+        return first.source_span();
+    }
+    psi_source::SourceSpan::new(
+        first.source_span().source_id,
+        psi_source::Span::new(first.source_span().span.start, last.source_span().span.end),
+    )
+}
+
 pub(super) fn top_level_type_symbol_for_source(
     symbols: &SymbolTable,
     name: &psi_symbol_resolved_trees::name::DiagnosticName,
@@ -26,14 +44,6 @@ pub(super) fn top_level_symbol_for_source(
     symbols
         .find_top_level_by_name_and_kinds_from_source(name.as_str(), &[kind], name.source_span())
         .unwrap_or_else(SymbolHandle::invalid)
-}
-
-pub(super) fn top_level_symbol(
-    symbols: &SymbolTable,
-    kind: SymbolKind,
-    name: &str,
-) -> SymbolHandle {
-    top_level_symbol_by_kinds(symbols, &[kind], name)
 }
 
 pub(super) fn top_level_symbol_by_kinds(
@@ -68,7 +78,16 @@ pub(super) fn child_or_attached_data_child_symbol_by_kinds(
     else {
         return SymbolHandle::invalid();
     };
-    let attached_data = top_level_symbol(symbols, SymbolKind::Data, attached_data_name);
+    let reference = symbols
+        .symbol_provenance_source_span(parent)
+        .unwrap_or_default();
+    let attached_data = symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            attached_data_name,
+            &[SymbolKind::Data],
+            reference,
+        )
+        .unwrap_or_else(SymbolHandle::invalid);
     if !attached_data.is_valid() {
         return SymbolHandle::invalid();
     }
@@ -92,9 +111,16 @@ pub(super) fn call_target_for_attached_data(
     symbols: &SymbolTable,
     attached_data: &str,
     target_name: &str,
+    reference: psi_source::SourceSpan,
 ) -> SymbolHandle {
     let machine_name = format!("{attached_data}::{target_name}");
-    let machine_symbol = top_level_symbol(symbols, SymbolKind::Machine, &machine_name);
+    let machine_symbol = symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            &machine_name,
+            &[SymbolKind::Machine],
+            reference,
+        )
+        .unwrap_or_else(SymbolHandle::invalid);
     if !machine_symbol.is_valid() {
         return SymbolHandle::invalid();
     }

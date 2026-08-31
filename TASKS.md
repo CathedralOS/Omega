@@ -582,7 +582,18 @@ Remaining:
   whole-entry certificate, and renders the same canonical terminal/fuel
   summary. Acyclic inspection keeps its ordinary verifier path, while wider or
   otherwise unsupported ranked shapes fail closed instead of falling back.
-  Existing acyclic segment authority remains unchanged. Native admission and
+  A separate non-authorizing analysis catalog now derives the complete ranked
+  safe-point partition for that exact verified `u32` subject. In canonical
+  block/terminator order it retains the preheader jump, both header outcomes,
+  the decrement backedge, and the return as five exact per-traversal rows with
+  current-schedule ceilings `1, 3, 3, 3, 1`. The non-clonable catalog binds the
+  terminal identity, schedule, machine, start block, edge, empty current
+  preconditions, and ceiling; whole-roster replay rejects missing, extra,
+  duplicated, reordered, stale-identity, stale-schedule, or wider-rank input.
+  Its row and catalog types are distinct from the acyclic installation inputs.
+  It supplies no whole-entry, execution, native, installation, composition, or
+  bulk-charge authority, and existing acyclic segment authority remains
+  unchanged. Native admission and
   custody are now complete through assigned target operations for the same
   exact first slice. A third opaque verifier carrier admits only the canonical
   structural Unit / `u32` countdown machine. Its lower projection retains
@@ -863,7 +874,9 @@ Remaining:
   source-form inference, and removal of `via Binding::CompilerIntrinsic`
   remain open.
 
-  Migrate `InterruptMaskGuard::restore`,
+  `InterruptMaskGuard::restore` now uses the public top-level requirement form
+  with its exact `Active` precondition and fixed `MachineControl` reach; its
+  vacuous legacy guarantee is gone. Migrate
   `InterruptAcknowledgement::complete`, `Task::request_cancel`, and
   `Task::finish` to this form. Change `complete` to
   `reaches <= MachineControl + PortIo` only when its satisfier and selection
@@ -6311,6 +6324,9 @@ Remaining:
   inserts no charges, allowance context, exhaustion dispatcher, transfer or
   resume stub, and no sponsor route. Failure to derive a finite bound reports
   `Unknown` or `NoFiniteGuarantee`; it does not change runtime execution.
+  The first loop-segment rung is the exact verified `u32` ranked countdown's
+  sealed five-row safe-point catalog. It is semantic analysis evidence only;
+  no installation carriage or acyclic authority was widened.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
@@ -11251,6 +11267,19 @@ checked-result arithmetic decision listed below.
   exact build-helper reach, generated overload/conformance non-interference by
   scope, dependency-bundle no-rerun, no-source-reread, and configuration/
   evidence retention canaries.
+  The first generated-source resolution-stratum rung is now implemented while
+  the full final-frontend rebuild remains in place. Current-activation handoffs
+  carry resolution metadata separate from source provenance; authored
+  occurrences exclude that extension from central lookup, result-overload
+  rebinding, conformance selection/duplicate scopes, and late type/conformance
+  validation, while every extension unit prefers the complete extension over
+  same-spelled retained-base declarations. Imported dependency-
+  generated bundles remain in the consumer's base. Real checked-compilation
+  canaries pin generated overload/conformance non-interference, generated-to-
+  authored and mutual extension visibility, and exact source/bundle custody.
+  The retained-checkpoint continuation, rebuild deletion, exact build-machine
+  identity handoff, and the remaining configuration/evidence canaries are still
+  open.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

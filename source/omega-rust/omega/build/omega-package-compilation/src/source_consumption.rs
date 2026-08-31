@@ -608,6 +608,7 @@ mod tests {
             package_root: PathBuf::from(root),
             package_identity: package,
             origin,
+            resolution_stratum: psi_source::SourceResolutionStratum::Base,
             source: Arc::from(text),
         }
     }

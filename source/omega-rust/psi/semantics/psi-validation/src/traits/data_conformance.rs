@@ -39,6 +39,12 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
         let conformance_name = conformance.alias.as_ref().map(|name| name.as_str());
 
         for previous in &program.conformances()[..index] {
+            if program
+                .symbols
+                .source_scopes_separate(previous.symbol, conformance.symbol)
+            {
+                continue;
+            }
             match (&previous.subject, &conformance.subject) {
                 (
                     psi_typed_trees::trait_definition::ConformanceSubject::Carrier(previous_type),
@@ -144,6 +150,7 @@ pub(crate) fn validate_conformances(program: &TypedTrees, diagnostics: &mut Vec<
                 if let Some(type_name) = carrier_name {
                     validate_data_satisfies_trait(
                         program,
+                        conformance.carrier_symbol,
                         type_name,
                         trait_definition,
                         arguments,
@@ -303,6 +310,7 @@ pub(crate) fn arguments_for_declaring_trait(
 
 fn validate_data_satisfies_trait(
     program: &TypedTrees,
+    data_symbol: psi_symbols::SymbolHandle,
     type_name: &str,
     trait_definition: &TraitDefinition,
     explicit_type_arguments: &[psi_typed_trees::types::TypeReferenceHandle],
@@ -320,7 +328,7 @@ fn validate_data_satisfies_trait(
 
     for requirement in program.trait_machine_signatures(trait_definition) {
         let Some((machine, state)) =
-            attached_state_named(program, type_name, requirement.name.as_str())
+            attached_state_named(program, data_symbol, type_name, requirement.name.as_str())
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "data `{type_name}` does not satisfy trait `{}`: no written or default machine `{type_name}::{}`",
@@ -363,6 +371,7 @@ fn validate_data_satisfies_trait(
         );
         validate_data_satisfies_trait(
             program,
+            data_symbol,
             type_name,
             required_trait,
             &required_arguments,
@@ -380,6 +389,7 @@ fn validate_data_satisfies_trait(
 /// state `equals`).
 fn attached_state_named<'program>(
     program: &'program TypedTrees,
+    data_symbol: psi_symbols::SymbolHandle,
     type_name: &str,
     state_name: &str,
 ) -> Option<(&'program Machine, &'program State)> {
@@ -387,10 +397,12 @@ fn attached_state_named<'program>(
         .machines()
         .iter()
         .filter(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|attached| attached.as_str() == type_name)
+            machine.attached_data_symbol == data_symbol
+                || (!program.symbols.has_source_metadata()
+                    && machine
+                        .attached_data
+                        .as_ref()
+                        .is_some_and(|attached| attached.as_str() == type_name))
         })
         .find_map(|machine| {
             program

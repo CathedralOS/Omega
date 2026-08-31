@@ -12,7 +12,6 @@ use psi_symbols::SymbolHandle;
 #[derive(Clone)]
 struct TraitCatalogEntry {
     symbol: SymbolHandle,
-    name: DiagnosticName,
     parents: Vec<SymbolHandle>,
     requirements: Vec<RequirementCatalogEntry>,
 }
@@ -80,6 +79,7 @@ pub(crate) fn normalize_closed_conformance_blocks(
                     }
                 },
                 conformance.trait_name.as_str(),
+                conformance.trait_symbol,
                 rows,
                 &trait_catalog,
                 &machine_catalog,
@@ -483,7 +483,6 @@ fn build_trait_catalog(program: &SymbolResolvedTrees) -> Vec<TraitCatalogEntry> 
         .iter()
         .map(|trait_definition| TraitCatalogEntry {
             symbol: trait_definition.symbol,
-            name: trait_definition.name.clone(),
             parents: program
                 .trait_requirements(trait_definition.requires)
                 .iter()
@@ -529,13 +528,14 @@ fn normalize_one(
     program: &SymbolResolvedTrees,
     subject_name: &str,
     trait_name: &str,
+    trait_symbol: SymbolHandle,
     authored_rows: &[ConformanceRow],
     trait_catalog: &[TraitCatalogEntry],
     machine_catalog: &[MachineCatalogEntry],
 ) -> Result<Vec<ConformanceRow>, Diagnostic> {
     let root = trait_catalog
         .iter()
-        .find(|entry| entry.name.as_str() == trait_name)
+        .find(|entry| entry.symbol == trait_symbol)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "closed conformance `{subject_name} satisfies {trait_name}` names unknown trait `{trait_name}`"
@@ -766,8 +766,17 @@ fn collect_result_dispatch(
                         terms.push(format!("arithmetic:{}", domain.name()));
                     }
                     TypeConstraint::Domain(domain) => {
+                        let symbol = program
+                            .symbols
+                            .find_top_level_by_name_and_kinds_from_source(
+                                domain.name.as_str(),
+                                &[psi_symbols::SymbolKind::Domain],
+                                domain.name.source_span(),
+                            )
+                            .unwrap_or_else(SymbolHandle::invalid);
                         collect_declared_result_dispatch(
                             program,
+                            symbol,
                             domain.name.as_str(),
                             terms,
                             alias_stack,
@@ -790,6 +799,7 @@ fn collect_result_dispatch(
 
 fn collect_declared_result_dispatch(
     program: &SymbolResolvedTrees,
+    symbol: SymbolHandle,
     name: &str,
     terms: &mut Vec<String>,
     alias_stack: &mut Vec<SymbolHandle>,
@@ -797,7 +807,7 @@ fn collect_declared_result_dispatch(
     let Some(definition) = program
         .domain_definitions
         .iter()
-        .find(|definition| definition.name.as_str() == name)
+        .find(|definition| definition.symbol == symbol)
     else {
         terms.push(format!("declared:{name}"));
         return;
@@ -814,7 +824,13 @@ fn collect_declared_result_dispatch(
                 .find(|candidate| candidate.symbol == constituent.domain_symbol)
                 .map(|candidate| candidate.name.as_str())
                 .unwrap_or("<unresolved-domain>");
-            collect_declared_result_dispatch(program, constituent_name, terms, alias_stack);
+            collect_declared_result_dispatch(
+                program,
+                constituent.domain_symbol,
+                constituent_name,
+                terms,
+                alias_stack,
+            );
         }
         alias_stack.pop();
         return;
