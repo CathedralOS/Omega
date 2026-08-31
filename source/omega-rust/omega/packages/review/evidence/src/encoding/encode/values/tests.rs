@@ -270,6 +270,43 @@ pub(crate) fn normalized_import_review_encoding_retains_exact_atomic_locator() {
 }
 
 #[test]
+fn macho_import_review_encoding_retains_raw_atomic_coordinates() {
+    fn encoded(install_name: &[u8], symbol: &[u8]) -> Vec<u8> {
+        let row = omega_effects::provider_plan::ProviderPlanRow {
+            method: "write".to_owned(),
+            requirement_identity: "Console::write#exact".to_owned(),
+            binding: ProviderBinding::Import {
+                locator: omega_effects::normalize_foreign_locator(
+                    omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                        install_name: install_name.to_vec(),
+                        symbol: symbol.to_vec(),
+                    },
+                    omega_target::TargetProfile::MacosArm64,
+                )
+                .expect("normalized Mach-O import fixture"),
+            },
+        };
+        let mut encoder = Encoder::bounded(1024);
+        encode_provider_row(&mut encoder, &row).expect("encode normalized Mach-O import");
+        encoder.finish().expect("bounded encoding")
+    }
+
+    let baseline = encoded(b"/usr/lib/libSystem.B.dylib", b"_write");
+    assert_ne!(baseline, encoded(b"/usr/lib/libobjc.A.dylib", b"_write"));
+    assert_ne!(baseline, encoded(b"/usr/lib/libSystem.B.dylib", b"_read"));
+    assert!(
+        baseline
+            .windows(b"/usr/lib/libSystem.B.dylib".len())
+            .any(|bytes| bytes == b"/usr/lib/libSystem.B.dylib")
+    );
+    assert!(
+        baseline
+            .windows(b"_write".len())
+            .any(|bytes| bytes == b"_write")
+    );
+}
+
+#[test]
 fn compiler_intrinsic_execution_encoding_is_closed_and_format_sensitive() {
     use omega_provider_planning::plans::CompilerPrimitiveFloatBinaryOperation;
 

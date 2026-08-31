@@ -554,6 +554,14 @@ impl TrustProviderRealization {
                         hex_bytes(symbol),
                         hex_bytes(version),
                     ),
+                    omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                        install_name,
+                        symbol,
+                    } => format!(
+                        "normalized import MachODylibSymbol [{identity:016x}] target `{target}` install-name bytes {} symbol bytes {}",
+                        hex_bytes(install_name),
+                        hex_bytes(symbol),
+                    ),
                 }
             }
             Self::StringBackedImportBootstrap { library, symbol } => {

@@ -685,6 +685,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-image",
  "omega-object-file",
+ "omega-target",
  "psi-arena",
  "psi-diagnostics",
  "sha2",

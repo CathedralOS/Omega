@@ -1,8 +1,11 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 112 and row schema version 70. This file
+The canonical review schema is version 113 and row schema version 71. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v113 / row v71 admits the atomic Mach-O dylib install-name and dyld
+symbol locator case.
 
 Schema v112 / row v70 admits conformance-bound weakening for top-level
 external requirement supply. Every provider demand must match one distinct

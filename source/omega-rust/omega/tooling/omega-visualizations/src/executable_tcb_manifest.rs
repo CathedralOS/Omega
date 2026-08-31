@@ -365,6 +365,15 @@ fn push_opaque_binding_json(json: &mut String, binding: &OpaqueInProcessBinding)
                     json.push_str(", \"version\": ");
                     push_json_bytes(json, version);
                 }
+                omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name,
+                    symbol,
+                } => {
+                    json.push_str("{\"case\": \"macho_dylib_symbol\", \"install_name\": ");
+                    push_json_bytes(json, install_name);
+                    json.push_str(", \"symbol\": ");
+                    push_json_bytes(json, symbol);
+                }
             }
             json.push('}');
         }
@@ -548,6 +557,25 @@ mod tests {
             "0x{:016x}",
             locator.non_authoritative_compatibility_fingerprint()
         )));
+    }
+
+    #[test]
+    fn artifact_reports_raw_macho_locator_coordinates() {
+        let locator = omega_effects::normalize_foreign_locator(
+            omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: vec![b'/', b'l', b'i', b'b', 0xff],
+                symbol: vec![b'_', b'w', 0xfe],
+            },
+            omega_target::TargetProfile::MacosArm64,
+        )
+        .expect("normalized Mach-O import");
+        let selected = selected(ProviderBinding::Import { locator });
+        let json = executable_tcb_manifest_json(&selected);
+
+        assert!(json.contains("\"case\": \"macho_dylib_symbol\""));
+        assert!(json.contains("\"install_name\": [47,108,105,98,255]"));
+        assert!(json.contains("\"symbol\": [95,119,254]"));
+        assert!(!json.contains("/lib"));
     }
 
     #[test]
