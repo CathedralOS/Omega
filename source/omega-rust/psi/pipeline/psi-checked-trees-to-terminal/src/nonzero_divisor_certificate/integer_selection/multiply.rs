@@ -15,6 +15,8 @@ use super::super::{cast_custody, cast_selection};
 use super::dispatch::{add_endpoint_candidates, lower_add_math_leaf, relax_math_bound};
 use super::{bound, range};
 
+const MAX_TARGETED_OPERAND_WITNESS_DEFINITIONS: usize = 6;
+
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,
@@ -1029,7 +1031,7 @@ fn targeted_multiply_operand_witness(
                 .is_ok()
                 .then_some(witness);
         }
-        if reverse_definitions.len() == 5 {
+        if reverse_definitions.len() == MAX_TARGETED_OPERAND_WITNESS_DEFINITIONS {
             return None;
         }
         for index in (0..before).rev() {
