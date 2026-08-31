@@ -54,6 +54,14 @@ stop the item on one precise owner question before adding machinery.
     independently checked application-specific realization may authorize a
     row.
 
+  The proposed use of D29 as the semantic parent for ordinary boundary-trait
+  calls such as `Console::exit_process` is **OWNER-BLOCKED** on **Keep D29
+  boundary-operator-specific or generalize it to every boundary invocation**
+  in `OWNER_QUESTIONS.md`. Until resolved, keep D29 tied to compiler-derived
+  checked boundary-operator applications and keep D41's ordinary
+  boundary-trait settlement lane distinct. Do not fabricate an empty D29
+  application by scanning ordinary Terminal `BoundaryCall` operations.
+
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
   nominal Chi stage merely to collect private compiler state.

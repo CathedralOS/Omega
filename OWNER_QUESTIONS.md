@@ -582,3 +582,67 @@ semantic schemas and the exact translation between them exist.
 - Tempting but wrong: producer-authored change labels, a speculative migration
   registry, structural field-name matching presented as semantic equivalence,
   or compiler/toolchain identity used to waive reconstruction.
+
+## Q11 — Keep D29 boundary-operator-specific or generalize it to every boundary invocation
+
+### Context
+
+D29 currently and repeatedly defines compiler-issued exact coverage for
+checked **boundary-operator applications**. Its application is the ordered
+tagged type/const substitution derived from that checked operator use, and its
+role-specific realization is rechecked after final specialization. D32 gives
+each surviving executable operation carrying one of those D29 parents an
+occurrence-specific native physical child.
+
+The existing Linux `Console::exit_process(i32)` lane is different. It is an
+ordinary boundary-trait invocation settled under D41 by joining one Terminal
+`BoundaryCall`, its exact selected provider plan, and the consuming lowerer's
+closed `LinuxExitGroupI32` target catalog. It is not a checked boundary-
+operator application and has no D29 type/const application demand.
+
+An attempted D32 implementation treated every ordinary `BoundaryCall` as an
+empty D29 application so the Linux exit lane could supply the first physical
+child. That would silently broaden D29 and create semantic evidence the
+checked compiler never issued.
+
+### Problem statement
+
+Does D29 remain specific to checked boundary-operator applications, with D41
+and other boundary invocation kinds retaining their own semantic settlement
+parents, or should the architecture explicitly generalize D29 into one common
+coverage model for every boundary requirement invocation?
+
+The choice determines which source-free demand enters Psi Terminal, which
+semantic parent D32 hashes, and whether an ordinary trait call may ever carry
+the canonical empty application. This cannot be inferred from equal native
+lowering or from the existence of a selected provider row.
+
+### Proposed solution
+
+Keep D29 boundary-operator-specific. Add a target-neutral Psi Terminal demand
+anchor only for compiler-derived checked operator applications, including the
+exact operation occurrence and ordered tagged application. Join that demand to
+the strong selected-plan identity and role-specific realization in a separate
+Omega representation-rank companion. D32 then gives surviving operations
+carrying those exact parents physical children.
+
+Keep D41's ordinary boundary-trait settlement structurally separate. If it
+also needs occurrence-specific physical replay, define that continuation from
+its existing semantic settlement rather than relabeling the call as a D29
+application. Shared hashing or replay helpers may be factored only after the
+two semantic inputs remain explicit.
+
+### Alternates
+
+- Acceptable: explicitly generalize D29 to a closed sum of boundary invocation
+  kinds. Each variant must name its own compiler-derived demand and application
+  shape; ordinary boundary-trait calls may use an explicit unit/empty
+  application only if the ruling says why that is semantic data rather than an
+  inferred placeholder.
+- Acceptable: introduce a broader D32 semantic-parent interface implemented by
+  both D29 operator coverage and D41 boundary-trait settlement, without
+  claiming the latter is D29.
+- Tempting but wrong: scan every Terminal `BoundaryCall` and synthesize an
+  empty D29 row, use native `LinuxExitGroupI32` selection as proof of an
+  earlier semantic application, attach D29 only inside a native proposal, or
+  collapse the semantic parent into the emitted physical child.
