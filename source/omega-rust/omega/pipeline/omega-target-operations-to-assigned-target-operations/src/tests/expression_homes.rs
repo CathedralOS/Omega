@@ -12,7 +12,10 @@ use omega_target_operations::{
     TargetScalarExpression, TerminalPsiProvenance,
 };
 use psi_core::{EdgeId, IntegerSign, IntegerType, ObligationId, OperationId, ScalarType};
-use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use psi_terminal::{
+    CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
+    VocabularyMarker,
+};
 
 #[test]
 fn aarch64_expression_registers_receive_stable_frame_spills() {
@@ -195,6 +198,11 @@ fn x86_calling_expression_spills_live_caller_registers() {
                     },
                 },
             }],
+            requirement_obligations: vec![ObligationId::new(18).unwrap()],
+            crash_continuations: vec![CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Truth],
+            }],
         }),
         right: Box::new(TargetIntegerExpression::Parameter {
             source_value: ValueId::new(1).unwrap(),
@@ -215,9 +223,23 @@ fn x86_calling_expression_spills_live_caller_registers() {
     let AssignedIntegerExpression::WrappingAdd { left, right, .. } = expression else {
         unreachable!()
     };
-    let AssignedIntegerExpression::Call { arguments, .. } = left.as_ref() else {
+    let AssignedIntegerExpression::Call {
+        arguments,
+        requirement_obligations,
+        crash_continuations,
+        ..
+    } = left.as_ref()
+    else {
         unreachable!()
     };
+    assert_eq!(requirement_obligations, &[ObligationId::new(18).unwrap()]);
+    assert_eq!(
+        crash_continuations,
+        &[CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }]
+    );
     assert!(matches!(
         &arguments[0].expression,
         AssignedScalarExpression::Integer {
@@ -265,6 +287,8 @@ fn call_stack_arguments_receive_concrete_outgoing_homes() {
                 },
             },
         }],
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
 
     let assigned = assign_registers(&plan).expect("assign outgoing stack argument");

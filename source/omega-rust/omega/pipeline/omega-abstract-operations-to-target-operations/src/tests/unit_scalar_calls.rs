@@ -57,6 +57,8 @@ fn attached_unit_scalar_call_plan() -> AbstractOperationPlan {
                         scalar_type,
                         callee: scalar_machine,
                         arguments: vec![constant],
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::Call {
                         psi_operation: OperationId::new(12).expect("second call"),
@@ -64,6 +66,8 @@ fn attached_unit_scalar_call_plan() -> AbstractOperationPlan {
                         scalar_type,
                         callee: scalar_machine,
                         arguments: vec![first_result],
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(1).expect("return edge"),

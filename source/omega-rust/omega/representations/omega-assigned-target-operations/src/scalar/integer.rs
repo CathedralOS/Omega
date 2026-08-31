@@ -48,6 +48,8 @@ pub enum AssignedIntegerExpression {
         source_value: ValueId,
         callee: psi_core::MachineId,
         arguments: Vec<AssignedCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<psi_terminal::CrashRouteBucket>,
     },
     Immediate {
         source_value: ValueId,

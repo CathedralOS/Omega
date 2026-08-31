@@ -1103,6 +1103,8 @@ fn executable_nominal_cleanup_plan(
                                 callee: helper,
                                 arguments: Vec::new(),
                                 claim_transfers: Vec::new(),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                             },
                             TargetUnitOperation::Return {
                                 psi_edge: cleanup_return,
@@ -1595,6 +1597,8 @@ fn two_call_executable_nominal_cleanup_plan(
             callee: second_helper,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
     );
     plan.functions.push(helper);
@@ -1781,6 +1785,8 @@ fn two_nominal_cleanups_emit_the_exact_executable_action_owner() {
                 callee: helper_machine,
                 arguments: Vec::new(),
                 claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
             },
         );
         distinct.functions.push(helper);
@@ -2093,6 +2099,8 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                             callee: MachineId::new(2).expect("leaf"),
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
                         },
                         TargetUnitOperation::Return {
                             psi_edge: root_return,
@@ -2313,6 +2321,8 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
                                 callee: MachineId::new(2).unwrap(),
                                 arguments: vec![argument],
                                 claim_transfers: Vec::new(),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                             },
                             TargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(1).unwrap(),
@@ -2409,6 +2419,8 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
                             callee: MachineId::new(2).unwrap(),
                             arguments: vec![argument(second, 1, 0), argument(first, 0, 1)],
                             claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
                         },
                         TargetUnitOperation::Return {
                             psi_edge: EdgeId::new(1).unwrap(),
@@ -2505,6 +2517,8 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
                             callee: MachineId::new(2).unwrap(),
                             arguments: vec![argument(second, 1, 0), argument(first, 0, 1)],
                             claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
                         },
                         TargetUnitOperation::Return {
                             psi_edge: EdgeId::new(1).unwrap(),
@@ -2640,6 +2654,8 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                                 callee: MachineId::new(2).unwrap(),
                                 arguments,
                                 claim_transfers: Vec::new(),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                             },
                             TargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(1).unwrap(),
@@ -2743,6 +2759,8 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                                     callee: MachineId::new(2).unwrap(),
                                     arguments: vec![argument],
                                     claim_transfers: Vec::new(),
+                                    requirement_obligations: Vec::new(),
+                                    crash_continuations: Vec::new(),
                                 },
                                 TargetUnitOperation::Return {
                                     psi_edge: EdgeId::new(1).unwrap(),
@@ -5146,6 +5164,8 @@ fn emits_typed_direct_call_relocations_for_native_targets() {
                                 psi_operation: call_operation,
                                 source_value: call_result,
                                 callee,
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
                                 arguments: vec![
                                     TargetCallArgument {
                                         scalar_type: psi_core::ScalarType::Integer(scalar_type),
@@ -5648,6 +5668,8 @@ fn calling_conditional_plan(
         psi_operation: OperationId::new(operation).unwrap(),
         source_value: ValueId::new(result).unwrap(),
         callee,
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
         arguments: vec![TargetCallArgument {
             scalar_type: psi_core::ScalarType::Boolean,
             location: ScalarParameterLocation::Register(argument_register),
@@ -5734,6 +5756,8 @@ fn calling_expression_condition_plan(
                         psi_operation: OperationId::new(1).unwrap(),
                         source_value: ValueId::new(2).unwrap(),
                         callee,
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
                         arguments: vec![TargetCallArgument {
                             scalar_type: psi_core::ScalarType::Boolean,
                             location: ScalarParameterLocation::Register(argument_register),
@@ -5791,6 +5815,8 @@ fn calling_arm_conditional_plan(
                     psi_operation: OperationId::new(1).unwrap(),
                     source_value: ValueId::new(4).unwrap(),
                     callee,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
                     arguments: vec![TargetCallArgument {
                         scalar_type: psi_core::ScalarType::Integer(scalar_type),
                         location: ScalarParameterLocation::Register(argument_register),

@@ -84,6 +84,8 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
         callee: MachineId::new(99).unwrap(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
     unit.functions[2].attachment = Some(StructuralTypeId::new(9_002).unwrap());
     unit.provider_candidates
@@ -119,12 +121,16 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
         callee: MachineId::new(104).unwrap(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
     unit.functions[6].blocks[0].nodes[0].operation = O::CallUnit {
         psi_operation: OperationId::new(9_008).unwrap(),
         callee: MachineId::new(103).unwrap(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
 
     let analysis = compute_analysis(&unit, AnalysisKind::CallGraph).unwrap();

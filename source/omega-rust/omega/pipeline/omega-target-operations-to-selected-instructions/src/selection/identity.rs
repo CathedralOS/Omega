@@ -43,8 +43,31 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        b"omega.terminal-selected-instructions.v12\0",
+        false,
+    )
+}
+
+#[doc(hidden)]
+pub fn selected_instruction_plan_identity_v11_legacy(
+    plan: &SelectedInstructionPlan,
+) -> SelectedInstructionPlanIdentity {
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        b"omega.terminal-selected-instructions.v11\0",
+        true,
+    )
+}
+
+fn selected_instruction_plan_identity_with_schema(
+    plan: &SelectedInstructionPlan,
+    domain: &[u8],
+    legacy_legalized_identity: bool,
+) -> SelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v11\0");
+    bytes.extend_from_slice(domain);
     bytes.extend_from_slice(plan.psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -136,7 +159,9 @@ pub fn selected_instruction_plan_identity(
             }
         }
     }
-    bytes.extend_from_slice(&selected_structural_legalized_identity(plan).bytes());
+    bytes.extend_from_slice(
+        &selected_structural_legalized_identity(plan, legacy_legalized_identity).bytes(),
+    );
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
         encode_selected_structural_unit_function(&mut bytes, function);
@@ -146,8 +171,9 @@ pub fn selected_instruction_plan_identity(
 
 fn selected_structural_legalized_identity(
     plan: &SelectedInstructionPlan,
+    legacy: bool,
 ) -> LegalizedOperationPlanIdentity {
-    legalized_operation_plan_identity(&LegalizedOperationPlan {
+    let legalized = LegalizedOperationPlan {
         psi: plan.psi,
         optimization_unit: omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
             b"omega.selected-structural-legalized-fingerprint.v1",
@@ -206,6 +232,8 @@ fn selected_structural_legalized_identity(
                         })
                         .collect(),
                     claim_transfers: call.claim_transfers.clone(),
+                    requirement_obligations: call.requirement_obligations.clone(),
+                    crash_continuations: call.crash_continuations.clone(),
                     fuel: call.provenance.fuel.clone(),
                     effect: call.effect,
                     ownership: call.ownership.clone(),
@@ -216,7 +244,12 @@ fn selected_structural_legalized_identity(
                 return_ownership: function.terminator.ownership.clone(),
             })
             .collect(),
-    })
+    };
+    if legacy {
+        omega_legalized_operations::legalized_operation_plan_identity_v9_legacy(&legalized)
+    } else {
+        legalized_operation_plan_identity(&legalized)
+    }
 }
 
 fn encode_selected_structural_unit_function(

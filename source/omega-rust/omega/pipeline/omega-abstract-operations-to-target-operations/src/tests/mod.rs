@@ -28,10 +28,11 @@ pub(super) use psi_core::{
     ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub(super) use psi_terminal::{
-    BoundaryMachineDeclaration, SemanticFingerprint, StructuralAccess, StructuralArgument,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
+    BoundaryMachineDeclaration, CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 
 mod fixed_integer_scalar_abi;
@@ -61,6 +62,7 @@ mod translation_validation_wrapping_integer_multiply_parameters;
 mod translation_validation_wrapping_integer_subtract_parameters;
 mod unit_and_settlements;
 mod unit_scalar_calls;
+mod unit_structural_calls;
 
 pub(super) fn identity() -> TerminalPsiIdentity {
     TerminalPsiIdentity {

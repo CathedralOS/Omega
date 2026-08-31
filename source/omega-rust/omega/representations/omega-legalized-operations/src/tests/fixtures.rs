@@ -162,6 +162,11 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                     input: 0,
                     output: 1,
                 },
+                requirement_obligations: vec![psi_core::ObligationId::new(1).unwrap()],
+                crash_continuations: vec![psi_terminal::CrashRouteBucket {
+                    cause: psi_terminal::CrashCause::Trap,
+                    alternatives: vec![psi_terminal::CrashRouteGuard::Truth],
+                }],
                 ownership: vec![OwnershipEvent::ClaimTransfer(vec![id(1), id(2)])],
             }),
             return_edge,

@@ -17,6 +17,8 @@ fn function_effects_propagate_services_and_crashes_through_calls() {
         callee: callee.machine,
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     });
     call.provenance = vec![PsiProvenance::Operation(call_support)];
     caller.blocks[0].nodes.insert(0, call);

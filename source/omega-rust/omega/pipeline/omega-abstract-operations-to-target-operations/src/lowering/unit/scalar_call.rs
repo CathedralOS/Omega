@@ -64,6 +64,8 @@ pub(super) fn lower_scalar_call(
         scalar_type,
         callee,
         arguments,
+        requirement_obligations,
+        crash_continuations,
     } = operation
     else {
         unreachable!("attached-Unit scalar-call lowering receives only scalar calls")
@@ -227,6 +229,8 @@ pub(super) fn lower_scalar_call(
         call_plan,
         result_home,
         arguments: target_arguments,
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
     });
     provenance.operations.push(*psi_operation);
     Ok(())

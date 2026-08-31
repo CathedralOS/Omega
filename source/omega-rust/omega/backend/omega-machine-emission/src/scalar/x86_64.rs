@@ -526,6 +526,7 @@ fn emit_x86_64_boolean_expression_node(
             source_value,
             callee,
             arguments,
+            ..
         } => {
             emit_x86_64_call(
                 bytes,
@@ -1162,6 +1163,7 @@ fn emit_x86_64_expression_node(
             source_value,
             callee,
             arguments,
+            ..
         } => {
             emit_x86_64_call(
                 bytes,

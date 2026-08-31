@@ -8,8 +8,32 @@ use crate::{
 };
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
+    fixed_view_copy_identity_with_schema(
+        plan,
+        b"omega.terminal-fixed-view-copies.v4\0",
+        selected_instruction_plan_identity(&plan.transformed),
+    )
+}
+
+pub(crate) fn fixed_view_copy_identity_v3_legacy(
+    plan: &FixedViewCopyPlan,
+) -> FixedViewCopyIdentity {
+    fixed_view_copy_identity_with_schema(
+        plan,
+        b"omega.terminal-fixed-view-copies.v3\0",
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
+            &plan.transformed,
+        ),
+    )
+}
+
+fn fixed_view_copy_identity_with_schema(
+    plan: &FixedViewCopyPlan,
+    domain: &[u8],
+    transformed: omega_selected_instructions::SelectedInstructionPlanIdentity,
+) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-fixed-view-copies.v3\0");
+    bytes.extend_from_slice(domain);
     bytes.extend_from_slice(&plan.source_selected.bytes());
     bytes.extend_from_slice(&plan.source_ranges.bytes());
     bytes.extend_from_slice(&plan.source_legality.bytes());
@@ -43,7 +67,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.push(constraint_family(copy.copy_constraint.family));
         bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
     }
-    bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
+    bytes.extend_from_slice(&transformed.bytes());
     FixedViewCopyIdentity(Sha256::digest(bytes).into())
 }
 

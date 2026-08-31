@@ -34,10 +34,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(6))
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(7))
     );
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -103,7 +103,7 @@ fn artifact_v4_rejection_precedence_is_stable() {
 }
 
 #[test]
-fn artifact_v5_rejection_precedence_is_trailing_payload_semantic_then_outer() {
+fn artifact_v6_rejection_precedence_is_trailing_payload_semantic_then_outer() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
     let transformed_offset = transformed_identity_offset(&encoded);
     let payload_digest_offset = transformed_offset + 32;

@@ -24,6 +24,8 @@ pub(crate) fn assign(
         structural_parameters,
         arguments,
         claim_transfers,
+        requirement_obligations,
+        crash_continuations,
     } = operation
     else {
         unreachable!("structural scalar assignment receives its exact target carrier")
@@ -100,5 +102,7 @@ pub(crate) fn assign(
             })
             .collect(),
         claim_transfers: claim_transfers.clone(),
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
     })
 }

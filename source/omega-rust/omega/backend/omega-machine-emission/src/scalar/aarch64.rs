@@ -563,6 +563,7 @@ fn emit_aarch64_boolean_expression_node(
             source_value,
             callee,
             arguments,
+            ..
         } => {
             emit_aarch64_call(
                 instructions,
@@ -973,6 +974,7 @@ fn emit_aarch64_expression_node(
             source_value,
             callee,
             arguments,
+            ..
         } => {
             emit_aarch64_call(
                 instructions,

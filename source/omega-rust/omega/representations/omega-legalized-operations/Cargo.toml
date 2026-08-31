@@ -17,4 +17,5 @@ omega-abstract-operations = { path = "../omega-abstract-operations" }
 omega-target-operations = { path = "../omega-target-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 sha2 = "0.10.9"

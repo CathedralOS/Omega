@@ -17,9 +17,10 @@ decision. Only true language-semantic questions belong in
 1. [x] Restore the source-navigation contract across rule owners, lowering,
    compiler hooks, and optimized carriers. The governed boundary satisfies the
    hard entrance/leaf limits with no exceptions.
-2. [x] Split the fixed-view-copy artifact architecture from v4 to v5. V5
-   carries `SelectedInstructionPlan::structural_unit_functions`; v4 remains
-   byte-stable and decodes that field as empty.
+2. [x] Split the fixed-view-copy artifact architecture from v4 through v6. V5
+   introduced `SelectedInstructionPlan::structural_unit_functions`; v6 retains
+   structural-call proof and crash rows. V4 remains byte-stable, while v4/v5
+   decode absent fields as empty.
 3. [x] Add exact wrapping add, subtract, and multiply parameter translation
    families as separate catalog rows and semantic leaves.
 4. [x] Repair the four stale optimization-pipeline proof fixtures whose exact
@@ -268,12 +269,14 @@ decision. Only true language-semantic questions belong in
   u12 folds, current machine substitutions, structural-Unit encoding, resolved
   layout, and ranked-u32 publication routes are covered; the remaining source
   families and publication routes are not.
-- [ ] Extend abstract ordinary, Unit, and structural-scalar call operations and
+- [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
-  `requirement_obligations` and `crash_continuations`. Current Terminal
-  verification reconstructs these nonempty rows, but the corresponding
-  abstract variants cannot carry them; add nonempty custody and mutation tests
-  with the model extension.
+  `requirement_obligations` and `crash_continuations`. The exact rows now cross
+  Terminal projection, optimization-unit V17 identity, target and temporary
+  assigned carriers, legalized V10 and selected V12 identity, allocation
+  recovery, and fixed-view-copy V6 persistence. Ordinary, Unit, and
+  structural-scalar nonempty projection/lowering tests plus identity,
+  independent replay, corruption, and V5 compatibility tests pin custody.
 - [ ] Apply **Boundary domain requirements consume carried qualifications**.
   Until the next Terminal format/vocabulary revision, keep the legacy boundary
   `requirement_obligations` slot empty and reject every nonempty roster as
@@ -284,11 +287,13 @@ decision. Only true language-semantic questions belong in
   declaration requirements; joins use at most the common intersection, CSE/GVN
   never equates unequal rosters by computation alone, and no transformation may
   widen a roster or otherwise mint a routed qualification.
-- [x] Add fixed-view-copy v5 as a versioned envelope and structural selected
-  subtree. Public encoding emits v5; decoding accepts v4/v5; v4 bytes and
-  rejection order remain pinned. V5 authenticates the exact selected-plan
-  payload as well as semantic identities because duplicated caller/callee call
-  plans are validator-bound rather than fully selected-identity-bound.
+- [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
+  versioned structural selected subtree; public encoding now emits v6 with
+  exact structural-call requirement and crash-continuation rows. Decoding
+  accepts v4/v5/v6, v4 bytes and rejection order remain pinned, and v5
+  reconstructs the newly absent rows as empty. The authenticated payload also
+  closes caller/callee call-plan fields that independent validation checks but
+  the selected semantic identity does not fully cover.
 - [ ] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
   transition cases.

@@ -36,6 +36,38 @@ fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutati
         .call
         .as_mut()
         .unwrap()
+        .requirement_obligations
+        .clear();
+    assert_ne!(
+        selected_instruction_plan_identity(&corrupted),
+        selected_identity
+    );
+    assert!(
+        validate_selected_instructions(&legalized, &constraints, &physical, &catalog, corrupted)
+            .is_err()
+    );
+
+    let mut corrupted = selected.plan().clone();
+    corrupted.structural_unit_functions[0]
+        .call
+        .as_mut()
+        .unwrap()
+        .crash_continuations
+        .clear();
+    assert_ne!(
+        selected_instruction_plan_identity(&corrupted),
+        selected_identity
+    );
+    assert!(
+        validate_selected_instructions(&legalized, &constraints, &physical, &catalog, corrupted)
+            .is_err()
+    );
+
+    let mut corrupted = selected.plan().clone();
+    corrupted.structural_unit_functions[0]
+        .call
+        .as_mut()
+        .unwrap()
         .implicit_uses
         .pop();
     assert_ne!(

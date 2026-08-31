@@ -78,7 +78,10 @@ pub use trust_graph::{
 };
 
 use block_wire::{decode_block, encode_block};
-use canonical_order::validate_canonical_order;
+use canonical_order::{
+    crash_routes_are_canonical, validate_canonical_order, validate_crash_route_predicates,
+};
+use contract_wire::{decode_crash_routes, encode_crash_routes};
 use module_wire::{decode_module_body, encode_raw};
 
 use proposition_wire::{decode_proposition, encode_proposition};
@@ -134,6 +137,38 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         return Err(CodecError::NonCanonicalEncoding);
     }
     Ok(module)
+}
+
+/// Encode one canonical ordered crash-continuation roster without a Terminal
+/// module envelope. This is the shared semantic leaf used by later
+/// identity-bearing optimizer artifacts that must retain exact call routes.
+pub fn encode_crash_route_buckets(
+    routes: &[psi_terminal::CrashRouteBucket],
+) -> Result<Vec<u8>, CodecError> {
+    if !crash_routes_are_canonical(routes) {
+        return Err(CodecError::NonCanonicalOrder(
+            "crash routes by cause and guard",
+        ));
+    }
+    validate_crash_route_predicates(routes)?;
+    let mut writer = Writer::default();
+    encode_crash_routes(&mut writer, routes)?;
+    Ok(writer.finish())
+}
+
+/// Decode one complete canonical crash-continuation roster.
+pub fn decode_crash_route_buckets(
+    bytes: &[u8],
+) -> Result<Vec<psi_terminal::CrashRouteBucket>, CodecError> {
+    let mut reader = Reader::new(bytes);
+    let routes = decode_crash_routes(&mut reader)?;
+    if reader.remaining() != 0 {
+        return Err(CodecError::TrailingBytes(reader.remaining()));
+    }
+    if encode_crash_route_buckets(&routes)? != bytes {
+        return Err(CodecError::NonCanonicalEncoding);
+    }
+    Ok(routes)
 }
 
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {
@@ -1905,6 +1940,41 @@ mod resource_tests {
         assert_eq!(
             decode_counted::<u8>(&mut reader, |reader| reader.u8()),
             Err(CodecError::UnexpectedEnd)
+        );
+    }
+}
+
+#[cfg(test)]
+mod crash_route_roster_tests {
+    use psi_terminal::{CrashCause, CrashRouteBucket, CrashRouteGuard};
+
+    use super::{CodecError, decode_crash_route_buckets, encode_crash_route_buckets};
+
+    fn route(cause: CrashCause) -> CrashRouteBucket {
+        CrashRouteBucket {
+            cause,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }
+    }
+
+    #[test]
+    fn standalone_crash_route_roster_round_trips_and_rejects_corruption() {
+        let routes = vec![route(CrashCause::Trap), route(CrashCause::Abort)];
+        let encoded = encode_crash_route_buckets(&routes).unwrap();
+        assert_eq!(decode_crash_route_buckets(&encoded).unwrap(), routes);
+
+        let truncated = &encoded[..encoded.len() - 1];
+        assert!(decode_crash_route_buckets(truncated).is_err());
+    }
+
+    #[test]
+    fn standalone_crash_route_roster_rejects_noncanonical_order() {
+        let routes = vec![route(CrashCause::Abort), route(CrashCause::Trap)];
+        assert_eq!(
+            encode_crash_route_buckets(&routes),
+            Err(CodecError::NonCanonicalOrder(
+                "crash routes by cause and guard"
+            ))
         );
     }
 }

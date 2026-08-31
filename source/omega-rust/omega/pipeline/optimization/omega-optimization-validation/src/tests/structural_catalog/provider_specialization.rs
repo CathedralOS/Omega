@@ -143,6 +143,8 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
         callee: machine,
         structural_arguments: vec![provider_argument],
         claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
     refresh_node_derivatives(&mut unit_use, 0, 0, 0);
     assert_invalid(unit_use);

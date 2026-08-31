@@ -46,6 +46,8 @@ pub(super) fn assign(
             callee,
             arguments,
             claim_transfers,
+            requirement_obligations,
+            crash_continuations,
         } => AssignedUnitOperation::Call {
             psi_operation: *psi_operation,
             callee: *callee,
@@ -67,6 +69,8 @@ pub(super) fn assign(
                 })
                 .collect(),
             claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
         },
         TargetUnitOperation::ScalarCall {
             psi_operation,
@@ -74,6 +78,8 @@ pub(super) fn assign(
             call_plan,
             result_home,
             arguments,
+            requirement_obligations,
+            crash_continuations,
         } => scalar_call::assign(
             machine,
             *psi_operation,
@@ -81,6 +87,8 @@ pub(super) fn assign(
             call_plan,
             *result_home,
             arguments,
+            requirement_obligations,
+            crash_continuations,
             preceding_operations,
             target,
             assigned_scalar_homes,

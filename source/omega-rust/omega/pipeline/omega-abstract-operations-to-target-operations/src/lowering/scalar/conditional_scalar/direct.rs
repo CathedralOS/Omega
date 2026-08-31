@@ -17,6 +17,8 @@ pub(super) fn try_lower_direct_scalar(
         scalar_type,
         callee,
         arguments,
+        requirement_obligations,
+        crash_continuations,
     } = operation
     {
         let value = lower_call(
@@ -25,6 +27,8 @@ pub(super) fn try_lower_direct_scalar(
             *scalar_type,
             *callee,
             arguments,
+            requirement_obligations,
+            crash_continuations,
             values,
             target,
             functions,

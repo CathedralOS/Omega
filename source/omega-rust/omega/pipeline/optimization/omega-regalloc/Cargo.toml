@@ -21,4 +21,5 @@ omega-target-operations = { path = "../../../representations/omega-target-operat
 omega-target-operations-to-selected-instructions = { path = "../../omega-target-operations-to-selected-instructions" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
 sha2 = "0.10.9"

@@ -177,6 +177,8 @@ fn redundant_parameter_region_observation_is_canonical_and_axis_complete() {
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
         callee: patch.machine,
         arguments: vec![patch.replacement],
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
     };
     corruptions.push(("call/crash/suspension", call_and_suspension));
 

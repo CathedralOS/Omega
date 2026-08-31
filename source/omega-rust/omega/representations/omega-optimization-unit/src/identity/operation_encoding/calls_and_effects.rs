@@ -10,6 +10,8 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             callee,
             structural_arguments,
             claim_transfers,
+            requirement_obligations,
+            crash_continuations,
         } => {
             bytes.u8(3);
             bytes.id(*psi_operation);
@@ -19,6 +21,8 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 bytes.id(transfer.claim);
                 bytes.u32(transfer.argument_index);
             });
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
         O::CallStructuralScalar {
             psi_operation,
@@ -26,6 +30,8 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             callee,
             structural_arguments,
             claim_transfers,
+            requirement_obligations,
+            crash_continuations,
         } => {
             bytes.u8(4);
             bytes.id(*psi_operation);
@@ -36,6 +42,8 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                 bytes.id(transfer.claim);
                 bytes.u32(transfer.argument_index);
             });
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
         O::CallStructural {
             psi_operation,
@@ -106,6 +114,8 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             scalar_type,
             callee,
             arguments,
+            requirement_obligations,
+            crash_continuations,
         } => {
             bytes.u8(8);
             bytes.id(*psi_operation);
@@ -113,6 +123,8 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_scalar_type(bytes, *scalar_type);
             bytes.id(*callee);
             encode_ids(bytes, arguments);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
         _ => unreachable!("operation family routing admitted a non-call operation"),
     }

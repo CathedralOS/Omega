@@ -35,6 +35,8 @@ pub(super) fn lower_direct_return(
             callee,
             structural_arguments,
             claim_transfers,
+            requirement_obligations,
+            crash_continuations,
         },
         AbstractOperation::Return {
             psi_edge,
@@ -158,6 +160,8 @@ pub(super) fn lower_direct_return(
             structural_parameters: target_structural_parameters.to_vec(),
             arguments,
             claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
         },
     }))
 }

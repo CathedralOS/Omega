@@ -770,6 +770,7 @@ dependencies = [
  "omega-target-operations",
  "psi-core",
  "psi-terminal",
+ "psi-terminal-codec",
  "sha2",
 ]
 
@@ -1242,6 +1243,7 @@ dependencies = [
  "omega-target-operations-to-selected-instructions",
  "psi-core",
  "psi-terminal",
+ "psi-terminal-codec",
  "sha2",
 ]
 

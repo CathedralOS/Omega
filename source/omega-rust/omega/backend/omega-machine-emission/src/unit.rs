@@ -575,6 +575,7 @@ pub(super) fn emit_unit_body(
                 result,
                 copies,
                 claim_transfers,
+                ..
             } => {
                 operation_site = Some(*psi_operation);
                 let argument_intervals = match target.architecture {
@@ -647,6 +648,7 @@ pub(super) fn emit_unit_body(
                 call_plan,
                 result_home,
                 arguments,
+                ..
             } => {
                 operation_site = Some(*psi_operation);
                 internal_unit_scalar_calls.push(emit_unit_scalar_call(

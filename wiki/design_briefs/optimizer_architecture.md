@@ -167,11 +167,13 @@ issues the receipt. The validator never calls `compute`.
 
 Fixed-view-copy artifacts use one small version-admitting codec entrance.
 Legacy V4 remains decode-only and byte-stable, with no structural-function
-roster. V5 descends through a scalar selected-plan leaf and a structural
-subtree whose signature, ABI/calling plan, declarations, boundary settlements,
-call, effects, ownership, and return fields are explicit. Its outer envelope
-binds both the legacy semantic identity and the exact canonical V5 content;
-this closes caller/callee call-plan fields that independent validation checks
+roster. V5 introduced the scalar selected-plan leaf and structural subtree;
+its decoder remains supported and reconstructs absent call proof/crash rows as
+empty. V6 retains those exact rows below the structural call leaf. Signature,
+ABI/calling plan, declarations, boundary settlements, call, effects,
+ownership, and return fields remain explicit, while named envelope and payload
+leaves authenticate both semantic identities and exact canonical content. This
+also closes caller/callee call-plan fields that independent validation checks
 but the selected semantic identity does not fully cover.
 
 Function-relative realization uses the same source-navigation rule for its V9

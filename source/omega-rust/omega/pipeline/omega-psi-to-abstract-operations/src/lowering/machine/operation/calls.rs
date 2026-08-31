@@ -12,18 +12,22 @@ pub(super) fn lower(
             callee,
             structural_arguments,
             claim_transfers,
-            ..
+            requirement_obligations,
+            crash_continuations,
         } => AbstractOperation::CallUnit {
             psi_operation: operation.id,
             callee,
             structural_arguments,
             claim_transfers,
+            requirement_obligations,
+            crash_continuations,
         },
         OperationKind::CallStructuralScalar {
             callee,
             structural_arguments,
             claim_transfers,
-            ..
+            requirement_obligations,
+            crash_continuations,
         } => {
             let result = operation.result.expect_scalar();
             AbstractOperation::CallStructuralScalar {
@@ -35,6 +39,8 @@ pub(super) fn lower(
                 callee,
                 structural_arguments,
                 claim_transfers,
+                requirement_obligations,
+                crash_continuations,
             }
         }
         OperationKind::CallStructural {
@@ -107,14 +113,146 @@ pub(super) fn lower(
             }
         }
         OperationKind::Call {
-            callee, arguments, ..
+            callee,
+            arguments,
+            requirement_obligations,
+            crash_continuations,
         } => AbstractOperation::Call {
             psi_operation: operation.id,
             result: operation.result.expect_scalar().id,
             scalar_type: operation.result.expect_scalar().scalar_type,
             callee,
             arguments,
+            requirement_obligations,
+            crash_continuations,
         },
         _ => unreachable!("call router is exhaustive"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_abstract_operations::AbstractOperation;
+    use psi_core::{
+        BlockId, ContractId, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
+        ScalarType, ValueId,
+    };
+    use psi_terminal::{
+        CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation, OperationKind,
+        OperationResult, TerminalMachine, TerminalMachineResult, ValueDeclaration,
+    };
+
+    use super::lower;
+
+    fn machine() -> TerminalMachine {
+        TerminalMachine {
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(1).unwrap(),
+            blocks: Vec::new(),
+            contract: MachineContract {
+                id: ContractId::new(1).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn call_rows() -> (Vec<ObligationId>, Vec<CrashRouteBucket>) {
+        (
+            vec![ObligationId::new(1).unwrap()],
+            vec![CrashRouteBucket {
+                cause: CrashCause::Trap,
+                alternatives: vec![CrashRouteGuard::Truth],
+            }],
+        )
+    }
+
+    fn scalar_result() -> OperationResult {
+        OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        })
+    }
+
+    #[test]
+    fn ordinary_unit_and_structural_scalar_calls_retain_nonempty_semantic_rows() {
+        let machine = machine();
+        let callee = MachineId::new(2).unwrap();
+        let cases = [
+            (
+                OperationResult::Unit,
+                OperationKind::CallUnit {
+                    callee,
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: call_rows().0,
+                    crash_continuations: call_rows().1,
+                },
+            ),
+            (
+                scalar_result(),
+                OperationKind::CallStructuralScalar {
+                    callee,
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: call_rows().0,
+                    crash_continuations: call_rows().1,
+                },
+            ),
+            (
+                scalar_result(),
+                OperationKind::Call {
+                    callee,
+                    arguments: Vec::new(),
+                    requirement_obligations: call_rows().0,
+                    crash_continuations: call_rows().1,
+                },
+            ),
+        ];
+
+        for (index, (result, kind)) in cases.into_iter().enumerate() {
+            let lowered = lower(
+                &Operation {
+                    id: OperationId::new(index as u64 + 1).unwrap(),
+                    result,
+                    kind,
+                },
+                &machine,
+            )
+            .unwrap();
+            let (requirements, crashes) = match lowered {
+                AbstractOperation::CallUnit {
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                }
+                | AbstractOperation::CallStructuralScalar {
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                }
+                | AbstractOperation::Call {
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                } => (requirement_obligations, crash_continuations),
+                _ => unreachable!(),
+            };
+            assert_eq!(requirements, call_rows().0);
+            assert_eq!(crashes, call_rows().1);
+        }
+    }
 }

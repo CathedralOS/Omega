@@ -1697,6 +1697,8 @@ mod tests {
                 input: 10,
                 output: 11,
             },
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
             ownership: Vec::new(),
         };
         (physical, constraints, call)

@@ -175,6 +175,8 @@ pub(super) fn lower_unit_function(
                 callee,
                 structural_arguments,
                 claim_transfers,
+                requirement_obligations,
+                crash_continuations,
             } => {
                 let callee_function = functions
                     .get(callee)
@@ -422,6 +424,8 @@ pub(super) fn lower_unit_function(
                     callee: *callee,
                     arguments,
                     claim_transfers: claim_transfers.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    crash_continuations: crash_continuations.clone(),
                 });
                 provenance.operations.push(*psi_operation);
             }
