@@ -7,14 +7,15 @@
 //! undeclared services and package-authored boundary lookalikes.
 
 use omega_build_evaluation::{
-    BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION, BuildFilesystemGrantAccess,
-    BuildFilesystemGrantRefusalReason, BuildFilesystemLogicalHandleInputResolution,
-    BuildFilesystemLogicalHandleKind, BuildFilesystemLogicalHandleOutputSource,
-    BuildFilesystemMetadataObservationKind, BuildFilesystemObservedByteRegionKind,
-    BuildFilesystemOperationResult, BuildFilesystemProvider, BuildFilesystemReplayDisposition,
-    BuildFilesystemReplayRecordLimits, BuildFilesystemReturnedPathCompleteness,
-    BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, capture_verified_build_filesystem_replay_record,
+    BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION, BUILD_OBSERVATION_SCHEMA_VERSION,
+    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
+    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
+    BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
+    BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationResult, BuildFilesystemProvider,
+    BuildFilesystemReplayDisposition, BuildFilesystemReplayRecordLimits,
+    BuildFilesystemReturnedPathCompleteness, BuildFilesystemReturnedPathKind, BuildFilesystemRoot,
+    BuildFilesystemScalarOperandValue, BuildObservationClass,
+    capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };
 use omega_compiler::{
@@ -375,7 +376,10 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 71);
+    assert_eq!(
+        checked_observations.schema_version(),
+        BUILD_OBSERVATION_SCHEMA_VERSION
+    );
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -4558,7 +4562,7 @@ fn source_read_link_complete_and_truncated_results_restart_replay() {
     let summary = checked
         .build_observation_summary()
         .expect("filesystem build publishes observation evidence");
-    assert_eq!(summary.schema_version(), 71);
+    assert_eq!(summary.schema_version(), BUILD_OBSERVATION_SCHEMA_VERSION);
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
@@ -5462,7 +5466,7 @@ fn output_sync_operations_replay_in_authored_order() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "synced-output-review")
             .expect("successful Output sync operations should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 71);
+    assert_eq!(summary.schema_version(), BUILD_OBSERVATION_SCHEMA_VERSION);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(
@@ -5535,7 +5539,7 @@ fn output_duplicate_and_immediate_close_replay_exact_lineage() {
         compile_rooted_probe_with_sponsored_output(&project, profile, "duplicated-output-review")
             .expect("successful Output duplicate and immediate close should receipt");
     let summary = checked.build_observation_summary().unwrap();
-    assert_eq!(summary.schema_version(), 71);
+    assert_eq!(summary.schema_version(), BUILD_OBSERVATION_SCHEMA_VERSION);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
     assert_eq!(

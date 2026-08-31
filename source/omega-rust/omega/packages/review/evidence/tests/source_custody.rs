@@ -450,10 +450,12 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
-fn process_authority_classification_requires_exact_toolchain_console() {
-    let Some(target) = host_target_name() else {
-        return;
-    };
+fn process_authority_review_rejects_until_every_toolchain_console_intrinsic_is_closed() {
+    // Package review currently closes one process intrinsic exactly: the
+    // toolchain-owned Linux `Console::exit_process(i32) -> Unit` realization.
+    // Pin the canary to that target so rejection names the remaining unclosed
+    // Console rows rather than varying with the test host.
+    let target = "linux_x86_64";
 
     let canonical = TempPackage::new();
     canonical.write(
@@ -483,51 +485,12 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&canonical.0),
     )
     .expect("canonical console fixture should check");
-    let canonical_review = project_checked_package_review(&canonical_checked)
-        .expect("canonical console review should close");
-    let [authority] = canonical_review.dangerous_authorities() else {
-        panic!("canonical process authority row")
-    };
-    assert_eq!(
-        authority.class(),
-        PackageReviewDangerousAuthorityClass::Process
-    );
-    let PackageReviewNominalOwner::ToolchainSource(source) = authority.service().owner() else {
-        panic!("canonical process authority must retain exact toolchain source")
-    };
-    assert_ne!(source.digest(), [0; 32]);
-    assert_eq!(authority.service().path(), "Console");
-    assert!(canonical_review.dangerous_authority_slack().is_empty());
-    let rows = canonical_review
-        .canonical_rows()
-        .expect("process review rows");
-    let authority_row = rows
-        .iter()
-        .find(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority)
-        .expect("dangerous process authority canonical row");
-    assert_eq!(
-        authority_row.risk(),
-        PackageReviewCanonicalRowRisk::Blocking
-    );
-    let locations = authority_row
-        .source()
-        .authored_locations()
-        .expect("dangerous process authority row must retain authored provenance");
-    assert!(locations.iter().any(|location| {
-        location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
-            && matches!(
-                location.owner(),
-                PackageReviewSourceLocationOwner::Toolchain(_)
-            )
-            && location.relative_path() == "console.omg"
-    }));
-    assert!(locations.iter().any(|location| {
-        location.role() == PackageReviewSourceLocationRole::AuthorityExposure
-            && matches!(
-                location.owner(),
-                PackageReviewSourceLocationOwner::Package(_)
-            )
-            && location.relative_path() == "main.omg"
+    let diagnostics = project_checked_package_review(&canonical_checked)
+        .expect_err("an unclosed compiler-intrinsic child must block package review");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("compiler-intrinsic execution child without a closed package-review identity")
     }));
 
     let lookalike = TempPackage::new();
