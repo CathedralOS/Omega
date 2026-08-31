@@ -1,7 +1,7 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
-    BoundaryScalarArgument, CompletionClaimSource, DirectPortReadU8Realization,
-    LinuxExitGroupI32Realization, ProviderExecutionBinding, TargetStructuralParameter,
+    BoundaryExecutionBinding, BoundaryScalarArgument, CompletionClaimSource,
+    DirectPortReadU8Realization, LinuxExitGroupI32Realization, TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -64,7 +64,7 @@ pub enum AssignedOperation {
         psi_operation: OperationId,
         source_value: ValueId,
         boundary: psi_core::BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        execution: BoundaryExecutionBinding,
         realization: DirectPortReadU8Realization,
         arguments: Vec<StructuralArgument>,
         completion_claim_sources: Vec<CompletionClaimSource>,
@@ -77,7 +77,7 @@ pub enum AssignedOperation {
         psi_operation: OperationId,
         nominal_return_edge: EdgeId,
         boundary: BoundaryMachineId,
-        provider_execution: ProviderExecutionBinding,
+        execution: BoundaryExecutionBinding,
         realization: LinuxExitGroupI32Realization,
         argument: BoundaryScalarArgument,
         completion_claim_sources: Vec<CompletionClaimSource>,

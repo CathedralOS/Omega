@@ -1688,10 +1688,13 @@ relocation, and emitted-byte custody. D39 remains orthogonal: selecting and
 emitting `exit_group` cannot manufacture the source-semantic
 `ExternalTerminate` completion kind.
 
-The current `CompilerIntrinsicSettlementEvidence` adapter violates this split:
-it derives compact coordinates solely from compiler-owned inputs and presents
-them through `ProviderExecutionEvidence`. It is retired rather than ratified or
-extended.
+The former `CompilerIntrinsicSettlementEvidence` adapter violated this split:
+it derived compact coordinates solely from compiler-owned inputs and presented
+them through `ProviderExecutionEvidence`. It is retired. The first replacement
+lane carries Linux `exit_group(i32)` as the structural role
+`CompilerBuiltin(LinuxExitGroupI32)` from consuming-lowerer admission through
+machine, image, and installation custody; the native artifact reports no
+provider execution for that builtin.
 
 ## D42 — Target variation is flat, selected, and independently checked
 

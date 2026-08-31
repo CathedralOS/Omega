@@ -259,10 +259,16 @@ pub(super) fn lower_boundary_call(
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }
+                let omega_target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                    provider_execution,
+                ) = binding.execution
+                else {
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                };
                 operations.push(TargetUnitOperation::NormalizedForeignCall {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
-                    provider_execution: binding.provider_execution,
+                    provider_execution,
                     binding: foreign.clone(),
                     scalar_arguments,
                 });
@@ -411,7 +417,7 @@ pub(super) fn lower_boundary_call(
             operations.push(TargetUnitOperation::BoundarySettlement {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
-                provider_execution: binding.provider_execution,
+                execution: binding.execution,
                 realization,
                 scalar_arguments,
                 arguments: structural_arguments.clone(),

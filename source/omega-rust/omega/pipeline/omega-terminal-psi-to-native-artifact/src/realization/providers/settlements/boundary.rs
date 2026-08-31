@@ -73,7 +73,10 @@ pub(super) fn settle_boundary<'request>(
     Ok((
         AdmittedBoundarySettlement {
             boundary: boundary.id,
-            provider_execution: evidence,
+            execution:
+                omega_abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(
+                    evidence,
+                ),
             realization,
         },
         NativeProviderExecution::from_evidence(evidence),

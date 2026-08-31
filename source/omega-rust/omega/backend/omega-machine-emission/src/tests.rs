@@ -482,14 +482,6 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
     let nominal_return_edge = EdgeId::new(990).unwrap();
     let source_value = psi_core::ValueId::new(990).unwrap();
     let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
-    let provider_execution = ProviderExecutionBinding::from_execution_record(
-        ProviderPlanReportIdentity::new(990).unwrap(),
-        991,
-        992,
-        993,
-        994,
-    )
-    .unwrap();
     let plan_for = |target: NativeTarget, destination| TargetOperationPlan {
         psi: TerminalPsiIdentity {
             vocabulary_marker: VocabularyMarker::CURRENT,
@@ -510,7 +502,9 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
                 psi_operation: settlement_operation,
                 nominal_return_edge,
                 boundary,
-                provider_execution,
+                execution: omega_target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                    omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+                ),
                 realization: LinuxExitGroupI32Realization,
                 argument: BoundaryScalarArgument {
                     source_value,
@@ -649,7 +643,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                     TargetUnitOperation::BoundarySettlement {
                         psi_operation: write_operation,
                         boundary: write_boundary,
-                        provider_execution: provider(980),
+                        execution: provider(980).into(),
                         realization: LinuxWriteLineRealization.into(),
                         scalar_arguments: Vec::new(),
                         arguments: vec![argument.clone()],
@@ -671,7 +665,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                     TargetUnitOperation::BoundarySettlement {
                         psi_operation: exit_operation,
                         boundary: exit_boundary,
-                        provider_execution: provider(990),
+                        execution: provider(990).into(),
                         realization: LinuxExitGroupI32Realization.into(),
                         scalar_arguments: vec![BoundaryScalarArgument {
                             source_value: exit_value,
@@ -2129,7 +2123,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                         TargetUnitOperation::BoundarySettlement {
                             psi_operation: settlement_operation,
                             boundary,
-                            provider_execution,
+                            execution: provider_execution.into(),
                             realization: realization.into(),
                             scalar_arguments: Vec::new(),
                             arguments: settlement_arguments.clone(),
@@ -2195,8 +2189,8 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
     assert_eq!(leaf.boundary_settlements[0].code_offset, 27);
     assert_eq!(leaf.boundary_settlements[0].boundary, boundary);
     assert_eq!(
-        leaf.boundary_settlements[0].provider_execution,
-        provider_execution.into()
+        leaf.boundary_settlements[0].execution,
+        omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(provider_execution.into())
     );
     assert_eq!(leaf.boundary_settlements[0].realization, realization.into());
     assert_eq!(leaf.boundary_settlements[0].arguments, settlement_arguments);

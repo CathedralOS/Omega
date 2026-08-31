@@ -9,6 +9,7 @@
 
 use std::collections::BTreeSet;
 
+pub use omega_image_emission::BoundaryExecutionRecord;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
 
@@ -309,29 +310,27 @@ impl NativeArtifact {
             return Err("native artifact selected provider closure has the reserved zero identity");
         }
 
-        let required_executions = self
-            .image
-            .boundary_settlements()
-            .iter()
-            .map(|installed| {
-                let execution = installed.settlement.provider_execution;
-                module
-                    .boundary_machines
-                    .iter()
-                    .find(|boundary| boundary.id == installed.settlement.boundary)
-                    .map(|boundary| {
-                        (
-                            boundary.identity.clone(),
-                            execution.provider_plan_report_identity,
-                            execution.provider_execution_report_identity,
-                            execution.provider_execution_report_fingerprint,
-                            execution.normalized_root_report_identity,
-                            execution.boundary_contract_report_fingerprint,
-                        )
-                    })
-            })
-            .collect::<Option<BTreeSet<_>>>()
-            .ok_or("native artifact image settlement names an absent boundary requirement")?;
+        let mut required_executions = BTreeSet::new();
+        for installed in self.image.boundary_settlements() {
+            let boundary = module
+                .boundary_machines
+                .iter()
+                .find(|boundary| boundary.id == installed.settlement.boundary)
+                .ok_or("native artifact image settlement names an absent boundary requirement")?;
+            let omega_image_emission::BoundaryExecutionRecord::AdmittedProvider(execution) =
+                installed.settlement.execution
+            else {
+                continue;
+            };
+            required_executions.insert((
+                boundary.identity.clone(),
+                execution.provider_plan_report_identity,
+                execution.provider_execution_report_identity,
+                execution.provider_execution_report_fingerprint,
+                execution.normalized_root_report_identity,
+                execution.boundary_contract_report_fingerprint,
+            ));
+        }
         validate_provider_execution_reports(
             &self.selected_provider_plans,
             &self.provider_executions,

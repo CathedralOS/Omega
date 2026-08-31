@@ -207,7 +207,7 @@ fn emit_function(
             psi_operation,
             source_value,
             boundary,
-            provider_execution,
+            execution,
             realization,
             arguments,
             completion_claim_sources,
@@ -243,9 +243,9 @@ fn emit_function(
                 code_offset: read_byte_count,
                 byte_count: 1,
             });
-            let provider_execution = (*provider_execution).into();
+            let execution = (*execution).into();
             let completion_provider_custody = derive_completion_provider_custody(
-                provider_execution,
+                execution,
                 completion_claim_sources,
                 completion_receipts,
             )
@@ -253,7 +253,7 @@ fn emit_function(
             boundary_settlements.push(BoundarySettlementRecord {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
-                provider_execution,
+                execution,
                 realization: omega_target_operations::BoundaryRealization::DirectPortReadU8(
                     *realization,
                 ),
@@ -307,7 +307,7 @@ fn emit_function(
             psi_operation,
             nominal_return_edge,
             boundary,
-            provider_execution,
+            execution,
             realization,
             argument,
             completion_claim_sources,
@@ -355,9 +355,9 @@ fn emit_function(
                 code_offset: bytes.len(),
                 byte_count: 0,
             });
-            let provider_execution = (*provider_execution).into();
+            let execution = (*execution).into();
             let completion_provider_custody = derive_completion_provider_custody(
-                provider_execution,
+                execution,
                 completion_claim_sources,
                 completion_receipts,
             )
@@ -365,7 +365,7 @@ fn emit_function(
             boundary_settlements.push(BoundarySettlementRecord {
                 psi_operation: *psi_operation,
                 boundary: *boundary,
-                provider_execution,
+                execution,
                 realization: omega_target_operations::BoundaryRealization::LinuxExitGroupI32(
                     *realization,
                 ),

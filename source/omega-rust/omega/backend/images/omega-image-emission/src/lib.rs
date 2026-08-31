@@ -60,6 +60,7 @@ pub use installation::*;
 pub use installed_artifact::{
     InstalledArtifact, InstalledArtifactBindingError, bind_installed_artifact,
 };
+pub use omega_machine_code::BoundaryExecutionRecord;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;
 pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
 

@@ -2124,6 +2124,16 @@ replay lowering path performs that comparison before proof checking. This
 component does not establish ordinary package capability/API evidence or
 authorize a `PackageInstance`.
 
+Compiler-owned target builtins remain disjoint from installed-provider
+authority through the first complete native lane. A demanded Linux
+`exit_group(i32)` proposal rejoins one exact selected intrinsic row and one
+Terminal boundary at the consuming lowerer, is admitted only by the local ELF
+target catalog, and survives machine/image and installation encoding as the
+role-tagged structural record `CompilerBuiltin(LinuxExitGroupI32)`. It creates
+no `ProviderExecutionEvidence`, compact execution coordinates, or provider
+execution report. Installed and foreign realizations retain their actual
+admitted-provider arm.
+
 The closure is heterogeneous and transitive. Every package or other subject
 retains its own obligation-semantics and evidence-schema identity. Checked
 dependency obligations compose upward, while open obligations remain visible

@@ -131,7 +131,7 @@ pub(super) fn assign(
         TargetUnitOperation::BoundarySettlement {
             psi_operation,
             boundary,
-            provider_execution,
+            execution,
             realization,
             scalar_arguments,
             arguments,
@@ -141,7 +141,7 @@ pub(super) fn assign(
         } => AssignedUnitOperation::BoundarySettlement {
             psi_operation: *psi_operation,
             boundary: *boundary,
-            provider_execution: *provider_execution,
+            execution: *execution,
             realization: *realization,
             scalar_arguments: scalar_arguments.clone(),
             arguments: arguments.clone(),

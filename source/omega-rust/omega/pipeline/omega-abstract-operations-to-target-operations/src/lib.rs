@@ -14,7 +14,7 @@ pub use lowering::{
     lower_to_target_operations_with_provider_executions,
     lower_to_target_operations_with_provider_executions_and_installation,
 };
-pub use model::{AdmittedBoundarySettlement, LoweringError};
+pub use model::{AdmittedBoundaryExecution, AdmittedBoundarySettlement, LoweringError};
 pub use validation::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamily,

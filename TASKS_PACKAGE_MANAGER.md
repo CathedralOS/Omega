@@ -75,13 +75,15 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  D41 requires a distinct consuming-lowerer TCB lane for compiler-owned target
-  builtins. Delete `CompilerIntrinsicSettlementEvidence` and its self-issued
-  compact coordinates; they are not package-installation
-  `ProviderExecutionEvidence`. Rejoin the exact Terminal requirement and
-  selected structural intrinsic proposal to the receiving lowerer's target
-  catalog, then bind emission through D32's physical child. Installed and
-  foreign implementations retain their actual execution custody.
+  D41's first consuming-lowerer TCB lane is complete for Linux
+  `exit_group(i32)`: the exact Terminal requirement and selected structural
+  proposal rejoin the local target catalog, propagate as the role-tagged
+  `CompilerBuiltin(LinuxExitGroupI32)` physical record, and mint no provider
+  execution or installation receipt. Installed and foreign implementations
+  retain their disjoint admitted execution custody. Extend the closed builtin
+  sum only with another demanded local target mechanism, and finish D32's
+  occurrence-specific physical-child binding rather than adding pre-lowering
+  fingerprints.
 
   Make the standalone Psi product sufficient for an independent realization
   consumer: selected provider-plan facts, external-binding requirements, and

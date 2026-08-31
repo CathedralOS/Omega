@@ -452,7 +452,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
     };
     let binding = BoundarySettlementBinding {
         boundary,
-        provider_execution,
+        execution: provider_execution.into(),
         realization: realization.into(),
     };
     let lowered = lower_to_target_operations_with_settlements(
@@ -465,7 +465,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
         panic!("Unit body")
     };
     let TargetUnitOperation::BoundarySettlement {
-        provider_execution: actual,
+        execution: actual,
         realization: actual_realization,
         arguments,
         ..
@@ -473,7 +473,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
     else {
         panic!("boundary settlement")
     };
-    assert_eq!(*actual, provider_execution);
+    assert_eq!(*actual, provider_execution.into());
     assert_eq!(*actual_realization, realization.into());
     assert_eq!(
         arguments,
@@ -711,7 +711,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
     };
     let binding = BoundarySettlementBinding {
         boundary,
-        provider_execution,
+        execution: provider_execution.into(),
         realization: ClaimCompletionOnlyRealization.into(),
     };
 
@@ -732,7 +732,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
     {
         let TargetUnitOperation::BoundarySettlement {
             psi_operation,
-            provider_execution: actual_provider,
+            execution: actual_provider,
             realization: BoundaryRealization::ClaimCompletionOnly(_),
             scalar_arguments,
             byte_sequence_arguments,
@@ -744,7 +744,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
             panic!("claim-completion-only settlement")
         };
         assert_eq!(*psi_operation, operation);
-        assert_eq!(*actual_provider, provider_execution);
+        assert_eq!(*actual_provider, provider_execution.into());
         assert!(scalar_arguments.is_empty());
         assert!(byte_sequence_arguments.is_empty());
         assert_eq!(completion_claim_sources, &claim_sources);

@@ -300,7 +300,7 @@ fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsew
     };
     let binding = omega_target_operations::BoundarySettlementBinding {
         boundary,
-        provider_execution,
+        execution: provider_execution.into(),
         realization: omega_target_operations::LinuxExitGroupI32Realization.into(),
     };
 
@@ -504,12 +504,12 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
     let settlements = [
         omega_target_operations::BoundarySettlementBinding {
             boundary: write_boundary,
-            provider_execution: provider(920),
+            execution: provider(920).into(),
             realization: omega_target_operations::LinuxWriteLineRealization.into(),
         },
         omega_target_operations::BoundarySettlementBinding {
             boundary: exit_boundary,
-            provider_execution: provider(930),
+            execution: provider(930).into(),
             realization: omega_target_operations::LinuxExitGroupI32Realization.into(),
         },
     ];

@@ -100,7 +100,7 @@ pub(super) fn lower_special_form(
                 psi_operation: *psi_operation,
                 source_value: boundary_result.value,
                 boundary: *boundary,
-                provider_execution: binding.provider_execution,
+                execution: binding.execution,
                 realization,
                 arguments: structural_arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),

@@ -821,7 +821,7 @@ pub(super) fn emit_unit_body(
             AssignedUnitOperation::BoundarySettlement {
                 psi_operation,
                 boundary,
-                provider_execution,
+                execution,
                 realization,
                 scalar_arguments,
                 arguments,
@@ -830,9 +830,9 @@ pub(super) fn emit_unit_body(
                 completion_receipts,
             } => {
                 operation_site = Some(*psi_operation);
-                let provider_execution = (*provider_execution).into();
+                let execution = (*execution).into();
                 let completion_provider_custody = derive_completion_provider_custody(
-                    provider_execution,
+                    execution,
                     completion_claim_sources,
                     completion_receipts,
                 )
@@ -946,7 +946,7 @@ pub(super) fn emit_unit_body(
                 boundary_settlements.push(BoundarySettlementRecord {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
-                    provider_execution,
+                    execution,
                     realization: *realization,
                     scalar_arguments: scalar_arguments.clone(),
                     arguments: arguments.clone(),

@@ -623,9 +623,16 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_),
         ));
         assert_eq!(
+            settlement.settlement.execution,
+            omega_terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
+                omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+            ),
+            "the consuming lowerer must retain structural builtin custody for {target}",
+        );
+        assert_eq!(
             artifact.provider_executions().len(),
-            1,
-            "the exact selected Console exit row supplies one provider execution for {target}",
+            0,
+            "compiler builtins must not mint provider execution evidence for {target}",
         );
     }
 }
