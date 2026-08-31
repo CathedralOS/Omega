@@ -296,6 +296,17 @@ impl<'program> Evaluator<'program> {
         self.run_build_machine_arguments_with_policy(machine_name, arguments, false)
     }
 
+    /// Exact-symbol form of [`Self::run_build_time_machine_arguments`]. The
+    /// selected declaration must exist in this program; spelling is never
+    /// consulted as a fallback.
+    pub(super) fn run_build_time_machine_symbol_arguments(
+        &mut self,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        self.run_build_machine_symbol_arguments_with_policy(machine_symbol, arguments, false)
+    }
+
     /// The shared augmenting-machine runner. `allow_filesystem` selects the
     /// dynamic backstop: `false` = the PURE build-time entry (any host touch
     /// rejects -- decision 12's discipline); `true` = the GRANTED build entry
@@ -311,6 +322,36 @@ impl<'program> Evaluator<'program> {
             .find_machine_by_name(machine_name)
             .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
             .clone();
+        self.run_resolved_build_machine_arguments(machine, arguments, allow_filesystem)
+    }
+
+    /// Exact-symbol form of [`Self::run_build_machine_arguments_with_policy`].
+    /// This is the execution seam used by admitted prepared build entries.
+    pub(super) fn run_build_machine_symbol_arguments_with_policy(
+        &mut self,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+        allow_filesystem: bool,
+    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        self.enable_rooted_build_paths_from_arguments(&arguments);
+        let machine = self
+            .find_machine_by_symbol(machine_symbol)
+            .ok_or_else(|| {
+                Halt::Trap(format!(
+                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+                ))
+            })?
+            .clone();
+        self.run_resolved_build_machine_arguments(machine, arguments, allow_filesystem)
+    }
+
+    fn run_resolved_build_machine_arguments(
+        &mut self,
+        machine: Machine,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+        allow_filesystem: bool,
+    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        let machine_name = machine.name.as_str();
         let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
             Halt::Trap(format!(
                 "machine `{machine_name}` has no states to evaluate"

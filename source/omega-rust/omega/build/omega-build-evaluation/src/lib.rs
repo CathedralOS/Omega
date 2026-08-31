@@ -3452,6 +3452,11 @@ pub fn compute_build_config(
         ))]);
     }
     let machine_name = machine.name.as_str();
+    let machine_entry = prepared.entry(machine.symbol).map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "could not bind the selected build machine to its prepared program: {reason}"
+        ))]
+    })?;
     let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
     let target_vocabulary = target_build_vocabulary(typed, selected_target_profile)?;
     if let Some(target_vocabulary) = target_vocabulary {
@@ -3649,17 +3654,17 @@ pub fn compute_build_config(
     let initial_arguments = vec![zero_build];
     let measured = match evaluation_sponsor {
         Some(sponsor) => {
-            psi_build_time_evaluation::evaluate_build_machine_arguments_measured_with_sponsor(
+            psi_build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
                 &prepared,
-                machine_name,
+                &machine_entry,
                 initial_arguments.clone(),
                 execution_mode,
                 sponsor,
             )
         }
-        None => psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
+        None => psi_build_time_evaluation::evaluate_build_machine_entry_arguments_measured(
             &prepared,
-            machine_name,
+            &machine_entry,
             initial_arguments.clone(),
             execution_mode,
         ),
@@ -3917,17 +3922,17 @@ pub fn compute_build_config(
         };
         let replayed = match evaluation_sponsor {
             Some(sponsor) => {
-                psi_build_time_evaluation::evaluate_build_machine_arguments_measured_with_sponsor(
+                psi_build_time_evaluation::evaluate_build_machine_entry_arguments_measured_with_sponsor(
                     &prepared,
-                    machine_name,
+                    &machine_entry,
                     initial_arguments,
                     replay_mode,
                     sponsor,
                 )
             }
-            None => psi_build_time_evaluation::evaluate_build_machine_arguments_measured(
+            None => psi_build_time_evaluation::evaluate_build_machine_entry_arguments_measured(
                 &prepared,
-                machine_name,
+                &machine_entry,
                 initial_arguments,
                 replay_mode,
             ),
