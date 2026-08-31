@@ -1529,6 +1529,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
             contract_service_reach: contract_reach,
             service_reach: reach,
         }],
+        composed_machines: Vec::new(),
         machines: vec![
             CheckedUnitEffectMachinePlan {
                 machine: root,

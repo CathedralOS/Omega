@@ -59,11 +59,18 @@ decision. Only true language-semantic questions belong in
    omitted. The smaller dispatch-order regression is repaired: checked-to-
    Terminal lowering now returns the exact selected plan family as typed route
    data, and static-requirement evidence only influences closure after the
-   attached-Unit fallback is genuinely selected. Next add the first composed
-   per-state Unit slice: an acyclic conditional root over
-   effectful boundary-call-and-return leaves, with atomic closure pruning and
-   focused typed-to-checked and checked-to-Terminal tests. This is engineering,
-   not an owner language decision. A smaller recurring custody class leaves
+   attached-Unit fallback is genuinely selected. The first composed per-state
+   Unit slice is now end-to-end: one Boolean conditional root selects two
+   scalar-only boundary-call-and-Unit-return leaves, the checked carrier is
+   pruned atomically, the exact boundary/service/contract identities are
+   rejoined during lowering, Terminal verification and codec replay pass, and
+   deleting the checked boundary fails closed. The new lowering route has a
+   23-line coordinating entrance over named `admission`, `catalogs`, and
+   `emission` leaves rather than another monolithic producer. Next widen this
+   carrier one explicit capability at a time: shared structural arguments and
+   claims first, then internal Unit-call leaves and larger acyclic graphs. This
+   is engineering, not an owner language decision. A smaller recurring custody
+   class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in layering, the legacy
    `Pair` layout fixture, one generic erased-record instance, nominal-affine

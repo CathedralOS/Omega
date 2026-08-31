@@ -105,6 +105,70 @@ fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirem
 }
 
 #[test]
+fn composes_conditional_unit_control_with_exact_boundary_call_leaves() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root {}
+        machine Root::enter(flag: bool) {
+            transition flag { true -> yes() _ -> no() }
+            state yes() { Host::exit(1); }
+            state no() { Host::exit(2); }
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let machine = plans
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("three-state Unit control and boundary effects compose atomically");
+    assert!(plans.for_machine(machine.machine).is_none());
+    let [entry, when_true, when_false] = machine.states.as_slice() else {
+        panic!("composed Unit plan retains exactly three states")
+    };
+    assert!(entry.operations.is_empty());
+    assert!(matches!(
+        entry.terminator,
+        psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
+    ));
+    for leaf in [when_true, when_false] {
+        assert!(matches!(
+            leaf.operations.as_slice(),
+            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+        ));
+        assert!(matches!(
+            leaf.terminator,
+            psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::ReturnUnit { .. }
+        ));
+    }
+}
+
+#[test]
+fn rejects_the_whole_composed_control_plan_when_one_leaf_is_unsupported() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Helper {}
+        machine Helper::touch() {}
+        data Root {}
+        machine Root::enter(flag: bool) {
+            transition flag { true -> yes() _ -> no() }
+            state yes() { Host::exit(1); }
+            state no() { Helper::touch(); }
+        }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "enter"))
+            .is_none(),
+        "one unsupported leaf must remove the composed plan atomically"
+    );
+}
+
+#[test]
 fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
     for source in [
         r#"

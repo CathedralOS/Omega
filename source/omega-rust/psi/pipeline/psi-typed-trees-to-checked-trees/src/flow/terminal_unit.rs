@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
     CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
@@ -49,6 +50,7 @@ use psi_typed_trees::{
 
 mod calls;
 mod cleanup;
+mod composed_control;
 pub(crate) mod control;
 pub(crate) mod returns;
 mod selected_operator;
@@ -57,6 +59,7 @@ pub(super) mod types;
 
 use calls::*;
 use cleanup::*;
+use composed_control::*;
 use control::*;
 use returns::*;
 use selected_operator::*;
@@ -102,6 +105,12 @@ pub(crate) fn build_checked_unit_effect_plans(
             )
         })
         .collect::<Vec<_>>();
+    let mut composed_machines = build_checked_composed_unit_control_machines(
+        program,
+        facts,
+        &mut shapes,
+        &boundary_machines,
+    );
 
     loop {
         let checked_symbols = candidates
@@ -133,6 +142,17 @@ pub(crate) fn build_checked_unit_effect_plans(
             break;
         }
     }
+    composed_machines.retain(|plan| {
+        plan.states
+            .iter()
+            .flat_map(|state| &state.operations)
+            .all(|operation| match operation {
+                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
+                    boundary_symbols.contains(target_machine)
+                }
+                _ => false,
+            })
+    });
     let retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
@@ -164,6 +184,14 @@ pub(crate) fn build_checked_unit_effect_plans(
                         .map(|element| element.root_type_identity.as_str()),
                 )
         }))
+        .chain(composed_machines.iter().flat_map(|plan| {
+            std::iter::once(plan.attachment_type_identity.as_str()).chain(
+                plan.states
+                    .iter()
+                    .flat_map(|state| &state.structural_parameters)
+                    .map(|parameter| parameter.type_identity.as_str()),
+            )
+        }))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained_type_identities);
 
@@ -175,6 +203,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         },
         boundary_machines,
         machines: candidates,
+        composed_machines,
     }
 }
 

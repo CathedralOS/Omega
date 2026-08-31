@@ -4,7 +4,7 @@ use psi_checked_trees::{
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
 };
 
-use crate::attached_unit::lower_attached_unit_closure;
+use crate::attached_unit::{lower_attached_unit_closure, lower_composed_unit_control_machine};
 use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
@@ -36,6 +36,7 @@ pub(super) enum SelectedMachineRoute {
     StructuralCallReturn,
     PayloadlessCaseReturn,
     StructuralReturn,
+    ComposedAttachedUnit,
     StructuralUnitControl,
     AttachedUnit,
     ScalarGraph,
@@ -223,6 +224,20 @@ pub(super) fn lower_selected_machine(
         return routed_machine(
             lower_structural_return_machine(checked, plan),
             SelectedMachineRoute::StructuralReturn,
+        );
+    }
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("composed Unit control requires an attached signature");
+        }
+        return routed_machine(
+            lower_composed_unit_control_machine(checked, plan),
+            SelectedMachineRoute::ComposedAttachedUnit,
         );
     }
     if let Some(plan) = checked

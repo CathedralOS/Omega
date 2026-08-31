@@ -996,6 +996,7 @@ pub fn lower_machine(
         | SelectedMachineRoute::StructuralCallReturn
         | SelectedMachineRoute::PayloadlessCaseReturn
         | SelectedMachineRoute::StructuralReturn
+        | SelectedMachineRoute::ComposedAttachedUnit
         | SelectedMachineRoute::StructuralUnitControl
         | SelectedMachineRoute::AttachedUnit => vec![selection.machine],
     };

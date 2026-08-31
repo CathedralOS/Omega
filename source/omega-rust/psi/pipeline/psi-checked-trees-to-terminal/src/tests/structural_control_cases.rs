@@ -2,6 +2,65 @@
 
 use super::*;
 
+#[test]
+fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
+    let checked = checked_source(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::enter(flag: bool) {
+                transition flag { true -> yes() _ -> no() }
+                state yes() { Host::exit(1); }
+                state no() { Host::exit(2); }
+            }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::enter")
+        .expect("checked control and boundary effects lower atomically");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("composed route emits one machine")
+    };
+    assert_eq!(machine.blocks.len(), 3);
+    assert!(matches!(
+        machine.blocks[0].terminator,
+        Terminator::Conditional { .. }
+    ));
+    for leaf in &machine.blocks[1..] {
+        assert_eq!(
+            leaf.operations
+                .iter()
+                .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+                .count(),
+            1
+        );
+        assert!(matches!(leaf.terminator, Terminator::ReturnUnit { .. }));
+    }
+    assert_eq!(lowered.semantic_module.boundary_machines.len(), 1);
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("composed Unit module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+
+    let mut without_boundary = checked;
+    without_boundary
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .clear();
+    assert!(matches!(
+        lower_machine(&without_boundary, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
 fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
     let root = SymbolHandle::from_arena_index(1);
     let entry = SymbolHandle::from_arena_index(11);
