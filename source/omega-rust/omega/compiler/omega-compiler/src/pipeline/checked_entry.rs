@@ -35,9 +35,7 @@ pub struct CheckedCompilation {
         Vec<omega_representation_planning::OpaqueRepresentationSelection>,
     boundary_calling_plan_realizations:
         Vec<omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
-    optimization_selections: omega_optimization_core::OptimizationSelections,
-    optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
-    optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
+    optimization: super::optimization::checked_handoff::CheckedOptimizationHandoff,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     selected_provider_grants: Vec<omega_trust_model::ResolvedAuthoredSelectedProviderGrant>,
     provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
@@ -73,9 +71,7 @@ impl PartialEq for CheckedCompilation {
             && self.selected_build_machine_identity == other.selected_build_machine_identity
             && self.opaque_representation_selections == other.opaque_representation_selections
             && self.boundary_calling_plan_realizations == other.boundary_calling_plan_realizations
-            && self.optimization_selections == other.optimization_selections
-            && self.optimization_selection_identity == other.optimization_selection_identity
-            && self.optimization_report == other.optimization_report
+            && self.optimization == other.optimization
             && self.selected_provider_plans == other.selected_provider_plans
             && self.selected_provider_grants == other.selected_provider_grants
             && self.provider_plans == other.provider_plans
@@ -262,7 +258,7 @@ impl CheckedCompilation {
     pub const fn optimization_selections(
         &self,
     ) -> &omega_optimization_core::OptimizationSelections {
-        &self.optimization_selections
+        self.optimization.selections()
     }
 
     /// Domain-separated identity of the exact canonical selected set. This is
@@ -271,7 +267,7 @@ impl CheckedCompilation {
     pub const fn optimization_selection_identity(
         &self,
     ) -> omega_optimization_core::OptimizationSelectionIdentity {
-        self.optimization_selection_identity
+        self.optimization.selection_identity()
     }
 
     /// Auxiliary report projection requested by the authoritative root build.
@@ -279,7 +275,7 @@ impl CheckedCompilation {
     pub const fn optimization_report_request(
         &self,
     ) -> omega_optimization_pipeline::OptimizationReportRequest {
-        self.optimization_report
+        self.optimization.report()
     }
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
@@ -848,8 +844,10 @@ fn compile_to_checked_inner_with_replay(
         )?;
     let opaque_representation_selections = build_config.opaque_representation_selections.clone();
     let subsystem = build_config.subsystem;
-    let optimization_selections = build_config.optimizations.clone();
-    let optimization_selection_identity = optimization_selections.identity();
+    let optimization = super::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
+        build_config.optimizations.clone(),
+        optimization_report,
+    );
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
@@ -1002,9 +1000,7 @@ fn compile_to_checked_inner_with_replay(
         selected_build_machine_identity,
         opaque_representation_selections,
         boundary_calling_plan_realizations,
-        optimization_selections,
-        optimization_selection_identity,
-        optimization_report,
+        optimization,
         selected_provider_plans: selected_execution_settlement.selected_provider_plan_facts,
         selected_provider_grants: selected_execution_settlement.selected_provider_grants,
         provider_plans,

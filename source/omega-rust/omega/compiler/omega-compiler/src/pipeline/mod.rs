@@ -5,6 +5,7 @@ pub(crate) use omega_provider_planning::calling_policy_plans;
 pub(crate) mod checked_entry;
 pub(crate) use omega_provider_planning::component_progress;
 pub mod frontend;
+mod optimization;
 #[path = "package/declaration_admission.rs"]
 mod package_declaration_admission;
 mod phase_transitions;

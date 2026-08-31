@@ -2,6 +2,24 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "optimized semantic program entry",
+        paths: &[
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry/mod.rs",
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry/model.rs",
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry/validation.rs",
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry/construction.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "optimized semantic program wrapper",
+        paths: &[
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper/mod.rs",
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper/model.rs",
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper/recipe.rs",
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper/validation.rs",
+        ],
+    },
+    SemanticLadder {
         family: "provider-execution settlement",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/mod.rs",

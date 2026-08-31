@@ -14,10 +14,9 @@ decision. Only true language-semantic questions belong in
 
 ## Now
 
-1. [>] Restore the source-navigation contract. The rule-owning optimizer and
-   lowering roots now satisfy the hard entrance/leaf limits with no
-   exceptions. Finish the compiler-hook and optimized-carrier boundary audit
-   below before adding another broad optimization family.
+1. [x] Restore the source-navigation contract across rule owners, lowering,
+   compiler hooks, and optimized carriers. The governed boundary satisfies the
+   hard entrance/leaf limits with no exceptions.
 2. [x] Split the fixed-view-copy artifact architecture from v4 to v5. V5
    carries `SelectedInstructionPlan::structural_unit_functions`; v4 remains
    byte-stable and decodes that field as empty.
@@ -91,8 +90,8 @@ decision. Only true language-semantic questions belong in
 - [x] Split the 798-line independent GVN expression-key leaf into an honest
   internal group for total, proof-certified, and directional compatible-policy
   vocabularies while retaining independent validation mechanics.
-- [x] Audit all 302 governed `lib.rs`/`mod.rs` files and explicitly classify
-  each at its source as
+- [x] Audit every governed `lib.rs`/`mod.rs` file and explicitly classify each
+  at its source as
   crate map, stage group, or executable entrance. Only executable entrances
   need a real join; no executable entrance may be a forwarding wall. The
   exhaustive architecture guard rejects missing, duplicate, or contradictory
@@ -226,20 +225,25 @@ decision. Only true language-semantic questions belong in
 - [x] Replace the temporary 1,000/1,500 migration ceilings with hard 600/800
   production/test limits. All three entrance exceptions were split away; the
   default 100-line executable-entrance limit now has no exceptions.
-- [ ] Extract the compiler-facing optimization vocabulary, selection,
-  checked-entry handoff, rollback, and native-driver hooks into focused
-  optimization subtrees, then add those entrances to the organization guard.
-  Do not govern entire compiler/build crates as a proxy for this boundary.
-- [ ] Add the optimized program-entry carriers and selected/assigned optimizer
-  representations to the governed boundary. First split the existing
-  771-line optimized semantic entry, 744-line wrapper, and 729-line assigned
-  representation entrance beneath the production ratchet.
-- [ ] Resolve the narrow `omega-image-emission/ranked_u32_countdown` exception:
-  either document why only that publication lane is optimizer-owned, remove it
-  from this guard, or govern the coherent native-publication boundary.
-- [ ] Strengthen catalog uniqueness checks against proxy enable/order tables,
-  then replace the duplicated build and filesystem prelude optimization
-  switch schemas with one canonical projection.
+- [x] Extract compiler-facing optimization hooks into focused governed
+  subtrees: build vocabulary/admission/selection, checked selection custody,
+  subtractive rollback, and native realization. Both build-prelude variants
+  now consume one exact case -> counter -> transition mapping; the guard pins
+  its sole ownership without governing entire compiler/build crates.
+- [x] Add optimized program-entry carriers and selected/assigned optimizer
+  representations to the governed boundary. The former 771/744-line semantic
+  entry/wrapper are 32/52-line validation/construction entrances, assigned
+  operations have a 24-line crate map, and selected machine effects have a
+  78-line independent admission/identity entrance.
+- [x] Remove the narrow `omega-image-emission/ranked_u32_countdown` subtree
+  from the optimizer guard. It independently replays one language-level ranked
+  carrier but owns no optimization selection, catalog, proposal, or optimized
+  stage result; native-image publication belongs to its own coherent
+  architecture boundary rather than one special-case optimizer exception.
+- [x] Strengthen catalog uniqueness checks against differently named proxy
+  optimization arrays across Omega, and replace the duplicated build and
+  filesystem prelude switch schemas with one canonical projection whose tests
+  pin every exact case -> counter -> transition -> increment mapping.
 
 ## P1 — Opt-in, catalogs, and compatibility firewall
 

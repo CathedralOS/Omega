@@ -15,6 +15,10 @@ pub(super) use model::{
 
 pub(super) const EXECUTABLE_ENTRANCE_DOMAINS: &[ExecutableEntranceDomain] = &[
     ExecutableEntranceDomain {
+        name: "build and compiler optimization hooks",
+        entrances: executable::compiler::ENTRANCES,
+    },
+    ExecutableEntranceDomain {
         name: "Psi contracts and optimization",
         entrances: executable::psi::ENTRANCES,
     },
@@ -37,6 +41,10 @@ pub(super) const EXECUTABLE_ENTRANCE_DOMAINS: &[ExecutableEntranceDomain] = &[
 ];
 
 pub(super) const SEMANTIC_LADDER_DOMAINS: &[SemanticLadderDomain] = &[
+    SemanticLadderDomain {
+        name: "build and compiler optimization hooks",
+        ladders: ladders::compiler::LADDERS,
+    },
     SemanticLadderDomain {
         name: "Psi contracts and optimization",
         ladders: ladders::psi::LADDERS,

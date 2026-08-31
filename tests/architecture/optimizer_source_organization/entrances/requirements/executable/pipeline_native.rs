@@ -2,12 +2,16 @@ use super::super::RequiredCoordinationEntrance;
 
 pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/mod.rs",
-        coordination_marker: "pub(crate) fn settle_provider_executions",
+        path: "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry/mod.rs",
+        coordination_marker: "pub fn bind_optimized_program_storage_semantic_entry_contract",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/backend/images/omega-image-emission/src/ranked_u32_countdown/mod.rs",
-        coordination_marker: "pub(super) fn replay_ranked_u32_countdown",
+        path: "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper/mod.rs",
+        coordination_marker: "pub fn plan_optimized_program_storage_semantic_wrapper",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/settlements/mod.rs",
+        coordination_marker: "pub(crate) fn settle_provider_executions",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_environment/mod.rs",

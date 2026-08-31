@@ -57,12 +57,16 @@ stage/mod.rs
 Every rung narrows the question. Do not introduce generic `rules.rs`,
 `helpers.rs`, or a large mixed match as the next rung.
 
-## Optimizer-execution entrances
+## Compiler and optimizer-execution entrances
 
-These are the two top-level routes inside `omega-optimization-pipeline`:
+The build/compiler hooks and two top-level optimizer-pipeline routes are:
 
 | Responsibility | Entrance | Next rung |
 |---|---|---|
+| Build-authored exact selection | `omega-build-evaluation/src/optimization/mod.rs` | `vocabulary.rs`, `selection.rs` |
+| Injected exact-name vocabulary | `omega-compiler/src/pipeline/optimization/build_vocabulary/mod.rs` | sole `fragments.rs` mapping used by both prelude variants |
+| Checked selection custody | `omega-compiler/src/pipeline/optimization/checked_handoff/mod.rs` | retained selection, identity, and report request |
+| Native compiler realization | `omega-compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
 | Verified Psi optimization | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` | `request.rs`, exact Psi catalog, independent abstract projection |
 | Native physical continuation | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
 
@@ -70,13 +74,18 @@ The ordinary empty-selection compiler path does not enter the explicit Psi
 optimizer. Physical routing consumes the exact selected phase set and one
 typed optimized target value; it does not invent optimization profiles.
 
-The outer build/compiler hooks are not yet part of the governed boundary.
-Their vocabulary, selection extraction, checked-entry handoff, rollback, and
-native-driver code must first move into focused optimization subtrees; adding
-whole compiler or build crates to the guard would hide rather than repair that
-taxonomy. The optimized program-entry carriers and the selected/assigned
-optimizer representations are the next boundary expansion. These omissions
-remain explicit P0 work in `TASKS_OPTIMIZER.md`.
+The guard governs those focused hook subtrees, not entire build/compiler
+crates. General source assembly, frontend/trust coordination, subsystem
+selection, and public checked-compilation accessors remain with their actual
+owners. The optimized semantic program-entry/wrapper subtrees and complete
+selected/assigned representation crates are governed alongside the lowering
+stages that consume them.
+
+`omega-image-emission/ranked_u32_countdown` is deliberately outside this
+guard. It independently replays a language-level ranked execution carrier but
+owns no optimization selection, catalog, proposal, or optimized stage result.
+Image publication needs one coherent publication architecture boundary; one
+special-case lane is not an optimizer root.
 
 ## Rule-owning stage entrances
 
@@ -183,8 +192,8 @@ accumulate one repository-wide path array.
 
 The live tree and architecture guard establish:
 
-- the governed optimizer-execution and rule-owning entrances above are small
-  and meaningful;
+- the governed compiler-hook, optimizer-execution, and rule-owning entrances
+  above are small and meaningful;
 - post-allocation construction and replay meet only at
   `omega-machine-optimizer/src/planning/post_allocation/mod.rs`, with separate
   semantic subtrees;

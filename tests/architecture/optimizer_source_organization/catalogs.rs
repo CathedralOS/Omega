@@ -1,5 +1,6 @@
 //! Sole rule catalogs, exact rule folders, and legalization inventory.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 
 use crate::Audit;
@@ -58,7 +59,161 @@ const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[RequiredRuleCatalog {
     order_marker: "SCALAR_FAMILIES",
 }];
 
+#[derive(Debug)]
+struct ConstantDeclaration {
+    name: String,
+    header: String,
+    body: String,
+}
+
+fn constant_declarations(contents: &str) -> Vec<ConstantDeclaration> {
+    let mut declarations = Vec::new();
+    let mut lines = contents.lines();
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim_start();
+        let Some(keyword) = ["const ", "static "].into_iter().find(|keyword| {
+            trimmed.find(keyword).is_some_and(|offset| {
+                let prefix = trimmed[..offset].trim();
+                prefix.is_empty() || prefix.starts_with("pub")
+            })
+        }) else {
+            continue;
+        };
+        let offset = trimmed
+            .find(keyword)
+            .expect("selected declaration keyword must remain present");
+        let after_keyword = &trimmed[offset + keyword.len()..];
+        let name = after_keyword
+            .split(|character: char| {
+                character == ':' || character == '=' || character.is_whitespace()
+            })
+            .next()
+            .unwrap_or_default();
+        if name.is_empty() || name == "fn" {
+            continue;
+        }
+
+        let mut body = line.to_string();
+        while !body.trim_end().ends_with(';') {
+            let Some(next) = lines.next() else {
+                break;
+            };
+            body.push('\n');
+            body.push_str(next);
+        }
+        let header = body.split('=').next().unwrap_or_default().to_string();
+        declarations.push(ConstantDeclaration {
+            name: name.to_string(),
+            header,
+            body,
+        });
+    }
+    declarations
+}
+
+fn is_test_source(path: &str) -> bool {
+    path.contains("/tests/") || path.ends_with("/tests.rs") || path.ends_with("_tests.rs")
+}
+
+fn is_optimization_array(declaration: &ConstantDeclaration) -> bool {
+    declaration.header.contains('[') && declaration.body.contains("Optimization::")
+}
+
+fn check_repository_wide_catalog_uniqueness(audit: &mut Audit) {
+    let omega_root = audit.repository.join("source/omega-rust/omega");
+    let mut files = Vec::new();
+    if let Err(error) = collect_rust_files(&omega_root, &mut files) {
+        audit.violations.insert(format!(
+            "failed to inventory repository-wide optimization catalogs: {error}"
+        ));
+        return;
+    }
+
+    let expected_catalogs = RULE_STAGES
+        .iter()
+        .map(|stage| (stage.catalog_marker, stage.catalog))
+        .collect::<BTreeMap<_, _>>();
+    let mut catalog_declarations = BTreeMap::<String, BTreeSet<String>>::new();
+
+    for file in files {
+        let Ok(relative) = repository_relative_path(&audit.repository, &file) else {
+            continue;
+        };
+        if is_test_source(&relative) {
+            continue;
+        }
+        let contents = match fs::read_to_string(&file) {
+            Ok(contents) => contents,
+            Err(error) => {
+                audit
+                    .violations
+                    .insert(format!("cannot read {relative}: {error}"));
+                continue;
+            }
+        };
+
+        for declaration in constant_declarations(&contents) {
+            if expected_catalogs.contains_key(declaration.name.as_str()) {
+                catalog_declarations
+                    .entry(declaration.name.clone())
+                    .or_default()
+                    .insert(relative.clone());
+            }
+
+            if !is_optimization_array(&declaration) {
+                continue;
+            }
+            let is_owning_catalog = expected_catalogs
+                .get(declaration.name.as_str())
+                .is_some_and(|expected_path| *expected_path == relative);
+            if !is_owning_catalog {
+                audit.violations.insert(format!(
+                    "proxy optimization enable/order table `{}` outside an owning catalog: {relative}",
+                    declaration.name
+                ));
+            }
+        }
+    }
+
+    for (marker, expected_path) in expected_catalogs {
+        let observed = catalog_declarations.remove(marker).unwrap_or_default();
+        let expected = BTreeSet::from([expected_path.to_string()]);
+        if observed != expected {
+            audit.violations.insert(format!(
+                "optimization catalog `{marker}` must have one repository-wide declaration in {expected_path}; found {observed:?}"
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_scan_ignores_const_functions_and_finds_proxy_arrays() {
+        let declarations = constant_declarations(
+            "pub const fn optimization(self) -> Optimization { self.optimization }\n\
+             const EXACT_RULE: Optimization = Optimization::ControlFlowCleanup;\n\
+             pub const HIDDEN_ORDER: [Optimization; 1] = [\n\
+                 Optimization::ControlFlowCleanup,\n\
+             ];",
+        );
+        assert_eq!(
+            declarations
+                .iter()
+                .map(|declaration| declaration.name.as_str())
+                .collect::<Vec<_>>(),
+            ["EXACT_RULE", "HIDDEN_ORDER"]
+        );
+        assert!(!is_optimization_array(&declarations[0]));
+        assert!(is_optimization_array(&declarations[1]));
+    }
+}
+
 pub(crate) fn check(audit: &mut Audit) {
+    check_repository_wide_catalog_uniqueness(audit);
+
     let repository = &audit.repository;
     let violations = &mut audit.violations;
 

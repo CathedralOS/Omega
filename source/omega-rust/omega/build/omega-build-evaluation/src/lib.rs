@@ -34,6 +34,7 @@
 //!   selects the exact source entry and performs no name-based discovery.
 
 mod observation_identity;
+mod optimization;
 mod replay_record;
 
 pub use observation_identity::BuildObservationIdentity;
@@ -59,7 +60,7 @@ use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use std::path::{Path, PathBuf};
 
-use omega_optimization_core::{Optimization, OptimizationSelections};
+use omega_optimization_core::OptimizationSelections;
 use omega_provider_planning::{ProviderSelection, ProviderSelectionIdentity};
 use omega_representation_planning::OpaqueRepresentationSelection;
 
@@ -2107,12 +2108,6 @@ fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OptimizationBuildVocabulary {
-    LegacyWithoutField,
-    Canonical,
-}
-
 fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,
     symbol: SymbolHandle,
@@ -2130,78 +2125,6 @@ fn is_exact_toolchain_build_prelude_data(
                         && file.path == Path::new("<build-prelude>")
                 })
     })
-}
-
-/// Classify the selected Build declaration before constructing its interpreter
-/// argument. BuildTimeValue intentionally carries no nominal symbol, so doing
-/// this after evaluation would let an authored lookalike cross the boundary.
-fn optimization_build_vocabulary(
-    typed: &TypedTrees,
-) -> Result<OptimizationBuildVocabulary, Vec<Diagnostic>> {
-    let named_builds = typed
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name.as_str() == "Build")
-        .collect::<Vec<_>>();
-    let toolchain_builds = named_builds
-        .iter()
-        .copied()
-        .filter(|definition| {
-            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
-        })
-        .collect::<Vec<_>>();
-    let builds = if toolchain_builds.is_empty() {
-        &named_builds
-    } else {
-        &toolchain_builds
-    };
-    let [build] = builds.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "build-machine evaluation requires exactly one `Build` data declaration, found {}",
-            builds.len()
-        ))]);
-    };
-    let optimization_fields = typed
-        .data_members(build)
-        .iter()
-        .filter_map(|member| match member {
-            psi_typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == "optimizations" =>
-            {
-                Some(field)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [] = optimization_fields.as_slice() else {
-        let [field] = optimization_fields.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "Build declares more than one `optimizations` field",
-            )]);
-        };
-        let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
-            .type_reference_table
-            .type_reference(field.type_reference)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
-                typed.display_type_reference_with_constraints(field.type_reference)
-            ))]);
-        };
-        if !is_exact_toolchain_build_prelude_data(typed, *symbol, "Optimizations") {
-            return Err(vec![Diagnostic::error(format!(
-                "Build.optimizations must have the exact toolchain `Optimizations` type, got `{}`",
-                typed.display_type_reference_with_constraints(field.type_reference)
-            ))]);
-        }
-        if !is_exact_toolchain_build_prelude_data(typed, build.symbol, "Build") {
-            return Err(vec![Diagnostic::error(
-                "Build.optimizations is reserved to the toolchain-provided Build vocabulary",
-            )]);
-        }
-        return Ok(OptimizationBuildVocabulary::Canonical);
-    };
-    Ok(OptimizationBuildVocabulary::LegacyWithoutField)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3442,7 +3365,7 @@ pub fn compute_build_config(
         ))]);
     }
     let machine_name = machine.name.as_str();
-    let optimization_vocabulary = optimization_build_vocabulary(typed)?;
+    let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
     let target_vocabulary = target_build_vocabulary(typed, selected_target_profile)?;
     if let Some(target_vocabulary) = target_vocabulary {
         validate_immutable_build_target(typed, target_vocabulary)?;
@@ -3561,21 +3484,8 @@ pub fn compute_build_config(
         ),
         ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
     ]);
-    if optimization_vocabulary == OptimizationBuildVocabulary::Canonical {
-        build_fields.push((
-            "optimizations".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "Optimizations".to_owned(),
-                fields: std::iter::once(("human_report".to_owned(), BuildTimeValue::Int(0)))
-                    .chain(Optimization::ALL.into_iter().map(|optimization| {
-                        (
-                            optimization.build_counter_field().to_owned(),
-                            BuildTimeValue::Int(0),
-                        )
-                    }))
-                    .collect(),
-            },
-        ));
+    if let Some(field) = optimization_admission.zero_build_field() {
+        build_fields.push(field);
     }
     if has_exact_toolchain_build_facet(typed, "BuildLog") {
         build_fields.push((
@@ -4351,7 +4261,7 @@ pub fn compute_build_config(
 
     let (mut config, optimization_report) = extract_build_config(
         &augmented,
-        optimization_vocabulary,
+        optimization_admission,
         selected_target_profile,
         target_vocabulary.is_some(),
     )
@@ -4960,7 +4870,7 @@ fn authored_root_grant_selection(
 
 fn extract_build_config(
     build: &BuildTimeValue,
-    optimization_vocabulary: OptimizationBuildVocabulary,
+    optimization_admission: optimization::BuildOptimizationAdmission,
     selected_target_profile: Option<omega_target::TargetProfile>,
     has_target_vocabulary: bool,
 ) -> Result<
@@ -5042,78 +4952,7 @@ fn extract_build_config(
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     };
 
-    let (optimizations, optimization_report) = match optimization_vocabulary {
-        OptimizationBuildVocabulary::LegacyWithoutField => (
-            OptimizationSelections::default(),
-            omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
-        ),
-        OptimizationBuildVocabulary::Canonical => {
-            let BuildTimeValue::Struct { type_name, fields } = field("optimizations")? else {
-                return Err("Build.optimizations is not an Optimizations value".to_owned());
-            };
-            if type_name != "Optimizations" {
-                return Err(format!(
-                    "Build.optimizations has nominal type `{type_name}` instead of `Optimizations`"
-                ));
-            }
-            let Some((_, report_count)) = fields.iter().find(|(field, _)| field == "human_report")
-            else {
-                return Err(
-                    "Build.optimizations carries no `human_report` request counter".to_owned(),
-                );
-            };
-            let BuildTimeValue::Int(report_count) = report_count else {
-                return Err(format!(
-                    "Build.optimizations.human_report is not an integer request counter: {report_count:?}"
-                ));
-            };
-            let optimization_report = match *report_count {
-                0 => omega_optimization_pipeline::OptimizationReportRequest::Suppressed,
-                1 => omega_optimization_pipeline::OptimizationReportRequest::EmitHumanText,
-                count if count > 1 => {
-                    return Err("optimization human report is requested more than once".to_owned());
-                }
-                count => {
-                    return Err(format!(
-                        "Build.optimizations.human_report has invalid negative request count {count}"
-                    ));
-                }
-            };
-            let mut selected = Vec::new();
-            for optimization in Optimization::ALL {
-                let name = optimization.build_counter_field();
-                let Some((_, value)) = fields.iter().find(|(field, _)| field == name) else {
-                    return Err(format!(
-                        "Build.optimizations carries no `{name}` selection counter"
-                    ));
-                };
-                let BuildTimeValue::Int(count) = value else {
-                    return Err(format!(
-                        "Build.optimizations.{name} is not an integer selection counter: {value:?}"
-                    ));
-                };
-                match *count {
-                    0 => {}
-                    1 => selected.push(optimization),
-                    count if count > 1 => {
-                        return Err(format!(
-                            "optimization `{}` is enabled more than once",
-                            optimization.build_case_name()
-                        ));
-                    }
-                    count => {
-                        return Err(format!(
-                            "Build.optimizations.{name} has invalid negative selection count {count}"
-                        ));
-                    }
-                }
-            }
-            (
-                OptimizationSelections::new(selected).map_err(|error| error.to_string())?,
-                optimization_report,
-            )
-        }
-    };
+    let (optimizations, optimization_report) = optimization_admission.extract(build)?;
 
     Ok((
         BuildConfig {

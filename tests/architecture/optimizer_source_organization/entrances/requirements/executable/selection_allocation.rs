@@ -2,6 +2,10 @@ use super::super::RequiredCoordinationEntrance;
 
 pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/mod.rs",
+        coordination_marker: "pub fn validate_machine_effect_catalog",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/live_ranges/validate/replay/mod.rs",
         coordination_marker: "pub(super) fn replay_live_ranges",
     },

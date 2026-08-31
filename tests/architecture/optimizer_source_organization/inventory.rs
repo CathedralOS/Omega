@@ -10,11 +10,17 @@ use crate::Audit;
 /// Keep these roots explicit: silently losing a moved or renamed tree must
 /// fail this test rather than shrinking its jurisdiction.
 const GOVERNED_ROOTS: &[&str] = &[
-    "source/omega-rust/omega/backend/images/omega-image-emission/src/ranked_u32_countdown",
+    "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_entry",
+    "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/optimized_semantic_wrapper",
+    "source/omega-rust/omega/build/omega-build-evaluation/src/optimization",
+    "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization",
+    "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/optimization",
     "source/omega-rust/omega/pipeline/optimization",
     "source/omega-rust/omega/representations/omega-legalized-operations",
+    "source/omega-rust/omega/representations/omega-assigned-target-operations",
     "source/omega-rust/omega/representations/omega-optimization-core",
     "source/omega-rust/omega/representations/omega-optimization-unit",
+    "source/omega-rust/omega/representations/omega-selected-instructions",
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations",
     "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations",
