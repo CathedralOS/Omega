@@ -678,3 +678,253 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         "changing a nested concrete type must change package-review identity",
     );
 }
+
+#[test]
+fn review_projects_closed_generic_conformance_arguments_in_contract_calls() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |selected: &str| {
+        format!(
+            r#"pub trait Ranked {{}}
+pub data Card {{}}
+pub FieldOrder<Element>: Element satisfies Ranked {{}}
+pub AlternateOrder<Element>: Element satisfies Ranked {{}}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 {{ 0 }}
+boundary machine trusted() -> u64
+ensures result == tag<Card, {selected}<Card>>();
+"#,
+        )
+    };
+    original.write("main.omg", &source("FieldOrder"));
+    changed.write("main.omg", &source("AlternateOrder"));
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    original.write("build.omg", build);
+    changed.write("build.omg", build);
+    let project = |package: &TempPackage| {
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("closed generic conformance contract argument should check");
+        assert_eq!(
+            checked
+                .facts
+                .proof
+                .contract_expression_static_conformance_applications
+                .len(),
+            1,
+            "the exact proof-expression occurrence must own one closed application",
+        );
+        project_checked_package_review(&checked)
+            .expect("the closed conformance application has a portable contract row")
+    };
+    let review = project(&original);
+    let changed = project(&changed);
+    let trusted = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted")
+        .expect("trusted boundary callable");
+    let [contract] = trusted.contracts() else {
+        panic!("one trusted contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [
+        PackageReviewContractStaticArgument::Type(card),
+        PackageReviewContractStaticArgument::ConformanceApplication {
+            declaration,
+            arguments,
+            subject,
+            trait_identity,
+            trait_arguments,
+        },
+    ] = static_arguments.as_slice()
+    else {
+        panic!("type and closed-conformance static arguments")
+    };
+    assert!(card.canonical().contains("Card"));
+    assert_eq!(declaration.path(), "FieldOrder");
+    assert_eq!(trait_identity.path(), "Ranked");
+    assert!(trait_arguments.is_empty());
+    assert!(matches!(
+        arguments.as_slice(),
+        [PackageReviewContractStaticArgument::Type(argument)]
+            if argument.canonical().contains("Card")
+    ));
+    assert!(matches!(
+        subject.as_ref(),
+        PackageReviewContractStaticArgument::Type(argument)
+            if argument.canonical().contains("Card")
+    ));
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        changed.canonical_review_bytes().unwrap(),
+        "selecting another closed conformance application must change review identity",
+    );
+}
+
+#[test]
+fn review_rejects_closed_contract_conformance_occurrence_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Ranked {}
+pub data Card {}
+pub FieldOrder<Element>: Element satisfies Ranked {}
+pub AlternateOrder<Element>: Element satisfies Ranked {}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 { 0 }
+boundary machine trusted() -> u64
+ensures result == tag<Card, FieldOrder<Card>>();
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let compile = || {
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("closed generic conformance occurrence fixture should check")
+    };
+
+    let mut missing = compile();
+    missing
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications
+        .clear();
+    let diagnostics = project_checked_package_review(&missing)
+        .expect_err("a missing checked occurrence row must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("with 0 exact checked occurrence rows; expected one")
+    }));
+
+    let mut duplicate = compile();
+    let copied = duplicate
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .clone();
+    duplicate
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications
+        .push(copied);
+    let diagnostics = project_checked_package_review(&duplicate)
+        .expect_err("a duplicate checked occurrence row must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("with 2 exact checked occurrence rows; expected one")
+    }));
+
+    let mut redirected = compile();
+    redirected
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .static_argument_position = 0;
+    let diagnostics = project_checked_package_review(&redirected)
+        .expect_err("a checked occurrence row redirected to another static slot must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("with 0 exact checked occurrence rows; expected one")
+    }));
+
+    let mut substituted = compile();
+    substituted
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .application
+        .declaration = psi_symbols::SymbolHandle::invalid();
+    let diagnostics = project_checked_package_review(&substituted)
+        .expect_err("a substituted closed application must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("retained checked occurrence disagrees with the authored application")
+    }));
+
+    let mut selection_drift = compile();
+    let alternate = selection_drift
+        .conformances()
+        .iter()
+        .find(|conformance| {
+            conformance
+                .alias
+                .as_ref()
+                .is_some_and(|alias| alias.as_str() == "AlternateOrder")
+        })
+        .expect("alternate conformance declaration")
+        .symbol;
+    let expression = selection_drift
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .expression;
+    let psi_typed_trees::expression::ExpressionNode::Call(mut call) = selection_drift
+        .expression_table
+        .expression(expression)
+        .clone()
+    else {
+        panic!("checked occurrence rejoins its contract call")
+    };
+    call.machine_arguments[1].symbol = alternate;
+    let closed = psi_typed_trees_to_checked_trees::close_conformance_application(
+        &selection_drift.typed,
+        &call.machine_arguments[1],
+    )
+    .expect("the alternate application also closes");
+    *selection_drift
+        .typed
+        .expression_table
+        .expression_mut(expression) = psi_typed_trees::expression::ExpressionNode::Call(call);
+    selection_drift
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .application = closed;
+    let diagnostics = project_checked_package_review(&selection_drift)
+        .expect_err("coordinated typed and checked drift must not bypass source selection custody");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("do not match their exact authored selections")
+    }));
+}

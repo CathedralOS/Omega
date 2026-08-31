@@ -38,11 +38,12 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - proposition/evidence static arguments, forwarded or symbolic const
-    arguments, and non-data nested static applications whose
-    structural witness is not retained by its owning typed or checked
-    representation. Direct named public integer and Boolean const values are
-    complete; this remaining symbolic lane does not include them;
+  - canonical structured const values and closed conformance static
+    applications beyond the completed lifetime-free, type-only cohort, but
+    only where successful checking retains an exact structural value and call-
+    occurrence witness. Direct named public integer and Boolean const values,
+    forwarded caller const binders, and the first exact closed-conformance
+    occurrence lane are complete;
   - generic or lifetime-parameterized external/top-level realizations,
     unsupported compiler-intrinsic execution identities, and the remaining
     provider-demand and installation-issuance joins;
@@ -61,6 +62,11 @@ stop the item on one precise owner question before adding machinery.
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
   nominal Chi stage merely to collect private compiler state.
+  Do not create package-review work for forms the language rejects: proposition
+  parameters are trait-only, proof-static evidence cannot eliminate into an
+  executable call, and nested machine applications fail checking. A future
+  language change may add a task only with its own semantic owner and concrete
+  customer.
 
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Extend the closed exact replay lanes for
   candidates that require receipted builds. The implemented grammar, versions,

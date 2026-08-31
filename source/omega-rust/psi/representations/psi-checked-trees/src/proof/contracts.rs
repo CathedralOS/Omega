@@ -200,6 +200,19 @@ pub struct ContractExpressionEvidenceCallFact {
     pub evidence_arguments: Vec<ContractExpressionEvidenceArgumentFact>,
 }
 
+/// One exact closed conformance application supplied in a static slot of a
+/// call occurrence nested in a checked proof fact. The expression and ordinal
+/// are private occurrence joins; downstream portable evidence must replace
+/// every handle and symbol in the closed application with semantic identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContractExpressionStaticConformanceApplicationFact {
+    pub owner: ContractProofFactOwner,
+    pub fact: Handle<psi_typed_trees::domain::ProofFact>,
+    pub expression: ExpressionHandle,
+    pub static_argument_position: usize,
+    pub application: psi_typed_trees::typed_trees::ClosedConformanceApplication,
+}
+
 /// The exact checked source of one erased outgoing evidence assignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvidenceAssignmentSource {

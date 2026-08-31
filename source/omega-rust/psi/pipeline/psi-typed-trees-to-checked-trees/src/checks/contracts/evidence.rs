@@ -13,6 +13,7 @@ pub(super) fn bind_contract_expression_evidence_arguments(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut calls = Vec::new();
+    let mut static_conformance_applications = Vec::new();
     let mut owners = Vec::new();
     for (_, contract) in facts.proof.contract_facts.iter() {
         if owners
@@ -37,6 +38,26 @@ pub(super) fn bind_contract_expression_evidence_arguments(
             let psi_typed_trees::expression::ExpressionNode::Call(call) = node else {
                 continue;
             };
+            for (static_argument_position, argument) in call.machine_arguments.iter().enumerate() {
+                if program.symbols.get(argument.symbol).kind != psi_symbols::SymbolKind::Conformance
+                {
+                    continue;
+                }
+                match crate::conformance_applications::close_conformance_application(
+                    program, argument,
+                ) {
+                    Ok(application) => static_conformance_applications.push(
+                        psi_checked_trees::ContractExpressionStaticConformanceApplicationFact {
+                            owner,
+                            fact,
+                            expression,
+                            static_argument_position,
+                            application,
+                        },
+                    ),
+                    Err(diagnostic) => diagnostics.push(diagnostic),
+                }
+            }
             if call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
                 continue;
             }
@@ -138,6 +159,9 @@ pub(super) fn bind_contract_expression_evidence_arguments(
     }
 
     facts.proof.contract_expression_evidence_calls = calls;
+    facts
+        .proof
+        .contract_expression_static_conformance_applications = static_conformance_applications;
 }
 
 fn proof_fact_expression_roots(

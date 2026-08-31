@@ -2552,6 +2552,22 @@ declarations, missing or malformed canonical values, carrier disagreement,
 other value families, and selection drift reject. Source names and diagnostic
 displays are not value identity, and recovery remains v14.
 
+Package review v101/canonical row v59 admits the first checked non-data nested
+static application in a contract-expression call: one lifetime-free,
+type-only, public closed conformance supplied to an explicit conformance-binder
+slot. The checked proof facts retain the exact owner, fact, call occurrence,
+static ordinal, and complete `ClosedConformanceApplication`. Review requires
+one matching occurrence row, recloses the authored application, compares the
+complete checked structure, rejoins the exact public-interface conformance
+selection retained from the authored call, and projects its package-qualified
+declaration, ordered type arguments, instantiated subject, and target trait
+application. Missing, duplicate, redirected, substituted, or source-selection
+custody rejects. The compact
+report fingerprint and commitment remain local joins, not portable package
+identity. Evidence projections into executable calls, proposition parameters
+on machines, and nested machine applications remain rejected by the language;
+review does not invent rows for them. Canonical-row recovery remains v15.
+
 Package review v95/canonical row v53 extends the opaque external executable-
 supply key with a third exact requirement tag for public top-level boundary
 requirements. A supported leaf is bodyless, nongeneric, lifetime-free, and

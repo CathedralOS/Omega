@@ -316,6 +316,20 @@ pub(crate) fn encode_contract_static_argument(
             encoder.byte(4);
             encode_nominal(encoder, identity)?;
         }
+        PackageReviewContractStaticArgument::ConformanceApplication {
+            declaration,
+            arguments,
+            subject,
+            trait_identity,
+            trait_arguments,
+        } => {
+            encoder.byte(8);
+            encode_nominal(encoder, declaration)?;
+            encoder.sequence(arguments, encode_contract_static_argument)?;
+            encode_contract_static_argument(encoder, subject)?;
+            encode_nominal(encoder, trait_identity)?;
+            encoder.sequence(trait_arguments, encode_type_identity)?;
+        }
     }
     Ok(())
 }

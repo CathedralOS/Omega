@@ -7,6 +7,7 @@ use super::super::calls::{
 use super::super::evidence::project_contract_call_evidence_arguments;
 use super::super::static_arguments::{
     contract_call_static_parameter_kinds, project_contract_static_argument,
+    require_exact_conformance_static_argument_selections,
     require_exact_named_const_static_argument_selections,
 };
 use crate::capture::contracts::facts::ContractProjectionContext;
@@ -111,6 +112,12 @@ pub(super) fn project_call_expression(
         expression,
         &call.machine_arguments,
     )?;
+    require_exact_conformance_static_argument_selections(
+        compilation,
+        context,
+        expression,
+        &call.machine_arguments,
+    )?;
     // Call-site suspend/block acknowledgement is diagnostic audit metadata,
     // explicitly outside contract identity. Fact-position calls have already
     // been checked as total and pure.
@@ -123,12 +130,16 @@ pub(super) fn project_call_expression(
         static_arguments: call
             .machine_arguments
             .iter()
+            .enumerate()
             .zip(static_parameter_kinds)
-            .map(|(argument, parameter_kind)| {
+            .map(|((static_argument_position, argument), parameter_kind)| {
                 project_contract_static_argument(
                     compilation,
                     context,
                     binders,
+                    checked_fact,
+                    expression,
+                    static_argument_position,
                     argument,
                     parameter_kind,
                     0,
