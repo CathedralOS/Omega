@@ -93,12 +93,14 @@ two relays, and one empty target while retaining the same one-call node shape
 and rejecting cycles through its active closure.
 
 The first larger acyclic composed family prefixes that conditional frontier
-with an exact scalar-only entry jump. The checked carrier records the Boolean
-source and target parameter positions; lowering independently reconstructs a
-four-block graph whose entry and dispatch values are distinct. Admission
-rejects changed scalar maps, target states, attachments, contracts, custody,
-or leaf effects rather than silently routing the graph through the three-block
-family.
+with a finite ordered chain of exact scalar-only jumps. Every checked edge
+records Boolean source and target parameter position zero and targets the next
+state in source order. Lowering independently reconstructs one distinct block
+parameter per non-entry control state, allocates root blocks dynamically, and
+places any internal target closure after the complete root graph. One- and
+two-prefix canaries cover boundary and internal-call leaves. Admission rejects
+changed scalar maps, target states, attachments, contracts, custody, or leaf
+effects rather than silently routing the graph through a shorter family.
 
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common

@@ -96,11 +96,14 @@ independent `custody` replay, `catalogs`, `emission`, and `prefixed_control`,
 with parameterless target closure isolated in `internal_calls`. Both nested
 consumer entrances descend through independent `admission` and `emission`
 rungs: `internal_calls` owns target-plan and transitive-closure replay while
-`prefixed_control` owns the larger source graph. The nested
+`prefixed_control` owns finite scalar-prefix chains before one conditional
+frontier. The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
 after independently admitting the scalar prefix rather than copying their
-policy into a second route. Internal-call recursion remains inside its
+policy into a second route. Prefix depth remains a loop inside the existing
+producer leaf and the consumer's `admission`/`emission` pair; it does not create
+depth-named modules or routes. Internal-call recursion remains inside its
 `admission` leaf; adding tested closure depth does not add a depth-named module
 or another orchestration layer.
 Shared state-entry claim construction lives at the honest

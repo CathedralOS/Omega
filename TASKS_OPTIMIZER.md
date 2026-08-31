@@ -114,9 +114,17 @@ decision. Only true language-semantic questions belong in
    resulting four-machine module verifies and survives codec replay. Thus the
    admitted target closure is any finite acyclic chain of those exact nodes,
    not a hard-coded depth. `internal_calls` remains a 6-line taxonomy entrance
-   exposing separate `admission` and `emission` rungs. Next generalize beyond
-   one exact control prefix. This is engineering, not an owner language
-   decision. A smaller recurring custody class leaves
+   exposing separate `admission` and `emission` rungs. Scalar control prefixes
+   are no longer depth-coded either: the producer admits a finite ordered chain
+   of exact Boolean position-0 pass-through jumps before the conditional
+   frontier, and lowering independently reconstructs distinct block parameters
+   and dense identities for the whole chain. A two-prefix canary covers both
+   boundary leaves and deduplicated internal-call leaves; corrupting the second
+   edge fails closed, and verifier/codec replay pass. The producer and consumer
+   entrances remain 27 and 29 lines, while their `prefixed_control` leaves are
+   248, 131, and 186 lines. Next admit a second conditional frontier rather
+   than another depth-specific graph. This is engineering, not an owner
+   language decision. A smaller recurring custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine
