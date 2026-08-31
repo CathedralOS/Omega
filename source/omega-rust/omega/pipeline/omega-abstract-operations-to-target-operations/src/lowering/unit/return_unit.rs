@@ -159,7 +159,7 @@ pub(super) fn lower_unit_return(
                                 matches!(
                                     inner.shape,
                                     StructuralTypeShape::FixedArray {
-                                        length: 3 | 4 | 5 | 6 | 7,
+                                        length: 3 | 4 | 5 | 6 | 7 | 8,
                                         ..
                                     }
                                 )

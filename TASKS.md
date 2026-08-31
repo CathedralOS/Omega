@@ -9597,7 +9597,19 @@ reach or trust, and private proof improvements do not change public identity.
   outer layout, 56-byte outer stride, exact offsets, and five fuel units.
   Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup, wrong-
   length/layout/stride/offset, codec, object, image, and installation mutations
-  reject. `[[T; 8]; 2]` and wider forms remain fenced without runtime liveness
+  reject. Other nested shape and path drift remains fenced without runtime
+  liveness state or a cleanup loop.
+
+  The next exact nested successor is now closed. The same carrier admits
+  `[[T; 8]; 2]` with one distinct literal leaf move from each outer element and
+  fourteen live residual leaves in decreasing outer-then-inner order. Checked
+  production through Terminal codec/interpreter replay, Omega lowering,
+  optimization validation, five-target layout and machine emission, object,
+  image, and installation replay retain the authored two-call order, 128-byte
+  outer layout, 64-byte outer stride, exact offsets, and five fuel units.
+  Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup, wrong-
+  length/layout/stride/offset, codec, object, image, and installation mutations
+  reject. `[[T; 9]; 2]` and wider forms remain fenced without runtime liveness
   state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
@@ -9712,7 +9724,7 @@ reach or trust, and private proof improvements do not change public identity.
   reject; `[T; 14]` and wider prefixes remain fail closed without runtime
   liveness state or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 7]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 13]` to deeper canonical fuel/action
   ordinals.
 
