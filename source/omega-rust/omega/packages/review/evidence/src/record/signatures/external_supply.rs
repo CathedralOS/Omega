@@ -21,7 +21,10 @@ pub enum PackageReviewExternalBinding {
 pub enum PackageReviewExternalRequirement {
     Trait(PackageReviewCallableConformance),
     Operator(PackageReviewOperatorCoordinate),
-    TopLevelRequirement(PackageReviewNominalIdentity),
+    TopLevelRequirement {
+        identity: PackageReviewNominalIdentity,
+        signature: PackageReviewExternalCallableSignature,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -50,14 +53,29 @@ impl PackageReviewExternalCallableParameter {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewExternalStaticParameter {
+    Type {
+        properties: PackageReviewDataProperties,
+    },
+}
+
+impl PackageReviewExternalStaticParameter {
+    pub const fn type_properties(&self) -> Option<PackageReviewDataProperties> {
+        match self {
+            Self::Type { properties } => Some(*properties),
+        }
+    }
+}
+
 /// Self-contained callable shape for executable code supplied outside Omega.
-/// The static count currently represents only ordinary type parameters with
-/// default properties; projection rejects richer static telescopes until their
-/// exact structure has a stable carrier here.
+/// The static telescope currently represents ordinary type parameters and
+/// their exact property bounds; projection rejects other static kinds until
+/// their exact structure has a stable carrier here.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewExternalCallableSignature {
     pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameter_count: usize,
+    pub(crate) static_parameters: Vec<PackageReviewExternalStaticParameter>,
     pub(crate) parameters: Vec<PackageReviewExternalCallableParameter>,
     pub(crate) return_type: PackageReviewTypeIdentity,
 }
@@ -67,8 +85,8 @@ impl PackageReviewExternalCallableSignature {
         self.lifetime_parameter_count
     }
 
-    pub const fn type_parameter_count(&self) -> usize {
-        self.type_parameter_count
+    pub fn static_parameters(&self) -> &[PackageReviewExternalStaticParameter] {
+        &self.static_parameters
     }
 
     pub fn parameters(&self) -> &[PackageReviewExternalCallableParameter] {
@@ -105,14 +123,14 @@ impl PackageReviewExternalExecutableSupply {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(conformance) => Some(conformance),
             PackageReviewExternalRequirement::Operator(_)
-            | PackageReviewExternalRequirement::TopLevelRequirement(_) => None,
+            | PackageReviewExternalRequirement::TopLevelRequirement { .. } => None,
         }
     }
 
     pub const fn operator(&self) -> Option<&PackageReviewOperatorCoordinate> {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(_)
-            | PackageReviewExternalRequirement::TopLevelRequirement(_) => None,
+            | PackageReviewExternalRequirement::TopLevelRequirement { .. } => None,
             PackageReviewExternalRequirement::Operator(operator) => Some(operator),
         }
     }
@@ -121,7 +139,21 @@ impl PackageReviewExternalExecutableSupply {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(_)
             | PackageReviewExternalRequirement::Operator(_) => None,
-            PackageReviewExternalRequirement::TopLevelRequirement(requirement) => Some(requirement),
+            PackageReviewExternalRequirement::TopLevelRequirement { identity, .. } => {
+                Some(identity)
+            }
+        }
+    }
+
+    pub const fn top_level_requirement_signature(
+        &self,
+    ) -> Option<&PackageReviewExternalCallableSignature> {
+        match &self.requirement {
+            PackageReviewExternalRequirement::Trait(_)
+            | PackageReviewExternalRequirement::Operator(_) => None,
+            PackageReviewExternalRequirement::TopLevelRequirement { signature, .. } => {
+                Some(signature)
+            }
         }
     }
 

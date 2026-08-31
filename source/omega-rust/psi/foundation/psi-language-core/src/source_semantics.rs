@@ -1,6 +1,6 @@
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary
 /// data defaults to `Affine`, and `[linear]` maps to `Linear`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Multiplicity {
     /// Freely duplicable and discardable (`[copy]`).
     Unrestricted,
@@ -40,7 +40,7 @@ pub enum DataSupplyMode {
 }
 
 /// Whether a live value may cross a suspension point.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum CarrySuspension {
     #[default]
     Forbidden,
@@ -48,7 +48,7 @@ pub enum CarrySuspension {
 }
 
 /// CPU affinity of a live value relative to the CPU recorded at mint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum CarryCpu {
     #[default]
     Origin,
@@ -56,7 +56,7 @@ pub enum CarryCpu {
 }
 
 /// Host-thread affinity of a live value relative to the thread recorded at mint.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum CarryHostThread {
     #[default]
     Origin,
@@ -64,7 +64,7 @@ pub enum CarryHostThread {
 }
 
 /// Whether a live value may move to a different storage address.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum CarryAddress {
     #[default]
     Stable,
@@ -73,7 +73,7 @@ pub enum CarryAddress {
 
 /// Normalized four-axis carry policy. The default is deliberately strict so
 /// missing evidence fails closed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct CarryPolicy {
     pub suspension: CarrySuspension,
     pub cpu: CarryCpu,

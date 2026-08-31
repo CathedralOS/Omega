@@ -1,5 +1,5 @@
 use super::super::declarations::{
-    encode_conformance_bound, encode_type_identity, encode_type_parameter,
+    encode_conformance_bound, encode_data_properties, encode_type_identity, encode_type_parameter,
 };
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
@@ -7,7 +7,7 @@ use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableConformance, PackageReviewCallableRole,
     PackageReviewCheckedServiceReach, PackageReviewExternalBinding,
     PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
-    PackageReviewExternalRequirement,
+    PackageReviewExternalRequirement, PackageReviewExternalStaticParameter,
 };
 
 use super::contracts::encode_callable_contract;
@@ -109,19 +109,31 @@ pub(crate) fn encode_external_executable_supply_key(
             encoder.byte(1);
             encode_operator_coordinate(encoder, operator)
         }
-        PackageReviewExternalRequirement::TopLevelRequirement(requirement) => {
+        PackageReviewExternalRequirement::TopLevelRequirement {
+            identity,
+            signature,
+        } => {
             encoder.byte(2);
-            encode_nominal(encoder, requirement)
+            encode_nominal(encoder, identity)?;
+            encode_external_callable_signature(encoder, signature)
         }
     }
 }
 
-fn encode_external_callable_signature(
+pub(super) fn encode_external_callable_signature(
     encoder: &mut Encoder,
     signature: &PackageReviewExternalCallableSignature,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.usize(signature.lifetime_parameter_count)?;
-    encoder.usize(signature.type_parameter_count)?;
+    encoder.sequence(&signature.static_parameters, |encoder, parameter| {
+        match parameter {
+            PackageReviewExternalStaticParameter::Type { properties } => {
+                encoder.byte(0);
+                encode_data_properties(encoder, *properties);
+            }
+        }
+        Ok(())
+    })?;
     encoder.sequence(&signature.parameters, |encoder, parameter| {
         encode_type_identity(encoder, &parameter.type_identity)?;
         encoder.boolean(parameter.is_const);

@@ -1,7 +1,9 @@
 use super::super::semantics::declarations::top_level_requirement_identity;
+use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::external_supply::{
     external_binding_matches_provider_binding, project_external_executable_supply_with_source,
 };
+use super::signatures::project_external_callable_signature;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
@@ -40,7 +42,7 @@ pub(super) fn project_top_level_requirement_external_supply(
         !matches!(
             parameter.kind,
             psi_typed_trees::data::TypeParameterKind::Type
-        ) || parameter.bounds != psi_typed_trees::data::DataProperties::default()
+        )
     };
     if !requirement.conformance_bounds.is_empty()
         || requirement_parameters
@@ -51,7 +53,7 @@ pub(super) fn project_top_level_requirement_external_supply(
             .any(unsupported_static_parameter)
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` with static kinds, bounds, or conformances not yet represented by package review",
+            "reviewed callable `{}` realizes top-level requirement `{}` with static kinds or conformance bounds not yet represented by package review",
             machine.name, requirement.name
         ))]);
     }
@@ -79,15 +81,25 @@ pub(super) fn project_top_level_requirement_external_supply(
         requirement,
         binding,
     )?;
+    let (requirement_binders, _) = project_type_parameters(
+        compilation,
+        requirement_parameters,
+        "top-level requirement",
+        requirement.name.as_str(),
+        &requirement.lifetime_parameters,
+    )?;
+    let requirement_signature =
+        project_external_callable_signature(compilation, requirement, &requirement_binders)?;
     project_external_executable_supply_with_source(
         machine,
         conformance,
         PackageReviewExternalExecutableSupply {
             callable: callable_identity.clone(),
             signature: signature.clone(),
-            requirement: PackageReviewExternalRequirement::TopLevelRequirement(
-                top_level_requirement_identity(compilation, requirement)?,
-            ),
+            requirement: PackageReviewExternalRequirement::TopLevelRequirement {
+                identity: top_level_requirement_identity(compilation, requirement)?,
+                signature: requirement_signature,
+            },
             binding: binding.clone(),
         },
     )

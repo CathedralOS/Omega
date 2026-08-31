@@ -6,15 +6,16 @@ use crate::record::package::PackageReviewCanonicalRowSources;
 use crate::record::{
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCollectionViewOperation, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewExternalBinding,
-    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
-    PackageReviewExternalRequirement, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewDataProperties,
+    PackageReviewExternalBinding, PackageReviewExternalCallableSignature,
+    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
+    PackageReviewExternalStaticParameter, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
 
-use super::callables::encode_external_executable_supply_key;
+use super::callables::{encode_external_callable_signature, encode_external_executable_supply_key};
 use super::expressions::encode_contract_expression;
 use super::identity::encode_nominal;
 use super::providers::{encode_compiler_intrinsic_execution, encode_provider_row};
@@ -26,29 +27,34 @@ fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
         owner: PackageReviewNominalOwner::Package(package),
         path: path.to_owned(),
     };
+    let unit_signature = || PackageReviewExternalCallableSignature {
+        lifetime_parameter_count: 0,
+        static_parameters: Vec::new(),
+        parameters: Vec::new(),
+        return_type: PackageReviewTypeIdentity {
+            canonical: "unit".to_owned(),
+        },
+    };
     let callable_path = "LinuxCompletion::complete";
     let requirement_path = "InterruptAcknowledgement::complete#exact";
     let supply = PackageReviewExternalExecutableSupply {
         callable: nominal(callable_path),
-        signature: PackageReviewExternalCallableSignature {
-            lifetime_parameter_count: 0,
-            type_parameter_count: 0,
-            parameters: Vec::new(),
-            return_type: PackageReviewTypeIdentity {
-                canonical: "unit".to_owned(),
-            },
+        signature: unit_signature(),
+        requirement: PackageReviewExternalRequirement::TopLevelRequirement {
+            identity: nominal(requirement_path),
+            signature: unit_signature(),
         },
-        requirement: PackageReviewExternalRequirement::TopLevelRequirement(nominal(
-            requirement_path,
-        )),
         binding: PackageReviewExternalBinding::Syscall { number: 60 },
     };
     let mut encoder = Encoder::bounded(256);
     encode_external_executable_supply_key(&mut encoder, &supply)
         .expect("encode top-level external requirement key");
     let encoded = encoder.finish().expect("bounded encoding");
-    let encoded_requirement_length = 1 + 32 + 8 + requirement_path.len();
-    let tag_offset = encoded.len() - encoded_requirement_length - 1;
+    let mut prefix = Encoder::bounded(256);
+    encode_nominal(&mut prefix, &supply.callable).expect("encode callable prefix");
+    encode_external_callable_signature(&mut prefix, &supply.signature)
+        .expect("encode callable signature prefix");
+    let tag_offset = prefix.finish().expect("bounded prefix encoding").len();
     assert_eq!(encoded[tag_offset], 2);
 }
 
@@ -59,19 +65,21 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
         owner: PackageReviewNominalOwner::Package(package),
         path: path.to_owned(),
     };
+    let empty_signature = || PackageReviewExternalCallableSignature {
+        lifetime_parameter_count: 0,
+        static_parameters: Vec::new(),
+        parameters: Vec::new(),
+        return_type: PackageReviewTypeIdentity {
+            canonical: "nominal(package:ReturnA)".to_owned(),
+        },
+    };
     let supply = PackageReviewExternalExecutableSupply {
         callable: nominal("Foreign::read"),
-        signature: PackageReviewExternalCallableSignature {
-            lifetime_parameter_count: 0,
-            type_parameter_count: 0,
-            parameters: Vec::new(),
-            return_type: PackageReviewTypeIdentity {
-                canonical: "nominal(package:ReturnA)".to_owned(),
-            },
+        signature: empty_signature(),
+        requirement: PackageReviewExternalRequirement::TopLevelRequirement {
+            identity: nominal("Read::read#exact"),
+            signature: empty_signature(),
         },
-        requirement: PackageReviewExternalRequirement::TopLevelRequirement(nominal(
-            "Read::read#exact",
-        )),
         binding: PackageReviewExternalBinding::Syscall { number: 0 },
     };
     let encode_key = |supply: &PackageReviewExternalExecutableSupply| {
@@ -87,8 +95,50 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
     assert_ne!(baseline, encode_key(&changed_return));
 
     let mut changed_telescope = supply;
-    changed_telescope.signature.type_parameter_count = 1;
-    assert_ne!(baseline, encode_key(&changed_telescope));
+    changed_telescope.signature.static_parameters.push(
+        PackageReviewExternalStaticParameter::Type {
+            properties: PackageReviewDataProperties {
+                multiplicity: psi_language_semantics::Multiplicity::Affine,
+                carry: None,
+            },
+        },
+    );
+    let telescope_key = encode_key(&changed_telescope);
+    assert_ne!(baseline, telescope_key);
+
+    let mut changed_bounds = changed_telescope;
+    {
+        let PackageReviewExternalStaticParameter::Type { properties } =
+            &mut changed_bounds.signature.static_parameters[0];
+        properties.multiplicity = psi_language_semantics::Multiplicity::Unrestricted;
+    }
+    let multiplicity_key = encode_key(&changed_bounds);
+    assert_ne!(telescope_key, multiplicity_key);
+
+    {
+        let PackageReviewExternalStaticParameter::Type { properties } =
+            &mut changed_bounds.signature.static_parameters[0];
+        properties.multiplicity = psi_language_semantics::Multiplicity::Affine;
+        properties.carry = Some(psi_language_semantics::CarryPolicy::PERMISSIVE);
+    }
+    let carry_key = encode_key(&changed_bounds);
+    assert_ne!(telescope_key, carry_key);
+
+    let mut changed_requirement = changed_bounds;
+    let PackageReviewExternalRequirement::TopLevelRequirement { signature, .. } =
+        &mut changed_requirement.requirement
+    else {
+        unreachable!("top-level requirement fixture")
+    };
+    signature
+        .static_parameters
+        .push(PackageReviewExternalStaticParameter::Type {
+            properties: PackageReviewDataProperties {
+                multiplicity: psi_language_semantics::Multiplicity::Unrestricted,
+                carry: None,
+            },
+        });
+    assert_ne!(carry_key, encode_key(&changed_requirement));
 }
 
 pub(crate) fn normalized_import_row(

@@ -1,8 +1,18 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 107 and row schema version 65. This file
+The canonical review schema is version 108 and row schema version 66. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v108 / row v66 replaces the external realization's static-parameter
+count with an ordered structural telescope and retains the independently
+projected top-level requirement signature in the same supply key. Each
+currently admitted ordinary type parameter retains its exact multiplicity and
+carry-property bounds on both sides. Bounded realizations are revalidated
+against the requirement from retained typed custody; a provider that gains a
+stronger bound rejects, while an accepted weakening still preserves both exact
+telescopes and changes external-supply identity. Const, machine, proposition,
+and conformance-bound static forms remain fail-closed.
 
 Schema v107 / row v65 admits unselected external executable-supply disclosure
 for a public top-level requirement and realization with compiler-validated

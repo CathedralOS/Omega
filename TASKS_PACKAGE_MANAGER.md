@@ -39,10 +39,10 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - richer static or bounded external realizations, lifetime-parameterized
-    external trait realizations, generic external boundary-operator
-    realizations, and the remaining selected provider-demand and installation-
-    issuance joins;
+  - non-type static or conformance-bounded external realizations, lifetime-
+    parameterized external trait realizations, generic external boundary-
+    operator realizations, and the remaining selected provider-demand and
+    installation-issuance joins;
   - finish D29's artifact-qualified symbolic demand and final substitution,
     role-specific checked-realization replay, and D32's exact optimized-
     projection-to-physical-child join. Each physical child must bind its exact
