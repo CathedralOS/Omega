@@ -565,6 +565,32 @@ unrelated candidate does not disable package commands globally. This classifies
 evidence owned by Omega; it does not claim that the original host filesystem or
 provider was contained.
 
+## Source-root write denial (summary v74, replay record v54)
+
+The first exact grant-refusal lane accepts one tag-1 `create` attempt through a
+compiler-issued Source coordinate. The attempt retains operand-0 Source root
+and canonical nonempty relative path, operand-1 `i32` mode `438`, scoped-real
+provider, scalar result `-1`, post-error `13`, and exactly one operand-0
+`Write`/`OutsideGrantedRoots` refusal. Authorization, handle, returned-path,
+metadata, mutable-carrier, output, retirement, generated-source, and every
+other operand lane remain empty; this exact rung also carries no BuildLog
+output.
+
+Provider-free replay checks the prepared rooted coordinate and injects the
+compiler-owned grant-policy denial without executing a virtual create. The
+tag-1 row is recognized before generic Output-create classification, produces
+no Output entry, and must reproduce the complete attempt and build result
+before the compiler issues the closed replay verdict. Canonical recovery
+retains the refusal ordinal, access, and reason rather than merely counting the
+row.
+
+Alternate modes, roots, providers, results, errors, refusal classes, multiple
+attempts, Source prefixes, authorized or mixed operations, symlink escapes,
+unresolvable or unrepresentable paths, evidence-limit failures, rename
+denials, and host error text remain non-receipted. This receipts an immutable
+compiler grant decision; it makes no claim about host permission enforcement
+or containment.
+
 ## Compiler-owned build log (summary v63, replay record v43)
 
 `BuildLog::write_line` is an exact compiler-owned build operation. The checked

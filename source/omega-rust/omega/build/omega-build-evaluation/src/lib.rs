@@ -368,7 +368,7 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 73;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 74;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 
 /// Normalized build-host observation class for one selected build machine.
@@ -2703,13 +2703,59 @@ const fn unknown_descriptor_bad_descriptor_failure_tag(operation_tag: u16) -> bo
         || unknown_descriptor_read_file_metadata_tag(operation_tag)
 }
 
+fn exact_source_write_refusal(
+    attempt: &psi_checked_interpreter::FilesystemOperationAttempt,
+) -> bool {
+    let [mode] = attempt.scalar_operands() else {
+        return false;
+    };
+    let [rooted] = attempt.rooted_path_operand_resolutions() else {
+        return false;
+    };
+    let [refusal] = attempt.grant_refusals() else {
+        return false;
+    };
+    attempt.operation_tag() == 1
+        && attempt.provider() == psi_checked_interpreter::FilesystemObservationProvider::RealScoped
+        && attempt.result()
+            == Some(psi_checked_interpreter::FilesystemOperationResult::Scalar(
+                -1,
+            ))
+        && attempt.post_error() == Some(13)
+        && mode.operand_ordinal() == 1
+        && mode.value()
+            == psi_checked_interpreter::FilesystemScalarOperandValue::I32(
+                psi_checked_interpreter::FILESYSTEM_REPLAY_OUTPUT_CREATE_MODE,
+            )
+        && rooted.operand_ordinal() == 0
+        && rooted.root() == BUILD_SOURCE_ROOT_IDENTITY
+        && refusal.operand_ordinal() == 0
+        && refusal.access() == psi_checked_interpreter::FilesystemGrantAccess::Write
+        && refusal.reason()
+            == psi_checked_interpreter::FilesystemGrantRefusalReason::OutsideGrantedRoots
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && attempt.returned_paths().is_empty()
+        && attempt.observed_byte_regions().is_empty()
+        && attempt.metadata_observations().is_empty()
+        && attempt.mutable_byte_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_byte_operands().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && attempt.authorized_paths().is_empty()
+        && attempt.logical_handle_inputs().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+}
+
 fn complete_no_output_failure_suffix_is_recognized(
     attempts: &[psi_checked_interpreter::FilesystemOperationAttempt],
     suffix_start: usize,
 ) -> bool {
     match &attempts[suffix_start..] {
         [failure] => {
-            operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
+            exact_source_write_refusal(failure)
+                || operand_free_unknown_descriptor_operation_tag(failure.operation_tag())
                 || failure.operation_tag() == 10
                 || unknown_descriptor_open_at_tag(failure.operation_tag())
                 || unknown_descriptor_unlink_at_tag(failure.operation_tag())
@@ -3672,7 +3718,15 @@ pub fn compute_build_config(
         if let Some(operation_suffix_start) =
             source_input_replay_prefix_end(attempts).filter(|end| *end < attempts.len())
         {
-            if attempts.len() - operation_suffix_start == 2
+            if operation_suffix_start == 0
+                && attempts.len() == 1
+                && exact_source_write_refusal(&attempts[0])
+            {
+                psi_checked_interpreter::FilesystemReplay::from_source_write_refusal_observations(
+                    measured.observations(),
+                )
+                .ok()
+            } else if attempts.len() - operation_suffix_start == 2
                 && unknown_descriptor_bad_descriptor_failure_tag(
                     attempts[operation_suffix_start].operation_tag(),
                 )

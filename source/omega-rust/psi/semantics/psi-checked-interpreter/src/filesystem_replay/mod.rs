@@ -37,6 +37,7 @@ mod source_directory_tests;
 #[cfg(test)]
 mod source_read_link_tests;
 mod source_read_links;
+mod source_write_refusals;
 mod symlinks;
 mod unlink_at_failures;
 
@@ -139,6 +140,16 @@ pub(crate) use source_directories::{
 };
 pub use source_read_links::FilesystemSourceReadLinkReplayRecord;
 pub(crate) use source_read_links::{source_read_link_attempt, source_read_link_attempt_is_exact};
+pub use source_write_refusals::FilesystemSourceWriteRefusalReplayRecord;
+pub(crate) use source_write_refusals::{
+    source_write_refusal_attempt, source_write_refusal_record_from_attempt,
+};
+
+pub(crate) fn source_write_refusal_attempt_is_exact(
+    attempt: &crate::FilesystemOperationAttempt,
+) -> bool {
+    source_write_refusal_record_from_attempt(attempt).is_ok()
+}
 pub use symlinks::{
     FilesystemOutputSymlinkReplayRecord, MAX_FILESYSTEM_REPLAY_OUTPUT_SYMLINK_TARGET_BYTES,
 };
