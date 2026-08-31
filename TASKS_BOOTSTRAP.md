@@ -1245,11 +1245,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       anchors a collision at the later case or machine declaration, and merges
       it with every `DuplicateName`/`InvalidBoundary` candidate by packed
       coordinate. The accepted catalog remains source-shaped and separate.
-    - [ ] Require authored parentheses for every machine application,
-      including zero parameters, while preserving the bare-qualified-expression
-      distinction. Resolve one callable identity before arity, expected type,
-      statement, or control context; a bare resolved machine is `TypeMismatch`
-      at the qualified expression start.
+    - [x] Resolve direct qualified data constructors and data machines through
+      independent owner-aware catalog lookups, retaining exact expression-to-
+      declaration custody before category, arity, or argument typing. Unknown
+      qualified machine declaration owners contribute `UnknownName`; direct
+      receiverless machine applications require authored parentheses, including
+      `()`; nullary constructors retain their bare form; arity is independent
+      of child facts; complete compatible constructors and machines retain
+      value/resultless/`never` facts; and stored `u8` payload establishment
+      accepts an `i32` value for later `ByteRange` enforcement. A bare resolved
+      machine in an ordinary value context is `TypeMismatch` at its start.
+    - [ ] Complete explicit call-head, postfix-statement, and transition-
+      continuation category admission, including grouped call heads, receiver-
+      qualified field calls, and the remaining unqualified machine path. Keep
+      context admission before arity and never infer a receiver for static
+      `Owner::machine(...)` syntax.
   - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
     independent child candidate, but derive a parent success or rejection only
     after every fact consumed by that rule resolves. Implement the callable/
@@ -1260,6 +1270,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     a failing argument, inadmissible constructor continuation plus arguments,
     resultless/`never` value use, projection failures, and every statement
     relation without an error type or traversal-dependent suppression.
+    - [x] Make final-candidate insertion and merging idempotent for one exact
+      reason/coordinate, and implement the direct qualified callable's sibling
+      argument walk, context gate, independent arity derivation, complete-value
+      type join, and result production without an error type or guessed fact.
+      Distinct same-coordinate reasons, remaining call forms, place/projection
+      failures, relational statements, and terminal flow remain open.
   - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
     once and retain a non-place immutable full-range view without allocation,
