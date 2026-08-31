@@ -68,9 +68,13 @@ decision. Only true language-semantic questions belong in
    path-qualified rule leaves share only binding composition and ownership
    identity, while retaining separate accounting leaves. The remaining
    block-merging leaves now own explicit imports as well, and the guard forbids
-   parent-glob regression across that subtree. The remaining production
-   parent-glob debt is confined to four other control-flow leaves and GVN (18);
-   remove those 22 dependencies before extending either family.
+   parent-glob regression across that subtree. Constant conditionals, shared
+   jump fusion, unreachable-machine pruning, and shared merge-ownership
+   custody now own explicit dependencies too, shrinking the control-flow
+   entrance to its module map and seven-row ordered roster. A family-wide guard
+   keeps all control-flow leaves independent of inherited parent globs. The
+   remaining production parent-glob debt is confined to GVN (18); remove those
+   dependencies before extending it.
 
 ## P0 — Source navigation and taxonomy
 

@@ -1,6 +1,21 @@
 //! Folding of constant conditional branches.
 
-use super::*;
+use std::collections::BTreeSet;
+
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    ConstantConditionalRewrite, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+};
+use psi_core::{BlockId, EdgeId};
+
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::{CONTROL_FLOW_CLEANUP_PASS_NAME, boolean_constant};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -118,9 +133,9 @@ impl PsiOptimizationRule for ConstantConditionalFoldRule {
 }
 
 fn reachable_blocks_after_fold(
-    function: &omega_optimization_unit::PsiOptimizationFunction,
+    function: &PsiOptimizationFunction,
     source: BlockId,
-    selected_edge: psi_core::EdgeId,
+    selected_edge: EdgeId,
 ) -> Option<BTreeSet<BlockId>> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![function.entry];
@@ -139,10 +154,10 @@ fn reachable_blocks_after_fold(
 }
 
 fn conditional_fold_accounting(
-    function: &omega_optimization_unit::PsiOptimizationFunction,
+    function: &PsiOptimizationFunction,
     decision: NodeLocation,
-    selected_edge: psi_core::EdgeId,
-    rejected_edge: psi_core::EdgeId,
+    selected_edge: EdgeId,
+    rejected_edge: EdgeId,
     reachable: &BTreeSet<BlockId>,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
     let decision_node = function
