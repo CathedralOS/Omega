@@ -172,17 +172,19 @@ pub(super) fn emit_composed_unit_control(
         },
     };
     let mut machines = vec![machine];
+    let mut next_block = 4_u64;
     machines.extend(internal_calls::emit_targets(
         checked,
         &catalogs.internal_targets,
         &catalogs.type_ids,
         &catalogs.service_ids,
+        &mut next_block,
         &mut next_edge,
     )?);
     finish_module(machines, catalogs, source_call_occurrences)
 }
 
-fn emit_boundary_leaf(
+pub(super) fn emit_boundary_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
     block: BlockId,
     boundaries: &[catalogs::LoweredComposedBoundary],
@@ -329,7 +331,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
     })
 }
 
-fn finish_module(
+pub(super) fn finish_module(
     machines: Vec<TerminalMachine>,
     catalogs: catalogs::ComposedCatalogs,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,

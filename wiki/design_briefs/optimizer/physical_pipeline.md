@@ -83,6 +83,14 @@ reach, and retained ordinary Unit plan. Lowering emits repeated calls to one
 deduplicated qualification-free empty-body target machine; it does not copy the
 target into each branch or treat a missing transitive plan as an empty body.
 
+The first larger acyclic composed family prefixes that conditional frontier
+with an exact scalar-only entry jump. The checked carrier records the Boolean
+source and target parameter positions; lowering independently reconstructs a
+four-block graph whose entry and dispatch values are distinct. Admission
+rejects changed scalar maps, target states, attachments, contracts, custody,
+or leaf effects rather than silently routing the graph through the three-block
+family.
+
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common
 condition context and selects exactly one row from its adjacent seven-row

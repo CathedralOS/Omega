@@ -19,6 +19,7 @@ use psi_typed_trees_to_checked_trees::lower_typed_trees;
 mod attached_unit_cases;
 mod composed_unit_claims;
 mod composed_unit_internal_calls;
+mod composed_unit_prefixed_control;
 mod content_conservation;
 mod quotient_correspondence;
 mod scalar_graph;

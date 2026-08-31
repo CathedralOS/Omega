@@ -150,7 +150,7 @@ pub(super) fn admit<'a>(
     })
 }
 
-fn only_implicit_reference_self_is_omitted(
+pub(super) fn only_implicit_reference_self_is_omitted(
     program: &TypedTrees,
     state: &psi_typed_trees::state::State,
     structural: &[CheckedUnitStructuralParameterPlan],
@@ -171,7 +171,7 @@ fn only_implicit_reference_self_is_omitted(
         })
 }
 
-fn successor(
+pub(super) fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &psi_typed_trees::machine::Machine,

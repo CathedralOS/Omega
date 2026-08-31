@@ -93,10 +93,18 @@ decision. Only true language-semantic questions belong in
    survives pruning, and lowering independently rejoins its state, contract,
    and reach before emitting one deduplicated in-module machine. Target-state,
    contract-fingerprint, and missing-target-plan corruption fail closed;
-   Terminal verification and codec replay pass. The consumer entrance remains
-   25 lines and names `internal_calls` as a distinct rung. Next admit larger
-   acyclic graphs and then widen internal targets beyond the empty-body slice.
-   This is engineering, not an owner language decision. A smaller recurring
+   Terminal verification and codec replay pass. The consumer entrance names
+   `internal_calls` as a distinct rung. The first larger acyclic graph is now
+   complete: an exact scalar-only entry jump forwards its Boolean argument to
+   a distinct dispatch state before the existing conditional effect frontier.
+   Production retains the checked scalar edge map; independent lowering
+   rebuilds a four-block Terminal graph with distinct entry and dispatch
+   values, and scalar-map or target-state corruption fails closed before
+   verifier/codec publication. The 27- and 29-line stage entrances explicitly
+   name `prefixed_control`; its consumer route descends through a 15-line
+   entrance into independent `admission` and `emission` rungs. Next generalize
+   beyond one exact prefix and widen internal targets beyond the empty-body
+   slice. This is engineering, not an owner language decision. A smaller recurring
    custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout

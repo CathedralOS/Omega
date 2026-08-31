@@ -50,29 +50,12 @@ pub(super) fn build(
             ),
         ],
     )?;
-    let body_qualifications = facts
-        .qualifications
-        .for_machine(machine.symbol)
-        .map(|fact| fact.body_committed.clone())
-        .unwrap_or_default();
-    if !body_qualifications.is_empty() {
-        return None;
-    }
-    let contract = facts.contract_plans.for_machine(machine.symbol)?;
-    let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
-    Some(CheckedComposedUnitControlMachinePlan {
-        machine: machine.symbol,
-        attachment_type_identity: graph.attachment_type_identity,
+    finish(
+        facts,
+        machine,
+        graph.attachment_type_identity,
         provider_attachment_requirements,
-        body_qualifications,
-        contract_report_fingerprint: contract.report_fingerprint,
-        contract_commitment: contract.commitment,
-        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
-        service_reach: psi_language_semantics::ServiceReachSummary {
-            direct: machine_reach.inferred_direct,
-            transitive: machine_reach.inferred_transitive,
-        },
-        states: vec![
+        vec![
             CheckedComposedUnitControlStatePlan {
                 state: graph.entry.symbol,
                 structural_parameters: graph.entry_structural_parameters,
@@ -88,5 +71,38 @@ pub(super) fn build(
             leaves[0].clone(),
             leaves[1].clone(),
         ],
+    )
+}
+
+pub(super) fn finish(
+    facts: &CheckFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    attachment_type_identity: String,
+    provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
+    states: Vec<CheckedComposedUnitControlStatePlan>,
+) -> Option<CheckedComposedUnitControlMachinePlan> {
+    let body_qualifications = facts
+        .qualifications
+        .for_machine(machine.symbol)
+        .map(|fact| fact.body_committed.clone())
+        .unwrap_or_default();
+    if !body_qualifications.is_empty() {
+        return None;
+    }
+    let contract = facts.contract_plans.for_machine(machine.symbol)?;
+    let machine_reach = facts.service_reaches.for_machine(machine.symbol)?;
+    Some(CheckedComposedUnitControlMachinePlan {
+        machine: machine.symbol,
+        attachment_type_identity,
+        provider_attachment_requirements,
+        body_qualifications,
+        contract_report_fingerprint: contract.report_fingerprint,
+        contract_commitment: contract.commitment,
+        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
+        service_reach: psi_language_semantics::ServiceReachSummary {
+            direct: machine_reach.inferred_direct,
+            transitive: machine_reach.inferred_transitive,
+        },
+        states,
     })
 }

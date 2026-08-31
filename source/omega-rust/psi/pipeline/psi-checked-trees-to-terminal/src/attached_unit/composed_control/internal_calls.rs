@@ -149,22 +149,13 @@ pub(super) fn emit_targets(
     targets: &[super::catalogs::LoweredComposedInternalTarget],
     type_ids: &[(String, StructuralTypeId)],
     service_ids: &[(ServiceReachId, ServiceId)],
+    next_block: &mut u64,
     next_edge: &mut u64,
 ) -> Result<Vec<TerminalMachine>, LoweringError> {
     targets
         .iter()
-        .enumerate()
-        .map(|(index, target)| {
-            let block = block_id(
-                u64::try_from(index)
-                    .map_err(|_| {
-                        LoweringError::Unsupported("composed Unit internal block count exceeds u64")
-                    })?
-                    .checked_add(4)
-                    .ok_or(LoweringError::Unsupported(
-                        "composed Unit internal block identity space is exhausted",
-                    ))?,
-            );
+        .map(|target| {
+            let block = block_id(allocate_dense(next_block)?);
             Ok(TerminalMachine {
                 id: target.id,
                 attachment: Some(lookup_type_id(type_ids, &target.attachment_type_identity)?),

@@ -1065,14 +1065,14 @@ fn compiler_builtins_never_masquerade_as_provider_execution_evidence() {
         );
     }
 
-    let target = std::fs::read_to_string(root.join(
-        "source/omega-rust/omega/representations/omega-target-operations/src/lib.rs",
-    ))
+    let target = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/representations/omega-target-operations/src/lib.rs"),
+    )
     .expect("read target-operation execution roles");
     assert!(target.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
-    let physical = std::fs::read_to_string(root.join(
-        "source/omega-rust/omega/representations/omega-machine-code/src/lib.rs",
-    ))
+    let physical = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/representations/omega-machine-code/src/lib.rs"),
+    )
     .expect("read machine-code execution roles");
     assert!(physical.contains("CompilerBuiltin(CompilerBuiltinExecution)"));
 }
@@ -1754,14 +1754,20 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
     let typed = root.join(
         "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/flow/terminal_unit",
     );
-    let terminal = root.join(
-        "source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit",
-    );
+    let terminal =
+        root.join("source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/attached_unit");
     for (entrance, limit, modules) in [
         (
             typed.join("composed_control.rs"),
             30,
-            &["assembly", "custody", "guards", "leaves", "topology"][..],
+            &[
+                "assembly",
+                "custody",
+                "guards",
+                "leaves",
+                "prefixed_control",
+                "topology",
+            ][..],
         ),
         (
             terminal.join("composed_control.rs"),
@@ -1772,6 +1778,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
                 "custody",
                 "emission",
                 "internal_calls",
+                "prefixed_control",
             ][..],
         ),
     ] {
@@ -1786,11 +1793,19 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
         for module in modules {
             assert!(
                 source.contains(&format!("mod {module};"))
-                    && directory.join(format!("{module}.rs")).is_file(),
+                    && (directory.join(format!("{module}.rs")).is_file()
+                        || directory.join(module).join("mod.rs").is_file()),
                 "composed Unit entrance {} must name an existing `{module}` rung",
                 entrance.display()
             );
         }
+    }
+    let prefixed = terminal.join("composed_control/prefixed_control");
+    for rung in ["admission.rs", "emission.rs"] {
+        assert!(
+            prefixed.join(rung).is_file(),
+            "prefixed composed Unit lowering must expose its `{rung}` rung"
+        );
     }
     assert!(typed.join("providers.rs").is_file());
     assert!(terminal.join("claims.rs").is_file());

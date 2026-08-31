@@ -53,8 +53,33 @@ pub(super) fn admit_composed_unit_control<'a>(
     }
     validate_contract(checked, plan)?;
 
-    let plans = &checked.facts.flow.terminal_unit_effects;
-    let attachments = plans
+    let attachment = exact_attachment(checked, plan)?;
+
+    let (boundaries, internal_targets) = admit_leaf_targets(
+        checked,
+        plan.machine,
+        [when_true, when_false],
+        custody,
+        attachment,
+        &plan.provider_attachment_requirements,
+    )?;
+    Ok(AdmittedComposedUnit {
+        entry,
+        leaves: [when_true, when_false],
+        boundaries,
+        internal_targets,
+        custody,
+    })
+}
+
+pub(super) fn exact_attachment<'a>(
+    checked: &'a CheckedTrees,
+    plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
+) -> Result<&'a psi_checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
+    let attachments = checked
+        .facts
+        .flow
+        .terminal_unit_effects
         .structural_types
         .iter()
         .filter(|candidate| candidate.identity == plan.attachment_type_identity)
@@ -69,17 +94,35 @@ pub(super) fn admit_composed_unit_control<'a>(
         return unsupported("composed Unit attachment is not a record");
     }
 
+    Ok(attachment)
+}
+
+pub(super) fn admit_leaf_targets<'a>(
+    checked: &'a CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    leaves: [&'a psi_checked_trees::CheckedComposedUnitControlStatePlan; 2],
+    custody: custody::ComposedCustody,
+    attachment: &psi_checked_trees::CheckedUnitStructuralTypePlan,
+    provider_attachment_requirements: &[psi_checked_trees::CheckedProviderAttachmentRequirementPlan],
+) -> Result<
+    (
+        Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+        Vec<(&'a psi_checked_trees::CheckedUnitEffectMachinePlan, String)>,
+    ),
+    LoweringError,
+> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
-    for state in [when_true, when_false] {
+    for state in leaves {
         match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                retain_leaf_boundary(checked, plan.machine, state, plans, &mut boundaries)?;
+                retain_leaf_boundary(checked, machine, state, plans, &mut boundaries)?;
             }
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
                 internal_calls::retain_leaf_target(
                     checked,
-                    plan.machine,
+                    machine,
                     state,
                     plans,
                     &mut internal_targets,
@@ -102,7 +145,7 @@ pub(super) fn admit_composed_unit_control<'a>(
     for (boundary, _) in &boundaries {
         custody::validate_boundary(custody, boundary)?;
     }
-    let called_boundaries = [when_true, when_false]
+    let called_boundaries = leaves
         .iter()
         .filter_map(|state| match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
@@ -113,19 +156,13 @@ pub(super) fn admit_composed_unit_control<'a>(
         .collect::<Vec<_>>();
     super::super::provider_attachments::validate_provider_attachment_requirements(
         attachment,
-        &plan.provider_attachment_requirements,
+        provider_attachment_requirements,
         &called_boundaries,
     )?;
-    Ok(AdmittedComposedUnit {
-        entry,
-        leaves: [when_true, when_false],
-        boundaries,
-        internal_targets,
-        custody,
-    })
+    Ok((boundaries, internal_targets))
 }
 
-fn validate_guard(
+pub(super) fn validate_guard(
     guard: &CheckedScalarExpression,
     parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> Result<(), LoweringError> {
@@ -154,7 +191,7 @@ fn validate_guard(
     Ok(())
 }
 
-fn validate_contract(
+pub(super) fn validate_contract(
     checked: &CheckedTrees,
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<(), LoweringError> {
@@ -205,7 +242,7 @@ fn retain_leaf_boundary<'a>(
     )
 }
 
-fn validate_leaf(
+pub(super) fn validate_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
     if !state.scalar_parameters.is_empty()
