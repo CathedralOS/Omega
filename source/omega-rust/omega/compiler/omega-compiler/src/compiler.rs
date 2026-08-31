@@ -14,6 +14,7 @@ mod optimization;
 mod options;
 pub(crate) use omega_compilation_report as report;
 mod request;
+mod terminal_product;
 
 pub(crate) use native_checked::NativeCompilationWithCheckedReceipt;
 pub use omega_trust_model::{TrustAdmission, TrustAdmissionSettlement};

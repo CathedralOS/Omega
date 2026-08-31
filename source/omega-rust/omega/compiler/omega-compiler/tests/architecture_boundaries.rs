@@ -236,6 +236,49 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
 }
 
 #[test]
+fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
+    let repo_root = repo_root();
+    let driver_path =
+        repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs");
+    let owner_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/terminal_product.rs");
+    let driver = fs::read_to_string(&driver_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    let owner = fs::read_to_string(&owner_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", owner_path.display()));
+
+    assert!(
+        driver.contains("terminal_product::produce_retained_terminal_artifact("),
+        "the compiler driver must stop Terminal production through its named product owner"
+    );
+    for forbidden in [
+        "produce_terminal_artifact_with_callback_custody",
+        "verify_module",
+        "TerminalNativeRealizationProposal::new",
+        "RetainedTerminalArtifact::new_with_native_realization_proposal",
+        "derive_compiler_intrinsic_settlement_proposals",
+    ] {
+        assert!(
+            !driver.contains(forbidden),
+            "the compiler driver must not recover Terminal-product algorithm `{forbidden}`"
+        );
+    }
+
+    let mut ordered_owner = owner.as_str();
+    for stage in [
+        "produce_terminal_artifact_with_callback_custody(",
+        "verify_terminal_artifact(",
+        "project_terminal_native_realization_proposal(",
+        "RetainedTerminalArtifact::new_with_native_realization_proposal(",
+    ] {
+        let offset = ordered_owner.find(stage).unwrap_or_else(|| {
+            panic!("the Terminal-product owner must contain ordered stage `{stage}`")
+        });
+        ordered_owner = &ordered_owner[offset + stage.len()..];
+    }
+}
+
+#[test]
 fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     let repo_root = repo_root();
     let transition_path = repo_root
