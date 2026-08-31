@@ -107,6 +107,14 @@ closed. The Unit recipe families are retained in the V9 legalized-plan
 identity. Structural selected-form validation separately reconstructs ABI
 layout and call constraints without importing selection construction helpers.
 
+Scalar source-leaf construction enters through a 99-line `derive_leaf`
+coordinator. It admits the common node and return envelope, visibly routes
+immediate, entry-parameter, direct exact-binary, widened exact-binary, and
+active-resident exact-add-chain forms, and then seals shared return and fuel
+custody. Focused leaves below it retain the existing catalog-family order,
+diagnostic precedence, operation roster, proof identity, and provenance order;
+they do not merge producer mechanics with `replay/validators/`.
+
 ## Register allocation
 
 Allocation computes selected-CFG liveness, live-range fragments,

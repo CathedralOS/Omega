@@ -147,6 +147,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "selected-block validation",
             REQUIRED_SELECTED_BLOCK_VALIDATION_LEAVES,
         ),
+        (
+            "legalization source leaves",
+            REQUIRED_LEGALIZATION_SOURCE_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {
