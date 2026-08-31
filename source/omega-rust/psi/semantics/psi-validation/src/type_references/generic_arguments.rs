@@ -323,6 +323,34 @@ pub(crate) fn validate_exact_const_identity(
     validate_exact_typed_structured_const_argument(program, expected_type, &value)
 }
 
+/// Replay a retained canonical const encoding against one exact resolved
+/// carrier. This syntax-free entry is for downstream compiler stages: names
+/// embedded in the encoding are consistency claims, never type authority.
+pub fn validate_exact_const_value_encoding(
+    program: &TypedTrees,
+    expected_type: TypeReferenceHandle,
+    encoding: &str,
+) -> Result<(), String> {
+    let decoded = CanonicalConstValue::new("", encoding, "")
+        .decode_encoding()
+        .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
+    let type_name = match decoded {
+        DecodedCanonicalConstValue::Integer { type_name, .. }
+        | DecodedCanonicalConstValue::Array { type_name, .. }
+        | DecodedCanonicalConstValue::Record { type_name, .. }
+        | DecodedCanonicalConstValue::Variant { type_name, .. } => type_name,
+        DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+    };
+    validate_exact_const_identity(
+        program,
+        expected_type,
+        &CanonicalConstIdentity {
+            type_name,
+            encoding: encoding.to_owned(),
+        },
+    )
+}
+
 fn exact_structured_const_data_carrier_is_eligible(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,

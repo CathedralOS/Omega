@@ -102,6 +102,13 @@ pub enum PackageReviewContractStaticArgument {
     ConstInteger(String),
     /// One canonical Boolean value in an exact const-parameter slot.
     ConstBoolean(bool),
+    /// One compiler-canonical structured value whose encoded names have been
+    /// replayed against this exact resolved carrier. Diagnostic display is
+    /// absent from both fields.
+    ConstStructured {
+        declared_type: PackageReviewTypeIdentity,
+        canonical_value_encoding: String,
+    },
     /// One const parameter from the containing declaration's canonical static
     /// telescope. The ordinal spans every static parameter category.
     GenericConstBinder(u32),
