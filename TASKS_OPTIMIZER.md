@@ -135,19 +135,26 @@ decision. Only true language-semantic questions belong in
    internal-call leaf canaries verify and replay through the codec, while
    outer-handoff and inner-target corruption fail closed. The stage entrances
    remain 29 and 30 lines. The exact two-frontier shape has now become a finite
-   right-deep conditional-tree carrier rather than another collection of
-   depth-specific routes. Each control consumes Boolean position zero, passes
-   the ordered suffix of future Boolean guards to its true-arm dispatch, and
-   sends its false arm to a distinct effect leaf; the final control selects the
-   first two leaves. A depth-three canary proves two-value, one-value, and empty
-   suffix handoffs, distinct block parameters, four effect leaves, verifier and
-   codec replay, and fail-closed suffix reordering. The producer now descends
-   through a 17-line `nested_control` entrance into 251-line `topology` and
-   69-line `assembly` rungs; the 15-line consumer entrance retains separate
-   172-line `admission` and 191-line `emission` rungs. Next widen this acyclic
-   carrier from right-deep trees to a general checked conditional DAG without
-   adding topology-specific siblings. This is engineering, not an owner
-   language decision. A smaller recurring custody
+   general acyclic conditional-graph carrier rather than another collection of
+   topology-specific routes. Controls and effect leaves are classified from
+   checked state shape; every Boolean guard and full scalar successor map is
+   retained by state identity, and a reachability/active-stack walk rejects
+   unreachable states and cycles. A depth-three right-deep canary still proves
+   two-value, one-value, and empty handoffs, while a balanced three-control
+   canary proves argument-bearing edges on both arms and two predecessors
+   converging on one leaf emitted exactly once; a four-state canary locks the
+   smallest non-prefix graph routed into this family. Independent lowering
+   rejoins each transition argument expression and structural-cleanup target
+   against checked facts before dynamically assigning block parameters and identities.
+   Scalar reordering, target corruption, and forged convergence fail closed;
+   verifier and codec replay pass. The producer descends through a 17-line
+   `nested_control` entrance into 288-line `topology` and 69-line `assembly`
+   rungs; the 15-line consumer entrance retains separate 263-line `admission`
+   and 226-line `emission` rungs. No topology-specific sibling was added. The
+   next bounded widening is to admit ordinary qualification-free Unit
+   operations before a control terminator without weakening effect, custody,
+   or proof replay. This is engineering, not an owner language decision. A
+   smaller recurring custody
    class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout

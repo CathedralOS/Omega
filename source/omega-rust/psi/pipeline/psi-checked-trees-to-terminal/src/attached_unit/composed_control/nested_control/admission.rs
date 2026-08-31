@@ -1,4 +1,4 @@
-//! Independent finite decision-chain topology and scalar-suffix replay.
+//! Independent general acyclic topology and scalar-edge replay.
 
 use super::*;
 
@@ -11,51 +11,37 @@ pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plan: &'a psi_checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedNested<'a>, LoweringError> {
-    if plan.states.len() < 5 || plan.states.len() % 2 == 0 {
-        return unsupported("nested composed Unit control requires an odd five-state minimum");
+    if plan.states.len() < 4 {
+        return unsupported("nested composed Unit control requires at least four states");
     }
-    let control_count = (plan.states.len() - 1) / 2;
+    let control_count = plan
+        .states
+        .iter()
+        .position(|state| {
+            matches!(
+                state.terminator,
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            )
+        })
+        .ok_or(LoweringError::Unsupported(
+            "nested composed Unit control has no effect leaves",
+        ))?;
     let (controls, leaves) = plan.states.split_at(control_count);
-    if !plan.body_qualifications.is_empty()
+    if controls.len() < 2
+        || leaves.is_empty()
+        || !plan.body_qualifications.is_empty()
         || controls.iter().any(|state| {
             !state.structural_parameters.is_empty()
                 || !state.entry_claims.is_empty()
                 || !state.operations.is_empty()
+                || !exact_parameters(state)
+                || !matches!(
+                    state.terminator,
+                    CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                )
         })
-        || controls
-            .iter()
-            .enumerate()
-            .any(|(index, state)| !exact_parameters(state, control_count - index))
     {
         return unsupported("nested composed Unit controls escaped exact scalar custody");
-    }
-    for index in 0..control_count {
-        let CheckedComposedUnitControlTerminatorPlan::Conditional {
-            guard,
-            when_true,
-            when_false,
-        } = &controls[index].terminator
-        else {
-            return unsupported("nested composed Unit chain contains a non-conditional control");
-        };
-        validate_parameter_guard(guard, 0)?;
-        let final_control = index + 1 == control_count;
-        let true_target = if final_control {
-            leaves[0].state
-        } else {
-            controls[index + 1].state
-        };
-        validate_edge(
-            when_true,
-            0,
-            true_target,
-            (!final_control).then_some(control_count - index - 1),
-        )?;
-        validate_edge(when_false, 1, leaves[control_count - index].state, None)?;
-    }
-    for leaf in leaves {
-        super::super::admission::validate_leaf(leaf)?;
-        validate_empty_leaf(leaf)?;
     }
     let mut identities = plan
         .states
@@ -66,6 +52,24 @@ pub(super) fn admit<'a>(
     if identities.windows(2).any(|pair| pair[0] == pair[1]) {
         return unsupported("nested composed Unit control contains duplicate states");
     }
+    for control in controls {
+        let CheckedComposedUnitControlTerminatorPlan::Conditional {
+            guard,
+            when_true,
+            when_false,
+        } = &control.terminator
+        else {
+            unreachable!("control shape was admitted")
+        };
+        validate_parameter_guard(guard, &control.scalar_parameters)?;
+        validate_edge(checked, plan, control, when_true, 0)?;
+        validate_edge(checked, plan, control, when_false, 1)?;
+    }
+    for leaf in leaves {
+        super::super::admission::validate_leaf(leaf)?;
+        validate_empty_leaf(leaf)?;
+    }
+    validate_acyclic_reachable(plan, control_count)?;
     super::super::admission::validate_contract(checked, plan)?;
     let attachment = super::super::admission::exact_attachment(checked, plan)?;
     let leaf_refs = leaves.iter().collect::<Vec<_>>();
@@ -89,11 +93,8 @@ pub(super) fn admit<'a>(
     })
 }
 
-fn exact_parameters(
-    state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
-    expected: usize,
-) -> bool {
-    state.scalar_parameters.len() == expected
+fn exact_parameters(state: &psi_checked_trees::CheckedComposedUnitControlStatePlan) -> bool {
+    !state.scalar_parameters.is_empty()
         && state
             .scalar_parameters
             .iter()
@@ -106,45 +107,135 @@ fn exact_parameters(
 
 fn validate_parameter_guard(
     guard: &CheckedScalarExpression,
-    position: usize,
+    parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
 ) -> Result<(), LoweringError> {
-    if !matches!(guard,
-        CheckedScalarExpression::Boolean(boolean)
-            if matches!(boolean.as_ref(), CheckedBooleanExpression::Parameter { position: actual }
-                if *actual == position))
+    let CheckedScalarExpression::Boolean(boolean) = guard else {
+        return unsupported("nested composed Unit guard is not Boolean");
+    };
+    let CheckedBooleanExpression::Parameter { position } = boolean.as_ref() else {
+        return unsupported("nested composed Unit guard is not parameter-backed");
+    };
+    if parameters
+        .get(*position)
+        .is_none_or(|parameter| parameter.primitive_type != PrimitiveType::Bool)
     {
-        return unsupported("nested composed Unit guard drifted from its Boolean parameter");
+        return unsupported("nested composed Unit guard names an unknown Boolean parameter");
     }
     Ok(())
 }
 
 fn validate_edge(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
+    source: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
     edge: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
     ordinal: u32,
-    target: psi_symbols::SymbolHandle,
-    forwarded_count: Option<usize>,
 ) -> Result<(), LoweringError> {
-    let scalar_matches = match (forwarded_count, edge.scalar_arguments.as_slice()) {
-        (None, []) => true,
-        (Some(count), arguments) if arguments.len() == count => {
-            arguments.iter().enumerate().all(|(index, argument)| {
-                argument.argument_ordinal == u32::try_from(index).unwrap_or(u32::MAX)
-                    && argument.source_scalar_parameter_index
-                        == u32::try_from(index + 1).unwrap_or(u32::MAX)
+    let target = plan
+        .states
+        .iter()
+        .find(|state| state.state == edge.target_state)
+        .ok_or(LoweringError::Unsupported(
+            "nested composed Unit edge targets an unknown state",
+        ))?;
+    let scalar_matches = edge.scalar_arguments.len() == target.scalar_parameters.len()
+        && edge
+            .scalar_arguments
+            .iter()
+            .zip(&target.scalar_parameters)
+            .enumerate()
+            .all(|(target_index, (argument, target_parameter))| {
+                let source_index = usize::try_from(argument.source_scalar_parameter_index).ok();
+                let expression = checked.facts.values.scalar_expressions.expression_at(
+                    source.state,
+                    ordinal,
+                    CheckedScalarExpressionRole::TransitionArgument {
+                        argument_ordinal: argument.argument_ordinal,
+                    },
+                );
+                argument.argument_ordinal == u32::try_from(target_index).unwrap_or(u32::MAX)
                     && argument.target_scalar_parameter_index
-                        == u32::try_from(index).unwrap_or(u32::MAX)
-                    && argument.primitive_type == PrimitiveType::Bool
-            })
-        }
-        _ => false,
-    };
+                        == u32::try_from(target_index).unwrap_or(u32::MAX)
+                    && argument.primitive_type == target_parameter.primitive_type
+                    && source_index
+                        .and_then(|index| source.scalar_parameters.get(index))
+                        .is_some_and(|source_parameter| {
+                            source_parameter.primitive_type == target_parameter.primitive_type
+                        })
+                    && matches!(expression,
+                        Some(CheckedScalarExpression::Boolean(boolean))
+                            if matches!(boolean.as_ref(), CheckedBooleanExpression::Parameter { position }
+                                if *position == source_index.unwrap_or(usize::MAX)))
+            });
+    let cleanup = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_edge(plan.machine, source.state, ordinal)
+        .ok_or(LoweringError::Unsupported(
+            "nested composed Unit edge lost its checked cleanup",
+        ))?;
     if edge.statement_ordinal != ordinal
-        || edge.target_state != target
+        || cleanup.target_state != edge.target_state
+        || !cleanup
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
         || !edge.transfers.is_empty()
         || !edge.trivial_affine_discard_parameter_positions.is_empty()
         || !scalar_matches
     {
         return unsupported("nested composed Unit edge map drifted");
+    }
+    Ok(())
+}
+
+fn validate_acyclic_reachable(
+    plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
+    control_count: usize,
+) -> Result<(), LoweringError> {
+    fn visit(
+        plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
+        control_count: usize,
+        index: usize,
+        active: &mut Vec<usize>,
+        complete: &mut Vec<usize>,
+    ) -> Result<(), LoweringError> {
+        if active.contains(&index) {
+            return unsupported("nested composed Unit graph contains a cycle");
+        }
+        if complete.contains(&index) {
+            return Ok(());
+        }
+        active.push(index);
+        if index < control_count {
+            let CheckedComposedUnitControlTerminatorPlan::Conditional {
+                when_true,
+                when_false,
+                ..
+            } = &plan.states[index].terminator
+            else {
+                return unsupported("nested composed Unit control topology drifted");
+            };
+            for edge in [when_true, when_false] {
+                let target = plan
+                    .states
+                    .iter()
+                    .position(|state| state.state == edge.target_state)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested composed Unit edge target disappeared",
+                    ))?;
+                visit(plan, control_count, target, active, complete)?;
+            }
+        }
+        active.pop();
+        complete.push(index);
+        Ok(())
+    }
+    let mut active = Vec::new();
+    let mut complete = Vec::new();
+    visit(plan, control_count, 0, &mut active, &mut complete)?;
+    if complete.len() != plan.states.len() {
+        return unsupported("nested composed Unit graph contains unreachable states");
     }
     Ok(())
 }

@@ -1,4 +1,4 @@
-//! Dynamic Terminal emission for finite right-deep decision trees.
+//! Dynamic Terminal emission for general acyclic conditional graphs.
 
 use super::*;
 
@@ -13,9 +13,11 @@ pub(super) fn emit(
         .map(|index| Ok(block_id(dense_identity(index)?)))
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_value = 1_u64;
-    let control_parameters = (0..control_count)
-        .map(|index| {
-            (0..control_count - index)
+    let control_parameters = admitted
+        .controls
+        .iter()
+        .map(|state| {
+            (0..state.scalar_parameters.len())
                 .map(|_| {
                     Ok(ValueDeclaration {
                         id: value_id(allocate_dense(&mut next_value)?),
@@ -29,8 +31,11 @@ pub(super) fn emit(
     let mut next_operation = 1_u64;
     let mut blocks = Vec::with_capacity(plan.states.len());
     for index in 0..control_count {
-        let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } =
-            &admitted.controls[index].terminator
+        let CheckedComposedUnitControlTerminatorPlan::Conditional {
+            guard,
+            when_true,
+            when_false,
+        } = &admitted.controls[index].terminator
         else {
             unreachable!("nested admission retained conditional controls")
         };
@@ -45,21 +50,6 @@ pub(super) fn emit(
             &mut operations,
         );
         next_operation = operations.next_identity;
-        let final_control = index + 1 == control_count;
-        let true_target = if final_control {
-            state_ids[control_count]
-        } else {
-            state_ids[index + 1]
-        };
-        let false_target = state_ids[control_count + control_count - index];
-        let true_arguments = (!final_control)
-            .then(|| {
-                control_parameters[index][1..]
-                    .iter()
-                    .map(|parameter| parameter.id)
-                    .collect()
-            })
-            .unwrap_or_default();
         blocks.push(Block {
             id: state_ids[index],
             parameters: (index != 0)
@@ -68,8 +58,20 @@ pub(super) fn emit(
             operations: operations.operations,
             terminator: Terminator::Conditional {
                 condition,
-                when_true: successor(true_target, true_arguments, &mut next_edge)?,
-                when_false: successor(false_target, Vec::new(), &mut next_edge)?,
+                when_true: lower_successor(
+                    plan,
+                    &state_ids,
+                    &control_parameters[index],
+                    when_true,
+                    &mut next_edge,
+                )?,
+                when_false: lower_successor(
+                    plan,
+                    &state_ids,
+                    &control_parameters[index],
+                    when_false,
+                    &mut next_edge,
+                )?,
             },
         });
     }
@@ -188,4 +190,37 @@ fn successor(
         arguments,
         trivial_affine_discards: Vec::new(),
     })
+}
+
+fn lower_successor(
+    plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
+    state_ids: &[BlockId],
+    source_parameters: &[ValueDeclaration],
+    edge: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
+    next_edge: &mut u64,
+) -> Result<SuccessorEdge, LoweringError> {
+    let target_index = plan
+        .states
+        .iter()
+        .position(|state| state.state == edge.target_state)
+        .ok_or(LoweringError::Unsupported(
+            "nested emitted edge target disappeared",
+        ))?;
+    let arguments = edge
+        .scalar_arguments
+        .iter()
+        .map(|argument| {
+            source_parameters
+                .get(
+                    usize::try_from(argument.source_scalar_parameter_index).map_err(|_| {
+                        LoweringError::Unsupported("nested scalar source index exceeds usize")
+                    })?,
+                )
+                .map(|parameter| parameter.id)
+                .ok_or(LoweringError::Unsupported(
+                    "nested scalar edge names an unknown source parameter",
+                ))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    successor(state_ids[target_index], arguments, next_edge)
 }

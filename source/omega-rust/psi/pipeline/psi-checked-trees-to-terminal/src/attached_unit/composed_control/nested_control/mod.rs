@@ -1,4 +1,4 @@
-//! Exact two-frontier conditional composition with three effect leaves.
+//! Independent replay of general acyclic Boolean control graphs.
 
 use super::*;
 

@@ -97,10 +97,13 @@ with parameterless target closure isolated in `internal_calls`. Both nested
 consumer entrances descend through independent `admission` and `emission`
 rungs: `internal_calls` owns target-plan and transitive-closure replay while
 `prefixed_control` owns finite scalar-prefix chains before one conditional
-frontier, and `nested_control` owns finite right-deep conditional trees with
-ordered scalar-suffix handoffs. Its typed producer has a small coordinator over
-`topology` and `assembly`; its consumer retains the parallel `admission` and
-`emission` split.
+frontier, and `nested_control` owns general finite acyclic Boolean control
+graphs with arbitrary checked state targets, exact scalar handoffs, and shared
+effect leaves. Its typed producer has a small coordinator over `topology` and
+`assembly`; its consumer retains the parallel `admission` and `emission` split.
+The topology/admission rungs own graph classification and independent
+reachability/cycle walks; balanced, right-deep, and convergent shapes do not
+receive sibling routes.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
