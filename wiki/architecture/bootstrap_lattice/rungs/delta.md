@@ -66,19 +66,24 @@ entry, state, and arm environments without selecting a final rejection. The
 same walk retains exact-AST facts for settled literal, local-read, group,
 negation, binary scalar, record-field, array/view index, range-slice, and
 `.len` forms without duplicating the recursive checker. Exact field custody
-preserves its owner/member identity for later layout and lowering. Direct
-qualified data constructors and machines retain exact callable custody before
-category, arity, or type checking, and complete applications retain value,
-resultless, or `never` facts without manufacturing recovery facts.
+preserves its owner/member identity for later layout and lowering. One
+generalized callable ledger retains exact direct-qualified and settled grouped/
+unqualified machine application custody before category, arity, or type
+checking, and complete applications retain value, resultless, or `never` facts
+without manufacturing recovery facts. Expression use distinguishes an ordinary
+value, call head, discarded postfix statement, and transition continuation
+rather than collapsing the latter three.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
-incomplete entry-diagnostic judgment. D36's qualified-only receiver parser and
-case/machine collision census are implemented; its qualified-expression
-application classification remains open. D37 settles dependent parent
+incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
+case/machine collision census, direct qualified applications, and settled
+grouped/unqualified application slice are implemented; receiver and
+continuation classification remains open. D37 settles dependent parent
 composition and relational statement/projection anchors; its full body/control
-implementation work. D38 settles the place-valued fixed-array receiver and
-non-place full-view result for `.as_slice`; its enforcement remains
-implementation work. D34 has settled physical storage refusal; its
+implementation remains open. D38 settles the place-valued fixed-array receiver
+and non-place full-view result for `.as_slice`; its source fact relation is
+implemented while lowering and executable controls remain. D34 has settled
+physical storage refusal; its
 implementation additionally waits on the final nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private

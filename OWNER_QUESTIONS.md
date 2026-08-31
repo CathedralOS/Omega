@@ -587,3 +587,73 @@ missing leaves, and unclassified physical operations.
   import spelling alone, or syscall number without target and context; assume
   unknown means harmless; or map every binding beneath a service to that
   service's permitted class set.
+
+## Q10 — Fix the zero-parameter Delta state-transfer spelling
+
+### Context
+
+Delta transition continuations are postfix expressions. D36 explicitly
+requires every machine application, including a zero-parameter machine, to
+author an argument list. State transfers initialize state parameters, but the
+contract does not say whether a zero-parameter state may be transferred to as a
+bare spelling or must likewise author `()`. The distinction affects callable/
+state ambiguity, arity admission, and the diagnostic for a known bare state.
+
+### Problem statement
+
+Choose whether every state transfer requires an authored argument list or a
+zero-parameter state additionally admits a bare spelling. If the bare spelling
+is rejected, assign its exact closed Delta rejection reason and anchor. The
+Gamma-written Delta compiler needs this rule to total transition-continuation
+classification without inferring syntax from the resolved arity.
+
+### Proposed direction
+
+Require an authored argument list for every state transfer, including `()` for
+a zero-parameter state. A known bare state is not a transfer and contributes
+`InvalidControlTarget` at the continuation expression start. This keeps state
+and machine application syntax uniform and resolves state/machine identity
+before arity rather than letting zero arity select a meaning.
+
+### Alternates
+
+- Acceptable: admit a bare spelling only for a uniquely resolved zero-parameter
+  state, provided a same-spelled unqualified machine still yields D36's
+  `InvalidControlTarget` before arity.
+- Tempting but wrong: let the compiler try both spellings and select whichever
+  declaration has matching arity, or let source order choose state versus
+  machine.
+
+## Q11 — Assign invalid Delta `self` diagnostics
+
+### Context
+
+D36 permits an authored receiver only on an owner-qualified data machine. In
+that scope, `self` has the owner's nominal value and storage place and supports
+the required receiver-qualified calls. The grammar also parses `self` in an
+unqualified or receiverless machine, but the Delta contract assigns no reason
+or anchor to that use. Inventing a value would infer an owner D36 forbids;
+silence would leave an authored expression with no public rejection.
+
+### Problem statement
+
+Assign the rejection reason and exact source anchor for `self` outside a
+receiver-bearing qualified data machine. This is needed to close expression
+resolution and all downstream place/call premises while retaining the rule
+that no global owner or storage is inferred.
+
+### Proposed direction
+
+Treat `self` as one grammar-provided local identity that exists only when the
+current machine declares `&mut self`. Outside that scope it contributes
+`UnknownName` at the `self` keyword and no value/place fact. Inside the valid
+scope it retains the exact current data-owner declaration and a nominal storage
+place; receiver mutability is therefore not guessed from use.
+
+### Alternates
+
+- Acceptable: use `TypeMismatch` at the `self` keyword if the language defines
+  `self` as a known contextual expression of the wrong machine category rather
+  than an absent binding.
+- Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
+  recovery receiver, or defer the failure until a later field/call suffix.

@@ -1260,6 +1260,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
       qualified field calls, and the remaining unqualified machine path. Keep
       context admission before arity and never infer a receiver for static
       `Owner::machine(...)` syntax.
+      - [x] Replace the former value-versus-control Boolean with explicit
+        ordinary, call-head, postfix-statement, and transition-continuation
+        uses; generalize the one exact-expression callable ledger; normalize
+        grouped bare-name call heads; and implement unqualified machine calls
+        in ordinary, nested-call-head, and postfix-statement positions. The
+        grammar-selected machine namespace precedes local fallback, one shared
+        admitted-machine join owns arity/type/result derivation, and complete
+        value/resultless/`never` extra-call bases use D37's category/terminal
+        failures without manufacturing facts.
+      - [ ] **OWNER-BLOCKED — DELTA BARE STATE TRANSFER.** The continuation
+        grammar and D36 do not decide whether a zero-parameter state transfer
+        may be a bare state spelling or must author `()`. Implement explicit
+        state applications and state/machine collision independently; do not
+        accept or reject the bare form until the owner queue ruling lands.
+      - [ ] **OWNER-BLOCKED — DELTA INVALID `self`.** Positive `self` custody
+        inside a receiver-bearing qualified data machine is unblocked. The
+        language does not assign a rejection reason/anchor to `self` outside
+        that scope; leave only that negative relation pending its owner ruling.
   - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
     independent child candidate, but derive a parent success or rejection only
     after every fact consumed by that rule resolves. Implement the callable/

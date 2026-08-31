@@ -49,11 +49,13 @@ compilers and must not both be called “the Delta compiler.”
   source-shaped identity census including D36's receiver restriction and
   case/machine collision registry, D31 structural type formation, the source-
   backed resolution catalog, ordered local-value resolution, exact scalar and
-  aggregate value/place facts, direct qualified-callable custody/results, and
-  symbolic Alpha encoding. Remaining final body/control checking, Q4 entry
-  diagnostics, D36 application classification, D37 premise-DAG completion,
-  D38 executable controls, storage realization/lowering, `main`, and publication
-  are incomplete, so it exposes no compiler artifact yet. The
+  aggregate value/place facts, one generalized callable ledger, direct
+  qualified applications, grouped/unqualified machine applications in settled
+  non-continuation contexts, and symbolic Alpha encoding. Remaining final
+  body/control checking, Q4 entry diagnostics, D36 receiver/continuation
+  classification, D37 premise-DAG completion, D38 executable controls, storage
+  realization/lowering, `main`, and publication are incomplete, so it exposes
+  no compiler artifact yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
   separate array-view extra-call rejection.
 

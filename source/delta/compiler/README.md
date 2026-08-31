@@ -113,9 +113,10 @@ let reference contributes `UseBeforeInitialization` while a genuinely absent
 value name contributes `UnknownName`. Successful references retain their exact
 parameter, let statement, or pattern/binder declaration and are keyed by
 expression constructor plus exact span; a postfix node therefore cannot borrow
-the fact for its same-start base. Direct callable and control heads remain for
-their grammar-selected namespace pass. This is durable identity custody for
-typing and lowering, not a partial acceptance judgment.
+the fact for its same-start base. Call heads, discarded postfix statements, and
+transition continuations now carry distinct expression-use facts rather than
+one overloaded non-value bit. This is durable identity custody for typing and
+lowering, not a partial acceptance judgment.
 
 The same expression walk now retains complete settled result facts
 without introducing a second recursive checker. Integer, character, and
@@ -126,19 +127,28 @@ the later store check. Groups preserve the complete value/place result;
 negation and every binary operator consume complete `i32` operands and produce
 a non-place `i32`.
 
-Direct qualified constructors and data machines now retain exact callable
-custody before context, arity, or argument typing. Constructor and machine
-lookups remain independent, and the semantic machine lookup admits only a
-catalog row already resolved beneath a data owner. Authored arguments are
-walked as siblings; arity depends only on admitted identity and count; and the
-type join waits for every required value fact. A compatible constructor yields
-its nominal non-place value, while a compatible receiverless machine with
-authored parentheses yields its declared value, resultless, or `never` fact.
+Direct qualified constructors and data machines retain exact callable custody
+before context, arity, or argument typing. The same generalized ledger retains
+unqualified machine applications in ordinary, nested-call-head, and postfix-
+statement positions, including arbitrarily grouped bare-name heads.
+Constructor and machine lookups remain independent, and the semantic machine
+lookup admits only a catalog row already resolved beneath a data owner.
+Authored arguments are walked as siblings; arity depends only on admitted
+identity and count; and the type join waits for every required value fact. A
+compatible constructor yields its nominal non-place value, while a compatible
+receiverless machine with authored parentheses yields its declared value,
+resultless, or `never` fact.
 Stored constructor payload `u8` accepts an `i32` value and leaves range
 enforcement to runtime `ByteRange`. A bare resolved machine in an ordinary
 value position contributes D36's `TypeMismatch` at the qualified expression
-start. Exact call-head, statement, continuation, receiver-field, and
-unqualified-machine admission remain with the wider body/control judgment.
+start. Unqualified machine lookup precedes local-value fallback because call
+grammar selects that namespace; a genuinely absent head retains the local
+`UnknownName`/`UseBeforeInitialization` premise, while a completed noncallable
+local is `TypeMismatch` at the application. One admitted-machine join owns
+arity, complete argument typing, and value/resultless/`never` production for
+both direct qualified and unqualified spellings. Qualified/receiver grouped
+heads, receiver-field calls, full statement admission, and continuation/state
+admission remain with the wider body/control judgment.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
@@ -153,9 +163,11 @@ remain ordinary fields because contextual array/view members are selected only
 after base-type classification.
 
 The fact pass follows D37 by producing no parent fact or dependent diagnostic
-while a consumed child premise is absent. Direct qualified-callable arity is a
-sibling judgment and can therefore coexist with an independently failing
-argument, while result typing waits for complete compatible values. Negative
+while a consumed child premise is absent. Admitted callable arity is a sibling
+judgment and can therefore coexist with an independently failing
+argument, while result typing waits for complete compatible values. A separate
+call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
+an embedded `never` result is `InvalidTerminal`. Negative
 projection, relational, place, general-call, resultless-use, and `never`-flow
 candidates still require the remaining D37 premise DAG. The fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
