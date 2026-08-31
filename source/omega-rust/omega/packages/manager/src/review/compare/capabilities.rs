@@ -1,17 +1,15 @@
-//! Exact row comparison, resource accounting, and closure commitments.
+//! Exact capability-set comparison and row conflict construction.
 
 use super::commitments::{
-    ConflictFingerprintBaseline, derive_candidate_closure_commitment, derive_conflict_fingerprint,
+    derive_candidate_closure_commitment, derive_conflict_fingerprint, ConflictFingerprintBaseline,
 };
 use super::model::*;
-use crate::declarations::BuildDeclarationKind;
+use super::resources::{account_review_resources, ComparisonInputBudget};
 use crate::declarations::PackageKey;
-use crate::resolution::graph::{
-    DependencyRequestPath, ResolvedPackageClosure, ResolvedPackageSourceClosure,
-};
+use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
 use crate::review::candidate::validation::{
-    ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
-    validate_review_only_records,
+    validate_review_only_closure, validate_review_only_records, ReviewOnlyClosureValidationError,
+    ReviewOnlySetValidationError,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
@@ -19,35 +17,6 @@ use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use std::cmp::Ordering;
-
-pub(crate) fn compare_review_only_root_role_graphs(
-    baseline: &ResolvedPackageClosure,
-    candidate: &ResolvedPackageClosure,
-) -> Result<Option<ReviewOnlyRootRoleChange>, ReviewOnlyRootRoleComparisonError> {
-    if baseline.root() != candidate.root() {
-        return Err(ReviewOnlyRootRoleComparisonError::RootIdentityMismatch {
-            baseline: Box::new(baseline.root().clone()),
-            candidate: Box::new(candidate.root().clone()),
-        });
-    }
-    let baseline_role = baseline.root_role();
-    let candidate_role = candidate.root_role();
-    let broken_contract = match (baseline_role, candidate_role) {
-        (BuildDeclarationKind::Package, BuildDeclarationKind::Application) => {
-            ReviewOnlyRootRoleContract::DependencyCompatibility
-        }
-        (BuildDeclarationKind::Application, BuildDeclarationKind::Package) => {
-            ReviewOnlyRootRoleContract::ApplicationActivation
-        }
-        _ => return Ok(None),
-    };
-    Ok(Some(ReviewOnlyRootRoleChange {
-        root: baseline.root().clone(),
-        baseline_role,
-        candidate_role,
-        broken_contract,
-    }))
-}
 
 pub fn compare_review_only_capabilities(
     baseline: &CompilerIssuedPackageReviewSet,
@@ -210,78 +179,6 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
     }
     packages.sort_by(|left, right| left.key.cmp(&right.key));
     Ok(ReviewOnlyCapabilityConflictSet { packages })
-}
-
-#[derive(Default)]
-struct ComparisonInputBudget {
-    packages: usize,
-    rows: usize,
-    row_key_bytes: usize,
-    encoded_row_bytes: usize,
-    source_locations: usize,
-    source_location_path_bytes: usize,
-}
-
-fn account_review_resources(
-    reviews: &[impl PackageReviewEvidence],
-    limits: ReviewOnlyCapabilityConflictLimits,
-    budget: &mut ComparisonInputBudget,
-) -> Result<(), ReviewOnlyCapabilityConflictError> {
-    budget.packages = budget.packages.saturating_add(reviews.len());
-    if budget.packages > limits.maximum_packages {
-        return Err(ReviewOnlyCapabilityConflictError::TooManyPackages {
-            maximum: limits.maximum_packages,
-        });
-    }
-    for review in reviews {
-        budget.rows = budget.rows.saturating_add(review.canonical_rows().len());
-        budget.row_key_bytes = review
-            .canonical_rows()
-            .iter()
-            .fold(budget.row_key_bytes, |bytes, row| {
-                bytes.saturating_add(row.key_bytes().len())
-            });
-        budget.encoded_row_bytes = review
-            .canonical_rows()
-            .iter()
-            .fold(budget.encoded_row_bytes, |bytes, row| {
-                bytes.saturating_add(row.canonical_bytes().len())
-            });
-        for row in review.canonical_rows() {
-            let (locations, path_bytes) = source_metrics(row.source());
-            budget.source_locations = budget.source_locations.saturating_add(locations);
-            budget.source_location_path_bytes =
-                budget.source_location_path_bytes.saturating_add(path_bytes);
-        }
-        if budget.rows > limits.maximum_rows {
-            return Err(ReviewOnlyCapabilityConflictError::TooManyRows {
-                maximum: limits.maximum_rows,
-            });
-        }
-        if budget.row_key_bytes > limits.maximum_row_key_bytes {
-            return Err(ReviewOnlyCapabilityConflictError::RowKeyBytesExceeded {
-                maximum_bytes: limits.maximum_row_key_bytes,
-            });
-        }
-        if budget.encoded_row_bytes > limits.maximum_encoded_row_bytes {
-            return Err(ReviewOnlyCapabilityConflictError::EncodedRowBytesExceeded {
-                maximum_bytes: limits.maximum_encoded_row_bytes,
-            });
-        }
-        if budget.source_locations > limits.maximum_source_locations {
-            return Err(ReviewOnlyCapabilityConflictError::TooManySourceLocations {
-                maximum: limits.maximum_source_locations,
-            });
-        }
-        if budget.source_location_path_bytes > limits.maximum_source_location_path_bytes {
-            return Err(
-                ReviewOnlyCapabilityConflictError::SourceLocationPathBytesExceeded {
-                    maximum_bytes: limits.maximum_source_location_path_bytes,
-                },
-            );
-        }
-    }
-    Ok(())
 }
 
 fn map_candidate_closure_validation_error(
@@ -589,61 +486,6 @@ fn merge_risk(
         PackageReviewCanonicalRowRisk::Blocking
     } else {
         PackageReviewCanonicalRowRisk::AuditRecommended
-    }
-}
-
-/// Highest policy risk among changed canonical rows. A whole-review change
-/// not represented by rows fails closed as opaque blocking here; the explicit
-/// comparator reports the stronger structural error.
-pub(crate) fn changed_review_risk(
-    baseline: &impl PackageReviewEvidence,
-    candidate: &impl PackageReviewEvidence,
-) -> Option<PackageReviewCanonicalRowRisk> {
-    let baseline_rows = baseline.canonical_rows();
-    let candidate_rows = candidate.canonical_rows();
-    let mut baseline_index = 0usize;
-    let mut candidate_index = 0usize;
-    let mut changed = None;
-    while baseline_index < baseline_rows.len() || candidate_index < candidate_rows.len() {
-        let baseline_row = baseline_rows.get(baseline_index);
-        let candidate_row = candidate_rows.get(candidate_index);
-        let ordering = match (baseline_row, candidate_row) {
-            (Some(left), Some(right)) => row_coordinate(left).cmp(&row_coordinate(right)),
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => break,
-        };
-        let (baseline_row, candidate_row) = match ordering {
-            Ordering::Less => {
-                baseline_index += 1;
-                (baseline_row, None)
-            }
-            Ordering::Greater => {
-                candidate_index += 1;
-                (None, candidate_row)
-            }
-            Ordering::Equal => {
-                baseline_index += 1;
-                candidate_index += 1;
-                (baseline_row, candidate_row)
-            }
-        };
-        if matches!((baseline_row, candidate_row), (Some(left), Some(right)) if left.canonical_bytes() == right.canonical_bytes())
-        {
-            continue;
-        }
-        let row_risk = merge_risk(
-            baseline_row.map(ReviewOnlyCanonicalRow::risk),
-            candidate_row.map(ReviewOnlyCanonicalRow::risk),
-        );
-        changed = Some(merge_risk(changed, Some(row_risk)));
-    }
-    if changed.is_none()
-        && baseline.whole_review_commitment() != candidate.whole_review_commitment()
-    {
-        Some(PackageReviewCanonicalRowRisk::OpaqueBlocking)
-    } else {
-        changed
     }
 }
 
