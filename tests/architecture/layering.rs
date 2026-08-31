@@ -1800,12 +1800,24 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
             );
         }
     }
-    let prefixed = terminal.join("composed_control/prefixed_control");
-    for rung in ["admission.rs", "emission.rs"] {
+    for (name, limit) in [("prefixed_control", 20), ("internal_calls", 10)] {
+        let directory = terminal.join("composed_control").join(name);
+        let entrance = directory.join("mod.rs");
+        let source = std::fs::read_to_string(&entrance)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", entrance.display()));
         assert!(
-            prefixed.join(rung).is_file(),
-            "prefixed composed Unit lowering must expose its `{rung}` rung"
+            source.lines().count() <= limit,
+            "composed Unit nested entrance {} exceeds its {limit}-line navigation budget",
+            entrance.display()
         );
+        for rung in ["admission", "emission"] {
+            assert!(
+                source.contains(&format!("mod {rung};"))
+                    && directory.join(format!("{rung}.rs")).is_file(),
+                "composed Unit nested entrance {} must name an existing `{rung}` rung",
+                entrance.display()
+            );
+        }
     }
     assert!(typed.join("providers.rs").is_file());
     assert!(terminal.join("claims.rs").is_file());

@@ -102,10 +102,17 @@ decision. Only true language-semantic questions belong in
    values, and scalar-map or target-state corruption fails closed before
    verifier/codec publication. The 27- and 29-line stage entrances explicitly
    name `prefixed_control`; its consumer route descends through a 15-line
-   entrance into independent `admission` and `emission` rungs. Next generalize
-   beyond one exact prefix and widen internal targets beyond the empty-body
-   slice. This is engineering, not an owner language decision. A smaller recurring
-   custody class leaves
+   entrance into independent `admission` and `emission` rungs. Internal target
+   widening is also underway: a qualification-free, parameterless target may
+   now contain exactly one internal Unit call before returning. Admission
+   independently rejoins the nested flow coordinate, target state, contract,
+   and service reach, retains its transitive empty target, rejects a missing or
+   corrupted target plan, and emits one deduplicated three-machine closure that
+   passes Terminal verification and codec replay. `internal_calls` is now a
+   6-line taxonomy entrance exposing separate `admission` and `emission` rungs.
+   Next generalize beyond one exact control prefix and then grow the acyclic
+   target closure beyond one exact call. This is engineering, not an owner
+   language decision. A smaller recurring custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine

@@ -120,7 +120,7 @@ pub(super) fn admit_leaf_targets<'a>(
                 retain_leaf_boundary(checked, machine, state, plans, &mut boundaries)?;
             }
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                internal_calls::retain_leaf_target(
+                internal_calls::admission::retain_leaf_target(
                     checked,
                     machine,
                     state,

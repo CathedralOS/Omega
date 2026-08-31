@@ -20,6 +20,7 @@ mod attached_unit_cases;
 mod composed_unit_claims;
 mod composed_unit_internal_calls;
 mod composed_unit_prefixed_control;
+mod composed_unit_transitive_internal_calls;
 mod content_conservation;
 mod quotient_correspondence;
 mod scalar_graph;

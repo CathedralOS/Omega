@@ -67,6 +67,7 @@ pub(super) struct LoweredComposedInternalTarget {
     pub(super) attachment_type_identity: String,
     pub(super) contract_service_reach: ServiceReachPlan,
     pub(super) service_reach: ServiceReachSummary,
+    pub(super) nested_call_target: Option<psi_symbols::SymbolHandle>,
 }
 
 pub(super) struct LoweredComposedBoundary {
@@ -131,6 +132,14 @@ pub(super) fn lower_composed_catalogs(
                 attachment_type_identity: target.attachment_type_identity.clone(),
                 contract_service_reach: target.contract_service_reach,
                 service_reach: target.service_reach,
+                nested_call_target: target.operations.iter().find_map(
+                    |operation| match operation {
+                        CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
+                            Some(*target_machine)
+                        }
+                        _ => None,
+                    },
+                ),
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
