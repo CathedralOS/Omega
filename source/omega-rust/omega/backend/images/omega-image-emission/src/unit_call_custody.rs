@@ -293,7 +293,7 @@ pub(super) fn validate_internal_unit_call_custody(
                         [
                             psi_terminal::StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
                             psi_terminal::StructuralPathSegment::FixedIndex(
-                                inner @ (0 | 1 | 2 | 3 | 4 | 5),
+                                inner @ (0 | 1 | 2 | 3 | 4 | 5 | 6),
                             ),
                         ] => {
                             let leaf_stride = u32::from(argument.shape.byte_size)
@@ -301,8 +301,9 @@ pub(super) fn validate_internal_unit_call_custody(
                             let Some(outer_stride) = argument.element_stride else {
                                 return true;
                             };
-                            let Some(inner_length) =
-                                [3_u32, 4_u32, 5_u32, 6_u32].into_iter().find(|length| {
+                            let Some(inner_length) = [3_u32, 4_u32, 5_u32, 6_u32, 7_u32]
+                                .into_iter()
+                                .find(|length| {
                                     leaf_stride.checked_mul(*length) == Some(outer_stride)
                                 })
                             else {
