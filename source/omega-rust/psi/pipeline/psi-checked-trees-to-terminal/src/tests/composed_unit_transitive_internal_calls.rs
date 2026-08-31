@@ -20,6 +20,25 @@ fn checked_transitive_internal_calls() -> psi_checked_trees::CheckedTrees {
     )
 }
 
+fn checked_depth_two_internal_calls() -> psi_checked_trees::CheckedTrees {
+    checked_source(
+        r#"
+            data Root {}
+            machine Root::quiet() {}
+            machine Root::second() { Root::quiet(); }
+            machine Root::first() { Root::second(); }
+            machine Root::enter(flag: bool) {
+                transition flag {
+                    true -> yes()
+                    _ -> no()
+                }
+                state yes() { Root::first(); }
+                state no() { Root::first(); }
+            }
+        "#,
+    )
+}
+
 fn source_machine(checked: &CheckedTrees, name: &str) -> psi_symbols::SymbolHandle {
     checked
         .facts
@@ -83,6 +102,54 @@ fn lowers_and_deduplicates_one_call_internal_target_closure() {
         &psi_proof_admission::AdmissionProfile::default(),
     )
     .expect("transitive internal-call module verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("decode"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn lowers_a_depth_two_internal_target_chain_once() {
+    let checked = checked_depth_two_internal_calls();
+    let lowered = lower_machine(&checked, "Root::enter").expect("depth-two internal closure");
+    assert_eq!(lowered.semantic_module.machines.len(), 4);
+    let root = &lowered.semantic_module.machines[0];
+    let mut next = match root.blocks[1].operations[0].kind {
+        OperationKind::CallUnit { callee, .. } => callee,
+        _ => panic!("composed leaf should call the first link"),
+    };
+    for _ in 0..2 {
+        let machine = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == next)
+            .expect("chain target is present exactly once");
+        let [
+            Operation {
+                kind: OperationKind::CallUnit { callee, .. },
+                ..
+            },
+        ] = machine.blocks[0].operations.as_slice()
+        else {
+            panic!("nonfinal chain target should contain one call")
+        };
+        next = *callee;
+    }
+    let quiet = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == next)
+        .expect("final empty target is present exactly once");
+    assert!(quiet.blocks[0].operations.is_empty());
+    psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("depth-two internal-call module verifies");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes).expect("decode"),

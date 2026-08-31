@@ -108,11 +108,15 @@ decision. Only true language-semantic questions belong in
    independently rejoins the nested flow coordinate, target state, contract,
    and service reach, retains its transitive empty target, rejects a missing or
    corrupted target plan, and emits one deduplicated three-machine closure that
-   passes Terminal verification and codec replay. `internal_calls` is now a
-   6-line taxonomy entrance exposing separate `admission` and `emission` rungs.
-   Next generalize beyond one exact control prefix and then grow the acyclic
-   target closure beyond one exact call. This is engineering, not an owner
-   language decision. A smaller recurring custody class leaves
+   passes Terminal verification and codec replay. Recursive admission is now
+   proven by a depth-two relay canary: every node has the same exact one-call
+   shape, each target is independently rejoined and emitted once, and the
+   resulting four-machine module verifies and survives codec replay. Thus the
+   admitted target closure is any finite acyclic chain of those exact nodes,
+   not a hard-coded depth. `internal_calls` remains a 6-line taxonomy entrance
+   exposing separate `admission` and `emission` rungs. Next generalize beyond
+   one exact control prefix. This is engineering, not an owner language
+   decision. A smaller recurring custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine
