@@ -80,7 +80,7 @@ pub(super) fn admit<'a>(
     let (boundaries, internal_targets) = super::super::admission::admit_leaf_targets(
         checked,
         plan.machine,
-        [when_true, when_false],
+        &[when_true, when_false],
         custody,
         attachment,
         &plan.provider_attachment_requirements,
@@ -90,7 +90,7 @@ pub(super) fn admit<'a>(
         dispatch,
         leaf_calls: super::super::admission::AdmittedComposedUnit {
             entry: dispatch,
-            leaves: [when_true, when_false],
+            leaves: vec![when_true, when_false],
             boundaries,
             internal_targets,
             custody,

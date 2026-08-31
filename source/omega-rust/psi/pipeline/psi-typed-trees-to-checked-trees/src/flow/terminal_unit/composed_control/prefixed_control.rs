@@ -127,7 +127,7 @@ pub(super) fn build(
         shapes,
         machine,
         attachment.as_ref()?,
-        [
+        &[
             (
                 when_true,
                 facts.flow.control.calls.span_or_empty(true_flow.calls),

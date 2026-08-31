@@ -122,9 +122,13 @@ decision. Only true language-semantic questions belong in
    boundary leaves and deduplicated internal-call leaves; corrupting the second
    edge fails closed, and verifier/codec replay pass. The producer and consumer
    entrances remain 27 and 29 lines, while their `prefixed_control` leaves are
-   248, 131, and 186 lines. Next admit a second conditional frontier rather
-   than another depth-specific graph. This is engineering, not an owner
-   language decision. A smaller recurring custody class leaves
+   248, 131, and 186 lines. Preparation for a second conditional frontier is
+   complete at the shared leaf boundary: provider-requirement collection and
+   checked-to-Terminal leaf-target admission now consume honest slices rather
+   than two-element arrays, while the existing whole-root linear custody proof
+   remains deliberately exact to two arms. Next admit the second conditional
+   frontier rather than another depth-specific graph. This is engineering, not
+   an owner language decision. A smaller recurring custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine

@@ -105,7 +105,10 @@ policy into a second route. Prefix depth remains a loop inside the existing
 producer leaf and the consumer's `admission`/`emission` pair; it does not create
 depth-named modules or routes. Internal-call recursion remains inside its
 `admission` leaf; adding tested closure depth does not add a depth-named module
-or another orchestration layer.
+or another orchestration layer. Shared provider discovery and leaf-target
+catalog admission take variable-length leaf slices. The exact two-arm linear
+custody proof retains its fixed pair because widening catalog arity does not
+silently widen ownership semantics.
 Shared state-entry claim construction lives at the honest
 `attached_unit/claims.rs` ancestor rather than in either control-flow route.
 Focused source and replay tests live in the `composed_claims`,

@@ -37,7 +37,7 @@ pub(super) fn build(
         shapes,
         machine,
         &graph.attachment_type_identity,
-        [
+        &[
             (
                 graph.leaves[0],
                 facts.flow.control.calls.span_or_empty(true_flow.calls),
