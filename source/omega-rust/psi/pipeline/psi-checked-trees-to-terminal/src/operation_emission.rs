@@ -504,7 +504,7 @@ fn emit_direct_call_operation(
         .checked_add(1)
         .expect("generated value identity advances after a direct call");
     let operation = operations.allocate();
-    operations.record_source_call(call.source_coordinate, operation, call.target_machine)?;
+    operations.record_source_call(call.source_coordinate, None, operation, call.target_machine)?;
     operations.push(Operation {
         id: operation,
         result: psi_terminal::OperationResult::Scalar(ValueDeclaration {

@@ -9,6 +9,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
+        source_site,
         target_machine,
         target_state,
         target_contract_report_fingerprint,
@@ -228,8 +229,25 @@ pub(super) fn lower_boundary_scalar_return_machine(
         .ok_or(LoweringError::Unsupported(
             "result-bearing boundary value identity space is exhausted",
         ))?;
+    let operation_id = operations.allocate();
+    operations.record_source_call(
+        SourceCallCoordinate {
+            state: plan.state,
+            statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
+                LoweringError::Unsupported(
+                    "result-bearing boundary statement coordinate exceeds usize",
+                )
+            })?,
+            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
+                LoweringError::Unsupported("result-bearing boundary call ordinal exceeds usize")
+            })?,
+        },
+        *source_site,
+        operation_id,
+        *target_machine,
+    )?;
     let operation = Operation {
-        id: operations.allocate(),
+        id: operation_id,
         result: psi_terminal::OperationResult::Scalar(call_result),
         kind: OperationKind::BoundaryCall {
             boundary: boundary_id,
@@ -263,6 +281,11 @@ pub(super) fn lower_boundary_scalar_return_machine(
         &plan.entry_claims,
         &claim_bindings,
     )?;
+    let OperationBuffer {
+        operations,
+        source_calls: source_call_occurrences,
+        ..
+    } = operations;
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -295,7 +318,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         blocks: vec![Block {
             id: block_id(1),
             parameters: Vec::new(),
-            operations: operations.operations,
+            operations,
             terminator: Terminator::Return {
                 edge: edge_id(1),
                 value: call_result.id,
@@ -334,6 +357,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,
+        source_call_occurrences,
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

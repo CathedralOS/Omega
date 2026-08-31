@@ -380,6 +380,25 @@ pub(super) fn build_call_operation(
         call.statement_index,
         call.call_ordinal,
     )?;
+    let source_site = match &call_site {
+        crate::CallSite::Statement(_) => {
+            let offset = u32::try_from(call.statement_index).ok()?;
+            Some(psi_checked_trees::NominalMachineUseSite::Statement(
+                psi_arena::Handle::from_parts(
+                    state
+                        .statement_nodes
+                        .start()
+                        .arena_index()
+                        .checked_add(offset)?,
+                    state.statement_nodes.start().generation(),
+                ),
+            ))
+        }
+        crate::CallSite::Expression { expression, .. } => Some(
+            psi_checked_trees::NominalMachineUseSite::Expression(*expression),
+        ),
+        crate::CallSite::TransitionNamed { .. } => None,
+    };
 
     if program
         .symbols
@@ -458,6 +477,35 @@ pub(super) fn build_call_operation(
             .filter(|(_, parameter)| !parameter.is_self)
             .collect::<Vec<_>>();
         let caller_source_parameters = program.state_parameters(state);
+        let signature_type_parameters = program.state_signature_type_parameters(signature);
+        let admitted_native_callback_telescope = source_site.is_some()
+            && !signature.native_callback_parameters.is_empty()
+            && signature_type_parameters.len() == signature.native_callback_parameters.len()
+            && signature_type_parameters
+                .iter()
+                .zip(&signature.native_callback_parameters)
+                .enumerate()
+                .all(|(ordinal, (parameter, callback))| {
+                    let psi_typed_trees::data::TypeParameterKind::Machine {
+                        contract:
+                            psi_typed_trees::data::MachineParameterContract::Nominal {
+                                trait_definition,
+                                requirement,
+                            },
+                    } = parameter.kind
+                    else {
+                        return false;
+                    };
+                    parameter.name == callback.binder
+                        && facts.nominal_machine_uses.uses.iter().any(|nominal_use| {
+                            nominal_use.site == source_site.expect("checked above")
+                                && nominal_use.registration_operation == signature.symbol
+                                && usize::try_from(nominal_use.static_machine_ordinal).ok()
+                                    == Some(ordinal)
+                                && nominal_use.satisfaction_trait == trait_definition
+                                && nominal_use.satisfaction_requirement == requirement
+                        })
+                });
         let mut scalar_parameters = Vec::new();
         let mut structural_arguments = Vec::new();
         for (abi_position, ((_, parameter), argument)) in
@@ -535,9 +583,7 @@ pub(super) fn build_call_operation(
             });
         }
         if !program.trait_type_parameters(definition).is_empty()
-            || !program
-                .state_signature_type_parameters(signature)
-                .is_empty()
+            || (!signature_type_parameters.is_empty() && !admitted_native_callback_telescope)
             || program
                 .state_signature_parameters(signature)
                 .iter()
@@ -588,6 +634,7 @@ pub(super) fn build_call_operation(
         };
         return Some(CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
+            source_site,
             target_machine: signature.symbol,
             target_state: signature.symbol,
             target_contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
@@ -702,6 +749,7 @@ pub(super) fn build_call_operation(
     if boundary {
         Some(CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
+            source_site,
             target_machine: target_machine.symbol,
             target_state: target_state.symbol,
             target_contract_report_fingerprint: target_contract.report_fingerprint,

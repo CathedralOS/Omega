@@ -26,15 +26,18 @@ pub(super) fn emit_composed_unit_control(
             when_false: empty_successor(state_ids[2], &mut next_edge)?,
         },
     }];
+    let mut source_call_occurrences = Vec::new();
     for (state, block) in admitted.leaves.into_iter().zip(&state_ids[1..]) {
-        blocks.push(emit_leaf(
+        let (lowered_block, mut occurrences) = emit_leaf(
             state,
             *block,
             &catalogs.lowered_boundaries,
             &mut next_value,
             &mut next_operation,
             &mut next_edge,
-        )?);
+        )?;
+        blocks.push(lowered_block);
+        source_call_occurrences.append(&mut occurrences);
     }
     let machine = TerminalMachine {
         id: machine_id(1),
@@ -68,7 +71,7 @@ pub(super) fn emit_composed_unit_control(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    finish_module(machine, catalogs)
+    finish_module(machine, catalogs, source_call_occurrences)
 }
 
 fn emit_leaf(
@@ -82,9 +85,10 @@ fn emit_leaf(
     next_value: &mut u64,
     next_operation: &mut u64,
     next_edge: &mut u64,
-) -> Result<Block, LoweringError> {
+) -> Result<(Block, Vec<LoweredSourceCallOccurrence>), LoweringError> {
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
+        source_site,
         target_machine,
         scalar_arguments,
         ..
@@ -130,6 +134,7 @@ fn emit_leaf(
                 LoweringError::Unsupported("composed Unit call coordinate exceeds usize")
             })?,
         },
+        *source_site,
         call_id,
         *target_machine,
     )?;
@@ -145,15 +150,23 @@ fn emit_leaf(
         },
     });
     *next_operation = operations.next_identity;
-    Ok(Block {
-        id: block,
-        parameters: Vec::new(),
-        operations: operations.operations,
-        terminator: Terminator::ReturnUnit {
-            edge: edge_id(allocate_dense(next_edge)?),
-            trivial_affine_discards: Vec::new(),
+    let OperationBuffer {
+        operations,
+        source_calls,
+        ..
+    } = operations;
+    Ok((
+        Block {
+            id: block,
+            parameters: Vec::new(),
+            operations,
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(allocate_dense(next_edge)?),
+                trivial_affine_discards: Vec::new(),
+            },
         },
-    })
+        source_calls,
+    ))
 }
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {
@@ -168,6 +181,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
 fn finish_module(
     machine: TerminalMachine,
     catalogs: catalogs::ComposedCatalogs,
+    source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -193,6 +207,7 @@ fn finish_module(
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,
+        source_call_occurrences,
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

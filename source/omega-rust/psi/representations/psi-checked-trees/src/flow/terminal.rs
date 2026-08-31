@@ -6,7 +6,7 @@ use psi_language_semantics::{
     CarryPolicy, Multiplicity, SemanticDomainId, ServiceReachPlan, ServiceReachSummary,
 };
 
-use crate::CheckedScalarExpression;
+use crate::{CheckedScalarExpression, NominalMachineUseSite};
 
 /// Stable machine identities and names used to select the bootstrap terminal
 /// producer without reopening the typed machine table.
@@ -1068,6 +1068,9 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     BoundaryCall {
         coordinate: CheckedUnitCallCoordinate,
+        /// Exact authored call site retained for target-owned occurrence joins.
+        /// Transition-target calls have no statement/expression arena site.
+        source_site: Option<NominalMachineUseSite>,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,
         target_contract_report_fingerprint: u64,
@@ -1085,6 +1088,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// publish a scalar result and make it available to later operations.
     BoundaryScalarCall {
         coordinate: CheckedUnitCallCoordinate,
+        source_site: Option<NominalMachineUseSite>,
         result: CheckedUnitScalarResultBindingPlan,
         target_machine: SymbolHandle,
         target_state: SymbolHandle,

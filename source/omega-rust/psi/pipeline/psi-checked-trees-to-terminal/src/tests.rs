@@ -1675,6 +1675,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                             statement_index: 1,
                             call_ordinal: 0,
                         },
+                        source_site: None,
                         target_machine: boundary,
                         target_state: boundary_state,
                         target_contract_report_fingerprint: 0x303,

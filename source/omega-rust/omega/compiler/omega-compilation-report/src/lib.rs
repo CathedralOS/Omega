@@ -10,7 +10,8 @@ pub use production_manifest::{
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
 };
 pub use terminal_product::{
-    RetainedTerminalArtifact, TerminalCompilerBuiltinProposal, TerminalNativeRealizationProposal,
+    RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCompilerBuiltinProposal,
+    TerminalNativeRealizationProposal,
 };
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output

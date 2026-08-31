@@ -426,6 +426,8 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-trust-model",
+ "psi-core",
+ "psi-terminal",
  "psi-terminal-codec",
  "sha2",
 ]

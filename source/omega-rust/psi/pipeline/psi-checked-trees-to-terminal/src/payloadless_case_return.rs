@@ -131,5 +131,6 @@ pub(super) fn lower_payloadless_case_return_machine(
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,
+        source_call_occurrences: Vec::new(),
     })
 }

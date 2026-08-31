@@ -108,10 +108,15 @@ fn terminal_report(
             error.error(),
         ))]
     })?;
-    let (artifact, callback_placements) = produced.into_parts();
+    let (artifact, callback_placements, source_call_occurrences) =
+        produced.into_parts_with_source_calls();
     verify_terminal_artifact(&artifact, &request.terminal_admission_profile)?;
-    let native_realization_proposal =
-        project_terminal_native_realization_proposal(&checked, &artifact)?;
+    let native_realization_proposal = project_terminal_native_realization_proposal(
+        &checked,
+        &artifact,
+        &callback_placements,
+        &source_call_occurrences,
+    )?;
     let artifact =
         omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
             artifact,
@@ -131,6 +136,8 @@ fn terminal_report(
 fn project_terminal_native_realization_proposal(
     checked: &crate::pipeline::CheckedCompilation,
     artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
+    source_call_occurrences: &[psi_checked_trees_to_terminal::LoweredSourceCallOccurrence],
 ) -> Result<omega_compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -170,6 +177,29 @@ fn project_terminal_native_realization_proposal(
             .map_err(|message| vec![Diagnostic::error(message)])
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let callback_occurrences = callback_placements
+        .iter()
+        .enumerate()
+        .map(|(placement_index, placement)| {
+            let matching = source_call_occurrences
+                .iter()
+                .filter(|occurrence| {
+                    occurrence.source_site == Some(placement.site)
+                        && occurrence.source_target == placement.registration_operation
+                })
+                .collect::<Vec<_>>();
+            let [occurrence] = matching.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "callback placement {placement_index} resolves to {} Terminal registrar occurrences; exactly one is required",
+                    matching.len(),
+                ))]);
+            };
+            Ok(omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
+                placement_index,
+                occurrence.terminal_operation,
+            ))
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -179,6 +209,7 @@ fn project_terminal_native_realization_proposal(
         checked.selected_provider_plans().clone(),
         checked.external_binding_rows().to_vec(),
         builtin_proposals,
+        callback_occurrences,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

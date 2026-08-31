@@ -617,6 +617,7 @@ pub(super) fn lower_attached_unit_closure_including(
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut call_evidence = Vec::new();
     let mut machines = Vec::with_capacity(closure.len() + scalar_closure.len());
+    let mut source_call_occurrences = Vec::new();
 
     for machine_symbol in &closure {
         let plan = unique_unit_machine(plans, *machine_symbol)?;
@@ -850,6 +851,7 @@ pub(super) fn lower_attached_unit_closure_including(
         let mut next_value_identity = 1_u64;
         let mut scalar_result_values = Vec::<ValueDeclaration>::new();
         for operation in &plan.operations[..plan.operations.len() - 1] {
+            let mut source_call = None;
             let kind = match operation {
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
                     declaration_ordinal,
@@ -1140,6 +1142,7 @@ pub(super) fn lower_attached_unit_closure_including(
                                 },
                             )?,
                         },
+                        None,
                         operation_id,
                         *realization_machine,
                     )?;
@@ -1157,12 +1160,15 @@ pub(super) fn lower_attached_unit_closure_including(
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::BoundaryCall {
+                    coordinate,
+                    source_site,
                     target_machine,
                     scalar_arguments,
                     structural_arguments,
                     completion_receipts,
                     ..
                 } => {
+                    source_call = Some((*coordinate, *source_site, *target_machine));
                     let target = unique_unit_boundary(plans, *target_machine)?;
                     let expected_claim_arguments = structural_arguments
                         .iter()
@@ -1269,6 +1275,8 @@ pub(super) fn lower_attached_unit_closure_including(
                     }
                 }
                 CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate,
+                    source_site,
                     result,
                     target_machine,
                     scalar_arguments,
@@ -1403,6 +1411,28 @@ pub(super) fn lower_attached_unit_closure_including(
                                 "Unit scalar result value identity space is exhausted",
                             ))?;
                     let id = operations.allocate();
+                    operations.record_source_call(
+                        SourceCallCoordinate {
+                            state: plan.state,
+                            statement_index: usize::try_from(coordinate.statement_index).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "boundary scalar call statement coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "boundary scalar call ordinal coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                        },
+                        *source_site,
+                        id,
+                        *target_machine,
+                    )?;
                     operations.push(Operation {
                         id,
                         result: psi_terminal::OperationResult::Scalar(value),
@@ -1520,6 +1550,28 @@ pub(super) fn lower_attached_unit_closure_including(
                 }
             };
             let id = operations.allocate();
+            if let Some((coordinate, source_site, target_machine)) = source_call {
+                operations.record_source_call(
+                    SourceCallCoordinate {
+                        state: plan.state,
+                        statement_index: usize::try_from(coordinate.statement_index).map_err(
+                            |_| {
+                                LoweringError::Unsupported(
+                                    "boundary Unit call statement coordinate exceeds usize",
+                                )
+                            },
+                        )?,
+                        call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
+                            LoweringError::Unsupported(
+                                "boundary Unit call ordinal coordinate exceeds usize",
+                            )
+                        })?,
+                    },
+                    source_site,
+                    id,
+                    target_machine,
+                )?;
+            }
             operations.push(Operation {
                 id,
                 result: psi_terminal::OperationResult::Unit,
@@ -1576,6 +1628,12 @@ pub(super) fn lower_attached_unit_closure_including(
             } else {
                 Vec::new()
             };
+        let OperationBuffer {
+            operations,
+            source_calls,
+            ..
+        } = operations;
+        source_call_occurrences.extend(source_calls);
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -1624,7 +1682,7 @@ pub(super) fn lower_attached_unit_closure_including(
             blocks: vec![Block {
                 id: block,
                 parameters: Vec::new(),
-                operations: operations.operations,
+                operations,
                 terminator: Terminator::ReturnUnit {
                     edge,
                     trivial_affine_discards,
@@ -1674,6 +1732,7 @@ pub(super) fn lower_attached_unit_closure_including(
         };
         machines.push(terminal_machine.clone());
         scalar_evidence.append(&mut lowered.proof_bundle.evidence);
+        source_call_occurrences.append(&mut lowered.source_call_occurrences);
     }
 
     let mut provider_candidates = provider_candidate_plans
@@ -1790,6 +1849,7 @@ pub(super) fn lower_attached_unit_closure_including(
             evidence: call_evidence,
         },
         debug_map: None,
+        source_call_occurrences,
     };
     if requires_operation_proofs {
         finalize_operation_proofs(&mut lowered)?;

@@ -388,6 +388,21 @@ missing or duplicated rows, stale handles, and operand-shape drift. Generic
 host operations remain outside the carrier, and it grants no object,
 relocation, byte, runtime, registration, or lease authority.
 
+The authored direct-parameter path now reaches the preceding occurrence rung
+on the canonical Terminal pipeline. Checked Unit plans retain the exact
+statement/expression site for a bodyless boundary call only when every native
+callback binder rejoins its admitted nominal selection. Terminal production
+records the source coordinate, resolved registrar target, and emitted
+`OperationId` ephemerally; the compiler consumes that source-bearing join and
+retains a placement-index-to-`BoundaryCall` row in the target-owned native
+proposal. Canonical Terminal Psi remains source-handle-free. Proposal replay
+rejects missing, duplicate, unreachable, wrong-target, non-boundary-operation,
+and artifact drift, while native realization remains fenced. The direct path
+still lacks the exact target-closed native-telescope row required to map its
+`NativeParameterId` to ordinal, function-pointer shape, `ValuePlacement`, and
+eventual assigned operand; none of those may be inferred from the parameter
+ID or registrar plan position.
+
 Object planning now permits one further evidence-only join for an exact
 one-slot `Field` whose assigned registrar operand is
 `RuntimeStorageAddress`. The ordered request binds that operand's storage

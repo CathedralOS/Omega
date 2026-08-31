@@ -1668,11 +1668,24 @@ replay carries both the strong commitment and its compact report coordinate.
 The ordinal-derived v1 identity remains a separate domain and is never
 translated heuristically.
 
-This slice stops before an actual source registrar invocation binds a selected
-callback to the native-only row and carries it through the exact registrar
-occurrence, assigned operand, emitted call, and downstream artifact replay.
-Those integrations and the remaining authored-hidden-parameter and stale-v1/
-v2 negative matrix are engineering work under the settled model, not open
+An actual source registrar invocation now binds its selected callback through
+checked Unit planning to one canonical Terminal boundary-call occurrence.
+The checked native callback telescope is admitted only when its binder,
+nominal use site, registrar requirement, static ordinal, and satisfaction row
+all agree. Checked-to-Terminal lowering temporarily retains the exact authored
+site, source coordinate and target beside the emitted `OperationId`; the Omega
+product consumes those source handles at the boundary and stores only one
+placement-index-to-`BoundaryCall` row in the target-owned native-realization
+proposal. Missing, duplicate, unreachable, wrong-target, non-boundary, and
+artifact-drifted rows reject independently. Native production remains fenced
+until it can consume the row rather than silently discarding it.
+
+The next slice must retain the exact target-closed native-telescope mapping
+from `NativeParameterId` to authored ordinal, function-pointer shape, and
+`ValuePlacement`, then carry that authority through abstract, target,
+assigned-operand, emitted-call, and artifact replay. Those integrations and
+the remaining authored-hidden-parameter and stale-v1/v2 negative matrix are
+engineering work under the settled v3 application model, not open
 language-design questions.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
