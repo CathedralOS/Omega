@@ -3,9 +3,7 @@
 use crate::SourceResolveError;
 use crate::git::executable::budget::{CapturedOutputLimitExceeded, GitCapturedOutputBudget};
 use crate::limits::{GIT_COMMAND_CLEANUP_TIMEOUT, PROCESS_POLL_INTERVAL};
-use omega_resolver_execution::{
-    ResolverExecutionChild, ResolverExecutionCompletionObservation, ResolverPreparedExecution,
-};
+use omega_resolver_execution::{ResolverExecutionChild, ResolverPreparedExecution};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{ChildStdin, ExitStatus};
@@ -17,7 +15,6 @@ pub(crate) struct BoundedCommandOutput {
     pub(crate) status: ExitStatus,
     pub(crate) stdout: Vec<u8>,
     pub(crate) stderr: Vec<u8>,
-    pub(crate) completion: ResolverExecutionCompletionObservation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -214,16 +211,15 @@ pub(crate) fn run_command_bounded_with_stdin_and_budget(
             };
         }
         if status.is_some() && stdout.is_some() && stderr.is_some() && stdin_complete {
-            let completion = child.finish().map_err(|error| {
-                SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: format!("cannot issue resolver execution completion: {error}"),
-                }
-            })?;
+            child
+                .finish()
+                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot finalize resolver child execution: {error}"),
+                })?;
             return Ok(BoundedCommandOutput {
                 status: status.expect("status was checked"),
                 stdout: stdout.expect("stdout was checked"),
                 stderr: stderr.expect("stderr was checked"),
-                completion,
             });
         }
 

@@ -37,7 +37,7 @@ fn git_cache_rejects_local_filter_configuration_without_running_it() {
 }
 
 #[test]
-fn git_commands_close_package_protocols_without_overriding_host_transport() {
+fn git_commands_admit_host_https_ssh_routing_and_close_other_protocols() {
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
     let working_directory = std::env::temp_dir()
@@ -59,7 +59,7 @@ fn git_commands_close_package_protocols_without_overriding_host_transport() {
         std::collections::BTreeMap::from([
             (
                 OsString::from("GIT_ALLOW_PROTOCOL"),
-                Some(OsString::from("https")),
+                Some(OsString::from("https:ssh")),
             ),
             (
                 OsString::from("GIT_ATTR_NOSYSTEM"),
@@ -85,7 +85,10 @@ fn git_commands_close_package_protocols_without_overriding_host_transport() {
             (OsString::from("LC_ALL"), Some(OsString::from("C"))),
         ])
     );
-    assert_eq!(command.get_program(), executor.identity.path.as_os_str());
+    assert_eq!(
+        command.get_program(),
+        executor.execution_backend.executable().as_os_str()
+    );
     assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
     for required in [
         "--no-replace-objects",
@@ -95,7 +98,7 @@ fn git_commands_close_package_protocols_without_overriding_host_transport() {
         "protocol.git.allow=never",
         "protocol.file.allow=never",
         "protocol.https.allow=always",
-        "protocol.ssh.allow=never",
+        "protocol.ssh.allow=always",
         "http.followRedirects=false",
         "fetch.recurseSubmodules=false",
         "gc.auto=0",
@@ -109,13 +112,13 @@ fn git_commands_close_package_protocols_without_overriding_host_transport() {
 }
 
 #[test]
-fn each_request_transport_keeps_host_routing_and_closes_other_protocols() {
+fn production_requests_share_one_closed_https_ssh_transport_class() {
     let working_directory = std::env::temp_dir()
         .canonicalize()
         .expect("canonical temporary directory");
     for (transport, protocol) in [
-        (GitExecutionTransport::Https, "https"),
-        (GitExecutionTransport::Ssh, "ssh"),
+        (GitExecutionTransport::Https, "https:ssh"),
+        (GitExecutionTransport::Ssh, "https:ssh"),
         (GitExecutionTransport::File, "file"),
     ] {
         let executor = test_system_git_executor(transport).expect("system Git executor");

@@ -1,11 +1,7 @@
 //! Operator-owned primary Git selection before package input is inspected.
 
-use super::identity::{
-    GitExecutableMetadataIdentity, hash_git_executable, observe_git_executable_metadata,
-};
 use super::validation::verify_git_executable_launchability;
 use crate::SourceResolveError;
-use crate::observations::execution::GitExecutableIdentity;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -17,8 +13,7 @@ use std::path::{Path, PathBuf};
 /// quarantine, and cache root already known at operation start.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrimaryGitSelection {
-    pub(crate) identity: GitExecutableIdentity,
-    pub(crate) metadata_identity: GitExecutableMetadataIdentity,
+    pub(crate) path: PathBuf,
 }
 
 impl PrimaryGitSelection {
@@ -49,11 +44,7 @@ impl PrimaryGitSelection {
     }
 
     pub fn path(&self) -> &Path {
-        &self.identity.path
-    }
-
-    pub fn content_identity(&self) -> &str {
-        &self.identity.content_identity
+        &self.path
     }
 
     pub(crate) fn verify_outside(
@@ -61,9 +52,9 @@ impl PrimaryGitSelection {
         package_controlled_roots: &[PathBuf],
     ) -> Result<(), SourceResolveError> {
         let roots = ExcludedRoots::new(package_controlled_roots)?;
-        if roots.contains(&self.identity.path) {
+        if roots.contains(&self.path) {
             return Err(SourceResolveError::GitExecutableInvalid {
-                path: self.identity.path.clone(),
+                path: self.path.clone(),
                 message: "selected Git executable is inside a package-controlled root".to_owned(),
             });
         }
@@ -151,18 +142,8 @@ fn freeze_explicit_primary_git(
 fn freeze_canonical_primary_git(
     canonical: PathBuf,
 ) -> Result<PrimaryGitSelection, SourceResolveError> {
-    let metadata_identity = observe_git_executable_metadata(&canonical)?;
-    let content_identity = hash_git_executable(&canonical)?;
-    if observe_git_executable_metadata(&canonical)? != metadata_identity {
-        return Err(SourceResolveError::GitExecutableChanged { path: canonical });
-    }
-    Ok(PrimaryGitSelection {
-        identity: GitExecutableIdentity {
-            path: canonical,
-            content_identity,
-        },
-        metadata_identity,
-    })
+    verify_git_executable_launchability(&canonical)?;
+    Ok(PrimaryGitSelection { path: canonical })
 }
 
 #[cfg(windows)]

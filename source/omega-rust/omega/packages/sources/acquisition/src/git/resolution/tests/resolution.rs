@@ -12,218 +12,68 @@ fn git_source_resolves_exact_commit_and_local_identity() {
     assert_eq!(resolved.commit, commit);
     assert_eq!(resolved.local.file_count, 1);
     assert!(!resolved.tree.is_empty());
-    assert!(!resolved.execution_policy_observations().is_empty());
-    assert_eq!(
-        resolved.command_execution_observations().len(),
-        resolved.execution_policy_observations().len()
-    );
-    assert_eq!(resolved.receipt().schema_version(), 9);
-    assert_eq!(resolved.receipt().identity().len(), 64);
-    assert_eq!(
-        resolved.receipt().command_count(),
-        resolved.command_execution_observations().len()
-    );
-    assert_eq!(
-        resolved.captured_output_observation().ceiling(),
-        git_resolution_captured_output_ceiling(LocalSourceLimits::default())
-    );
-    assert_eq!(
-        resolved.captured_output_observation().observed(),
-        resolved
-            .command_execution_observations()
-            .iter()
-            .map(|command| command.stdout_length() + command.stderr_length())
-            .sum::<u64>()
-    );
-    assert_eq!(
-        resolved.receipt().captured_output_ceiling(),
-        resolved.captured_output_observation().ceiling()
-    );
-    assert_eq!(
-        resolved.receipt().captured_output_observed(),
-        resolved.captured_output_observation().observed()
-    );
-    assert_eq!(resolved.retained_storage_observation().schema_version(), 1);
-    assert_eq!(resolved.retained_storage_observation().identity().len(), 64);
-    assert!(resolved.retained_storage_observation().entry_count() > 0);
+    assert_eq!(resolved.lineage(), request.lineage());
+    assert_eq!(resolved.requested_revision(), request.requested_revision());
+    assert_eq!(resolved.object_format(), GitObjectIdAlgorithm::Sha1);
+    assert_eq!(resolved.content_identity(), resolved.local.content_identity);
+    assert_eq!(resolved.snapshot_root(), resolved.local.root);
+    assert_eq!(resolved.source_limits(), LocalSourceLimits::default());
+    assert!(resolved.selected_member().is_none());
+    assert!(resolved.retained_storage().entry_count() > 0);
+    assert!(resolved.retained_storage().entry_count() <= resolved.retained_storage().entry_limit());
     assert!(
-        resolved.retained_storage_observation().entry_count()
-            <= resolved.retained_storage_observation().entry_ceiling()
+        resolved.retained_storage().logical_bytes() <= resolved.retained_storage().byte_limit()
     );
     assert!(
-        resolved.retained_storage_observation().logical_bytes()
-            <= resolved.retained_storage_observation().byte_ceiling()
-    );
-    assert!(
-        resolved.retained_storage_observation().maximum_depth()
-            <= resolved.retained_storage_observation().depth_ceiling()
-    );
-    let alternate_policy_result = PendingResolvedGitSource::from_issued(&resolved);
-    let alternate_policy_observation = issue_git_source_receipt(
-        &alternate_policy_result,
-        LocalSourceLimits {
-            max_entries: LocalSourceLimits::default().max_entries - 1,
-            ..LocalSourceLimits::default()
-        },
-        resolved.retained_storage_observation(),
-    )
-    .expect("issue observation for an alternate source policy");
-    assert_ne!(
-        alternate_policy_observation.identity(),
-        resolved.receipt().identity(),
-        "the final observation must bind compiler source ceilings"
+        resolved.retained_storage().maximum_depth() <= resolved.retained_storage().depth_limit()
     );
     let immutable_source = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&resolved.commit).expect("authenticated commit identity"),
         GitTreeId::parse_hex(&resolved.tree).expect("authenticated tree identity"),
     )
     .expect("coherent authenticated Git object format");
-    let mut alternate_git_provenance = PendingResolvedGitSource::from_issued(&resolved);
-    alternate_git_provenance.git_executable.content_identity = "00".repeat(32);
-    let alternate_git_receipt = issue_git_source_receipt(
-        &alternate_git_provenance,
-        LocalSourceLimits::default(),
-        resolved.retained_storage_observation(),
-    )
-    .expect("issue receipt for alternate operational Git provenance");
     let same_immutable_source = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(&resolved.commit).expect("same authenticated commit identity"),
         GitTreeId::parse_hex(&resolved.tree).expect("same authenticated tree identity"),
     )
     .expect("same coherent authenticated Git object format");
-    assert_ne!(
-        alternate_git_receipt.identity(),
-        resolved.receipt().identity()
-    );
-    assert_eq!(
-        same_immutable_source, immutable_source,
-        "primary Git provenance changes a run receipt, never immutable source identity"
-    );
-    let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
-    unjoined_result.command_execution_observations.pop();
-    assert!(
-        issue_git_source_receipt(
-            &unjoined_result,
-            LocalSourceLimits::default(),
-            resolved.retained_storage_observation(),
-        )
-        .is_err(),
-        "final issuance must reject missing command outcome rows"
-    );
-    let mut mismatched_completion = PendingResolvedGitSource::from_issued(&resolved);
-    let alternate_completion = mismatched_completion.command_execution_observations[1]
-        .completion
-        .clone();
-    mismatched_completion.command_execution_observations[0].completion = alternate_completion;
-    assert!(
-        issue_git_source_receipt(
-            &mismatched_completion,
-            LocalSourceLimits::default(),
-            resolved.retained_storage_observation(),
-        )
-        .is_err(),
-        "final issuance must reject a completion detached from its command policy"
-    );
-    let mut mismatched_output_accounting = PendingResolvedGitSource::from_issued(&resolved);
-    mismatched_output_accounting
-        .captured_output_observation
-        .observed += 1;
-    assert!(
-        issue_git_source_receipt(
-            &mismatched_output_accounting,
-            LocalSourceLimits::default(),
-            resolved.retained_storage_observation(),
-        )
-        .is_err(),
-        "final issuance must reject changed cumulative output accounting"
-    );
+    assert_eq!(same_immutable_source, immutable_source);
+
     let mut mismatched_transport = PendingResolvedGitSource::from_issued(&resolved);
     mismatched_transport.transport_profile = GitTransportProfile::Https;
     assert!(validate_pending_git_request(&mismatched_transport, &request).is_err());
+
+    let mut mismatched_lineage = PendingResolvedGitSource::from_issued(&resolved);
+    mismatched_lineage.lineage = GitSourceRequest::new(
+        "https://example.invalid/different.git",
+        Some(commit.clone()),
+    )
+    .expect("alternate valid lineage")
+    .lineage
+    .clone();
+    assert!(validate_pending_git_request(&mismatched_lineage, &request).is_err());
+
+    let mut mismatched_limits = PendingResolvedGitSource::from_issued(&resolved);
+    mismatched_limits.source_limits.max_entries -= 1;
     assert!(
-        resolved
-            .command_execution_observations()
-            .iter()
-            .all(|observation| observation.policy_identity().len() == 64
-                && observation.command_identity().len() == 64
-                && observation.completion().policy().phase() == observation.phase()
-                && observation.completion().status().success()
-                && !observation.completion().canonical_bytes().is_empty()
-                && observation.status_code() == Some(0)
-                && observation.termination_signal().is_none()
-                && observation.stdout_identity().len() == 64
-                && observation.stderr_identity().len() == 64)
+        validate_pending_git_source_custody(&mismatched_limits, LocalSourceLimits::default())
+            .is_err()
     );
+
+    let mut mismatched_format = PendingResolvedGitSource::from_issued(&resolved);
+    mismatched_format.object_format = GitObjectIdAlgorithm::Sha256;
     assert!(
-        resolved
-            .command_execution_observations()
-            .iter()
-            .any(|observation| matches!(
-                observation.input(),
-                GitCommandInputCommitment::ExactBytes { .. }
-            )),
-        "object-batch commands must retain exact input custody"
+        validate_pending_git_source_custody(&mismatched_format, LocalSourceLimits::default())
+            .is_err()
     );
+
+    let mut mismatched_snapshot = PendingResolvedGitSource::from_issued(&resolved);
+    mismatched_snapshot.snapshot_root = cache.clone();
     assert!(
-        resolved
-            .execution_policy_observations()
-            .iter()
-            .all(|observation| observation.executable() == resolved.git_executable.path())
+        validate_pending_git_source_custody(&mismatched_snapshot, LocalSourceLimits::default())
+            .is_err()
     );
-    assert!(
-        resolved
-            .execution_policy_observations()
-            .iter()
-            .any(
-                |observation| observation.phase() == ResolverExecutionPhase::Fetch
-                    && observation.mutable_root().is_some()
-            )
-    );
-    assert!(
-        resolved
-            .execution_policy_observations()
-            .iter()
-            .any(
-                |observation| observation.phase() == ResolverExecutionPhase::RepositoryInspection
-                    && observation.mutable_root().is_none()
-            )
-    );
-    #[cfg(target_os = "macos")]
-    for local_phase in resolved
-        .execution_policy_observations()
-        .iter()
-        .filter(|observation| {
-            matches!(
-                observation.phase(),
-                ResolverExecutionPhase::RepositoryInitialization
-                    | ResolverExecutionPhase::RepositoryInspection
-            )
-        })
-    {
-        assert!(
-            local_phase.generated_policy_sha256().is_none(),
-            "operator-selected host Git must not claim helper-incompatible Seatbelt policy"
-        );
-        for guarantee in [
-            omega_resolver_execution::ResolverExecutionGuarantee::FilesystemWritesConfined,
-            omega_resolver_execution::ResolverExecutionGuarantee::ExecutablePathsConfined,
-            omega_resolver_execution::ResolverExecutionGuarantee::DescendantProcessesContained,
-            omega_resolver_execution::ResolverExecutionGuarantee::NetworkDenied,
-        ] {
-            assert_eq!(
-                local_phase
-                    .guarantees()
-                    .iter()
-                    .find(|row| row.guarantee() == guarantee)
-                    .expect("complete host-Git guarantee observation")
-                    .disposition(),
-                omega_resolver_execution::ResolverExecutionGuaranteeDisposition::Unavailable
-            );
-        }
-        assert_eq!(local_phase.resource_ceilings().core_dump_bytes(), Some(0));
-        assert_eq!(local_phase.resource_ceilings().cpu_seconds(), Some(120));
-        assert_eq!(local_phase.resource_ceilings().open_files(), Some(256));
-    }
+
     let _ = std::fs::remove_dir_all(&repo);
     let _ = std::fs::remove_dir_all(&cache);
 }

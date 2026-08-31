@@ -171,7 +171,8 @@ Those facts belong directly to the resolved source and eventual
 that fetched them. Selected executables, prepared commands, completion order,
 platform-hardening dispositions, and operational telemetry cannot mint source
 custody or change source identity. Persisted bytes cannot mint a live resolver
-result or bypass source, object, snapshot, and command revalidation.
+result or bypass source, object, snapshot, command-success, and concrete-bound
+revalidation.
 
 ## Git acquisition
 

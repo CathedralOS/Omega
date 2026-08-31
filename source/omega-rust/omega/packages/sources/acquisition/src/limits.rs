@@ -38,17 +38,11 @@ pub(crate) const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 pub(crate) const GIT_STDERR_LIMIT: usize = 1024 * 1024;
 pub(crate) const GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
 pub(crate) const GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;
-pub(crate) const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
 pub(crate) const GIT_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 pub(crate) const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 pub(crate) const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 pub(crate) const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
-pub(crate) const GIT_SOURCE_RECEIPT_SCHEMA_VERSION: u32 = 9;
-pub(crate) const GIT_SOURCE_RECEIPT_DOMAIN: &[u8] = b"omega-git-source-receipt-v9";
-pub(crate) const GIT_RETAINED_STORAGE_OBSERVATION_SCHEMA_VERSION: u32 = 1;
-pub(crate) const GIT_RETAINED_STORAGE_OBSERVATION_DOMAIN: &[u8] =
-    b"omega-git-retained-storage-observation-v1";
 pub(crate) static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

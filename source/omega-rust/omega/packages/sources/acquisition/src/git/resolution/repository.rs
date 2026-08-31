@@ -4,8 +4,10 @@ use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;
 use crate::git::objects::authentication::{authenticate_git_commit, verify_exact_git_revision};
+use crate::git::objects::identity::git_object_algorithm;
 use crate::git::request::GitExecutionTransport;
 use crate::git::workspace::GitWorkspaceProjectionError;
+use crate::identity::SourceLineage;
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, PendingResolvedGitSource};
 use cap_std::fs::Dir as CapabilityDirectory;
@@ -24,6 +26,7 @@ pub(crate) fn resolve_verified_git_cache_entry(
     entry_name: &OsStr,
     entry_root: &Path,
     requested_locator: &str,
+    lineage: &SourceLineage,
     locator_identity: &str,
     fetch_locator: &str,
     requested_rev: &str,
@@ -37,6 +40,7 @@ pub(crate) fn resolve_verified_git_cache_entry(
         entry_name,
         entry_root,
         requested_locator,
+        lineage,
         locator_identity,
         fetch_locator,
         requested_rev,
@@ -59,6 +63,7 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
     entry_name: &OsStr,
     entry_root: &Path,
     requested_locator: &str,
+    lineage: &SourceLineage,
     locator_identity: &str,
     fetch_locator: &str,
     requested_rev: &str,
@@ -138,23 +143,21 @@ pub(super) fn resolve_verified_git_cache_entry_with<Evidence, PlannerError>(
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let materialized = materialize(executor, &repository, &tree, limits)?;
     repository.verify_current(limits)?;
-    executor.verify()?;
-    executor.validate_execution_policy_observations()?;
+    let object_format = git_object_algorithm(&commit)?;
     let pending = PendingResolvedGitSource {
         requested_locator: requested_locator.to_owned(),
+        lineage: lineage.clone(),
         locator_identity: locator_identity.to_owned(),
         transport_profile: execution_transport.profile(),
         requested_rev: requested_rev.to_owned(),
+        object_format,
         commit,
         materialized_tree: materialized.materialized_tree,
         tree,
         snapshot_root: materialized.snapshot_root,
         local: materialized.local,
         workspace_projection: materialized.workspace_projection,
-        git_executable: executor.identity.clone(),
-        execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
-        command_execution_observations: executor.command_execution_observations.borrow().clone(),
-        captured_output_observation: executor.captured_output_observation()?,
+        source_limits: limits,
     };
     Ok((pending, materialized.evidence))
 }
