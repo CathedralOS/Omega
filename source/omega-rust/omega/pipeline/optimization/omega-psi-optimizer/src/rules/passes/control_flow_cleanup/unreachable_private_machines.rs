@@ -1,6 +1,25 @@
 //! Pruning of unreachable private machines.
 
-use super::*;
+use std::collections::{BTreeMap, BTreeSet};
+
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PrunedMachineCustody,
+    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
+    UnreachablePrivateMachinesRewrite,
+};
+use psi_core::MachineId;
+use psi_terminal::TerminalAffineCleanupAction;
+
+use crate::{
+    AnalysisProduct, CallGraphAnalysis, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
+};
+
+use super::super::CONTROL_FLOW_CLEANUP_PASS_NAME;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UnreachablePrivateMachinePruneRule;
@@ -91,7 +110,7 @@ fn rule_active_source_ordinals(unit: &PsiOptimizationUnit) -> BTreeMap<MachineId
 
 pub(in crate::rules::passes) fn rule_unreachable_private_machine_complement(
     unit: &PsiOptimizationUnit,
-    call_graph: &crate::CallGraphAnalysis,
+    call_graph: &CallGraphAnalysis,
 ) -> Vec<MachineId> {
     let active = unit
         .functions
@@ -131,7 +150,7 @@ pub(in crate::rules::passes) fn rule_unreachable_private_machine_complement(
                 } => {
                     function_references.extend(cleanup_actions.iter().filter_map(|action| {
                         match action {
-                            psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                                 Some(cleanup.cleanup_machine)
                             }
                             _ => None,

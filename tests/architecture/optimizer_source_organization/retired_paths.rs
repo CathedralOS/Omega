@@ -60,8 +60,8 @@ pub(crate) fn check(audit: &mut Audit) {
     for (family, relative_root) in [
         ("proof-check elision", "proof_check_elision/"),
         (
-            "control-flow block merging",
-            "control_flow_cleanup/block_merging/",
+            "control-flow cleanup",
+            "control_flow_cleanup/",
         ),
     ] {
         let family_root = format!("{psi_pass_root}{relative_root}");

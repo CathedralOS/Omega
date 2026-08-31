@@ -1,12 +1,18 @@
 //! Shared ownership-frontier custody for CFG rewrites that erase a unique incoming edge.
 
-use super::*;
+use omega_optimization_unit::{
+    OwnershipFrontierSite, OwnershipFrontierWitness, OwnershipFrontierWitnessRow,
+    PsiOptimizationFunction, PsiOptimizationUnit,
+};
+use psi_core::{BlockId, EdgeId};
+
+use crate::OwnershipFrontierAnalysis;
 
 pub(super) fn merge_boundary_ownership_is_identity(
     unit: &PsiOptimizationUnit,
-    function: &omega_optimization_unit::PsiOptimizationFunction,
-    frontiers: &crate::OwnershipFrontierAnalysis,
-    incoming: psi_core::EdgeId,
+    function: &PsiOptimizationFunction,
+    frontiers: &OwnershipFrontierAnalysis,
+    incoming: EdgeId,
     target: BlockId,
 ) -> bool {
     merge_boundary_ownership_witness(unit, function, frontiers, incoming, target).is_some()
@@ -14,9 +20,9 @@ pub(super) fn merge_boundary_ownership_is_identity(
 
 pub(super) fn merge_boundary_ownership_witness(
     unit: &PsiOptimizationUnit,
-    function: &omega_optimization_unit::PsiOptimizationFunction,
-    frontiers: &crate::OwnershipFrontierAnalysis,
-    incoming: psi_core::EdgeId,
+    function: &PsiOptimizationFunction,
+    frontiers: &OwnershipFrontierAnalysis,
+    incoming: EdgeId,
     target: BlockId,
 ) -> Option<OwnershipFrontierWitness> {
     let sites = [

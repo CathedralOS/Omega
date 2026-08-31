@@ -125,6 +125,10 @@ separate `linear.rs` and `path_qualified.rs` rule leaves over shared binding
 composition and ownership-identity checks; their distinct provenance/effect
 accounting remains in separately named leaves.
 
+The control-flow pass entrance consequently owns no descendant dependency
+bucket: it is the module map plus the exact seven-row local roster. Every rule,
+accounting leaf, and shared custody leaf imports the vocabulary it consumes.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.

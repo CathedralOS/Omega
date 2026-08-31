@@ -1,6 +1,21 @@
 //! Fusion of jumps that share one terminal successor.
 
-use super::*;
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
+    ScalarSubstitution, SharedJumpFusionRewrite,
+};
+use psi_core::{BlockId, EdgeId};
+
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::CONTROL_FLOW_CLEANUP_PASS_NAME;
+use super::merge_boundary_ownership::merge_boundary_ownership_is_identity;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SharedJumpFusionRule;
@@ -187,9 +202,9 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
 }
 
 fn shared_terminal_fusion_accounting(
-    function: &omega_optimization_unit::PsiOptimizationFunction,
+    function: &PsiOptimizationFunction,
     predecessor: NodeLocation,
-    incoming_edge: psi_core::EdgeId,
+    incoming_edge: EdgeId,
     target: BlockId,
 ) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
     let predecessor_block = function
