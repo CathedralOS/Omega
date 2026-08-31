@@ -3835,14 +3835,30 @@ Remaining:
   profile, and disclosed artifact/deployment admissions; never emit an
   unqualified `verified` label.
 
-  Implement D39's `TerminalTraceV1` as a versioned typed schema and a canonical
-  module-derived instance, not an opaque hash of current Rust verifier inputs.
-  Add canonical encode/decode and reconstruction for the root, crash,
-  ordinary-event, and terminal-external rows; exact semantic value comparison;
-  maximal finite and infinite trace refinement; and checked forgetting
-  projections before any cross-profile replay. Unknown versions, event
-  classifications, missing/extra/duplicate/reordered rows, and producer-
-  supplied weakening must reject. Carry an explicit checked
+  The first bounded D39 `TerminalTraceV1` rung is live for internal-only
+  modules. Terminal owns a typed version-1 schema, exact semantic-value
+  comparison marker, mandatory root input/result schemas, and crash-site rows.
+  The standalone canonical profile codec begins with D39's domain separator,
+  retains the schema version, exact `TerminalPsiIdentity`, explicit root/crash
+  tags and counts, and explicit zero ordinary-event and terminal-external
+  counts. Unknown versions or vocabulary, empty roots, unknown tags, malformed
+  type/comparison rows, zero module commitments, noncanonical qualification or
+  `(machine, block, edge)` crash order, duplicate crash coordinates, padding,
+  and nonzero later-row counts reject. The public module-bound acceptance path
+  first canonical-validates the Terminal module and computes its identity,
+  then compares decoded bytes exactly with verifier-derived root and complete
+  crash rows; stale or substituted modules and missing, extra, reordered, or
+  duplicate rows reject. The verifier accepts no producer fingerprint or row
+  list. Its exhaustive operation classification rejects `BoundaryCall` and
+  `PortWrite` rather than silently omitting their required version-1 events.
+  This adds no Terminal module field, operation, format, vocabulary, runtime
+  outcome, or fuel charge.
+
+  Continue D39 with canonical ordinary-event and terminal-external rows; exact
+  runtime semantic value comparison; maximal finite and infinite trace
+  refinement; and checked forgetting projections before any cross-profile
+  replay. Every new operation classification and any producer-supplied
+  weakening must remain fail closed. Carry an explicit checked
   `TerminatesExternally(effect_identity)`-class completion fact and terminal
   invocation form from boundary declaration through checked trees, Terminal
   codec/verifier/interpreter, provider selection, and target emission. Delete
@@ -11127,8 +11143,21 @@ checked-result arithmetic decision listed below.
   direct-sum-coexisting paths reject, as does target-dependent placement at any
   of the four record layers. Existing direct, one-level, singular depth-two,
   and plural depth-two APIs remain unchanged.
+  The complete plural depth-three fixed-depth rung now admits a nonempty
+  authored-order set of `Outer -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and
+  one exact row per outer occurrence; each row owns the unchanged plural
+  depth-two report for that occurrence. The non-clone carrier composes the
+  corresponding plural depth-two carriers, rebuilds every nested image and the
+  outer zero-padded image, replays all layouts and occurrence identities
+  hash-free, and performs one final atomic copy. Repeated nominal types remain
+  occurrence-distinct. The singular depth-three API remains exact-one, while a
+  shared memoized bounded walk, fallible storage, and a global leaf-occurrence
+  ceiling bound the plural producer and consumer. Shallower, deeper,
+  recursive, array-mediated, or direct-sum-coexisting paths still reject, as
+  does target-dependent placement at every layer.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  three records, plural paths deeper than two records, mixed common-field/case
+  three records, plural paths deeper than three records, mixed common-field/case
   shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,

@@ -421,8 +421,22 @@ recursive, array-mediated, or direct-sum-coexisting paths reject, as does
 target-dependent placement at any of the four record layers. Existing direct,
 one-level, singular depth-two, and plural depth-two APIs remain unchanged.
 
+The complete plural depth-three fixed-depth rung admits a nonempty
+authored-order set of `Outer -> First -> Middle -> Leaf -> direct conventional
+sums` chains. Its compact report retains the outer whole-record plan once and
+one exact row per outer occurrence; each row owns the unchanged plural
+depth-two report for that occurrence. A distinct non-clone carrier composes the
+corresponding plural depth-two carriers, independently rebuilds every nested
+image and the outer zero-padded image, replays every layout and occurrence
+identity hash-free, and performs one final atomic copy. Repeated nominal types
+remain occurrence-distinct. The singular depth-three API remains exact-one. A
+shared memoized bounded reachability walk, fallible storage, and a global
+leaf-occurrence ceiling bound both production and replay. Shallower, deeper,
+recursive, array-mediated, or direct-sum-coexisting paths reject, as does
+target-dependent placement at every layer.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-plural paths deeper than two records, paths deeper than three records, mixed
+plural paths deeper than three records, paths deeper than three records, mixed
 common-field/case shapes, and sums whose all-case geometry requires a target
 capsule remain later rungs. The same NaN, reference, slice, Text, dynamic,
 atomic, and non-copy fences remain in force.

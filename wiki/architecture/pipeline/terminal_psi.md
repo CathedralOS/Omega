@@ -2886,6 +2886,28 @@ missing, duplicate, stale, substituted, padded, or misordered site rows reject.
 The proof producer supplies none of them. Exact profile equality permits proof
 replay under the same observer but never substitutes for the refinement proof.
 
+The first bounded implementation rung admits internal-only modules. A typed
+`TerminalTraceV1` profile retains the exact `TerminalPsiIdentity`, one mandatory
+root row with ordered scalar and structural input schemas plus the Unit, scalar,
+or structural result comparison schema, and every crash terminator ordered by
+`(machine, block, edge)` with its closed cause. The standalone profile encoding
+begins with `omega.terminal.observation-profile.v1`, uses fixed little-endian
+coordinates and explicit group tags/counts, and writes zero counts for the
+ordinary-event and terminal-external groups rather than omitting them. Decoding
+rejects unknown schema/vocabulary/tag/type rows, a zero module commitment,
+empty root count, noncanonical qualification or crash-site order, duplicate
+crash coordinates even when their causes differ, nonzero later-group counts,
+and trailing bytes. Module-bound acceptance canonical-validates the module,
+computes its full vocabulary-plus-fingerprint identity, independently asks the
+verifier to derive the root and crash roster, and compares the complete decoded
+profile exactly. A producer supplies neither the identity nor rows to that
+path. `BoundaryCall` and `PortWrite` have explicit rejecting classifications at
+this rung because D39 requires their ordinary-event rows; no wildcard can make
+a future Terminal operation internal. This carrier changes no Terminal module
+format, vocabulary, runtime outcome, or fuel schedule. Ordinary external
+events, terminal-external completion, runtime trace values/refinement, and
+forgetting projections remain later D39 slices.
+
 A terminal-external event requires an explicit checked boundary completion
 identity. `never` alone proves no normal return but cannot distinguish
 successful termination from divergence or crash. Terminal therefore still

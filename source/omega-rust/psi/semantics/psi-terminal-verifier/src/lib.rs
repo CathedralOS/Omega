@@ -7,9 +7,11 @@
 //! bundles cannot choose which obligations exist.
 
 mod quotient_correspondence;
+mod terminal_trace_v1;
 mod validation;
 mod verification;
 
 pub use quotient_correspondence::*;
+pub use terminal_trace_v1::*;
 pub use validation::*;
 pub use verification::*;
