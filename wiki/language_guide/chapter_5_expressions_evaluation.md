@@ -809,7 +809,12 @@ into the separately named fused operation. Nearest-even F32/F64 FMA selects
 explicit AArch64 satisfiers and lowers to one scalar `FMADD`; its interpreter
 path consumes the same `FloatSemantics::fused_multiply_add` identity. Generic
 x86-64 remains SSE2-baseline and therefore does not claim FMA3: that target
-requires a feature-qualified or checked software satisfier. AArch64 also
+requires a feature-qualified or checked software satisfier. The first opt-in
+x86 hardware carrier now admits only an exact deployment profile plus AVX+FMA3,
+binds both generic FMA slots to the scalar VEX instructions, and retains
+raw-bit fused-versus-unfused cancellation receipts through final image replay.
+It does not change generic target selection; ordinary build/source selection of
+that carrier remains pending. AArch64 also
 selects exact F32/F64 FMA-toward-zero/positive/negative satisfiers. Each
 directed ternary operation changes FPCR only around one scalar `FMADD`, while
 the interpreter consumes the corresponding directed `FloatSemantics` identity;
@@ -839,7 +844,7 @@ Selection retains a `CheckedAdapter`
 in both engines without replacing the boundary operator's proof identity. This
 route does not itself manufacture a software algorithm: generic x86-64 FMA
 remains unavailable until such a checked implementation (or an honestly
-feature-qualified hardware satisfier) is supplied.
+feature-qualified hardware satisfier selected by the build) is supplied.
 
 ### Value domains — wellness facts
 
