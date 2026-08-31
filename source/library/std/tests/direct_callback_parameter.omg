@@ -3,7 +3,72 @@ target windows_x86_64 {
 
 use omega::language::std::calling;
 
-boundary trait HookProcedure {
+data HookProcedurePolicy { }
+HookProcedurePolicyCallingPolicy: HookProcedurePolicy satisfies CallingPolicy;
+
+machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 && signature.has_result {
+        true -> accept(signature, signature.parameters[0], signature.result)
+        _ -> reject()
+    }
+
+    state accept(
+        signature: BoundarySignature,
+        message: u64,
+        result: u64
+    ) -> BoundaryPlanResult {
+        transition message < 256 && result < 256 {
+            true -> build(signature, message, result)
+            _ -> reject()
+        }
+    }
+
+    state build(
+        signature: BoundarySignature,
+        message: u64,
+        result: u64
+    ) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::MicrosoftX64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[message].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[message].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rcx,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[message].byte_size,
+        };
+        output.call.has_result = true;
+        output.call.result.shape.class = AbiValueClass::Integer;
+        output.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        output.call.result.shape.alignment = signature.shapes[result].alignment;
+        output.call.result.location_count = 1;
+        output.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[result].byte_size,
+        };
+        output.call.stack_alignment = 16;
+        output.call.shadow_bytes = 32;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection { reason: "invalid callback procedure telescope" },
+        }
+    }
+}
+
+boundary trait HookProcedure: Calling<HookProcedurePolicy> {
     machine call(message: u64) -> u64;
 }
 
@@ -124,5 +189,15 @@ boundary trait HookRegistrar: Calling<RegistrarPolicy> {
     where machine Handler satisfies HookProcedure::call;
 }
 
+data HookProvider { }
+
+machine HookProvider::call(message: u64) -> u64
+satisfies HookProcedure::call
+{
+    message
+}
+
 data Main { }
-machine Main::main(&mut self) { }
+machine Main::main(&mut self) {
+    HookRegistrar::install<HookProvider::call>(1u64, 2u64);
+}

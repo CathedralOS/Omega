@@ -305,6 +305,39 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
     assert_eq!(callback.name.as_str(), "procedure");
     assert_eq!(callback.binder.as_str(), "Handler");
     assert_eq!(callback.native_ordinal, 1);
+    let [nominal_use] = checked.facts.nominal_machine_uses.uses.as_slice() else {
+        panic!("the actual registrar occurrence must retain one selected callback use");
+    };
+    assert!(matches!(
+        nominal_use.site,
+        psi_checked_trees::NominalMachineUseSite::Statement(_)
+    ));
+    let [placement] = checked.callback_placements() else {
+        panic!("the actual registrar occurrence must bind one callback placement");
+    };
+    assert_eq!(placement.site, nominal_use.site);
+    assert_eq!(placement.registration_operation, install.symbol);
+    let materialization = placement
+        .private_materialization
+        .as_ref()
+        .expect("the direct callback must retain its target-closed native parameter");
+    assert!(matches!(
+        materialization.destination,
+        omega_calling_conventions::NativePlace::Parameter(_)
+    ));
+    assert_eq!(
+        placement.boundary_entry_plan.call.parameters.len(),
+        1,
+        "the selected callback's inbound ABI stays distinct from the registrar ABI",
+    );
+    assert_eq!(
+        materialization
+            .registrar_boundary_entry_plan
+            .call
+            .parameters
+            .len(),
+        3
+    );
 }
 
 #[test]

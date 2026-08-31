@@ -207,6 +207,23 @@ pub struct LoweredTerminalPsi {
     /// this after semantic identities are final; private builders leave it
     /// empty until that finalization step.
     pub debug_map: Option<TerminalDebugMap>,
+    /// Ephemeral checked-source-to-Terminal call joins. These rows are not
+    /// encoded into Terminal Psi; the Omega product consumes them while both
+    /// representations are available and retains only target-owned evidence.
+    pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
+}
+
+/// One exact checked source call joined to its emitted Terminal operation.
+/// Source handles are deliberately confined to the producer result and never
+/// enter the canonical Terminal artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredSourceCallOccurrence {
+    pub source_site: Option<psi_checked_trees::NominalMachineUseSite>,
+    pub source_state: psi_symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub terminal_operation: OperationId,
+    pub source_target: psi_symbols::SymbolHandle,
 }
 
 /// Canonical Terminal artifact coupled to an opaque callback-use sidecar.
@@ -221,6 +238,7 @@ pub struct LoweredTerminalPsi {
 pub struct ProducedTerminalArtifactWithCallbackCustody<C> {
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     callback_custody: C,
+    source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 }
 
 impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
@@ -232,8 +250,26 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         &self.callback_custody
     }
 
+    pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
+        &self.source_call_occurrences
+    }
+
     pub fn into_parts(self) -> (psi_terminal_codec::CanonicalTerminalArtifact, C) {
         (self.artifact, self.callback_custody)
+    }
+
+    pub fn into_parts_with_source_calls(
+        self,
+    ) -> (
+        psi_terminal_codec::CanonicalTerminalArtifact,
+        C,
+        Vec<LoweredSourceCallOccurrence>,
+    ) {
+        (
+            self.artifact,
+            self.callback_custody,
+            self.source_call_occurrences,
+        )
     }
 }
 
@@ -580,7 +616,7 @@ const TERMINAL_UNIT_CALL_OBLIGATION_BASE: u64 = 1_u64 << 63;
 struct OperationBuffer {
     next_identity: u64,
     operations: Vec<Operation>,
-    source_calls: Vec<(SourceCallCoordinate, OperationId, psi_symbols::SymbolHandle)>,
+    source_calls: Vec<LoweredSourceCallOccurrence>,
 }
 
 impl OperationBuffer {
@@ -606,17 +642,25 @@ impl OperationBuffer {
     fn record_source_call(
         &mut self,
         coordinate: SourceCallCoordinate,
+        source_site: Option<psi_checked_trees::NominalMachineUseSite>,
         operation: OperationId,
         target: psi_symbols::SymbolHandle,
     ) -> Result<(), LoweringError> {
-        if self
-            .source_calls
-            .iter()
-            .any(|(existing, _, _)| *existing == coordinate)
-        {
+        if self.source_calls.iter().any(|existing| {
+            existing.source_state == coordinate.state
+                && existing.statement_index == coordinate.statement_index
+                && existing.call_ordinal == coordinate.call_ordinal
+        }) {
             return Err(LoweringError::DuplicateContentPartitionProducerCoordinate);
         }
-        self.source_calls.push((coordinate, operation, target));
+        self.source_calls.push(LoweredSourceCallOccurrence {
+            source_site,
+            source_state: coordinate.state,
+            statement_index: coordinate.statement_index,
+            call_ordinal: coordinate.call_ordinal,
+            terminal_operation: operation,
+            source_target: target,
+        });
         Ok(())
     }
 }
@@ -1191,16 +1235,33 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
     ProducedTerminalArtifactWithCallbackCustody<C>,
     CallbackCustodyTerminalArtifactProductionError<C>,
 > {
-    match produce_terminal_artifact(checked, machine_name) {
-        Ok(artifact) => Ok(ProducedTerminalArtifactWithCallbackCustody {
-            artifact,
-            callback_custody,
-        }),
-        Err(error) => Err(CallbackCustodyTerminalArtifactProductionError {
-            error,
-            callback_custody,
-        }),
-    }
+    let lowered = match lower_machine(checked, machine_name) {
+        Ok(lowered) => lowered,
+        Err(error) => {
+            return Err(CallbackCustodyTerminalArtifactProductionError {
+                error: TerminalArtifactProductionError::Lowering(error),
+                callback_custody,
+            });
+        }
+    };
+    let artifact = match psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        lowered.debug_map.as_ref(),
+    ) {
+        Ok(artifact) => artifact,
+        Err(error) => {
+            return Err(CallbackCustodyTerminalArtifactProductionError {
+                error: TerminalArtifactProductionError::Artifact(error),
+                callback_custody,
+            });
+        }
+    };
+    Ok(ProducedTerminalArtifactWithCallbackCustody {
+        artifact,
+        callback_custody,
+        source_call_occurrences: lowered.source_call_occurrences,
+    })
 }
 
 /// Produce a canonical Terminal artifact while retaining the exact checked

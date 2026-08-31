@@ -959,19 +959,24 @@ pub(super) fn build_scalar_graph_module(
         .compositions
         .into_iter()
         .map(|composition| {
-            let Some((_, producer_operation, target)) = all_operations
+            let Some(occurrence) = all_operations
                 .source_calls
                 .iter()
-                .find(|(coordinate, _, _)| *coordinate == composition.producer_coordinate)
+                .find(|occurrence| {
+                    occurrence.source_state == composition.producer_coordinate.state
+                        && occurrence.statement_index
+                            == composition.producer_coordinate.statement_index
+                        && occurrence.call_ordinal == composition.producer_coordinate.call_ordinal
+                })
                 .copied()
             else {
                 return Err(LoweringError::ContentPartitionProducerOperationMissing);
             };
-            if target != composition.source_callable {
+            if occurrence.source_target != composition.source_callable {
                 return Err(LoweringError::ContentPartitionProducerTargetMismatch);
             }
             Ok(ContentPartitionComposition {
-                producer_operation,
+                producer_operation: occurrence.terminal_operation,
                 source_report_fingerprint: composition.source_report_fingerprint,
                 source_structural_places: composition.source_structural_places,
                 source: composition.source,
@@ -1092,5 +1097,6 @@ pub(super) fn build_scalar_graph_module(
             evidence,
         },
         debug_map: None,
+        source_call_occurrences: all_operations.source_calls,
     })
 }

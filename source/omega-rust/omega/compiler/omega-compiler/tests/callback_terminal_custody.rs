@@ -80,6 +80,35 @@ impl Fixture {
         Self { root, main }
     }
 
+    fn direct() -> Self {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(5)
+            .expect("Omega repository root");
+        let root = repository.join(format!(
+            "source/library/std/tests/.direct-callback-terminal-custody-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create direct callback-custody fixture");
+        let main = root.join("main.omg");
+        fs::copy(
+            repository.join("source/library/std/tests/direct_callback_parameter.omg"),
+            &main,
+        )
+        .expect("copy direct callback source canary");
+        fs::write(
+            root.join("build.omg"),
+            r#"machine build(builder: &mut Build) {
+    builder.application("direct-callback-terminal-custody");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        )
+        .expect("write direct callback-custody build policy");
+        Self { root, main }
+    }
+
     fn request(&self, product: RequestedCompileProduct, tag: &str) -> CompileRequest {
         CompileRequest::new(CompileOptions {
             root_path: self.main.clone(),
@@ -97,7 +126,11 @@ impl Drop for Fixture {
     }
 }
 
-fn assert_custody_diagnostic(diagnostics: &[psi_diagnostics::Diagnostic], product: &str) {
+fn assert_custody_diagnostic(
+    diagnostics: &[psi_diagnostics::Diagnostic],
+    product: &str,
+    expected_placements: usize,
+) {
     assert_eq!(
         diagnostics.len(),
         1,
@@ -109,13 +142,14 @@ fn assert_custody_diagnostic(diagnostics: &[psi_diagnostics::Diagnostic], produc
         "unexpected diagnostic: {message}"
     );
     assert!(
-        message.contains("2 validated callback placement(s)"),
+        message.contains(&format!(
+            "{expected_placements} validated callback placement(s)"
+        )),
         "unexpected diagnostic: {message}"
     );
-    assert_eq!(
-        message.matches("WindowProcedure::call").count(),
-        2,
-        "the diagnostic must name every retained callback row: {message}"
+    assert!(
+        message.matches("::call").count() >= expected_placements,
+        "the diagnostic must name the retained callback rows: {message}"
     );
     assert!(
         message.contains("canonical Terminal callback-use custody is not implemented"),
@@ -124,49 +158,134 @@ fn assert_custody_diagnostic(diagnostics: &[psi_diagnostics::Diagnostic], produc
 }
 
 #[test]
-fn canonical_terminal_handoff_preserves_callback_placements_while_native_remains_fenced() {
+fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
     let fixture = Fixture::new();
     let checked = compile_to_checked(&fixture.main, Some("windows_x86_64"))
         .expect("callback program should reach checked compilation");
     assert_eq!(checked.callback_placements().len(), 2);
-    let expected_placements = checked.callback_placements().to_vec();
-
     compile(fixture.request(RequestedCompileProduct::Check, "check"))
         .expect("check-only compilation retains callback placements without executing them");
-
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
-        .expect("Terminal production preserves every callback placement beside the artifact");
-    assert_eq!(
-        terminal.terminal_callback_placements(),
-        Some(expected_placements.as_slice()),
+        .expect_err("unreachable callback placements cannot float beside an unrelated artifact");
+    assert!(
+        terminal.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("resolves to 0 Terminal registrar occurrences")),
+        "unexpected diagnostics: {terminal:#?}",
     );
+}
+
+#[test]
+fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
+    let fixture = Fixture::direct();
+    let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
+        .expect("direct callback registrar should reach canonical Terminal custody");
     let retained = terminal
         .into_retained_terminal_artifact()
-        .expect("Terminal report transfers artifact and callback sidecar together");
-    let (artifact, returned_placements, proposal) = retained.into_parts();
-    assert_eq!(returned_placements, expected_placements);
+        .expect("Terminal report owns the exact direct callback sidecar");
+    let [placement] = retained.callback_placements() else {
+        panic!("one selected direct callback placement must survive");
+    };
+    assert!(matches!(
+        placement
+            .private_materialization
+            .as_ref()
+            .expect("direct callback target-closed materialization")
+            .destination,
+        omega_calling_conventions::NativePlace::Parameter(_)
+    ));
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("Terminal product retains its native realization proposal");
+    let [occurrence] = proposal.callback_occurrences() else {
+        panic!("one exact Terminal registrar occurrence must be retained");
+    };
+    assert_eq!(occurrence.placement_index(), 0);
+    let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .expect("decode canonical Terminal semantics");
+    let matching = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == occurrence.terminal_operation())
+        .collect::<Vec<_>>();
+    let [operation] = matching.as_slice() else {
+        panic!("occurrence must name one exact Terminal operation");
+    };
+    assert!(matches!(
+        operation.kind,
+        psi_terminal::OperationKind::BoundaryCall { .. }
+    ));
+    retained
+        .validate()
+        .expect("direct callback occurrence replays against its artifact");
 
-    let mut swapped_placements = returned_placements;
-    swapped_placements.swap(0, 1);
-    let retained =
-        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
-            artifact,
-            swapped_placements,
-            proposal.expect("compiler Terminal product retains its native proposal"),
+    let wrong_operation = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id != occurrence.terminal_operation())
+        .expect("the registrar literals produce a distinct Terminal operation")
+        .id;
+    assert!(
+        omega_compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+            vec![
+                omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    wrong_operation,
+                )
+            ],
         )
-        .expect("the structural report carrier does not reconstruct checked row provenance");
-    assert_ne!(retained.callback_placements(), expected_placements);
-
-    let (artifact, mut drifted_placements, proposal) = retained.into_parts();
-    drifted_placements[0].boundary_calling_plan_report_fingerprint ^= 1;
-    omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
-        artifact,
-        drifted_placements,
-        proposal.expect("retained proposal"),
+        .is_err(),
+        "a non-boundary Terminal operation cannot replace the registrar call",
+    );
+    assert!(
+        omega_compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+            vec![*occurrence, *occurrence],
+        )
+        .is_err(),
+        "duplicate placement occurrence rows must reject",
+    );
+    let missing = omega_compilation_report::TerminalNativeRealizationProposal::new(
+        retained.artifact(),
+        proposal.target_profile(),
+        proposal.native_target(),
+        proposal.subsystem(),
+        proposal.program_entry().clone(),
+        proposal.selected_provider_plans().clone(),
+        proposal.external_binding_rows().to_vec(),
+        proposal.compiler_builtins().to_vec(),
+        Vec::new(),
     )
-    .expect_err("callback placement mutation cannot re-enter retained Terminal custody");
+    .expect("artifact-local replay permits an empty occurrence catalog");
+    let (artifact, placements, _) = retained.into_parts();
+    assert!(
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact, placements, missing,
+        )
+        .is_err(),
+        "retained product replay requires one occurrence per callback placement",
+    );
 
     let native = compile(fixture.request(RequestedCompileProduct::NativeArtifact, "native"))
-        .expect_err("native production cannot silently discard callback placements");
-    assert_custody_diagnostic(&native, "native-artifact");
+        .expect_err("native production remains fenced after exact occurrence custody");
+    assert_custody_diagnostic(&native, "native-artifact", 1);
 }

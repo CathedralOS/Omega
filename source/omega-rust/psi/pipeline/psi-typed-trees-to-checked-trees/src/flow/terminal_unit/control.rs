@@ -743,9 +743,26 @@ pub(super) fn build_static_boundary_requirements(
         definition.is_boundary && program.trait_type_parameters(definition).is_empty()
     }) {
         for signature in program.trait_machine_signatures(definition) {
-            if !program
-                .state_signature_type_parameters(signature)
-                .is_empty()
+            let type_parameters = program.state_signature_type_parameters(signature);
+            let direct_callback_telescope =
+                !signature.native_callback_parameters.is_empty()
+                    && type_parameters.len() == signature.native_callback_parameters.len()
+                    && type_parameters
+                        .iter()
+                        .zip(&signature.native_callback_parameters)
+                        .all(|(parameter, callback)| {
+                            parameter.name == callback.binder
+                                && matches!(
+                                parameter.kind,
+                                psi_typed_trees::data::TypeParameterKind::Machine {
+                                    contract:
+                                        psi_typed_trees::data::MachineParameterContract::Nominal {
+                                            ..
+                                        }
+                                }
+                            )
+                        });
+            if (!type_parameters.is_empty() && !direct_callback_telescope)
                 || !signature_contracts_are_exact_parameter_qualifications(program, signature)
                 || signature.suspends
                 || signature.blocks
@@ -1086,6 +1103,7 @@ pub(super) fn build_checked_machine(
             }
             let CheckedUnitEffectOperationPlan::BoundaryCall {
                 coordinate,
+                source_site,
                 target_machine,
                 target_state,
                 target_contract_report_fingerprint,
@@ -1109,6 +1127,7 @@ pub(super) fn build_checked_machine(
             };
             operations.push(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 coordinate,
+                source_site,
                 result,
                 target_machine,
                 target_state,

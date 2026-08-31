@@ -8842,12 +8842,28 @@ Owners:
   parameter. Old ordinal-derived IDs remain a distinct v1 domain and are not
   translated heuristically.
 
-  Remaining direct-form engineering is to bind a selected callback at an
-  actual source registrar occurrence, carry its native-only row through exact
-  assigned-operand/call emission and downstream replay, and complete the
+  The first actual direct-source occurrence rung is now live. The production
+  canary invokes the registrar with one exactly admitted callback selection;
+  checked Unit planning admits its static-machine telescope only when every
+  declared native callback binder rejoins the same nominal use site,
+  registrar requirement, ordinal, and satisfaction row. Checked-to-Terminal
+  lowering retains an ephemeral source-site/coordinate/target to canonical
+  `OperationId` join for both Unit and scalar boundary calls. The compiler
+  consumes that source-bearing row while checked and Terminal representations
+  coexist and retains one placement-index-to-`BoundaryCall` occurrence in the
+  target-owned native-realization proposal. Missing, duplicate, unreachable,
+  wrong-target, non-boundary-operation, and artifact drift reject; source
+  handles do not enter canonical Terminal Psi. Native production remains
+  deliberately fenced rather than discarding this custody.
+
+  Remaining direct-form engineering is to retain the exact target-closed
+  native-telescope row mapping `NativeParameterId` to authored ordinal,
+  function-pointer shape, and `ValuePlacement`, then carry it through exact
+  abstract/target/assigned operand and call emission plus downstream artifact
+  replay, and complete the
   negative matrix for authored `addr`, undeclared insertion, inferred or
   duplicate/wrong binder/requirement, policy-created parameters, and stale v1
-  or application-v2 evidence. Add the same
+  or legacy application-v2 evidence (the live application domain is v3). Add the same
   target-neutral requirement placed at different x86/x64 offsets once the
   target catalog gains its missing 32-bit x86 engineering support; its present
   native targets are X86-64 and AArch64 only. The raw-offset canary now proves

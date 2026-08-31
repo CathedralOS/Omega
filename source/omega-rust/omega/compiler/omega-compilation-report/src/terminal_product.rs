@@ -8,6 +8,33 @@ pub struct TerminalCompilerBuiltinProposal {
     execution: omega_target_operations::CompilerBuiltinExecution,
 }
 
+/// Exact join from one retained callback placement to the canonical Terminal
+/// boundary-call operation produced from its authored registrar occurrence.
+/// The source handles used to establish this row do not cross the Psi/Omega
+/// boundary; the placement index rejoins the separately retained exact row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalCallbackOccurrenceProposal {
+    placement_index: usize,
+    terminal_operation: psi_core::OperationId,
+}
+
+impl TerminalCallbackOccurrenceProposal {
+    pub const fn new(placement_index: usize, terminal_operation: psi_core::OperationId) -> Self {
+        Self {
+            placement_index,
+            terminal_operation,
+        }
+    }
+
+    pub const fn placement_index(self) -> usize {
+        self.placement_index
+    }
+
+    pub const fn terminal_operation(self) -> psi_core::OperationId {
+        self.terminal_operation
+    }
+}
+
 impl TerminalCompilerBuiltinProposal {
     pub fn new(
         requirement_identity: String,
@@ -54,6 +81,7 @@ pub struct TerminalNativeRealizationProposal {
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
+    callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -67,6 +95,7 @@ impl TerminalNativeRealizationProposal {
         selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
         external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
         compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
+        callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     ) -> Result<Self, &'static str> {
         let proposal = Self {
             terminal_artifact_identity: artifact.manifest().identity(),
@@ -77,6 +106,7 @@ impl TerminalNativeRealizationProposal {
             selected_provider_plans,
             external_binding_rows,
             compiler_builtins,
+            callback_occurrences,
         };
         proposal.validate_for_artifact(artifact)?;
         Ok(proposal)
@@ -126,6 +156,33 @@ impl TerminalNativeRealizationProposal {
                 );
             }
         }
+        let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
+            |_| "Terminal callback occurrence replay could not decode canonical semantics",
+        )?;
+        let mut placement_indices = std::collections::BTreeSet::new();
+        for occurrence in &self.callback_occurrences {
+            if !placement_indices.insert(occurrence.placement_index) {
+                return Err("Terminal native proposal repeats a callback placement occurrence");
+            }
+            let matching = module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| operation.id == occurrence.terminal_operation)
+                .collect::<Vec<_>>();
+            let [operation] = matching.as_slice() else {
+                return Err(
+                    "Terminal callback occurrence does not name one exact canonical operation",
+                );
+            };
+            if !matches!(
+                operation.kind,
+                psi_terminal::OperationKind::BoundaryCall { .. }
+            ) {
+                return Err("Terminal callback occurrence does not name a boundary call");
+            }
+        }
         Ok(())
     }
 
@@ -159,6 +216,10 @@ impl TerminalNativeRealizationProposal {
 
     pub fn compiler_builtins(&self) -> &[TerminalCompilerBuiltinProposal] {
         &self.compiler_builtins
+    }
+
+    pub fn callback_occurrences(&self) -> &[TerminalCallbackOccurrenceProposal] {
+        &self.callback_occurrences
     }
 }
 
@@ -244,6 +305,24 @@ impl RetainedTerminalArtifact {
         }
         if let Some(proposal) = &self.native_realization_proposal {
             proposal.validate_for_artifact(&self.artifact)?;
+            if proposal.callback_occurrences.len() != self.callback_placements.len() {
+                return Err(
+                    "Terminal native proposal does not cover every retained callback placement",
+                );
+            }
+            for placement_index in 0..self.callback_placements.len() {
+                if proposal
+                    .callback_occurrences
+                    .iter()
+                    .filter(|occurrence| occurrence.placement_index == placement_index)
+                    .count()
+                    != 1
+                {
+                    return Err(
+                        "Terminal native proposal does not uniquely bind a retained callback placement",
+                    );
+                }
+            }
         }
         Ok(())
     }

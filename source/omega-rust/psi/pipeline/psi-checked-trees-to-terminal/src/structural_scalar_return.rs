@@ -892,6 +892,7 @@ fn lower_structural_scalar_return_machine_in_namespace(
         },
         proof_bundle: ProofBundle::default(),
         debug_map: None,
+        source_call_occurrences: Vec::new(),
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
