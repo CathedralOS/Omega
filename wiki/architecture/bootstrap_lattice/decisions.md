@@ -1721,6 +1721,75 @@ must use an explicit unconditional target-qualified build row, analogous to
 `roots.bind`, and not arbitrary control flow or a target-block image fact. No
 such syntax is reserved before that customer exists.
 
+## D43 — Source custody validates the result, not the ambient Git executor
+
+The source resolver delegates Git, SSH, HTTPS, credentials, helpers, proxies,
+configuration, and ordinary same-user operating-system authority to the
+invoking host. Omega does not attest that environment by hashing the selected
+Git executable, classifying platform confinement, or signing its own command
+and completion observations. Those facts cannot close same-user replacement,
+authenticate an operator or repository owner, or establish that an audit took
+place. The self-issued execution-guarantee matrix, canonical execution
+provenance, `GitSourceReceipt`, and Seatbelt/Landlock executable/filesystem
+confinement are retired.
+
+This explicitly supersedes the earlier retention of executable content and
+metadata drift checks as non-authoritative same-operation provenance. A
+changed executor that changes the accepted source is detected by the verified
+commit, tree, content, and immutable snapshot. A changed executor that produces
+the same exact source has no source-custody consequence. Metadata observations
+around a hashing window neither strengthen that result nor prove continuous
+executable identity. Bounded operational details may remain ordinary logs,
+but their absence cannot reject an otherwise valid resolution and they never
+enter canonical source, lock, review, or admission identity.
+
+Resolver controls survive when they do at least one of three things:
+
+1. validate package-derived material;
+2. directly enforce a concrete resource or process-lifecycle property; or
+3. prevent package-controlled input from influencing a decision Omega makes
+   using the operator's authority.
+
+The third class retains the load-bearing executable-selection boundary. Before
+reading package-controlled input, Omega snapshots the operator's selection,
+resolves one absolute Git path, rejects a path inside any package-controlled
+workspace, source, build-output, quarantine, or cache root, and uses that exact
+path for the operation. It performs no later bare-name lookup. A package may
+select a bounded source locator and revision, but cannot choose the executable,
+credentials, helpers, arbitrary arguments, hooks, filters, or process policy.
+
+The first two classes retain argument separation, noninteractive execution,
+closed protocols, redirect/hook/replacement/filter/submodule rejection, Git
+object validation, bounded command count and captured output, deadlines,
+whole-process-tree cleanup, honest portable resource ceilings, safe object and
+path traversal, bounded materialization, and immutable snapshot publication.
+Windows Job Objects and comparable mechanisms may remain where they implement
+cleanup or a concrete limit; they issue no host-execution trust claim. Stronger
+operator-selected sandbox, VM, container, or CI isolation stays outside the
+universal source-success contract.
+
+Network acquisition admits HTTPS and SSH as one closed production transport
+class. Ordinary host `insteadOf` configuration may route an authored HTTPS
+locator through SSH or an authored SSH locator through HTTPS. HTTP,
+unauthenticated `git://`, `file`, `ext`, and every other production protocol
+remain denied. Effective host routing is not package identity and cannot
+mutate `PackageKey`.
+
+The authored canonical source lineage remains the identity input. GitHub and
+GitLab adapters normalize HTTPS and SSH spellings only because they establish
+one repository namespace. Generic Git lineage conservatively retains
+transport, user, host, port, path case, and suffix distinctions until an
+adapter proves equivalence; allowing host routing does not justify stripping
+those fields or merging unrelated repositories. Resolved commit, tree,
+content, and snapshot identities remain exact instance custody. Git object
+hashes establish content integrity, not repository-owner authentication.
+
+Locks, review, and compilation consume those direct resolved-source facts,
+not a receipt over the process that fetched them. Ordinary live-source and
+snapshot drift checks remain because they compare material consumed across
+resolver-owned phases; only executor drift telemetry and its canonical
+attestation are retired.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

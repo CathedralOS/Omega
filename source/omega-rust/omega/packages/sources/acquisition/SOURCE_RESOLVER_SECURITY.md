@@ -37,18 +37,27 @@ The resolver is responsible for:
 - bounding captured helper output, command duration, command count, accepted
   source/cache size, and the uniform process resources the selected host
   backend can honestly constrain; and
-- recording the primary Git invocation, command outcomes, source identities,
-  limits, and observed resource use that produced a successful result.
+- retaining the exact requested lineage, selected commit/tree/content,
+  immutable snapshot identity, and concrete limits that produced a successful
+  source result.
 
-Secrets never enter source declarations, `omega.lock`, source receipts, review
-evidence, or build inputs.
+Secrets never enter source declarations, `omega.lock`, resolved-source
+custody, review evidence, or build inputs.
+
+A resolver control belongs in the universal contract only when it validates
+package-derived material, directly enforces a concrete resource/lifecycle
+property, or prevents package-controlled input from influencing a decision
+Omega makes with operator authority. A control whose only product is a
+self-issued statement about the host executor does not qualify.
 
 ## Transport and credentials
 
-Public requests admit HTTPS, SSH URLs, and SCP-like SSH locators. HTTP,
-unauthenticated `git://`, redirects, unselected protocols, hooks, submodules,
-and credential-bearing locators reject. The test-only local-repository adapter
-is not a production transport.
+Public requests admit HTTPS, SSH URLs, and SCP-like SSH locators. Host
+`insteadOf` configuration may route between HTTPS and SSH because both belong
+to the admitted production transport class. HTTP, unauthenticated `git://`,
+`file`, `ext`, redirects outside the requested repository policy, hooks,
+submodules, and credential-bearing locators reject. The test-only
+local-repository adapter is not a production transport.
 
 HTTPS and SSH use the invoking environment's system authentication facilities.
 That is an operational input, not package identity and not authority granted by
@@ -91,13 +100,6 @@ vector, so such a wrapper requires a separately specified safe invocation
 contract rather than ordinary automatic discovery. An explicit operator path
 does not make a package-controlled wrapper safe.
 
-The resolver records the selected absolute path, a bounded content identity,
-and checkpointed metadata. Metadata is compared around launches; executable
-content is rehashed at defined acquisition and publication checkpoints. A
-detected mismatch rejects that resolution as internally inconsistent. These
-checks establish neither continuous file immutability nor trust in Git, its
-helpers, the invoking user, or the operating system.
-
 Hard-coded platform candidate lists are not a compatibility fallback.
 Ownership, Unix mode, set-id state, ACL shape, and a content hash do not
 establish host trust and are not source-admission rules. A managed executable
@@ -106,13 +108,13 @@ Ordinary existence, regular-file, bounded-read, and launchability checks remain
 part of constructing a usable invocation. Host or CI policy owns selection and
 protection of the Git installation.
 
-The selected path and content identity remain operational provenance in the
-receipt for that particular run. They do not enter immutable source identity,
-`PackageKey`, or the semantic identity of a lock source. Different selected Git
-installations may therefore yield different resolution receipts while
-producing the same content-verified source identity. A dependency declaration,
-fetched repository, package source, and `build.omg` can neither select nor
-alter the primary executable.
+The selected absolute path is an invocation fact, not execution attestation.
+It does not enter immutable source identity, `PackageKey`, or lock-source
+meaning. A dependency declaration, fetched repository, package source, and
+`build.omg` can neither select nor alter the primary executable. Executable
+content hashes, metadata drift checkpoints, and canonical executable
+provenance are not source-admission inputs: the verified source result already
+captures every executor difference relevant to source custody.
 
 The retained source-resolver storage session owns this frozen selection. Its
 operator constructors accept an explicit executable and controlled-root
@@ -132,6 +134,14 @@ host-selected programs; partially reproducing or brokering that ecosystem
 would override host behavior without establishing a stronger operating-system
 trust boundary.
 
+Host configuration may rewrite an authored HTTPS locator to SSH or an authored
+SSH locator to HTTPS. That changes the host route, not the package key. The
+authored canonical lineage remains the identity input: known GitHub/GitLab
+adapters may normalize proven repository namespaces, while generic Git lineage
+retains transport, user, host, port, path case, and suffix distinctions until
+an adapter establishes equivalence. Effective routing is never used to merge
+otherwise distinct lineages.
+
 This delegation is limited to the transport and credential chain. It does
 not reopen package-controlled execution: the closed protocol surface,
 noninteractive invocation, disabled redirects, hooks, replacements, filters,
@@ -142,38 +152,26 @@ to the complete child tree without knowing descendant identities. A control
 that requires an allowlist of host transport/helper identities or writable
 state locations is not part of the universal network path.
 
-Repository initialization and inspection have no ambient transport-helper
-requirement and may retain their closed execution and write policy. Operators
-that require stronger isolation provide it through their host, VM, container,
-or CI policy; Omega does not attest that external policy.
+Repository initialization and inspection use the same universal execution
+boundary. Omega does not impose executable or filesystem sandbox policy on the
+operator's Git. Operators that require stronger isolation provide it through
+their host, VM, container, or CI policy; Omega does not attest that external
+policy.
 
-## Successful receipt
+## Successful source custody
 
-Every successful Git resolution issues one opaque `GitSourceReceipt`. It has no
-public constructor or decoder. Its canonical identity binds:
+A successful Git resolution retains the facts downstream consumers actually
+use: authored canonical lineage and requested revision; selected object format,
+commit and root tree; materialized content identity and workspace-member
+projection; published immutable snapshot identity; entry, byte, and depth
+measurements; and the compiler-owned limits applied to them.
 
-- the requested and normalized locator, transport, and requested revision;
-- the selected object format, commit, root tree, materialized tree, and
-  workspace-member projection;
-- the published snapshot path, content identity, entry count, logical bytes,
-  depth, and compiler-owned limits;
-- the selected primary Git executable and exact compiler-owned invocation;
-- every applicable lifecycle/resource policy and completed-command
-  observation;
-- captured-output ceilings and observed counts; and
-- the retained cache-storage measurement accepted before publication.
-
-The receipt records what happened. Its executable coordinate is per-run
-provenance rather than immutable source or package identity. It does not assert
-that the selected executable, host credentials, same-user authority, or every
-operating-system capability was trustworthy or excluded.
-Platform hardening rows remain part of the observation so consumers can see
-which controls were enforced, unavailable, or inapplicable; an unavailable
-optional hardening row does not invalidate an otherwise successful resolution.
-
-Changing a receipt input changes its identity. Persisted bytes cannot mint a
-live resolver result or bypass source, object, snapshot, and command
-revalidation.
+Those facts belong directly to the resolved source and eventual
+`PackageInstance`. There is no canonical `GitSourceReceipt` over the process
+that fetched them. Selected executables, prepared commands, completion order,
+platform-hardening dispositions, and operational telemetry cannot mint source
+custody or change source identity. Persisted bytes cannot mint a live resolver
+result or bypass source, object, snapshot, and command revalidation.
 
 ## Git acquisition
 
@@ -189,10 +187,9 @@ Git object identities. It does not authenticate a repository owner or package
 publisher, and it adds no endpoint claim beyond the invoking host's ordinary
 Git/HTTPS/SSH policy.
 
-The trusted parent independently revalidates executable observations, command
-outcomes, object identities, the materialized tree, cache custody, and source
-limits before publishing `ResolvedGitSource`. Helper output alone never issues
-a result.
+The trusted parent independently revalidates command success, object
+identities, the materialized tree, cache custody, and source limits before
+publishing `ResolvedGitSource`. Helper output alone never issues a result.
 
 Pipeline consistency is compiler-owned even though hostile same-user isolation
 is not. Resolution binds one exact commit and tree, validates a private
@@ -217,12 +214,11 @@ authority after resolution completes.
 
 The resolver enforces compiler-owned ceilings on source entries, source bytes,
 depth, command count, captured output, and retained cache state. Commands have
-deadlines and platform-appropriate process cleanup. Native backends may
-additionally provide phase-applicable filesystem, descendant, CPU, memory,
-file-size, descriptor, or process-count controls; their exact dispositions are
-recorded rather than promoted into universal package semantics. Universal
-networked resolution claims neither aggregate transport-byte accounting nor
-direct endpoint confinement.
+deadlines and platform-appropriate process-tree cleanup. Native backends may
+additionally enforce honest CPU, memory, file-size, descriptor, or
+process-count limits. These controls are execution mechanisms, not canonical
+evidence rows. Universal networked resolution claims neither aggregate
+transport-byte accounting nor direct endpoint confinement.
 
 These controls substantially bound hostile input, but an ordinary user-mode
 package manager cannot promise that the host filesystem will never report disk
@@ -230,28 +226,21 @@ exhaustion. A quota-backed cache or stronger host sandbox may add that property
 without changing source identity. Disk-full, process-launch, network, and host
 credential failures remain ordinary resolution failures.
 
-## Platform hardening
+## Platform execution mechanisms
 
-The macOS Seatbelt, Linux Landlock/resource-limit, Windows Job Object, and
-process-lifecycle mechanisms are defense in depth when they preserve the
-selected phase's contract. Uniform lifecycle and resource controls may narrow
-what the complete trusted child tree can do. Network-phase executable or write
-allowlists that prevent a host-selected transport helper from running are
-behavior overrides and are excluded from the universal path. Cross-platform
-parity is not required before a successful source receipt may issue, and these
-mechanisms do not claim to solve hostile same-user replacement or remove
-ambient host authority.
+Platform mechanisms remain only where they directly implement a concrete
+resource or lifecycle property. Windows Job Objects may enforce limits and
+kill-on-close process-tree cleanup; Unix resource limits may enforce their
+actual kernel bounds. Those mechanisms publish no execution-trust or
+confinement guarantee.
 
-The operator-selected host Git route likewise does not apply a local-phase
-Seatbelt profile when that profile would forbid Git's ordinary launcher or
-descendant behavior. The semantic phase, lifecycle, resource ceilings, and
-command observation remain intact, while Seatbelt-specific guarantees are
-recorded as unavailable.
-
-The universal implementation contains no forced CONNECT route, preselected
-transport/helper identity graph, or endpoint/transfer receipt fields. Those
-former behavior overrides were deleted rather than retained as empty or
-zero-valued observations.
+Seatbelt/Landlock executable and filesystem policies, closed native-guarantee
+matrices, and canonical platform-hardening observations are not part of the
+universal resolver. They cannot close hostile same-user replacement and may
+override valid operator-selected Git behavior. Stronger host isolation remains
+an optional deployment concern outside source admission. The universal
+implementation likewise contains no forced CONNECT route, preselected
+transport/helper identity graph, or endpoint/transfer receipt fields.
 
 ## Package and build separation
 
@@ -260,4 +249,4 @@ embed secrets or choose which secret store, key, agent, or credential broker the
 host uses. `build.omg` receives compiler-owned build facets, not resolver
 environment, credentials, transport handles, or an ambient filesystem. Package
 review and lock admission remain separate decisions over the exact resolved
-source and receipt.
+source custody.

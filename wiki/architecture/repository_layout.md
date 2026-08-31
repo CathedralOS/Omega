@@ -155,7 +155,7 @@ Omega/
 |       |   |-- manager/                                 # Command workflows, graph, and local admission policy.
 |       |   |-- source/                                  # Immutable acquisition boundary.
 |       |   |   |-- [CRATE] acquisition/                 # Source identity, snapshots, and custody.
-|       |   |   `-- [CRATE] execution/                   # OS confinement for hostile acquisition helpers.
+|       |   |   `-- [CRATE] execution/                   # Bounded process lifecycle and cleanup for source acquisition.
 |       |   `-- review/                                  # Human and compiler review surfaces.
 |       |       |-- [CRATE] evidence/                    # Compiler-owned non-admitting semantic projection.
 |       |       `-- [CRATE] advisory/                    # Optional model-facing source review.

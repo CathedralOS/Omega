@@ -421,17 +421,24 @@ An explicit absolute operator setting wins; otherwise the resolver snapshots a
 constrained absolute-entry `PATH` before reading package-controlled input,
 freezes one absolute executable, and uses it for the complete resolution.
 Hard-coded platform candidates and ownership, mode, or ACL admission rules do
-not establish trust. Checkpointed metadata and content comparisons detect
-ordinary within-operation drift only. Their path and hash may distinguish two
-run receipts but never immutable source identity, `PackageKey`, or lock-source
-meaning.
+establish trust. D43 supersedes the former executable metadata/content drift
+checks and `GitSourceReceipt`: process telemetry adds no source property beyond
+the verified commit, tree, content, and immutable snapshot. The absolute path
+is frozen because package-controlled input may not influence an operator-owned
+executable decision, not because Omega attests the path or its contents.
 
-The universal `GitSourceReceipt` binds the validated requested locator, primary
-Git invocation and outcome, content-verified commit/tree, validated
-materialization, and immutable snapshot. It does not claim the actual route,
-peer, credential custody, or enclosing host isolation. Local-only repository
-initialization and inspection may retain tighter execution/write confinement
-because they have no ambient transport-helper requirement.
+Host `insteadOf` configuration may route an authored HTTPS locator through SSH
+or vice versa because both belong to the admitted production transport class.
+Effective routing does not mutate `PackageKey`. The authored canonical lineage
+remains stable: known GitHub/GitLab adapters normalize proven repository
+namespaces, while generic Git lineage retains transport, user, host, port, path
+case, and suffix distinctions until an adapter establishes equivalence.
+
+Locks and review consume direct resolved-source custody: canonical lineage,
+selected commit/tree/content, materialized member, and immutable snapshot.
+They do not consume a receipt over the fetching process. Local repository
+phases receive the same universal execution boundary; stronger host sandboxing
+is optional deployment policy rather than source evidence.
 
 The source resolver owns one syntax-neutral content-verified tree session. It
 opens the exact root declaration, accepts bounded member paths from the
