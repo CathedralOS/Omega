@@ -197,6 +197,50 @@ pub(super) fn emit_boundary_leaf(
     next_operation: &mut u64,
     next_edge: &mut u64,
 ) -> Result<(Block, Vec<LoweredSourceCallOccurrence>), LoweringError> {
+    let mut operations = OperationBuffer::new(*next_operation - 1);
+    emit_boundary_call_operation(
+        state,
+        &state.operations[0],
+        boundaries,
+        type_ids,
+        structural_types,
+        parameters,
+        claim_bindings,
+        next_value,
+        &mut operations,
+    )?;
+    *next_operation = operations.next_identity;
+    let OperationBuffer {
+        operations,
+        source_calls,
+        ..
+    } = operations;
+    Ok((
+        Block {
+            id: block,
+            parameters: Vec::new(),
+            operations,
+            terminator: Terminator::ReturnUnit {
+                edge: edge_id(allocate_dense(next_edge)?),
+                trivial_affine_discards: Vec::new(),
+            },
+        },
+        source_calls,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_boundary_call_operation(
+    state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    boundaries: &[catalogs::LoweredComposedBoundary],
+    type_ids: &[(String, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
+    parameters: &[StructuralParameterDeclaration],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
         source_site,
@@ -205,7 +249,7 @@ pub(super) fn emit_boundary_leaf(
         structural_arguments,
         completion_receipts,
         ..
-    } = &state.operations[0]
+    } = operation
     else {
         unreachable!("admission retained one boundary call")
     };
@@ -247,7 +291,6 @@ pub(super) fn emit_boundary_leaf(
         structural_types,
         &expected_claim_arguments,
     )?;
-    let mut operations = OperationBuffer::new(*next_operation - 1);
     let arguments = scalar_arguments
         .iter()
         .zip(&target.scalar_parameters)
@@ -261,7 +304,7 @@ pub(super) fn emit_boundary_leaf(
                 &argument,
                 &[],
                 next_value,
-                &mut operations,
+                operations,
             ))
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -303,24 +346,7 @@ pub(super) fn emit_boundary_leaf(
             requirement_obligations: Vec::new(),
         },
     });
-    *next_operation = operations.next_identity;
-    let OperationBuffer {
-        operations,
-        source_calls,
-        ..
-    } = operations;
-    Ok((
-        Block {
-            id: block,
-            parameters: Vec::new(),
-            operations,
-            terminator: Terminator::ReturnUnit {
-                edge: edge_id(allocate_dense(next_edge)?),
-                trivial_affine_discards: Vec::new(),
-            },
-        },
-        source_calls,
-    ))
+    Ok(())
 }
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {

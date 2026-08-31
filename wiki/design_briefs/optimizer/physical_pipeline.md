@@ -126,6 +126,14 @@ places the calls in source order before the conditional terminator. A dedicated
 drift, operation reordering, and custody-bearing calls reject before
 publication.
 
+The same operation rung admits an exact parameterless boundary call with no
+scalar or structural arguments. Producer assembly includes control states in
+boundary/provider discovery; consumer admission rejoins the boundary call and
+emission records its source-call occurrence while appending it to the existing
+control block before the guard. Provider-backed control prefixes are still
+fail-closed where implicit-`self` scalar dispatch lacks a checked transition-
+argument expression row; lowering does not synthesize that missing evidence.
+
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common
 condition context and selects exactly one row from its adjacent seven-row

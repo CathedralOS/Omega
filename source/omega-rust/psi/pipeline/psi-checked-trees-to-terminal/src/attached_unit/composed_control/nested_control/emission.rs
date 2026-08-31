@@ -30,6 +30,7 @@ pub(super) fn emit(
     let mut next_edge = 1_u64;
     let mut next_operation = 1_u64;
     let mut blocks = Vec::with_capacity(plan.states.len());
+    let mut source_call_occurrences = Vec::new();
     for index in 0..control_count {
         let CheckedComposedUnitControlTerminatorPlan::Conditional {
             guard,
@@ -45,7 +46,8 @@ pub(super) fn emit(
         let mut operations = OperationBuffer::new(next_operation - 1);
         super::operations::emit(
             &admitted.controls[index],
-            &catalogs.internal_targets,
+            &catalogs,
+            &mut next_value,
             &mut operations,
         )?;
         let condition = emit_direct_expression(
@@ -55,12 +57,18 @@ pub(super) fn emit(
             &mut operations,
         );
         next_operation = operations.next_identity;
+        let OperationBuffer {
+            operations,
+            mut source_calls,
+            ..
+        } = operations;
+        source_call_occurrences.append(&mut source_calls);
         blocks.push(Block {
             id: state_ids[index],
             parameters: (index != 0)
                 .then(|| control_parameters[index].clone())
                 .unwrap_or_default(),
-            operations: operations.operations,
+            operations,
             terminator: Terminator::Conditional {
                 condition,
                 when_true: lower_successor(
@@ -80,7 +88,6 @@ pub(super) fn emit(
             },
         });
     }
-    let mut source_call_occurrences = Vec::new();
     for (state, block) in admitted
         .leaf_calls
         .leaves
