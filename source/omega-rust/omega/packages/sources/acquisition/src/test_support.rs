@@ -51,8 +51,9 @@ pub(crate) fn resolve_git_source(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let primary_git = test_system_git_executor(request.execution_transport())?
-        .identity
-        .path;
+        .execution_backend
+        .executable()
+        .to_path_buf();
     let storage =
         SourceResolverStorage::for_hardened_base_with_primary_git(hardened_base, primary_git)?;
     resolve_git_source_with_storage(request, &storage, limits)
@@ -274,16 +275,20 @@ pub(crate) fn first_regular_descendant(root: &Path) -> PathBuf {
 pub(crate) fn shell_command(script: &str) -> omega_resolver_execution::ResolverPreparedExecution {
     use omega_resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
 
-    let backend = ResolverExecutionBackend::open().expect("open test resolver backend");
     let temporary_root = std::env::temp_dir()
         .canonicalize()
         .expect("canonicalize test temporary directory");
     let shell = Path::new("/bin/sh")
         .canonicalize()
         .expect("canonicalize test shell");
+    let backend = ResolverExecutionBackend::open(&shell, &[] as &[PathBuf])
+        .expect("open test resolver backend");
     let mut command = backend
-        .prepare(&shell, ResolverExecutionPhase::Fetch, Some(&temporary_root))
+        .prepare(
+            ResolverExecutionPhase::Fetch,
+            Some(temporary_root.as_path()),
+        )
         .expect("prepare bounded test shell");
-    command.current_dir(&temporary_root).args(["-c", script]);
+    command.args(["-c", script]);
     command
 }

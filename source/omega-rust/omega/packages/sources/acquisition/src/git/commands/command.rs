@@ -12,7 +12,6 @@ pub(crate) fn sealed_git_command(
     working_directory: &Path,
     phase: ResolverExecutionPhase,
 ) -> Result<ResolverPreparedExecution, SourceResolveError> {
-    executor.verify()?;
     if !working_directory.is_absolute() {
         return Err(SourceResolveError::Git {
             operation: "command configuration".to_owned(),
@@ -41,16 +40,12 @@ pub(crate) fn sealed_git_command(
     let command_result = match phase {
         ResolverExecutionPhase::RepositoryInspection => executor
             .execution_backend
-            .prepare_host_git_inspection(&executor.identity.path, working_directory),
+            .prepare_inspection(working_directory),
         ResolverExecutionPhase::TransportDiscovery => executor
             .execution_backend
-            .prepare_host_git_discovery(&executor.identity.path, working_directory),
+            .prepare_discovery(working_directory),
         ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
-            executor.execution_backend.prepare_host_git(
-                &executor.identity.path,
-                phase,
-                mutable_root,
-            )
+            executor.execution_backend.prepare(phase, mutable_root)
         }
     };
     let mut command =
@@ -58,7 +53,6 @@ pub(crate) fn sealed_git_command(
             message: error.to_string(),
         })?;
     command
-        .current_dir(working_directory)
         .env("LANG", "C")
         .env("LC_ALL", "C")
         .env(

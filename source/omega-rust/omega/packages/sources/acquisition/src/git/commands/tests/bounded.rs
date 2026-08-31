@@ -199,7 +199,7 @@ fn cleanup_failure_outranks_whole_resolution_expiry() {
     let budget = Err(SourceResolveError::GitResolutionTimedOut { timeout_millis: 1 });
 
     assert!(matches!(
-        reconcile_git_command_result(result, Ok(()), budget),
+        reconcile_git_command_result(result, budget),
         Err(SourceResolveError::GitCleanupFailed { .. })
     ));
 }

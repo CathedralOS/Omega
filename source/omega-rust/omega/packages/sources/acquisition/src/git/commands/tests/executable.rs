@@ -59,35 +59,11 @@ fn git_executor_uses_committed_absolute_program_inherited_environment_and_explic
 
 #[cfg(unix)]
 #[test]
-fn git_executor_rejects_relative_paths_and_executable_drift() {
-    use std::os::unix::fs::PermissionsExt;
-
+fn git_executor_rejects_relative_paths() {
     assert!(matches!(
         GitExecutor::open(Path::new("git")),
         Err(SourceResolveError::GitExecutableInvalid { .. })
     ));
-
-    let root = temp_root("git-executable-drift");
-    std::fs::create_dir_all(&root).expect("create executable drift root");
-    let fake_git = root.join("git");
-    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write fake Git executable");
-    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("make fake Git executable");
-    let executor = GitExecutor::open(&fake_git).expect("capture fake Git identity");
-    let replacement = root.join("replacement");
-    std::fs::write(&replacement, b"#!/bin/sh\nexit 1\n").expect("write replacement Git executable");
-    std::fs::rename(&replacement, &fake_git).expect("replace fake Git executable");
-
-    assert!(matches!(
-        executor.verify(),
-        Err(SourceResolveError::GitExecutableChanged { .. })
-    ));
-    assert!(matches!(
-        sealed_git_command(&executor, &root, ResolverExecutionPhase::Fetch),
-        Err(SourceResolveError::GitExecutableChanged { .. })
-    ));
-
-    let _ = std::fs::remove_dir_all(root);
 }
 
 #[cfg(unix)]
@@ -97,6 +73,8 @@ fn git_executor_requires_launchability_but_does_not_invent_mode_trust() {
 
     let root = temp_root("git-executable-launchability");
     std::fs::create_dir_all(&root).expect("create executable test root");
+    let working_directory = root.join("working");
+    std::fs::create_dir(&working_directory).expect("create package-controlled working root");
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
         .expect("make executable test root private");
     let fake_git = root.join("git");
@@ -124,8 +102,7 @@ fn git_executor_requires_launchability_but_does_not_invent_mode_trust() {
     let executor = GitExecutor::open(&fake_git).expect("capture launchable Git executable");
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o720))
         .expect("change irrelevant host mode bits");
-    executor
-        .verify()
+    sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
         .expect("writable mode does not become source admission policy");
 
     std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
@@ -147,11 +124,8 @@ fn git_executor_selection_does_not_claim_executable_ancestry() {
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o720))
         .expect("make executable ancestry externally writable");
 
-    let executor = GitExecutor::open(&fake_git)
+    GitExecutor::open(&fake_git)
         .expect("ordinary executable selection must not inspect ancestry permissions");
-    executor
-        .verify()
-        .expect("ancestry mode remains host policy");
 
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
         .expect("restore executable ancestry for cleanup");
@@ -162,79 +136,7 @@ fn git_executor_selection_does_not_claim_executable_ancestry() {
 fn system_git_executor_uses_one_absolute_path_selection() {
     let executor = test_system_git_executor(GitExecutionTransport::Https)
         .expect("Git selected from the invoking PATH snapshot");
-    assert!(executor.identity.path.is_absolute());
-}
-
-#[cfg(unix)]
-#[test]
-fn git_executor_post_check_overrides_success_and_nonzero_exit_after_drift() {
-    use std::os::unix::fs::PermissionsExt;
-
-    for exit_status in [0, 7] {
-        let root = temp_root(&format!("git-post-drift-{exit_status}"));
-        std::fs::create_dir_all(&root).expect("create post-drift root");
-        let fake_git = root.join("git");
-        let replacement = root.join("git.replacement");
-        std::fs::write(
-            &fake_git,
-            format!("#!/bin/sh\nmv \"$0.replacement\" \"$0\"\nexit {exit_status}\n"),
-        )
-        .expect("write self-replacing Git executable");
-        std::fs::write(&replacement, b"#!/bin/sh\nexit 0\n")
-            .expect("write replacement Git executable");
-        std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-            .expect("make self-replacing Git executable");
-        std::fs::set_permissions(&replacement, std::fs::Permissions::from_mode(0o700))
-            .expect("make replacement Git executable");
-        let executor = GitExecutor::open(&fake_git).expect("capture original Git identity");
-
-        assert!(matches!(
-            run_git_output(
-                &executor,
-                &root,
-                ResolverExecutionPhase::Fetch,
-                [OsStr::new("ignored")],
-            ),
-            Err(SourceResolveError::GitExecutableChanged { .. })
-        ));
-
-        let _ = std::fs::remove_dir_all(root);
-    }
-}
-
-#[cfg(unix)]
-#[test]
-fn git_executor_rehash_checkpoint_detects_content_with_restored_metadata() {
-    use std::fs::{File, FileTimes};
-    use std::os::unix::fs::PermissionsExt;
-
-    let root = temp_root("git-content-checkpoint-drift");
-    std::fs::create_dir_all(&root).expect("create content-checkpoint root");
-    let fake_git = root.join("git");
-    std::fs::write(&fake_git, b"#!/bin/sh\nexit 0\n").expect("write original Git executable");
-    std::fs::set_permissions(&fake_git, std::fs::Permissions::from_mode(0o700))
-        .expect("make original Git executable launchable");
-    let original_modified = std::fs::metadata(&fake_git)
-        .and_then(|metadata| metadata.modified())
-        .expect("capture original modification time");
-    let executor = GitExecutor::open(&fake_git).expect("capture original Git identity");
-
-    std::fs::write(&fake_git, b"#!/bin/sh\nexit 1\n").expect("mutate Git bytes in place");
-    File::options()
-        .write(true)
-        .open(&fake_git)
-        .and_then(|file| file.set_times(FileTimes::new().set_modified(original_modified)))
-        .expect("restore metadata observed around ordinary launches");
-
-    executor
-        .verify()
-        .expect("launch metadata alone cannot identify restored executable bytes");
-    assert!(matches!(
-        executor.verify_content(),
-        Err(SourceResolveError::GitExecutableChanged { .. })
-    ));
-
-    let _ = std::fs::remove_dir_all(root);
+    assert!(executor.execution_backend.executable().is_absolute());
 }
 
 #[cfg(unix)]
@@ -255,6 +157,8 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
     );
     let root = temp_root("git-resolution-budget");
     std::fs::create_dir_all(&root).expect("create Git budget root");
+    let working_directory = root.join("working");
+    std::fs::create_dir(&working_directory).expect("create package-controlled working root");
     let fast_git = root.join("fast-git");
     std::fs::write(&fast_git, b"#!/bin/sh\nexit 0\n").expect("write fast fake Git");
     std::fs::set_permissions(&fast_git, std::fs::Permissions::from_mode(0o700))
@@ -263,7 +167,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         .expect("capture launch-bounded Git");
     run_git_output(
         &launch_bounded,
-        &root,
+        &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("first")],
     )
@@ -271,7 +175,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
     assert!(matches!(
         run_git_output(
             &launch_bounded,
-            &root,
+            &working_directory,
             ResolverExecutionPhase::Fetch,
             [OsStr::new("second")],
         ),
@@ -287,7 +191,7 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
     assert!(matches!(
         run_git_output(
             &time_bounded,
-            &root,
+            &working_directory,
             ResolverExecutionPhase::Fetch,
             [OsStr::new("slow")],
         ),
@@ -307,14 +211,14 @@ fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
             .expect("capture output-bounded Git");
     run_git_output(
         &output_bounded,
-        &root,
+        &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("first")],
     )
     .expect("first command fits cumulative output budget");
     let output_error = run_git_output(
         &output_bounded,
-        &root,
+        &working_directory,
         ResolverExecutionPhase::Fetch,
         [OsStr::new("second")],
     )

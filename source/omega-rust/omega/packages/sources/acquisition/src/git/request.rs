@@ -64,15 +64,18 @@ impl GitExecutionTransport {
 
     pub(crate) fn allowed_protocol(self) -> &'static str {
         match self {
-            Self::Https => "https",
-            Self::Ssh => "ssh",
+            Self::Https | Self::Ssh => "https:ssh",
             #[cfg(any(test, feature = "test-fixtures"))]
             Self::File => "file",
         }
     }
 
     pub(crate) fn permits(self, transport: Self) -> &'static str {
-        if self == transport { "always" } else { "never" }
+        let permitted =
+            matches!(self, Self::Https | Self::Ssh) && matches!(transport, Self::Https | Self::Ssh);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let permitted = permitted || matches!((self, transport), (Self::File, Self::File));
+        if permitted { "always" } else { "never" }
     }
 
     pub(crate) fn profile(self) -> GitTransportProfile {

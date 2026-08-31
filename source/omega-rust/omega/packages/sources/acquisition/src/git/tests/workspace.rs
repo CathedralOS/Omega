@@ -68,8 +68,9 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     let request = local_git_request(&repository, "HEAD");
     let primary_git = test_system_git_executor(request.execution_transport())
         .expect("select fixture Git")
-        .identity
-        .path;
+        .execution_backend
+        .executable()
+        .to_path_buf();
     let storage =
         SourceResolverStorage::for_hardened_base_with_primary_git(&storage_base, primary_git)
             .expect("retain resolver storage");
@@ -118,7 +119,8 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
             .snapshot_root()
             .starts_with(storage.workspace_members().path())
     );
-    assert_eq!(source.receipt().schema_version(), 9);
+    assert_eq!(source.lineage(), request.lineage());
+    assert_eq!(source.selected_member(), Some(&member));
 
     drop(storage);
     let _ = std::fs::remove_dir_all(&repository);

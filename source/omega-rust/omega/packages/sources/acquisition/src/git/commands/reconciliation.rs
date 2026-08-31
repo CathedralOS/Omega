@@ -4,14 +4,12 @@ use crate::SourceResolveError;
 
 pub(crate) fn reconcile_git_command_result<T>(
     result: Result<T, SourceResolveError>,
-    executable_result: Result<(), SourceResolveError>,
     budget_result: Result<(), SourceResolveError>,
 ) -> Result<T, SourceResolveError> {
-    match (result, executable_result, budget_result) {
-        (Err(error @ SourceResolveError::GitCleanupFailed { .. }), _, _) => Err(error),
-        (_, Err(error), _) => Err(error),
-        (_, _, Err(error)) => Err(error),
-        (result, Ok(()), Ok(())) => result,
+    match (result, budget_result) {
+        (Err(error @ SourceResolveError::GitCleanupFailed { .. }), _) => Err(error),
+        (_, Err(error)) => Err(error),
+        (result, Ok(())) => result,
     }
 }
 

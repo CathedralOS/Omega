@@ -110,6 +110,7 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         entry_name,
         &entry_root,
         request.requested_locator(),
+        request.lineage(),
         request.locator_identity(),
         request.fetch_locator(),
         request.requested_revision(),

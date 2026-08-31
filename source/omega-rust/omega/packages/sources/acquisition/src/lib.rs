@@ -42,10 +42,8 @@ pub use local::model::{
     LocalSourceResolutionObservation, ResolvedLocalSnapshot, ResolvedLocalSource,
 };
 pub use local::operations::{resolve_local_source, resolve_local_source_snapshot_with_storage};
-pub use observations::execution::{GitCommandInputCommitment, GitExecutableIdentity};
-pub use observations::resolution::GitSourceReceipt;
 pub use observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
-pub use observations::storage::GitRetainedStorageObservation;
+pub use observations::storage::GitRetainedStorageCustody;
 pub use storage::SourceResolverStorage;
 pub use tree::ResolvedSourceTree;
 

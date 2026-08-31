@@ -1,22 +1,21 @@
-//! Revalidate pending Git custody and issue the final immutable result.
+//! Revalidate direct source custody and issue the final immutable result.
 
 use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::{verify_git_cache_custody, verify_git_cache_root_custody};
-use crate::error::SourceResolveError;
-use crate::error::cache_invalid;
-use crate::git::executable::executor::GitExecutor;
+use crate::error::{SourceResolveError, cache_invalid};
+use crate::git::objects::identity::git_object_algorithm;
 use crate::git::request::GitSourceRequest;
 use crate::limits::LocalSourceLimits;
-use crate::observations::resolution::issue_git_source_receipt;
 use crate::observations::resolved::{PendingResolvedGitSource, ResolvedGitSource};
-use crate::observations::storage::issue_git_retained_storage_observation;
+use crate::observations::storage::{
+    git_retained_storage_custody, validate_git_retained_storage_custody,
+};
 use crate::tree::capture::{SourceTreePolicy, capture_local_source};
 use std::path::Path;
 
 pub(super) fn finalize_git_resolution(
     pending: PendingResolvedGitSource,
     request: &GitSourceRequest,
-    executor: &GitExecutor,
     entry_lock: &CacheEntryLock,
     cache_root: &Path,
     entry_root: &Path,
@@ -25,37 +24,36 @@ pub(super) fn finalize_git_resolution(
     entry_lock.verify_path_identity()?;
     verify_git_cache_root_custody(cache_root)?;
     verify_git_cache_custody(entry_root, limits)?;
-    executor.verify_content()?;
-    executor.validate_execution_policy_observations()?;
     verify_pending_git_snapshot(&pending, limits)?;
 
     entry_lock.verify_path_identity()?;
     verify_git_cache_root_custody(cache_root)?;
     let retained_storage_measurement = verify_git_cache_custody(entry_root, limits)?;
-    executor.verify_content()?;
-    executor.validate_execution_policy_observations()?;
     validate_pending_git_request(&pending, request)?;
-    validate_pending_git_execution(&pending, executor)?;
-    let retained_storage_observation =
-        issue_git_retained_storage_observation(entry_root, limits, retained_storage_measurement);
-    let receipt = issue_git_source_receipt(&pending, limits, &retained_storage_observation)?;
+    validate_pending_git_source_custody(&pending, limits)?;
+    let retained_storage =
+        git_retained_storage_custody(entry_root, limits, retained_storage_measurement);
+    if !validate_git_retained_storage_custody(&retained_storage, entry_root, limits) {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git retained-storage custody is inconsistent".to_owned(),
+        });
+    }
+
     Ok(ResolvedGitSource {
         requested_locator: pending.requested_locator,
+        lineage: pending.lineage,
         locator_identity: pending.locator_identity,
         transport_profile: pending.transport_profile,
         requested_rev: pending.requested_rev,
+        object_format: pending.object_format,
         commit: pending.commit,
         tree: pending.tree,
         materialized_tree: pending.materialized_tree,
         snapshot_root: pending.snapshot_root,
         local: pending.local,
         workspace_projection: pending.workspace_projection,
-        git_executable: pending.git_executable,
-        execution_policy_observations: pending.execution_policy_observations,
-        command_execution_observations: pending.command_execution_observations,
-        captured_output_observation: pending.captured_output_observation,
-        retained_storage_observation,
-        receipt,
+        source_limits: pending.source_limits,
+        retained_storage,
     })
 }
 
@@ -64,6 +62,7 @@ pub(crate) fn validate_pending_git_request(
     request: &GitSourceRequest,
 ) -> Result<(), SourceResolveError> {
     if pending.requested_locator != request.requested_locator
+        || pending.lineage != request.lineage
         || pending.locator_identity != request.locator_identity
         || pending.requested_rev != request.requested_revision
         || pending.transport_profile != request.transport_profile()
@@ -94,22 +93,28 @@ pub(crate) fn verify_pending_git_snapshot(
     Ok(())
 }
 
-fn validate_pending_git_execution(
+pub(crate) fn validate_pending_git_source_custody(
     pending: &PendingResolvedGitSource,
-    executor: &GitExecutor,
+    limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    let policies = executor.execution_policy_observations.borrow();
-    let commands = executor.command_execution_observations.borrow();
-    let captured_output = executor.captured_output_observation()?;
-    if pending.transport_profile != executor.execution_transport.profile()
-        || pending.git_executable != executor.identity
-        || pending.execution_policy_observations.as_slice() != policies.as_slice()
-        || pending.command_execution_observations.as_slice() != commands.as_slice()
-        || pending.captured_output_observation != captured_output
+    let commit_format = git_object_algorithm(&pending.commit)?;
+    let tree_format = git_object_algorithm(&pending.tree)?;
+    let materialized_format = git_object_algorithm(&pending.materialized_tree)?;
+    let projection_matches = match &pending.workspace_projection {
+        Some(projection) => projection.selected_member_tree() == pending.materialized_tree,
+        None => pending.materialized_tree == pending.tree,
+    };
+    if pending.source_limits != limits
+        || pending.object_format != commit_format
+        || tree_format != commit_format
+        || materialized_format != commit_format
+        || pending.local.root != pending.snapshot_root
+        || pending.local.file_count > limits.max_entries
+        || pending.local.byte_count > limits.max_bytes
+        || !projection_matches
     {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
-            message: "pending Git result diverged from final executable and command custody"
-                .to_owned(),
+            message: "pending Git result has inconsistent direct source custody".to_owned(),
         });
     }
     Ok(())

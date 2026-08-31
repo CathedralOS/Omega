@@ -28,15 +28,18 @@ src/
 │   ├── resolution/     acquire, verify, materialize, and issue custody
 │   ├── snapshot.rs     Git-specific verified tree materialization
 │   └── workspace/      syntax-neutral workspace declaration exchange
-├── observations/   transitional execution/accounting carriers to retire under D43
+├── observations/   direct resolved-source and retained-storage custody
 ├── limits.rs       compiler-owned acquisition ceilings
 └── error.rs        fail-closed acquisition errors
 ```
 
 Native process lifecycle and concrete resource limits live in the peer
-[`execution/`](../execution/README.md) crate. D43 retires that crate's
-execution-attestation and filesystem/executable-confinement surface; no such
-row participates in source custody.
+[`execution/`](../execution/README.md) crate. Acquisition retains no executable
+identity, command/completion provenance, platform-guarantee row, or fetch
+receipt. Successful Git resolution exposes the authored canonical lineage,
+requested revision, selected objects and materialized content, immutable
+snapshot custody, and the concrete limits and retained-storage measurements
+that were actually checked.
 Package declarations, graph reconciliation, review, and admission remain
 manager responsibilities. `SourceRelativePath` is lexical source navigation,
 not an authored workspace-member declaration.

@@ -47,6 +47,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
     if let Some(pin) = pin {
         if !pin.matches_request(
             request.requested_locator(),
+            request.lineage(),
             request.locator_identity(),
             request.transport_profile(),
             request.requested_revision(),
@@ -154,6 +155,7 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             &entry_name,
             &entry_root,
             request.requested_locator(),
+            request.lineage(),
             locator_identity,
             request.fetch_locator(),
             requested_rev,
@@ -174,7 +176,6 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
                 let source = finalize_git_resolution(
                     pending,
                     request,
-                    &executor,
                     &entry_lock,
                     cache_dir,
                     &entry_root,
@@ -206,16 +207,16 @@ pub(super) fn resolve_git_source_from_retained_cache_with<Evidence, PlannerError
             }
         }
     })();
-    let executable_result = executor.verify_content();
+    let budget_result = executor.verify_budget();
     match result {
-        Ok(value) => reconcile_git_command_result(Ok(value), executable_result, Ok(()))
+        Ok(value) => reconcile_git_command_result(Ok(value), budget_result)
             .map_err(GitWorkspaceProjectionError::Source),
         Err(GitWorkspaceProjectionError::Source(error)) => {
-            reconcile_git_command_result(Err(error), executable_result, Ok(()))
+            reconcile_git_command_result(Err(error), budget_result)
                 .map_err(GitWorkspaceProjectionError::Source)
         }
         Err(GitWorkspaceProjectionError::Planner(error)) => {
-            reconcile_git_command_result(Ok(()), executable_result, Ok(()))
+            reconcile_git_command_result(Ok(()), budget_result)
                 .map_err(GitWorkspaceProjectionError::Source)?;
             Err(GitWorkspaceProjectionError::Planner(error))
         }

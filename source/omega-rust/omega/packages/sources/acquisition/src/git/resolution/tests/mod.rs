@@ -11,13 +11,10 @@ use crate::git::executable::executor::test_system_git_executor;
 use crate::git::request::*;
 use crate::identity::*;
 use crate::limits::*;
-use crate::observations::{
-    accounting::git_resolution_captured_output_ceiling, execution::*, resolution::*, resolved::*,
-};
+use crate::observations::resolved::*;
 use crate::snapshot::permissions::*;
 use crate::test_support::*;
 use crate::tree::filesystem::open_absolute_directory_nofollow;
-use omega_resolver_execution::ResolverExecutionPhase;
 use std::process::Command;
 
 mod fetch;

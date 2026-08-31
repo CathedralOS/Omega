@@ -1,38 +1,33 @@
 use crate::git::request::GitTransportProfile;
 use crate::git::workspace::GitWorkspaceProjectionCustody;
+use crate::identity::{GitObjectIdAlgorithm, SourceLineage, SourceRelativePath};
+use crate::limits::LocalSourceLimits;
 use crate::tree::ResolvedLocalSource;
-use omega_resolver_execution::ResolverExecutionPolicyObservation;
 use std::path::{Path, PathBuf};
 
-use super::accounting::GitCapturedOutputObservation;
-use super::execution::{GitCommandExecutionObservation, GitExecutableIdentity};
-use super::resolution::GitSourceReceipt;
-use super::storage::GitRetainedStorageObservation;
+use super::storage::GitRetainedStorageCustody;
 
+/// Direct custody for one resolved Git source.
+///
+/// Every field describes the authored request, accepted objects, materialized
+/// source, immutable snapshot, or a concrete enforced bound. Fetch-process
+/// telemetry is deliberately absent.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
     pub(crate) requested_locator: String,
+    pub(crate) lineage: SourceLineage,
     pub(crate) locator_identity: String,
     pub(crate) transport_profile: GitTransportProfile,
     pub(crate) requested_rev: String,
+    pub(crate) object_format: GitObjectIdAlgorithm,
     pub(crate) commit: String,
     pub(crate) tree: String,
     pub(crate) materialized_tree: String,
     pub(crate) snapshot_root: PathBuf,
     pub(crate) local: ResolvedLocalSource,
     pub(crate) workspace_projection: Option<GitWorkspaceProjectionCustody>,
-    /// Absolute parent Git executable identity observed before and after every launch.
-    /// This is diagnostic custody, not certification of the executable.
-    pub(crate) git_executable: GitExecutableIdentity,
-    /// Locally reconstructed native policy observations for every command
-    /// configured during this resolution. These rows report which optional
-    /// platform hardening was active; unavailable rows do not invalidate a
-    /// successful source resolution.
-    pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
-    pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
-    pub(crate) captured_output_observation: GitCapturedOutputObservation,
-    pub(crate) retained_storage_observation: GitRetainedStorageObservation,
-    pub(crate) receipt: GitSourceReceipt,
+    pub(crate) source_limits: LocalSourceLimits,
+    pub(crate) retained_storage: GitRetainedStorageCustody,
 }
 
 /// Operation-local reuse pin for one already resolved Git acquisition.
@@ -43,6 +38,7 @@ pub struct ResolvedGitSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitAcquisitionPin {
     requested_locator: String,
+    lineage: SourceLineage,
     locator_identity: String,
     transport_profile: GitTransportProfile,
     requested_rev: String,
@@ -54,6 +50,7 @@ impl ResolvedGitSource {
     pub fn acquisition_pin(&self) -> GitAcquisitionPin {
         GitAcquisitionPin {
             requested_locator: self.requested_locator.clone(),
+            lineage: self.lineage.clone(),
             locator_identity: self.locator_identity.clone(),
             transport_profile: self.transport_profile,
             requested_rev: self.requested_rev.clone(),
@@ -61,8 +58,13 @@ impl ResolvedGitSource {
             tree: self.tree.clone(),
         }
     }
+
     pub fn requested_locator(&self) -> &str {
         &self.requested_locator
+    }
+
+    pub const fn lineage(&self) -> &SourceLineage {
+        &self.lineage
     }
 
     pub fn locator_identity(&self) -> &str {
@@ -77,6 +79,10 @@ impl ResolvedGitSource {
         &self.requested_rev
     }
 
+    pub const fn object_format(&self) -> GitObjectIdAlgorithm {
+        self.object_format
+    }
+
     pub fn commit(&self) -> &str {
         &self.commit
     }
@@ -87,6 +93,16 @@ impl ResolvedGitSource {
 
     pub fn materialized_tree(&self) -> &str {
         &self.materialized_tree
+    }
+
+    pub fn selected_member(&self) -> Option<&SourceRelativePath> {
+        self.workspace_projection
+            .as_ref()
+            .map(GitWorkspaceProjectionCustody::selected_member_path)
+    }
+
+    pub fn content_identity(&self) -> &str {
+        &self.local.content_identity
     }
 
     pub fn snapshot_root(&self) -> &Path {
@@ -101,34 +117,12 @@ impl ResolvedGitSource {
         self.workspace_projection.as_ref()
     }
 
-    pub const fn git_executable(&self) -> &GitExecutableIdentity {
-        &self.git_executable
+    pub const fn source_limits(&self) -> LocalSourceLimits {
+        self.source_limits
     }
 
-    pub fn execution_policy_observations(&self) -> &[ResolverExecutionPolicyObservation] {
-        &self.execution_policy_observations
-    }
-
-    pub fn command_execution_observations(&self) -> &[GitCommandExecutionObservation] {
-        &self.command_execution_observations
-    }
-
-    pub const fn captured_output_observation(&self) -> &GitCapturedOutputObservation {
-        &self.captured_output_observation
-    }
-
-    /// Exact post-resolution cache state accepted by the final capability-rooted
-    /// custody walk. This does not claim a during-write disk quota.
-    pub const fn retained_storage_observation(&self) -> &GitRetainedStorageObservation {
-        &self.retained_storage_observation
-    }
-
-    /// Canonical receipt of one successful resolution, issued only after
-    /// source, cache, executable, policy, command, and accounting reconciliation
-    /// all succeed. It records the platform hardening that was actually present
-    /// without claiming that ambient host authority was excluded.
-    pub fn receipt(&self) -> &GitSourceReceipt {
-        &self.receipt
+    pub const fn retained_storage(&self) -> &GitRetainedStorageCustody {
+        &self.retained_storage
     }
 }
 
@@ -136,11 +130,13 @@ impl GitAcquisitionPin {
     pub(crate) fn matches_request(
         &self,
         requested_locator: &str,
+        lineage: &SourceLineage,
         locator_identity: &str,
         transport_profile: GitTransportProfile,
         requested_rev: &str,
     ) -> bool {
         self.requested_locator == requested_locator
+            && &self.lineage == lineage
             && self.locator_identity == locator_identity
             && self.transport_profile == transport_profile
             && self.requested_rev == requested_rev
@@ -158,19 +154,18 @@ impl GitAcquisitionPin {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PendingResolvedGitSource {
     pub(crate) requested_locator: String,
+    pub(crate) lineage: SourceLineage,
     pub(crate) locator_identity: String,
     pub(crate) transport_profile: GitTransportProfile,
     pub(crate) requested_rev: String,
+    pub(crate) object_format: GitObjectIdAlgorithm,
     pub(crate) commit: String,
     pub(crate) tree: String,
     pub(crate) materialized_tree: String,
     pub(crate) snapshot_root: PathBuf,
     pub(crate) local: ResolvedLocalSource,
     pub(crate) workspace_projection: Option<GitWorkspaceProjectionCustody>,
-    pub(crate) git_executable: GitExecutableIdentity,
-    pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
-    pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
-    pub(crate) captured_output_observation: GitCapturedOutputObservation,
+    pub(crate) source_limits: LocalSourceLimits,
 }
 
 #[cfg(test)]
@@ -178,19 +173,18 @@ impl PendingResolvedGitSource {
     pub(crate) fn from_issued(resolved: &ResolvedGitSource) -> Self {
         Self {
             requested_locator: resolved.requested_locator.clone(),
+            lineage: resolved.lineage.clone(),
             locator_identity: resolved.locator_identity.clone(),
             transport_profile: resolved.transport_profile,
             requested_rev: resolved.requested_rev.clone(),
+            object_format: resolved.object_format,
             commit: resolved.commit.clone(),
             tree: resolved.tree.clone(),
             materialized_tree: resolved.materialized_tree.clone(),
             snapshot_root: resolved.snapshot_root.clone(),
             local: resolved.local.clone(),
             workspace_projection: resolved.workspace_projection.clone(),
-            git_executable: resolved.git_executable.clone(),
-            execution_policy_observations: resolved.execution_policy_observations.clone(),
-            command_execution_observations: resolved.command_execution_observations.clone(),
-            captured_output_observation: resolved.captured_output_observation.clone(),
+            source_limits: resolved.source_limits,
         }
     }
 }

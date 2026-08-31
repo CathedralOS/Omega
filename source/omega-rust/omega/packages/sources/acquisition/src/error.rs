@@ -60,9 +60,6 @@ pub enum SourceResolveError {
         path: PathBuf,
         message: String,
     },
-    GitExecutableChanged {
-        path: PathBuf,
-    },
     GitExecutionBoundaryInvalid {
         message: String,
     },
@@ -201,11 +198,6 @@ impl fmt::Display for SourceResolveError {
             Self::GitExecutableInvalid { path, message } => write!(
                 output,
                 "Git resolver executable `{}` is invalid: {message}",
-                path.display()
-            ),
-            Self::GitExecutableChanged { path } => write!(
-                output,
-                "Git resolver executable `{}` changed during source resolution",
                 path.display()
             ),
             Self::GitExecutionBoundaryInvalid { message } => {
