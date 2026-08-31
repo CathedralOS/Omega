@@ -204,7 +204,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         "a proposition application is proof-only and cannot appear in a runtime value expression"
                     }));
                 }
-                if let Some(lowered) = self.try_lower_synthesized_equatable_call(call)? {
+                if let Some(lowered) =
+                    self.try_lower_synthesized_equatable_call(expression, call)?
+                {
                     return Ok(lowered);
                 }
                 let quotient_operation = self.lower_quotient_operation_request(call)?;

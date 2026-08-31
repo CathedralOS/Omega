@@ -1,0 +1,262 @@
+//! Function-relative exit realization and custody rejection.
+
+use std::collections::BTreeSet;
+
+use crate::tests::{
+    AllocatorAvailabilityPolicy, FunctionRelativeOptimizationRealizationManifest, NativeTarget,
+    Optimization, OptimizationSelections,
+    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
+    OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
+    OptimizedResolvedSelectedFormLayoutError, PostAllocationSelectedTransformation,
+    WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
+    stage_optimized_active_resident_rematerialization_function_relative_realization,
+    staged_active_resident_function_relative_realization,
+    staged_active_resident_resolved_layout_with_selections,
+    validate_optimized_active_resident_rematerialization_function_relative_realization,
+};
+
+#[test]
+fn active_resident_rematerialization_reaches_function_relative_exit_on_both_architectures() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let staged = staged_active_resident_function_relative_realization(target);
+        let source = staged.source();
+        let rematerialization = source.pre_layout().source();
+        let physical = rematerialization
+            .source()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .register_environment()
+            .physical();
+        let admitted_names = match target.architecture {
+            omega_target::Architecture::X86_64 => ["rax", "rcx"],
+            omega_target::Architecture::Aarch64 => ["x0", "x1"],
+        };
+        let admitted_views = admitted_names
+            .into_iter()
+            .map(|name| physical.model().view_named(name).unwrap().id)
+            .collect::<BTreeSet<_>>();
+        let AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views } =
+            &rematerialization
+                .source()
+                .allocator_availability()
+                .plan()
+                .policy
+        else {
+            panic!("pressure fixture must retain an explicit caller-saved allowlist")
+        };
+        assert_eq!(
+            views.iter().copied().collect::<BTreeSet<_>>(),
+            admitted_views
+        );
+        let action = rematerialization.rematerialization().plan().functions[0]
+            .action
+            .as_ref()
+            .expect("the explicit active-resident staging route must rematerialize");
+        let fresh = action.fresh_materialize;
+        let transformed_selected = rematerialization
+            .rematerialization()
+            .receipt()
+            .transformed_selected();
+        let fresh_layout_row = source
+            .layout()
+            .functions()
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+            .find(|instruction| instruction.instruction == fresh)
+            .expect("fresh rematerialization must survive function-relative layout");
+        assert_eq!(
+            fresh_layout_row.alternative.family,
+            omega_selected_instructions::MachineAlternativeFamily::MaterializeI64
+        );
+        assert!(!fresh_layout_row.bytes.is_empty());
+
+        let manifest = staged.manifest().record();
+        let empty = OptimizationSelections::default().identity();
+        assert_eq!(
+            manifest.selections,
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap()
+            .identity()
+        );
+        assert_eq!(manifest.selected_lowering_selections, empty);
+        assert_eq!(manifest.selected_lowering_completion, None);
+        assert_eq!(manifest.allocation_recovery_selections, manifest.selections);
+        assert_eq!(manifest.post_allocation_machine_selections, empty);
+        assert_eq!(manifest.function_relative_layout_selections, empty);
+        assert_eq!(
+            manifest.pre_physical_manifest,
+            rematerialization.custody().source().manifest()
+        );
+        assert_eq!(
+            manifest.post_allocation_manifest,
+            rematerialization
+                .post_allocation_manifest()
+                .record()
+                .identity
+        );
+        assert_eq!(manifest.selected, transformed_selected);
+        assert_eq!(manifest.baseline_pre_layout, manifest.pre_layout);
+        assert_eq!(manifest.baseline_resolved_layout, manifest.resolved_layout);
+        assert_eq!(manifest.x86_branch_relaxation, None);
+        assert_eq!(manifest.post_allocation_machine_optimization, None);
+        assert_eq!(manifest.target, target);
+        assert_eq!(
+            rematerialization
+                .post_allocation_manifest()
+                .record()
+                .selected_transformations,
+            [
+                PostAllocationSelectedTransformation::PressureRematerialization(
+                    rematerialization.rematerialization().receipt().identity(),
+                )
+            ]
+        );
+        assert_eq!(
+            staged.exit_contract().contract().selected,
+            transformed_selected
+        );
+        assert_eq!(
+            staged.exit_contract().contract().resolved_layout,
+            source.layout().identity()
+        );
+        assert!(matches!(
+            staged.exit_contract().contract().layout_custody,
+            WholeFunctionExitLayoutCustody::BaselineNearLayoutV1
+        ));
+        assert!(
+            staged
+                .exit_contract()
+                .contract()
+                .functions
+                .iter()
+                .all(|function| function.modified_callee_saved_units.is_empty())
+        );
+        assert_eq!(
+            FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()),
+            Ok(manifest.clone())
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_function_relative_realization(
+                &staged,
+            )
+            .unwrap(),
+            staged.custody().clone()
+        );
+        assert_eq!(staged.custody().source(), source.custody());
+        assert_eq!(
+            staged.custody().exit_contract(),
+            staged.exit_contract().identity()
+        );
+        assert_eq!(staged.custody().realization(), manifest.identity);
+    }
+}
+
+#[test]
+fn active_resident_function_relative_realization_rejects_corrupt_or_detached_custody() {
+    let target = NativeTarget::linux_x64();
+
+    let mut source_corruption = staged_active_resident_function_relative_realization(target);
+    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_source_for_test(
+        &mut source_corruption,
+    );
+    assert!(matches!(
+        validate_optimized_active_resident_rematerialization_function_relative_realization(
+            &source_corruption,
+        ),
+        Err(
+            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::Source(
+                OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::Layout(
+                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch,
+                ),
+            ),
+        )
+    ));
+
+    let mut exit_corruption = staged_active_resident_function_relative_realization(target);
+    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_exit_for_test(
+        &mut exit_corruption,
+    );
+    assert_eq!(
+        validate_optimized_active_resident_rematerialization_function_relative_realization(
+            &exit_corruption,
+        ),
+        Err(
+            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ExitContract(
+                WholeFunctionExitContractError::ArtifactMismatch,
+            ),
+        )
+    );
+
+    let mut manifest_corruption = staged_active_resident_function_relative_realization(target);
+    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_manifest_for_test(
+        &mut manifest_corruption,
+    );
+    assert_eq!(
+        validate_optimized_active_resident_rematerialization_function_relative_realization(
+            &manifest_corruption,
+        ),
+        Err(OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::RootMismatch,)
+    );
+
+    let mut receipt_corruption = staged_active_resident_function_relative_realization(target);
+    crate::stages::realization::active_resident_function_relative_realization::corrupt_active_resident_function_relative_receipt_for_test(
+        &mut receipt_corruption,
+    );
+    assert_eq!(
+        validate_optimized_active_resident_rematerialization_function_relative_realization(
+            &receipt_corruption,
+        ),
+        Err(
+            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ReceiptMismatch,
+        )
+    );
+
+    let mut detached = staged_active_resident_function_relative_realization(target);
+    let foreign = staged_active_resident_function_relative_realization(NativeTarget::linux_arm64());
+    crate::stages::realization::active_resident_function_relative_realization::replace_active_resident_function_relative_exit_for_test(
+        &mut detached,
+        &foreign,
+    );
+    assert_eq!(
+        validate_optimized_active_resident_rematerialization_function_relative_realization(
+            &detached,
+        ),
+        Err(
+            OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ExitContract(
+                WholeFunctionExitContractError::ArtifactMismatch,
+            ),
+        )
+    );
+}
+
+#[test]
+fn active_resident_function_relative_realization_rejects_unexecuted_later_phase_selections() {
+    for later in [
+        Optimization::SelectedIncomingU12ExactAddImmediate,
+        Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+        Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        Optimization::X86RelaxConditionalBranchesToRel8V1,
+    ] {
+        let selections = OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            later,
+        ])
+        .unwrap();
+        let source = staged_active_resident_resolved_layout_with_selections(
+            NativeTarget::linux_x64(),
+            selections,
+        );
+        assert!(matches!(
+            stage_optimized_active_resident_rematerialization_function_relative_realization(
+                source,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::LaterPhaseSelected,
+            )
+        ));
+    }
+}

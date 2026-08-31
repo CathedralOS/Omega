@@ -10,58 +10,16 @@
 
 use std::path::Path;
 
+pub use omega_representation_selections::{OpaqueRepresentationSelection, selection_for_opaque};
 use psi_diagnostics::Diagnostic;
 use psi_source::{SourceOrigin, SourceSpan};
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::TypeParameterKind;
-use psi_typed_trees::typed_trees::ClosedConformanceApplication;
 
 const REPRESENTATION_TRAIT_NAME: &str = "OpaqueRepresentation";
 const REPRESENTATION_TRAIT_SOURCE: &str = "core/representation.omg";
 const SELECTION_MARKER: &str = "select_representation";
-
-/// One exact, build-selected `Carrier satisfies OpaqueRepresentation<Opaque>`
-/// application. The concrete carrier is the sole source of physical shape.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OpaqueRepresentationSelection {
-    opaque: SymbolHandle,
-    carrier: SymbolHandle,
-    application: ClosedConformanceApplication,
-    selecting_machine: SymbolHandle,
-    source_span: SourceSpan,
-}
-
-impl OpaqueRepresentationSelection {
-    pub fn opaque(&self) -> SymbolHandle {
-        self.opaque
-    }
-
-    pub fn carrier(&self) -> SymbolHandle {
-        self.carrier
-    }
-
-    pub fn application(&self) -> &ClosedConformanceApplication {
-        &self.application
-    }
-
-    pub fn selecting_machine(&self) -> SymbolHandle {
-        self.selecting_machine
-    }
-
-    pub fn source_span(&self) -> SourceSpan {
-        self.source_span
-    }
-}
-
-pub fn selection_for_opaque(
-    selections: &[OpaqueRepresentationSelection],
-    opaque: SymbolHandle,
-) -> Option<&OpaqueRepresentationSelection> {
-    selections
-        .iter()
-        .find(|selection| selection.opaque == opaque)
-}
 
 /// Harvest representation selections from the one build machine already
 /// admitted by project discovery. Calls elsewhere remain inert syntax.
@@ -79,15 +37,18 @@ pub fn harvest_opaque_representation_selections(
         }
         match close_selection(typed, machine.symbol, arguments, source_span) {
             Ok(selection) => {
-                if let Some(prior) = selections
-                    .iter()
-                    .find(|prior: &&OpaqueRepresentationSelection| prior.opaque == selection.opaque)
+                if let Some(prior) =
+                    selections
+                        .iter()
+                        .find(|prior: &&OpaqueRepresentationSelection| {
+                            prior.opaque() == selection.opaque()
+                        })
                 {
                     diagnostics.push(
                         Diagnostic::error(format!(
                             "build selects opaque representation `{}` more than once (first selection uses `{}`)",
-                            typed.symbols.display_path(selection.opaque, "::"),
-                            typed.symbols.display_path(prior.application.declaration, "::"),
+                            typed.symbols.display_path(selection.opaque(), "::"),
+                            typed.symbols.display_path(prior.application().declaration, "::"),
                         ))
                         .with_source_span(source_span),
                     );
@@ -225,13 +186,13 @@ fn close_selection(
         )));
     }
 
-    Ok(OpaqueRepresentationSelection {
+    Ok(OpaqueRepresentationSelection::from_validated_application(
         opaque,
         carrier,
         application,
         selecting_machine,
         source_span,
-    })
+    ))
 }
 
 /// Whether `symbol` is the exact compiler-owned, capability-free

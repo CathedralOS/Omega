@@ -266,10 +266,20 @@ does not yet fully satisfy this contract.
 - Fixed-point execution tests now descend from an 11-line semantic map into
   algebraic, structural, proof-elision, value-numbering, and cross-pass
   composition matrices. All 34 tests remain and every leaf is below 400 lines.
-- No production-classified leaf remains at 750+ lines; 11 governed production
+- SCCP binary evaluation and independent integer replay, pressure-
+  rematerialization proposal/replay, fragment placement/emission, and
+  post-allocation V3 persistence now descend from 52-83-line coordinators into
+  exact semantic leaves. Their largest production leaf is 339 lines; producer
+  and validator mechanics remain separate, and exact route/wire order stays at
+  the owning entrance.
+- The ten former 1,000+ line test matrices for pass fixtures, artifacts,
+  physical coordination, selection, active-resident realization, validation,
+  lowering, and Terminal-to-native realization now descend from 5-21-line
+  maps. All existing tests remain and their largest leaf is 479 lines.
+- No production-classified leaf remains at 750+ lines; 4 governed production
   leaves remain at 600-749 lines.
-- Ten broad test and fixture leaves remain above 1,000 lines even though
-  their production stages already have named taxonomies.
+- No test or fixture leaf remains at 1,000+ lines; 11 governed test leaves
+  remain at 800-999 lines.
 - The old task ledger and this brief accumulated milestone history instead of
   remaining entrances. Git history is the milestone archive.
 

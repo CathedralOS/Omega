@@ -291,6 +291,18 @@ pub(crate) fn finalize_checked_authored_selections(
                 ) => Some(CheckedResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 )),
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedOperator,
+                    ExpressionNode::Call(call),
+                ) if call.operational_acknowledgement.origin
+                    == psi_language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized =>
+                {
+                    checked_structural_equality_call(program, facts, expression, call).then_some(
+                        CheckedResolutionTarget::Intrinsic(
+                            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        ),
+                    )
+                }
                 _ => None,
             };
             if let Some(target) = target {
@@ -1340,6 +1352,77 @@ fn checked_operator_target(
                 ),
             )
         })
+}
+
+fn checked_structural_equality_call(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+) -> bool {
+    if call.target.as_str() != "equals" || !call.target_symbol.is_valid() {
+        return false;
+    }
+
+    let owners = program
+        .machines()
+        .iter()
+        .filter(|machine| {
+            machine.attached_data.is_some()
+                && program.machine_states(machine).iter().any(|state| {
+                    state.symbol == call.target_symbol && state.name.as_str() == "equals"
+                })
+        })
+        .collect::<Vec<_>>();
+    let [owner] = owners.as_slice() else {
+        return false;
+    };
+    let Some(carrier) = owner.attached_data.as_ref() else {
+        return false;
+    };
+    if !program.conformances().iter().any(|conformance| {
+        conformance.trait_name.as_str() == "Equatable"
+            && conformance
+                .carrier_name()
+                .is_some_and(|candidate| candidate.as_str() == carrier.as_str())
+    }) {
+        return false;
+    }
+
+    let checked_targets = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .flat_map(|(_, state)| {
+            facts
+                .flow
+                .control
+                .calls
+                .span_or_empty(state.calls)
+                .iter()
+                .map(move |checked_call| (state, checked_call))
+        })
+        .filter_map(|(state, checked_call)| {
+            match crate::semantic_calls::find_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                checked_call.statement_index,
+                checked_call.call_ordinal,
+            ) {
+                Some(crate::semantic_calls::CallSite::Expression {
+                    expression: candidate,
+                    ..
+                }) if candidate == expression => Some(checked_call.target_symbol),
+                _ => None,
+            }
+        })
+        .collect::<Vec<_>>();
+    !checked_targets.is_empty()
+        && checked_targets
+            .iter()
+            .all(|target| *target == call.target_symbol)
 }
 
 /// Declaration contracts and other proof-static expressions are validated

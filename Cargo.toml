@@ -43,6 +43,7 @@ members = [
     "source/omega-rust/omega/tooling/omega-platform-custody",
     "source/omega-rust/omega/representations/omega-target",
     "source/omega-rust/omega/representations/omega-calling-conventions",
+    "source/omega-rust/omega/representations/omega-representation-selections",
     "source/omega-rust/omega/backend/runtime/omega-executable-installation",
     "source/omega-rust/omega/backend/runtime/omega-external-roots",
     "source/omega-rust/omega/backend/plans/omega-program-entry-plan",

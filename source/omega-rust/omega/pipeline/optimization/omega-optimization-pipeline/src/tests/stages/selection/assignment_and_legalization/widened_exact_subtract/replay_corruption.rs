@@ -1,0 +1,132 @@
+//! Independent widened exact-subtract replay rejection for order and retained custody corruption.
+
+use crate::tests::*;
+
+#[test]
+fn widened_u8_exact_subtract_independent_replay_rejects_corrupted_order_and_custody() {
+    let staged = staged_widened_u8_exact_subtract_conditional(NativeTarget::linux_x64());
+    let original = staged.legalized().plan();
+    let identity = legalized_operation_plan_identity(original);
+    let validate = |plan| {
+        validate_legalized_operations(
+            staged.optimized_target().target_operations(),
+            staged.optimized_target().optimized().plan(),
+            staged.optimized_target().optimized().unit(),
+            plan,
+        )
+    };
+    let false_fact = match original.functions[0].when_false.value {
+        LegalizedLeafValue::WidenedExactSubtract { accepted_fact, .. } => accepted_fact,
+        _ => panic!("fixture must retain its false-arm proof fact"),
+    };
+
+    macro_rules! corrupt_true_subtract_leaf {
+        (|$value:ident| $body:block) => {{
+            let mut corrupted = original.clone();
+            let $value = &mut corrupted.functions[0].when_true.value;
+            $body
+            assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
+            assert_eq!(
+                validate(corrupted),
+                Err(LegalizationError::NonCanonicalLegalizedPlan)
+            );
+        }};
+    }
+
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { source_type, .. } = value else {
+            unreachable!()
+        };
+        *source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { target_type, .. } = value else {
+            unreachable!()
+        };
+        *target_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { theorem, .. } = value else {
+            unreachable!()
+        };
+        *theorem = LegalizationTheorem::UnsignedExactAddCommutesWithWidenV1;
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { accepted_fact, .. } = value else {
+            unreachable!()
+        };
+        *accepted_fact = false_fact;
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { obligation, .. } = value else {
+            unreachable!()
+        };
+        *obligation = ObligationId::new(9_611).unwrap();
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { narrow_result, .. } = value else {
+            unreachable!()
+        };
+        *narrow_result = ValueId::new(9_612).unwrap();
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract {
+            subtract_operation,
+            widen_operation,
+            ..
+        } = value
+        else {
+            unreachable!()
+        };
+        std::mem::swap(subtract_operation, widen_operation);
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract {
+            subtract_definition_site,
+            widen_definition_site,
+            ..
+        } = value
+        else {
+            unreachable!()
+        };
+        std::mem::swap(subtract_definition_site, widen_definition_site);
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { subtract_fuel, .. } = value else {
+            unreachable!()
+        };
+        subtract_fuel[0].units += 1;
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { widen_fuel, .. } = value else {
+            unreachable!()
+        };
+        widen_fuel[0].units += 1;
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract {
+            left_temporary,
+            right_temporary,
+            ..
+        } = value
+        else {
+            unreachable!()
+        };
+        *left_temporary = *right_temporary;
+    });
+    corrupt_true_subtract_leaf!(|value| {
+        let LegalizedLeafValue::WidenedExactSubtract { left, right, .. } = value else {
+            unreachable!()
+        };
+        std::mem::swap(left, right);
+    });
+
+    let mut corrupted = original.clone();
+    corrupted.functions[0].recipe =
+        LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1;
+    assert_ne!(legalized_operation_plan_identity(&corrupted), identity);
+    assert_eq!(
+        validate(corrupted),
+        Err(LegalizationError::NonCanonicalLegalizedPlan)
+    );
+}

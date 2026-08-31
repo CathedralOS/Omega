@@ -5,7 +5,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
     let fixtures = workspace_root().join("tests/fixtures/packages");
     let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
 
-    for package in PACKAGES {
+    for package in REVIEWABLE_PACKAGES {
         let cache = temp_root(package);
         let closure = resolve_workspace_package_closure(
             &workspace_lineage,
@@ -563,4 +563,45 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         }
         let _ = std::fs::remove_dir_all(cache);
     }
+}
+
+#[test]
+fn process_exit_fixture_fails_closed_until_every_console_intrinsic_has_review_identity() {
+    let package = "process-exit";
+    let fixtures = workspace_root().join("tests/fixtures/packages");
+    let workspace_lineage = SourceLineage::git("https://github.com/CathedralOS/Omega.git").unwrap();
+    let cache = temp_root(package);
+    let closure = resolve_workspace_package_closure(
+        &workspace_lineage,
+        SourceRelativePath::parse(package).expect("fixture member path"),
+        &fixtures,
+        &cache,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("process-exit source closure should resolve");
+
+    let error =
+        compile_resolved_package_reviews(&closure, "linux_x86_64", &cache.join("compiler-build"))
+            .expect_err("an unclosed compiler-intrinsic child must block package review");
+    let CompileResolvedPackageReviewsError::Projection {
+        package: rejected,
+        diagnostics,
+    } = error
+    else {
+        panic!("process-exit must fail at review projection: {error:#?}")
+    };
+    assert_eq!(rejected.name().as_str(), package);
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("compiler-intrinsic execution child without a closed package-review identity")
+    }));
+    assert!(
+        std::fs::read_dir(cache.join("compiler-build"))
+            .expect("failed review build workspace remains readable")
+            .next()
+            .is_none(),
+        "failed review must dispose its private build session"
+    );
 }

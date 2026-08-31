@@ -1,0 +1,14 @@
+[package]
+name = "omega-representation-selections"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_representation_selections"
+path = "src/lib.rs"
+
+[dependencies]
+psi-source = { path = "../../../psi/foundation/psi-source" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }

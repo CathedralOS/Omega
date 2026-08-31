@@ -117,6 +117,44 @@ pub(crate) fn written_equals_state_symbol(
         })
 }
 
+/// The one compiler-generated callable face for structural equality.
+///
+/// Authored `value.equals(...)` syntax selects this declaration even though
+/// typed lowering expands its body inline. Returning only an exact singleton
+/// keeps declaration custody fail-closed if synthesis ever duplicates or
+/// omits the wrapper.
+pub(crate) fn synthesized_equals_state_symbol(
+    program: &SymbolResolvedTrees,
+    type_name: &str,
+) -> Option<psi_symbols::SymbolHandle> {
+    let matches = program
+        .machines
+        .iter()
+        .filter(|machine| {
+            machine
+                .name
+                .as_str()
+                .starts_with("__omega_synthesized_equatable::")
+                && machine
+                    .attached_data
+                    .as_ref()
+                    .is_some_and(|attached| attached.as_str() == type_name)
+        })
+        .flat_map(|machine| {
+            program
+                .machine_state_handles(machine.states)
+                .iter()
+                .map(|handle| program.machine_state(*handle))
+        })
+        .filter(|state| state.name.as_str() == "equals")
+        .map(|state| state.symbol)
+        .collect::<Vec<_>>();
+    let [symbol] = matches.as_slice() else {
+        return None;
+    };
+    Some(*symbol)
+}
+
 /// How one field participates in synthesized structural equality.
 pub(crate) enum FieldEquality<'program> {
     /// Scalar primitives and payload-less sums compare directly with `==`.

@@ -3822,7 +3822,7 @@ fn source_open_read_at_close_is_replayed_without_a_filesystem_provider() {
 
     let mut read_attempt_prefix = Vec::new();
     read_attempt_prefix.extend_from_slice(&6u16.to_le_bytes());
-    read_attempt_prefix.extend_from_slice(&[2, 0]);
+    read_attempt_prefix.extend_from_slice(&[2, 0, 0]);
     read_attempt_prefix.extend_from_slice(&7i64.to_le_bytes());
     read_attempt_prefix.extend_from_slice(&0i32.to_le_bytes());
     read_attempt_prefix.extend_from_slice(&2u64.to_le_bytes());

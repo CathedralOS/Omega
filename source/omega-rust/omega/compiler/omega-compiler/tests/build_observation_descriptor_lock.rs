@@ -1,5 +1,6 @@
 use omega_build_evaluation::{
-    BuildFilesystemLogicalHandleInputResolution, BuildFilesystemOperationResult,
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemLogicalHandleInputResolution,
+    BuildFilesystemOperationObservationClass, BuildFilesystemOperationResult,
     BuildFilesystemReplayDisposition, BuildFilesystemReplayRecordLimits,
     BuildFilesystemScalarOperandValue, BuildObservationClass,
     capture_verified_build_filesystem_replay_record,
@@ -154,13 +155,21 @@ fn successful_output_lock_pair_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("descriptor-lock build retains observations");
-    assert_eq!(summary.schema_version(), 71);
+    assert_eq!(summary.schema_version(), BUILD_OBSERVATION_SCHEMA_VERSION);
     assert_eq!(
         summary.filesystem_replay_verdict().disposition(),
         BuildFilesystemReplayDisposition::Complete
     );
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .all(|attempt| {
+                attempt.observation_class() == BuildFilesystemOperationObservationClass::Receipted
+            })
+    );
     assert_eq!(
         summary
             .filesystem_operation_attempts()

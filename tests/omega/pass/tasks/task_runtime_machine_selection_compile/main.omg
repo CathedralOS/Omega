@@ -21,7 +21,7 @@ where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
 via Binding::CompilerIntrinsic;
 
-boundary data Sleeper;
+pub boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
 
 data Token {
