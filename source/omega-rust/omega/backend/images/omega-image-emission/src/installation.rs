@@ -1871,15 +1871,18 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             }
                             [
                                 StructuralPathSegment::FixedIndex(outer @ (0 | 1)),
-                                StructuralPathSegment::FixedIndex(inner @ (0 | 1 | 2 | 3 | 4 | 5)),
+                                StructuralPathSegment::FixedIndex(
+                                    inner @ (0 | 1 | 2 | 3 | 4 | 5 | 6),
+                                ),
                             ] => {
                                 let leaf_stride = u32::from(argument.shape.byte_size)
                                     .next_multiple_of(u32::from(argument.shape.alignment));
                                 let Some(outer_stride) = argument.element_stride else {
                                     return true;
                                 };
-                                let Some(inner_length) =
-                                    [3_u32, 4_u32, 5_u32, 6_u32].into_iter().find(|length| {
+                                let Some(inner_length) = [3_u32, 4_u32, 5_u32, 6_u32, 7_u32]
+                                    .into_iter()
+                                    .find(|length| {
                                         leaf_stride.checked_mul(*length) == Some(outer_stride)
                                     })
                                 else {
@@ -2301,7 +2304,7 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
             [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
                 | [
                     StructuralPathSegment::FixedIndex(0 | 1),
-                    StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5),
+                    StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5 | 6),
                 ]
         )
 }
