@@ -1,27 +1,22 @@
-//! Native process enforcement for compiler-owned package-source resolution.
+//! Process custody for compiler-owned package-source resolution.
 //!
-//! The public surface is deliberately narrow: callers select a closed
-//! resolution phase, provide already-verified executable and custody paths,
-//! and receive opaque policy observations. Implementation lives behind named
-//! modules for command construction, confinement, and lifecycle.
+//! A backend freezes one absolute executable path outside package-controlled
+//! roots. Prepared commands retain structured arguments, environment changes,
+//! working directory, standard-stream custody, resource limits, and
+//! platform-owned process-container cleanup. Nothing in this crate is canonical package
+//! evidence.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod backend;
-mod confinement;
-mod model;
+mod phase;
 mod prepared;
 mod process;
 mod request;
 
 pub use backend::ResolverExecutionBackend;
-pub use model::{
-    ResolverExecutionBackendIdentity, ResolverExecutionGuarantee,
-    ResolverExecutionGuaranteeDisposition, ResolverExecutionGuaranteeRow, ResolverExecutionPhase,
-    ResolverExecutionPolicyObservation, ResolverExecutionResourceCeilings,
-};
-pub use prepared::{ResolverExecutionCommandIdentity, ResolverPreparedExecution};
+pub use phase::ResolverExecutionPhase;
+pub use prepared::ResolverPreparedExecution;
 pub use process::{
-    ResolverExecutionChild, ResolverExecutionCompletionObservation, ResolverExecutionExitStatus,
-    ResolverExecutionTerminationDisposition,
+    ResolverExecutionChild, ResolverExecutionCompletion, ResolverExecutionExitStatus,
 };

@@ -30,7 +30,7 @@ pub(super) enum JobLimitEvent {
     AggregateCpu,
 }
 
-/// A resolver child contained in a compiler-owned Windows Job Object.
+/// A resolver child owned by a compiler-created Windows Job Object.
 #[derive(Debug)]
 pub(crate) struct WindowsJobChild {
     child: Child,

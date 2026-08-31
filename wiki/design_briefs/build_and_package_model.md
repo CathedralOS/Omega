@@ -411,7 +411,7 @@ policy, hooks, filters, submodules, redirects, or arbitrary Git arguments. The
 universal path therefore does not force a compiler-owned proxy or SSH command,
 pre-enumerate host transport/helper identities, or claim the actual socket peer
 or aggregate network-byte count. Uniform command lifetime, captured-output,
-process-tree cleanup, and honest native resource controls remain valid because
+process-container cleanup, and honest native resource controls remain valid because
 they apply without interpreting the host's helper graph.
 
 Primary Git selection follows the stable **Primary Git selection and
@@ -421,9 +421,10 @@ An explicit absolute operator setting wins; otherwise the resolver snapshots a
 constrained absolute-entry `PATH` before reading package-controlled input,
 freezes one absolute executable, and uses it for the complete resolution.
 Hard-coded platform candidates and ownership, mode, or ACL admission rules do
-establish trust. D43 supersedes the former executable metadata/content drift
-checks and `GitSourceReceipt`: process telemetry adds no source property beyond
-the verified commit, tree, content, and immutable snapshot. The absolute path
+not establish trust. The current contract supersedes former executable
+metadata/content drift checks and `GitSourceReceipt`: process telemetry adds no
+source property beyond the verified commit, tree, content, and immutable
+snapshot. The absolute path
 is frozen because package-controlled input may not influence an operator-owned
 executable decision, not because Omega attests the path or its contents.
 

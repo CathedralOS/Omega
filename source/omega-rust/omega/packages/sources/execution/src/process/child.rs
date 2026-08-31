@@ -1,64 +1,54 @@
 #[cfg(unix)]
 use super::descriptors;
-use super::{
-    ResolverExecutionCompletionObservation, ResolverExecutionExitStatus,
-    ResolverExecutionTerminationDisposition,
-};
-use crate::{
-    ResolverExecutionCommandIdentity, ResolverExecutionPolicyObservation, ResolverPreparedExecution,
-};
+use super::{ResolverExecutionCompletion, ResolverExecutionExitStatus};
+use crate::ResolverPreparedExecution;
 use std::io;
 use std::process::{ChildStderr, ChildStdin, ChildStdout, ExitStatus};
 
-#[cfg(any(target_os = "linux", windows))]
-use crate::confinement;
-#[cfg(all(unix, not(target_os = "linux")))]
+#[cfg(windows)]
+use super::windows;
+#[cfg(unix)]
 use command_group::CommandGroup;
 
 pub struct ResolverExecutionChild {
     #[cfg(unix)]
     child: command_group::GroupChild,
     #[cfg(windows)]
-    child: confinement::windows::WindowsJobChild,
+    child: windows::WindowsJobChild,
     #[cfg(not(any(unix, windows)))]
     child: std::process::Child,
-    policy: Option<ResolverExecutionPolicyObservation>,
-    command: ResolverExecutionCommandIdentity,
-    termination: Option<ResolverExecutionTerminationDisposition>,
+    container_closed: bool,
     status: Option<ExitStatus>,
+    finished: bool,
 }
 
 impl ResolverExecutionChild {
     /// Spawn a configured resolver command inside the platform process
     /// container before any child code may execute.
     pub fn spawn(prepared: ResolverPreparedExecution) -> io::Result<Self> {
-        let command_identity = prepared.command_identity()?;
-        let (command, policy) = prepared.into_parts();
+        let command = prepared.into_command()?;
         #[cfg(unix)]
-        let command = {
+        let mut command = {
             let mut command = command;
             descriptors::mark_ambient_close_on_exec(&mut command)?;
             command
         };
-        #[cfg(all(unix, not(target_os = "linux")))]
-        let mut command = command;
-        #[cfg(target_os = "linux")]
-        let child = confinement::linux::spawn(command, &policy)?;
-        #[cfg(all(unix, not(target_os = "linux")))]
-        let child = { command.group_spawn()? };
         #[cfg(windows)]
+        let mut command = command;
+        #[cfg(windows)]
+        let child = windows::WindowsJobChild::spawn(&mut command)?;
+        #[cfg(unix)]
+        let child = command.group_spawn()?;
+        #[cfg(not(any(unix, windows)))]
         let child = {
             let mut command = command;
-            confinement::windows::WindowsJobChild::spawn(&mut command)?
+            command.spawn()?
         };
-        #[cfg(not(any(unix, windows)))]
-        let child = { command.spawn()? };
         Ok(Self {
             child,
-            policy: Some(policy),
-            command: command_identity,
-            termination: None,
+            container_closed: false,
             status: None,
+            finished: false,
         })
     }
 
@@ -83,17 +73,17 @@ impl ResolverExecutionChild {
         self.inner().stderr.take()
     }
 
-    /// Close the entire native process container. Calling this after natural
-    /// primary-process exit is intentional: it prevents surviving descendants
-    /// from being detached from the completion observation.
+    /// Terminate the platform-owned process container. This is a process group
+    /// on Unix and a Job Object on Windows. Calling it after natural primary
+    /// exit intentionally closes descendants that remain in that container.
     pub fn terminate(&mut self) -> io::Result<()> {
         match self.child.kill() {
             Ok(()) => {
-                self.termination = Some(ResolverExecutionTerminationDisposition::Requested);
+                self.container_closed = true;
                 Ok(())
             }
             Err(error) if native_container_already_absent(&error) => {
-                self.termination = Some(ResolverExecutionTerminationDisposition::AlreadyAbsent);
+                self.container_closed = true;
                 Ok(())
             }
             Err(error) => Err(error),
@@ -108,29 +98,22 @@ impl ResolverExecutionChild {
         Ok(status)
     }
 
-    /// Consume a fully closed and reaped resolver execution and issue its
-    /// lifecycle-bound completion observation.
-    pub fn finish(mut self) -> io::Result<ResolverExecutionCompletionObservation> {
-        let termination = self.termination.ok_or_else(|| {
-            io::Error::new(
+    /// Consume a closed and reaped resolver execution.
+    pub fn finish(mut self) -> io::Result<ResolverExecutionCompletion> {
+        if !self.container_closed {
+            return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "resolver execution container was not explicitly closed",
-            )
-        })?;
+                "resolver execution process container was not explicitly closed",
+            ));
+        }
         let status = self.status.ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::WouldBlock,
                 "resolver execution was not reaped before completion",
             )
         })?;
-        let policy = self
-            .policy
-            .take()
-            .expect("resolver execution policy is consumed exactly once");
-        Ok(ResolverExecutionCompletionObservation::new(
-            policy,
-            self.command,
-            termination,
+        self.finished = true;
+        Ok(ResolverExecutionCompletion::new(
             ResolverExecutionExitStatus::from_status(status),
         ))
     }
@@ -143,6 +126,21 @@ impl ResolverExecutionChild {
     #[cfg(not(any(unix, windows)))]
     fn inner(&mut self) -> &mut std::process::Child {
         &mut self.child
+    }
+}
+
+impl Drop for ResolverExecutionChild {
+    fn drop(&mut self) {
+        if self.finished {
+            return;
+        }
+        #[cfg(windows)]
+        let _ = self.child.kill();
+        #[cfg(not(windows))]
+        {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
     }
 }
 

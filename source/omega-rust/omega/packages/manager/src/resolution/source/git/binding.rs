@@ -7,18 +7,15 @@ use super::super::{
 };
 use crate::declarations::PackageKey;
 use crate::resolution::source::workspace_path::source_relative_path;
-use omega_package_source::{
-    GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits, ResolvedGitSource,
-    SourceLineage,
-};
+use omega_package_source::{GitCommitId, GitTreeId, ImmutableSourceResolution, ResolvedGitSource};
 
 pub(super) fn bind_projected_git_package_source(
-    lineage: SourceLineage,
     source: ResolvedGitSource,
-    limits: LocalSourceLimits,
     selection_evidence: GitWorkspaceSelectionEvidence,
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let lineage = source.lineage().clone();
+    let limits = source.source_limits();
     let projection = source.workspace_projection().ok_or_else(|| {
         ResolvePackageSourceError::GitWorkspaceMemberNavigation {
             member_path: source_relative_path(selection_evidence.plan().selected_member_path()),
@@ -64,11 +61,11 @@ pub(super) fn bind_projected_git_package_source(
 }
 
 pub(super) fn bind_git_root_package_source(
-    lineage: SourceLineage,
     source: ResolvedGitSource,
-    limits: LocalSourceLimits,
     application_root_allowed: bool,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
+    let lineage = source.lineage().clone();
+    let limits = source.source_limits();
     let snapshot_root = source.snapshot_root().to_path_buf();
     let declaration = project_package_build(&snapshot_root, application_root_allowed)?;
     let resolution = ImmutableSourceResolution::git(

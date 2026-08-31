@@ -1,9 +1,11 @@
 use super::{
     GIT_CACHE_REPOSITORY, GitExecutionTransport, LocalSourceLimits, ResolverExecutionPhase,
     SourceResolveError, create_git_source, git_cache_entry_root, local_git_request,
-    resolve_git_source, run_test_git, sealed_git_command, temp_root, test_system_git_executor,
+    resolve_git_source, run_command_bounded, run_test_git, sealed_git_command, temp_root,
+    test_system_git_executor,
 };
 use std::ffi::{OsStr, OsString};
+use std::time::Duration;
 
 #[test]
 fn git_cache_rejects_local_filter_configuration_without_running_it() {
@@ -171,4 +173,120 @@ fn production_requests_share_one_closed_https_ssh_transport_class() {
             );
         }
     }
+}
+
+#[test]
+fn host_configuration_can_rewrite_between_https_and_ssh() {
+    for (transport, authored, instead_of, replacement, expected) in [
+        (
+            GitExecutionTransport::Https,
+            "https://code.example/acme/library.git",
+            "https://code.example/",
+            "ssh://git@code.example/",
+            "ssh://git@code.example/acme/library.git",
+        ),
+        (
+            GitExecutionTransport::Ssh,
+            "ssh://git@code.example/acme/library.git",
+            "ssh://git@code.example/",
+            "https://code.example/",
+            "https://code.example/acme/library.git",
+        ),
+    ] {
+        let root = temp_root("git-host-url-rewrite");
+        std::fs::create_dir_all(&root).expect("create host Git configuration root");
+        let configuration = root.join("gitconfig");
+        std::fs::write(
+            &configuration,
+            format!("[url \"{replacement}\"]\n\tinsteadOf = {instead_of}\n"),
+        )
+        .expect("write host Git URL rewrite");
+        let working_directory = root
+            .canonicalize()
+            .expect("canonical host Git configuration root");
+        let executor = test_system_git_executor(transport).expect("system Git executor");
+        let mut command = sealed_git_command(
+            &executor,
+            &working_directory,
+            ResolverExecutionPhase::TransportDiscovery,
+        )
+        .expect("sealed absolute Git command");
+        command
+            .env("GIT_CONFIG_GLOBAL", &configuration)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .args(["ls-remote", "--get-url", authored]);
+
+        let output = run_command_bounded(
+            command,
+            "host URL rewrite",
+            4096,
+            4096,
+            Duration::from_secs(10),
+        )
+        .expect("resolve host Git URL rewrite");
+        assert!(
+            output.status.success(),
+            "Git rejected host URL rewrite: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout)
+                .expect("Git URL is UTF-8")
+                .trim(),
+            expected
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
+
+#[test]
+fn host_configuration_cannot_rewrite_outside_the_production_protocol_class() {
+    let (repository, _) = create_git_source("git-host-forbidden-url-rewrite-source");
+    let root = temp_root("git-host-forbidden-url-rewrite");
+    std::fs::create_dir_all(&root).expect("create host Git configuration root");
+    let configuration = root.join("gitconfig");
+    let authored = "https://code.example/acme/library.git";
+    std::fs::write(
+        &configuration,
+        format!(
+            "[url \"file://{}\"]\n\tinsteadOf = {authored}\n",
+            repository.display()
+        ),
+    )
+    .expect("write forbidden host Git URL rewrite");
+    let working_directory = root
+        .canonicalize()
+        .expect("canonical host Git configuration root");
+    let executor =
+        test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
+    let mut command = sealed_git_command(
+        &executor,
+        &working_directory,
+        ResolverExecutionPhase::TransportDiscovery,
+    )
+    .expect("sealed absolute Git command");
+    command
+        .env("GIT_CONFIG_GLOBAL", &configuration)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .args(["ls-remote", authored]);
+
+    let output = run_command_bounded(
+        command,
+        "forbidden host URL rewrite",
+        4096,
+        4096,
+        Duration::from_secs(10),
+    )
+    .expect("Git must report the closed-protocol rejection normally");
+    assert!(
+        !output.status.success(),
+        "an HTTPS request escaped the production protocol class through a host URL rewrite"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("transport 'file' not allowed"),
+        "unexpected forbidden-protocol diagnostic: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = std::fs::remove_dir_all(repository);
+    let _ = std::fs::remove_dir_all(root);
 }

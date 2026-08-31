@@ -1,20 +1,13 @@
-//! Host backend selection and preparation of bounded resolver launches.
+//! One selected executable and preparation of bounded resolver launches.
 
-mod host;
-mod observation;
 mod preparation;
 mod request;
 
-#[cfg(target_os = "macos")]
-use crate::confinement;
-use crate::model::ResolverExecutionBackendIdentity;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct ResolverExecutionBackend {
-    pub(crate) identity: ResolverExecutionBackendIdentity,
-    #[cfg(target_os = "macos")]
-    pub(crate) sandbox_metadata: confinement::macos::ExecutableMetadataIdentity,
+    executable: PathBuf,
 }
 
 #[derive(Clone, Copy)]

@@ -1,18 +1,26 @@
 use super::ResolverExecutionChild;
-use crate::{ResolverExecutionBackend, ResolverExecutionPhase};
-use std::path::Path;
+use crate::ResolverExecutionBackend;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+
+fn backend(executable: &Path) -> ResolverExecutionBackend {
+    ResolverExecutionBackend::open(executable, &[] as &[PathBuf]).expect("open resolver backend")
+}
+
+fn inspection_root() -> PathBuf {
+    std::env::temp_dir()
+        .canonicalize()
+        .expect("canonical temporary root")
+}
 
 #[test]
 fn spawn_rejects_implicit_inherited_standard_streams() {
-    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    let inspection_root = std::env::temp_dir()
+    let executable = Path::new("/usr/bin/true")
         .canonicalize()
-        .expect("canonical temporary root");
-    let mut prepared = backend
-        .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
+        .expect("canonical true executable");
+    let prepared = backend(&executable)
+        .prepare_inspection(&inspection_root())
         .expect("prepare inspection execution");
-    prepared.env_clear().current_dir(&inspection_root);
 
     let error = ResolverExecutionChild::spawn(prepared)
         .err()
@@ -22,51 +30,14 @@ fn spawn_rejects_implicit_inherited_standard_streams() {
 }
 
 #[test]
-fn command_identity_binds_closed_standard_stream_dispositions() {
-    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    let inspection_root = std::env::temp_dir()
+fn completion_requires_process_container_closure_and_reaping() {
+    let executable = Path::new("/usr/bin/true")
         .canonicalize()
-        .expect("canonical temporary root");
-    let prepare = |piped_stdout: bool| {
-        let mut prepared = backend
-            .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
-            .expect("prepare inspection execution");
-        prepared
-            .env_clear()
-            .current_dir(&inspection_root)
-            .stdin_null()
-            .stderr_null();
-        if piped_stdout {
-            prepared.stdout_piped();
-        } else {
-            prepared.stdout_null();
-        }
-        prepared
-            .command_identity()
-            .expect("identify closed standard streams")
-    };
-
-    assert_ne!(prepare(false), prepare(true));
-}
-
-#[test]
-fn completion_binds_prepared_command_policy_termination_and_reaping() {
-    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    let inspection_root = std::env::temp_dir()
-        .canonicalize()
-        .expect("canonical temporary root");
-    let mut prepared = backend
-        .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
+        .expect("canonical true executable");
+    let mut prepared = backend(&executable)
+        .prepare_inspection(&inspection_root())
         .expect("prepare inspection execution");
-    prepared
-        .env_clear()
-        .current_dir(&inspection_root)
-        .stdin_null()
-        .stdout_null()
-        .stderr_null();
-    let command = prepared
-        .command_identity()
-        .expect("identify prepared command");
+    prepared.stdin_null().stdout_null().stderr_null();
     let mut child = ResolverExecutionChild::spawn(prepared).expect("spawn prepared execution");
     let deadline = Instant::now() + Duration::from_secs(5);
     let status = loop {
@@ -77,39 +48,62 @@ fn completion_binds_prepared_command_policy_termination_and_reaping() {
         std::thread::sleep(Duration::from_millis(5));
     };
     assert!(status.success());
-    child.terminate().expect("close native process container");
+    child.terminate().expect("close process container");
     child.try_wait().expect("confirm reaped execution");
-    let completion = child.finish().expect("issue completion observation");
-
-    assert_eq!(completion.command(), command);
-    assert_eq!(
-        completion.policy().phase(),
-        ResolverExecutionPhase::RepositoryInspection
-    );
+    let completion = child.finish().expect("finish execution");
     assert!(completion.status().success());
-    assert!(!completion.canonical_bytes().is_empty());
 }
 
 #[test]
-fn unfinished_execution_cannot_issue_completion() {
-    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
-    let inspection_root = std::env::temp_dir()
+fn unfinished_execution_cannot_finish() {
+    let executable = Path::new("/usr/bin/true")
         .canonicalize()
-        .expect("canonical temporary root");
-    let mut prepared = backend
-        .prepare_inspection(Path::new("/usr/bin/true"), &inspection_root)
+        .expect("canonical true executable");
+    let mut prepared = backend(&executable)
+        .prepare_inspection(&inspection_root())
         .expect("prepare inspection execution");
-    prepared
-        .env_clear()
-        .current_dir(&inspection_root)
-        .stdin_null()
-        .stdout_null()
-        .stderr_null();
+    prepared.stdin_null().stdout_null().stderr_null();
     let mut child = ResolverExecutionChild::spawn(prepared).expect("spawn prepared execution");
-    let deadline = Instant::now() + Duration::from_secs(5);
     while child.try_wait().expect("poll prepared execution").is_none() {
-        assert!(Instant::now() < deadline, "prepared execution timed out");
         std::thread::sleep(Duration::from_millis(5));
     }
     assert!(child.finish().is_err());
+}
+
+#[test]
+fn dropping_execution_kills_descendants_remaining_in_the_process_group() {
+    let test_root = std::env::temp_dir().join(format!(
+        "omega-resolver-tree-cleanup-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&test_root).expect("create cleanup root");
+    let test_root = test_root.canonicalize().expect("canonical cleanup root");
+    let marker = test_root.join("escaped-descendant");
+    let shell = Path::new("/bin/sh")
+        .canonicalize()
+        .expect("canonical shell executable");
+    let mut prepared = backend(&shell)
+        .prepare_inspection(&test_root)
+        .expect("prepare cleanup execution");
+    prepared
+        .args([
+            "-c",
+            "(sleep 1; printf escaped > \"$1\") & wait",
+            "omega-resolver-cleanup",
+        ])
+        .arg(&marker)
+        .stdin_null()
+        .stdout_null()
+        .stderr_null();
+
+    let child = ResolverExecutionChild::spawn(prepared).expect("spawn cleanup execution");
+    std::thread::sleep(Duration::from_millis(100));
+    drop(child);
+    std::thread::sleep(Duration::from_millis(1100));
+
+    assert!(
+        !marker.exists(),
+        "descendant survived process-group cleanup"
+    );
+    std::fs::remove_dir_all(test_root).expect("remove cleanup root");
 }

@@ -1,19 +1,18 @@
 //! Owned resolver-child lifecycle, limits, descriptors, and completion.
 //!
 //! [`ResolverExecutionChild`] is the only launch/lifecycle owner. Completion
-//! observations are issued only after explicit container closure and reaping.
+//! is returned only after explicit process-container closure and reaping.
 
 mod child;
+mod completion;
 #[cfg(unix)]
 mod descriptors;
 pub(crate) mod limits;
-mod observation;
+#[cfg(windows)]
+pub(crate) mod windows;
 
 pub use child::ResolverExecutionChild;
-pub use observation::{
-    ResolverExecutionCompletionObservation, ResolverExecutionExitStatus,
-    ResolverExecutionTerminationDisposition,
-};
+pub use completion::{ResolverExecutionCompletion, ResolverExecutionExitStatus};
 
 #[cfg(all(test, unix))]
 mod tests;

@@ -104,7 +104,7 @@ Hard-coded platform candidate lists are not a compatibility fallback.
 Ownership, Unix mode, set-id state, ACL shape, and a content hash do not
 establish host trust and are not source-admission rules. A managed executable
 link may resolve normally; neither the link nor its ancestry establishes trust.
-Ordinary existence, regular-file, bounded-read, and launchability checks remain
+Ordinary existence, regular-file, and launchability checks remain
 part of constructing a usable invocation. Host or CI policy owns selection and
 protection of the Git installation.
 
@@ -146,8 +146,8 @@ This delegation is limited to the transport and credential chain. It does
 not reopen package-controlled execution: the closed protocol surface,
 noninteractive invocation, disabled redirects, hooks, replacements, filters,
 and submodules, command construction, captured-output and lifetime bounds,
-whole-process-tree cleanup, verified object graph, quarantine publication,
-and immutable snapshot remain compiler owned. Uniform native limits may apply
+platform-owned process-container cleanup, verified object graph, quarantine
+publication, and immutable snapshot remain compiler owned. Uniform native limits may apply
 to the complete child tree without knowing descendant identities. A control
 that requires an allowlist of host transport/helper identities or writable
 state locations is not part of the universal network path.
@@ -215,8 +215,8 @@ authority after resolution completes.
 
 The resolver enforces compiler-owned ceilings on source entries, source bytes,
 depth, command count, captured output, and retained cache state. Commands have
-deadlines and platform-appropriate process-tree cleanup. Native backends may
-additionally enforce honest CPU, memory, file-size, descriptor, or
+deadlines and platform-appropriate process-container cleanup. Native backends
+may additionally enforce honest CPU, memory, file-size, descriptor, or
 process-count limits. These controls are execution mechanisms, not canonical
 evidence rows. Universal networked resolution claims neither aggregate
 transport-byte accounting nor direct endpoint confinement.

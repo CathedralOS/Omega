@@ -13,7 +13,7 @@ pub(crate) fn require_absolute(path: &Path, name: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn require_canonical_bounded_path(path: &Path, name: &str) -> io::Result<()> {
+pub(crate) fn require_lexically_canonical_bounded_path(path: &Path, name: &str) -> io::Result<()> {
     use std::path::Component;
 
     if path_encoding_length(path) > RESOLVER_EXECUTION_PATH_BYTE_LIMIT {
@@ -57,6 +57,33 @@ pub(crate) fn require_regular_file(path: &Path, name: &str) -> io::Result<()> {
             io::ErrorKind::InvalidInput,
             format!("{name} is not a regular file"),
         ));
+    }
+    Ok(())
+}
+
+pub(crate) fn require_outside_roots(
+    path: &Path,
+    roots: &[impl AsRef<Path>],
+    name: &str,
+) -> io::Result<()> {
+    for root in roots {
+        let root = root.as_ref();
+        require_absolute(root, "package-controlled root")?;
+        require_lexically_canonical_bounded_path(root, "package-controlled root")?;
+        let canonical_root = root.canonicalize().ok();
+        if path.starts_with(root)
+            || canonical_root
+                .as_ref()
+                .is_some_and(|canonical| path.starts_with(canonical))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "{name} is inside package-controlled root {}",
+                    root.display()
+                ),
+            ));
+        }
     }
     Ok(())
 }

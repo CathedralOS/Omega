@@ -1,30 +1,28 @@
 # Omega Resolver Execution
 
 This crate owns native process preparation and lifecycle for package-source
-resolution. D43 narrows it to structured command construction, concrete
-resource limits, and whole-process-tree cleanup. Callers choose one
-compiler-defined phase and supply the absolute Git path frozen before package
-input. The legacy guarantee, canonical execution-observation, and
-filesystem/executable-confinement surfaces are implementation debt to delete.
+resolution. It is deliberately limited to structured command construction,
+concrete resource limits, and process-container cleanup. Callers choose one
+compiler-defined phase and open a backend around the absolute Git path frozen
+before package input.
 
 ## Structure
 
 ```text
 src/
 ├── lib.rs          public entrance and closed reexports
-├── model/          transitional phase/policy carriers; retain only runtime needs
+├── phase.rs        compiler-owned source-resolution phases
 ├── request.rs      validated executable and custody-path requests
-├── backend/        host selection, request validation, and preparation
+├── backend/        executable selection, request validation, and preparation
 ├── prepared.rs     opaque structured command configuration
-├── process/        limits, descriptor custody, lifecycle, and completion
-└── confinement/    migration area: delete attestation/filesystem policy;
-                    retain only honest limits and cleanup in their proper owner
+└── process/        limits, descriptor custody, lifecycle, completion, and
+                    the Windows Job Object implementation
 ```
 
 The dependency direction remains deliberate. Request construction feeds an
 opaque prepared command, and process execution consumes it. Package
-declarations never reach this crate. A preparation or completion value is an
-internal control-flow carrier, not canonical evidence and not source identity.
+declarations never reach this crate. A prepared command or completion value is
+ordinary control-flow state, not canonical evidence and not source identity.
 
 ## Phase authority
 
@@ -52,24 +50,27 @@ transport ecosystem.
 
 ## Enforced boundary
 
-Every prepared execution has explicit arguments, environment changes, working
-directory, standard-stream dispositions, deadlines, and process-resource
-ceilings. Standard streams are compiler-owned null handles or pipes; arbitrary
-caller-opened handles and implicit stream inheritance are not representable.
-Spawning consumes the prepared value.
+`ResolverExecutionBackend::open` accepts one exact absolute executable path and
+rejects it if it is beneath any supplied package-controlled root. Every later
+preparation reuses that stored path; there is no executable lookup or per-call
+replacement. Phase preparation fixes the working directory to its validated
+root. Commands expose only structured arguments, environment changes, and
+compiler-owned null or piped standard streams. Implicit stream inheritance is
+rejected, and spawning consumes the prepared value.
 
-Successful completion is returned only after the primary process has been
-reaped and the backend has terminated or observed the absence of the owned
-process tree. The caller may inspect the exit status and bounded output needed
-for ordinary control flow and diagnostics; those facts are not hashed into an
-execution receipt.
+Completion is returned only after the primary process has been reaped and the
+backend has terminated or observed the absence of the owned process container.
+The caller may inspect exit status and bounded output for ordinary control flow
+and diagnostics; the crate does not hash or canonically encode those facts.
 
 Native mechanisms survive only when they directly implement an honest bound or
-lifecycle guarantee. Windows may use a kill-on-close Job Object with process,
-memory, and CPU ceilings; Unix may apply concrete resource limits. Seatbelt,
+lifecycle guarantee. Windows uses a kill-on-close Job Object with process,
+memory, and CPU ceilings. Unix applies concrete resource limits, starts a new
+process group, and kills that group during cleanup; it does not claim custody
+of a descendant that deliberately detaches from the group. Seatbelt,
 Landlock filesystem mediation, executable/write allowlists, native-guarantee
-matrices, and canonical policy/completion observations are retired. Stronger
-host or CI isolation is an operator concern, not package evidence.
+matrices, and canonical command/policy/completion observations are absent.
+Stronger host or CI isolation is an operator concern, not package evidence.
 
 The full source-resolution contract is maintained in
 [`SOURCE_RESOLVER_SECURITY.md`](../acquisition/SOURCE_RESOLVER_SECURITY.md).

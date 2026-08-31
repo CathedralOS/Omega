@@ -8,12 +8,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PACKAGE_ROOT_ENTRIES: &[&str] = &[
-    "README.md",
-    "manager",
-    "review",
-    "sources",
-];
+const PACKAGE_ROOT_ENTRIES: &[&str] = &["README.md", "manager", "review", "sources"];
 const PACKAGE_CRATES: &[&str] = &[
     "manager",
     "review/advisory",
@@ -267,8 +262,8 @@ fn package_source_has_shared_owners_and_one_way_adapter_dependencies() {
     let source = crate_root.join("src");
     let readme = fs::read_to_string(crate_root.join("README.md"))
         .expect("read package-source README entrance");
-    let library = fs::read_to_string(source.join("lib.rs"))
-        .expect("read package-source library entrance");
+    let library =
+        fs::read_to_string(source.join("lib.rs")).expect("read package-source library entrance");
 
     for owner in [
         "identity",
@@ -370,4 +365,89 @@ fn package_sources_are_bounded_and_shallow_enough_to_navigate() {
             );
         }
     }
+}
+
+#[test]
+fn resolver_source_custody_excludes_ambient_executor_attestation() {
+    let packages = package_root();
+    let acquisition = packages.join("sources/acquisition");
+    let execution = packages.join("sources/execution");
+    let forbidden = [
+        "GitSourceReceipt",
+        "ResolverExecutionGuarantee",
+        "ResolverExecutionPolicyObservation",
+        "ResolverExecutionCommandIdentity",
+        "execution_policy_observations",
+        "command_execution_observations",
+        "hash_git_executable",
+        "ExecutableMetadataIdentity",
+        "Seatbelt",
+        "Landlock",
+        "sandbox-exec",
+        "landlock_restrict_self",
+    ];
+
+    for crate_root in [&acquisition, &execution] {
+        for path in rust_files(&crate_root.join("src")) {
+            let source = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            for retired in forbidden {
+                assert!(
+                    !source.contains(retired),
+                    "ambient-executor attestation `{retired}` reappeared in {}",
+                    path.display(),
+                );
+            }
+        }
+    }
+
+    for crate_root in [&acquisition, &execution] {
+        for path in rust_files(&crate_root.join("src")) {
+            let is_test = path
+                .components()
+                .any(|component| component.as_os_str() == "tests")
+                || matches!(
+                    path.file_name().and_then(|name| name.to_str()),
+                    Some("tests.rs" | "test_support.rs")
+                );
+            if is_test {
+                continue;
+            }
+            let source = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            for late_lookup in ["Command::new(\"git\")", "Command::new(\"git.exe\")"] {
+                assert!(
+                    !source.contains(late_lookup),
+                    "resolver custody forbids late bare-name Git lookup in {}",
+                    path.display(),
+                );
+            }
+        }
+    }
+
+    let execution_manifest =
+        fs::read_to_string(execution.join("Cargo.toml")).expect("read resolver execution manifest");
+    assert!(
+        !execution_manifest.contains("sha2") && !execution_manifest.contains("hex"),
+        "resolver execution no longer hashes commands, policy, or executable bytes",
+    );
+
+    let execution_entrance =
+        fs::read_to_string(execution.join("src/lib.rs")).expect("read resolver execution entrance");
+    assert!(
+        execution_entrance.contains("ResolverExecutionPhase"),
+        "resolver custody must preserve closed execution phases",
+    );
+    let process_limits = fs::read_to_string(execution.join("src/process/limits.rs"))
+        .expect("read resolver process limits");
+    assert!(
+        process_limits.contains("configure_child_resource_limits"),
+        "resolver custody must preserve concrete Unix child limits",
+    );
+    let windows_process = fs::read_to_string(execution.join("src/process/windows/mod.rs"))
+        .expect("read resolver Windows process owner");
+    assert!(
+        windows_process.contains("limits") && windows_process.contains("lifecycle"),
+        "resolver custody must preserve Windows Job Object limits and lifecycle custody",
+    );
 }

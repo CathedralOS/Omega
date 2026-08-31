@@ -50,19 +50,23 @@ fn compiler_resource_ceilings_never_loosen_inherited_limits() {
 #[cfg(unix)]
 #[test]
 fn child_open_file_limit_is_enforced() {
-    let backend = ResolverExecutionBackend::open().expect("open resolver backend");
     let inspection_root = inspection_root();
-    #[cfg(target_os = "macos")]
-    let mut command = backend
-        .command_with_inspection_read_root(Path::new("/bin/bash"), &inspection_root)
+    let shell = Path::new("/bin/bash")
+        .canonicalize()
+        .expect("canonical shell");
+    let backend = ResolverExecutionBackend::open(&shell, &[] as &[std::path::PathBuf])
+        .expect("open resolver backend");
+    let mut prepared = backend
+        .prepare_inspection(&inspection_root)
         .expect("build limited shell");
-    #[cfg(not(target_os = "macos"))]
-    let mut command = backend
-        .command_with_inspection_read_root_observation(Path::new("/bin/bash"), &inspection_root)
-        .map(|(command, _policy)| command)
-        .expect("build limited shell");
-    let output = command
+    prepared
         .args(["-c", "ulimit -n"])
+        .stdin_null()
+        .stdout_piped()
+        .stderr_null();
+    let output = prepared
+        .into_command()
+        .expect("close prepared streams")
         .output()
         .expect("run limited shell");
     assert!(output.status.success());

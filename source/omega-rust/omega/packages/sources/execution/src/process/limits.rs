@@ -1,4 +1,3 @@
-use crate::model::ResolverExecutionResourceCeilings;
 use std::io;
 use std::process::Command;
 
@@ -18,55 +17,6 @@ pub(crate) const CHILD_PROCESS_MEMORY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub(crate) const CHILD_AGGREGATE_MEMORY_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 #[cfg(windows)]
 pub(crate) const CHILD_AGGREGATE_CPU_SECONDS: u64 = 120;
-
-pub(crate) fn configured_resource_ceilings() -> ResolverExecutionResourceCeilings {
-    #[cfg(unix)]
-    {
-        #[cfg(any(target_os = "linux", target_os = "android"))]
-        let address_space_bytes = Some(CHILD_ADDRESS_SPACE_BYTES);
-        #[cfg(not(any(target_os = "linux", target_os = "android")))]
-        let address_space_bytes = None;
-        ResolverExecutionResourceCeilings {
-            core_dump_bytes: Some(0),
-            cpu_seconds: Some(CHILD_CPU_SECONDS),
-            single_file_bytes: Some(CHILD_FILE_SIZE_BYTES),
-            open_files: Some(CHILD_OPEN_FILE_LIMIT),
-            address_space_bytes,
-            process_count: None,
-            per_process_memory_bytes: None,
-            aggregate_memory_bytes: None,
-            aggregate_cpu_seconds: None,
-        }
-    }
-    #[cfg(windows)]
-    {
-        ResolverExecutionResourceCeilings {
-            core_dump_bytes: None,
-            cpu_seconds: None,
-            single_file_bytes: None,
-            open_files: None,
-            address_space_bytes: None,
-            process_count: Some(CHILD_PROCESS_LIMIT),
-            per_process_memory_bytes: Some(CHILD_PROCESS_MEMORY_BYTES),
-            aggregate_memory_bytes: Some(CHILD_AGGREGATE_MEMORY_BYTES),
-            aggregate_cpu_seconds: Some(CHILD_AGGREGATE_CPU_SECONDS),
-        }
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        ResolverExecutionResourceCeilings {
-            core_dump_bytes: None,
-            cpu_seconds: None,
-            single_file_bytes: None,
-            open_files: None,
-            address_space_bytes: None,
-            process_count: None,
-            per_process_memory_bytes: None,
-            aggregate_memory_bytes: None,
-            aggregate_cpu_seconds: None,
-        }
-    }
-}
 
 #[cfg(unix)]
 pub(crate) fn configure_child_resource_limits(command: &mut Command) -> io::Result<()> {
