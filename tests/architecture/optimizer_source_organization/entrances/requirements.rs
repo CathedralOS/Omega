@@ -302,6 +302,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         coordination_marker: "pub(crate) fn derive_source_function_rosters",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",
+        coordination_marker: "pub(super) fn derive_leaf",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/structural/mod.rs",
         coordination_marker: "pub(super) fn derive_source_structural_unit_function",
     },
@@ -937,4 +941,19 @@ pub(super) const REQUIRED_SELECTED_BLOCK_VALIDATION_LEAVES: &[&str] = &[
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/exact_binary_return.rs",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/active_resident_exact_add_chain_return.rs",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/instruction_projection.rs",
+];
+
+/// Scalar legalization source projection keeps one common admission/router
+/// above exact family, return, operation-roster, and fuel leaves.
+pub(super) const REQUIRED_LEGALIZATION_SOURCE_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/context.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/immediate.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/entry_parameter.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/direct_exact_binary.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/widened_exact_binary.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/active_resident_exact_add_chain.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/return_projection.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/operation_projection.rs",
+    "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/fuel.rs",
 ];
