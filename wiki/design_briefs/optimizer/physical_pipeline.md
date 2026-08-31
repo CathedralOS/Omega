@@ -115,6 +115,16 @@ cover multi-value handoffs, argument-bearing true and false arms, and a shared
 leaf emitted once. Scalar-map reordering, target corruption, and forged
 convergence reject the route before verifier or codec publication.
 
+The first effectful-control widening admits one qualification-free,
+parameterless internal Unit call before either transition in a control state.
+The call remains a checked state operation rather than a synthetic block;
+therefore its source coordinate shifts the guard and successor statement
+ordinals. Independent admission rejoins the call coordinate, target state,
+contract, service reach, and finite target closure, then emission places the
+call operation before the conditional terminator. A dedicated `operations`
+rung on each side owns this sequence. Missing targets, coordinate drift, and
+custody-bearing calls reject before publication.
+
 Selected-plan construction has one 52-line roster entrance over scalar, plain
 Unit, and structural Unit results. Scalar construction reconstructs common
 condition context and selects exactly one row from its adjacent seven-row

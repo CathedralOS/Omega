@@ -113,6 +113,44 @@ fn composes_the_smallest_two_frontier_convergent_graph() {
 }
 
 #[test]
+fn composes_an_internal_unit_call_before_a_conditional() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root {}
+        machine Root::quiet() {}
+        machine Root::enter(first: bool, second: bool) {
+            Root::quiet();
+            transition first { true -> dispatch(second) _ -> no() }
+            state dispatch(flag: bool) {
+                transition flag { true -> yes() _ -> no() }
+            }
+            state yes() { Host::exit(1); }
+            state no() { Host::exit(2); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("the control-state call should remain in the composed graph");
+    let [entry, dispatch, _, _] = plan.states.as_slice() else {
+        panic!("call-prefixed nested graph retains four states")
+    };
+    assert!(matches!(
+        entry.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }]
+            if coordinate.statement_index == 0 && coordinate.call_ordinal == 0
+    ));
+    let (when_true, when_false) = conditional_successors(entry);
+    assert_eq!(when_true.statement_ordinal, 1);
+    assert_eq!(when_false.statement_ordinal, 2);
+    assert!(dispatch.operations.is_empty());
+}
+
+#[test]
 fn composes_three_frontiers_with_recursive_scalar_suffix_handoffs() {
     let checked = checked(
         r#"

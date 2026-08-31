@@ -55,7 +55,7 @@ pub(super) fn admit_composed_unit_control<'a>(
 
     let attachment = exact_attachment(checked, plan)?;
 
-    let (boundaries, internal_targets) = admit_leaf_targets(
+    let (boundaries, internal_targets) = admit_call_targets(
         checked,
         plan.machine,
         &[when_true, when_false],
@@ -97,10 +97,10 @@ pub(super) fn exact_attachment<'a>(
     Ok(attachment)
 }
 
-pub(super) fn admit_leaf_targets<'a>(
+pub(super) fn admit_call_targets<'a>(
     checked: &'a CheckedTrees,
     machine: psi_symbols::SymbolHandle,
-    leaves: &[&'a psi_checked_trees::CheckedComposedUnitControlStatePlan],
+    call_states: &[&'a psi_checked_trees::CheckedComposedUnitControlStatePlan],
     custody: custody::ComposedCustody,
     attachment: &psi_checked_trees::CheckedUnitStructuralTypePlan,
     provider_attachment_requirements: &[psi_checked_trees::CheckedProviderAttachmentRequirementPlan],
@@ -114,13 +114,13 @@ pub(super) fn admit_leaf_targets<'a>(
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
-    for state in leaves.iter().copied() {
+    for state in call_states.iter().copied() {
         match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
                 retain_leaf_boundary(checked, machine, state, plans, &mut boundaries)?;
             }
             CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                internal_calls::admission::retain_leaf_target(
+                internal_calls::admission::retain_call_target(
                     checked,
                     machine,
                     state,
@@ -128,7 +128,7 @@ pub(super) fn admit_leaf_targets<'a>(
                     &mut internal_targets,
                 )?;
             }
-            _ => unreachable!("leaf shape was validated"),
+            _ => unreachable!("call-state shape was validated"),
         }
     }
     boundaries.sort_by(|left, right| left.1.cmp(&right.1));
@@ -145,7 +145,7 @@ pub(super) fn admit_leaf_targets<'a>(
     for (boundary, _) in &boundaries {
         custody::validate_boundary(custody, boundary)?;
     }
-    let called_boundaries = leaves
+    let called_boundaries = call_states
         .iter()
         .filter_map(|state| match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {

@@ -77,7 +77,7 @@ pub(super) fn admit<'a>(
     }
     super::super::admission::validate_contract(checked, plan)?;
     let attachment = super::super::admission::exact_attachment(checked, plan)?;
-    let (boundaries, internal_targets) = super::super::admission::admit_leaf_targets(
+    let (boundaries, internal_targets) = super::super::admission::admit_call_targets(
         checked,
         plan.machine,
         &[when_true, when_false],

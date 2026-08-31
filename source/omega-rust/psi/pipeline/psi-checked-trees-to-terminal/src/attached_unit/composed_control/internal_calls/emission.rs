@@ -9,21 +9,8 @@ pub(in crate::attached_unit::composed_control) fn emit_leaf(
     next_operation: &mut u64,
     next_edge: &mut u64,
 ) -> Result<(Block, Vec<LoweredSourceCallOccurrence>), LoweringError> {
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        target_machine,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = &state.operations[0]
-    else {
-        unreachable!("admission retained one internal Unit call")
-    };
-    if !structural_arguments.is_empty() || !claim_transfers.is_empty() {
-        return unsupported("composed internal Unit call custody drifted before emission");
-    }
-    let target = lookup_target(targets, *target_machine)?;
     let mut operations = OperationBuffer::new(*next_operation - 1);
-    emit_call(&mut operations, target.id);
+    emit_call_operation(state, targets, &mut operations)?;
     *next_operation = operations.next_identity;
     Ok((
         Block {
@@ -37,6 +24,28 @@ pub(in crate::attached_unit::composed_control) fn emit_leaf(
         },
         Vec::new(),
     ))
+}
+
+pub(in crate::attached_unit::composed_control) fn emit_call_operation(
+    state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
+    targets: &[super::super::catalogs::LoweredComposedInternalTarget],
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        target_machine,
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &state.operations[0]
+    else {
+        return unsupported("composed internal operation is not a Unit call");
+    };
+    if !structural_arguments.is_empty() || !claim_transfers.is_empty() {
+        return unsupported("composed internal Unit call custody drifted before emission");
+    }
+    let target = lookup_target(targets, *target_machine)?;
+    emit_call(operations, target.id);
+    Ok(())
 }
 
 pub(in crate::attached_unit::composed_control) fn emit_targets(

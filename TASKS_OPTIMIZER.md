@@ -144,17 +144,24 @@ decision. Only true language-semantic questions belong in
    canary proves argument-bearing edges on both arms and two predecessors
    converging on one leaf emitted exactly once; a four-state canary locks the
    smallest non-prefix graph routed into this family. Independent lowering
-   rejoins each transition argument expression and structural-cleanup target
-   against checked facts before dynamically assigning block parameters and identities.
-   Scalar reordering, target corruption, and forged convergence fail closed;
-   verifier and codec replay pass. The producer descends through a 17-line
-   `nested_control` entrance into 288-line `topology` and 69-line `assembly`
-   rungs; the 15-line consumer entrance retains separate 263-line `admission`
-   and 226-line `emission` rungs. No topology-specific sibling was added. The
-   next bounded widening is to admit ordinary qualification-free Unit
-   operations before a control terminator without weakening effect, custody,
-   or proof replay. This is engineering, not an owner language decision. A
-   smaller recurring custody
+   rejoins each guard, transition argument expression, and structural-cleanup
+   target against checked facts before dynamically assigning block parameters
+   and identities. Scalar reordering, guard or target corruption, and forged
+   convergence fail closed; verifier and codec replay pass. One exact
+   qualification-free operation prefix is now admitted without adding a route:
+   a control may make one parameterless internal Unit call before its two
+   transitions. The checked coordinate shifts both guard and edge ordinals,
+   target admission rejoins the ordinary target plan and transitive closure,
+   and Terminal emission preserves call-before-branch order. Coordinate drift
+   rejects; verifier and codec replay pass. Producer and consumer each name a
+   small `operations` rung. The producer descends through an 18-line
+   `nested_control` entrance into 311-line `topology`, 44-line `operations`,
+   and 75-line `assembly` rungs; the 16-line consumer entrance retains separate
+   295-line `admission`, 34-line `operations`, and 231-line `emission` rungs. No
+   topology-specific sibling was added. The next bounded widening is a finite
+   sequence of empty-custody internal Unit calls; boundary-call prefixes remain
+   separate until their source-call and provider replay are explicit. This is
+   engineering, not an owner language decision. A smaller recurring custody
    class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout

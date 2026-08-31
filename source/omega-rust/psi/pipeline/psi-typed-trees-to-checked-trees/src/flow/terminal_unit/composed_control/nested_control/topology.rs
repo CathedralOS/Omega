@@ -55,9 +55,12 @@ pub(super) fn admit<'a>(
     let mut saw_leaf = false;
     for state in states {
         match program.statement_table.statements(state.statement_nodes) {
-            [StatementNode::Transition(_), StatementNode::Transition(_)] if !saw_leaf => {
-                controls.push(state)
-            }
+            [StatementNode::Transition(_), StatementNode::Transition(_)]
+            | [
+                StatementNode::Call(_),
+                StatementNode::Transition(_),
+                StatementNode::Transition(_),
+            ] if !saw_leaf => controls.push(state),
             [StatementNode::Call(_)] if signatures[state_index(states, state)?].is_empty() => {
                 saw_leaf = true;
                 leaves.push(state)
@@ -113,13 +116,19 @@ fn conditional(
     CheckedScalarExpression,
     [CheckedStructuralControlSuccessorPlan; 2],
 )> {
-    let [
-        StatementNode::Transition(when_true),
-        StatementNode::Transition(when_false),
-    ] = program.statement_table.statements(state.statement_nodes)
-    else {
-        return None;
-    };
+    let (statement_offset, when_true, when_false) =
+        match program.statement_table.statements(state.statement_nodes) {
+            [
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] => (0, when_true, when_false),
+            [
+                StatementNode::Call(_),
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] => (1, when_true, when_false),
+            _ => return None,
+        };
     if when_true.exit != TransitionExit::Ordinary
         || !matches!(when_true.guard, TransitionGuardNode::When(_))
         || when_false.exit != TransitionExit::Ordinary
@@ -132,7 +141,7 @@ fn conditional(
     let guard = parameter_guard(
         facts.values.scalar_expressions.expression_at(
             state.symbol,
-            0,
+            statement_offset,
             CheckedScalarExpressionRole::Guard,
         )?,
         parameters,
@@ -141,10 +150,24 @@ fn conditional(
         guard,
         [
             scalar_successor(
-                program, facts, machine, states, signatures, state, 0, when_true,
+                program,
+                facts,
+                machine,
+                states,
+                signatures,
+                state,
+                statement_offset,
+                when_true,
             )?,
             scalar_successor(
-                program, facts, machine, states, signatures, state, 1, when_false,
+                program,
+                facts,
+                machine,
+                states,
+                signatures,
+                state,
+                statement_offset.checked_add(1)?,
+                when_false,
             )?,
         ],
     ))
