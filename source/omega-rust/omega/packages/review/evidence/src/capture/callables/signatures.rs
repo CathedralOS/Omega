@@ -1,3 +1,4 @@
+use super::super::semantics::signatures::parameters::project_machine_parameter_contract;
 use super::super::semantics::types::{
     project_data_properties, review_signature_type_identity_with_binders,
 };
@@ -39,8 +40,27 @@ pub(super) fn project_external_callable_signature(
                     )?,
                 })
             }
-            psi_typed_trees::data::TypeParameterKind::Machine { .. }
-            | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
+            psi_typed_trees::data::TypeParameterKind::Machine { contract } => {
+                if parameter.bounds != psi_typed_trees::data::DataProperties::default() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed callable `{subject}` gives a machine parameter inapplicable type-property bounds"
+                    ))]);
+                }
+                Ok(PackageReviewExternalStaticParameter::Machine {
+                    contract: project_machine_parameter_contract(
+                        compilation,
+                        parameter.symbol,
+                        contract,
+                        "reviewed external callable",
+                        subject,
+                        binders,
+                        type_parameters.len(),
+                        &machine.lifetime_parameters,
+                        0,
+                    )?,
+                })
+            }
+            psi_typed_trees::data::TypeParameterKind::Proposition { .. } => {
                 Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{subject}` uses a static parameter kind not yet represented by its executable-supply signature"
                 ))])

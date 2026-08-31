@@ -518,6 +518,33 @@ fn validate_machine_top_level_requirement_conformance(
         )));
         return;
     }
+    for (index, (required, actual)) in required_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .enumerate()
+    {
+        let same_kind = matches!(
+            (&required.kind, &actual.kind),
+            (TypeParameterKind::Type, TypeParameterKind::Type)
+                | (
+                    TypeParameterKind::Const { .. },
+                    TypeParameterKind::Const { .. }
+                )
+                | (
+                    TypeParameterKind::Machine { .. },
+                    TypeParameterKind::Machine { .. }
+                )
+                | (
+                    TypeParameterKind::Proposition { .. },
+                    TypeParameterKind::Proposition { .. }
+                )
+        );
+        if !same_kind {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} static parameter {index} has a different kind"
+            )));
+        }
+    }
     let generic_types = required_type_parameters.iter().collect::<Vec<_>>();
     crate::machine_parameters::validate_trait_callable_parameter_refinement(
         program,

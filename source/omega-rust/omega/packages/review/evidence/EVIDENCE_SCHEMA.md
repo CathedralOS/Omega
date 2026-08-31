@@ -1,8 +1,17 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 110 and row schema version 68. This file
+The canonical review schema is version 111 and row schema version 69. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v111 / row v69 admits static-machine parameters in external callable
+signatures. Structural contracts retain their complete recursively alpha-
+normalized static/value signature, contracts, crash ceiling, service and
+invocation envelope, suspension/blocking flags, and termination guarantee;
+nominal contracts retain exact public trait and requirement identity. Review
+reruns the compiler's binder-positional recursive refinement before projecting
+the independently exact requirement and provider telescopes. Post-check kind
+substitution and inapplicable type-property bounds reject.
 
 Schema v110 / row v68 retains each external callable's ordered structural
 conformance-bound telescope. Top-level requirement supply independently
