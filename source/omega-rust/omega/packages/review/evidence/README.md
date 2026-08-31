@@ -22,15 +22,15 @@ contracts, authority and behavior, representation commitments, complete
 package records, and canonical rows. It does not inspect compiler state or
 encode persistence bytes.
 
-The current representation projection still records package-owned opaque data
-only as `Unbound`. D26's implementation task extends that incomplete
-projection with separate producer-availability and consumer-demand rows.
-Availability accepts no consumer choice; demand is owned by the selecting
-consumer and exists only
-for an actual runtime by-value crossing. Checked compilation now retains the
-validated calling-plan realizations and their structured opaque uses; capture
-must consume that custody rather than recover declarations or carrier identity
-from the aggregate calling-plan commitment.
+The representation projection records package-owned opaque data as `Unbound`
+and separately records each public producer candidate as exact
+opaque/conformance/carrier availability. Availability accepts no consumer
+choice and may coexist with `Unbound`; it says only what the producer exposes.
+D26's remaining consumer-demand row is owned by the selecting consumer and
+exists only for an actual runtime by-value crossing. Checked compilation
+retains the validated calling-plan realizations and their structured opaque
+uses; demand capture must consume that custody rather than recover declarations
+or carrier identity from the aggregate calling-plan commitment.
 
 ## Capture
 
@@ -52,6 +52,6 @@ equality.
 The crate root exports `project_checked_package_review` as its operation. The
 manager owns comparison and policy; this crate never admits a package.
 
-The canonical review schema is version 97 and row schema version 55. Exact
+The canonical review schema is version 98 and row schema version 56. Exact
 vocabulary and revision notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

@@ -58,7 +58,9 @@ pub fn selection_for_opaque(
     selections: &[OpaqueRepresentationSelection],
     opaque: SymbolHandle,
 ) -> Option<&OpaqueRepresentationSelection> {
-    selections.iter().find(|selection| selection.opaque == opaque)
+    selections
+        .iter()
+        .find(|selection| selection.opaque == opaque)
 }
 
 /// Harvest representation selections from the one build machine already
@@ -77,9 +79,10 @@ pub fn harvest_opaque_representation_selections(
         }
         match close_selection(typed, machine.symbol, arguments, source_span) {
             Ok(selection) => {
-                if let Some(prior) = selections.iter().find(
-                    |prior: &&OpaqueRepresentationSelection| prior.opaque == selection.opaque,
-                ) {
+                if let Some(prior) = selections
+                    .iter()
+                    .find(|prior: &&OpaqueRepresentationSelection| prior.opaque == selection.opaque)
+                {
                     diagnostics.push(
                         Diagnostic::error(format!(
                             "build selects opaque representation `{}` more than once (first selection uses `{}`)",
@@ -111,7 +114,11 @@ pub fn harvest_opaque_representation_selections(
                     }
                 }
                 psi_typed_trees::statement::StatementNode::Call(call) => {
-                    record(call.target.as_str(), &call.machine_arguments, call.source_span);
+                    record(
+                        call.target.as_str(),
+                        &call.machine_arguments,
+                        call.source_span,
+                    );
                 }
                 _ => {}
             }
@@ -159,17 +166,16 @@ fn close_selection(
             conformance_argument.display_name(),
         )));
     }
-    let application =
-        psi_typed_trees_to_checked_trees::close_conformance_application(
-            typed,
-            conformance_argument,
-        )?;
+    let application = psi_typed_trees_to_checked_trees::close_conformance_application(
+        typed,
+        conformance_argument,
+    )?;
     let conformance = typed
         .conformances()
         .iter()
         .find(|candidate| candidate.symbol == application.declaration)
         .ok_or_else(|| Diagnostic::error("selected opaque conformance disappeared"))?;
-    if !exact_opaque_representation_trait(typed, conformance.trait_symbol)
+    if !is_compiler_owned_opaque_representation_trait(typed, conformance.trait_symbol)
         || application.trait_definition != conformance.trait_symbol
     {
         return Err(Diagnostic::error(format!(
@@ -228,7 +234,14 @@ fn close_selection(
     })
 }
 
-fn exact_opaque_representation_trait(typed: &TypedTrees, symbol: SymbolHandle) -> bool {
+/// Whether `symbol` is the exact compiler-owned, capability-free
+/// `OpaqueRepresentation<Opaque>` relationship. Package review uses the same
+/// check when publishing producer availability; source spelling alone never
+/// establishes this role.
+pub fn is_compiler_owned_opaque_representation_trait(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+) -> bool {
     let Some(definition) = typed.traits().iter().find(|trait_| trait_.symbol == symbol) else {
         return false;
     };
@@ -251,5 +264,7 @@ fn exact_opaque_representation_trait(typed: &TypedTrees, symbol: SymbolHandle) -
         return false;
     };
     source.origin == SourceOrigin::Toolchain
-        && source.path.ends_with(Path::new(REPRESENTATION_TRAIT_SOURCE))
+        && source
+            .path
+            .ends_with(Path::new(REPRESENTATION_TRAIT_SOURCE))
 }

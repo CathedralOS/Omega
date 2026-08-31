@@ -1,9 +1,13 @@
 use super::semantics::declarations::{nominal_identity, reviewed_package_owns};
-use crate::capture::source::{ProjectedReviewRow, ProjectedSemanticDependencyRow};
+use crate::capture::source::locations::project_nested_declaration_source_location;
+use crate::capture::source::{
+    ProjectedNestedSourceLocation, ProjectedReviewRow, ProjectedSemanticDependencyRow,
+};
 use crate::record::{
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
+    PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewRepresentationTcb,
+    PackageReviewRepresentationTcbKind, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
+    PackageReviewSourceLocationRole,
 };
 use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
@@ -96,6 +100,7 @@ pub(crate) fn project_semantic_dependencies(
 pub(crate) fn project_representation_tcb(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
+    public_conformances: &[ProjectedReviewRow<PackageReviewConformanceShape>],
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewRepresentationTcb>>, Vec<Diagnostic>> {
     let mut rows = Vec::new();
     for definition in compilation.data_definitions().iter().filter(|definition| {
@@ -108,11 +113,115 @@ pub(crate) fn project_representation_tcb(
         rows.push(ProjectedReviewRow {
             row: PackageReviewRepresentationTcb {
                 declaration,
-                abi: PackageReviewRepresentationAbiCommitment::Unbound,
-                mechanism: PackageReviewRepresentationMechanism::Unbound,
+                kind: PackageReviewRepresentationTcbKind::Unbound,
             },
             declaration: definition.symbol,
             nested_source_locations: Vec::new(),
+        });
+    }
+
+    for conformance in compilation.conformances().iter().filter(|conformance| {
+        conformance.is_public
+            && omega_representation_planning::is_compiler_owned_opaque_representation_trait(
+                &compilation.typed,
+                conformance.trait_symbol,
+            )
+    }) {
+        let conformance_identity = nominal_identity(compilation, conformance.symbol)?;
+        if !reviewed_package_owns(&conformance_identity, package)?
+            || !conformance.lifetime_parameters.is_empty()
+            || !compilation
+                .conformance_type_parameters(conformance)
+                .is_empty()
+        {
+            continue;
+        }
+        let trait_arguments = compilation
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
+        let [opaque_argument] = trait_arguments else {
+            return Err(vec![Diagnostic::error(format!(
+                "public opaque-representation conformance `{}` does not retain one exact opaque argument",
+                conformance_identity.path(),
+            ))]);
+        };
+        let opaque_symbol = compilation
+            .type_reference_table
+            .type_symbol(*opaque_argument);
+        let opaque_definitions = compilation
+            .data_definitions()
+            .iter()
+            .filter(|definition| {
+                definition.symbol == opaque_symbol
+                    && definition.supply_mode
+                        == psi_language_semantics::DataSupplyMode::BoundaryOpaque
+            })
+            .collect::<Vec<_>>();
+        let [opaque_definition] = opaque_definitions.as_slice() else {
+            continue;
+        };
+        let projected_conformances = public_conformances
+            .iter()
+            .filter(|projected| projected.row.identity() == &conformance_identity)
+            .collect::<Vec<_>>();
+        let [projected_conformance] = projected_conformances.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "public opaque-representation conformance `{}` maps to {} ordinary public conformance rows; expected one",
+                conformance_identity.path(),
+                projected_conformances.len(),
+            ))]);
+        };
+        let PackageReviewConformanceSubject::Nominal(carrier_identity) =
+            projected_conformance.row.subject()
+        else {
+            continue;
+        };
+        let carrier_definitions = compilation
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.symbol == conformance.carrier_symbol)
+            .collect::<Vec<_>>();
+        let [carrier_definition] = carrier_definitions.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "public opaque-representation conformance `{}` maps to {} carrier declarations; expected one",
+                conformance_identity.path(),
+                carrier_definitions.len(),
+            ))]);
+        };
+        if carrier_definition.supply_mode != psi_language_semantics::DataSupplyMode::CheckedShape
+            || !carrier_definition.is_public
+        {
+            continue;
+        }
+        let exact_carrier_identity = nominal_identity(compilation, carrier_definition.symbol)?;
+        if carrier_identity != &exact_carrier_identity {
+            return Err(vec![Diagnostic::error(format!(
+                "public opaque-representation conformance `{}` disagrees with its ordinary public carrier row",
+                conformance_identity.path(),
+            ))]);
+        }
+        let declaration = nominal_identity(compilation, opaque_definition.symbol)?;
+        let nested_source_locations = [opaque_definition.symbol, carrier_definition.symbol]
+            .into_iter()
+            .map(|symbol| {
+                project_nested_declaration_source_location(
+                    compilation,
+                    symbol,
+                    PackageReviewSourceLocationRole::Declaration,
+                    "opaque-representation availability",
+                )
+            })
+            .collect::<Result<Vec<ProjectedNestedSourceLocation>, _>>()?;
+        rows.push(ProjectedReviewRow {
+            row: PackageReviewRepresentationTcb {
+                declaration,
+                kind: PackageReviewRepresentationTcbKind::ProducerAvailability {
+                    conformance: conformance_identity,
+                    carrier: exact_carrier_identity,
+                },
+            },
+            declaration: conformance.symbol,
+            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.cmp(&right.row));

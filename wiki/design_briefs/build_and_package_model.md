@@ -3363,11 +3363,13 @@ activation-wide opaque-representation selection collection in the checked
 compilation, including an unused selection and its selecting-machine/source
 provenance. Checked compilation also retains every exact validated boundary
 calling-plan realization and exposes its compiler-derived opaque uses; an
-unused selection does not appear in those use rows. That retention does not
-itself publish producer availability, consumer demand, or physical ABI
-evidence: package review remains `Unbound` until the complete D26 row can
-rejoin canonical nominal identity with the independent shape, movement, and
-boundary-plan commitments described above.
+unused selection does not appear in those use rows. Package review separately
+publishes exact public opaque/conformance/carrier candidates as producer
+availability without accepting any selection. `Unbound` may coexist because it
+means only that this compilation has no active consumer demand. Consumer demand
+remains absent until the complete D26 row can rejoin canonical nominal identity
+and the retained use with the independent shape, movement, and boundary-plan
+commitments described above.
 
 Accepted propositions, boundary/provider guarantees, authority establishment,
 executable mechanisms, and derived dangerous reach remain independent

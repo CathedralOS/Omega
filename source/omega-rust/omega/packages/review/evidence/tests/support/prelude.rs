@@ -32,11 +32,10 @@ pub(crate) use omega_package_evidence::record::{
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence, PackageReviewProviderGrantSelectorKind,
     PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
-    PackageReviewTypeParameterKind,
+    PackageReviewRepresentationTcbKind, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
+    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
+    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind,
 };
 pub(crate) use psi_core::PackageKeyIdentity;
 pub(crate) use std::fs;

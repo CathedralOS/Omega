@@ -1091,6 +1091,7 @@ dependencies = [
  "omega-effects",
  "omega-package-compilation",
  "omega-provider-planning",
+ "omega-representation-planning",
  "omega-selected-dispatch",
  "omega-target",
  "omega-trust-model",

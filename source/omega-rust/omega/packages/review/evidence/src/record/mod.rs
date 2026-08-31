@@ -70,10 +70,7 @@ pub use package::{
     PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
     PackageReviewSelectedProviderGrant,
 };
-pub use representation::{
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewRepresentationTcb,
-};
+pub use representation::{PackageReviewRepresentationTcb, PackageReviewRepresentationTcbKind};
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,

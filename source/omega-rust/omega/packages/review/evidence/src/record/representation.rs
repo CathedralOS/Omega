@@ -2,30 +2,27 @@
 
 use super::identity::PackageReviewNominalIdentity;
 
-/// The representation/ABI commitment retained for an opaque boundary datum.
-/// Review projection currently has no sealed realization join, so it can only
-/// state that the commitment is absent rather than inventing a layout.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewRepresentationAbiCommitment {
+/// The role of one representation row. Producer availability publishes an
+/// ordinary public candidate and accepts no consumer selection or ABI.
+/// Consumer demand receives a separate role only after complete physical
+/// realization evidence exists.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewRepresentationTcbKind {
     Unbound,
+    ProducerAvailability {
+        conformance: PackageReviewNominalIdentity,
+        carrier: PackageReviewNominalIdentity,
+    },
 }
 
-/// The selected external representation mechanism for an opaque boundary
-/// datum. Mechanism selection is not yet joined into checked package review.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewRepresentationMechanism {
-    Unbound,
-}
-
-/// Distinct representation-TCB evidence for one package-owned opaque boundary
-/// datum. This row is emitted independently of visibility, claims, and reach:
-/// none of those facts can make an externally supplied representation cease to
-/// be trusted implementation surface.
+/// Distinct representation-TCB evidence for one opaque boundary datum. An
+/// unbound row is owned by the package declaring the opaque; an availability
+/// row is owned by the package declaring the public conformance and may target
+/// a dependency's opaque. Neither claims that a consumer selected it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewRepresentationTcb {
     pub(crate) declaration: PackageReviewNominalIdentity,
-    pub(crate) abi: PackageReviewRepresentationAbiCommitment,
-    pub(crate) mechanism: PackageReviewRepresentationMechanism,
+    pub(crate) kind: PackageReviewRepresentationTcbKind,
 }
 
 impl PackageReviewRepresentationTcb {
@@ -33,11 +30,7 @@ impl PackageReviewRepresentationTcb {
         &self.declaration
     }
 
-    pub const fn abi(&self) -> PackageReviewRepresentationAbiCommitment {
-        self.abi
-    }
-
-    pub const fn mechanism(&self) -> PackageReviewRepresentationMechanism {
-        self.mechanism
+    pub const fn kind(&self) -> &PackageReviewRepresentationTcbKind {
+        &self.kind
     }
 }

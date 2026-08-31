@@ -34,6 +34,7 @@ edges.
 `CheckedCompilation` now retains every exact validated boundary calling-plan
 realization. Its materialized signature exposes the compiler-derived
 `BoundaryOpaqueRepresentationUse` rows for actual by-value crossings, while an
-unused selection remains absent from that use list. This closes compiler
-custody only: package review must still rejoin each symbol to canonical nominal
-identity and publish the complete D26 availability/demand rows.
+unused selection remains absent from that use list. Package review now rejoins
+public producer candidates to canonical opaque, conformance, and carrier
+identities without selecting them. Consumer demand still requires the complete
+D26 physical shape, movement/finalization, and boundary-plan join.

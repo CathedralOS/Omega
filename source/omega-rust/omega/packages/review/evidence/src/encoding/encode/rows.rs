@@ -1,7 +1,8 @@
 use super::declarations::{
     encode_conformance_shape, encode_dangerous_authority, encode_dangerous_authority_slack,
-    encode_data_shape, encode_domain_shape, encode_representation_tcb, encode_semantic_dependency,
-    encode_semantic_dependency_key, encode_trait_shape,
+    encode_data_shape, encode_domain_shape, encode_representation_tcb,
+    encode_representation_tcb_key, encode_semantic_dependency, encode_semantic_dependency_key,
+    encode_trait_shape,
 };
 use super::encoder::Encoder;
 use super::values::callables::{
@@ -203,7 +204,7 @@ pub(crate) fn encode_rows_with_limits(
                 PackageReviewCanonicalRowKind::RepresentationTcb,
                 PackageReviewCanonicalRowRisk::AuditRecommended,
                 row_source(&review.row_sources.representation_tcb, index)?,
-                |encoder| encode_nominal(encoder, &row.declaration),
+                |encoder| encode_representation_tcb_key(encoder, row),
                 |encoder| encode_representation_tcb(encoder, row),
             )?,
         )?;
