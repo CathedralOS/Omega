@@ -41,7 +41,8 @@ stop the item on one precise owner question before adding machinery.
   - canonical const values beyond the completed public named acyclic,
     monomorphic checked-record/pure-sum cohort, and closed conformance static
     applications beyond the completed lifetime-free cohort whose conformance
-    and target-trait telescopes are both type-only, but
+    telescope contains exact types or parser-canonical integer-literal consts
+    and whose target-trait telescope is type-only, but
     only where successful checking retains an exact structural value and call-
     occurrence witness. Direct named public integer and Boolean const values,
     checked structured values with nested literal arrays, forwarded caller
@@ -70,6 +71,11 @@ stop the item on one precise owner question before adding machinery.
   executable call, and nested machine applications fail checking. A future
   language change may add a task only with its own semantic owner and concrete
   customer.
+
+  Do not add a producer-executable path-byte commitment to review rows,
+  closure commitments, conflicts, or admission while **Retire
+  compiler-executable path-byte commitments that cannot identify execution**
+  remains open in `OWNER_QUESTIONS.md`.
 
 - [ ] **BUILD-OBSERVATION-EVIDENCE.** Extend the closed exact replay lanes for
   candidates that require receipted builds. The implemented grammar, versions,
@@ -224,12 +230,16 @@ stop the item on one precise owner question before adding machinery.
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
 
-- [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Wire an organization-selected advisory
-  reviewer into the accepted-lock command transaction. Reuse the existing
-  fixed instructions, bounded Omega-rendered evidence, closed response schema,
-  and monotone recommendation rule. Apply its result only through root policy.
-  It cannot suppress deterministic recommendations, resolve conflicts, admit
-  evidence, attest review, or mutate project state.
+- [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Produce the bounded advisory-review
+  request beside deterministic source/provenance triage. An optional
+  organization-selected runner may invoke a reviewer and return the existing
+  closed monotone recommendation. Package correctness, install/update
+  availability, and deterministic recommendations must be identical when no
+  runner is configured or reachable. Provider selection, credentials, network
+  access, and invocation are operator tooling, not package-core gates. A
+  supplied advisory result may only add an audit recommendation through root
+  policy; it cannot suppress deterministic recommendations, resolve conflicts,
+  admit evidence, attest review, or mutate project state.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   admitted, admitted-with-audit-recommended, blocked capability change,
@@ -243,11 +253,12 @@ stop the item on one precise owner question before adding machinery.
   `omega install <source> [--rev <revision>] [--as <alias>]` once the selected
   candidate can complete the required P2–P4 gates.
   Fetch, declaration extraction, closure resolution, compiler review,
-  recheckable evidence, conflict handling, triage, and root-policy decisions
-  must complete before an atomic `build.omg`/`omega.lock` mutation. Failure, a
-  blocking conflict, or a missing required root decision performs no mutation.
-  An audit recommendation is non-blocking unless external project policy makes
-  it blocking.
+  recheckable evidence, conflict handling, deterministic triage, and root-policy
+  decisions must complete before an atomic `build.omg`/`omega.lock` mutation.
+  An advisory reviewer is optional and is not an availability dependency.
+  Failure, a blocking conflict, or a missing required root decision performs no
+  mutation. An audit recommendation is non-blocking unless external project
+  policy makes it blocking.
 
 - [ ] **OMEGA-UPDATE.** Implement
   `omega update [package-or-alias...] [--to <revision>]` once the selected
@@ -259,8 +270,11 @@ stop the item on one precise owner question before adding machinery.
 
 - [ ] **OMEGA-AUDIT-PACKAGES.** Render the accepted graph and current source
   state: immutable lineage/pins, dependency paths, declared and realized reach,
-  authority flow, provider/trust/proof state, dangerous slack, build
-  observations, review state, and the first failed provenance edge.
+  authority flow, provider/trust/proof state, dangerous slack,
+  admission-relevant build replay evidence, deterministic audit
+  recommendations, exact root-policy dispositions, and the first failed
+  provenance edge. Exclude source-helper execution telemetry, and never render
+  reviewer metadata as evidence that an audit occurred or was serious.
 
 ## P6 — Source integration and fixtures
 
