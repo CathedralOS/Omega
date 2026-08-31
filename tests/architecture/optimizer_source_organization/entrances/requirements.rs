@@ -670,6 +670,10 @@ pub(super) const REQUIRED_COORDINATION_ENTRANCES: &[RequiredCoordinationEntrance
         coordination_marker: "pub(super) fn build_realization",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/mod.rs",
+        coordination_marker: "impl FunctionRelativeOptimizationRealizationManifest",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/identities/bitwise_absorbing/mod.rs",
         coordination_marker: "fn propose(",
     },
@@ -985,4 +989,17 @@ pub(super) const REQUIRED_OPTIMIZATION_UNIT_CONSTRUCTION_LEAVES: &[&str] = &[
     "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/control_flow.rs",
     "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/facts.rs",
     "source/omega-rust/omega/representations/omega-optimization-unit/src/construction/structural_custody.rs",
+];
+
+/// Function-relative V9 persistence keeps framing and final admission above
+/// exact content, target, post-allocation, presentation, and cursor leaves.
+pub(super) const REQUIRED_FUNCTION_RELATIVE_REALIZATION_CODEC_LEAVES: &[&str] = &[
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/mod.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/encoding.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/decoding.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/post_allocation.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/target.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/rendering.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/cursor.rs",
+    "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/realization/function_relative_realization/codec/error.rs",
 ];

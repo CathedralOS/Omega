@@ -156,6 +156,10 @@ pub(crate) fn check(audit: &mut Audit) {
             "optimization-unit seed construction",
             REQUIRED_OPTIMIZATION_UNIT_CONSTRUCTION_LEAVES,
         ),
+        (
+            "function-relative realization codec",
+            REQUIRED_FUNCTION_RELATIVE_REALIZATION_CODEC_LEAVES,
+        ),
     ] {
         for path in paths {
             if !source_lines.contains_key(*path) {
