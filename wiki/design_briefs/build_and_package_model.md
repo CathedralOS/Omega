@@ -3530,8 +3530,8 @@ Every source update also receives provenance and source-diff triage because an
 implementation can misuse already-admitted power without changing capability
 evidence. Retained dangerous authority always produces an audit recommendation.
 Claim-free representation-TCB findings appear in the same command and may
-produce `admitted-with-audit-recommended` without manufacturing a conflict or
-resolution artifact when no independent policy blocks them.
+produce `no-review-blocker-with-audit-recommended` without manufacturing a
+conflict or resolution artifact when no independent policy blocks them.
 The prior source tree improves review quality but is not the admission baseline:
 if it is unavailable, lock-based capability comparison still works and source
 review escalates to a standalone candidate audit. If the accepted lock baseline

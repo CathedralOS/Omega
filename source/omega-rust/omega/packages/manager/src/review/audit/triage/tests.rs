@@ -37,7 +37,7 @@ fn role_test_graph(role: BuildDeclarationKind) -> ResolvedPackageClosure {
 fn disposition_order_keeps_blockers_above_recommendations() {
     assert!(
         PackageTriageDisposition::BlockedMissingAdmissionBaseline
-            > PackageTriageDisposition::AdmittedWithAuditRecommended
+            > PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
     );
     assert!(
         PackageTriageDisposition::BlockedCapabilityChange
@@ -104,7 +104,7 @@ fn directional_root_role_change_blocks_the_exact_root_triage_decision() {
             package_name: "role-probe".to_owned(),
             baseline_key: Some(key.clone()),
             candidate_key: Some(key),
-            disposition: PackageTriageDisposition::Admitted,
+            disposition: PackageTriageDisposition::NoReviewBlocker,
             reasons: vec![],
         }],
     };
@@ -131,12 +131,14 @@ fn bounded_render_rejects_instead_of_truncating_evidence() {
             package_name: "arithmetic-kernels".to_owned(),
             baseline_key: None,
             candidate_key: None,
-            disposition: PackageTriageDisposition::Admitted,
+            disposition: PackageTriageDisposition::NoReviewBlocker,
             reasons: vec![PackageTriageReason::InitialAdmission],
         }],
     };
     let full = triage.render_bounded(1_024).unwrap();
     assert!(full.contains("package arithmetic-kernels\n"));
+    assert!(full.contains("disposition no_review_blocker\n"));
+    assert!(!full.contains("disposition admitted\n"));
     let error = triage.render_bounded(32).unwrap_err();
     assert_eq!(error.maximum_bytes(), 32);
     assert!(error.required_bytes() > 32);

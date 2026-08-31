@@ -2004,12 +2004,13 @@ current use, or omits it merely because it declares no `reaches` service.
 
 An install compares the new dependency closure against an empty admission
 baseline. A completely checked package with neither blocking evidence nor
-review findings may pass as `admitted`; claim-free opacity alone may complete
-as `admitted-with-audit-recommended`. An accepted-claim row blocks for exact
-root-policy resolution on initial admission or when newly introduced, while an
-unchanged accepted baseline does not require blanket reapproval. Suspect
-authority, trust, executable introduction, dangerous contract slack, or
-build-host reach recommends audit;
+review findings may receive the review-only result `no-review-blocker`;
+claim-free opacity alone may receive
+`no-review-blocker-with-audit-recommended`. Neither result admits the package.
+An accepted-claim row blocks for exact root-policy resolution on initial
+admission or when newly introduced, while an unchanged accepted baseline does
+not require blanket reapproval. Suspect authority, trust, executable
+introduction, dangerous contract slack, or build-host reach recommends audit;
 the exact capability, claim, compatibility, or root-policy row determines
 whether admission also blocks.
 
@@ -2070,7 +2071,7 @@ authority set.
 
 Representation-TCB rows participate in the same integrated review. A package
 with only new claim-free opacity may finish as
-`admitted-with-audit-recommended`; a package that also introduces accepted
+`no-review-blocker-with-audit-recommended`; a package that also introduces accepted
 claims, dangerous authority, or policy-blocked representation mechanisms
 remains unresolved until those exact rows are reconciled. There is no generic
 approval prompt for either case.
@@ -2159,8 +2160,8 @@ own admission decisions. Producer provenance cannot promote the checkpoint.
 Useful result states include:
 
 ```text
-admitted
-admitted-with-audit-recommended
+no-review-blocker
+no-review-blocker-with-audit-recommended
 blocked-capability-change
 blocked-missing-admission-baseline
 blocked-provenance-change

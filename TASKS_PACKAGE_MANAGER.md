@@ -243,10 +243,10 @@ stop the item on one precise owner question before adding machinery.
   admit evidence, attest review, or mutate project state.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
-  admitted, admitted-with-audit-recommended, blocked capability change,
-  blocked missing baseline, and blocked provenance replacement—through lock and
-  command transactions. Initial install is complete-graph fresh admission, not
-  an unchanged update.
+  no review blocker, no review blocker with audit recommended, blocked
+  capability change, blocked missing baseline, and blocked provenance
+  replacement—through lock and command transactions. Initial install is
+  complete-graph fresh admission, not an unchanged update.
 
 ## P5 — Commands
 
