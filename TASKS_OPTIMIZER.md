@@ -134,12 +134,20 @@ decision. Only true language-semantic questions belong in
    rejoin all four edges and three effect leaves. Boundary and deduplicated
    internal-call leaf canaries verify and replay through the codec, while
    outer-handoff and inner-target corruption fail closed. The stage entrances
-   remain 29 and 30 lines; the producer logic is one 295-line named leaf, and
-   the 15-line nested consumer entrance names separate 165-line `admission`
-   and 193-line `emission` rungs. Next replace
-   the exact two-frontier shape with a bounded recursive conditional-tree
-   carrier rather than adding another topology-specific sibling. This is
-   engineering, not an owner language decision. A smaller recurring custody
+   remain 29 and 30 lines. The exact two-frontier shape has now become a finite
+   right-deep conditional-tree carrier rather than another collection of
+   depth-specific routes. Each control consumes Boolean position zero, passes
+   the ordered suffix of future Boolean guards to its true-arm dispatch, and
+   sends its false arm to a distinct effect leaf; the final control selects the
+   first two leaves. A depth-three canary proves two-value, one-value, and empty
+   suffix handoffs, distinct block parameters, four effect leaves, verifier and
+   codec replay, and fail-closed suffix reordering. The producer now descends
+   through a 17-line `nested_control` entrance into 251-line `topology` and
+   69-line `assembly` rungs; the 15-line consumer entrance retains separate
+   172-line `admission` and 191-line `emission` rungs. Next widen this acyclic
+   carrier from right-deep trees to a general checked conditional DAG without
+   adding topology-specific siblings. This is engineering, not an owner
+   language decision. A smaller recurring custody
    class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout

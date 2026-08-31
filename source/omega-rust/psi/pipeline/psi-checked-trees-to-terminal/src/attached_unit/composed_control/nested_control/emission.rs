@@ -1,4 +1,4 @@
-//! Five-block Terminal emission for two conditional frontiers.
+//! Dynamic Terminal emission for finite right-deep decision trees.
 
 use super::*;
 
@@ -8,85 +8,78 @@ pub(super) fn emit(
     admitted: super::admission::AdmittedNested<'_>,
     catalogs: super::super::catalogs::ComposedCatalogs,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let entry_parameters = [
-        ValueDeclaration {
-            id: value_id(1),
-            scalar_type: ScalarType::Boolean,
-        },
-        ValueDeclaration {
-            id: value_id(2),
-            scalar_type: ScalarType::Boolean,
-        },
-    ];
-    let dispatch_parameter = ValueDeclaration {
-        id: value_id(3),
-        scalar_type: ScalarType::Boolean,
-    };
-    let state_ids = [
-        block_id(1),
-        block_id(2),
-        block_id(3),
-        block_id(4),
-        block_id(5),
-    ];
-    let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        guard: entry_guard, ..
-    } = &admitted.entry.terminator
-    else {
-        unreachable!("nested admission retained an outer conditional")
-    };
-    let CheckedComposedUnitControlTerminatorPlan::Conditional {
-        guard: dispatch_guard,
-        ..
-    } = &admitted.dispatch.terminator
-    else {
-        unreachable!("nested admission retained an inner conditional")
-    };
-    let entry_guard = lower_checked_scalar_expression(entry_guard)?;
-    let dispatch_guard = lower_checked_scalar_expression(dispatch_guard)?;
-    validate_direct_parameter_types(&entry_guard, &[ScalarType::Boolean, ScalarType::Boolean])?;
-    validate_direct_parameter_types(&dispatch_guard, &[ScalarType::Boolean])?;
-    let mut next_value = 4_u64;
+    let control_count = admitted.controls.len();
+    let state_ids = (0..plan.states.len())
+        .map(|index| Ok(block_id(dense_identity(index)?)))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut next_value = 1_u64;
+    let control_parameters = (0..control_count)
+        .map(|index| {
+            (0..control_count - index)
+                .map(|_| {
+                    Ok(ValueDeclaration {
+                        id: value_id(allocate_dense(&mut next_value)?),
+                        scalar_type: ScalarType::Boolean,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_edge = 1_u64;
-    let mut entry_operations = OperationBuffer::new(0);
-    let entry_condition = emit_direct_expression(
-        &entry_guard,
-        &entry_parameters,
-        &mut next_value,
-        &mut entry_operations,
-    );
-    let entry_next_operation = entry_operations.next_identity;
-    let entry_block = Block {
-        id: state_ids[0],
-        parameters: Vec::new(),
-        operations: entry_operations.operations,
-        terminator: Terminator::Conditional {
-            condition: entry_condition,
-            when_true: successor(state_ids[1], vec![entry_parameters[1].id], &mut next_edge)?,
-            when_false: successor(state_ids[4], Vec::new(), &mut next_edge)?,
-        },
-    };
-    let mut dispatch_operations = OperationBuffer::new(entry_next_operation - 1);
-    let dispatch_condition = emit_direct_expression(
-        &dispatch_guard,
-        std::slice::from_ref(&dispatch_parameter),
-        &mut next_value,
-        &mut dispatch_operations,
-    );
-    let mut next_operation = dispatch_operations.next_identity;
-    let dispatch_block = Block {
-        id: state_ids[1],
-        parameters: vec![dispatch_parameter],
-        operations: dispatch_operations.operations,
-        terminator: Terminator::Conditional {
-            condition: dispatch_condition,
-            when_true: successor(state_ids[2], Vec::new(), &mut next_edge)?,
-            when_false: successor(state_ids[3], Vec::new(), &mut next_edge)?,
-        },
-    };
-    let mut blocks = vec![entry_block, dispatch_block];
+    let mut next_operation = 1_u64;
+    let mut blocks = Vec::with_capacity(plan.states.len());
+    for index in 0..control_count {
+        let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } =
+            &admitted.controls[index].terminator
+        else {
+            unreachable!("nested admission retained conditional controls")
+        };
+        let guard = lower_checked_scalar_expression(guard)?;
+        let parameter_types = vec![ScalarType::Boolean; control_parameters[index].len()];
+        validate_direct_parameter_types(&guard, &parameter_types)?;
+        let mut operations = OperationBuffer::new(next_operation - 1);
+        let condition = emit_direct_expression(
+            &guard,
+            &control_parameters[index],
+            &mut next_value,
+            &mut operations,
+        );
+        next_operation = operations.next_identity;
+        let final_control = index + 1 == control_count;
+        let true_target = if final_control {
+            state_ids[control_count]
+        } else {
+            state_ids[index + 1]
+        };
+        let false_target = state_ids[control_count + control_count - index];
+        let true_arguments = (!final_control)
+            .then(|| {
+                control_parameters[index][1..]
+                    .iter()
+                    .map(|parameter| parameter.id)
+                    .collect()
+            })
+            .unwrap_or_default();
+        blocks.push(Block {
+            id: state_ids[index],
+            parameters: (index != 0)
+                .then(|| control_parameters[index].clone())
+                .unwrap_or_default(),
+            operations: operations.operations,
+            terminator: Terminator::Conditional {
+                condition,
+                when_true: successor(true_target, true_arguments, &mut next_edge)?,
+                when_false: successor(false_target, Vec::new(), &mut next_edge)?,
+            },
+        });
+    }
     let mut source_call_occurrences = Vec::new();
-    for (state, block) in admitted.leaf_calls.leaves.into_iter().zip(&state_ids[2..]) {
+    for (state, block) in admitted
+        .leaf_calls
+        .leaves
+        .into_iter()
+        .zip(&state_ids[control_count..])
+    {
         let (leaf, mut occurrences) = match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
                 super::super::emission::emit_boundary_leaf(
@@ -139,7 +132,7 @@ pub(super) fn emit(
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(attachment),
-        parameters: entry_parameters.to_vec(),
+        parameters: control_parameters[0].clone(),
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
@@ -166,7 +159,12 @@ pub(super) fn emit(
         },
     };
     let mut machines = vec![machine];
-    let mut next_block = 6_u64;
+    let mut next_block = u64::try_from(state_ids.len())
+        .map_err(|_| LoweringError::Unsupported("nested block count exceeds u64"))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "nested block identity space is exhausted",
+        ))?;
     machines.extend(super::super::internal_calls::emission::emit_targets(
         checked,
         &catalogs.internal_targets,

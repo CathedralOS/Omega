@@ -1825,6 +1825,26 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
             );
         }
     }
+    let typed_nested = typed.join("composed_control/nested_control");
+    let typed_nested_entrance = typed_nested.join("mod.rs");
+    let typed_nested_source =
+        std::fs::read_to_string(&typed_nested_entrance).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                typed_nested_entrance.display()
+            )
+        });
+    assert!(
+        typed_nested_source.lines().count() <= 20,
+        "typed nested-control entrance exceeds its 20-line navigation budget"
+    );
+    for rung in ["assembly", "topology"] {
+        assert!(
+            typed_nested_source.contains(&format!("mod {rung};"))
+                && typed_nested.join(format!("{rung}.rs")).is_file(),
+            "typed nested-control entrance must name an existing `{rung}` rung"
+        );
+    }
     assert!(typed.join("providers.rs").is_file());
     assert!(terminal.join("claims.rs").is_file());
     assert!(terminal.join("provider_attachments.rs").is_file());
