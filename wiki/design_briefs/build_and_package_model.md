@@ -284,9 +284,13 @@ lookup, named result-overload rebinding, and conformance selection and duplicate
 checking plus downstream exact-symbol validation enforce base-to-extension
 invisibility and extension-wide precedence without changing generated-source
 custody or counts. This rung
-deliberately retains the full final frontend rebuild; continuation from the
-admitted base checkpoint and removal of the nominal build-machine rebind remain
-open.
+also binds the selected exact build-machine symbol to its prepared-program
+identity. Primary execution and filesystem replay consume that bound entry
+through symbol-only interpreter lookup, and cross-program entry substitution
+rejects even when raw arena-local handles collide. It deliberately retains the
+full final frontend rebuild; the activation-local admitted checkpoint,
+continuation from its retained base, and removal of the nominal final
+build-machine rebind remain open.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review
