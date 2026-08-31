@@ -201,12 +201,34 @@ successful and trapping outcomes.
 
 The observation profile is part of the verifier-reconstructed obligation, not
 producer configuration. Canonical source semantics, formal target semantics,
-boundary/component contracts, and consumer deployment policy determine it. A
-producer may neither choose nor weaken the profile. Exact profile identity is a
+boundary/component contracts, and a consumer-selected known typed schema
+determine it. Deployment policy composes a separate admission rather than
+silently changing this reusable observer. A producer may neither choose nor
+weaken the profile. Exact profile identity is a
 sound conservative replay gate. Normatively, reuse across profiles requires a
 canonical checked forgetting projection from the proved profile to the
 requested profile; profiles may be incomparable, so names or field inclusion
 never imply strength.
+
+D39 fixes the first reusable schema as `TerminalTraceV1`. It observes exact
+ordered external events and exact semantic values, then distinguishes normal
+return, `Trap`/`Abort`, successful external termination, and infinite maximal
+execution. The static profile carries value schemas and exact comparison rules;
+the execution trace, not the profile, carries runtime values. Terminal sites
+remain correspondence coordinates rather than user-visible values. Fuel,
+timeouts, `Incomplete`, compiler diagnostics/artifact bytes, and deployment
+admissions extend consumer/product subjects instead of redefining Terminal
+meaning. A product such as the Delta compiler composes those observations over
+`TerminalTraceV1`.
+
+The profile schema and one module-scoped instance are distinct. The consumer
+selects a known nonempty schema; the verifier reconstructs the instance from the
+canonical Terminal module, including its root, crash sites, external-event
+sites, and declared terminal-external sites, and binds it to that module's
+semantic commitment. Unknown versions or row kinds and absent, duplicate,
+padded, or unclassified observable sites reject. Equality of two instance
+commitments proves only equality of observers; the exact subject-bound
+refinement derivation remains mandatory.
 
 Every certificate and bridge records the exact subject/model/theory identity,
 semantics version, observation profile, target capsule, admitted premises, and

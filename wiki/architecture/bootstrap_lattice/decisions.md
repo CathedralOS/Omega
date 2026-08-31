@@ -1485,6 +1485,102 @@ adapts fixed storage to the borrowed `Slice` surface, while `Slice` itself owns
 no `as_slice` identity operation. Delta remains independently normative, but it
 does not broaden that member set in the rung intended to be Omega-shaped.
 
+## D39 — TerminalTraceV1 observes exact maximal semantic traces
+
+`TerminalTraceV1` is the first reusable Terminal observation schema. An
+observation profile is a static definition of what behavior is compared, not a
+report filled in by one execution. An execution has one maximal semantic trace;
+an artifact certificate proves refinement under the independently reconstructed
+profile. Equal profile identities establish only that two proofs use the same
+observer. They never establish behavior equality without the exact
+subject-bound refinement proof.
+
+The trace domain is termination-sensitive and ordered:
+
+```text
+ExternalEvent* Return(exact semantic value)
+ExternalEvent* Crash(Trap | Abort)
+ExternalEvent* ExternalTerminate(effect identity, exact semantic arguments)
+an infinite maximal execution, represented coinductively by its finite
+observable prefixes
+```
+
+Unit return is a distinct value-free `Return`. A silent infinite reduction and
+an infinite event-producing reduction are both semantic divergence, not fuel
+exhaustion. A step simulation may preserve their maximal traces without proving
+global termination or deciding which outcome occurs for every input. Missing
+ranking evidence, `Unknown`, and `NoFiniteGuarantee` therefore create no
+execution outcome and no profile row.
+
+The version-1 profile instance is reconstructed from the exact canonical
+Terminal module and contains, in closed order:
+
+1. a domain tag, schema version, Terminal vocabulary marker, and exact module
+   semantic commitment;
+2. one root row naming the entry, its ordered scalar and structural input
+   schemas, and its Unit/scalar/structural result comparison schema;
+3. crash-site rows ordered by `(machine, block, edge)`, each retaining the
+   closed cause;
+4. ordinary external-event rows ordered by `(machine, block, operation)`, each
+   retaining the event kind, exact public boundary or service identity, ordered
+   argument schemas, and result schema; and
+5. external-termination rows ordered by their exact Terminal site, public
+   effect identity, and argument schemas.
+
+The canonical identity encoding begins with the domain separator
+`omega.terminal.observation-profile.v1`, uses fixed little-endian numeric
+coordinates and length-prefixed canonical identities, and includes explicit row
+tags and counts in the order above. The root row makes every valid profile
+nonempty. Unknown schema versions, vocabulary markers, row tags, operation
+classifications, malformed ordering, duplicate rows, missing observable sites,
+extra sites, and empty profiles reject during decoding or reconstruction. A
+consumer selects the typed schema and may retain an authenticated expected
+instance commitment; the verifier derives the instance independently. A proof
+producer supplies neither rows nor weakening flags. Cross-profile reuse remains
+closed until a checked canonical forgetting projection exists.
+
+The static profile carries semantic type and comparison rules. Runtime traces
+carry the actual returned, argument, and result values, and refinement compares
+those values exactly. A digest may be a compact report coordinate only under an
+explicit commitment/collision admission; digest equality never silently
+replaces semantic value equality. Terminal machine/block/operation/edge sites
+are proof and correspondence coordinates. They do not become user-visible
+trace values unless a separate language contract explicitly observes a
+location.
+
+Version 1 classifies every ordinary `BoundaryCall` and direct semantic service
+operation such as `PortWrite` as an ordered external event. Every new Terminal
+operation variant must be classified explicitly as internal, ordinarily
+observable, or terminal-external under a known profile version; no default or
+unknown classification is accepted.
+
+External termination is a source-semantic effect, not the inference that a
+provider happens not to return. A result type of `never` proves only absence of
+normal return and cannot distinguish successful termination from divergence or
+crash. The checked boundary contract and Terminal declaration must retain a
+closed `TerminatesExternally(effect_identity)` completion kind, and invocation
+must lower as a terminal transfer rather than an ordinary `BoundaryCall` with a
+fictional successor. The selected provider and target realization consume that
+retained fact. Spelling, provider name, syscall choice, or backend convention
+never manufactures it.
+
+The current Omega `Console::exit_process(i32) -> Unit` path is therefore a
+physical migration slice, not complete semantic external-termination authority.
+The checked interpreter still recognizes `exit_process` by spelling, Terminal
+retains an ordinary Unit boundary call, and native lowering later introduces a
+nominally nonreturning `ExitProcessI32` operation plus containment trap. Those
+paths remain diagnostic/implementation evidence until the boundary contract,
+checked trees, Terminal codec/verifier/interpreter, and target join carry the
+same explicit terminal-effect identity end to end.
+
+Fixed-fuel exhaustion, evaluator timeouts, and producer/checker `Incomplete`
+remain consumer or product results and are not Terminal meaning. Source
+diagnostics, emitted artifact bytes, and compiler request/resource outcomes
+belong to compiler-product subjects; formal-target-to-silicon evidence belongs
+to deployment. D10's Delta compiler profile composes `TerminalTraceV1` with
+sealed input, exact diagnostic/artifact bytes, and its closed product outcomes
+rather than contradicting or replacing the reusable trace profile.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

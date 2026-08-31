@@ -152,7 +152,7 @@ stop the item on one precise owner question before adding machinery.
   General target layout now consumes the exact selected opaque-to-carrier
   application and derives by-value size/alignment from the carrier while
   references remain representation-free and a direct unselected by-value
-  demand rejects. Complete movement/finalization planning next; Q8 owns the
+  demand rejects. Complete movement/finalization planning next; Q7 owns the
   carrier-cleanup rule. Do not publish a partial demand row from
   calling-convention shape or size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
@@ -274,7 +274,7 @@ explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
   - [x] carry the same application into general target layout;
-  - [ ] complete physical move/finalization planning, including the Q8 cleanup
+  - [ ] complete physical move/finalization planning, including the Q7 cleanup
     ruling and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
     consumer demand from retained compiler custody, rejoin foreign demand to

@@ -952,7 +952,11 @@ implies neither selection nor audit. Review v97/canonical row v55 closes the
 first compiler-intrinsic execution identity for exact selected Linux
 `Console::exit_process(i32) -> Unit`; targetless, non-Linux, wrong-symbol,
 wrong-signature, sibling, and uncatalogued intrinsic rows remain fenced.
-Recovery remains v14.
+Recovery remains v14. This closes physical provider selection and emission,
+not D39 semantic external termination. One explicit checked terminal-effect
+completion identity must survive from the boundary contract through Terminal
+and the selected target realization before the path can issue that observation;
+Unit and backend nonreturning knowledge are insufficient.
 Selected payload-bearing leaves also cross the provider-plan ABI extractor by
 the same exact top-level requirement and normalized overload. Its semantic
 `self` is the satisfier's explicit carrier argument, not an erasable trait

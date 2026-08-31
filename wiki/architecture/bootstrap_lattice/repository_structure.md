@@ -75,8 +75,8 @@ The committed tree still has two important gaps:
   `self`, settled field/index/slice projection failures, D37 scalar and
   argument-`never` category joins and let/assignment/assert relations, D38's source fact
   relation, and symbolic Alpha encoding.
-  Remaining Q4-blocked entry diagnostics, Q10 state-transfer spelling, Q11
-  invalid-`self`, Q12 resultless-argument anchoring, D36 continuation/state
+  Remaining Q4-blocked entry diagnostics, Q9 state-transfer spelling, Q10
+  invalid-`self`, Q11 resultless-argument anchoring, D36 continuation/state
   classification, and D37 remaining control/return/terminal closure, D38
   lowering/executable
   controls, body/control checking, D34 physical storage refusal, lowering, tape

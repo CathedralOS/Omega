@@ -58,6 +58,13 @@ the source semantics, observation profile, or reconstructed proposition. The
 bad tape fails direct refinement. This is why diversified double compilation is
 diagnostic rather than a required trust mechanism.
 
+D39's `TerminalTraceV1` is the reusable observer at the Omega artifact edge.
+It compares ordered external events and exact semantic values through normal
+return, crash, declared successful external termination, and infinite maximal
+execution. Compiler products compose sealed inputs, diagnostics, artifact
+bytes, and product resource outcomes over that trace; native deployment composes
+its separate formal-target-to-silicon admission afterward.
+
 The first and self-hosted Omega compilers use different source closures, `D`
 and `C`, so byte equality is neither expected nor required. Each independently
 owes refinement to the full Omega language it implements.

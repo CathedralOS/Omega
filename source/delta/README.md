@@ -58,8 +58,8 @@ compilers and must not both be called “the Delta compiler.”
   `never` category joins and let/assignment/assert relations, and symbolic
   Alpha encoding.
   Remaining final body/control checking, Q4 entry diagnostics, D36
-  continuation/state classification including Q10's state-transfer spelling,
-  Q11's invalid-`self` diagnostic, Q12's resultless-argument anchor, the
+  continuation/state classification including Q9's state-transfer spelling,
+  Q10's invalid-`self` diagnostic, Q11's resultless-argument anchor, the
   remaining D37 control/return/terminal premise DAG, D38
   executable controls, storage realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact
