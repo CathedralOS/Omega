@@ -1196,17 +1196,19 @@ optimization.
 For a checked generic body, the compiler creates an ordinary authoritative
 machine specialization per distinct closed application and rechecks the
 substituted signature, contracts, effects, target restrictions, admissions,
-selected provider plan, and semantic realization. The retained Terminal row
-carries the exact requirement, tagged application, strong selected-plan
-identity, and a role-tagged realization payload. The closed roles are
-specialized checked body, nongeneric checked body, exact compiler intrinsic,
-and externally admitted concrete authority. The role discriminant is part of
-canonical identity; role-specific fields are not optional members of one
-common payload.
+selected provider plan, and semantic realization. Terminal retains the exact
+operator occurrence, requirement, and tagged application as a demand. The
+bound realization companion carries the strong selected-plan identity and a
+role-tagged realization payload. The closed roles are specialized checked
+body, nongeneric checked body, exact compiler intrinsic, and externally
+admitted concrete authority. The role discriminant is part of canonical
+identity; role-specific fields are not optional members of one common payload.
 
-A declaration with no static telescope has one canonical empty application.
-It performs no substitution but still rejoins its exact selected plan and
-realization. Bodyless, opaque, external, and separately supplied realizations
+A boundary operator with a static telescope of length zero has one canonical
+empty application. It performs no substitution but still rejoins its exact
+selected plan and realization. An ordinary boundary-trait machine has no
+telescope construct and never receives that application. Bodyless, opaque,
+external, and separately supplied realizations
 cannot borrow a checked template's authority; they require exact admitted
 authority for every application. Zero-commitment bootstrap lowering is not a
 coverage role. A builtin fallback that selects no boundary requirement emits
@@ -1222,22 +1224,26 @@ and stack homes, final call placement, relocation, and emitted bytes remain
 physical facts owned by native realization.
 
 Optimization does not rewrite the canonical Terminal artifact. Its validated
-projection retains the canonical `TerminalPsiIdentity` and identifies the D29
-boundary-operation occurrences that survive as executable operations. Every
-such occurrence has exactly one native physical child bound to both its
-domain-separated Terminal parent identity and distinct optimized-operation
-identity. Equal applications may share one semantic parent row but never one
-physical child. The child retains the target
-lowering, instruction selection, assignment, relocation, and emitted-byte-span
-joins. Native replay rejects a missing, duplicate, stale, substituted, or
-padded child. It permits omission only when the verified optimization proof
+projection retains the canonical `TerminalPsiIdentity` and identifies the
+boundary occurrences that survive as executable operations. Every such
+occurrence has exactly one native physical child. Its role-tagged
+`PhysicalChildParent` is either an `OperatorApplicationCoverageRef` to
+reconstructible D29 coverage or a retained-and-replayed D41
+`BoundaryTraitSettlement`. The D41 branch reuses `BoundaryExecutionBinding`;
+the role is not duplicated. Equal D29 applications may share one semantic
+parent but never one physical child. The child additionally binds its distinct
+optimized-operation identity and retains target lowering, instruction
+selection, assignment, relocation, and emitted-byte-span joins. Native replay
+rejects a missing, duplicate, stale, substituted, padded, or role-swapped
+child. It permits omission only when the verified optimization proof
 establishes elimination; without optimization the projection is the identity
 projection.
 
-Package review may publish the semantic Terminal row. Native or external
-execution authority additionally requires the physical child and complete set
-correspondence above. Housing both in one `NativeArtifact` envelope does not
-merge their evidence classes or replay rules.
+Package review may publish D29 semantic coverage without physical facts.
+Native or external execution authority additionally requires the physical
+child and complete set correspondence above. Housing both in one
+`NativeArtifact` envelope does not merge their evidence classes or replay
+rules.
 
 A future universal row may be compiler-issued only for an exact checked Omega
 body validated on the pristine symbolic graph. Its typed telescope retains
@@ -1256,9 +1262,10 @@ between an authored claim and compiler demand does not establish a checked
 realization. Compiler-derived tagged applications are demands. Coverage exists
 only after the compiler independently rejoins and rechecks the selected role-
 specific realization. Until that join lands, generic provider-family review
-fails closed. An empty telescope is one canonical empty application, not proof
-of coverage, and application evidence alone grants no resident-content,
-transfer, or installation authority.
+fails closed. A boundary-operator telescope of length zero is one canonical
+empty application, not proof of coverage; absence of a telescope on another
+declaration form is not that value. Application evidence alone grants no
+resident-content, transfer, or installation authority.
 
 Native realization also retains the exact nonzero selected-closure identity
 beside its source-free provider-plan projection. Component-candidate replay

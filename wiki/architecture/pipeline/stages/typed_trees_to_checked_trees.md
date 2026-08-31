@@ -218,8 +218,8 @@ Must own:
   explicit fences.
 
   The implemented first cohort is narrower than the completed D29 contract:
-  monomorphic selected boundary uses retain the canonical empty application,
-  while spelled and named operators retain complete closed inferred type/const
+  monomorphic selected boundary-operator uses retain the canonical empty
+  application, while spelled and named operators retain complete closed inferred type/const
   bindings keyed by requirement owner, category, and declaration ordinal. One
   structural operand judgment is shared by spelling selection and application
   derivation, including repeated and nested fixed-array const positions and

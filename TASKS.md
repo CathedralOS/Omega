@@ -779,9 +779,12 @@ Remaining:
   generic artifacts export only symbolic demand, and final specialization
   issues coverage after the selected checked-body, intrinsic, or exact
   external semantic realization recheck. D32 then binds every surviving
-  optimized boundary-operation occurrence to one exact native physical child
-  carrying the target-lowering, assignment, relocation, and emitted-span
-  joins. Empty telescopes use one canonical empty application. Bootstrap
+  settled boundary occurrence to one exact native physical child through the
+  role-tagged `PhysicalChildParent`: a reconstructible D29 operator-application
+  coverage reference or a retained-and-replayed D41 boundary-trait settlement.
+  The child carries the target-lowering, assignment, relocation, and emitted-
+  span joins. A boundary operator telescope of length zero uses one canonical
+  empty application; an ordinary boundary-trait call never does. Bootstrap
   lowering cannot issue authoritative coverage. Producing those exact rows
   remains work; genuinely universal realization coverage stays deliberately
   unimplemented under D28, alongside

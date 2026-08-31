@@ -1002,29 +1002,35 @@ ordered typed application; a still-generic use may export artifact-qualified
 symbolic demand, but only final substitution to a closed application can
 produce coverage. Type and const arguments are supported first. Const identity
 is the canonical evaluated value in its declared carrier, never its spelling;
-lifetime, machine, and proposition arguments remain fail-closed. Empty
-telescopes use one canonical empty application without substitution.
+lifetime, machine, and proposition arguments remain fail-closed. A boundary
+operator telescope of length zero uses one canonical empty application without
+substitution; an ordinary boundary-trait machine has no telescope and never
+uses that value.
 
 Checked generic bodies reuse ordinary authoritative specialization and recheck
 the substituted semantic, target, admission, selected-plan, and realization
-facts. The Terminal coverage row then binds the exact requirement,
-application, strong selected plan, and a role-tagged specialized-body,
-nongeneric-body, compiler-intrinsic, or external-authority payload. Bodyless
-and external supply stays exact-only. Bootstrap lowering is non-authoritative
-and cannot publish coverage. D28 deliberately adds no universal generic
-carrier until a checked generic operator realization exists.
+facts. Terminal retains the exact operator occurrence, requirement, and
+application demand. Its strongly bound companion retains the selected plan and
+a role-tagged specialized-body, nongeneric-body, compiler-intrinsic, or
+external-authority payload; coverage replay rejoins them. Bodyless and external
+supply stays exact-only. Bootstrap lowering is non-authoritative and cannot
+publish coverage. D28 deliberately adds no universal generic carrier until a
+checked generic operator realization exists.
 
 D32 keeps physical realization distinct. A validated optimization projection
 retains the immutable canonical Terminal identity and identifies the surviving
-executable boundary-operation occurrences carrying D29 rows. Equal applications
-may share one semantic parent, but each surviving occurrence receives one
-`NativeArtifact` physical child bound to both its domain-separated Terminal
-parent and distinct optimized-operation identity, with the complete target-
-lowering, selection, assignment, relocation, and emitted-span relation. Native
-replay derives the
-surviving set and rejects missing, duplicate, stale, substituted, or padded
-children. A verified eliminated occurrence needs no child. Package review may
-stop at semantic coverage; native or external execution claims may not.
+executable boundary occurrences. Each receives one `NativeArtifact` physical
+child whose role-tagged `PhysicalChildParent` is either a D29
+`OperatorApplicationCoverageRef` or a complete replayable D41
+`BoundaryTraitSettlement`. The D41 branch reuses the representation-rank
+`BoundaryExecutionBinding` and retains its settlement content because the
+lowerer creates it. Equal D29 applications may share one semantic parent, but
+each child also binds its distinct optimized-operation identity and the
+complete target-lowering, selection, assignment, relocation, and emitted-span
+relation. Native replay derives the surviving set and rejects missing,
+duplicate, stale, substituted, padded, or role-swapped children. A verified
+eliminated occurrence needs no child. Package review may stop at D29 semantic
+coverage; native or external execution claims may not.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not
@@ -2153,8 +2159,11 @@ Terminal boundary at the consuming lowerer, is admitted only by the local ELF
 target catalog, and survives machine/image and installation encoding as the
 role-tagged structural record `CompilerBuiltin(LinuxExitGroupI32)`. It creates
 no `ProviderExecutionEvidence`, compact execution coordinates, or provider
-execution report. Installed and foreign realizations retain their actual
-admitted-provider arm.
+execution report. Conversion from the planner classification into
+`CompilerBuiltinExecution` is one exhaustive `match` returning an optional
+catalog entry, so classification and payload cannot drift independently. The
+complete admitted settlement is retained for physical-child replay. Installed
+and foreign realizations retain their actual admitted-provider arm.
 
 The closure is heterogeneous and transitive. Every package or other subject
 retains its own obligation-semantics and evidence-schema identity. Checked
