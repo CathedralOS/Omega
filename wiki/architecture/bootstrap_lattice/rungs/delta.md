@@ -67,20 +67,22 @@ same walk retains exact-AST facts for settled literal, local-read, group,
 negation, binary scalar, record-field, array/view index, range-slice, and
 `.len` forms without duplicating the recursive checker. Exact field custody
 preserves its owner/member identity for later layout and lowering. One
-generalized callable ledger retains exact direct-qualified and settled grouped/
-unqualified machine application custody before category, arity, or type
-checking, and complete applications retain value, resultless, or `never` facts
-without manufacturing recovery facts. Exact catalog owners now supply positive
-receiver-scoped `self` custody and nominal place facts. Grouped named-data and
+generalized callable ledger currently retains direct-qualified and settled
+grouped/unqualified machine application custody before category, arity, or type
+checking. D51 removes its static qualified branch and replaces special `self`
+custody with an ordinary named receiver binding carrying the owner-derived
+nominal place. Grouped named-data and
 sealed-boundary receiver applications retain exact callable identity before
 receiver-place and shared signature joins; authored-field fallback and
-case/machine collision neutrality preserve D36's namespace rules. One field
+case/receiver-method spelling reuse preserves D51's namespace rules. One field
 classifier plus complete index/slice joins now retain settled projection
 failures and resultless/`never` categories without manufacturing relations from
 missing sibling facts. Scalar operators retain complete category branches;
 application arguments retain their explicitly anchored `never` branch while
-Q6 blocks the resultless anchor. Let/assignment/assert relations consume only
-their complete value/place premises and preserve storage `u8` establishment.
+D52's resultless sibling remains implementation work. Let/assignment/assert
+relations
+consume only their complete value/place premises and preserve storage `u8`
+establishment.
 Explicit terminal and arm returns consume the enclosing machine return type
 with D37's exact absence/value anchors. A private statement-flow relation
 retains a successful standalone `never` call, rejects the first following
@@ -100,22 +102,23 @@ Transition subjects are retained once as scalar `i32` or an exact nominal sum.
 Resolved case patterns retain exact case custody; payload arity and subject
 compatibility gate typed D24 binders. Completed non-wildcard selectors/cases
 retain positive semantic identity, and each sum transition retains complete,
-missing, or unresolved coverage without inventing Q8's pending negative
+missing, or unresolved coverage without inventing the pending negative
 pattern or coverage order.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q3 blocks the
-incomplete entry-diagnostic judgment. D36's qualified-only receiver parser,
-case/machine collision census, direct qualified applications, and settled
+incomplete entry-diagnostic judgment. D36's receiver parser, the now-superseded
+case/machine collision census and direct static applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
-only Q4's bare-state spelling and Q5's invalid-`self` diagnostic remain from
-that category boundary. Q6's resultless-argument anchor, Q8's transition-
-pattern and coverage diagnostic totality, and reachability remain open. D37's
+the D50 bare-state branch, D51 receiver normalization, D52 resultless-argument
+branch, and D53 local block-exit carrier remain implementation work, while
+transition-pattern and coverage diagnostic totality remain owner-blocked. D37's
 field/index/slice projection failures, scalar categories,
 argument-`never` branch, let/assignment/assert and explicit-return relations,
-and first-following-statement terminal flow are implemented;
-Q7 blocks explicit terminals after `never`, forbidden falloff, machine-call
-continuation exit behavior, and the complete reachability judgment; its
-remaining control and terminal-flow composition remains open. D38
+and first-following-statement terminal flow are implemented; D53 supersedes that
+coordinate and settles explicit terminals after `never`, forbidden falloff, and
+machine-call continuation effects as local facts with no reachability judgment.
+Its implementation and the remaining control/terminal-flow composition remain
+open. D38
 settles the place-
 valued fixed-array receiver
 and non-place full-view result for `.as_slice`; its source fact relation is

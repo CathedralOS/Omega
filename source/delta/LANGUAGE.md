@@ -101,10 +101,9 @@ payload        := "(" parameters? ")"
 
 machine_decl   := "machine" IDENT "(" parameters? ")"
                   return_type? machine_body
-                | "machine" IDENT "::" IDENT "(" receiver_and_params? ")"
+                | "machine" IDENT "::" IDENT "(" receiver
+                  ("," parameters)? ")"
                   return_type? machine_body
-receiver_and_params
-               := receiver ("," parameters)? | parameters
 receiver       := "&" "mut" "self"
 parameters     := parameter ("," parameter)*
 parameter      := IDENT ":" type
@@ -125,7 +124,6 @@ statement      := "let" IDENT ":" type "=" expression ";"
 
 terminal       := transition
                 | "return" expression? ";"
-                | never_call ";"
 
 transition     := "transition" expression "{" arm+ "}"
 arm            := pattern "->" continuation
@@ -137,7 +135,6 @@ continuation   := postfix_expression
 
 place          := postfix_expression
 call           := postfix_expression
-never_call     := call
 arguments      := expression ("," expression)*
 
 expression     := logical_or
@@ -169,14 +166,27 @@ only as the operand spelling of `-2147483648`; every other integer token must be
 within nonnegative `i32` range. Binary levels associate left. Postfix and unary
 bind more tightly than every binary level.
 
-Only an owner-qualified machine declaration may carry `&mut self`. An
-unqualified declaration parses ordinary parameters only, so `&` in its input
-list is `UnexpectedToken` at that byte. Every machine application has an
-authored argument list, including `()` for a zero-parameter machine. The
-qualified primary retains the distinction between bare `Owner::name` and
-`Owner::name()`; a bare machine identity is neither a first-class value nor a
-machine application and is `TypeMismatch` at the qualified expression's first
-byte in an ordinary expression.
+Every owner-qualified data machine begins with `&mut self`; a receiverless
+owner-qualified machine is not a Delta declaration. An unqualified declaration
+accepts ordinary parameters only, so `&` in its input list is
+`UnexpectedToken` at that byte. Conversely, `)` or an ordinary parameter where
+a qualified declaration requires its receiver is `UnexpectedToken` at that
+token.
+
+For `machine Buffer::clear(&mut self)`, the first input is exactly the mutable
+`Buffer` instance. `self` is its fixed reserved binding symbol: it has the
+owner's nominal type and storage place, remains active in the machine's states,
+and lowers as that receiver rather than as a distinct runtime value. The parser
+normalizes an authored `self` expression to the ordinary local-reference path
+using the keyword's own source span. Outside a machine that introduced this
+binding, `self` therefore follows the existing absent-local rule and is
+`UnknownName`; there is no direct contextual-`self` rejection.
+
+Every machine application has an authored argument list, including `()` for a
+zero-parameter unqualified machine or receiver method. Owner-qualified data
+machines are invoked only through a receiver postfix such as `buffer.clear()`.
+For a data owner, `Owner::name` and `Owner::name(...)` are constructor syntax,
+not static-machine syntax.
 
 The checker classifies a postfix expression by its resolved declaration. A
 `place` may contain only field and single-index suffixes rooted at `self`, a
@@ -184,7 +194,13 @@ parameter, or a local. A `call` must end in a resolved machine application. A
 slice, `.len`, `.as_slice`, constructor, or call is not an assignable place.
 Within a transition, a continuation must resolve uniquely to a state transfer,
 a machine call, or a return. State names and callable names that would make
-that resolution ambiguous reject.
+that resolution ambiguous reject. Every state transfer has an authored argument
+list, including `()` for a zero-parameter state. A known bare state is not a
+transfer, regardless of its arity, and is `InvalidControlTarget` at the
+continuation expression's first byte. A bare known machine and an unqualified
+state/machine collision produce the same judgment at that coordinate. These
+are distinct source causes with one public rejection; neither arity nor the
+published outcome distinguishes them.
 
 The grammar admits no `use` declaration, attribute, domain annotation, range
 type, contract clause, `terminates by` clause, special result binding,
@@ -233,14 +249,11 @@ Classification requires one unique owner identity. A boundary/data owner
 collision contributes `DuplicateName`; qualified bodies under that ambiguous
 spelling contribute no inferred owner-kind failure.
 
-Within one data owner, every sum case and qualified machine also participates
-in one callable-name registry. Equal `(owner, name)` spellings are
-`DuplicateName` at the later case or machine declaration's first byte,
-regardless of payload or parameter arity. Fields do not participate in this
-cross-kind registry because field access is position-distinguished; the
-existing field/case member collision rule remains unchanged. This callable
-check occurs during the same complete census and competes with every other
-`DuplicateName` and `InvalidBoundary` candidate by packed coordinate.
+A sum case and receiver machine under one data owner may share a spelling.
+`Owner::name(...)` selects the case namespace, while `value.name(...)` selects
+the receiver-machine namespace; neither expected type nor arity chooses between
+them. Fields likewise remain position-distinguished, and the existing
+field/case member collision rule inside a data declaration is unchanged.
 
 Delta v1 permits no active local shadowing. Machine parameters are active
 throughout the invocation. A state parameter is active only in that state body.
@@ -300,10 +313,15 @@ otherwise traps as `ByteRange`.
 
 `never` is a bottom/control type permitted only as a machine return type. It has
 no values and is forbidden in fields, payloads, parameters, locals, arrays, and
-views. A call returning `never` is a terminal and cannot be bound or assigned.
-An authored `-> never` machine must have no reachable normal return or falloff;
-it may diverge or terminate through another `never` call. A statement after a
-`never` call in the same block rejects as `InvalidTerminal`.
+views. A call returning `never` cannot be bound or assigned. A
+semicolon-terminated call is syntactically a statement; when its resolved
+result is `never`, it gives the block no normal return. An authored `-> never`
+machine admits no normal return or falloff in any entry or state block; it may
+transfer state, diverge, or terminate through another `never` call. Every
+declared block is checked regardless of reachability. Any later executable
+construct in that block rejects as `InvalidTerminal` at its terminating `;` or,
+for a transition, its closing `}`. State declarations following the entry
+sequence are not executable successors.
 
 The permitted occurrence is the exact outer machine-return type. Every other
 authored `never` occurrence rejects as `TypeMismatch` at the `never` token.
@@ -429,22 +447,30 @@ machines with those names.
 
 ## 8. Machines, states, and transitions
 
-Calls bind value parameters and, where declared, one mutable receiver. All
+Unqualified calls bind value parameters. Every owner-qualified data-machine
+call additionally binds its first input to the receiver's mutable data place;
+the declaration spelling `&mut self` has exactly the owning data type. All
 effects are committed before return. Recursion and state cycles are permitted;
 Delta v1 does not require a termination annotation.
 
-Callable identity resolves before arity or type checking. Because declaration
-collection rejects a case/qualified-machine spelling collision, an accepted
-`Owner::name(...)` has at most one callable meaning. Statement position,
-expected result type, argument arity, and declaration order never select a
-constructor or machine. A uniquely resolved constructor is not a call
-statement or control target. An unqualified state and machine that both match
-one transition continuation reject as `InvalidControlTarget` at that
-continuation expression's first byte.
+Callable identity resolves before arity or type checking. A data-owner
+`Owner::name(...)` considers only sum cases, while `value.name(...)` considers
+only receiver machines and a bare `name(...)` considers only unqualified
+machines. Statement position, expected result type, argument arity, and
+declaration order never select a callable namespace. A uniquely resolved
+constructor is not a call statement or control target. An unqualified state and machine that both match one
+transition continuation, a known bare state, and a known bare machine all
+reject as `InvalidControlTarget` at that continuation expression's first byte.
+These distinct causes deliberately share one judgment. A bare state retains no
+state application or first-class reference: no application was authored, and
+state labels are not values. A bare machine may retain the general callable
+reference already used by machine resolution without becoming an application.
 
 Body and control checking is one finite premise DAG, not traversal-driven error
-recovery. Every authored child judgment is visited and retains its independent
-candidate even when its parent cannot be formed. A failed child, whether it
+recovery. Every authored child judgment is visited and derives its independent
+candidate even when its parent cannot be formed. The candidate set may be
+reduced online to the smallest coordinate without physically retaining later
+losers. A failed child, whether it
 contributes a candidate or no semantic fact, does not satisfy a parent premise
 and is never replaced by an error type, guessed `i32`, place, or callable. A
 parent success or rejection candidate exists exactly when every fact consumed
@@ -465,11 +491,16 @@ A complete expression result is exactly a value with its type and optional
 place, a resultless call, or a `never` call. A place-required judgment consumes
 only a complete value result. A value with no place contributes `InvalidPlace`;
 an unresolved expression cannot. A resultless call used where a value is
-required contributes `TypeMismatch`. A `never` call is admitted only as the
-exact terminal; embedding it in another expression or statement contributes
-`InvalidTerminal`, and the first statement following a `never` terminal also
-contributes `InvalidTerminal`. No mutability discriminator exists: immutable
-views and other nonassignable values simply carry no place.
+required contributes `TypeMismatch`. When it is a direct machine or constructor
+argument, that failure anchors at the authored argument expression's first byte,
+including an outer grouping `(`. A `never` call is admitted only as an exact
+semicolon-terminated statement or an admitted machine continuation; embedding
+it in another expression contributes `InvalidTerminal`, and any later
+executable construct in the same block also contributes `InvalidTerminal` at
+its terminating delimiter. A grouped `never` argument retains the exact
+mispositioned call-head anchor rather than the surrounding group. No mutability
+discriminator exists: immutable views and other nonassignable values simply
+carry no place.
 
 Projection rules consume complete base and index/bound facts. An absent member
 on any complete base contributes `UnknownName` at the member spelling. A known
@@ -487,25 +518,46 @@ assignment, `assert`, return, or transition value-type relation uses the
 initializer, assigned value, asserted expression, returned expression, or
 transition subject start respectively. A required but absent return value uses
 the `return` keyword. `InvalidControlTarget` uses the continuation expression
-start, and `InvalidTerminal` uses the mispositioned `never` call or first
-following statement start.
+start. `InvalidTerminal` uses the mispositioned `never` call, or the terminating
+`;`/`}` of the first later executable construct after a successful `never`
+statement.
 
 All admitted body/control candidates merge by smallest packed source
 coordinate. Repeated derivation of the same reason at the same coordinate is
-one candidate. Two distinct reasons at one coordinate after applying the
-premise DAG are a compiler contradiction and produce outer `InternalFailure`,
-never a Delta rejection chosen by reason-code order. Runtime short-circuiting,
-transition selection, and source traversal do not suppress static checking of
-authored child expressions or arms.
+one candidate. No two simultaneously derivable distinct reasons may share one
+coordinate by construction. Finding such a pair after applying the premise DAG
+is a compiler contradiction and produces outer `InternalFailure`, never a
+Delta rejection chosen by reason-code order. Every relation consuming a call's
+result category is blocked by that call's arity failure because the result
+exists only after its arity and argument-type join succeeds. Runtime short-
+circuiting, transition selection, and source traversal do not suppress static
+checking of authored child expressions or arms.
 
-A resultless machine may `return;` or fall off a reachable block. A
-value-returning machine must `return expression;` on every reachable normal
-path. A `never` machine has no normal return path.
+Every machine entry and every declared state block has only local exit effects:
+
+```text
+Falloff | ReturnNone | ReturnValue(type) | NoNormalReturn | StateTransfer(state)
+```
+
+A resultless machine admits `Falloff`, `ReturnNone`, `NoNormalReturn`, and
+`StateTransfer`. A machine returning `T` admits a structurally compatible
+`ReturnValue(T)`, `NoNormalReturn`, and `StateTransfer`. A `never` machine
+admits only `NoNormalReturn` and `StateTransfer`. An incompatible falloff is
+`TypeMismatch` at the exact closing `}` of the entry or state body. Every block
+is checked independently, including unused states; return validation performs
+no reachability traversal, cycle detection, or termination proof.
 
 State declarations are control labels inside one machine invocation. State
 arguments initialize their parameters simultaneously. A transition evaluates
 its subject exactly once, then inspects arms in source order. It evaluates only
-the selected continuation and its arguments.
+the selected continuation and its arguments. Each arm has one local exit
+effect. A state application is `StateTransfer` and is compatible with every
+machine category because every target state is checked under that same machine
+category. A resultless machine continuation becomes `Falloff` if it returns; a
+`never` machine continuation is `NoNormalReturn`; and a value-returning machine
+continuation is `TypeMismatch` at the continuation expression start. A value
+return is written explicitly as `-> return expression`; there is no implicit
+machine-tail return effect.
 
 A sum transition must name every case exactly once or end with `_`; this is a
 static rule. A scalar transition may use integer or Boolean patterns and at

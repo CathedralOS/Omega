@@ -66,22 +66,25 @@ The committed tree still has two important gaps:
 - the former Beta-written Delta-to-Gamma and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
-  D36's qualified-only receiver parser and case/machine collision census, D31
+  D36's receiver parser and now-superseded case/machine collision census, D31
   structural type formation, a source-backed resolution catalog, ordered local
   resolution, scalar/aggregate value-place facts, one generalized callable
   ledger with direct-qualified, settled grouped/unqualified, named-data
   receiver, and sealed-boundary receiver results plus postfix-statement
   category admission, separate resolved/complete explicit-state custody and
   state/machine collision rejection, transition subject/resolved-case/complete-
-  binder custody and retained sum coverage, positive receiver-scoped `self`,
+  binder custody and retained sum coverage, the superseded special
+  receiver-scoped `self` carrier,
   settled field/index/slice projection failures, D37 scalar and
   argument-`never` category joins, let/assignment/assert and explicit-return
   relations, first-following-statement terminal flow, D38's source fact
   relation, and symbolic Alpha encoding.
-  Remaining Q3-blocked entry diagnostics, Q4 state-transfer spelling, Q5
-  invalid-`self`, Q6 resultless-argument anchoring, Q7 block-exit totality,
-  Q8 transition-pattern/coverage diagnostics, reachability checking, and D37
-  remaining terminal closure, D38 lowering/executable controls, body/control
+  D50 fixes state-transfer spelling, D51 fixes receiver normalization,
+  static-qualified removal, and disjoint case/method namespaces, D52 fixes
+  resultless-argument anchoring, and D53 fixes local block exits without
+  reachability analysis; their branches remain implementation work. Entry
+  diagnostics, transition-pattern/coverage diagnostics, D37 remaining terminal
+  closure, D38 lowering/executable controls, body/control
   checking, D34 physical storage refusal, lowering, tape publication, and
   refinement are still open.
   The restricted Delta-written native compiler prototype was also deleted: it

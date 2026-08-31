@@ -27,8 +27,12 @@ least one of these holds and the normative contract is revised explicitly:
   witness rather than target-dependent type validity or arbitrary-precision
   source arithmetic;
 - checked integer arithmetic sufficient for compiler indexing and layout;
-- deterministic control flow, calls, and recursion with explicit resource
+- deterministic control flow, calls, and recursion with five locally checked
+  block-exit effects, no reachability-dependent validity, and explicit resource
   ceilings;
+- free machines plus owner-qualified data methods whose mandatory first input
+  is the owning mutable instance; reserved `self` is that ordinary receiver
+  binding, not a second value model or an owner-qualified static facility;
 - enough source custody to consume the exact package-resolved closure `D`;
 - conservative lowering to canonical Alpha tape.
 

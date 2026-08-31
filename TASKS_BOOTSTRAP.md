@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment, resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q3/Q4/Q5/Q6/Q7/Q8 diagnostics, complete transition-pattern negatives and coverage, reachability, and the remaining D37 terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53 and resolve Q3/Q4 diagnostics, complete transition-pattern negatives and coverage plus the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1060,8 +1060,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     operator set without a whole-source ledger. Token start, code, end, and
     literal value are scalar `Int` facts, so repeated parser lookahead allocates
     no token/outcome objects in Gamma's fixed immutable heap. A
-    semicolon-terminated postfix form remains syntactically neutral until
-    resolution classifies an ordinary call or final `never` terminal. No
+    semicolon-terminated postfix form is retained without a parser-time
+    semantic guess. D53 subsequently fixes it syntactically as a statement and
+    gives a successfully resolved `never` call `NoNormalReturn` semantics. No
     byte-rope arena, numeric node reference, parser-time semantic guess, or
     private arity bound is introduced.
   - [x] Implement complete D17 type and expression recursive descent over that
@@ -1290,20 +1291,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
     coverage row as complete, missing, or unresolved after all arms. Unknown
     owners/cases keep their settled name diagnostics, but category, payload-
     arity, duplicate, wildcard-placement, and missing-coverage rejections wait
-    for Q8's total premise order. Q7 separately owns block-exit reachability.
+    for Q4's total premise order. D53 separately owns local block exits.
     The Gamma gate establishes source formation only until the real compiler
     edge exists.
-  - [ ] **OWNER-BLOCKED — Q8 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.** The
+  - [ ] **OWNER-BLOCKED — Q4 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.** The
     language does not order category, payload-arity, and duplicate relations
     that can share one pattern coordinate; it also assigns no total rejection
     to a single nonfinal `_`, no precedence for repeated wildcards, and no
     coordinate to `NonexhaustiveSum`. Retain the exact positive subject,
     resolved-pattern, complete-binder, and coverage facts above; do not invent
-    public rejections while Q8 is unresolved.
+    public rejections while Q4 is unresolved.
   - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Enforce D36 without
     merging the retained constructor and machine catalog rows or choosing a
     callable by lookup order, arity, expected type, statement context, or
-    control context.
+    control context. The completed sub-bullets below describe the current
+    source; D51 supersedes its case/machine census, receiverless-qualified
+    path, and special `self` carrier, whose removal is tracked separately.
     - [x] Split machine-input parsing by the already parsed name shape. Only an
       owner-qualified declaration accepts `&mut self`; an unqualified `&`
       rejects directly as `UnexpectedToken` at that byte.
@@ -1365,14 +1368,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
         Constructors, bare machines, static receiver-machine spellings, known
         qualified fields/boundary members, and complete noncallable values are
         `TypeMismatch` before arity/type derivation; unresolved premises add no
-        dependent failure. Wrong arity/type and Q6-incomplete admitted calls
-        retain custody without a second mismatch. Value/resultless results may
+        dependent failure. Resultless arguments remain pending D52's exact
+        sibling candidate rather than acquiring a second mismatch here.
+        Value/resultless results may
         be discarded and a successful `never` result is left for the later
         block-flow judgment. At this submilestone, transition-continuation/state
         admission and post-`never` flow remained open; the later bullet closes
         the settled explicit-state slice. The Gamma gate proves source
         formation only until the real compiler edge exists.
-      - [x] Implement Q4-independent transition-continuation admission. Thread
+      - [x] Implement transition-continuation admission except D50's bare-state
+        branch. Thread
         the exact enclosing machine only through continuation resolution; join
         an explicit bare-name application against its state namespace and the
         global unqualified-machine namespace before arity; and reject a dual
@@ -1387,20 +1392,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
         values use continuation-category failures before dependent checking.
         Same-spelled ordinary fields remain fields when no call syntax exists,
         and explicit state/local reuse selects the state namespace. All
-        authored arguments keep their sibling failures. Q4 leaves only the
-        state-only bare spelling unresolved; Q7 separately owns machine-call
-        exit effects. Transition subject/pattern/binder and reachability rules
+        authored arguments keep their sibling failures. D50 now leaves only the
+        state-only bare branch unimplemented; D53 separately owns machine-call
+        exit effects. Transition subject/pattern/binder rules
         remain open. The Gamma gate establishes source formation only until the
         real compiler edge exists.
-      - [ ] **OWNER-BLOCKED — DELTA BARE STATE TRANSFER.** The continuation
-        grammar and D36 do not decide whether a zero-parameter state transfer
-        may be a bare state spelling or must author `()`. Implement explicit
-        state applications and state/machine collision independently; do not
-        accept or reject the bare form until the owner queue ruling lands.
-      - [ ] **OWNER-BLOCKED — DELTA INVALID `self`.** Positive `self` custody
-        inside a receiver-bearing qualified data machine is implemented. The
-        language does not assign a rejection reason/anchor to `self` outside
-        that scope; leave only that negative relation pending its owner ruling.
+      - [ ] **IMPLEMENTATION — D50 DELTA BARE STATE TRANSFER.** For every known
+        bare state, independent of arity, add `InvalidControlTarget` at the
+        continuation start without adding a state application or first-class
+        state reference. Keep the existing bare-machine callable reference and
+        the state/machine-collision judgment. Add distinct controls for a bare
+        zero-parameter state, bare parameterized state, bare machine, and dual
+        collision even though all publish the same reason and coordinate.
+      - [ ] **IMPLEMENTATION — D51 DELTA RECEIVER NORMALIZATION.** Require
+        `&mut self` as the first input of every owner-qualified data machine and
+        reject receiverless qualified declarations in the parser. Retire direct
+        qualified static-machine application and the case/machine collision
+        census; allow a case and receiver method to share a spelling because
+        constructor, receiver, and free-machine syntax select disjoint
+        namespaces. Normalize the reserved `self` keyword to an ordinary name
+        expression, replace the nameless self carrier with one named receiver
+        local carrying the owner-derived type/place, and delete self-only lookup
+        plus `NoDeltaLocalBindingName`. Undeclared `self` then reaches the
+        existing `UnknownName` branch. Keep `NoDeltaLocalBindingType` for
+        unresolved transition binders. Add D51's syntax, namespace, state-scope,
+        no-cascade, and earliest-coordinate controls.
   - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
     independent child candidate, but derive a parent success or rejection only
     after every fact consumed by that rule resolves. Implement the callable/
@@ -1460,27 +1476,34 @@ code, discover a closure, manufacture proof premises, or decide admission.
       successful standalone `never` statements as a source-shaped block-flow
       fact, reject only the first following ordinary statement at that
       statement's start, and continue checking every authored later child.
-      Explicit terminals after `never`, non-resultless falloff, and machine-call
-      continuation exit behavior remain Q7-blocked; transition target and
-      pattern relations remain open independently. The Gamma gate establishes
+      This completed behavior describes the current source only:
+      D53 now supersedes the first-following-statement coordinate and settles
+      later constructs after `never`, local falloff, and machine-continuation
+      exit behavior; transition target and pattern relations remain open
+      independently. The Gamma gate establishes
       source formation only until the real compiler edge exists.
-    - [ ] **OWNER-BLOCKED — Q6 RESULTLESS ARGUMENT ANCHOR.** D37 requires a
-      resultless call used as an argument to contribute `TypeMismatch`
-      independently of callee admission and arity, but does not assign its
-      coordinate. The application start collides with `ArityMismatch` and
-      would turn ordinary invalid source into `InternalFailure`; the argument
-      start is plausible but not yet authoritative. Retain the explicitly
-      anchored `never` argument branch and no resultless-argument candidate
-      until Q6 settles the anchor.
-    - [ ] **OWNER-BLOCKED — Q7 DELTA BLOCK-EXIT TOTALITY.** D17 fixes return
-      obligations and D37 fixes explicit-return and following-statement
-      anchors, but neither assigns a diagnostic to value/`never` falloff or to
-      an explicit return/transition after a successful standalone `never`
-      call. The return effect of a machine-call transition continuation is also
-      unspecified, so complete reachability and block-exit validation would
-      invent language behavior. Retain the settled explicit-return and first-
-      following-statement relations, but do not classify those exits until Q7
-      settles them.
+    - [ ] **IMPLEMENTATION — D52 RESULTLESS ARGUMENT ANCHOR.** In the existing
+      argument-category sibling scan, make a resultless machine or constructor
+      argument contribute `TypeMismatch` at the authored argument expression's
+      first byte, including outer grouping. Keep grouped `never` anchored at
+      its exact call head. Derive the argument relation independently of the
+      enclosing callee and arity, then let the minimum-coordinate accumulator
+      publish the earlier outer failure when present. Add controls proving
+      wrong arity, unknown/inadmissible outer callees, and grouped category
+      cases never create a distinct-reason coordinate tie or `InternalFailure`.
+    - [ ] **IMPLEMENTATION — D53 LOCAL DELTA BLOCK EXITS.** Remove the
+      call-statement/terminal grammar overlap and classify every entry and state
+      block locally with exactly `Falloff`, `ReturnNone`, `ReturnValue`,
+      `NoNormalReturn`, or `StateTransfer`; do not add a machine-tail variant or
+      a reachability/fixed-point pass. Check unused states under the enclosing
+      machine category. Map a resultless machine continuation to falloff, a
+      `never` continuation to no normal return, and a value continuation to
+      `TypeMismatch` at its start. Diagnose incompatible falloff at the exact
+      closing brace. Replace the current first-following-statement rule with
+      the terminating-delimiter rule for the first later executable construct
+      after `never`, keep checking its children, and suppress its block-exit
+      parent relation. Add empty/nonempty, unused-state, cycle, all-five-effect,
+      continuation-category, and delimiter/brace controls.
   - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
     once and retain a non-place immutable full-range view without allocation,
