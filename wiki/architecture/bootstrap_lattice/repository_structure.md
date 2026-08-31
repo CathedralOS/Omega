@@ -67,14 +67,13 @@ The committed tree still has two important gaps:
   were deleted because they implemented a superseded cross-rung route. The
   Gamma-written replacement now owns complete syntax, D22/D24 identity census,
   D31 structural type formation, a source-backed resolution catalog, ordered
-  local resolution, and symbolic Alpha encoding. Remaining Q4-blocked entry
-  diagnostics, Q5
-  receiver/callable ambiguity, body/control checking, D34 physical storage
-  refusal, lowering, tape publication, and refinement are still open. The
-  restricted
-  Delta-written native compiler prototype was also deleted: it was neither that
-  compiler nor the full Omega closure `D` and had no economical unit-level
-  adaptation into either owner.
+  local resolution, scalar value/place facts, and symbolic Alpha encoding.
+  Remaining Q4-blocked entry diagnostics, Q5 receiver/callable ambiguity, Q6
+  dependent-diagnostic composition, body/control checking, D34 physical
+  storage refusal, lowering, tape publication, and refinement are still open.
+  The restricted Delta-written native compiler prototype was also deleted: it
+  was neither that compiler nor the full Omega closure `D` and had no
+  economical unit-level adaptation into either owner.
 
 These gaps are implementation work, not alternate accepted architectures. A
 legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its

@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, and symbolic Alpha encoding | resolve Q4 entry diagnostics and Q5 callable ambiguity, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar value/place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics, Q5 callable ambiguity, and Q6 dependent-diagnostic composition; complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1117,16 +1117,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
     behavioral canaries remain dependency-blocked on the real Gamma compiler
     edge.
   - [x] **D31 — DELTA-TYPE-FORMATION-V1.** Fix lengths `1..INT32_MAX`, empty
-    data as one zero-field record, mixed-data rejection, exact
-    `never`/view/`Console` placement, and disjoint structural anchors. Valid
+    data as one zero-field record, mixed-data rejection, exact storage-only
+    `u8` and `never`/view/`Console` placement, and disjoint structural anchors.
+    Valid
     source that exceeds one selected application-static-storage profile returns
     attributed or aggregate outer `Incomplete`; it is never a Delta rejection.
   - [x] **IMPLEMENTATION — D31 STRUCTURAL TYPE FORMATION.** Replace the
     unknown-name-only precursor with the complete profile-independent
     structural judgment. It classifies every empty declaration explicitly as
     a zero-field record, rejects mixed data at the declaration name, enforces
-    positive array lengths, admits `never` and views only at their exact outer
-    placements, suppresses every child defect beneath a forbidden view, and
+    positive array lengths, admits storage-only `u8`, `never`, and views only
+    at their exact placements, suppresses every child defect beneath a
+    forbidden view, and
     treats exact `Console` spelling as the sealed `Main.console` capability
     before ordinary owner lookup. One source-coordinate candidate sum merges
     all placement, shape, unknown, and recursive-value failures by offset;
@@ -1140,6 +1142,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     checks through the Gamma frontend gate. Exact behavioral vectors remain in
     the adjacent contract-derived plan until the real Gamma compiler can
     execute them; no host evaluator is introduced.
+    - [x] Close the standalone-`u8` enforcement hole: admit it in stored data
+      and nested array/view element positions, but reject an exact outer
+      parameter, local, or return as `TypeMismatch` at its type token. Treat
+      `Main.console` as structurally stored and leave its required sealed type
+      to Q4's entry-shape judgment. This enforces D17's existing storage-only
+      rule rather than creating a new Delta decision.
   - [x] **D31 OUTCOME-SCHEMA PLUMBING.** Retain the two source-owned
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
     Gamma-profile schema check. This establishes nominal plumbing only and
@@ -1177,7 +1185,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     machine-local state lookups consume those rows without numeric node IDs or
     a second flattened syntax tree. Structural type equality compares nominal
     names and semantic array lengths, and a neutral final-phase bucket retains
-    every reason tied at the smallest coordinate until Q4/Q5 settle
+    every reason tied at the smallest coordinate until Q4/Q5/Q6 settle
     composition. The foundation type-checks through the real Gamma frontend;
     it claims no completed body judgment or behavioral execution.
   - [x] **IMPLEMENTATION — DELTA ORDERED LOCAL RESOLUTION.** Retain the exact
@@ -1190,15 +1198,37 @@ code, discover a closure, manufacture proof premises, or decide admission.
     yields `UnknownName`, both at the reference start. Direct call and control
     heads remain for their grammar-selected namespaces, while every nested
     argument, operand, and place expression is visited. Resolution rows remain
-    in source order and are recoverable by exact expression offset; one neutral
+    in source order and are recoverable by exact expression constructor and
+    span, so same-start postfix nodes cannot alias their bases; one neutral
     candidate bucket collects all failures without promoting a rejection. The
     complete source type-checks through the Gamma frontend. Exact behavioral
     vectors remain planned until the real Gamma compiler edge can execute them.
+  - [x] **IMPLEMENTATION — DELTA SCALAR VALUE/PLACE FACT FOUNDATION.** Extend
+    the existing ordered expression walk instead of adding a duplicate
+    recursive checker. Retain a source-ordered exact-AST fact carrying one of
+    value-with-optional-place, resultless, or never. Materialize `i32` facts for
+    integer, character, and Boolean literals, immutable `&[u8]` for strings,
+    declared-value plus storage-place facts for resolved parameters/locals,
+    place-preserving groups, and non-place `i32` results for complete scalar
+    negation/binary operands. Do not manufacture a parent fact or dependent
+    error when a needed child judgment is absent. Field/index/slice/call,
+    receiver, constructor, transition-binder, resultless, and never completion
+    remain in the body/control task. The Gamma frontend type-checks the complete
+    source; executable semantics remain dependency-blocked on the real Gamma
+    compiler edge.
   - [ ] **OWNER-BLOCKED — Q5 DELTA RECEIVER/CALLABLE AMBIGUITY.** Do not assign
     a type to unqualified `&mut self`, or choose between a same-spelled
     constructor and qualified machine by expected type, arity, or traversal.
     Q5 blocks only those cases; retain both callable lookups and continue every
     unambiguous body/control judgment.
+  - [ ] **OWNER-BLOCKED — Q6 DELTA DEPENDENT-DIAGNOSTIC COMPOSITION.** The
+    closed rejection set and earliest-coordinate phase rule do not say whether
+    an enclosing operator/call/place/statement may contribute its own
+    `TypeMismatch`, `ArityMismatch`, or `InvalidPlace` while a required child
+    judgment is absent or already erroneous. Retain independent child facts and
+    suppress dependent parent candidates for now; Q6 blocks only final
+    candidate composition, not continued resolution and typing of complete
+    subtrees.
   - [ ] **DEPENDENCY-BLOCKED — D31/D34 APPLICATION STATIC STORAGE.** After
     complete body/control checking and the final nonaliasing generated-program
     map exist, derive its selected static-storage limit and expand only

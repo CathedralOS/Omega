@@ -1119,14 +1119,16 @@ and cases remains `InvalidDataShape` at its declaration name. This is a Delta
 rule, not an inference from Omega's separate `Empty`, `Record`, `Enum`, and
 `Mixed` representation categories.
 
-`never` is admitted only as the exact outer machine-return type. Every other
-occurrence is `TypeMismatch` at the `never` token. A view is admitted only as
-an outer parameter or local type; a forbidden view is `EscapingView` at its
-outermost forbidden `&`, and that structural placement failure suppresses
-defects nested beneath it. `Console` is a sealed entry capability admitted only
-at exact `Main.console`. Every other occurrence belongs to the entry-shape
-judgment and is `InvalidEntry`; `InvalidBoundary` remains declaration-
-collection-only.
+`u8` is admitted as stored data and as a nested array/view element, but not as
+a standalone parameter, local, or return; a forbidden occurrence is
+`TypeMismatch` at its type token. `never` is admitted only as the exact outer
+machine-return type. Every other occurrence is `TypeMismatch` at the `never`
+token. A view is admitted only as an outer parameter or local type; a forbidden
+view is `EscapingView` at its outermost forbidden `&`, and that structural
+placement failure suppresses defects nested beneath it. `Console` is a sealed
+entry capability admitted only at exact `Main.console`. Every other occurrence
+belongs to the entry-shape judgment and is `InvalidEntry`; `InvalidBoundary`
+remains declaration-collection-only.
 
 Type formation derives all shape, placement, recursion, and unknown-type
 candidates from the complete D22/D24 census and chooses the smallest packed
