@@ -237,6 +237,34 @@ impl BuildTimeAdmissionPlan {
         psi_checked_interpreter::evaluate_build_time_machine(program, machine_name, arguments)
     }
 
+    /// Admit and evaluate the exact result-bearing machine selected by a
+    /// typed invocation. This is the source-boundary seam for positions such
+    /// as `via`: the resolved symbol remains authoritative, and deterministic
+    /// evaluator usage stays attached to the returned structured value.
+    pub fn evaluate_machine_symbol_for_invocation_measured(
+        &self,
+        program: &TypedTrees,
+        machine_symbol: SymbolHandle,
+        arguments: Vec<BuildTimeValue>,
+        custody: BuildTimeInvocationCustody,
+    ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .ok_or_else(|| {
+                format!(
+                    "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
+                )
+            })?;
+        self.require_common_floor_for_invocation(program, machine, custody)?;
+        psi_checked_interpreter::evaluate_build_time_machine_symbol_measured(
+            program,
+            machine_symbol,
+            arguments,
+        )
+    }
+
     /// Admit and evaluate one machine whose result position explicitly
     /// requires the target-neutral `ConstEvaluable(T, value)` judgment.
     /// Existing compiler-owned structured plan positions remain on

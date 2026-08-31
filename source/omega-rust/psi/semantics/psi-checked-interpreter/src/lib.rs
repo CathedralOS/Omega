@@ -6374,6 +6374,17 @@ pub fn evaluate_build_time_machine_measured(
     evaluator::run_build_time_machine(program, machine_name, arguments)
 }
 
+/// Exact-symbol form of [`evaluate_build_time_machine_measured`]. The
+/// selected declaration must exist under this identity; evaluation never
+/// retries by declaration spelling.
+pub fn evaluate_build_time_machine_symbol_measured(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: psi_symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
+    evaluator::run_build_time_machine_symbol(program, machine_symbol, arguments)
+}
+
 /// Evaluate one build-time machine while retaining compiler-known operation
 /// receipts beside the ordinary result. This is the authoritative entry for
 /// native layout policies containing `Plan::place_private`; callers that do

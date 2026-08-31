@@ -98,7 +98,7 @@ fn rejects_parameterized_via_producer() {
     .expect_err("the first ordinary via rung requires a zero-parameter producer");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "the first evaluated-binding rung requires one body-bearing, non-generic, zero-parameter machine",
+            "the first evaluated-binding rung requires its body-bearing, non-generic, zero-parameter entry state",
         )
     }));
 }
@@ -121,7 +121,7 @@ fn rejects_bodyless_via_producer() {
     .expect_err("the first ordinary via rung requires a body-bearing producer");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "the first evaluated-binding rung requires one body-bearing, non-generic, zero-parameter machine",
+            "the first evaluated-binding rung requires its body-bearing, non-generic, zero-parameter entry state",
         )
     }));
 }
