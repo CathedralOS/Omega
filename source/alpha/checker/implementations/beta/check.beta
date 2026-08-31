@@ -33,8 +33,10 @@
 ;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
 ;                | ( + prop prop ) | ( bot ) | ( = nat nat )
 ;                | ( All prop ) | ( Exists prop ) | ( Pred id nat ) | ( Rel id nat nat )
+;                | ( FloatMeaningEqual fm fm )
 ;   term        := z | ( s term ) | ( p term term ) | ( m term term ) | ( v k )
 ;                | nil | ( cons term term ) | ( app term term ) | ( len term ) | ( k cid term... )
+;                | ( fm FORMAT OP DECL CATALOG SOURCE_KIND SOURCE_A SOURCE_B )
 ;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
 ;                | ( pair term term ) | ( fst term ) | ( snd term )
 ;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
@@ -62,6 +64,7 @@
 ;
 ; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
 ;             6 ALL(body)  7 PRED(id,term)  8 EXISTS(body)  9 REL(id,(99 t1 t2))
+;             10 FLOAT_MEANING_EQUAL(left,right)
 ;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
 ;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
 ;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
@@ -71,8 +74,10 @@
 ;        term 30 ZERO 31 SUC(x) 32 PLUS(a,b) 33 MUL(a,b) 34 IVAR(k)
 ;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)  38 LEN(l)
 ;             50 CON(cid)  51 APPLY(f,a)   ; user constructors: CON head + APPLY spine
+;             64 FLOAT_MEANING((99 format operation), (99 declaration (99 catalog (99 source-kind (99 source-a source-b)))))
 ;        term  40 USE(N)  41 REC((99 (98 cidA cidB) motive) (99 caseA caseB))
 ;              61 PRODREC((99 cid motive) case)   ; product elim; cid must be (prod cid)-declared
+;              62 FLOAT_MEANING_REFL(fm)
 
 proc slurp() {
     let n = 0
@@ -383,6 +388,116 @@ proc parse_number() {
     state body { v = v * 10 + (cbyte() - '0')  adv()  to loop }
 }
 
+; A FloatMeaning term is a closed PCC key, not executable float data.  The
+; checker owns the exact format/projection/declaration/catalog correspondence:
+; Binary32=(32,1,1,1), Binary64=(64,2,2,1).  Source kinds are contract
+; parameter/result, Terminal value, structural float leaf, and exact bits.
+proc float_meaning_format(t) {
+    return word[word[t + 8] + 8]
+}
+
+proc valid_float_meaning(t) {
+    state tag { to pair0 when (word[t] == 64)  return 0 }
+    state pair0 {
+        to bad when (word[word[t + 8]] != 99)
+        to pair1
+    }
+    state pair1 {
+        let tail1 = word[t + 16]
+        to bad when (word[tail1] != 99)
+        let tail2 = word[tail1 + 16]
+        to bad when (word[tail2] != 99)
+        let tail3 = word[tail2 + 16]
+        to bad when (word[tail3] != 99)
+        let tail4 = word[tail3 + 16]
+        to bad when (word[tail4] != 99)
+        let format = word[word[t + 8] + 8]
+        let operation = word[word[t + 8] + 16]
+        let declaration = word[tail1 + 8]
+        let catalog = word[tail2 + 8]
+        let source_kind = word[tail3 + 8]
+        let source_a = word[tail4 + 8]
+        let source_b = word[tail4 + 16]
+        to bad when (catalog != 1)
+        to bad when (source_kind < 0)
+        to bad when (source_kind > 4)
+        to bad when (source_a < 0)
+        to bad when (source_a > 4294967295)
+        to bad when (source_b < 0)
+        to bad when (source_b > 4294967295)
+        to terminal_source when (source_kind == 2)
+        to format_check
+    }
+    state terminal_source { to bad when (source_b != 0)  to format_check }
+    state format_check {
+        to f32 when (format == 32)
+        to f64 when (format == 64)
+        to bad
+    }
+    state f32 {
+        to bad when (operation != 1)
+        to bad when (declaration != 1)
+        to f32_bits when (source_kind == 4)
+        return 1
+    }
+    state f32_bits { to bad when (source_b != 0)  return 1 }
+    state f64 {
+        to bad when (operation != 2)
+        to bad when (declaration != 2)
+        return 1
+    }
+    state bad { return 0 }
+}
+
+proc float_meaning_eq(a, b) {
+    state valid_a { to no when (valid_float_meaning(a) == 0)  to valid_b }
+    state valid_b { to no when (valid_float_meaning(b) == 0)  to head }
+    state head {
+        let ah = word[a + 8]
+        let bh = word[b + 8]
+        to no when (word[ah + 8] != word[bh + 8])
+        to no when (word[ah + 16] != word[bh + 16])
+        let at1 = word[a + 16]
+        let bt1 = word[b + 16]
+        to no when (word[at1 + 8] != word[bt1 + 8])
+        let at2 = word[at1 + 16]
+        let bt2 = word[bt1 + 16]
+        to no when (word[at2 + 8] != word[bt2 + 8])
+        let at3 = word[at2 + 16]
+        let bt3 = word[bt2 + 16]
+        to no when (word[at3 + 8] != word[bt3 + 8])
+        let at4 = word[at3 + 16]
+        let bt4 = word[bt3 + 16]
+        to no when (word[at4 + 8] != word[bt4 + 8])
+        to yes when (word[at4 + 16] == word[bt4 + 16])
+        to no
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc contains_float_meaning(t) {
+    state fm { to yes when (word[t] == 64)  to leaves }
+    state yes { return 1 }
+    state leaves {
+        to no when (word[t] == 30)
+        to no when (word[t] == 34)
+        to no when (word[t] == 35)
+        to no when (word[t] == 50)
+        to unary
+    }
+    state unary { to child when (word[t] == 31)  to len }
+    state len { to child when (word[t] == 38)  to fapp }
+    state fapp { to farg when (word[t] == 52)  to both }
+    state farg { return contains_float_meaning(word[t + 16]) }
+    state child { return contains_float_meaning(word[t + 8]) }
+    state both {
+        to yes when (contains_float_meaning(word[t + 8]) == 1)
+        return contains_float_meaning(word[t + 16])
+    }
+    state no { return 0 }
+}
+
 ; ---- individual terms: Peano z/(s t)/(p a b)/(m a b), de Bruijn (v k), and
 ;      Lists nil/(cons h t)/(app l1 l2) - a SECOND inductive type alongside Nat ----
 ; tags 30 ZERO 31 SUC 32 PLUS 33 MUL 34 IVAR 35 NIL 36 CONS 37 APPEND.
@@ -390,6 +505,7 @@ proc parse_nat() {
     skip_ws()
     let a = 0
     let b = 0
+    let invalid_fm_spelling = 0
     state tz { to do_z when (cbyte() == 'z')  to raw_source }
     state do_z { adv()  return alloc(30, 0, 0) }
     state raw_source { to source_head when (cbyte() == 's')  to raw_tape }
@@ -405,8 +521,11 @@ proc parse_nat() {
         adv()                    ; '('
         skip_ws()
         let op = cbyte()
+        let op2 = byte[2097152 + word[2097144] + 1]
         let opx = byte[2097152 + word[2097144] + 3]   ; 'x' at +3 distinguishes recx from rec
+        let op_start = word[2097144]
         skip_ident()             ; consume the whole operator keyword
+        let op_length = word[2097144] - op_start
         to op_s when (op == 's')
         to op_m
     }
@@ -415,7 +534,41 @@ proc parse_nat() {
     state do_m { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(33, a, b) }
     state op_v { to do_v when (op == 'v')  to op_f }
     state do_v { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(34, a, 0) }
-    state op_f { to do_f when (op == 'f')  to op_y }      ; (f fid a [a2]) function application
+    state op_f { to maybe_f when (op == 'f')  to op_y }   ; (f fid a [a2]) or closed (fm ...) term
+    state maybe_f { to fm_prefix when (op2 == 'm')  to do_f }
+    state fm_prefix {
+        to do_fm when (op_length == 2)
+        invalid_fm_spelling = 1
+        to do_fm
+    }
+    state do_fm {
+        skip_ws()
+        a = parse_number()       ; exact format: 32 or 64
+        skip_ws()
+        b = parse_number()       ; exact projection operation: 1 or 2
+        let head = alloc(99, a, b)
+        skip_ws()
+        a = parse_number()       ; recognized core declaration: 1 or 2
+        skip_ws()
+        b = parse_number()       ; numeric catalog version: exactly 1
+        let tail = alloc(99, b, 0)
+        skip_ws()
+        b = parse_number()       ; source kind: 0..4
+        let source = alloc(99, b, 0)
+        skip_ws()
+        b = parse_number()       ; source coordinate / literal low bits
+        skip_ws()
+        let source_b = parse_number()  ; path coordinate / literal high bits
+        word[source + 16] = alloc(99, b, source_b)
+        word[tail + 16] = source
+        b = alloc(64, head, alloc(99, a, tail))
+        expect(')')
+        to fm_ok when (valid_float_meaning(b) == 1)
+        word[2097072] = 1
+        return b
+    }
+    state fm_ok { to invalid_fm when (invalid_fm_spelling == 1)  return b }
+    state invalid_fm { word[2097072] = 1  return b }
     state do_f {
         skip_ws()
         a = parse_number()       ; fid
@@ -481,6 +634,7 @@ proc normalize(t, fuel) {
     state live {
         let tag = word[t]
         to ret_t when (tag == 30)
+        to ret_t when (tag == 64)
         to t34
     }
     state ret_t { return t }
@@ -698,7 +852,8 @@ proc instantiate(t, fid, flds, extra) {
     state leaf { to ret_t when (word[t] == 30)  to leaf2 }
     state ret_t { return t }
     state leaf2 { to ret_t when (word[t] == 35)  to leaf3 }
-    state leaf3 { to ret_t when (word[t] == 50)  to suc }   ; CON(cid) - leaf
+    state leaf3 { to ret_t when (word[t] == 50)  to fmleaf }   ; CON(cid) - leaf
+    state fmleaf { to ret_t when (word[t] == 64)  to suc }
     state suc { to do_un when (word[t] == 31)  to lenc }
     state do_un { return alloc(31, instantiate(word[t + 8], fid, flds, extra), 0) }
     state lenc { to do_len when (word[t] == 38)  to dflt }
@@ -711,7 +866,9 @@ proc nat_eq(a, b) {
     state tchk { to teq when (word[a] == word[b])  return 0 }
     state teq { to z when (word[a] == 30)  to nilc }
     state z { return 1 }
-    state nilc { to z when (word[a] == 35)  to con }      ; nil - equal (tags match)
+    state nilc { to z when (word[a] == 35)  to fm }       ; nil - equal (tags match)
+    state fm { to fmeq when (word[a] == 64)  to con }
+    state fmeq { return float_meaning_eq(a, b) }
     state con { to concheck when (word[a] == 50)  to fapp }   ; CON: same cid?
     state concheck { to z when (word[a + 8] == word[b + 8])  return 0 }
     state fapp { to fappchk when (word[a] == 52)  to ivar }   ; (f fid arg): same fid + arg?
@@ -744,7 +901,8 @@ proc free_ivt(t, depth) {
         return 0
     }
     state yes { return 1 }
-    state z { to no when (word[t] == 30)  to nilc }
+    state z { to no when (word[t] == 30)  to fm }
+    state fm { to no when (word[t] == 64)  to nilc }
     state no { return 0 }
     state nilc { to no when (word[t] == 35)  to con }
     state con { to no when (word[t] == 50)  to fapp }
@@ -766,12 +924,13 @@ proc free_ivp(p, depth) {
     state t3 { to ret0 when (tag == 3)  to t7 }
     state t7 { to pred when (tag == 7)  to t9 }
     state pred { return free_ivt(word[p + 16], depth) }
-    state t9 { to rel when (tag == 9)  to t5 }
+    state t9 { to rel when (tag == 9)  to t10 }
     state rel {
         to yes when (free_ivt(word[word[p + 16] + 8], depth) == 1)
         return free_ivt(word[word[p + 16] + 16], depth)
     }
     state yes { return 1 }
+    state t10 { to ret0 when (tag == 10)  to t5 }
     state t5 { to eq when (tag == 5)  to t6 }
     state eq {
         to yes when (free_ivt(word[p + 8], depth) == 1)
@@ -794,7 +953,8 @@ proc wit_in_term(t, depth) {
     state iv { to ivchk when (word[t] == 34)  to z }
     state ivchk { to yes when (word[t + 8] == depth)  return 0 }
     state yes { return 1 }
-    state z { to no when (word[t] == 30)  to nilc }
+    state z { to no when (word[t] == 30)  to fm }
+    state fm { to no when (word[t] == 64)  to nilc }
     state no { return 0 }
     state nilc { to no when (word[t] == 35)  to con }
     state con { to no when (word[t] == 50)  to fapp }
@@ -816,12 +976,13 @@ proc wit_in_prop(p, depth) {
     state t3 { to ret0 when (tag == 3)  to t7 }
     state t7 { to pred when (tag == 7)  to t9 }
     state pred { return wit_in_term(word[p + 16], depth) }
-    state t9 { to rel when (tag == 9)  to t5 }
+    state t9 { to rel when (tag == 9)  to t10 }
     state rel {
         to yes when (wit_in_term(word[word[p + 16] + 8], depth) == 1)
         return wit_in_term(word[word[p + 16] + 16], depth)
     }
     state yes { return 1 }
+    state t10 { to ret0 when (tag == 10)  to t5 }
     state t5 { to eq when (tag == 5)  to t6 }
     state eq {
         to yes when (wit_in_term(word[p + 8], depth) == 1)
@@ -846,7 +1007,8 @@ proc shift_term(t, d, cutoff) {
         return t
     }
     state do_shift { return alloc(34, word[t + 8] + d, 0) }
-    state z { to ret_t when (word[t] == 30)  to nilc }
+    state z { to ret_t when (word[t] == 30)  to fm }
+    state fm { to ret_t when (word[t] == 64)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 35)  to con }
     state con { to ret_t when (word[t] == 50)  to fapp }
@@ -874,7 +1036,8 @@ proc subst_term(t, s, depth) {
         return t
     }
     state do_dec { return alloc(34, word[t + 8] - 1, 0) }
-    state z { to ret_t when (word[t] == 30)  to nilc }
+    state z { to ret_t when (word[t] == 30)  to fm }
+    state fm { to ret_t when (word[t] == 64)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 35)  to con }
     state con { to ret_t when (word[t] == 50)  to fapp }
@@ -894,8 +1057,9 @@ proc subst_prop(p, s, depth) {
     state t3 { to ret_p when (tag == 3)  to t7 }
     state t7 { to pred when (tag == 7)  to t9 }
     state pred { return alloc(7, word[p + 8], subst_term(word[p + 16], s, depth)) }
-    state t9 { to rel when (tag == 9)  to t5 }
+    state t9 { to rel when (tag == 9)  to t10 }
     state rel { return alloc(9, word[p + 8], alloc(99, subst_term(word[word[p + 16] + 8], s, depth), subst_term(word[word[p + 16] + 16], s, depth))) }
+    state t10 { to ret_p when (tag == 10)  to t5 }
     state t5 { to eq when (tag == 5)  to t6 }
     state eq { return alloc(5, subst_term(word[p + 8], s, depth), subst_term(word[p + 16], s, depth)) }
     state t6 { to all when (tag == 6)  to t8 }
@@ -915,7 +1079,8 @@ proc subst_term_keep(t, s, depth) {
         return t                      ; no decrement - the binder remains
     }
     state ret_s { return s }
-    state z { to ret_t when (word[t] == 30)  to nilc }
+    state z { to ret_t when (word[t] == 30)  to fm }
+    state fm { to ret_t when (word[t] == 64)  to nilc }
     state ret_t { return t }
     state nilc { to ret_t when (word[t] == 35)  to con }
     state con { to ret_t when (word[t] == 50)  to fapp }
@@ -935,8 +1100,9 @@ proc subst_prop_keep(p, s, depth) {
     state t3 { to ret_p when (tag == 3)  to t7 }
     state t7 { to pred when (tag == 7)  to t9 }
     state pred { return alloc(7, word[p + 8], subst_term_keep(word[p + 16], s, depth)) }
-    state t9 { to rel when (tag == 9)  to t5 }
+    state t9 { to rel when (tag == 9)  to t10 }
     state rel { return alloc(9, word[p + 8], alloc(99, subst_term_keep(word[word[p + 16] + 8], s, depth), subst_term_keep(word[word[p + 16] + 16], s, depth))) }
+    state t10 { to ret_p when (tag == 10)  to t5 }
     state t5 { to eq when (tag == 5)  to t6 }
     state eq { return alloc(5, subst_term_keep(word[p + 8], s, depth), subst_term_keep(word[p + 16], s, depth)) }
     state t6 { to all when (tag == 6)  to t8 }
@@ -954,8 +1120,9 @@ proc shift_prop(p, d, cutoff) {
     state t3 { to ret_p when (tag == 3)  to t7 }
     state t7 { to pred when (tag == 7)  to t9 }
     state pred { return alloc(7, word[p + 8], shift_term(word[p + 16], d, cutoff)) }
-    state t9 { to rel when (tag == 9)  to t5 }
+    state t9 { to rel when (tag == 9)  to t10 }
     state rel { return alloc(9, word[p + 8], alloc(99, shift_term(word[word[p + 16] + 8], d, cutoff), shift_term(word[word[p + 16] + 16], d, cutoff))) }
+    state t10 { to ret_p when (tag == 10)  to t5 }
     state t5 { to eq when (tag == 5)  to t6 }
     state eq { return alloc(5, shift_term(word[p + 8], d, cutoff), shift_term(word[p + 16], d, cutoff)) }
     state t6 { to all when (tag == 6)  to t8 }
@@ -1043,6 +1210,7 @@ proc parse_type() {
     skip_ws()
     let a = 0                    ; one declaration each (function-scoped locals)
     let b = 0
+    let invalid_float_keyword = 0
     state paren { to compound when (cbyte() == '(')  to atom }
     state compound {
         adv()
@@ -1063,14 +1231,30 @@ proc parse_type() {
     state disj { to do_disj when (cbyte() == '+')  to eq }
     state do_disj { adv()  a = parse_type()  b = parse_type()  expect(')')  return alloc(4, a, b) }
     state eq { to do_eq when (cbyte() == '=')  to all }
-    state do_eq { adv()  a = parse_nat()  b = parse_nat()  expect(')')  return alloc(5, a, b) }
+    state do_eq {
+        adv()
+        a = parse_nat()
+        b = parse_nat()
+        expect(')')
+        to invalid_float_carrier when (contains_float_meaning(a) == 1)
+        to invalid_float_carrier when (contains_float_meaning(b) == 1)
+        return alloc(5, a, b)
+    }
     state all { to do_all when (cbyte() == 'A')  to exists }
     state do_all { skip_kw()  a = parse_type()  expect(')')  return alloc(6, a, 0) }
     state exists { to do_exists when (cbyte() == 'E')  to pred }
     state do_exists { skip_kw()  a = parse_type()  expect(')')  return alloc(8, a, 0) }
     state pred { to do_pred when (cbyte() == 'P')  to rel }
-    state do_pred { skip_kw()  skip_ws()  a = parse_number()  b = parse_nat()  expect(')')  return alloc(7, a, b) }
-    state rel { to do_rel when (cbyte() == 'R')  to conj }
+    state do_pred {
+        skip_kw()
+        skip_ws()
+        a = parse_number()
+        b = parse_nat()
+        expect(')')
+        to invalid_float_carrier when (contains_float_meaning(b) == 1)
+        return alloc(7, a, b)
+    }
+    state rel { to do_rel when (cbyte() == 'R')  to float_equal }
     state do_rel {
         skip_kw()
         skip_ws()
@@ -1078,7 +1262,54 @@ proc parse_type() {
         b = parse_nat()
         b = alloc(99, b, parse_nat())   ; aux holds (t1, t2)
         expect(')')
+        to invalid_float_carrier when (contains_float_meaning(word[b + 8]) == 1)
+        to invalid_float_carrier when (contains_float_meaning(word[b + 16]) == 1)
         return alloc(9, a, b)
+    }
+    state float_equal { to do_float_equal when (cbyte() == 'F')  to conj }
+    state do_float_equal {
+        let keyword_start = word[2097144]
+        skip_kw()
+        to float_keyword_invalid when (word[2097144] - keyword_start != 17)
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 1] != 'l')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 2] != 'o')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 3] != 'a')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 4] != 't')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 5] != 'M')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 6] != 'e')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 7] != 'a')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 8] != 'n')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 9] != 'i')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 10] != 'n')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 11] != 'g')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 12] != 'E')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 13] != 'q')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 14] != 'u')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 15] != 'a')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 16] != 'l')
+        to float_keyword_parsed
+    }
+    state float_keyword_invalid {
+        invalid_float_keyword = 1
+        to float_keyword_parsed
+    }
+    state float_keyword_parsed {
+        a = parse_nat()
+        b = parse_nat()
+        expect(')')
+        to invalid_float_carrier when (valid_float_meaning(a) == 0)
+        to invalid_float_carrier when (valid_float_meaning(b) == 0)
+        to invalid_float_carrier when (float_meaning_format(a) != float_meaning_format(b))
+        to invalid_float_spelling when (invalid_float_keyword == 1)
+        return alloc(10, a, b)
+    }
+    state invalid_float_spelling {
+        word[2097072] = 1
+        return alloc(10, a, b)
+    }
+    state invalid_float_carrier {
+        word[2097072] = 1
+        return alloc(3, 0, 0)
     }
     state conj {
         adv()                    ; '&' conjunction
@@ -1104,10 +1335,13 @@ proc parse_term() {
     let kc4 = byte[2097152 + word[2097144] + 3]   ; fourth letter (memHead/Tail/Cons/Nil)
     let kc5 = byte[2097152 + word[2097144] + 4]   ; fifth letter (prodNilinv/prodConsinv ; perm Nil/Skip/Swap/Trans)
     let kc6 = byte[2097152 + word[2097144] + 5]   ; sixth letter (permsKip vs permsWap)
+    let keyword_start = word[2097144]
     skip_ident()
+    let keyword_length = word[2097144] - keyword_start
     let x = 0
     let y = 0
     let z = 0
+    let invalid_fmrefl_spelling = 0
     state k_h { to do_hyp when (kc == 'h')  to k_l }
     state do_hyp { skip_ws()  x = parse_number()  expect(')')  return alloc(10, x, 0) }
     state k_l { to is_l when (kc == 'l')  to k_a }
@@ -1151,7 +1385,29 @@ proc parse_term() {
     state do_pnilinv { x = parse_term()  expect(')')  return alloc(48, x, 0) }
     state do_pconsinv { x = parse_term()  expect(')')  return alloc(49, x, 0) }
     state do_pair { x = parse_term()  y = parse_term()  expect(')')  return alloc(13, x, y) }
-    state k_f { to do_fst when (kc == 'f')  to k_i }
+    state k_f { to is_f when (kc == 'f')  to k_i }
+    state is_f { to fmrefl_prefix when (kc2 == 'm')  to do_fst }
+    state fmrefl_prefix { to fmrefl_length when (keyword_length == 6)  to invalid_fmrefl_prefix }
+    state fmrefl_length { to fmrefl_c3 when (kc3 == 'r')  to invalid_fmrefl_prefix }
+    state fmrefl_c3 { to fmrefl_c4 when (kc4 == 'e')  to invalid_fmrefl_prefix }
+    state fmrefl_c4 { to fmrefl_c5 when (kc5 == 'f')  to invalid_fmrefl_prefix }
+    state fmrefl_c5 { to do_fmrefl when (kc6 == 'l')  to invalid_fmrefl_prefix }
+    state invalid_fmrefl_prefix {
+        invalid_fmrefl_spelling = 1
+        to do_fmrefl
+    }
+    state do_fmrefl {
+        x = parse_nat()
+        expect(')')
+        to fmrefl_ok when (valid_float_meaning(x) == 1)
+        word[2097072] = 1
+        return alloc(62, x, 0)
+    }
+    state fmrefl_ok {
+        to invalid_fmrefl when (invalid_fmrefl_spelling == 1)
+        return alloc(62, x, 0)
+    }
+    state invalid_fmrefl { word[2097072] = 1  return alloc(62, x, 0) }
     state do_fst { x = parse_term()  expect(')')  return alloc(14, x, 0) }
     state k_i { to is_i when (kc == 'i')  to k_g }
     state is_i { to do_inst when (kc3 == 's')  to do_inj }
@@ -1254,11 +1510,19 @@ proc type_eq(a, b) {
         to zero when (word[a + 8] != word[b + 8])
         return conv_eq(word[a + 16], word[b + 16])
     }
-    state relp { to do_rel when (word[a] == 9)  to conn }
+    state relp { to do_rel when (word[a] == 9)  to fmep }
     state do_rel {                                                      ; Rel id (t1,t2)
         to zero when (word[a + 8] != word[b + 8])
         to zero when (conv_eq(word[word[a + 16] + 8], word[word[b + 16] + 8]) == 0)
         return conv_eq(word[word[a + 16] + 16], word[word[b + 16] + 16])
+    }
+    state fmep { to do_fme when (word[a] == 10)  to conn }
+    state do_fme {
+        to zero when (valid_float_meaning(word[a + 8]) == 0)
+        to zero when (valid_float_meaning(word[a + 16]) == 0)
+        to zero when (float_meaning_format(word[a + 8]) != float_meaning_format(word[a + 16]))
+        to zero when (float_meaning_eq(word[a + 8], word[b + 8]) == 0)
+        return float_meaning_eq(word[a + 16], word[b + 16])
     }
     state conn {
         to zero when (type_eq(word[a + 8], word[b + 8]) == 0)
@@ -1435,7 +1699,10 @@ proc infer(term) {
         return word[t2 + 16]
     }
     state d20 { to refl when (tag == 20)  to d41 }
-    state refl { return alloc(5, word[term + 8], word[term + 8]) }    ; REFL t : (= t t)
+    state refl {
+        to reject when (contains_float_meaning(word[term + 8]) == 1)
+        return alloc(5, word[term + 8], word[term + 8])               ; REFL t : (= t t)
+    }
     state d41 { to rec when (tag == 41)  to d61 }
     state rec {                  ; REC cidA cidB motive caseA caseB : structural induction
         t1 = word[term + 8]      ; (99 (98 cidA cidB) motive)
@@ -1454,7 +1721,7 @@ proc infer(term) {
         to reject when (type_eq(t3, con_case(word[t2 + 16], word[t1 + 16])) == 0)
         return alloc(6, word[t1 + 16], 0)                ; forall x. P(x)
     }
-    state d61 { to prodrec when (tag == 61)  to d40 }
+    state d61 { to prodrec when (tag == 61)  to d62 }
     state prodrec {              ; PRODREC cid motive case : SINGLE-constructor product elimination.
         t1 = word[term + 8]      ; (99 cid motive)
         ; SOUNDNESS GUARD: prodrec proves forall x.P from ONE case, so it is sound only when cid is its
@@ -1469,6 +1736,11 @@ proc infer(term) {
     state prodrec1 {
         to reject when (type_eq(t3, con_case(word[t1 + 8], word[t1 + 16])) == 0)
         return alloc(6, word[t1 + 16], 0)                ; forall x. motive(x)
+    }
+    state d62 { to fmrefl when (tag == 62)  to d40 }
+    state fmrefl {
+        to reject when (valid_float_meaning(word[term + 8]) == 0)
+        return alloc(10, word[term + 8], word[term + 8])
     }
     state d40 { to use when (tag == 40)  to d21 }
     state use { return word[9437184 + word[term + 8] * 8] }   ; USE N : the lemma's type

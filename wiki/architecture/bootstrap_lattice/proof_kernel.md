@@ -75,6 +75,19 @@ contract key; equal keys canonicalize to one term, while distinct keys need an
 explicit checked theorem. No source offset, producer ID, name, or runtime bit
 comparison can manufacture correspondence.
 
+The rooted checker now realizes that closed logical slice. Its canonical term
+binds an unsigned source-kind/coordinate pair to the exact Binary32 or Binary64
+projection operation, recognized core declaration, and numeric-catalog
+version. `FloatMeaningEqual` accepts only same-carrier terms, and its dedicated
+reflexivity rule treats an identical NaN projection as reflexive while exact
+literal bits keep positive and negative zero distinct. Ordinary equality and
+generic predicates/relations cannot consume the term. Capture-avoiding
+substitution preserves the closed key unchanged, and the authoritative Beta
+checker plus the independent diagnostic comparator reject every mutated tuple
+in the retained diamond. Artifact-aware reconstruction of those source
+coordinates and the complete Terminal proof-value integration remain owner
+work outside this generic kernel slice.
+
 ## Implementations
 
 The currently retained implementations are:

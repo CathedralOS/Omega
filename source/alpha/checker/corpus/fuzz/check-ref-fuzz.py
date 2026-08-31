@@ -255,6 +255,29 @@ DECL_CORPUS = [
     ("(-> P P) (lam P (hyp 0)) P", "reject"),
 ]
 
+# D40 closed FloatMeaning terms. These cases pin the independent comparator to
+# the same canonical correspondence tuple and carrier-specific proposition as
+# the authoritative checker; no float evaluator or generic equality is added.
+_FM32_NAN = '(fm 32 1 1 1 4 2143289345 0)'
+_FM32_POS_ZERO = '(fm 32 1 1 1 4 0 0)'
+_FM32_NEG_ZERO = '(fm 32 1 1 1 4 2147483648 0)'
+_FM64_NAN = '(fm 64 2 2 1 4 0 2146959360)'
+D40_CORPUS = [
+    ("(FloatMeaningEqual %s %s) (fmrefl %s)" % (_FM32_NAN, _FM32_NAN, _FM32_NAN), 'accept'),
+    ("(FloatMeaningEqual %s %s) (fmrefl %s)" % (_FM64_NAN, _FM64_NAN, _FM64_NAN), 'accept'),
+    ("(FloatMeaningEqual %s %s) (fmrefl %s)" % (_FM32_POS_ZERO, _FM32_NEG_ZERO, _FM32_POS_ZERO), 'reject'),
+    ("(-> (FloatMeaningEqual %s %s) (FloatMeaningEqual %s %s)) (lam (FloatMeaningEqual %s %s) (hyp 0))" %
+     (_FM32_POS_ZERO, _FM32_NEG_ZERO, _FM32_POS_ZERO, _FM32_NEG_ZERO,
+      _FM32_POS_ZERO, _FM32_NEG_ZERO), 'accept'),
+    ("(FloatMeaningEqual (fm 32 1 9 1 4 0 0) (fm 32 1 9 1 4 0 0)) (fmrefl (fm 32 1 9 1 4 0 0))", 'reject'),
+    ("(FloatMeaningEqual (fm 32 2 1 1 4 0 0) (fm 32 2 1 1 4 0 0)) (fmrefl (fm 32 2 1 1 4 0 0))", 'reject'),
+    ("(FloatMeaningEqual (fm 32 1 1 2 4 0 0) (fm 32 1 1 2 4 0 0)) (fmrefl (fm 32 1 1 2 4 0 0))", 'reject'),
+    ("(= %s %s) (refl %s)" % (_FM32_NAN, _FM32_NAN, _FM32_NAN), 'reject'),
+    ("(FloatMeaningAlias %s %s) (fmrefl %s)" % (_FM32_NAN, _FM32_NAN, _FM32_NAN), 'reject'),
+    ("(FloatMeaningEqual (fmalias 32 1 1 1 4 0 0) (fmalias 32 1 1 1 4 0 0)) (fmrefl (fmalias 32 1 1 1 4 0 0))", 'reject'),
+    ("(FloatMeaningEqual %s %s) (fmreflalias %s)" % (_FM32_NAN, _FM32_NAN, _FM32_NAN), 'reject'),
+]
+
 FRAME_CORPUS = [
     (framed(b'abc', b'abc', b'(= source tape) (refl source)'), 'accept'),
     (framed(b'abc', b'abd', b'(= source tape) (refl source)'), 'reject'),
@@ -264,7 +287,7 @@ FRAME_CORPUS = [
 ]
 
 fails = 0; n = 0
-for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS + DECL_CORPUS + FRAME_CORPUS:
+for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS + DECL_CORPUS + D40_CORPUS + FRAME_CORPUS:
     n += 1
     vb, vr = verdict_beta(cert), verdict_ref(cert)
     if not (vb == vr == expect):

@@ -121,6 +121,31 @@ chk "existential introduction" "(-> (Pred 0 z) (Exists (Pred 0 (v 0)))) (lam (Pr
 chk "existential witness mismatch" "(-> (Pred 0 z) (Exists (Pred 0 (v 0)))) (lam (Pred 0 z) (wit (Pred 0 (v 0)) (s z) (hyp 0)))" reject
 chk "relation argument order" "(-> (Rel 0 z (s z)) (Rel 0 (s z) z)) (lam (Rel 0 z (s z)) (hyp 0))" reject
 
+# D40's closed FloatMeaning correspondence term has one carrier-specific
+# equality. The key binds format, projection operation, exact core declaration,
+# numeric catalog, and a verifier-reconstructed source coordinate. It is proof
+# metadata only: ordinary equality and generic relations cannot consume it.
+FM32_NAN='(fm 32 1 1 1 4 2143289345 0)'
+FM32_POS_ZERO='(fm 32 1 1 1 4 0 0)'
+FM32_NEG_ZERO='(fm 32 1 1 1 4 2147483648 0)'
+FM64_NAN='(fm 64 2 2 1 4 0 2146959360)'
+FM32_TERMINAL='(fm 32 1 1 1 2 17 0)'
+chk "FloatMeaning binary32 NaN reflexivity" "(FloatMeaningEqual $FM32_NAN $FM32_NAN) (fmrefl $FM32_NAN)" accept
+chk "FloatMeaning binary64 NaN reflexivity" "(FloatMeaningEqual $FM64_NAN $FM64_NAN) (fmrefl $FM64_NAN)" accept
+chk "FloatMeaning quantifier substitution preserves closed identity" "(FloatMeaningEqual $FM32_TERMINAL $FM32_TERMINAL) (inst (gen (fmrefl $FM32_TERMINAL)) z)" accept
+chk "FloatMeaning signed zero does not coalesce" "(FloatMeaningEqual $FM32_POS_ZERO $FM32_NEG_ZERO) (fmrefl $FM32_POS_ZERO)" reject
+chk "FloatMeaning distinct terms require an explicit theorem" "(-> (FloatMeaningEqual $FM32_POS_ZERO $FM32_NEG_ZERO) (FloatMeaningEqual $FM32_POS_ZERO $FM32_NEG_ZERO)) (lam (FloatMeaningEqual $FM32_POS_ZERO $FM32_NEG_ZERO) (hyp 0))" accept
+chk "FloatMeaning source coordinate mutation does not coalesce" "(FloatMeaningEqual $FM32_TERMINAL (fm 32 1 1 1 2 18 0)) (fmrefl $FM32_TERMINAL)" reject
+chk "FloatMeaning lookalike core declaration" "(FloatMeaningEqual (fm 32 1 9 1 4 0 0) (fm 32 1 9 1 4 0 0)) (fmrefl (fm 32 1 9 1 4 0 0))" reject
+chk "FloatMeaning cross-format projection substitution" "(FloatMeaningEqual (fm 32 2 1 1 4 0 0) (fm 32 2 1 1 4 0 0)) (fmrefl (fm 32 2 1 1 4 0 0))" reject
+chk "FloatMeaning catalog substitution" "(FloatMeaningEqual (fm 32 1 1 2 4 0 0) (fm 32 1 1 2 4 0 0)) (fmrefl (fm 32 1 1 2 4 0 0))" reject
+chk "FloatMeaning noncanonical Terminal source" "(FloatMeaningEqual (fm 32 1 1 1 2 17 1) (fm 32 1 1 1 2 17 1)) (fmrefl (fm 32 1 1 1 2 17 1))" reject
+chk "FloatMeaning cannot use ordinary equality" "(= $FM32_NAN $FM32_NAN) (refl $FM32_NAN)" reject
+chk "FloatMeaning cannot become an IEEE-like generic relation" "(Rel 900 $FM32_NAN $FM32_NAN) (fmrefl $FM32_NAN)" reject
+chk "FloatMeaning proposition lookalike spelling" "(FloatMeaningAlias $FM32_NAN $FM32_NAN) (fmrefl $FM32_NAN)" reject
+chk "FloatMeaning term lookalike spelling" "(FloatMeaningEqual (fmalias 32 1 1 1 4 2143289345 0) (fmalias 32 1 1 1 4 2143289345 0)) (fmrefl (fmalias 32 1 1 1 4 2143289345 0))" reject
+chk "FloatMeaning proof lookalike spelling" "(FloatMeaningEqual $FM32_NAN $FM32_NAN) (fmreflalias $FM32_NAN)" reject
+
 # Induction, equality transport, and no-confusion.
 chk "natural induction" "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (s (v 0))))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" accept
 chk "natural induction needs successor step" "(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))" reject
