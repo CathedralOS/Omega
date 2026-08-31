@@ -442,6 +442,7 @@ mod tests {
             target: native,
             entry: machine,
             functions: vec![omega_target_operations::TargetFunction {
+                fixed_integer_scalar_abi: None,
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {

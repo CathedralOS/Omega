@@ -42,6 +42,7 @@ mod structural_condition_read;
 mod structural_return;
 mod unit_affine_cleanup;
 mod unit_call_custody;
+mod unit_scalar_call_custody;
 mod unit_stack;
 mod x86_fma;
 
@@ -75,6 +76,7 @@ use scalar_stack::validate_scalar_stack;
 use structural_return::validate_structural_return_record;
 use unit_affine_cleanup::validate_unit_affine_cleanup;
 use unit_call_custody::{expected_projected_copy_bytes, validate_internal_unit_call_custody};
+use unit_scalar_call_custody::validate_internal_unit_scalar_calls;
 use unit_stack::{
     validate_complete_unit_stack_evidence, validate_foreign_unit_call_stack,
     validate_unit_call_stack, validate_unit_function_stack,
@@ -189,6 +191,7 @@ impl omega_installation_evidence::ObjectEvidence for ObjectArtifact {
 pub struct ObjectFunction {
     pub machine: MachineId,
     pub attachment: Option<psi_core::StructuralTypeId>,
+    pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
@@ -203,6 +206,9 @@ pub struct ObjectFunction {
     pub unit_call_stacks: Vec<ObjectUnitCallStack>,
     pub scalar_call_stacks: Vec<ObjectScalarCallStack>,
     pub internal_unit_calls: Vec<omega_machine_code::InternalUnitCallRecord>,
+    pub internal_unit_scalar_calls: Vec<omega_machine_code::InternalUnitScalarCallRecord>,
+    pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
+    pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
@@ -711,7 +717,14 @@ fn build_object_artifact_with_x86_feature_profile(
                     && matches!(call.owner, CallSiteOwner::CleanupAction { .. })
                     && call.scalar_stack.is_some())
         };
-        if function.internal_unit_calls.len()
+        let unit_custody_count = function
+            .internal_unit_calls
+            .len()
+            .checked_add(function.internal_unit_scalar_calls.len())
+            .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ))?;
+        if unit_custody_count
             != function
                 .internal_calls
                 .iter()
@@ -732,8 +745,14 @@ fn build_object_artifact_with_x86_feature_profile(
             .internal_unit_calls
             .iter()
             .map(|call| (call.owner, call.target))
+            .chain(
+                function
+                    .internal_unit_scalar_calls
+                    .iter()
+                    .map(|call| (call.owner, call.target)),
+            )
             .collect::<std::collections::BTreeSet<_>>();
-        if custody_identities.len() != function.internal_unit_calls.len()
+        if custody_identities.len() != unit_custody_count
             || custody_identities != relocation_identities
         {
             return Err(ObjectError::InvalidInternalUnitCallEvidence(
@@ -856,6 +875,13 @@ fn build_object_artifact_with_x86_feature_profile(
                 fully_consumed_affine_pair,
             )?;
         }
+        validate_internal_unit_scalar_calls(
+            plan.target,
+            function,
+            &machine_functions,
+            validated_function_stack.as_ref(),
+            &validated_call_stacks,
+        )?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
                 function.machine,
@@ -1403,6 +1429,7 @@ fn build_object_artifact_with_x86_feature_profile(
         functions.push(ObjectFunction {
             machine: function.machine,
             attachment: function.attachment,
+            fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
             provenance: function.provenance.clone(),
             symbol,
             text_offset,
@@ -1413,6 +1440,9 @@ fn build_object_artifact_with_x86_feature_profile(
             unit_call_stacks,
             scalar_call_stacks,
             internal_unit_calls: function.internal_unit_calls.clone(),
+            internal_unit_scalar_calls: function.internal_unit_scalar_calls.clone(),
+            unit_scalar_homes: function.unit_scalar_homes.clone(),
+            unit_integer_constants: function.unit_integer_constants.clone(),
             unit_parameters: function.unit_parameters.clone(),
             unit_parameter_homes: function.unit_parameter_homes.clone(),
             unit_affine_cleanup: function.unit_affine_cleanup.clone(),
@@ -1920,6 +1950,7 @@ pub enum ObjectError {
         owner: CallSiteOwner,
     },
     InvalidInternalUnitCallEvidence(MachineId),
+    InvalidInternalUnitScalarCallEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),
     InternalCallOperationNotInProvenance {
         caller: MachineId,

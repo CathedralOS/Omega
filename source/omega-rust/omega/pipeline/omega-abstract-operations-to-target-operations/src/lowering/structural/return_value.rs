@@ -170,6 +170,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: trivial_affine_locals
                 .iter()

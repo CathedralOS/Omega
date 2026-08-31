@@ -96,6 +96,7 @@ pub(super) fn emit(
     Ok(MachineCodeFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
         provenance: function.provenance.clone(),
         bytes,
         x86_scalar_fma: Vec::new(),
@@ -106,6 +107,9 @@ pub(super) fn emit(
         internal_calls: Vec::new(),
         foreign_calls: Vec::new(),
         internal_unit_calls: Vec::new(),
+        internal_unit_scalar_calls: Vec::new(),
+        unit_scalar_homes: Vec::new(),
+        unit_integer_constants: Vec::new(),
         unit_affine_cleanup: None,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),

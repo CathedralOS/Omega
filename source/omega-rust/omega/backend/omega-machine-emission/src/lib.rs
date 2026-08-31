@@ -145,6 +145,9 @@ fn emit_function(
     let mut internal_calls = Vec::new();
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
+    let mut internal_unit_scalar_calls = Vec::new();
+    let mut unit_scalar_homes = Vec::new();
+    let mut unit_integer_constants = Vec::new();
     let mut unit_affine_cleanup = None;
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
@@ -172,6 +175,9 @@ fn emit_function(
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
+            internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            unit_scalar_homes = emitted.scalar_homes;
+            unit_integer_constants = emitted.integer_constants;
             semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
@@ -186,6 +192,9 @@ fn emit_function(
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
+            internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            unit_scalar_homes = emitted.scalar_homes;
+            unit_integer_constants = emitted.integer_constants;
             semantic_code_attribution = emitted.semantic_code_attribution;
             unit_stack = Some(emitted.stack);
             unit_parameter_homes = emitted.parameter_homes;
@@ -378,6 +387,9 @@ fn emit_function(
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
+            internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            unit_scalar_homes = emitted.scalar_homes;
+            unit_integer_constants = emitted.integer_constants;
             semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
@@ -746,6 +758,7 @@ fn emit_function(
     Ok(MachineCodeFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
         provenance: function.provenance.clone(),
         bytes,
         x86_scalar_fma: Vec::new(),
@@ -756,6 +769,9 @@ fn emit_function(
         internal_calls,
         foreign_calls,
         internal_unit_calls,
+        internal_unit_scalar_calls,
+        unit_scalar_homes,
+        unit_integer_constants,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
@@ -989,6 +1005,8 @@ pub enum EmissionError {
     UnitOperationAfterReturn,
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,
+    InvalidUnitScalarCallCustody(psi_core::OperationId),
+    UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,
     AggregatePlacementCoverageMismatch,
     UnsupportedAggregateFragmentWidth(u16),
@@ -1068,3 +1086,7 @@ impl std::error::Error for EmissionError {}
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/unit_scalar_calls.rs"]
+mod unit_scalar_call_tests;

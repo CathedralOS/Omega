@@ -1,5 +1,6 @@
 use omega_assigned_target_operations::{
     AssignedAggregateCopy, AssignedFunction, AssignedUnitBody, AssignedUnitOperation,
+    AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
     IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
@@ -7,13 +8,18 @@ use omega_calling_conventions::{
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord,
     ForeignCallRelocation, ForeignCallScalarArgumentRecord, InternalCallRelocation,
-    InternalUnitCallArgumentRecord, InternalUnitCallRecord, PortEffectRecord,
-    SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair, UnitCallStackEvidence,
-    UnitStackEvidence, derive_completion_provider_custody,
+    InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitScalarCallRecord,
+    PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
+    UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
+    derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::{CallSiteOwner, NormalizedForeignScalarArgument};
 use psi_core::MachineId;
+
+mod scalar_call;
+
+use scalar_call::emit_unit_scalar_call;
 
 use super::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -29,6 +35,9 @@ pub(super) struct UnitEmission {
     pub(super) internal_calls: Vec<InternalCallRelocation>,
     pub(super) foreign_calls: Vec<ForeignCallRelocation>,
     pub(super) internal_unit_calls: Vec<InternalUnitCallRecord>,
+    pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
+    pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
+    pub(super) integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub(super) semantic_code_attribution: Vec<SemanticCodeAttribution>,
     pub(super) port_effects: Vec<PortEffectRecord>,
     pub(super) boundary_settlements: Vec<BoundarySettlementRecord>,
@@ -417,6 +426,8 @@ pub(super) fn emit_unit_body(
     let mut internal_calls = Vec::new();
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
+    let mut internal_unit_scalar_calls = Vec::new();
+    let mut unit_integer_constants = Vec::new();
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
@@ -429,10 +440,16 @@ pub(super) fn emit_unit_body(
     let mut frame_release = None;
     let mut aarch64_link_store = None;
     let mut aarch64_link_load = None;
+    let assigned_scalar_homes = assigned_unit_scalar_homes(body)?;
+    let scalar_homes = assigned_scalar_homes
+        .iter()
+        .copied()
+        .map(unit_scalar_home_record)
+        .collect::<Vec<_>>();
     let parameter_homes;
     match target.architecture {
         Architecture::X86_64 => {
-            (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body)?;
+            (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body, &assigned_scalar_homes)?;
             parameter_homes = body
                 .parameters
                 .iter()
@@ -457,7 +474,8 @@ pub(super) fn emit_unit_body(
             }
         }
         Architecture::Aarch64 => {
-            let (homes, frame_bytes, lr_offset) = aarch64_unit_parameter_homes(body)?;
+            let (homes, frame_bytes, lr_offset) =
+                aarch64_unit_parameter_homes(body, &assigned_scalar_homes)?;
             aarch64_homes = homes;
             aarch64_frame_bytes = frame_bytes;
             aarch64_lr_offset = lr_offset;
@@ -533,6 +551,13 @@ pub(super) fn emit_unit_body(
                 {
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                 }
+                unit_integer_constants.push(omega_machine_code::UnitIntegerConstantRecord {
+                    defining_operation: *psi_operation,
+                    source_value: *result,
+                    scalar_type: *scalar_type,
+                    value: *value,
+                    operation_ordinal,
+                });
             }
             AssignedUnitOperation::EstablishTrivialAffineLocal {
                 psi_operation,
@@ -613,6 +638,27 @@ pub(super) fn emit_unit_body(
                     code_offset,
                     byte_count: bytes.len() - code_offset,
                 });
+            }
+            AssignedUnitOperation::ScalarCall {
+                psi_operation,
+                callee,
+                call_plan,
+                result_home,
+                arguments,
+            } => {
+                operation_site = Some(*psi_operation);
+                internal_unit_scalar_calls.push(emit_unit_scalar_call(
+                    &mut bytes,
+                    target,
+                    *psi_operation,
+                    *callee,
+                    call_plan,
+                    *result_home,
+                    arguments,
+                    &body.operations[..operation_ordinal],
+                    operation_ordinal,
+                    &mut internal_calls,
+                )?);
             }
             AssignedUnitOperation::PortWrite {
                 psi_operation,
@@ -1204,6 +1250,9 @@ pub(super) fn emit_unit_body(
         internal_calls,
         foreign_calls,
         internal_unit_calls,
+        internal_unit_scalar_calls,
+        scalar_homes,
+        integer_constants: unit_integer_constants,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
@@ -1409,8 +1458,79 @@ pub(super) fn emit_aarch64_unit_call(
     Ok(argument_intervals)
 }
 
+fn assigned_unit_scalar_homes(
+    body: &AssignedUnitBody,
+) -> Result<Vec<AssignedUnitScalarHome>, EmissionError> {
+    let homes = body
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            AssignedUnitOperation::ScalarCall {
+                psi_operation,
+                result_home,
+                ..
+            } => Some((*psi_operation, *result_home)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut values = std::collections::BTreeSet::new();
+    let mut operations = std::collections::BTreeSet::new();
+    for (operation, home) in &homes {
+        if *operation != home.defining_operation
+            || home.shape != unit_scalar_shape(home.source_value, home.scalar_type)?
+            || !values.insert(home.source_value)
+            || !operations.insert(home.defining_operation)
+        {
+            return Err(EmissionError::InvalidUnitScalarCallCustody(*operation));
+        }
+    }
+    Ok(homes.into_iter().map(|(_, home)| home).collect())
+}
+
+const fn unit_scalar_home_record(home: AssignedUnitScalarHome) -> UnitScalarHomeRecord {
+    UnitScalarHomeRecord {
+        defining_operation: home.defining_operation,
+        source_value: home.source_value,
+        scalar_type: home.scalar_type,
+        shape: home.shape,
+        byte_offset: home.byte_offset,
+    }
+}
+
+fn validate_assigned_scalar_homes(
+    cursor: &mut u32,
+    homes: &[AssignedUnitScalarHome],
+) -> Result<(), EmissionError> {
+    for home in homes {
+        *cursor = align_u32(*cursor, 8)?;
+        if home.byte_offset != *cursor {
+            return Err(EmissionError::InvalidUnitScalarCallCustody(
+                home.defining_operation,
+            ));
+        }
+        *cursor = cursor
+            .checked_add(8)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    }
+    Ok(())
+}
+
+fn unit_scalar_shape(
+    value: psi_core::ValueId,
+    scalar_type: psi_core::IntegerType,
+) -> Result<ValueShape, EmissionError> {
+    if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
+        || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+    {
+        return Err(EmissionError::UnsupportedUnitScalarType(value));
+    }
+    let bytes = scalar_type.bits().div_ceil(8);
+    Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+}
+
 fn x86_unit_parameter_homes(
     body: &AssignedUnitBody,
+    scalar_homes: &[AssignedUnitScalarHome],
 ) -> Result<(Vec<X86UnitParameterHome>, u32), EmissionError> {
     let mut homes = Vec::with_capacity(body.parameters.len());
     let mut cursor = 0_u32;
@@ -1445,11 +1565,13 @@ fn x86_unit_parameter_homes(
             .checked_add(byte_size)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
+    validate_assigned_scalar_homes(&mut cursor, scalar_homes)?;
     Ok((homes, align_u32(cursor, 16)?))
 }
 
 fn aarch64_unit_parameter_homes(
     body: &AssignedUnitBody,
+    scalar_homes: &[AssignedUnitScalarHome],
 ) -> Result<(Vec<Aarch64UnitParameterHome>, u32, u32), EmissionError> {
     let mut homes = Vec::with_capacity(body.parameters.len());
     let mut cursor = 0_u32;
@@ -1484,6 +1606,7 @@ fn aarch64_unit_parameter_homes(
             .checked_add(byte_size)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
+    validate_assigned_scalar_homes(&mut cursor, scalar_homes)?;
     let lr_offset = align_u32(cursor, 8)?;
     let frame_bytes = lr_offset
         .checked_add(8)

@@ -27,6 +27,7 @@ pub(in crate::lowering::scalar) fn lower_integer_conditional(
     Ok(TargetFunction {
         machine: function.machine,
         attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
         provenance: conditional_provenance(function, lowered.operations, lowered.edges),
         operation: target_operation_from_integer_control(lowered.control, result_type),
     })

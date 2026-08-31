@@ -38,6 +38,7 @@ pub struct MachineCodePlan {
 pub struct MachineCodeFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
+    pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
     /// Feature-requiring scalar FMA3 instruction intervals. These records do
@@ -75,6 +76,17 @@ pub struct MachineCodeFunction {
     pub foreign_calls: Vec<ForeignCallRelocation>,
     /// Complete ordered semantic and ABI custody for in-module Unit calls.
     pub internal_unit_calls: Vec<InternalUnitCallRecord>,
+    /// Complete ordered custody for fixed-width scalar calls executed inside
+    /// attached Unit bodies. These rows are distinct from aggregate-copy Unit
+    /// calls because scalar values have `ValueId` homes rather than `PlaceId`
+    /// projections.
+    pub internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
+    /// Complete ordered durable scalar homes in an attached Unit frame.
+    pub unit_scalar_homes: Vec<UnitScalarHomeRecord>,
+    /// Complete ordered zero-code integer definitions available to attached
+    /// Unit scalar calls. These rows let object replay distinguish an authored
+    /// constant from a scalar-call result without trusting the call child.
+    pub unit_integer_constants: Vec<UnitIntegerConstantRecord>,
     /// Exact zero-code affine-local establishment and Unit-return cleanup
     /// custody for the bounded one-state Unit slice.
     pub unit_affine_cleanup: Option<UnitAffineCleanupRecord>,
@@ -475,6 +487,87 @@ pub struct InternalUnitCallArgumentRecord {
     pub byte_count: usize,
     /// Immutable target bytes that realize this exact source-to-destination copy.
     pub bytes: Vec<u8>,
+}
+
+/// One durable fixed-width integer home in an attached Unit frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitScalarHomeRecord {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub shape: ValueShape,
+    pub byte_offset: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitIntegerConstantRecord {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub value: IntegerValue,
+    pub operation_ordinal: usize,
+}
+
+/// Exact semantic and physical source of one attached-Unit scalar argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InternalUnitScalarArgumentSourceRecord {
+    IntegerImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    Home(UnitScalarHomeRecord),
+}
+
+impl InternalUnitScalarArgumentSourceRecord {
+    pub const fn source_value(self) -> ValueId {
+        match self {
+            Self::IntegerImmediate { source_value, .. } => source_value,
+            Self::Home(home) => home.source_value,
+        }
+    }
+
+    pub const fn scalar_type(self) -> IntegerType {
+        match self {
+            Self::IntegerImmediate { scalar_type, .. } => scalar_type,
+            Self::Home(home) => home.scalar_type,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InternalUnitScalarCallArgumentRecord {
+    pub parameter_index: u32,
+    pub source: InternalUnitScalarArgumentSourceRecord,
+    pub destination: ValuePlacement,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InternalUnitScalarCallResultRecord {
+    pub home: UnitScalarHomeRecord,
+    pub source: ValuePlacement,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// Real emitted fixed-width integer call in an attached Unit body.
+///
+/// The relocation validates the call instruction and target; this record owns
+/// the argument and result-store bytes around it. Object construction must
+/// independently reconstruct every byte before admitting the artifact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InternalUnitScalarCallRecord {
+    pub owner: CallSiteOwner,
+    pub target: MachineId,
+    pub call_plan: CallPlan,
+    pub result: InternalUnitScalarCallResultRecord,
+    pub arguments: Vec<InternalUnitScalarCallArgumentRecord>,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

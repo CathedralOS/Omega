@@ -119,9 +119,14 @@ stop the item on one precise owner question before adding machinery.
   complete still-owned selected ProviderPlan and rejects substitution by a
   second conforming checked machine. Named/fixed-token compiler canaries replay
   the canonical Terminal artifact through the later boundary consumer.
-  NativeArtifact production remains an engineering continuation: lower mixed
-  scalar calls inside attached Unit machines, then settle compiler-owned target
-  builtins through a distinct compiler/target TCB lane. Do not fabricate
+  NativeArtifact production now carries the first bounded attached-Unit scalar
+  closure end to end: service-free fixed 8/16/32/64-bit integer callees,
+  constants or prior call results as arguments, one durable Unit-frame home per
+  result, exact per-function ABI, native call/relocation custody on all four
+  ordinary targets, independent object byte replay, and installation format 46
+  transport. Broader mixed scalar forms remain incremental engineering.
+  Compiler-owned target builtins still require a distinct compiler/target TCB
+  lane. Do not fabricate
   package-installation `ProviderExecutionEvidence` for a compiler-owned builtin
   merely to satisfy the existing settlement API. Current `main` does exactly
   that through `CompilerIntrinsicSettlementEvidence`; Q5 blocks extending or

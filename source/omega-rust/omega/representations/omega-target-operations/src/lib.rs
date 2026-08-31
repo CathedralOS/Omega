@@ -33,8 +33,36 @@ pub struct TargetFunction {
     pub machine: MachineId,
     /// Exact terminal attachment retained for artifact-side nominal cleanup validation.
     pub attachment: Option<StructuralTypeId>,
+    /// Canonical native ABI for the deliberately bounded service-free,
+    /// fixed-integer scalar function family. Other function shapes carry no
+    /// scalar ABI claim.
+    pub fixed_integer_scalar_abi: Option<FixedIntegerScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub operation: TargetOperation,
+}
+
+/// One semantic scalar value joined to its canonical target call placement.
+/// Parameter rows retain declaration order in the surrounding function ABI;
+/// the result uses the same record without inventing a positional index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedIntegerScalarAbiValue {
+    pub value: ValueId,
+    pub scalar_type: IntegerType,
+    pub placement: ValuePlacement,
+}
+
+/// Exact canonical target ABI for one service-free scalar function whose
+/// complete parameter and result roster consists of fixed 8/16/32/64-bit
+/// integers.
+///
+/// `call_plan` retains policy, clobbers, stack alignment, and entry control;
+/// the ordered semantic rows bind its otherwise anonymous placements back to
+/// terminal value identities and integer types.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedIntegerScalarFunctionAbi {
+    pub call_plan: CallPlan,
+    pub parameters: Vec<FixedIntegerScalarAbiValue>,
+    pub result: FixedIntegerScalarAbiValue,
 }
 
 /// Ordered terminal-Psi sources refined into one target function.
@@ -361,6 +389,66 @@ pub struct TargetStructuralArgument {
     pub destination: ValuePlacement,
 }
 
+/// A scalar value produced by an attached-Unit call that must survive the
+/// call-result register's next clobber.
+///
+/// This is a storage requirement, not a storage decision. The assignment
+/// stage must give this exact terminal value a durable physical home and must
+/// use that same home for every later [`TargetUnitScalarArgumentSource::Home`]
+/// occurrence. Keeping the defining operation, value identity, type, and
+/// shape together prevents a same-typed result from being substituted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetUnitScalarHomeRequirement {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub shape: ValueShape,
+}
+
+/// Exact source of one fixed-width integer argument to an attached-Unit
+/// scalar call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetUnitScalarArgumentSource {
+    /// A preceding terminal integer-constant operation. The target call still
+    /// carries its source identity; an immediate is not an anonymous literal.
+    IntegerImmediate {
+        defining_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+    /// A preceding scalar call result, read from the exact durable home that
+    /// downstream assignment is required to create.
+    Home(TargetUnitScalarHomeRequirement),
+}
+
+impl TargetUnitScalarArgumentSource {
+    pub const fn source_value(self) -> ValueId {
+        match self {
+            Self::IntegerImmediate { source_value, .. } => source_value,
+            Self::Home(home) => home.source_value,
+        }
+    }
+
+    pub const fn scalar_type(self) -> IntegerType {
+        match self {
+            Self::IntegerImmediate { scalar_type, .. } => scalar_type,
+            Self::Home(home) => home.scalar_type,
+        }
+    }
+}
+
+/// One positional fixed-width integer argument and its exact selected ABI
+/// destination. `placement` is retained from the complete call plan so a
+/// later assignment cannot silently reinterpret an incoming-stack coordinate
+/// or value shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetUnitScalarCallArgument {
+    pub parameter_index: u32,
+    pub source: TargetUnitScalarArgumentSource,
+    pub placement: ValuePlacement,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
     EstablishByteSequenceLiteral {
@@ -385,6 +473,17 @@ pub enum TargetUnitOperation {
         callee: MachineId,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+    },
+    /// One service-free, in-module fixed-width integer call inside an attached
+    /// Unit body. The complete ABI plan identifies the transient result and
+    /// argument placements; `result_home` separately requires downstream
+    /// assignment to preserve the result for later Unit operations.
+    ScalarCall {
+        psi_operation: OperationId,
+        callee: MachineId,
+        call_plan: CallPlan,
+        result_home: TargetUnitScalarHomeRequirement,
+        arguments: Vec<TargetUnitScalarCallArgument>,
     },
     /// One bodyless boundary occurrence projected through an opaque admitted
     /// installation into an exact checked Unit provider call. The original

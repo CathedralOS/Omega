@@ -26,4 +26,6 @@ psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 
 [dev-dependencies]
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-abstract-operations-to-target-operations = { path = "../../pipeline/omega-abstract-operations-to-target-operations" }
 omega-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-target-operations-to-assigned-target-operations" }

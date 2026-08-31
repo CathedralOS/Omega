@@ -284,6 +284,10 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             target,
             entry: machine,
             functions: vec![MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -472,6 +476,10 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         target,
         entry: machine,
         functions: vec![MachineCodeFunction {
+            fixed_integer_scalar_abi: None,
+            internal_unit_scalar_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -2096,6 +2104,10 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             target,
             entry: machine,
             functions: vec![MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2194,7 +2206,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "ca4132292da5dd876a05a54fd3e59f3f135bc9fe7e4d95881a35637577cddb77"
+        "896fa2e6a562950a98688b80835d9b98a5e3908ee32f5a390bf3e13d0b58a306"
     );
 
     let mut changed_plan = plan;
@@ -2376,6 +2388,10 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         target: NativeTarget::linux_x64(),
         entry: machine_id(1),
         functions: vec![MachineCodeFunction {
+            fixed_integer_scalar_abi: None,
+            internal_unit_scalar_calls: Vec::new(),
+            unit_scalar_homes: Vec::new(),
+            unit_integer_constants: Vec::new(),
             machine: machine_id(1),
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -2547,6 +2563,10 @@ fn two_function_plan() -> MachineCodePlan {
         entry: machine_id(2),
         functions: vec![
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(1),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2574,6 +2594,10 @@ fn two_function_plan() -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(2),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2646,6 +2670,10 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
         entry: machine_id(2),
         functions: vec![
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(1),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2673,6 +2701,10 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(2),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -3603,6 +3635,10 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         entry: machine_id(3),
         functions: vec![
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(1),
                 attachment: Some(structural_type),
                 provenance: TerminalPsiProvenance {
@@ -3643,6 +3679,10 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(2),
                 attachment: Some(StructuralTypeId::new(2).expect("helper type")),
                 provenance: TerminalPsiProvenance {
@@ -3680,6 +3720,10 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 structural_return: None,
             },
             MachineCodeFunction {
+                fixed_integer_scalar_abi: None,
+                internal_unit_scalar_calls: Vec::new(),
+                unit_scalar_homes: Vec::new(),
+                unit_integer_constants: Vec::new(),
                 machine: machine_id(3),
                 attachment: None,
                 provenance: TerminalPsiProvenance {

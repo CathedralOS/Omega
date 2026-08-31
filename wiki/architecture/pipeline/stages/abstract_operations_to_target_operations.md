@@ -60,6 +60,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
   `structural_scalar.rs` own their corresponding closed operation families.
+- `lowering/scalar_abi.rs` derives the exact canonical target ABI for the
+  bounded service-free fixed-integer function family. `lowering/unit/scalar_call.rs`
+  admits attached-Unit calls only when that independently derived callee ABI
+  matches, retaining constants or earlier call results as typed sources.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
 - `tests.rs` owns exact stage-boundary and rejection canaries.
 
@@ -83,6 +87,8 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - Must preserve abstract operation order when remapping handles and spans.
 - Must not own language acceptance of unsafe behavior, proof discharge, borrow checking, or effect authorization.
 - Must keep legalization separate from physical register/stack assignment.
+- An attached-Unit scalar call may request a result home, but this stage does
+  not choose its byte offset; assignment owns the ordered physical layout.
 
 ## Known Gaps
 

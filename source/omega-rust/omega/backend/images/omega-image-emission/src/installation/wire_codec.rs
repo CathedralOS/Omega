@@ -25,6 +25,10 @@ pub(super) fn push_u64(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend_from_slice(&value.to_le_bytes());
 }
 
+pub(super) fn push_u128(bytes: &mut Vec<u8>, value: u128) {
+    bytes.extend_from_slice(&value.to_le_bytes());
+}
+
 pub(super) struct Reader<'bytes> {
     bytes: &'bytes [u8],
     offset: usize,
@@ -72,5 +76,9 @@ impl<'bytes> Reader<'bytes> {
 
     pub(super) fn u64(&mut self) -> Result<u64, InstallationError> {
         Ok(u64::from_le_bytes(self.array()?))
+    }
+
+    pub(super) fn u128(&mut self) -> Result<u128, InstallationError> {
+        Ok(u128::from_le_bytes(self.array()?))
     }
 }

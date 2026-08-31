@@ -9,6 +9,7 @@ pub(super) fn lower_function(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
+    fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
     settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
@@ -65,6 +66,7 @@ pub(super) fn lower_function(
             boundary_machines,
             settlements,
             installed_calls,
+            fixed_integer_scalar_abis,
         );
     };
 

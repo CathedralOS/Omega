@@ -37,6 +37,7 @@ pub(super) fn assign(
                 &TargetFunction {
                     machine: function.machine,
                     attachment: function.attachment,
+                    fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
                     provenance: function.provenance.clone(),
                     operation: scalar.as_ref().clone(),
                 },

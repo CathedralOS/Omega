@@ -2068,6 +2068,14 @@ machine/state application while Unit planning still owns the unrewritten
 operator expression. Attached-Unit production admits only that selected scalar
 graph and its ordinary scalar-call closure, emits the selected realization as
 a distinct Terminal machine, and passes the call result to later operations.
+The first native continuation is deliberately narrower than the semantic call
+surface: attached Unit bodies may call service-free fixed 8/16/32/64-bit
+integer functions with constants or prior scalar-call results. Target
+selection retains the callee's exact ABI; assignment gives every result a
+distinct durable Unit-frame home; native emission retains typed relocation and
+argument/result intervals; object construction independently regenerates those
+bytes; installation format 46 transports the validated records. This is
+artifact consistency, not evidence that a human or model audited the code.
 Before Terminal or native production, Omega independently resolves the
 carrier's strong plan identity against its complete retained
 `SelectedProviderPlanFacts` and requires the row's exact checked-adapter machine
