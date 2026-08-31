@@ -1,13 +1,16 @@
 use iced_x86::{Decoder, DecoderOptions, Mnemonic};
 use omega_calling_conventions::MachineRegister;
 use omega_machine_code::{MachineCodeFunction, X86ScalarFmaFormat};
-use omega_target::{Architecture, NativeTarget, TargetProfile};
+use omega_target::{
+    AdmittedX86ScalarFmaProvider, Architecture, NativeTarget, TargetProfile, X86ScalarFmaSlot,
+};
 
 use crate::ObjectError;
 
 pub(crate) fn validate_x86_scalar_fma_function(
     target: NativeTarget,
     profile: Option<TargetProfile>,
+    provider: Option<AdmittedX86ScalarFmaProvider>,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
     if target.architecture != Architecture::X86_64 {
@@ -37,6 +40,11 @@ pub(crate) fn validate_x86_scalar_fma_function(
         });
     }
     let profile = profile.ok_or(ObjectError::MissingX86ScalarFmaProfile(function.machine))?;
+    if provider
+        .is_some_and(|provider| !provider.has_canonical_identity() || provider.profile() != profile)
+    {
+        return Err(ObjectError::InvalidX86ScalarFmaProviderAdmission);
+    }
 
     let mut previous_end = None;
     for fragment in &function.x86_scalar_fma {
@@ -97,6 +105,15 @@ pub(crate) fn validate_x86_scalar_fma_function(
                 machine: function.machine,
                 offset: fragment.code_offset,
             });
+        }
+        if provider.is_some_and(|provider| {
+            let slot = match fragment.format {
+                X86ScalarFmaFormat::Binary32 => X86ScalarFmaSlot::Binary32,
+                X86ScalarFmaFormat::Binary64 => X86ScalarFmaSlot::Binary64,
+            };
+            !provider.admits(fragment.requirement, slot)
+        }) {
+            return Err(ObjectError::InvalidX86ScalarFmaProviderAdmission);
         }
         previous_end = Some(end);
     }

@@ -46,8 +46,13 @@ migrates it to target conformances plus the checked instruction catalog. The
 former `Binding::Instruction` bootstrap carrier is already retired.
 The x86-64 backend now has exact register-only VEX encoders for scalar
 `VFMADD132SS` and `VFMADD132SD`, but their existence is instruction mechanics
-only: no generic FMA slot may select them until an exact target-feature
-admission is retained.
+only. The adjacent opt-in admission rung requires one exact deployment profile,
+the canonical AVX+FMA3 pair, and Binary32/Binary64 raw-bit cancellation receipts
+that distinguish fused results from multiply-then-add. Its opaque provider
+carrier binds both generic FMA slots to the exact scalar instructions and is
+the only route by which the existing source-free custody seam may enter final
+image emission. This does not widen the generic SSE2 x86-64 targets: ordinary
+source/build selection of the admitted deployment feature set remains pending.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A
@@ -206,9 +211,11 @@ uses through both interpreter and native lowering.
 All native target families select exact F32/F64 plans for primitive arithmetic,
 comparison, classification, conversion, square root, minimum/maximum, negate,
 and multiply-then-add. AArch64 additionally has fused and directed-rounding
-realizations. Generic x86-64 remains SSE2-baseline, so FMA awaits an honest
-feature-qualified or checked-software provider. Multiply-then-add and FMA stay
-distinct through lowering and result-policy adaptation.
+realizations. Generic x86-64 remains SSE2-baseline. The first explicit
+feature-qualified carrier now exists for source-free x86 FMA custody and final
+image replay; compiler/build selection of that opt-in carrier is still pending.
+Multiply-then-add and FMA stay distinct through lowering and result-policy
+adaptation.
 
 Generated call/return and foreign callback frames preserve the complete
 MXCSR/FPCR control state and install Omega's canonical controls. Returning

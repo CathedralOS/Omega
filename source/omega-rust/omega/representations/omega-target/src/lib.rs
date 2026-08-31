@@ -38,7 +38,11 @@ pub use uefi_system_table_occurrence::{
     UEFI_SYSTEM_TABLE_SIGNATURE, UefiSystemTableOccurrenceValidationError,
     ValidatedUefiSystemTableHeaderIntegrity, validate_uefi_system_table_occurrence,
 };
-pub use x86_features::{X86_SCALAR_FMA_REQUIRED_FEATURES, X86FeatureRequirement, X86TargetFeature};
+pub use x86_features::{
+    AdmittedX86ScalarFmaProvider, X86_SCALAR_FMA_REQUIRED_FEATURES, X86DeploymentFeatures,
+    X86FeatureRequirement, X86ScalarFmaAdmissionError, X86ScalarFmaDifferentialReceipt,
+    X86ScalarFmaSlot, X86TargetFeature,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Architecture {

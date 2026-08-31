@@ -17,6 +17,52 @@ use super::{
     SCALAR_CALL_REFERENCE_FINGERPRINT,
 };
 
+fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
+    let fragments = artifact
+        .functions
+        .iter()
+        .flat_map(|function| function.x86_scalar_fma.iter())
+        .collect::<Vec<_>>();
+    if fragments.is_empty() {
+        if artifact.x86_scalar_fma_provider.is_some() {
+            return Err(Diagnostic::error(
+                "x86 scalar FMA provider admission has no retained instruction custody",
+            ));
+        }
+        return Ok(());
+    }
+    let provider = artifact.x86_scalar_fma_provider.ok_or_else(|| {
+        Diagnostic::error(
+            "x86 scalar FMA feature requirements have no admitted executable provider",
+        )
+    })?;
+    if !provider.has_canonical_identity()
+        || Some(provider.profile()) != artifact.x86_feature_profile
+        || provider.profile().native_target() != artifact.target
+    {
+        return Err(Diagnostic::error(
+            "x86 scalar FMA executable provider admission does not match its exact object target",
+        ));
+    }
+    for fragment in fragments {
+        let slot = match fragment.format {
+            omega_machine_code::X86ScalarFmaFormat::Binary32 => {
+                omega_target::X86ScalarFmaSlot::Binary32
+            }
+            omega_machine_code::X86ScalarFmaFormat::Binary64 => {
+                omega_target::X86ScalarFmaSlot::Binary64
+            }
+        };
+        if !provider.admits(fragment.requirement, slot) {
+            return Err(Diagnostic::error(format!(
+                "x86 scalar FMA provider does not admit exact generic slot `{}`",
+                slot.requirement_identity(),
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
     ObjectContainer {
         psi: artifact.psi,
@@ -58,15 +104,7 @@ pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
 ) -> Result<ExecutableImage, Diagnostic> {
-    if artifact
-        .functions
-        .iter()
-        .any(|function| !function.x86_scalar_fma.is_empty())
-    {
-        return Err(Diagnostic::error(
-            "x86 scalar FMA feature requirements have no admitted executable provider",
-        ));
-    }
+    validate_x86_scalar_fma_provider(artifact)?;
     super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if !can_emit_executable_image(artifact.target) {
         return Err(Diagnostic::error(format!(
@@ -114,6 +152,7 @@ pub fn emit_executable_image(
     Ok(ExecutableImage {
         psi: artifact.psi,
         target: artifact.target,
+        x86_scalar_fma_provider: artifact.x86_scalar_fma_provider,
         subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
         functions: artifact.functions.clone(),
         semantic_code_attribution: artifact.semantic_code_attribution.clone(),
@@ -133,18 +172,11 @@ pub fn validate_executable_image(
     artifact: &ObjectArtifact,
     image: &ExecutableImage,
 ) -> Result<(), Diagnostic> {
-    if artifact
-        .functions
-        .iter()
-        .any(|function| !function.x86_scalar_fma.is_empty())
-    {
-        return Err(Diagnostic::error(
-            "x86 scalar FMA feature requirements have no admitted executable provider",
-        ));
-    }
+    validate_x86_scalar_fma_provider(artifact)?;
     super::ranked_u32_countdown::replay_ranked_u32_countdown_final_image(artifact)?;
     if artifact.psi() != image.psi()
         || artifact.target() != image.target()
+        || artifact.x86_scalar_fma_provider() != image.x86_scalar_fma_provider()
         || artifact.functions() != image.functions()
         || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
@@ -296,6 +328,7 @@ pub fn emit_scalar_call_reference_linux_x86_64_image(
 pub struct ExecutableImage {
     psi: TerminalPsiIdentity,
     target: NativeTarget,
+    x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
     subsystem: Option<u16>,
     functions: Vec<ObjectFunction>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
@@ -312,6 +345,12 @@ impl ExecutableImage {
 
     pub const fn target(&self) -> NativeTarget {
         self.target
+    }
+
+    pub const fn x86_scalar_fma_provider(
+        &self,
+    ) -> Option<omega_target::AdmittedX86ScalarFmaProvider> {
+        self.x86_scalar_fma_provider
     }
 
     /// PE/COFF subsystem selected by the writer. Other formats carry no

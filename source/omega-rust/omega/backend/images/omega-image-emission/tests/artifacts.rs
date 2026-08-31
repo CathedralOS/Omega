@@ -1,7 +1,8 @@
 use omega_image_emission::{
     INSTALLATION_FORMAT_MARKER, InstallationError, ObjectError,
-    build_feature_required_x86_fma_object_artifact, build_installation_record,
-    build_installation_record_with_evidence, build_installation_record_with_provider_executions,
+    build_admitted_x86_fma_object_artifact, build_feature_required_x86_fma_object_artifact,
+    build_installation_record, build_installation_record_with_evidence,
+    build_installation_record_with_provider_executions,
     build_installation_record_with_selected_provider_plans_and_evidence, build_object_artifact,
     can_emit_executable_image, decode_installation_record, derive_installation_stack_demand,
     derive_stack_demand, derive_unit_stack_demand, emit_executable_image, emit_object_container,
@@ -21,7 +22,10 @@ use omega_machine_code::{
 use omega_object_file::{
     RelocationKind, RelocationOrigin, SectionKind, SymbolKind, object_symbol_name,
 };
-use omega_target::{NativeTarget, TargetProfile, X86FeatureRequirement};
+use omega_target::{
+    AdmittedX86ScalarFmaProvider, NativeTarget, TargetProfile, X86DeploymentFeatures,
+    X86FeatureRequirement, X86ScalarFmaDifferentialReceipt, X86ScalarFmaSlot, X86TargetFeature,
+};
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
     LinuxExitGroupI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
@@ -125,6 +129,49 @@ fn source_free_x86_fma_object_replays_exact_feature_profile_and_instruction_cust
             "retained requirements are not hardware admission"
         );
     }
+}
+
+#[test]
+fn admitted_x86_fma_provider_selects_generic_slot_and_reaches_an_exact_image() {
+    for (profile, format, slot) in [
+        (
+            TargetProfile::LinuxX64,
+            X86ScalarFmaFormat::Binary32,
+            X86ScalarFmaSlot::Binary32,
+        ),
+        (
+            TargetProfile::WindowsX64,
+            X86ScalarFmaFormat::Binary64,
+            X86ScalarFmaSlot::Binary64,
+        ),
+    ] {
+        let plan = x86_fma_plan(profile, format);
+        let provider = admitted_x86_fma_provider(profile);
+        assert!(provider.admits(plan.functions[0].x86_scalar_fma[0].requirement, slot));
+        let artifact = build_admitted_x86_fma_object_artifact(&plan, provider)
+            .expect("feature-qualified generic FMA object");
+        assert_eq!(artifact.x86_scalar_fma_provider(), Some(provider));
+        let image = emit_executable_image(&artifact, 3)
+            .expect("feature-qualified generic FMA object should reach exact image emission");
+        assert_eq!(image.x86_scalar_fma_provider(), Some(provider));
+        omega_image_emission::validate_executable_image(&artifact, &image)
+            .expect("image replay must retain exact FMA admission");
+    }
+}
+
+#[test]
+fn admitted_x86_fma_object_rejects_profile_and_slot_custody_drift() {
+    let linux_plan = x86_fma_plan(TargetProfile::LinuxX64, X86ScalarFmaFormat::Binary32);
+    let windows_provider = admitted_x86_fma_provider(TargetProfile::WindowsX64);
+    assert_eq!(
+        build_admitted_x86_fma_object_artifact(&linux_plan, windows_provider),
+        Err(ObjectError::InvalidX86ScalarFmaProviderAdmission)
+    );
+
+    let feature_only =
+        build_feature_required_x86_fma_object_artifact(&linux_plan, TargetProfile::LinuxX64)
+            .unwrap();
+    assert!(emit_executable_image(&feature_only, 3).is_err());
 }
 
 #[test]
@@ -2655,6 +2702,36 @@ fn x86_fma_plan(profile: TargetProfile, format: X86ScalarFmaFormat) -> MachineCo
     plan.functions[0].bytes = emitted.bytes.into_iter().chain([0xc3]).collect();
     plan.functions[0].x86_scalar_fma = vec![emitted.custody];
     plan
+}
+
+fn admitted_x86_fma_provider(profile: TargetProfile) -> AdmittedX86ScalarFmaProvider {
+    let requirement = X86FeatureRequirement::scalar_fma(profile).unwrap();
+    let deployment = X86DeploymentFeatures::scalar_fma(
+        profile,
+        &[X86TargetFeature::Avx, X86TargetFeature::Fma3],
+    )
+    .unwrap();
+    let differential_receipts = [
+        X86ScalarFmaDifferentialReceipt::admit(
+            X86ScalarFmaSlot::Binary32,
+            [0x3f80_0001, 0x3f7f_fffe, 0xbf80_0000],
+            0xa880_0000,
+            0,
+        )
+        .unwrap(),
+        X86ScalarFmaDifferentialReceipt::admit(
+            X86ScalarFmaSlot::Binary64,
+            [
+                0x3ff0_0000_0000_0001,
+                0x3fef_ffff_ffff_fffe,
+                0xbff0_0000_0000_0000,
+            ],
+            0xb970_0000_0000_0000,
+            0,
+        )
+        .unwrap(),
+    ];
+    AdmittedX86ScalarFmaProvider::admit(requirement, deployment, differential_receipts).unwrap()
 }
 
 fn refresh_x86_fma_identity(fragment: &mut omega_machine_code::X86ScalarFmaFragment) {

@@ -10849,8 +10849,9 @@ Owner: `wiki/design_briefs/float_semantics.md`.
 
 Remaining F7 work:
 
-- provide feature-qualified x86-64 FMA or a checked binary32/binary64 software
-  implementation, then select the generic x86 FMA slots;
+- wire ordinary build/source selection and compiler lowering into the admitted
+  feature-qualified x86-64 FMA carrier, or add a checked binary32/binary64
+  software implementation;
 - complete the wider proof/`Real` connection under N6/N8.
 
 The mechanical x86-64 prerequisite is live: `omega-isa-x86_64` owns exact
@@ -10860,13 +10861,22 @@ seam is also live: `omega-target` owns the immutable, profile-bound AVX+FMA3
 requirement; machine emission retains exact format/register/interval identity;
 and object construction independently decodes `VFMADD132SS`/`VFMADD132SD`,
 replays the target and deployment profile, and rejects stripped, substituted,
-overlapping, or identity-drifted custody. The ordinary object builder rejects
-feature-requiring FMA without an explicit profile, and executable-image
-construction rejects it because no admitted provider discharges the retained
-requirement yet. This seam grants no target feature admission, accepts no
-Terminal/source operation, and remains unselected by generic FMA lowering;
-that still requires the feature-qualified provider or checked software
-realization above.
+overlapping, or identity-drifted custody. The first feature-qualified provider
+rung is now live without widening either generic x86 baseline. An explicit
+deployment claim must name the exact profile and canonical AVX+FMA3 pair; two
+raw-bit cancellation receipts independently pin Binary32 and Binary64 fused
+results against their distinct multiply-then-add results. The resulting opaque
+admission binds that requirement, deployment claim, both generic
+`F32`/`F64::fused_multiply_add` slots, and the exact `VFMADD132SS`/`VFMADD132SD`
+realizations. Only its consuming object builder may advance retained FMA
+custody into executable-image construction, where admission, profile, target,
+slot, requirement, bytes, and final image replay are rejoined. The ordinary
+object builder still rejects feature-requiring FMA without an explicit profile,
+and the mechanics-only builder remains non-executable. Source/build selection
+of this opt-in deployment feature set, ordinary compiler lowering into the
+admitted carrier, and native differential execution receipts remain engineering
+work; generic Linux/Windows x86-64 semantics remain SSE2 baseline until that
+explicit deployment input is selected.
 
 The generic Linux and Windows x86-64 baselines now retain target-specific
 semantic-edge suites. Each checked half pins the exact 36 nearest arithmetic,

@@ -104,6 +104,10 @@ pub struct ObjectArtifact {
     /// Exact deployment profile for the source-free feature-requiring x86 FMA
     /// seam. Ordinary object construction retains `None` and rejects FMA.
     x86_feature_profile: Option<omega_target::TargetProfile>,
+    /// Consumed feature/differential authority for generic x86 FMA slots.
+    /// The feature-required mechanics seam retains `None` and remains
+    /// non-executable.
+    x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
     entry: MachineId,
     object: ObjectPlan,
     relocations: RelocationPlan,
@@ -125,6 +129,12 @@ impl ObjectArtifact {
 
     pub const fn x86_feature_profile(&self) -> Option<omega_target::TargetProfile> {
         self.x86_feature_profile
+    }
+
+    pub const fn x86_scalar_fma_provider(
+        &self,
+    ) -> Option<omega_target::AdmittedX86ScalarFmaProvider> {
+        self.x86_scalar_fma_provider
     }
 
     pub const fn entry(&self) -> MachineId {
@@ -399,7 +409,7 @@ pub(crate) const SCALAR_CALL_REFERENCE_FINGERPRINT: [u8; 32] = [
 /// normalizing it. Each function gets exactly one symbol and one retained Psi
 /// provenance row.
 pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, ObjectError> {
-    build_object_artifact_with_x86_feature_profile(plan, None)
+    build_object_artifact_with_x86_feature_profile(plan, None, None)
 }
 
 /// Construct the bounded source-free object seam for feature-requiring scalar
@@ -416,12 +426,53 @@ pub fn build_feature_required_x86_fma_object_artifact(
     {
         return Err(ObjectError::MissingX86ScalarFmaFragment);
     }
-    build_object_artifact_with_x86_feature_profile(plan, Some(profile))
+    build_object_artifact_with_x86_feature_profile(plan, Some(profile), None)
+}
+
+/// Consume exact deployment-feature and differential authority while building
+/// an object whose generic F32/F64 FMA slots may enter executable emission.
+/// Ordinary and feature-required-only builders retain their fail-closed
+/// baseline behavior.
+pub fn build_admitted_x86_fma_object_artifact(
+    plan: &MachineCodePlan,
+    provider: omega_target::AdmittedX86ScalarFmaProvider,
+) -> Result<ObjectArtifact, ObjectError> {
+    if !provider.has_canonical_identity() {
+        return Err(ObjectError::InvalidX86ScalarFmaProviderAdmission);
+    }
+    if provider.profile().native_target() != plan.target
+        || plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.x86_scalar_fma)
+            .any(|fragment| {
+                let slot = match fragment.format {
+                    omega_machine_code::X86ScalarFmaFormat::Binary32 => {
+                        omega_target::X86ScalarFmaSlot::Binary32
+                    }
+                    omega_machine_code::X86ScalarFmaFormat::Binary64 => {
+                        omega_target::X86ScalarFmaSlot::Binary64
+                    }
+                };
+                !provider.admits(fragment.requirement, slot)
+            })
+    {
+        return Err(ObjectError::InvalidX86ScalarFmaProviderAdmission);
+    }
+    if !plan
+        .functions
+        .iter()
+        .any(|function| !function.x86_scalar_fma.is_empty())
+    {
+        return Err(ObjectError::MissingX86ScalarFmaFragment);
+    }
+    build_object_artifact_with_x86_feature_profile(plan, Some(provider.profile()), Some(provider))
 }
 
 fn build_object_artifact_with_x86_feature_profile(
     plan: &MachineCodePlan,
     x86_feature_profile: Option<omega_target::TargetProfile>,
+    x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
 ) -> Result<ObjectArtifact, ObjectError> {
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
@@ -454,7 +505,12 @@ fn build_object_artifact_with_x86_feature_profile(
         if function.bytes.is_empty() {
             return Err(ObjectError::EmptyFunction(function.machine));
         }
-        x86_fma::validate_x86_scalar_fma_function(plan.target, x86_feature_profile, function)?;
+        x86_fma::validate_x86_scalar_fma_function(
+            plan.target,
+            x86_feature_profile,
+            x86_scalar_fma_provider,
+            function,
+        )?;
         if function
             .internal_calls
             .windows(2)
@@ -1580,6 +1636,7 @@ fn build_object_artifact_with_x86_feature_profile(
         psi: plan.psi,
         target: plan.target,
         x86_feature_profile,
+        x86_scalar_fma_provider,
         entry: plan.entry,
         object,
         relocations,
@@ -1880,6 +1937,7 @@ pub enum ObjectError {
     },
     EmptyFunction(MachineId),
     MissingX86ScalarFmaFragment,
+    InvalidX86ScalarFmaProviderAdmission,
     MissingX86ScalarFmaProfile(MachineId),
     X86ScalarFmaUnsupportedTarget(MachineId),
     NonCanonicalX86ScalarFmaOrder(MachineId),
