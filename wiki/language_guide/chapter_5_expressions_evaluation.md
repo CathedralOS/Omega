@@ -773,6 +773,14 @@ observe the sign. NaN payloads do not enter the base proof meaning, although
 the concrete runtime value retains its honest bits. `FloatMeaning` is
 proof-only and therefore has no runtime tagged-union ABI.
 
+`FloatMeaning` equality is structural equality of this sum. Payload erasure is
+performed by `meaning32`/`meaning64`, not by equality: all runtime NaN payloads
+reach the one reflexive `NaN` proof case, while `Zero(Sign::Positive)` and
+`Zero(Sign::Negative)` remain unequal. Atomic IEEE comparison remains a
+separate runtime relation. The PCC term retains a verifier-reconstructed source
+carrier and exact recognized projection contract; none of that metadata emits
+a runtime value or check.
+
 The current core declarations live in
 `omega::language::core::float_operations`. They publish pure
 `FloatSemantics` identities and contracted f32/f64 boundary requirements for

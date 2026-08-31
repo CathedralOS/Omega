@@ -468,7 +468,7 @@ identity.
 D25 supplies the authoritative outer framing and canonical-content rules for
 this logical request and outcome. It retains each selected immutable source
 revision independently from the stable `PackageKey`, but deliberately gives no
-V1 wire identity to the future accepted `PackageInstance` carrier. Q2 owns the
+V1 wire identity to the future accepted `PackageInstance` carrier. Q1 owns the
 still-missing inner field/tag tables, commitment preimage, failure-code tables,
 phase order, and scalar provisions needed for one byte-interoperable wire.
 
@@ -727,7 +727,7 @@ arithmetic, and therefore never turns hostile framing into a trap and outer
 The identity, outer section extents, exact end, and canonical semantic contents
 in this decision are fixed. They do not by themselves assign every inner row's
 byte order, width, tag, or reserved fields, nor the closed failure/resource
-numbers. Q2 completes those physical tables before either compiler may claim a
+numbers. Q1 completes those physical tables before either compiler may claim a
 full V1 decoder or publisher.
 
 The subject encodes package rows in ascending recomputed
@@ -1580,6 +1580,61 @@ belong to compiler-product subjects; formal-target-to-silicon evidence belongs
 to deployment. D10's Delta compiler profile composes `TerminalTraceV1` with
 sealed input, exact diagnostic/artifact bytes, and its closed product outcomes
 rather than contradicting or replacing the reusable trace profile.
+
+## D40 — FloatMeaning equality is proof-only structural correspondence
+
+`Float::meaning32` and `Float::meaning64` project one exact IEEE runtime carrier
+into the proof-only `FloatMeaning` sum. NaN payload erasure occurs in this
+projection: the public sum has one payloadless `NaN` case. Equality therefore
+uses ordinary structural equality of the sum. `NaN` is reflexive, while
+`Zero(Negative)` and `Zero(Positive)` remain distinct. No float-specific
+payload-erasure rule enters the proof kernel, and this relation is separate
+from atomic IEEE `==`/`!=`, where NaN is non-reflexive and signed zeros compare
+equal.
+
+The kernel retains one closed proof-value classification, initially with a
+`FloatMeaning` term child, but relations remain carrier-specific. It admits
+`FloatMeaningEqual(left, right)` and no FloatMeaning ordering proposition.
+Cross-carrier comparison is unrepresentable rather than accepted and rejected
+later. This follows the existing parallel `IntegerMathEqual` and ordered
+integer-math proposition family instead of broadening runtime `ScalarTerm`
+equality or inventing a runtime tagged ABI.
+
+A projection term is identified by the canonical tuple
+
+```text
+(landed float source term, binary format, projection operation,
+ exact projection-contract identity)
+```
+
+The landed source term is a verifier-reconstructible semantic coordinate, not
+a fresh producer number or source byte offset. Its closed forms cover the
+contract parameter/result, Terminal value, structural float leaf, or exact-bit
+literal that actually supplies the carrier, each with its exact binary32 or
+binary64 format. Authored projection occurrence and source span remain separate
+diagnostic/provenance facts. Dense `ProofValueId` and projection-input numbers
+are canonical encoding coordinates only.
+
+The compiler canonicalizes equal tuples to one proof value before equality is
+formed. Multiple authored occurrences may therefore reference the same
+`ProofValueId`; the verifier independently reconstructs the tuple and the
+deduplication. Reflexivity discharges equality of that shared term. Distinct
+source terms never coalesce because their projected values happen to coincide.
+Relating them requires an explicit theorem application with complete contract
+and evidence provenance; ordinary IEEE equality is insufficient because its
+signed-zero and NaN laws differ.
+
+Projection authority binds both the exact compiler-recognized core
+`Float::meaning32` or `Float::meaning64` declaration and the exact closed
+numeric-catalog identity/version that realizes its meaning. The verifier
+reconstructs that join. Matching namespace, spelling, signature, format label,
+fingerprint, or a locally declared lookalike grants no projection semantics.
+
+These terms and propositions are PCC metadata. They are erased before runtime
+and add no runtime `FloatMeaning` object, conversion, comparison, branch, or
+check. Native float lowering remains ordinary float lowering; the retained
+correspondence lets the proof certificate establish that the selected runtime
+operation refines its authored mathematical contract.
 
 ## Dependency order
 

@@ -129,6 +129,21 @@ remains separate because operations such as reciprocal observe its sign.
 Infinity and NaN have no rational embedding. NaN payloads collapse only in the
 proof stratum; the runtime carrier retains its honest bits.
 
+D40 fixes equality as structural equality of this proof-only sum. Payload
+erasure has already happened when the runtime carrier projects to the single
+payloadless `NaN` case; equality performs no second erasure. Consequently NaN
+is reflexive and the two `Zero(sign)` values remain distinct. This is not IEEE
+`==`: that separate atomic runtime relation makes NaN non-reflexive and signed
+zeros equal.
+
+Each projected term retains a verifier-reconstructible landed float source,
+exact format, exact `meaning32`/`meaning64` operation, and exact recognized-core
+declaration plus numeric-catalog contract. Equal tuples canonicalize to one
+proof value; source occurrences and spans remain separate provenance. Distinct
+source terms require an explicit theorem and never coalesce by spelling,
+fingerprint, ordinary IEEE comparison, or coincident value. The entire carrier
+is PCC metadata and has no runtime representation.
+
 The same semantic function is consumed by proof checking, build-time folding,
 the interpreter, checked software realizations, and target-validation tools.
 This replaces the current folder path that can evaluate landed `f32` operations

@@ -64,6 +64,17 @@ symbolic interval propagation, affine reasoning, alias transport, SMT solving,
 and every other fact-dependent route remain untrusted certificate production.
 A solver's verdict is never a premise.
 
+D40 adds no floating-point evaluator to this boundary. The closed proof-value
+classification gains a FloatMeaning term, while the proposition vocabulary
+gains only carrier-specific `FloatMeaningEqual`. Structural equality acts on
+the payload-erased proof sum: NaN is reflexive and signed zeros remain
+distinct. Atomic IEEE comparison remains a separate proposition with the
+opposite NaN and signed-zero behavior. Terminal supplies a
+verifier-reconstructed landed-source and recognized declaration/catalog
+contract key; equal keys canonicalize to one term, while distinct keys need an
+explicit checked theorem. No source offset, producer ID, name, or runtime bit
+comparison can manufacture correspondence.
+
 ## Implementations
 
 The currently retained implementations are:

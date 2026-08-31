@@ -76,8 +76,8 @@ The committed tree still has two important gaps:
   argument-`never` category joins, let/assignment/assert and explicit-return
   relations, first-following-statement terminal flow, D38's source fact
   relation, and symbolic Alpha encoding.
-  Remaining Q4-blocked entry diagnostics, Q9 state-transfer spelling, Q10
-  invalid-`self`, Q11 resultless-argument anchoring, Q12 block-exit totality,
+  Remaining Q3-blocked entry diagnostics, Q8 state-transfer spelling, Q9
+  invalid-`self`, Q10 resultless-argument anchoring, Q11 block-exit totality,
   D36 continuation/state classification, and D37 remaining control/terminal
   closure, D38
   lowering/executable

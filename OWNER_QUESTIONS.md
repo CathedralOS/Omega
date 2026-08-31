@@ -33,65 +33,7 @@ promote that narrow ambiguity here before adding machinery.
 
 Last pruned: 2026-08-30.
 
-## Q1 — Own proof-only FloatMeaning equality and source correspondence
-
-### Context
-
-The Float catalog already defines exact binary32/binary64 meaning projection:
-finite values map to nonzero rationals, signed zero and infinity remain
-distinct, NaN payloads erase only in proof meaning, and cross-format projection
-rejects. Checked and Terminal evidence retains exact projection invocations,
-operators, operands, formats, equality coordinates, tables, and provenance.
-The wider proof/`Real` connection now reaches the proof-kernel boundary rather
-than lacking an executable Float model.
-
-### Problem statement
-
-The proof kernel accepts equality only over its existing scalar-term carrier;
-it has no proof-only `FloatMeaning` or general `ProofValueId` term. Two
-independently authored meaning projections also do not retain one shared
-landed-source identity, while Terminal equality rows currently have neither an
-exact contract owner nor an evidence-provenance lane that can authorize their
-coalescing. Implementing any one of those choices privately would decide which
-proof terms exist and when two authored projections denote the same value.
-
-Choose together:
-
-1. the kernel term that carries proof-only `FloatMeaning` values;
-2. the accepted equality rule for that sum, including NaN-payload erasure and
-   signed-zero distinction;
-3. the exact source-coordinate identity and coalescing rule for independently
-   authored projection invocations; and
-4. the contract/evidence owner that Terminal replay must bind before such an
-   equality can discharge an obligation.
-
-### Proposed direction
-
-Add a closed proof-only semantic-term carrier whose Float child is the existing
-`FloatMeaning` sum, not a runtime scalar or tagged ABI. Bind every projection
-term to the exact checked source value/projection occurrence and its canonical
-Float table identity. Kernel equality compares the semantic sum structurally
-under the documented payload erasure; coalescing is permitted only when the
-retained landed-source identity and projection contract are identical.
-Terminal evidence names that contract owner and source correspondence
-explicitly, and the verifier independently reconstructs both before invoking
-the equality rule.
-
-### Alternates
-
-- Acceptable: introduce a general proof-value term encompassing other
-  proof-only sums, provided its equality rules are closed per carrier and do
-  not create a runtime representation.
-- Acceptable: avoid source-occurrence coalescing by retaining one explicit
-  theorem/contract application that relates the two projections, provided its
-  owner and complete evidence provenance survive Terminal replay.
-- Tempting but wrong: encode `FloatMeaning` as a runtime scalar, compare raw
-  float bits, or collapse signed zero merely because NaN payloads erase.
-- Tempting but wrong: equate independently authored projections by matching
-  operator names, format labels, compact fingerprints, or coincidentally equal
-  values without a shared source/contract owner.
-
-## Q2 — Complete the physical OCREQ/OCOUT v1 tables
+## Q1 — Complete the physical OCREQ/OCOUT v1 tables
 
 ### Context
 
@@ -150,7 +92,7 @@ compiler phases explicitly.
   Rust request, let `D` define one private layout and `C` another, or postpone
   reason/resource numbers until publication code happens to need them.
 
-## Q3 — Give the complete Gamma compiler an explicit Beta call-row profile
+## Q2 — Give the complete Gamma compiler an explicit Beta call-row profile
 
 ### Context
 
@@ -207,7 +149,7 @@ select the smallest measured power-of-two profile that is.
   publish before validation, generate Beta source or Alpha bytes on the host,
   add an Alpha opcode, or treat the 1,024-row refusal as invalid Gamma source.
 
-## Q4 — Total Delta entry-shape diagnostics
+## Q3 — Total Delta entry-shape diagnostics
 
 ### Context
 
@@ -273,7 +215,7 @@ contradiction unless this ruling assigns a specific structural suppression.
   `MissingEntry`, or publish executable golden coordinates before the judgment
   is total.
 
-## Q5 — Settle compiler-owned native builtins without fake package evidence
+## Q4 — Settle compiler-owned native builtins without fake package evidence
 
 ### Context
 
@@ -309,7 +251,7 @@ coordinates, implements package-style `ProviderExecutionEvidence` for that
 compiler-owned value, and feeds it through `NativeProviderSettlement`. Those
 coordinates establish no installation, external audit, or independent
 execution fact; they only restate compiler-owned inputs. Treat this lane as
-unratified and do not extend it while Q5 is open.
+unratified and do not extend it while Q4 is open.
 
 ### Proposed solution
 
@@ -338,7 +280,7 @@ event occurred.
   numeric boundary ID, globally permit unresolved boundaries, or require users
   to install/audit code that is actually shipped inside the compiler backend.
 
-## Q6 — Retire resolver execution custody that adds no source guarantee
+## Q5 — Retire resolver execution custody that adds no source guarantee
 
 ### Context
 
@@ -412,7 +354,7 @@ production protocol.
   unused sandbox executable to remain unchanged, or forbid an operator's
   HTTPS-to-SSH rewrite while claiming host Git configuration is inherited.
 
-## Q7 — Keep carrier cleanup out of opaque semantic ownership
+## Q6 — Keep carrier cleanup out of opaque semantic ownership
 
 ### Context
 
@@ -462,7 +404,7 @@ resource-owning representation protocol.
   treat an ABI copy as semantic copying, or publish a D26 demand before the
   lifecycle join is complete.
 
-## Q8 — Define the closed terminal-authority classification policy
+## Q7 — Define the closed terminal-authority classification policy
 
 ### Context
 
@@ -525,7 +467,7 @@ missing leaves, and unclassified physical operations.
   unknown means harmless; or map every binding beneath a service to that
   service's permitted class set.
 
-## Q9 — Fix the zero-parameter Delta state-transfer spelling
+## Q8 — Fix the zero-parameter Delta state-transfer spelling
 
 ### Context
 
@@ -561,7 +503,7 @@ before arity rather than letting zero arity select a meaning.
   declaration has matching arity, or let source order choose state versus
   machine.
 
-## Q10 — Assign invalid Delta `self` diagnostics
+## Q9 — Assign invalid Delta `self` diagnostics
 
 ### Context
 
@@ -595,7 +537,7 @@ place; receiver mutability is therefore not guessed from use.
 - Tempting but wrong: infer `Main`, infer the only data owner, create a typeless
   recovery receiver, or defer the failure until a later field/call suffix.
 
-## Q11 — Anchor a resultless Delta call used as an argument
+## Q10 — Anchor a resultless Delta call used as an argument
 
 ### Context
 
@@ -640,7 +582,7 @@ value-use expression rather than moving the anchor to the callee.
   failed, choose an anchor by traversal order, or manufacture a value/error
   type for the resultless call.
 
-## Q12 — Total Delta block exits and machine continuations
+## Q11 — Total Delta block exits and machine continuations
 
 ### Context
 
