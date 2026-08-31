@@ -6,6 +6,7 @@ mod assembly;
 mod custody;
 mod guards;
 mod leaves;
+mod prefixed_control;
 mod topology;
 
 pub(super) fn build_checked_composed_unit_control_machines(
@@ -18,6 +19,9 @@ pub(super) fn build_checked_composed_unit_control_machines(
         .machines()
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| assembly::build(program, facts, shapes, boundaries, machine))
+        .filter_map(|machine| {
+            assembly::build(program, facts, shapes, boundaries, machine)
+                .or_else(|| prefixed_control::build(program, facts, shapes, boundaries, machine))
+        })
         .collect()
 }

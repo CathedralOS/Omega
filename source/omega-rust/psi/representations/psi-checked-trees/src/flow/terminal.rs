@@ -568,6 +568,9 @@ pub struct CheckedComposedUnitControlStatePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     ReturnUnit,
+    Jump {
+        successor: CheckedStructuralControlSuccessorPlan,
+    },
     Conditional {
         /// Exact checked scalar expression selected by the authored guard.
         /// The current family admits either one Boolean state parameter or a
