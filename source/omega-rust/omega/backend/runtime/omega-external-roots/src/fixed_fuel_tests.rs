@@ -9,7 +9,10 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_installation_evidence::ObjectEvidence;
-use psi_core::{BlockId, ContractId, EdgeId, MachineId};
+use psi_core::{
+    BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
+};
 use psi_extents::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
     ExtentRootGrant, MappingEraId,
@@ -17,16 +20,25 @@ use psi_extents::{
 use psi_layout_plans::{
     ArtifactInstallationScopeId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
-use psi_proof_admission::AdmissionProfile;
+use psi_proof_admission::{
+    AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerAffineWitness, ProofNode,
+    ProofRule, ProofSystemMarker,
+};
 use psi_terminal::{
-    Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalRankedGuard, TerminalRankedScc,
+    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator, ValueDeclaration,
     VocabularyMarker,
 };
 use psi_terminal_codec::terminal_psi_identity;
 use psi_terminal_fixed_fuel::{
     derive_fixed_segment_fuel, derive_validated_fixed_safe_point_segments,
+    derive_validated_ranked_countdown_safe_point_segments,
 };
-use psi_terminal_verifier::{ProofBundle, verify_module};
+use psi_terminal_verifier::{
+    ObligationEvidence, ProofBundle, reconstruct_interpretable_operation_obligations,
+    validate_module_for_interpretation, verify_module, verify_module_for_fixed_fuel,
+};
 
 #[derive(Debug)]
 struct TestObject {
@@ -256,6 +268,275 @@ fn terminal_fixture() -> TerminalModule {
     }
 }
 
+fn core_id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
+    constructor(raw).expect("nonzero fixture identity")
+}
+
+fn ranked_terminal_fixture() -> TerminalModule {
+    let machine = core_id(0x7400, MachineId::new);
+    let preheader = core_id(0x7401, BlockId::new);
+    let header = core_id(0x7402, BlockId::new);
+    let decrement = core_id(0x7403, BlockId::new);
+    let done = core_id(0x7404, BlockId::new);
+    let initial = core_id(0x7411, ValueId::new);
+    let rank = core_id(0x7412, ValueId::new);
+    let zero = core_id(0x7413, ValueId::new);
+    let condition = core_id(0x7414, ValueId::new);
+    let one = core_id(0x7415, ValueId::new);
+    let next = core_id(0x7416, ValueId::new);
+    let integer = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32 fixture type");
+    let scalar = ScalarType::Integer(integer);
+    let preheader_edge = core_id(0x7421, EdgeId::new);
+    let guard_edge = core_id(0x7422, EdgeId::new);
+    let exit_edge = core_id(0x7423, EdgeId::new);
+    let backedge = core_id(0x7424, EdgeId::new);
+    let return_edge = core_id(0x7425, EdgeId::new);
+
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine,
+            attachment: None,
+            structural_parameters: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            parameters: vec![ValueDeclaration {
+                id: initial,
+                scalar_type: scalar,
+            }],
+            ranked_scc: Some(TerminalRankedScc {
+                header,
+                rank_parameter: rank,
+                rank_type: integer,
+                lower_bound: IntegerValue::Unsigned(0),
+                upper_bound: integer.maximum_value(),
+                covered_cyclic_edges: vec![TerminalRankedSccEdge {
+                    edge: backedge,
+                    source: decrement,
+                    target: header,
+                    guard: TerminalRankedGuard::UnsignedParameterPositive {
+                        block: header,
+                        edge: guard_edge,
+                        condition,
+                        parameter: rank,
+                    },
+                    successor_argument:
+                        TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                            argument_index: 0,
+                            argument: next,
+                            source_parameter: rank,
+                            target_parameter: rank,
+                        },
+                }],
+            }),
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: preheader,
+            blocks: vec![
+                Block {
+                    id: preheader,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        edge: preheader_edge,
+                        target: header,
+                        arguments: vec![initial],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: header,
+                    parameters: vec![ValueDeclaration {
+                        id: rank,
+                        scalar_type: scalar,
+                    }],
+                    operations: vec![
+                        Operation {
+                            id: core_id(0x7431, OperationId::new),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: zero,
+                                scalar_type: scalar,
+                            }),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(0),
+                            },
+                        },
+                        Operation {
+                            id: core_id(0x7432, OperationId::new),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: condition,
+                                scalar_type: ScalarType::Boolean,
+                            }),
+                            kind: OperationKind::IntegerLessThan {
+                                left: zero,
+                                right: rank,
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: guard_edge,
+                            target: decrement,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: exit_edge,
+                            target: done,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    id: decrement,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: core_id(0x7433, OperationId::new),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: one,
+                                scalar_type: scalar,
+                            }),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(1),
+                            },
+                        },
+                        Operation {
+                            id: core_id(0x7434, OperationId::new),
+                            result: OperationResult::Scalar(ValueDeclaration {
+                                id: next,
+                                scalar_type: scalar,
+                            }),
+                            kind: OperationKind::ExactIntegerSubtract {
+                                left: rank,
+                                right: one,
+                                obligation: core_id(0x7441, ObligationId::new),
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Jump {
+                        edge: backedge,
+                        target: header,
+                        arguments: vec![next],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: done,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: return_edge,
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: core_id(0x7451, ContractId::new),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    }
+}
+
+fn ranked_terminal_proof(module: &TerminalModule) -> ProofBundle {
+    let interpretable = validate_module_for_interpretation(module)
+        .expect("ranked countdown fixture is interpreter-valid");
+    let obligations = reconstruct_interpretable_operation_obligations(interpretable)
+        .expect("ranked countdown proof question reconstructs");
+    let [reconstructed] = obligations.as_slice() else {
+        panic!("ranked countdown has exactly one proof obligation")
+    };
+    let scalar_type = module.machines[0].parameters[0].scalar_type;
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        unreachable!("ranked countdown parameter is an integer")
+    };
+    let rank = ScalarTerm::value(core_id(0x7412, ValueId::new), scalar_type);
+    let one = ScalarTerm::value(core_id(0x7415, ValueId::new), scalar_type);
+    let literal_one = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(1))
+        .expect("ranked countdown literal one");
+    let literal_guard = Proposition::LessOrEqual(literal_one.clone(), rank.clone());
+    let guard_axiom = reconstructed
+        .semantic_axioms
+        .iter()
+        .position(|axiom| *axiom == literal_guard)
+        .expect("ranked countdown positive guard is reconstructed");
+    let one_landing = Proposition::Equal(one.clone(), literal_one);
+    let landing_axiom = reconstructed
+        .semantic_axioms
+        .iter()
+        .position(|axiom| *axiom == one_landing)
+        .expect("ranked countdown literal one is reconstructed");
+    let ordered_guard = Proposition::LessOrEqual(one.clone(), rank.clone());
+    ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: reconstructed.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: core_id(0x7461, EvidenceIdentity::new),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: reconstructed.obligation.proposition.clone(),
+                    rule: ProofRule::IntegerAffineBound {
+                        root_bound: Box::new(ProofNode {
+                            conclusion: ordered_guard,
+                            rule: ProofRule::IntegerLessOrEqualSubstitution {
+                                relation: Box::new(ProofNode {
+                                    conclusion: literal_guard,
+                                    rule: ProofRule::SemanticAxiom { index: guard_axiom },
+                                }),
+                                equality: Box::new(ProofNode {
+                                    conclusion: one_landing,
+                                    rule: ProofRule::SemanticAxiom {
+                                        index: landing_axiom,
+                                    },
+                                }),
+                                endpoint: 0,
+                            },
+                        }),
+                        witness: IntegerAffineWitness {
+                            root: one,
+                            target: ScalarTerm::exact_integer_subtract(
+                                integer_type,
+                                rank,
+                                ScalarTerm::value(core_id(0x7415, ValueId::new), scalar_type),
+                            )
+                            .expect("ranked countdown subtraction"),
+                            definition_axioms: Vec::new(),
+                            literal_axioms: Vec::new(),
+                        },
+                    },
+                },
+            }),
+        }],
+        evidence_producers: Vec::new(),
+    }
+}
+
 #[test]
 fn installed_segment_replay_is_exact_and_never_becomes_entry_authority() {
     let module = terminal_fixture();
@@ -408,4 +689,84 @@ fn installed_segment_catalog_binds_one_complete_partition_to_one_occurrence() {
     assert!(validate_installed_segment_fuel_catalog(&binding, &installed, entry(0x7341),).is_err());
     validate_installed_segment_fuel_catalog(&binding, &installed, selected_entry)
         .expect("failed borrowed replay leaves the installed catalog intact");
+}
+
+#[test]
+fn installed_ranked_safe_point_catalog_remains_non_authorizing_occurrence_evidence() {
+    let module = ranked_terminal_fixture();
+    let proof = ranked_terminal_proof(&module);
+    let verified = verify_module_for_fixed_fuel(&module, &proof, &AdmissionProfile::default())
+        .expect("ranked countdown verifies for fixed-fuel analysis");
+    let catalog = derive_validated_ranked_countdown_safe_point_segments(&verified, module.entry)
+        .expect("exact ranked safe-point roster");
+    assert_eq!(catalog.certificates().len(), 5);
+
+    let terminal = TestObject {
+        identity: terminal_psi_identity(&module).expect("terminal identity"),
+        machine: module.entry,
+        bytes: vec![0; 64],
+    };
+    let selected_entry = entry(0x7470);
+    let installed = installed_code(0x7480, 0x7490, selected_entry);
+    let binding = bind_installed_ranked_countdown_safe_point_fuel_catalog(
+        catalog,
+        &terminal,
+        &installed,
+        selected_entry,
+    )
+    .expect("ranked roster binds to one exact installed occurrence");
+
+    assert_eq!(binding.psi(), terminal.identity);
+    assert_eq!(binding.machine(), module.entry);
+    assert_eq!(binding.segments().len(), 5);
+    assert_eq!(binding.installed_code(), installed.identity());
+    assert_eq!(binding.artifact(), installed.artifact());
+    assert_eq!(binding.entry(), selected_entry);
+    assert_eq!(
+        binding
+            .segments()
+            .iter()
+            .map(|segment| segment.ceiling_units())
+            .collect::<Vec<_>>(),
+        vec![1, 3, 3, 3, 1],
+    );
+    validate_installed_ranked_countdown_safe_point_fuel_catalog(
+        &binding,
+        &installed,
+        selected_entry,
+    )
+    .expect("exact installed ranked roster replays");
+
+    let wrong_occurrence = installed_code(0x7480, 0x7491, selected_entry);
+    assert!(
+        validate_installed_ranked_countdown_safe_point_fuel_catalog(
+            &binding,
+            &wrong_occurrence,
+            selected_entry,
+        )
+        .is_err()
+    );
+    let wrong_artifact = installed_code(0x7482, 0x7492, selected_entry);
+    assert!(
+        validate_installed_ranked_countdown_safe_point_fuel_catalog(
+            &binding,
+            &wrong_artifact,
+            selected_entry,
+        )
+        .is_err()
+    );
+    assert!(
+        validate_installed_ranked_countdown_safe_point_fuel_catalog(
+            &binding,
+            &installed,
+            entry(0x7471),
+        )
+        .is_err()
+    );
+    validate_installed_ranked_countdown_safe_point_fuel_catalog(
+        &binding,
+        &installed,
+        selected_entry,
+    )
+    .expect("failed replay leaves the ranked roster intact");
 }

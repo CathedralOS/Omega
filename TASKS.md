@@ -6345,8 +6345,15 @@ Remaining:
   resume stub, and no sponsor route. Failure to derive a finite bound reports
   `Unknown` or `NoFiniteGuarantee`; it does not change runtime execution.
   The first loop-segment rung is the exact verified `u32` ranked countdown's
-  sealed five-row safe-point catalog. It is semantic analysis evidence only;
-  no installation carriage or acyclic authority was widened.
+  sealed five-row safe-point catalog. Its first installed-code correspondence
+  is now live through a distinct non-clonable carrier: exact Terminal identity,
+  ranked machine, emitted function offset, frozen installed bytes, artifact,
+  installed-code context, and selected entry must rejoin before the roster can
+  accompany that occurrence. Borrowed replay rejects occurrence, artifact, or
+  entry substitution. The rows remain per-traversal semantic-analysis/PCC
+  evidence only; no acyclic segment, whole-entry, provider-composition,
+  bulk-charge, runtime-meter, execution, root, or publication authority was
+  widened.
 - **PROOF-RELEVANCE-MIGRATION.** Finish binding-level `[erased]`, checked
   noninterference, erased-stripped layout, and obligation preservation across
   the remaining consumers. Explicit relevance remains in semantic/proof
