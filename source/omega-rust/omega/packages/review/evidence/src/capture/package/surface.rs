@@ -32,15 +32,18 @@ pub(super) fn project_package_surface(
     compilation: &CheckedCompilation,
     package: PackageKeyIdentity,
 ) -> Result<ProjectedPackageSurface, Vec<Diagnostic>> {
+    let public_conformances = project_public_conformances(compilation, package)?;
+    let representation_tcb =
+        project_representation_tcb(compilation, package, &public_conformances)?;
     Ok(ProjectedPackageSurface {
         public_traits: project_public_traits(compilation, package)?,
-        public_conformances: project_public_conformances(compilation, package)?,
+        public_conformances,
         public_domains: project_public_domains(compilation, package)?,
         public_propositions: project_public_propositions(compilation, package)?,
         public_consts: project_public_consts(compilation, package)?,
         public_operators: project_public_operators(compilation, package)?,
         public_data: project_public_data(compilation, package)?,
-        representation_tcb: project_representation_tcb(compilation, package)?,
+        representation_tcb,
         semantic_dependencies: project_semantic_dependencies(compilation, package)?,
     })
 }

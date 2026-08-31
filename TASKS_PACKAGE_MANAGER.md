@@ -130,12 +130,12 @@ stop the item on one precise owner question before adding machinery.
   lane. Do not fabricate package-installation `ProviderExecutionEvidence` for
   a compiler-owned builtin merely to satisfy the existing settlement API.
 
-- [ ] **REPRESENTATION-TCB-EVIDENCE.** Extend the current `Unbound`-only
-  representation projection according to D26. Add separate producer-
-  availability and consumer-demand row kinds. Availability rejoins the opaque
-  declaration and ordinary public
-  conformance/carrier rows without accepting a consumer choice. Emit demand
-  only for an actual runtime by-value use, consuming the exact retained
+- [ ] **REPRESENTATION-TCB-EVIDENCE.** Complete the D26 representation
+  projection. Producer availability now rejoins the exact opaque declaration,
+  package-owned public named conformance, and public checked-shape carrier
+  without accepting a consumer choice; it remains distinct from and may
+  coexist with `Unbound`. Add consumer demand only for an actual runtime
+  by-value use, consuming the exact retained
   `BoundaryOpaqueRepresentationUse` and validated calling-plan realization
   rather than reconstructing either from an aggregate digest. Rejoin the exact
   boundary requirement application, opaque declaration, named conformance or
@@ -271,10 +271,10 @@ explicitly.
   - carry the same application into general type layout and physical
     move/finalization planning, including cleanup and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
-    distinct producer-availability and consumer-demand rows, validate the
-    activation-wide unique selection, rejoin foreign demand to exact producer
-    rows and immutable source, and preserve strong application equality at
-    actual independently compiled by-value composition edges;
+    consumer demand from retained compiler custody, validate the activation-
+    wide unique selection, rejoin foreign demand to landed producer-
+    availability rows and immutable source, and preserve strong application
+    equality at actual independently compiled by-value composition edges;
   - bind the application into artifacts, replacement compatibility, stable-
     handle era rules, and independently replaceable provider contracts;
   - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,

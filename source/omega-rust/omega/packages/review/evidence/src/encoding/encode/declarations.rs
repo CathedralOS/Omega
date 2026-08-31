@@ -15,12 +15,11 @@ use crate::record::{
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
-    PackageReviewRepresentationAbiCommitment, PackageReviewRepresentationMechanism,
-    PackageReviewRepresentationTcb, PackageReviewSemanticDependency,
-    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitShape, PackageReviewTypeIdentity, PackageReviewTypeParameter,
-    PackageReviewTypeParameterKind,
+    PackageReviewRepresentationTcb, PackageReviewRepresentationTcbKind,
+    PackageReviewSemanticDependency, PackageReviewSemanticDependencyExposure,
+    PackageReviewSemanticDependencyKind, PackageReviewTraitCompositionKind,
+    PackageReviewTraitParent, PackageReviewTraitRequirement, PackageReviewTraitShape,
+    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 
 pub(crate) fn encode_conformance_shape(
@@ -76,17 +75,29 @@ pub(crate) const fn semantic_dependency_kind_tag(kind: PackageReviewSemanticDepe
     }
 }
 
-pub(crate) fn encode_representation_tcb(
+pub(crate) fn encode_representation_tcb_key(
     encoder: &mut Encoder,
     row: &PackageReviewRepresentationTcb,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &row.declaration)?;
-    encoder.byte(match row.abi {
-        PackageReviewRepresentationAbiCommitment::Unbound => 0,
-    });
-    encoder.byte(match row.mechanism {
-        PackageReviewRepresentationMechanism::Unbound => 0,
-    });
+    match &row.kind {
+        PackageReviewRepresentationTcbKind::Unbound => encoder.byte(0),
+        PackageReviewRepresentationTcbKind::ProducerAvailability { conformance, .. } => {
+            encoder.byte(1);
+            encode_nominal(encoder, conformance)?;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn encode_representation_tcb(
+    encoder: &mut Encoder,
+    row: &PackageReviewRepresentationTcb,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_representation_tcb_key(encoder, row)?;
+    if let PackageReviewRepresentationTcbKind::ProducerAvailability { carrier, .. } = &row.kind {
+        encode_nominal(encoder, carrier)?;
+    }
     Ok(())
 }
 

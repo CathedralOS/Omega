@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 97 and row schema version 55. This file
+The canonical review schema is version 98 and row schema version 56. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -68,6 +68,16 @@ introduced by schema v87 / row v45. Schema 97 / row 55 removes both the
 current version. No current record or compatibility parser may reinterpret the
 retired field as D29 coverage; D29 requires compiler-derived tagged demand
 joined to an independently rechecked role-specific realization.
+
+Representation-TCB rows distinguish an unbound package-owned opaque from a
+public producer candidate. Producer availability binds the exact opaque, one
+package-owned public named conformance to the compiler-owned
+`OpaqueRepresentation` trait, and its exact public checked-shape carrier. The
+ordinary conformance row independently retains that exact interface.
+Availability accepts no selection or ABI commitment and may coexist with an
+unbound row. Consumer demand remains absent until the compiler can bind an
+actual runtime by-value crossing to complete physical movement and finalization
+evidence. This is schema v98 / row v56.
 
 Installation-bound selected-provider rows retain the exact published service
 ceiling and the exact checked realization reach beneath their existing

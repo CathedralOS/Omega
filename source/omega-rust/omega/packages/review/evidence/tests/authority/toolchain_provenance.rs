@@ -182,11 +182,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         row.declaration().owner(),
         PackageReviewNominalOwner::Package(package_identity())
     );
-    assert_eq!(row.abi(), PackageReviewRepresentationAbiCommitment::Unbound);
-    assert_eq!(
-        row.mechanism(),
-        PackageReviewRepresentationMechanism::Unbound
-    );
+    assert_eq!(row.kind(), &PackageReviewRepresentationTcbKind::Unbound);
     assert!(
         review.public_data().is_empty(),
         "ordinary public API projection remains visibility-scoped"
@@ -221,5 +217,96 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .canonical_review_bytes()
             .expect("ordinary review encoding"),
         "a private opaque representation-TCB row must enter comparison identity"
+    );
+}
+
+#[test]
+fn representation_tcb_publishes_public_producer_availability_without_selecting_it() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"use omega::language::core::representation;
+
+pub boundary data PublicToken;
+pub data PublicCarrier {
+    value: u64;
+}
+pub PublicTokenRepresentation:
+    PublicCarrier satisfies OpaqueRepresentation<PublicToken>;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("public opaque-representation availability fixture should check");
+    assert!(
+        checked.opaque_representation_selections().is_empty(),
+        "producer availability accepts no consumer selection"
+    );
+    assert!(
+        checked
+            .boundary_calling_plan_realizations()
+            .iter()
+            .all(|realization| realization
+                .materialized_signature
+                .opaque_representation_uses()
+                .is_empty())
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("public opaque-representation availability review should close");
+    let rows = review
+        .representation_tcb()
+        .iter()
+        .filter(|row| row.declaration().path() == "PublicToken")
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    assert!(
+        rows.iter()
+            .any(|row| row.kind() == &PackageReviewRepresentationTcbKind::Unbound)
+    );
+    let availability = rows
+        .iter()
+        .find_map(|row| match row.kind() {
+            PackageReviewRepresentationTcbKind::ProducerAvailability {
+                conformance,
+                carrier,
+            } => Some((conformance, carrier)),
+            PackageReviewRepresentationTcbKind::Unbound => None,
+        })
+        .expect("one producer-availability row");
+    assert_eq!(availability.0.path(), "PublicTokenRepresentation");
+    assert_eq!(availability.1.path(), "PublicCarrier");
+    assert!(review.public_conformances().iter().any(|conformance| {
+        conformance.identity() == availability.0
+            && matches!(
+                conformance.subject(),
+                PackageReviewConformanceSubject::Nominal(carrier) if carrier == availability.1
+            )
+    }));
+    assert_eq!(
+        review
+            .canonical_rows()
+            .expect("representation availability canonical rows")
+            .iter()
+            .filter(|row| row.kind() == PackageReviewCanonicalRowKind::RepresentationTcb)
+            .count(),
+        2,
+        "unbound policy and producer availability require distinct canonical keys"
     );
 }
