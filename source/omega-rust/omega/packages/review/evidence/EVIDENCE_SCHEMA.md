@@ -1,8 +1,26 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 105 and row schema version 63. This file
+The canonical review schema is version 107 and row schema version 65. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v107 / row v65 admits unselected external executable-supply disclosure
+for a public top-level requirement and realization with compiler-validated
+ordinary type parameters carrying default properties and lifetime telescopes.
+Review reruns the exact requirement-realization judgment from retained typed
+custody, and all retained carriers alpha-normalize binder spelling. This opaque
+blocking row grants no provider selection, installation, execution, or audit
+claim.
+Selected generic provider plans, richer static telescopes, aliases, and
+uncatalogued compiler-intrinsic execution remain fail-closed.
+
+Schema v106 / row v64 makes every external executable-supply key
+self-contained for its callable shape. It retains lifetime and supported
+static telescope counts, exact value-parameter modes and types, and the exact
+return carrier. A private external leaf therefore cannot inherit missing
+signature identity from a public callable row it deliberately does not have.
+Richer static kinds, bounds, and conformance telescopes reject until this key
+has an exact structural carrier for them.
 
 Schema v105 / row v63 admits selected public named scalar and structured const
 values in the exact closed-conformance contract-argument lane. Checked PSI

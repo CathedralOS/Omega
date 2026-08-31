@@ -1,6 +1,104 @@
 use crate::support::*;
 
 #[test]
+fn review_projects_unselected_type_and_lifetime_generic_top_level_external_supply() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericSurface {}
+pub data GenericProvider {}
+pub data LifetimeSurface {}
+pub data LifetimeProvider {}
+
+pub boundary requirement GenericSurface::identity<Element>(value: Element) -> Element;
+pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
+
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+    satisfies GenericSurface::identity
+    via Binding::DllImport("omega-generic", "identity");
+pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
+    satisfies LifetimeSurface::observe
+    via Binding::DllImport("omega-generic", "observe");
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("generic top-level external supply should check");
+    let review = project_checked_package_review(&checked)
+        .expect("generic top-level external supply should project without installation");
+
+    assert_eq!(review.external_executable_supply().len(), 2);
+    for (callable, symbol, lifetime_count, type_count) in [
+        ("GenericProvider::identity", "identity", 0, 1),
+        ("LifetimeProvider::observe", "observe", 1, 0),
+    ] {
+        let supply = review
+            .external_executable_supply()
+            .iter()
+            .find(|supply| supply.callable().path().starts_with(callable))
+            .unwrap_or_else(|| panic!("missing external supply for {callable}"));
+        let requirement = supply
+            .top_level_requirement()
+            .expect("top-level requirement classification");
+        assert_eq!(
+            supply.signature().lifetime_parameter_count(),
+            lifetime_count
+        );
+        assert_eq!(supply.signature().type_parameter_count(), type_count);
+        for authored_binder in ["Element", "Value", "input", "borrow"] {
+            assert!(
+                !supply.callable().path().contains(authored_binder)
+                    && !requirement.path().contains(authored_binder)
+                    && !supply
+                        .signature()
+                        .parameters()
+                        .iter()
+                        .any(|parameter| parameter
+                            .type_identity()
+                            .canonical()
+                            .contains(authored_binder))
+                    && !supply
+                        .signature()
+                        .return_type()
+                        .canonical()
+                        .contains(authored_binder),
+                "external-supply identity must alpha-normalize `{authored_binder}`",
+            );
+        }
+        assert_eq!(
+            supply.binding(),
+            &PackageReviewExternalBinding::Import {
+                library: "omega-generic".to_owned(),
+                symbol: symbol.to_owned(),
+            }
+        );
+        assert!(
+            review.selected_providers().iter().all(|provider| provider
+                .row_declarations()
+                .iter()
+                .all(|row| row.realization() != supply.callable())),
+            "generic disclosure must not imply provider selection or installation",
+        );
+    }
+}
+
+#[test]
 fn review_projects_external_top_level_requirement_supply_with_exact_overload_identity() {
     let Some(target) = host_target_name() else {
         return;
