@@ -20,17 +20,6 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         .normalized_machine_overload_identity(requirement)
         .map(|identity| identity.identity())
         .unwrap_or_default();
-    let Some(expected_schema) =
-        omega_effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
-            &compilation.typed,
-            requirement,
-        )
-    else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed top-level requirement `{}` has no exact provider schema",
-            requirement.name
-        ))]);
-    };
     let matches = plans
         .iter()
         .zip(provenance)
@@ -45,6 +34,17 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
     if matches.is_empty() {
         return Ok(());
     }
+    let Some(expected_schema) =
+        omega_effects::provider_plan::ServiceSchema::from_typed_boundary_requirement(
+            &compilation.typed,
+            requirement,
+        )
+    else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected top-level requirement `{}` has no exact provider schema",
+            requirement.name
+        ))]);
+    };
     let [(plan, retained)] = matches.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed external leaf `{}` realizes top-level requirement `{slot}`, but package review found {} selected provider plans for that exact candidate",

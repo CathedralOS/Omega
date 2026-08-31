@@ -2612,6 +2612,15 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
+Package review v106/canonical row v64 admits unselected external executable-
+supply disclosure for a public top-level requirement and realization with
+compiler-validated type and lifetime telescopes. Review reruns the exact
+requirement-realization judgment from retained typed custody; normalized
+overload identities erase binder spelling. The opaque blocking row grants no
+provider selection, installation, execution, or audit claim. Selected generic
+provider plans, non-type static telescopes, aliases, and uncatalogued compiler-
+intrinsic execution remain fail-closed. Canonical-row recovery remains v15.
+
 Package review v105/canonical row v63 admits selected public named scalar and
 structured const values in the same exact closed-conformance contract-argument
 lane. Checked PSI retains the exact parameter and declaration carriers,
