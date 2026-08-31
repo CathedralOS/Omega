@@ -445,8 +445,9 @@ failing phase is reported. Coordinates are exact:
 - an invalid boundary body reports the first byte of its authored qualified
   machine declaration; and
 - an invalid mixed data shape reports its declaration name, a zero array length
-  reports its length literal, a misplaced `never` reports that token, and a
-  forbidden view reports its outermost forbidden `&`; and
+  reports its length literal, a standalone value-position `u8` or misplaced
+  `never` reports that type token, and a forbidden view reports its outermost
+  forbidden `&`; and
 - a body error reports the first token of the offending expression or
   statement.
 

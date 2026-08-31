@@ -518,16 +518,40 @@
   (NoDeltaResolvedLocalReference)
   (OneDeltaResolvedLocalReference DeltaLocalBinding))
 
+(data DeltaOptionalPlaceType
+  (NoDeltaPlaceType)
+  (SomeDeltaPlaceType DeltaType))
+
+(data DeltaExpressionResult
+  (DeltaValueExpressionResult DeltaType DeltaOptionalPlaceType)
+  (DeltaResultlessExpressionResult)
+  (DeltaNeverExpressionResult))
+
+(data DeltaTypedExpression
+  (DeltaTypedExpressionSyntax DeltaExpression DeltaExpressionResult))
+
+(data DeltaTypedExpressionList
+  (NoDeltaTypedExpressions)
+  (MoreDeltaTypedExpressions DeltaTypedExpression DeltaTypedExpressionList))
+
+(data DeltaExpressionResultLookup
+  (NoDeltaExpressionResult)
+  (OneDeltaExpressionResult DeltaExpressionResult))
+
+(data DeltaLocalBindingTypeLookup
+  (NoDeltaLocalBindingType)
+  (OneDeltaLocalBindingType DeltaType))
+
 ; The scan accumulates references in reverse traversal order and carries the
 ; same neutral final-phase candidate bucket established by the catalog.
 (data DeltaLocalResolutionScan
-  (DeltaLocalResolutionScanSyntax DeltaResolvedLocalReferenceList DeltaFinalCandidate))
+  (DeltaLocalResolutionScanSyntax DeltaResolvedLocalReferenceList DeltaTypedExpressionList DeltaFinalCandidate))
 
 (data DeltaLocalBlockScan
   (DeltaLocalBlockScanSyntax DeltaLocalBindingList DeltaLocalBindingList DeltaLocalResolutionScan))
 
 (data DeltaLocallyResolvedProgram
-  (DeltaLocallyResolvedProgramSyntax DeltaCatalogedProgram DeltaResolvedLocalReferenceList DeltaFinalCandidate))
+  (DeltaLocallyResolvedProgramSyntax DeltaCatalogedProgram DeltaResolvedLocalReferenceList DeltaTypedExpressionList DeltaFinalCandidate))
 
 (data DeltaLocalResolutionOutcome
   (DeltaLocalResolutionAccepted DeltaLocallyResolvedProgram)
@@ -3447,6 +3471,25 @@
     (DeltaNestedTypePlacement
       (DeltaTypeFormationCandidateAt 6 TypeMismatch start))))
 
+; `u8` is a storage element rather than an ordinary standalone value type.
+; Stored fields and nested array/view elements admit it; authored scalar
+; parameters, locals, and returns do not. Arrays containing `u8` remain valid
+; in value positions because their element is checked at nested placement.
+(def delta_u8_placement_candidate ((start Int)
+  (placement DeltaTypePlacement)) DeltaTypeFormationCandidate
+  (match placement
+    (DeltaStoredTypePlacement NoDeltaTypeFormationCandidate)
+    (DeltaParameterTypePlacement
+      (DeltaTypeFormationCandidateAt 6 TypeMismatch start))
+    (DeltaLocalTypePlacement
+      (DeltaTypeFormationCandidateAt 6 TypeMismatch start))
+    (DeltaReturnTypePlacement
+      (DeltaTypeFormationCandidateAt 6 TypeMismatch start))
+    ; This placement is structurally stored. The later entry-shape judgment
+    ; owns a `Main.console` field whose type is not the sealed capability.
+    (DeltaMainConsoleTypePlacement NoDeltaTypeFormationCandidate)
+    (DeltaNestedTypePlacement NoDeltaTypeFormationCandidate)))
+
 (def delta_named_type_formation_candidate ((source Bytes) (start Int)
   (nameValue DeltaName) (owners DeltaOwnerRowList)
   (placement DeltaTypePlacement)) DeltaTypeFormationCandidate
@@ -3480,7 +3523,8 @@
   DeltaTypeFormationCandidate
   (match typeValue
     ((DeltaI32Type start end) NoDeltaTypeFormationCandidate)
-    ((DeltaU8Type start end) NoDeltaTypeFormationCandidate)
+    ((DeltaU8Type start end)
+      (delta_u8_placement_candidate start placement))
     ((DeltaNeverType start end)
       (delta_never_placement_candidate start placement))
     ((DeltaNamedType start end name)
@@ -4457,7 +4501,38 @@
       (delta_reverse_resolved_local_references rest
         (MoreDeltaResolvedLocalReferences item output)))))
 
-(def delta_find_resolved_local_reference ((offset Int)
+(def delta_expression_kind ((expressionValue DeltaExpression)) Int
+  (match expressionValue
+    ((DeltaIntegerExpression start end literal) 0)
+    ((DeltaCharacterExpression start end literal) 1)
+    ((DeltaStringExpression start end literal) 2)
+    ((DeltaTrueExpression start end) 3)
+    ((DeltaFalseExpression start end) 4)
+    ((DeltaSelfExpression start end) 5)
+    ((DeltaNameExpression start end name) 6)
+    ((DeltaQualifiedExpression start end owner name arguments) 7)
+    ((DeltaGroupedExpression start end inner) 8)
+    ((DeltaFieldExpression start end base field) 9)
+    ((DeltaCallExpression start end base arguments) 10)
+    ((DeltaIndexExpression start end base indexValue) 11)
+    ((DeltaSliceExpression start end base low high) 12)
+    ((DeltaNegateExpression start end operand) 13)
+    ((DeltaBinaryExpression start end operator operatorStart operatorEnd
+      left right) 14)))
+
+; Postfix nodes inherit their base's start coordinate, so a source offset alone
+; is not an expression identity. Constructor plus exact span is sufficient for
+; the parser's tree-shaped AST and prevents a base fact from answering for its
+; enclosing field, call, index, or slice.
+(def delta_expressions_same_identity ((left DeltaExpression)
+  (right DeltaExpression)) Int
+  (if (eq (delta_expression_kind left) (delta_expression_kind right))
+    (if (eq (delta_expression_start left) (delta_expression_start right))
+      (eq (delta_expression_end left) (delta_expression_end right))
+      0)
+    0))
+
+(def delta_find_resolved_local_reference ((target DeltaExpression)
   (references DeltaResolvedLocalReferenceList))
   DeltaResolvedLocalReferenceLookup
   (match references
@@ -4465,26 +4540,100 @@
     ((MoreDeltaResolvedLocalReferences item rest)
       (match item
         ((DeltaResolvedLocalReferenceSyntax expressionValue bindingValue)
-          (if (eq offset (delta_expression_start expressionValue))
+          (if (delta_expressions_same_identity target expressionValue)
             (OneDeltaResolvedLocalReference bindingValue)
-            (delta_find_resolved_local_reference offset rest)))))))
+            (delta_find_resolved_local_reference target rest)))))))
+
+(def delta_reverse_typed_expressions ((input DeltaTypedExpressionList)
+  (output DeltaTypedExpressionList)) DeltaTypedExpressionList
+  (match input
+    (NoDeltaTypedExpressions output)
+    ((MoreDeltaTypedExpressions item rest)
+      (delta_reverse_typed_expressions rest
+        (MoreDeltaTypedExpressions item output)))))
+
+(def delta_find_expression_result ((target DeltaExpression)
+  (expressions DeltaTypedExpressionList)) DeltaExpressionResultLookup
+  (match expressions
+    (NoDeltaTypedExpressions NoDeltaExpressionResult)
+    ((MoreDeltaTypedExpressions item rest)
+      (match item
+        ((DeltaTypedExpressionSyntax expressionValue resultValue)
+          (if (delta_expressions_same_identity target expressionValue)
+            (OneDeltaExpressionResult resultValue)
+            (delta_find_expression_result target rest)))))))
+
+(def delta_local_binding_type ((bindingValue DeltaLocalBinding))
+  DeltaLocalBindingTypeLookup
+  (match bindingValue
+    ((DeltaMachineParameterLocal parameterValue)
+      (match parameterValue
+        ((DeltaParameterSyntax start end name typeValue)
+          (OneDeltaLocalBindingType typeValue))))
+    ((DeltaStateParameterLocal parameterValue)
+      (match parameterValue
+        ((DeltaParameterSyntax start end name typeValue)
+          (OneDeltaLocalBindingType typeValue))))
+    ((DeltaLetLocal name typeValue statementValue)
+      (OneDeltaLocalBindingType typeValue))
+    ((DeltaTransitionBinderLocal patternValue name)
+      NoDeltaLocalBindingType)))
+
+; `u8` names storage, not an arithmetic value type. Reading one storage slot
+; yields a zero-extended `i32`; every other complete value keeps its type.
+(def delta_storage_read_type ((expressionValue DeltaExpression)
+  (typeValue DeltaType)) DeltaType
+  (match typeValue
+    ((DeltaU8Type start end)
+      (DeltaI32Type (delta_expression_start expressionValue)
+        (delta_expression_end expressionValue)))
+    ((DeltaI32Type start end) typeValue)
+    ((DeltaNeverType start end) typeValue)
+    ((DeltaNamedType start end name) typeValue)
+    ((DeltaArrayType start end element lengthValue) typeValue)
+    ((DeltaViewType start end element) typeValue)))
+
+(def delta_type_is_i32 ((typeValue DeltaType)) Int
+  (match typeValue
+    ((DeltaI32Type start end) 1)
+    ((DeltaU8Type start end) 0)
+    ((DeltaNeverType start end) 0)
+    ((DeltaNamedType start end name) 0)
+    ((DeltaArrayType start end element lengthValue) 0)
+    ((DeltaViewType start end element) 0)))
+
+(def delta_local_scan_add_result ((expressionValue DeltaExpression)
+  (resultValue DeltaExpressionResult) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax references types candidate)
+      (DeltaLocalResolutionScanSyntax references
+        (MoreDeltaTypedExpressions
+          (DeltaTypedExpressionSyntax expressionValue resultValue) types)
+        candidate))))
+
+(def delta_local_scan_add_value ((expressionValue DeltaExpression)
+  (typeValue DeltaType) (placeType DeltaOptionalPlaceType)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (delta_local_scan_add_result expressionValue
+    (DeltaValueExpressionResult typeValue placeType) scan))
 
 (def delta_local_scan_add_reference ((expressionValue DeltaExpression)
   (bindingValue DeltaLocalBinding) (scan DeltaLocalResolutionScan))
   DeltaLocalResolutionScan
   (match scan
-    ((DeltaLocalResolutionScanSyntax references candidate)
+    ((DeltaLocalResolutionScanSyntax references types candidate)
       (DeltaLocalResolutionScanSyntax
         (MoreDeltaResolvedLocalReferences
           (DeltaResolvedLocalReferenceSyntax expressionValue bindingValue)
           references)
-        candidate))))
+        types candidate))))
 
 (def delta_local_scan_add_candidate ((reasonValue DeltaRejectReason)
   (offset Int) (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match scan
-    ((DeltaLocalResolutionScanSyntax references candidate)
-      (DeltaLocalResolutionScanSyntax references
+    ((DeltaLocalResolutionScanSyntax references types candidate)
+      (DeltaLocalResolutionScanSyntax references types
         (delta_final_candidate_add reasonValue offset candidate)))))
 
 (def delta_resolve_local_value_name ((source Bytes)
@@ -4493,7 +4642,15 @@
   (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
   (match (delta_local_find_binding source name active)
     ((OneDeltaLocalBinding bindingValue)
-      (delta_local_scan_add_reference expressionValue bindingValue scan))
+      (let nextScan
+        (delta_local_scan_add_reference expressionValue bindingValue scan)
+        (match (delta_local_binding_type bindingValue)
+          (NoDeltaLocalBindingType nextScan)
+          ((OneDeltaLocalBindingType typeValue)
+            (delta_local_scan_add_value expressionValue
+              (delta_storage_read_type expressionValue typeValue)
+              (SomeDeltaPlaceType typeValue)
+              nextScan)))))
     (NoDeltaLocalBinding
       (match (delta_local_find_binding source name pending)
         ((OneDeltaLocalBinding bindingValue)
@@ -4522,6 +4679,75 @@
     ((SomeDeltaExpression item)
       (delta_resolve_local_expression source item active pending scan))))
 
+(def delta_expression_i32_type ((expressionValue DeltaExpression)) DeltaType
+  (DeltaI32Type (delta_expression_start expressionValue)
+    (delta_expression_end expressionValue)))
+
+(def delta_expression_string_type ((expressionValue DeltaExpression))
+  DeltaType
+  (DeltaViewType (delta_expression_start expressionValue)
+    (delta_expression_end expressionValue)
+    (DeltaU8Type (delta_expression_start expressionValue)
+      (delta_expression_end expressionValue))))
+
+(def delta_local_scan_propagate_result ((expressionValue DeltaExpression)
+  (child DeltaExpression) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax references types candidate)
+      (match (delta_find_expression_result child types)
+        (NoDeltaExpressionResult scan)
+        ((OneDeltaExpressionResult resultValue)
+          (delta_local_scan_add_result expressionValue resultValue scan))))))
+
+(def delta_local_scan_require_i32 ((expressionValue DeltaExpression)
+  (child DeltaExpression) (scan DeltaLocalResolutionScan))
+  DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax references types candidate)
+      (match (delta_find_expression_result child types)
+        (NoDeltaExpressionResult scan)
+        ((OneDeltaExpressionResult resultValue)
+          (match resultValue
+            ((DeltaValueExpressionResult typeValue placeType)
+              (if (delta_type_is_i32 typeValue)
+                (delta_local_scan_add_value expressionValue
+                  (delta_expression_i32_type expressionValue)
+                  NoDeltaPlaceType scan)
+                (delta_local_scan_add_candidate TypeMismatch
+                  (delta_expression_start expressionValue) scan)))
+            (DeltaResultlessExpressionResult scan)
+            (DeltaNeverExpressionResult scan)))))))
+
+(def delta_local_scan_binary_i32 ((expressionValue DeltaExpression)
+  (left DeltaExpression) (right DeltaExpression)
+  (scan DeltaLocalResolutionScan)) DeltaLocalResolutionScan
+  (match scan
+    ((DeltaLocalResolutionScanSyntax references types candidate)
+      (match (delta_find_expression_result left types)
+        (NoDeltaExpressionResult scan)
+        ((OneDeltaExpressionResult leftResult)
+          (match (delta_find_expression_result right types)
+            (NoDeltaExpressionResult scan)
+            ((OneDeltaExpressionResult rightResult)
+              (match leftResult
+                ((DeltaValueExpressionResult leftType leftPlace)
+                  (match rightResult
+                    ((DeltaValueExpressionResult rightType rightPlace)
+                      (if (delta_type_is_i32 leftType)
+                        (if (delta_type_is_i32 rightType)
+                          (delta_local_scan_add_value expressionValue
+                            (delta_expression_i32_type expressionValue)
+                            NoDeltaPlaceType scan)
+                          (delta_local_scan_add_candidate TypeMismatch
+                            (delta_expression_start expressionValue) scan))
+                        (delta_local_scan_add_candidate TypeMismatch
+                          (delta_expression_start expressionValue) scan)))
+                    (DeltaResultlessExpressionResult scan)
+                    (DeltaNeverExpressionResult scan)))
+                (DeltaResultlessExpressionResult scan)
+                (DeltaNeverExpressionResult scan)))))))))
+
 ; `bareValue` selects only the direct-name namespace. Normal value positions
 ; pass one. Direct or grouped call/control heads pass zero because those names
 ; belong to later callable/state resolution. Every nested operand, argument,
@@ -4532,11 +4758,21 @@
   (bareValue Int))
   DeltaLocalResolutionScan
   (match expressionValue
-    ((DeltaIntegerExpression start end literal) scan)
-    ((DeltaCharacterExpression start end literal) scan)
-    ((DeltaStringExpression start end literal) scan)
-    ((DeltaTrueExpression start end) scan)
-    ((DeltaFalseExpression start end) scan)
+    ((DeltaIntegerExpression start end literal)
+      (delta_local_scan_add_value expressionValue
+        (delta_expression_i32_type expressionValue) NoDeltaPlaceType scan))
+    ((DeltaCharacterExpression start end literal)
+      (delta_local_scan_add_value expressionValue
+        (delta_expression_i32_type expressionValue) NoDeltaPlaceType scan))
+    ((DeltaStringExpression start end literal)
+      (delta_local_scan_add_value expressionValue
+        (delta_expression_string_type expressionValue) NoDeltaPlaceType scan))
+    ((DeltaTrueExpression start end)
+      (delta_local_scan_add_value expressionValue
+        (delta_expression_i32_type expressionValue) NoDeltaPlaceType scan))
+    ((DeltaFalseExpression start end)
+      (delta_local_scan_add_value expressionValue
+        (delta_expression_i32_type expressionValue) NoDeltaPlaceType scan))
     ((DeltaSelfExpression start end) scan)
     ((DeltaNameExpression start end name)
       (if bareValue
@@ -4550,8 +4786,9 @@
           (delta_resolve_local_expression_list source values active pending
             scan))))
     ((DeltaGroupedExpression start end inner)
-      (delta_resolve_local_expression_context source inner active pending scan
-        bareValue))
+      (delta_local_scan_propagate_result expressionValue inner
+        (delta_resolve_local_expression_context source inner active pending
+          scan bareValue)))
     ((DeltaFieldExpression start end base member)
       (delta_resolve_local_expression source base active pending scan))
     ((DeltaCallExpression start end base arguments)
@@ -4566,11 +4803,13 @@
         (delta_resolve_local_optional_expression source low active pending
           (delta_resolve_local_expression source base active pending scan))))
     ((DeltaNegateExpression start end operand)
-      (delta_resolve_local_expression source operand active pending scan))
+      (delta_local_scan_require_i32 expressionValue operand
+        (delta_resolve_local_expression source operand active pending scan)))
     ((DeltaBinaryExpression start end operatorValue operatorStart operatorEnd
       left right)
-      (delta_resolve_local_expression source right active pending
-        (delta_resolve_local_expression source left active pending scan)))))
+      (delta_local_scan_binary_i32 expressionValue left right
+        (delta_resolve_local_expression source right active pending
+          (delta_resolve_local_expression source left active pending scan))))))
 
 (def delta_resolve_local_expression ((source Bytes)
   (expressionValue DeltaExpression) (active DeltaLocalBindingList)
@@ -4756,15 +4995,19 @@
                       (match (delta_resolve_declarations_locals source
                         declarations
                         (DeltaLocalResolutionScanSyntax
-                          NoDeltaResolvedLocalReferences candidate))
-                        ((DeltaLocalResolutionScanSyntax references
+                          NoDeltaResolvedLocalReferences
+                          NoDeltaTypedExpressions candidate))
+                        ((DeltaLocalResolutionScanSyntax references types
                           finalCandidate)
                           (DeltaLocallyResolvedProgramSyntax cataloged
                             (delta_reverse_resolved_local_references references
                               NoDeltaResolvedLocalReferences)
+                            (delta_reverse_typed_expressions types
+                              NoDeltaTypedExpressions)
                             finalCandidate))))))))))))))
 
-(def delta_parse_collect_form_catalog_and_resolve_locals ((source Bytes))
+(def delta_parse_collect_form_catalog_resolve_locals_and_type_scalars
+  ((source Bytes))
   DeltaLocalResolutionOutcome
   (match (delta_parse_collect_form_and_catalog source)
     ((DeltaCatalogRejected reasonValue errorOffset)

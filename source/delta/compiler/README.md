@@ -13,7 +13,8 @@ representation, allocation-free syntax-token scanner, complete type and
 expression parser, transition-pattern/control parser, body/state parser,
 top-level declaration/program parser, complete D22/D24 source-shaped identity
 census, complete D31 structural type formation, a source-backed resolution
-catalog, ordered local-value resolution, and pure final symbolic-Alpha encoder.
+catalog, ordered local-value resolution, scalar value/place facts, and pure
+final symbolic-Alpha encoder.
 It validates every source byte
 before scanning all tokens and literals, returns the exact lexical reason and packed
 offset, and retains no host-generated token ledger. Syntax nodes are recursive
@@ -62,16 +63,18 @@ claimed as executed while the canonical Gamma compiler edge is incomplete.
 
 Type formation walks every authored type after that census with an explicit
 stored/parameter/local/return/nested placement. It derives array-length,
-mixed-data, misplaced-`never`, forbidden-view, sealed-`Console`, unknown-name,
-and recursive-value candidates independently, suppressing the complete child
-subtree of a forbidden view. One candidate merge chooses only by packed source
+mixed-data, standalone-value `u8`, misplaced-`never`, forbidden-view, sealed-
+`Console`, unknown-name, and recursive-value candidates independently,
+suppressing the complete child subtree of a forbidden view. Stored `u8` and
+`u8` nested beneath an array or view remain valid; a standalone parameter,
+local, or return does not. One candidate merge chooses only by packed source
 coordinate and treats a distinct same-anchor reason as an internal
 contradiction. Accepted programs retain explicit source-ordered record/sum rows
 so `data X {}` is concretely a zero-field record, plus all direct data-
 containment edges. Recursion checks each edge with a visited-owner graph walk,
 marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. The winning candidate is
-now promoted after successful census. Expression typing and the remaining
+now promoted after successful census. Remaining expression typing and the
 body/control judgments are the next semantic phase. Entry facts may be retained
 alongside them, but Q4 must total
 their reasons, anchors, and ties before the shared final-phase candidate is
@@ -94,10 +97,24 @@ state; and transition binders exist only in their own continuation. Each body
 precollects its pending lets without granting visibility, so a current or later
 let reference contributes `UseBeforeInitialization` while a genuinely absent
 value name contributes `UnknownName`. Successful references retain their exact
-parameter, let statement, or pattern/binder declaration and can be recovered by
-the expression's source offset. Direct callable and control heads remain for
+parameter, let statement, or pattern/binder declaration and are keyed by
+expression constructor plus exact span; a postfix node therefore cannot borrow
+the fact for its same-start base. Direct callable and control heads remain for
 their grammar-selected namespace pass. This is durable identity custody for
 typing and lowering, not a partial acceptance judgment.
+
+The same expression walk now retains the first complete scalar result facts
+without introducing a second recursive checker. Integer, character, and
+Boolean literals are `i32`; strings are immutable `&[u8]`; and resolved
+parameter/local reads retain both their value type and their assignable storage
+type. Reading `u8` storage will yield `i32` while preserving a `u8` place for
+the later store check. Groups preserve the complete value/place result;
+negation and every binary operator consume complete `i32` operands and produce
+a non-place `i32`. A parent receives no fact or dependent diagnostic while a
+needed child judgment is still absent. Field, index, slice, call, receiver,
+constructor, transition-binder, resultless, and `never` facts remain with the
+corresponding unresolved body/control judgments; this foundation does not
+claim final acceptance.
 
 ## Contract-derived conformance plan
 
@@ -144,11 +161,12 @@ unrelated `DuplicateName` and `InvalidBoundary`, plus a boundary/data-ambiguous
 owner that produces only its duplicate until repaired.
 
 D31 makes the type-formation gate finite and exact. Positive controls include
-lengths 1 and `INT32_MAX`, one zero-field record value, `never` only as the
-outer return type, views only as parameter/local roots, and `Console` only at
-`Main.console`. Negative controls include zero at its length literal, mixed data
-at its declaration name, every misplaced `never`, every forbidden outer view,
-and every other `Console` placement. Nested defects beneath a forbidden view do
+lengths 1 and `INT32_MAX`, one zero-field record value, stored or nested `u8`,
+`never` only as the outer return type, views only as parameter/local roots, and
+`Console` only at `Main.console`. Negative controls include zero at its length
+literal, mixed data at its declaration name, standalone parameter/local/return
+`u8`, every misplaced `never`, every forbidden outer view, and every other
+`Console` placement. Nested defects beneath a forbidden view do
 not displace its outer `EscapingView`; structurally impossible same-anchor
 reason collisions are internal contradictions. D34 storage-profile controls cover
 an unused oversized type, nested and disjoint individually excessive arrays,
@@ -159,15 +177,17 @@ refusals require `requested > limit` and publish no tape. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Gamma trap.
 
-Resolution-catalog and local-resolution controls remain planned, not claimed
-execution: forward data
+Resolution-catalog, local-resolution, and scalar-fact controls remain planned,
+not claimed execution: forward data
 owners, unknown qualified owners, same-spelled type and unqualified machine,
 distinct qualified/unqualified machines, constructor/machine collision
 preservation, state-name reuse across separate machines, parameter and ordered
 let visibility, `UseBeforeInitialization` versus `UnknownName`, entry/state
-isolation, and arm-local binder visibility. Q5 decides only
-the two ambiguous consumers; the catalog must never erase either identity in
-advance.
+isolation, arm-local binder visibility, exact same-start postfix separation,
+and literal/read/group/arithmetic value/place facts. Q5 decides only the two
+ambiguous consumers; the catalog must never erase either identity in advance.
+Q6 totals which dependent parent candidates exist when a child has no complete
+fact.
 
 Runtime conformance must execute all nine settled traps—`Overflow`,
 `DivisionByZero`, `SignedDivisionOverflow`, `ShiftCount`, `ByteRange`, `Bounds`,

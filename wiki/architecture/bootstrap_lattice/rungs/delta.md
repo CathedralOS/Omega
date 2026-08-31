@@ -54,20 +54,24 @@ demand witness, never a Delta rejection.
 
 The canonical compiler source now implements complete parsing, that identity
 census, D31's profile-independent structural type formation, a source-backed
-resolution catalog, ordered local resolution, and pure symbolic Alpha
-encoding. The formed program
+resolution catalog, ordered local resolution, scalar value/place facts, and
+pure symbolic Alpha encoding. The formed program
 retains explicit record/sum classification and direct value-containment edges;
 the catalog keeps one row per top-level declaration and exact owner/member/state
 lookups without flattening the AST again. Candidate selection covers array
 length, shape, placement, unknown owners, and recursive value cycles by exact
 source coordinate. Ordered body scans retain exact machine/state parameter,
 let, and arm-binder identities, enforce pending-let visibility, and isolate
-entry, state, and arm environments without selecting a final rejection.
+entry, state, and arm environments without selecting a final rejection. The
+same walk retains exact-AST facts for settled literal, local-read, group,
+negation, and binary scalar forms without duplicating the recursive checker.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. Q4 blocks the
 incomplete entry-diagnostic judgment, and Q5 blocks only unqualified receivers
-and constructor/machine collisions. D34 has settled physical storage refusal;
-its implementation additionally waits on the final nonaliasing map.
+and constructor/machine collisions. Q6 blocks final composition of dependent
+parent diagnostics when child judgments are absent. D34 has settled physical
+storage refusal; its implementation additionally waits on the final
+nonaliasing map.
 
 Every source-visible bound, resource-profile parameter, and private
 implementation budget is distinguished. Private exhaustion returns

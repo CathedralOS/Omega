@@ -323,3 +323,57 @@ namespace to choose one candidate.
   choose constructors or machines by traversal order, silently treat
   unqualified `self` as `Main`, or collapse D22's namespaces inside one lookup
   table.
+
+## Q6 — Total Delta dependent-diagnostic composition
+
+### Context
+
+`CheckDelta` promises one deterministic rejection for every invalid program.
+The phase order and smallest packed-coordinate rule are fixed, but the body
+judgment does not say when an enclosing expression, call, place, return, or
+statement may contribute its own failure while a required child has no complete
+semantic result. For example, in `"text" + missing`, `UnknownName` is certain
+for the right operand while the left operand is certainly not an arithmetic
+`i32`; choosing whether the enclosing binary expression also contributes
+`TypeMismatch` can change the public winner because its coordinate is earlier.
+
+This is a product requirement, not a diagnostic test convenience: independent
+Delta compilers must return the same public `DeltaRejectReason` and coordinate
+for every malformed source if their artifacts are to be compared and used as
+cross-checking implementations.
+
+### Problem statement
+
+Total the body/control derivation for parent candidates when:
+
+1. one or more required child value/type/call judgments are absent or failed;
+2. one child already proves a parent operand incompatibility while a sibling
+   remains unresolved;
+3. a structural parent failure such as arity or non-place shape does not need
+   the missing child result; and
+4. independent child failures and one admitted parent failure compete by
+   packed coordinate.
+
+### Proposed direction
+
+Make diagnostic dependency follow judgment premises. Visit and retain every
+independent child candidate. Emit a type-dependent parent candidate only after
+every child result required by that rule is complete; otherwise omit that
+parent candidate rather than cascading from a partial derivation. Continue to
+emit a structure-only parent failure whose rule genuinely does not consume the
+missing child result—for example, a known callable's arity mismatch or an
+intrinsically non-place postfix shape. Once admitted, parent and child
+candidates merge solely by packed coordinate; DCOUT code order and traversal
+remain irrelevant.
+
+### Alternates
+
+- Acceptable: admit a parent failure as soon as the available premises prove it
+  regardless of unresolved siblings, provided every operator/call/place/
+  statement family gets a total proof rule and exact anchor.
+- Acceptable: define an explicit containment suppression table for particular
+  rejection families, provided it is part of Delta rather than a compiler-
+  private recovery policy.
+- Tempting but wrong: let compiler traversal or short-circuiting decide which
+  candidates exist, suppress every parent mechanically, or emit all imaginable
+  ancestors without proving their semantic premises.
