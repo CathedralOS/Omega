@@ -267,7 +267,7 @@ The callable machine model has five explicit supply forms:
 | Checked Omega implementation | `{ ... }` body |
 | Trait requirement | Bodyless declaration inside the trait |
 | Top-level provider requirement | `boundary requirement Package::operation(...);` |
-| External requirement realization | Bodyless `boundary machine ... satisfies Trait::requirement;`, with `via <Binding>` only for an explicit payload |
+| External requirement realization | Bodyless `boundary machine ... satisfies Trait<...>::requirement;`, with `via <Binding>` only for an explicit payload |
 | Admission-bearing claim | Bodyless `boundary machine ... ensures ...;` |
 
 A top-level boundary requirement is a nominal operation slot whose natural
@@ -305,7 +305,11 @@ plan from explicit conformances, and assigns any trust expenditure only when
 the provider is admitted. `satisfies` supplies the requirement contract and
 public service/suspension/blocking and guarded-crash ceilings; the
 binding/provider behavior must refine each one. A boundary realization does not
-repeat those clauses.
+repeat those clauses. When the declaring trait has a lifetime telescope, the
+`satisfies` path supplies every target-trait lifetime explicitly. The compiler
+uses raw realizing-machine binder ordinals for checking and publishes the
+first-occurrence-normalized equality partition as requirement-edge identity;
+implementation binder order is not part of that edge.
 
 Binding operands are ordinary typed compile-time values. A DLL locator is one
 object-format-specific sum case, so its library/export, library/ordinal, or
