@@ -148,13 +148,18 @@ D19 schema admission now resolves the exact `main` signature for both profiles.
 For `DeltaCompilerV1` it additionally validates the two source-owned nominal
 types, the exact `Complete`/`Reject` and D31/D34 storage-refusal field lists,
 all 26 nullary rejection constructors, and the fixed code bijection without using
-declaration order or runtime constructor kinds. D30 now fixes the physical
-sealed request, exact profile maxima, Conformance observations, and complete
-`GCOUT`/`DCOUT` tables.
-The remaining work is implementation: retain one semantic rejection code
-alongside `FAIL_OFF`, emit the two PC-zero adapters, embed the table constants,
-and publish no canonical artifact until the projections and exact/adjacent
-gates agree.
+declaration order or runtime constructor kinds. D30 fixes the physical sealed
+request, exact profile maxima, Conformance observations, and complete
+`GCOUT`/`DCOUT` tables. `admit_gcreq` now implements D33's bounded request half:
+it obtains and validates the fixed header, selects profile 1 or 2, refuses an
+oversized declaration before body work, requires the exact admitted body and
+EOF, and only then validates Gamma source bytes. It retains the selected
+profile and private outcome kind/code/space/coordinate/limit/requested fields.
+
+The remaining work is to replace later one-bit frontend results with semantic
+`GCOUT` judgments, retain and order every schema candidate, check the embedded
+tables, emit the two PC-zero adapters, and publish no canonical artifact until
+the projections and exact/adjacent gates agree.
 
 ## D30 physical application profiles
 
@@ -176,7 +181,10 @@ probe. Unknown profile anchors at request byte 8; source exhaustion anchors at
 byte 12 with the declared length as `requested`; admitted body truncation or a
 trailing byte is `malformed_request` at the first missing or extra request byte.
 This bounded order prevents a four-byte length from forcing unprovisioned input
-consumption.
+consumption. The retained compiler and focused gate implement this ingress,
+including both profiles, first-missing/first-differing coordinates, the exact
+and adjacent 4-MiB source boundary, and exact-end precedence over source-byte
+diagnosis. GCOUT frame publication is deliberately not part of ingress.
 
 After the ordinary frontend succeeds, schema reasons use category priority 19
 missing entry, 20 wrong present entry, then 21 nominal profile schema. Missing
@@ -386,8 +394,9 @@ depends on falling into an uncatchable Alpha trap.
 
 D20's declaration/binder resolver, source joins, and profile-neutral
 whole-function label/body emission are implemented. D19's exact source-owned
-schemas and reason-code bijection and D30's physical profile facts are settled;
-both adapters and final publication still gate the tape. No incomplete slice
+schemas and reason-code bijection, D30's physical profile facts, and D33's
+canonical request ingress are implemented. Total semantic GCOUT diagnosis,
+both adapters, and final publication still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.
@@ -405,7 +414,7 @@ The implementation order is tracked in
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `gamma_compiler.beta` | Sole Beta-written Gamma compiler source; currently owns the strict frontend and direct Alpha payload/fixup substrate. | Replace only atomically with another implementation of the same ruled edge. |
-| `test-frontend.sh` | Adjacent bounded gate for the retained frontend, source/resource guards, exact emitter substrate, and executed runtime-containment payloads. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
+| `test-frontend.sh` | Adjacent bounded gate for canonical GCREQ ingress, the retained frontend, source/resource guards, exact emitter substrate, and executed runtime-containment payloads. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
 
 ## Deletion condition
 

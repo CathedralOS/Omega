@@ -21,6 +21,36 @@ cd "$OMEGA_GATE_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 T=$(mktemp -d); trap 'trash "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
+gcreq_emit_byte() {
+  gcreq_emit_octal=$(printf '%03o' "$1")
+  printf "\\$gcreq_emit_octal"
+}
+gcreq_emit_u32le() {
+  gcreq_emit_u32_value=$1
+  gcreq_emit_byte $((gcreq_emit_u32_value % 256))
+  gcreq_emit_byte $(((gcreq_emit_u32_value / 256) % 256))
+  gcreq_emit_byte $(((gcreq_emit_u32_value / 65536) % 256))
+  gcreq_emit_byte $(((gcreq_emit_u32_value / 16777216) % 256))
+}
+gcreq_header() {
+  printf '\107\103\122\105\121\001\000\000'
+  gcreq_emit_u32le "$1"
+  gcreq_emit_u32le "$2"
+}
+gcreq_text() {
+  gcreq_text_profile=$1
+  gcreq_text_source=$2
+  gcreq_text_length=$(printf '%s' "$gcreq_text_source" | wc -c | tr -d ' ')
+  gcreq_header "$gcreq_text_profile" "$gcreq_text_length"
+  printf '%s' "$gcreq_text_source"
+}
+gcreq_file() {
+  gcreq_file_profile=$1
+  gcreq_file_source=$2
+  gcreq_file_length=$(wc -c < "$gcreq_file_source" | tr -d ' ')
+  gcreq_header "$gcreq_file_profile" "$gcreq_file_length"
+  cat "$gcreq_file_source"
+}
 runtime_emitter_source() {
   sed -n \
     '/^; ---- direct Alpha payload and fixup substrate/,/^; This is the eventual expression dispatcher/p' \
@@ -40,6 +70,49 @@ runtime_emitter_source() {
   exit 1
 }
 stamp_seed "$T/tc.tape" "$SEED" "$T/tc.exe" >/dev/null 2>&1
+
+# Observe the private D30/D33 admission judgment without constructing GCOUT or
+# either application adapter. The fixed 21-byte record is gate-private:
+# status/profile/kind/code/space, then u32 coordinate/limit/requested/source len.
+{
+  sed -n '1,$p' gamma_compiler.beta
+  printf '%s\n' \
+    'proc main() {' \
+    '    let status = admit_gcreq()' \
+    '    let coordinate = word[2096824]' \
+    '    let limit = word[2096816]' \
+    '    let requested = word[2096808]' \
+    '    let source_length = word[2097136]' \
+    '    state publish {' \
+    '        write_byte(status)' \
+    '        write_byte(word[2096856])' \
+    '        write_byte(word[2096848])' \
+    '        write_byte(word[2096840])' \
+    '        write_byte(word[2096832])' \
+    '        write_byte(coordinate % 256)' \
+    '        write_byte((coordinate / 256) % 256)' \
+    '        write_byte((coordinate / 65536) % 256)' \
+    '        write_byte((coordinate / 16777216) % 256)' \
+    '        write_byte(limit % 256)' \
+    '        write_byte((limit / 256) % 256)' \
+    '        write_byte((limit / 65536) % 256)' \
+    '        write_byte((limit / 16777216) % 256)' \
+    '        write_byte(requested % 256)' \
+    '        write_byte((requested / 256) % 256)' \
+    '        write_byte((requested / 65536) % 256)' \
+    '        write_byte((requested / 16777216) % 256)' \
+    '        write_byte(source_length % 256)' \
+    '        write_byte((source_length / 256) % 256)' \
+    '        write_byte((source_length / 65536) % 256)' \
+    '        write_byte((source_length / 16777216) % 256)' \
+    '        return 0' \
+    '    }' \
+    '}'
+} | "$T/bc.exe" > "$T/gcreq-admission.tape" || {
+  echo "bc(gamma_compiler.beta + GCREQ admission probe) failed"
+  exit 1
+}
+stamp_seed "$T/gcreq-admission.tape" "$SEED" "$T/gcreq-admission.exe" >/dev/null 2>&1
 
 # Exercise the private live-local boundary through a real checked `let` without
 # materializing 65,536 distinct active names (whose duplicate scan is
@@ -2453,7 +2526,7 @@ stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/
 
 PASS=0; FAIL=0
 d19_schema_case() { # source expected-status description
-  printf '%s' "$1" | "$T/d19-schema.exe" > "$T/d19-schema.out"
+  gcreq_text 1 "$1" | "$T/d19-schema.exe" > "$T/d19-schema.out"
   d19_schema_status=$?
   if [ "$d19_schema_status" = "$2" ] && [ ! -s "$T/d19-schema.out" ]; then
     PASS=$((PASS+1))
@@ -2473,7 +2546,7 @@ d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompile
 d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Bytes) (StorageIncompleteAt Int Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong Reject offset payload'
 d19_schema_case "(data DeltaRejectReason $d19_reason_reverse) (data DeltaCompileOutcome (Complete Bytes) (Reject DeltaRejectReason Int) (StorageIncompleteAt Int Int) (StorageIncompleteTotal Int Int)) (def main ((source Bytes)) DeltaCompileOutcome (Complete source))" 3 'wrong attributed storage payload'
 unset d19_reason_reverse d19_reason_missing d19_outcomes d19_schema_status
-printf '%s' '(def main ((value Int)) Int value)' | "$T/function-metadata.exe" > "$T/function-metadata.out"
+gcreq_text 1 '(def main ((value Int)) Int value)' | "$T/function-metadata.exe" > "$T/function-metadata.out"
 function_metadata_status=$?
 if [ "$function_metadata_status" = 1 ] && [ ! -s "$T/function-metadata.out" ]; then
   PASS=$((PASS+1))
@@ -2482,7 +2555,7 @@ else
   echo "  FAIL whole-function metadata containment: status $function_metadata_status, output $(wc -c < "$T/function-metadata.out" | tr -d ' ') bytes"
 fi
 unset function_metadata_status
-printf '%s' '(def main () Int (let x 1 x))' | "$T/local-profile.exe" > "$T/local-profile.out"
+gcreq_text 1 '(def main () Int (let x 1 x))' | "$T/local-profile.exe" > "$T/local-profile.out"
 local_profile_status=$?
 if [ "$local_profile_status" = 1 ] && [ ! -s "$T/local-profile.out" ]; then
   PASS=$((PASS+1))
@@ -2492,7 +2565,7 @@ else
 fi
 unset local_profile_status
 resolver_metadata_source='(data Token (Token Int) (Empty)) (def main () Int (let x 1 x)) (def caller () Int (probe (Token 7))) (def probe ((t Token)) Int (match t ((Token n) n) (Empty 0)))'
-printf '%s' "$resolver_metadata_source" | "$T/resolver-metadata.exe" > "$T/resolver-metadata.out"
+gcreq_text 1 "$resolver_metadata_source" | "$T/resolver-metadata.exe" > "$T/resolver-metadata.out"
 resolver_metadata_status=$?
 if [ "$resolver_metadata_status" = 1 ] && [ ! -s "$T/resolver-metadata.out" ]; then
   PASS=$((PASS+1))
@@ -2504,7 +2577,7 @@ unset resolver_metadata_source resolver_metadata_status
 MATCH_CASE=0
 lower_match() { # Gamma program  expected generated status  description
   MATCH_CASE=$((MATCH_CASE+1))
-  printf '%s' "$1" | "$T/function-lowering-emitter.exe" > "$T/lower-match-$MATCH_CASE.tape"
+  gcreq_text 1 "$1" | "$T/function-lowering-emitter.exe" > "$T/lower-match-$MATCH_CASE.tape"
   match_compile_status=$?
   if [ "$match_compile_status" != 1 ] || [ ! -s "$T/lower-match-$MATCH_CASE.tape" ]; then
     FAIL=$((FAIL+1))
@@ -2533,9 +2606,9 @@ lower_match '(data Choice (Left Int) (Right Int)) (def main () Int (match (Right
 lower_match '(data Choice (Hit Int) (Miss)) (def main () Int (match (Hit 7) ((Hit x) (finish x)) (Miss (/ 1 0)))) (def finish ((value Int)) Int value)' 7 'selected arm preserves proper-tail call context'
 
 match_repeat_source='(data Pair (Pair Int Int)) (def main () Int (match (Pair 7 9) ((Pair first second) (+ first second))))'
-printf '%s' "$match_repeat_source" | "$T/function-lowering-emitter.exe" > "$T/lower-match-repeat-a.tape"
+gcreq_text 1 "$match_repeat_source" | "$T/function-lowering-emitter.exe" > "$T/lower-match-repeat-a.tape"
 match_repeat_a_status=$?
-printf '%s' "$match_repeat_source" | "$T/function-lowering-emitter.exe" > "$T/lower-match-repeat-b.tape"
+gcreq_text 1 "$match_repeat_source" | "$T/function-lowering-emitter.exe" > "$T/lower-match-repeat-b.tape"
 match_repeat_b_status=$?
 if [ "$match_repeat_a_status" = 1 ] && [ "$match_repeat_b_status" = 1 ] &&
    [ -s "$T/lower-match-repeat-a.tape" ] &&
@@ -2548,7 +2621,7 @@ fi
 unset match_repeat_source match_repeat_a_status match_repeat_b_status match_compile_status match_runtime_status
 
 match_metadata_source='(data Pair (Pair Int Int)) (def main () Int (match (Pair 7 9) ((Pair first second) (+ first second))))'
-printf '%s' "$match_metadata_source" | "$T/match-metadata.exe" > "$T/match-metadata.out"
+gcreq_text 1 "$match_metadata_source" | "$T/match-metadata.exe" > "$T/match-metadata.out"
 match_metadata_status=$?
 if [ "$match_metadata_status" = 1 ] && [ ! -s "$T/match-metadata.out" ]; then
   PASS=$((PASS+1))
@@ -2670,7 +2743,7 @@ done
 LOWER_CASE=0
 lower_int() { # Gamma program  expected generated status  description
   LOWER_CASE=$((LOWER_CASE+1))
-  printf '%s' "$1" | "$T/function-lowering-emitter.exe" > "$T/lower-$LOWER_CASE.tape"
+  gcreq_text 1 "$1" | "$T/function-lowering-emitter.exe" > "$T/lower-$LOWER_CASE.tape"
   lower_compile_status=$?
   if [ "$lower_compile_status" != 1 ] || [ ! -s "$T/lower-$LOWER_CASE.tape" ]; then
     FAIL=$((FAIL+1))
@@ -2725,7 +2798,7 @@ lower_int '(def main () Int (bytes_length (bytes_slice (bytes_single 1) 1 1)))' 
 WHOLE_FUNCTION_CASE=0
 whole_function() { # source expected-status description
   WHOLE_FUNCTION_CASE=$((WHOLE_FUNCTION_CASE+1))
-  printf '%s' "$1" | "$T/function-lowering-emitter.exe" > "$T/whole-function-$WHOLE_FUNCTION_CASE.tape"
+  gcreq_text 1 "$1" | "$T/function-lowering-emitter.exe" > "$T/whole-function-$WHOLE_FUNCTION_CASE.tape"
   whole_compile_status=$?
   if [ "$whole_compile_status" != 1 ] || [ ! -s "$T/whole-function-$WHOLE_FUNCTION_CASE.tape" ]; then
     FAIL=$((FAIL+1))
@@ -2754,9 +2827,9 @@ whole_function '(data Pair (Pair Bytes Int)) (def main () Int (let held (bytes_s
   'constructor match locals and Bytes execute through emitted functions'
 unset whole_compile_status whole_runtime_status
 deterministic_source='(def main () Int (+ 10 (if (eq 1 2) (/ 1 0) (* 3 4))))'
-printf '%s' "$deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
+gcreq_text 1 "$deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-deterministic-a.tape"
 deterministic_a_status=$?
-printf '%s' "$deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-deterministic-b.tape"
+gcreq_text 1 "$deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-deterministic-b.tape"
 deterministic_b_status=$?
 if [ "$deterministic_a_status" = 1 ] && [ "$deterministic_b_status" = 1 ] &&
    cmp -s "$T/lower-deterministic-a.tape" "$T/lower-deterministic-b.tape"; then
@@ -2767,9 +2840,9 @@ else
 fi
 unset deterministic_source deterministic_a_status deterministic_b_status
 bytes_deterministic_source='(def main () Int (bytes_get (bytes_slice (bytes_concat (bytes_single 8) (bytes_single 9)) 1 1) 0))'
-printf '%s' "$bytes_deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-bytes-deterministic-a.tape"
+gcreq_text 1 "$bytes_deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-bytes-deterministic-a.tape"
 bytes_deterministic_a_status=$?
-printf '%s' "$bytes_deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-bytes-deterministic-b.tape"
+gcreq_text 1 "$bytes_deterministic_source" | "$T/function-lowering-emitter.exe" > "$T/lower-bytes-deterministic-b.tape"
 bytes_deterministic_b_status=$?
 if [ "$bytes_deterministic_a_status" = 1 ] && [ "$bytes_deterministic_b_status" = 1 ] &&
    cmp -s "$T/lower-bytes-deterministic-a.tape" "$T/lower-bytes-deterministic-b.tape"; then
@@ -2780,7 +2853,7 @@ else
 fi
 unset bytes_deterministic_source bytes_deterministic_a_status bytes_deterministic_b_status
 tc() { # program  expect(1 ok / 0 type-error)  desc
-  printf '%s' "$1" | "$T/tc.exe"; got=$?
+  gcreq_text 1 "$1" | "$T/tc.exe"; got=$?
   if { [ "$2" = 1 ] && [ "$got" = 1 ]; } ||
      { [ "$2" = 0 ] && [ "$got" != 1 ]; }; then
     PASS=$((PASS+1))
@@ -2794,7 +2867,7 @@ reject_at_parts() { # exact prefix before later conflict  source suffix  desc
   conflict_desc=$3
   conflict_offset=$(printf '%s' "$conflict_prefix" | wc -c | tr -d ' ')
   conflict_want=$((conflict_offset % 253 + 2))
-  printf '%s%s' "$conflict_prefix" "$conflict_suffix" | "$T/tc.exe"; got=$?
+  gcreq_text 1 "$conflict_prefix$conflict_suffix" | "$T/tc.exe"; got=$?
   if [ "$got" = "$conflict_want" ]; then
     PASS=$((PASS+1))
   else
@@ -2807,7 +2880,7 @@ reject_source() { # name source-file
   name=$1
   source_file=$2
   set +e
-  "$T/tc.exe" < "$source_file" > "$T/$name.out"
+  gcreq_file 1 "$source_file" | "$T/tc.exe" > "$T/$name.out"
   got=$?
   if [ "$got" != 1 ] && [ ! -s "$T/$name.out" ]; then
     PASS=$((PASS+1))
@@ -2820,7 +2893,7 @@ accept_source() { # name source-file
   name=$1
   source_file=$2
   set +e
-  "$T/tc.exe" < "$source_file" > "$T/$name.out"
+  gcreq_file 1 "$source_file" | "$T/tc.exe" > "$T/$name.out"
   got=$?
   if [ "$got" = 1 ] && [ ! -s "$T/$name.out" ]; then
     PASS=$((PASS+1))
@@ -2829,6 +2902,70 @@ accept_source() { # name source-file
     echo "  FAIL $name: valid source returned $got with $(wc -c < "$T/$name.out" | tr -d ' ') output bytes"
   fi
 }
+gcreq_expected() { # status profile kind code space coordinate limit requested source-length
+  gcreq_emit_byte "$1"
+  gcreq_emit_byte "$2"
+  gcreq_emit_byte "$3"
+  gcreq_emit_byte "$4"
+  gcreq_emit_byte "$5"
+  gcreq_emit_u32le "$6"
+  gcreq_emit_u32le "$7"
+  gcreq_emit_u32le "$8"
+  gcreq_emit_u32le "$9"
+}
+check_gcreq() { # name request-file status profile kind code space coordinate limit requested source-length
+  gcreq_case=$1
+  gcreq_request=$2
+  shift 2
+  gcreq_expected "$@" > "$T/$gcreq_case.expected"
+  set +e
+  "$T/gcreq-admission.exe" < "$gcreq_request" > "$T/$gcreq_case.actual"
+  gcreq_status=$?
+  if [ "$gcreq_status" = 0 ] && cmp -s "$T/$gcreq_case.expected" "$T/$gcreq_case.actual"; then
+    PASS=$((PASS+1))
+  else
+    FAIL=$((FAIL+1))
+    echo "  FAIL GCREQ $gcreq_case: probe status $gcreq_status"
+    echo "    expected: $(od -An -tx1 -v "$T/$gcreq_case.expected" | tr -d ' \n')"
+    echo "    actual:   $(od -An -tx1 -v "$T/$gcreq_case.actual" | tr -d ' \n')"
+  fi
+}
+
+# D30/D33 request admission: header precedence, complete profile selection,
+# provision-before-body, exact-end, and source-byte validation after exactness.
+gcreq_valid_source='(def main () Int 0)'
+gcreq_valid_length=$(printf '%s' "$gcreq_valid_source" | wc -c | tr -d ' ')
+gcreq_text 1 "$gcreq_valid_source" > "$T/gcreq-valid-profile-1.req"
+check_gcreq valid-profile-1 "$T/gcreq-valid-profile-1.req" 0 1 0 0 0 0 0 0 "$gcreq_valid_length"
+gcreq_text 2 '' > "$T/gcreq-valid-profile-2.req"
+check_gcreq valid-profile-2 "$T/gcreq-valid-profile-2.req" 0 2 0 0 0 0 0 0 0
+printf '\107\103\122' > "$T/gcreq-truncated-header.req"
+check_gcreq truncated-header "$T/gcreq-truncated-header.req" 1 0 1 1 4 3 0 0 0
+gcreq_text 1 '' > "$T/gcreq-wrong-magic.req"
+printf '\130' | dd of="$T/gcreq-wrong-magic.req" bs=1 seek=2 conv=notrunc 2>/dev/null
+check_gcreq wrong-magic "$T/gcreq-wrong-magic.req" 1 0 1 1 4 2 0 0 0
+gcreq_header 3 4294967295 > "$T/gcreq-unknown-profile.req"
+check_gcreq unknown-profile "$T/gcreq-unknown-profile.req" 1 0 1 2 4 8 0 0 0
+gcreq_header 1 4194305 > "$T/gcreq-source-adjacent.req"
+printf 'ignored' >> "$T/gcreq-source-adjacent.req"
+check_gcreq source-adjacent "$T/gcreq-source-adjacent.req" 2 1 2 1 4 12 4194304 4194305 0
+gcreq_header 1 3 > "$T/gcreq-truncated-body.req"
+printf 'ab' >> "$T/gcreq-truncated-body.req"
+check_gcreq truncated-body "$T/gcreq-truncated-body.req" 1 1 1 1 4 18 0 0 0
+gcreq_header 1 1 > "$T/gcreq-trailing-body.req"
+printf 'ab' >> "$T/gcreq-trailing-body.req"
+check_gcreq trailing-body "$T/gcreq-trailing-body.req" 1 1 1 1 4 17 0 0 0
+gcreq_header 1 1 > "$T/gcreq-trailing-invalid.req"
+printf '\000x' >> "$T/gcreq-trailing-invalid.req"
+check_gcreq trailing-precedes-source "$T/gcreq-trailing-invalid.req" 1 1 1 1 4 17 0 0 0
+gcreq_header 1 1 > "$T/gcreq-invalid-source.req"
+printf '\000' >> "$T/gcreq-invalid-source.req"
+check_gcreq invalid-source "$T/gcreq-invalid-source.req" 1 1 1 3 1 0 0 0 1
+gcreq_header 1 4194304 > "$T/gcreq-source-exact.req"
+dd if=/dev/zero bs=1048576 count=4 2>/dev/null | tr '\000' 'x' >> "$T/gcreq-source-exact.req"
+check_gcreq source-exact "$T/gcreq-source-exact.req" 0 1 0 0 0 0 0 0 4194304
+unset gcreq_valid_source gcreq_valid_length
+
 # phase 1 — Int + typed functions
 tc '(def add ((a Int) (b Int)) Int (+ a b)) (def main () Int (add 2 3))' 1 'well-typed'
 cr_comment_program=$(printf '; before\r(def id ((x Int)) Int x)')
