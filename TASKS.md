@@ -11307,9 +11307,14 @@ checked-result arithmetic decision listed below.
   generated bundles remain in the consumer's base. Real checked-compilation
   canaries pin generated overload/conformance non-interference, generated-to-
   authored and mutual extension visibility, and exact source/bundle custody.
-  The retained-checkpoint continuation, rebuild deletion, exact build-machine
-  identity handoff, and the remaining configuration/evidence canaries are still
-  open.
+  Prepared build programs now mint a program-identity-bound entry token for the
+  selected exact machine symbol. Primary evaluation and filesystem replay both
+  consume that token through symbol-only interpreter entry and reject a token
+  from another prepared program even when its arena-local handle collides; the
+  maintained build evaluator no longer rediscovers the executed machine by
+  name. The activation-local admitted checkpoint carrier, retained-base
+  continuation, final rebuild/rebind deletion, and the remaining
+  configuration/evidence canaries are still open.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or
