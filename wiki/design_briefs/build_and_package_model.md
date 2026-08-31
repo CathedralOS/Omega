@@ -2530,6 +2530,14 @@ realization symbol, package, normalized machine identity, and structural
 binding. Thus disclosure never implies selection. Compiler-known intrinsics
 are the first executable mechanism; ordinary or private operators, aliases,
 generic/lifetime applications, and fixed-token boundary operators reject.
+Generic external boundary-operator projection is not deferred package-review
+work. Provider planning admits selected boundary-operator execution only
+through a checked adapter or a compiler-owned migrated intrinsic, and the
+closed migrated-intrinsic catalog contains no generic operator. Generic
+type/const operator uses instead produce D29 exact application demands; a
+future generic intrinsic must first extend that compiler-owned execution
+catalog and its application replay rather than pre-publishing an unusable
+opaque-supply template.
 
 Package review v71/canonical row v29 binds each supported checked ordinary
 operator realization into its public callable value, whether the declaration

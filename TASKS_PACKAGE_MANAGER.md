@@ -39,9 +39,8 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - non-identical conformance-bound external refinements, generic external
-    boundary-operator realizations, and the remaining selected provider-demand
-    and installation-issuance joins;
+  - non-identical conformance-bound external refinements and the remaining
+    selected provider-demand and installation-issuance joins;
   - **OWNER-BLOCKED — Bind lifetime arguments on exact machine requirement
     realizations** in `OWNER_QUESTIONS.md` before admitting lifetime-
     parameterized external trait realizations. The current machine edge retains
