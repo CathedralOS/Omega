@@ -633,19 +633,21 @@ reordered, amplified, or retargeted rows reject transactionally before resource
 rebuild. The checked certificate is non-authorizing, and reaching a root grants
 no cleanup, transfer, or linear-discharge authority to the borrow layer.
 
-The first bounded Terminal publication consumes that complete checked join for
-one direct-root `Mutable`-to-`Mutable` or `Mutable`-to-`WriteOnly` exclusive
-child ending at state exit. A canonical root-handoff row retains the exact
-machine and state identities, owner paths, parent and child captured places,
-projection remainder, access pair, activation/formation/weakening boundaries,
-and direct-root lifetime. Production requires the exact
-`StateExitDirectRootHandoff` disposition and `ExclusiveSuspension` containment;
-format 45 / vocabulary 48 round-trip the row, and Terminal verification rejects
-amplified access, malformed identities or projections, redirected formation,
-duplicates, and noncanonical order. The row publishes only direct-root custody.
-It has no cleanup, transfer, linear-discharge, or runtime-operation vocabulary;
-multihop restoration, shared cohorts, post-reborrow use, and broader branching
-remain outside this rung.
+The bounded Terminal publication now consumes that complete checked join for a
+finite nonempty linear exclusive lineage rooted in one direct-root `Mutable`
+loan and ending at state exit. Each root-to-leaf edge is exactly
+`Mutable`-to-`Mutable`, `Mutable`-to-`WriteOnly`, or
+`WriteOnly`-to-`WriteOnly`; one-hop publication remains the length-one subset.
+The producer reverses the leaf's exact retired-parent path, rejects branching,
+and rejoins every resource, activation, parent-entry formation, weakening,
+captured-place, projection-remainder, and `ExclusiveSuspension` row before
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 46 /
+vocabulary 49 round-trip the complete lineage. Verification rejects empty,
+reordered, duplicated, access-amplified, malformed, redirected, branched,
+shared, or non-state-exit rows. Publication remains direct-root custody only:
+there is no cleanup, transfer, linear-discharge, or runtime-operation
+vocabulary, and shared cohorts, post-reborrow use, and broader branching remain
+outside this rung.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the

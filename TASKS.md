@@ -6782,23 +6782,25 @@ Owners:
   rebuilding either resource arena. The evidence remains non-authorizing and
   proves no completed restoration or Terminal custody.
 
-  The first Terminal root-custody publication rung is now live for one exact
-  direct-root `Mutable -> Mutable` or `Mutable -> WriteOnly` reborrow that ends
-  at state exit. The producer rejoins the checked child and direct-root
-  resources, `StateExitDirectRootHandoff` disposition, exact direct-root
-  lifetime target, parent-suspension formation boundary, both weakening
-  boundaries, and `ExclusiveSuspension` containment before publishing one
-  canonical row. Terminal format 45 / vocabulary 48 retains the machine/state,
-  owner paths, parent/child captured places and projection remainder, access
-  pair, lifecycle coordinates, and root lifetime. Codec and verifier reject
-  access amplification, malformed projection or identity, redirected formation,
-  duplicates, and noncanonical order. This row grants root custody only; its
-  vocabulary cannot express cleanup, transfer, or linear discharge.
+  Terminal root-custody publication now accepts one finite nonempty linear
+  exclusive lineage from a direct-root `Mutable` loan to the leaf that ends at
+  state exit. Each edge is exactly `Mutable -> Mutable`, `Mutable -> WriteOnly`,
+  or `WriteOnly -> WriteOnly`; the one-hop forms remain the length-one subset.
+  The producer walks the leaf's exact retired-parent path back to the root,
+  reverses it into root-to-leaf order, rejects branching, and rejoins every
+  resource, activation, parent-entry formation, weakening, captured-place,
+  projection-remainder, and `ExclusiveSuspension` containment row before
+  accepting the leaf's exact `StateExitDirectRootHandoff` and root-lifetime
+  target. Terminal format 46 / vocabulary 49 retain the complete lineage in one
+  canonical row. Codec and verifier reject empty, reordered, duplicated,
+  access-amplified, malformed, redirected, branched, shared, or non-state-exit
+  lineages. The row grants root custody only; its vocabulary cannot express
+  cleanup, transfer, or linear discharge.
 
   Complete the settled reborrow-restoration model by publishing post-reborrow
-  use and broader root custody only after independent replay. Multihop lineages,
-  shared-freeze cohorts, non-state-exit restoration, and broader exclusive
-  branching remain outside the first Terminal rung.
+  use and broader root custody only after independent replay. Shared-freeze
+  cohorts, non-state-exit restoration, and exclusive branching remain outside
+  the current Terminal rung.
 
   Acceptance: every access cell has a positive or directed negative canary;
   concurrent shared descendants do not produce internal drift; premature or

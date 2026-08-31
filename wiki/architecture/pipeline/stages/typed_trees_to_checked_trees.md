@@ -419,12 +419,14 @@ Current ownership is:
   reconstructs that entire join and rejects missing, duplicate, reordered,
   access-amplified, or retargeted rows before rebuilding either resource arena.
   These certificates remain non-authorizing and do not establish completed
-  restoration. The first downstream Terminal consumer now publishes exact
-  direct-root custody only for a one-hop `Mutable`-to-`Mutable` or
-  `Mutable`-to-`WriteOnly` exclusive child whose independently replayed
-  disposition reaches the direct-root lifetime at state exit. Multihop,
-  shared-cohort, and post-reborrow-use publication remain open. Root handoff
-  grants the borrow layer no cleanup, transfer, or linear-consumption authority.
+  restoration. The downstream Terminal consumer now publishes exact direct-root
+  custody for a finite nonempty linear exclusive lineage whose direct root is
+  `Mutable`, whose edges are `Mutable`-to-`Mutable`,
+  `Mutable`-to-`WriteOnly`, or `WriteOnly`-to-`WriteOnly`, and whose leaf
+  independently replays a state-exit handoff to that exact root lifetime.
+  Shared cohorts, exclusive branching, and post-reborrow-use publication remain
+  open. Root handoff grants the borrow layer no cleanup, transfer, or
+  linear-consumption authority.
 - `checks/borrows.rs` is the borrow-check entry point. `checks/borrows/calls.rs`
   owns call-site borrow-check coordination,
   `checks/borrows/calls/conflicts.rs` owns call-site access/access and

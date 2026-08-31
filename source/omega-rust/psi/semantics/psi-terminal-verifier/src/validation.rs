@@ -284,45 +284,67 @@ fn validate_reborrow_root_handoffs(
     let rows = &module.reborrow_root_handoffs;
     let mut coordinates = BTreeSet::new();
     for row in rows {
+        let Some(leaf) = row.lineage.last() else {
+            return Err(ModuleError::InvalidReborrowRootHandoff {
+                machine: row.machine,
+            });
+        };
         if !coordinates.insert((
             row.machine,
             row.source_state_identity.as_str(),
-            row.child_owner_identity.as_str(),
-            row.child_activation.clone(),
+            leaf.child_owner_identity.as_str(),
+            leaf.child_activation.clone(),
         )) {
             return Err(ModuleError::DuplicateReborrowRootHandoff);
         }
-        let parent_segments = &row.direct_root_place.segments;
-        let child_segments = &row.child_place.segments;
-        let invalid = !machines.contains_key(&row.machine)
+        let mut invalid = !machines.contains_key(&row.machine)
             || !is_canonical_borrow_identity(&row.source_machine_identity)
             || !is_canonical_borrow_identity(&row.source_state_identity)
             || !is_canonical_borrow_identity(&row.direct_root_owner_identity)
-            || !is_canonical_borrow_identity(&row.child_owner_identity)
             || !is_canonical_borrow_identity(&row.direct_root_place.root_identity)
-            || !is_canonical_borrow_identity(&row.child_place.root_identity)
             || !is_canonical_borrow_identity(&row.direct_root_lifetime_identity)
             || !valid_owner_path(&row.direct_root_owner_path)
-            || !valid_owner_path(&row.child_owner_path)
-            || !parent_segments.iter().all(valid_place_segment)
-            || !child_segments.iter().all(valid_place_segment)
-            || !row.projection_remainder.iter().all(valid_place_segment)
+            || !row
+                .direct_root_place
+                .segments
+                .iter()
+                .all(valid_place_segment)
             || row.direct_root_access != psi_terminal::StructuralAccess::MutableBorrow
-            || !matches!(
-                row.child_access,
-                psi_terminal::StructuralAccess::MutableBorrow
-                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
-            )
-            || row.direct_root_place.root_identity != row.child_place.root_identity
             || row.direct_root_lifetime_identity != row.direct_root_place.root_identity
-            || !child_segments.starts_with(parent_segments)
-            || child_segments[parent_segments.len()..] != row.projection_remainder
-            || row.formation_boundary != row.child_activation
             || !valid_borrow_boundary(&row.direct_root_activation)
-            || !valid_borrow_boundary(&row.child_activation)
-            || !valid_borrow_boundary(&row.formation_boundary)
-            || !valid_borrow_boundary(&row.child_weakening)
             || !valid_borrow_boundary(&row.direct_root_weakening);
+        let mut parent_place = &row.direct_root_place;
+        let mut parent_access = row.direct_root_access;
+        for step in &row.lineage {
+            let parent_segments = &parent_place.segments;
+            let child_segments = &step.child_place.segments;
+            let permitted_exclusive = matches!(
+                (parent_access, step.child_access),
+                (
+                    psi_terminal::StructuralAccess::MutableBorrow,
+                    psi_terminal::StructuralAccess::MutableBorrow
+                        | psi_terminal::StructuralAccess::WriteOnlyBorrow
+                ) | (
+                    psi_terminal::StructuralAccess::WriteOnlyBorrow,
+                    psi_terminal::StructuralAccess::WriteOnlyBorrow
+                )
+            );
+            invalid |= !is_canonical_borrow_identity(&step.child_owner_identity)
+                || !is_canonical_borrow_identity(&step.child_place.root_identity)
+                || !valid_owner_path(&step.child_owner_path)
+                || !child_segments.iter().all(valid_place_segment)
+                || !step.projection_remainder.iter().all(valid_place_segment)
+                || !permitted_exclusive
+                || parent_place.root_identity != step.child_place.root_identity
+                || !child_segments.starts_with(parent_segments)
+                || child_segments[parent_segments.len()..] != step.projection_remainder
+                || step.formation_boundary != step.child_activation
+                || !valid_borrow_boundary(&step.child_activation)
+                || !valid_borrow_boundary(&step.formation_boundary)
+                || !valid_borrow_boundary(&step.child_weakening);
+            parent_place = &step.child_place;
+            parent_access = step.child_access;
+        }
         if invalid {
             return Err(ModuleError::InvalidReborrowRootHandoff {
                 machine: row.machine,
