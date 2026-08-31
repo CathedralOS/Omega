@@ -1,4 +1,4 @@
-//! Four-block Terminal emission for the scalar-prefix acyclic family.
+//! Terminal emission for the finite scalar-prefix acyclic family.
 
 use super::*;
 
@@ -8,27 +8,36 @@ pub(super) fn emit(
     admitted: super::admission::AdmittedPrefixed<'_>,
     catalogs: super::super::catalogs::ComposedCatalogs,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let entry_parameter = ValueDeclaration {
-        id: value_id(1),
-        scalar_type: ScalarType::Boolean,
-    };
-    let dispatch_parameter = ValueDeclaration {
-        id: value_id(2),
-        scalar_type: ScalarType::Boolean,
-    };
-    let state_ids = [block_id(1), block_id(2), block_id(3), block_id(4)];
+    let control_parameters = (0..admitted.controls.len())
+        .map(|index| {
+            Ok(ValueDeclaration {
+                id: value_id(dense_identity(index)?),
+                scalar_type: ScalarType::Boolean,
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let state_ids = (0..plan.states.len())
+        .map(|index| Ok(block_id(dense_identity(index)?)))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_edge = 1_u64;
-    let entry_block = Block {
-        id: state_ids[0],
-        parameters: Vec::new(),
-        operations: Vec::new(),
-        terminator: Terminator::Jump {
-            edge: edge_id(allocate_dense(&mut next_edge)?),
-            target: state_ids[1],
-            arguments: vec![entry_parameter.id],
-            trivial_affine_discards: Vec::new(),
-        },
-    };
+    let mut blocks = (0..admitted.controls.len() - 1)
+        .map(|index| {
+            Ok(Block {
+                id: state_ids[index],
+                parameters: (index != 0)
+                    .then_some(control_parameters[index])
+                    .into_iter()
+                    .collect(),
+                operations: Vec::new(),
+                terminator: Terminator::Jump {
+                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                    target: state_ids[index + 1],
+                    arguments: vec![control_parameters[index].id],
+                    trivial_affine_discards: Vec::new(),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } =
         &admitted.dispatch.terminator
     else {
@@ -36,7 +45,14 @@ pub(super) fn emit(
     };
     let guard = lower_checked_scalar_expression(guard)?;
     validate_direct_parameter_types(&guard, &[ScalarType::Boolean])?;
-    let mut next_value = 3_u64;
+    let dispatch_index = admitted.controls.len() - 1;
+    let dispatch_parameter = control_parameters[dispatch_index];
+    let mut next_value = u64::try_from(control_parameters.len())
+        .map_err(|_| LoweringError::Unsupported("prefixed scalar chain exceeds u64"))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "prefixed scalar value identity space is exhausted",
+        ))?;
     let mut dispatch_operations = OperationBuffer::new(0);
     let condition = emit_direct_expression(
         &guard,
@@ -46,18 +62,23 @@ pub(super) fn emit(
     );
     let mut next_operation = dispatch_operations.next_identity;
     let dispatch_block = Block {
-        id: state_ids[1],
+        id: state_ids[dispatch_index],
         parameters: vec![dispatch_parameter],
         operations: dispatch_operations.operations,
         terminator: Terminator::Conditional {
             condition,
-            when_true: empty_successor(state_ids[2], &mut next_edge)?,
-            when_false: empty_successor(state_ids[3], &mut next_edge)?,
+            when_true: empty_successor(state_ids[dispatch_index + 1], &mut next_edge)?,
+            when_false: empty_successor(state_ids[dispatch_index + 2], &mut next_edge)?,
         },
     };
-    let mut blocks = vec![entry_block, dispatch_block];
+    blocks.push(dispatch_block);
     let mut source_call_occurrences = Vec::new();
-    for (state, block) in admitted.leaf_calls.leaves.into_iter().zip(&state_ids[2..]) {
+    for (state, block) in admitted
+        .leaf_calls
+        .leaves
+        .into_iter()
+        .zip(&state_ids[dispatch_index + 1..])
+    {
         let (leaf, mut occurrences) = match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
                 super::super::emission::emit_boundary_leaf(
@@ -110,7 +131,7 @@ pub(super) fn emit(
     let machine = TerminalMachine {
         id: machine_id(1),
         attachment: Some(attachment),
-        parameters: vec![entry_parameter],
+        parameters: vec![control_parameters[0]],
         structural_parameters: Vec::new(),
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
@@ -137,7 +158,12 @@ pub(super) fn emit(
         },
     };
     let mut machines = vec![machine];
-    let mut next_block = 5_u64;
+    let mut next_block = u64::try_from(state_ids.len())
+        .map_err(|_| LoweringError::Unsupported("prefixed block count exceeds u64"))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "prefixed block identity space is exhausted",
+        ))?;
     machines.extend(super::super::internal_calls::emission::emit_targets(
         checked,
         &catalogs.internal_targets,

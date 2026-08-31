@@ -20,7 +20,7 @@ pub(crate) fn lower_composed_unit_control_machine(
     checked: &CheckedTrees,
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if plan.states.len() == 4 {
+    if plan.states.len() >= 4 {
         return prefixed_control::lower(checked, plan);
     }
     let admitted = admit_composed_unit_control(checked, plan)?;

@@ -1,4 +1,4 @@
-//! One unconditional scalar-custody edge before composed conditional leaves.
+//! Finite unconditional scalar-custody chain before conditional effect leaves.
 
 use super::*;
 
@@ -9,13 +9,19 @@ pub(super) fn build(
     boundaries: &[CheckedBoundaryMachinePlan],
     machine: &psi_typed_trees::machine::Machine,
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
-    let [entry, dispatch, when_true, when_false] = program.machine_states(machine) else {
+    let states = program.machine_states(machine);
+    if states.len() < 4 {
+        return None;
+    }
+    let (control_states, leaf_states) = states.split_at(states.len() - 2);
+    let [when_true, when_false] = leaf_states else {
         return None;
     };
+    let dispatch = control_states.last()?;
     let binders = machine_binders(program, machine);
     let mut signatures = Vec::new();
     let mut attachment = None;
-    for state in [entry, dispatch, when_true, when_false] {
+    for state in states {
         if !is_unit(program, state.return_type) || !program.state_contracts(state).is_empty() {
             return None;
         }
@@ -37,23 +43,25 @@ pub(super) fn build(
         attachment = Some(state_attachment);
         signatures.push(scalar);
     }
-    let [
-        entry_parameters,
-        dispatch_parameters,
-        true_parameters,
-        false_parameters,
-    ] = signatures.as_slice()
-    else {
+    let (control_parameters, leaf_parameters) = signatures.split_at(control_states.len());
+    let [true_parameters, false_parameters] = leaf_parameters else {
         return None;
     };
-    if !exact_boolean_parameter(entry_parameters)
-        || !exact_boolean_parameter(dispatch_parameters)
+    if !control_parameters
+        .iter()
+        .all(|parameters| exact_boolean_parameter(parameters))
         || !true_parameters.is_empty()
         || !false_parameters.is_empty()
     {
         return None;
     }
-    let prefix = prefix_successor(program, facts, machine, entry, dispatch, entry_parameters)?;
+    let prefixes = control_states
+        .windows(2)
+        .zip(control_parameters)
+        .map(|(states, parameters)| {
+            prefix_successor(program, facts, machine, &states[0], &states[1], parameters)
+        })
+        .collect::<Option<Vec<_>>>()?;
 
     let [
         StatementNode::Transition(true_transition),
@@ -77,7 +85,7 @@ pub(super) fn build(
             0,
             CheckedScalarExpressionRole::Guard,
         )?,
-        dispatch_parameters,
+        control_parameters.last()?,
     )?;
     let empty_claims = Vec::new();
     let branches = [
@@ -132,35 +140,40 @@ pub(super) fn build(
             ),
         ],
     )?;
+    let mut checked_states = control_states[..control_states.len() - 1]
+        .iter()
+        .zip(&control_parameters[..control_parameters.len() - 1])
+        .zip(prefixes)
+        .map(
+            |((state, parameters), successor)| CheckedComposedUnitControlStatePlan {
+                state: state.symbol,
+                structural_parameters: Vec::new(),
+                scalar_parameters: parameters.clone(),
+                entry_claims: Vec::new(),
+                operations: Vec::new(),
+                terminator: CheckedComposedUnitControlTerminatorPlan::Jump { successor },
+            },
+        )
+        .collect::<Vec<_>>();
+    checked_states.push(CheckedComposedUnitControlStatePlan {
+        state: dispatch.symbol,
+        structural_parameters: Vec::new(),
+        scalar_parameters: control_parameters.last()?.clone(),
+        entry_claims: Vec::new(),
+        operations: Vec::new(),
+        terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
+            guard,
+            when_true: branches[0].clone(),
+            when_false: branches[1].clone(),
+        },
+    });
+    checked_states.extend(leaves);
     super::assembly::finish(
         facts,
         machine,
         attachment?,
         provider_requirements,
-        vec![
-            CheckedComposedUnitControlStatePlan {
-                state: entry.symbol,
-                structural_parameters: Vec::new(),
-                scalar_parameters: entry_parameters.clone(),
-                entry_claims: Vec::new(),
-                operations: Vec::new(),
-                terminator: CheckedComposedUnitControlTerminatorPlan::Jump { successor: prefix },
-            },
-            CheckedComposedUnitControlStatePlan {
-                state: dispatch.symbol,
-                structural_parameters: Vec::new(),
-                scalar_parameters: dispatch_parameters.clone(),
-                entry_claims: Vec::new(),
-                operations: Vec::new(),
-                terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
-                    guard,
-                    when_true: branches[0].clone(),
-                    when_false: branches[1].clone(),
-                },
-            },
-            leaves[0].clone(),
-            leaves[1].clone(),
-        ],
+        checked_states,
     )
 }
 

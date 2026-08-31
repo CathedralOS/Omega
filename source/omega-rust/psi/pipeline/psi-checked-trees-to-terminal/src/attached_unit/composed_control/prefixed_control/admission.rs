@@ -1,8 +1,9 @@
-//! Independent four-state topology and scalar-edge replay.
+//! Independent finite-prefix topology and scalar-edge replay.
 
 use super::*;
 
 pub(super) struct AdmittedPrefixed<'a> {
+    pub(super) controls: &'a [psi_checked_trees::CheckedComposedUnitControlStatePlan],
     pub(super) dispatch: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
     pub(super) leaf_calls: super::super::admission::AdmittedComposedUnit<'a>,
 }
@@ -11,23 +12,25 @@ pub(super) fn admit<'a>(
     checked: &'a CheckedTrees,
     plan: &'a psi_checked_trees::CheckedComposedUnitControlMachinePlan,
 ) -> Result<AdmittedPrefixed<'a>, LoweringError> {
-    let [entry, dispatch, when_true, when_false] = plan.states.as_slice() else {
-        return unsupported("prefixed composed Unit control requires exactly four states");
+    if plan.states.len() < 4 {
+        return unsupported("prefixed composed Unit control requires at least four states");
+    }
+    let (controls, leaves) = plan.states.split_at(plan.states.len() - 2);
+    let [when_true, when_false] = leaves else {
+        return unsupported("prefixed composed Unit control requires exactly two leaves");
     };
+    let dispatch = controls
+        .last()
+        .expect("four-state minimum retains two control states");
     if !plan.body_qualifications.is_empty()
-        || !entry.structural_parameters.is_empty()
-        || !entry.entry_claims.is_empty()
-        || !entry.operations.is_empty()
-        || !dispatch.structural_parameters.is_empty()
-        || !dispatch.entry_claims.is_empty()
-        || !dispatch.operations.is_empty()
+        || controls.iter().any(|state| {
+            !state.structural_parameters.is_empty()
+                || !state.entry_claims.is_empty()
+                || !state.operations.is_empty()
+        })
     {
         return unsupported("prefixed composed Unit control escaped scalar-only custody");
     }
-    let CheckedComposedUnitControlTerminatorPlan::Jump { successor: prefix } = &entry.terminator
-    else {
-        return unsupported("prefixed composed Unit entry is not one exact jump");
-    };
     let CheckedComposedUnitControlTerminatorPlan::Conditional {
         guard,
         when_true: true_edge,
@@ -37,7 +40,13 @@ pub(super) fn admit<'a>(
         return unsupported("prefixed composed Unit dispatch is not one conditional");
     };
     super::super::admission::validate_guard(guard, &dispatch.scalar_parameters)?;
-    validate_prefix(entry, dispatch, prefix)?;
+    for states in controls.windows(2) {
+        let CheckedComposedUnitControlTerminatorPlan::Jump { successor } = &states[0].terminator
+        else {
+            return unsupported("prefixed composed Unit chain contains a non-jump prefix");
+        };
+        validate_prefix(&states[0], &states[1], successor)?;
+    }
     if true_edge.statement_ordinal != 0
         || false_edge.statement_ordinal != 1
         || true_edge.target_state != when_true.state
@@ -57,12 +66,11 @@ pub(super) fn admit<'a>(
     if !matches!(custody, super::super::custody::ComposedCustody::Empty) {
         return unsupported("prefixed composed Unit control unexpectedly retained claim custody");
     }
-    let mut identities = [
-        entry.state,
-        dispatch.state,
-        when_true.state,
-        when_false.state,
-    ];
+    let mut identities = plan
+        .states
+        .iter()
+        .map(|state| state.state)
+        .collect::<Vec<_>>();
     identities.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     if identities.windows(2).any(|pair| pair[0] == pair[1]) {
         return unsupported("prefixed composed Unit control contains duplicate states");
@@ -78,6 +86,7 @@ pub(super) fn admit<'a>(
         &plan.provider_attachment_requirements,
     )?;
     Ok(AdmittedPrefixed {
+        controls,
         dispatch,
         leaf_calls: super::super::admission::AdmittedComposedUnit {
             entry: dispatch,
