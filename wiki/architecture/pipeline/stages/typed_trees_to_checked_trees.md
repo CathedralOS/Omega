@@ -861,6 +861,13 @@ Current ownership is:
   compiler-owned primitive guard, and crash coverage proves each
   path-conditioned derived guard implies the authored same-cause route
   disjunction.
+  D40 requires each FloatMeaning projection to retain a canonical semantic
+  source term separately from its authored occurrence: exact contract
+  parameter/result, Terminal value, structural float leaf, or exact-bit
+  literal, plus format and recognized declaration/catalog contract. Equal
+  tuples share one proof-value identity; dense encounter order and source spans
+  are not semantic correspondence. The checked-to-Terminal join and verifier
+  independently replay this key before `FloatMeaningEqual` reaches the kernel.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

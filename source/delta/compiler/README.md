@@ -49,7 +49,7 @@ D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
 AST-to-symbolic-Alpha lowering, `main`, and final publication remain
-implementation gaps. Q4 blocks promotion of the incomplete entry-diagnostic
+implementation gaps. Q3 blocks promotion of the incomplete entry-diagnostic
 judgment. D31's profile-independent structural type-formation judgment is now
 implemented; its
 physical storage realization remains later than complete checking, with D34
@@ -87,7 +87,7 @@ marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. The winning candidate is
 now promoted after successful census. Remaining expression typing and the
 body/control judgments are the next semantic phase. Entry facts may be retained
-alongside them, but Q4 must total
+alongside them, but Q3 must total
 their reasons, anchors, and ties before the shared final-phase candidate is
 promoted.
 
@@ -153,7 +153,7 @@ arity, complete argument typing, and value/resultless/`never` production for
 direct-qualified, unqualified, data-receiver, and sealed-boundary spellings.
 Exact catalog ownership gives `self` its nominal value and storage place only
 inside a receiver-bearing qualified data machine and all of that machine's
-states; invalid `self` remains factless pending Q10's rejection ruling.
+states; invalid `self` remains factless pending Q9's rejection ruling.
 Grouped named-receiver heads preserve exact data-machine or boundary-member
 custody before receiver-place and signature checks. Static machines are never
 inferred to have a receiver. Same-spelled record fields fall back to ordinary
@@ -205,7 +205,7 @@ argument, while result typing waits for complete compatible values. A separate
 call suffix on a complete ordinary value or resultless result is `TypeMismatch`;
 an embedded `never` result is `InvalidTerminal`. Every authored argument keeps
 its explicitly anchored `never` branch independently of callee admission and
-arity; Q11 blocks the unspecified resultless-argument anchor. Let and `assert`
+arity; Q10 blocks the unspecified resultless-argument anchor. Let and `assert`
 relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into
@@ -215,7 +215,7 @@ returns. Explicit absence/value relations use D37's exact anchors and category
 premises without resolving the expression twice. A source-shaped statement
 flow fact retains a successful standalone `never` result, diagnoses only the
 first following ordinary statement, and still visits every later authored
-child. Q12 blocks explicit terminals after that `never`, forbidden falloff,
+child. Q11 blocks explicit terminals after that `never`, forbidden falloff,
 and machine-continuation exit effects; remaining transition/control and
 terminal-flow candidates still require the rest of the D37 premise DAG. The
 fact pass now

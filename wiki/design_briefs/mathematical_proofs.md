@@ -219,6 +219,14 @@ rounding step on the finite branch. `Real` is a proof-side abstraction built
 from ordinary core mathematical data and quotient/equivalence machinery, not a
 runtime primitive or compiler float mode.
 
+D40 gives this carrier only structural `FloatMeaningEqual`. Projection already
+erases NaN payloads, so NaN is reflexive and signed zeros remain distinct; IEEE
+comparison retains its separate opposite laws. A canonical PCC term binds the
+verifier-reconstructed float source, format, projection operation, and exact
+recognized declaration/catalog contract. Equal keys share one proof identity;
+distinct keys need a named theorem. Source spans are provenance, not semantics,
+and the complete term erases before runtime.
+
 The useful staging is:
 
 1. exact `Nat`, `Int`, and `Rat` libraries;

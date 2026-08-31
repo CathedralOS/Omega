@@ -3068,6 +3068,23 @@ equality/order calculus. This is new proposition vocabulary, not a new proof
 rule or a trusted arithmetic solver; the existing scalar comparison identities
 remain unchanged.
 
+D40 applies the same separation to float denotation without giving it integer
+ordering. The closed proof-value classification includes a FloatMeaning term,
+and only `FloatMeaningEqual` accepts that carrier. Each term binds a
+verifier-reconstructed contract parameter/result, Terminal value, structural
+float leaf, or exact-bit literal to its binary format, exact projection
+operation, and recognized core declaration/catalog contract. Identical tuples
+share one canonical `ProofValueId`; projection occurrences and source spans are
+separate provenance. The current dense projection-input IDs are therefore
+migration coordinates, not sufficient correspondence. Local lookalike
+operators and producer-supplied IDs confer no meaning.
+
+The relation is structural equality of the already payload-erased
+`FloatMeaning` sum, not IEEE comparison: NaN is reflexive and signed zero is
+distinguished. Distinct landed terms require an explicit theorem. All of this
+is erased PCC metadata; Terminal execution and native float lowering acquire no
+new value, conversion, comparison, or runtime check.
+
 `Representable(expression, carrier)` is a schema-owned constructor, not an
 atomic proposition. It expands to the ordered conjunction
 `minimum(carrier) <= expression` and

@@ -57,10 +57,10 @@ compilers and must not both be called “the Delta compiler.”
   settled field/index/slice projection failures, D37 scalar and argument-
   `never` category joins, let/assignment/assert and explicit-return relations,
   first-following-statement terminal flow, and symbolic Alpha encoding.
-  Remaining final body/control checking, Q4 entry diagnostics, D36
-  continuation/state classification including Q9's state-transfer spelling,
-  Q10's invalid-`self` diagnostic, Q11's resultless-argument anchor, the
-  Q12-blocked exit/falloff judgment, remaining D37 control/terminal premise
+  Remaining final body/control checking, Q3 entry diagnostics, D36
+  continuation/state classification including Q8's state-transfer spelling,
+  Q9's invalid-`self` diagnostic, Q10's resultless-argument anchor, the
+  Q11-blocked exit/falloff judgment, remaining D37 control/terminal premise
   DAG, D38
   executable controls, storage realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact

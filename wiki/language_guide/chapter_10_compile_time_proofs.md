@@ -588,7 +588,11 @@ their exact carrier upper bound. The projection has no runtime representation,
 does not alter the source qualification, and cannot determine runtime data or
 control. Floats instead use `Float::meaning32` or `Float::meaning64`, whose
 `FloatMeaning` result preserves finite rational value, signed zero, infinity,
-and NaN explicitly.
+and NaN explicitly. Equality on that result is structural proof equality: the
+single payloadless NaN case is reflexive, while positive and negative zero are
+distinct. This is deliberately not IEEE `==`, whose NaN and signed-zero laws
+are the opposite. The compiler retains the exact source carrier and recognized
+projection contract for PCC, but emits no runtime projection or comparison.
 
 Removing a policy with `as` is a different statement:
 
@@ -674,6 +678,13 @@ the proof carrier has no overlapping zero representation. `Int` is the uniform
 proof embedding target for fixed-width integers and addresses. Its order has no
 floor, so ranking views over it must produce a
 well-founded `Nat` rank or carry a proven floor.
+
+Repeated projections of one exact contract parameter, result, Terminal value,
+structural float leaf, or exact-bit literal denote one proof term only when the
+verifier reconstructs the same format, projection operation, and recognized
+core declaration/catalog contract. Authored source locations remain diagnostic
+provenance. Distinct source terms require an explicit theorem and never become
+equal from spelling, ordinary IEEE equality, or coincident runtime values.
 
 Core's `Rat` stores a signed `IntPair` numerator and a positive `Nat`
 denominator; `mk_signed_rat` cancels the pair's shared offset and reduces the

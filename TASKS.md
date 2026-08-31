@@ -9010,7 +9010,7 @@ compiler concept is introduced.
   enabled facets. Evidence over the current raw `i32` descriptors may claim
   operation classes only. Add typed unforgeable descriptor handles and checked
   attenuation before claiming that reads or writes are confined to objects
-  opened with corresponding authority. The redirect is owner-blocked on Q8's
+  opened with corresponding authority. The redirect is owner-blocked on Q7's
   first closed target/binding classification table; the containment formula
   alone does not determine authority for current syscall, import, firmware,
   table, or checked-physical coordinates.
@@ -10334,22 +10334,28 @@ Remaining N6/N8 work:
   The float catalog fixes exact `meaning32`/`meaning64` projection: finite
   values map to exact nonzero rationals, signed zero/infinity survive, NaN
   payloads erase, and cross-format projection rejects. Checked interpretation
-  consumes the catalog. Source binding accepts only exact ordinary tokenless
-  `Float::meaning32`/`meaning64` signatures; names alone grant no semantics.
-  Checked and Terminal rows retain exact proof-position invocation, operator,
-  operand, format, equality, projection-table, and provenance identity, and
+  consumes the catalog. Current source binding validates an ordinary tokenless
+  `Float::meaning32`/`meaning64` path and signature but does not yet retain the
+  recognized core declaration as contract owner. Checked and Terminal rows
+  retain proof-position invocation, format, equality, and projection-table
+  coordinates, and
   replay rejects missing, reordered, substituted, noncanonical, or cross-format
   evidence. Runtime Booleans, machine operations/contracts, native lowering,
-  and proof-kernel discharge remain open under
+  and complete proof-kernel discharge remain open under
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
-  Proof-kernel discharge is now **OWNER-BLOCKED — Q1 (proof-only FloatMeaning
-  equality ownership)** rather than an implementation task: the kernel accepts only scalar-term equality, with
-  no proof-only `FloatMeaning`/`ProofValueId` term; independently authored
-  projection invocations do not retain a shared landed-source identity; and
-  Terminal equality rows have no contract owner or evidence-provenance lane.
-  An owner ruling must choose the core/kernel proof-term carrier and accepted
-  `FloatMeaning` equality rule, plus exact source-coordinate identity/coalescing
-  (or an alternative owner/contract binding), before this row can advance.
+  **IMPLEMENTATION — D40 FLOATMEANING PCC CORRESPONDENCE.** Add the closed
+  FloatMeaning proof term and carrier-specific `FloatMeaningEqual` proposition
+  to canonical proposition validation, encoding, substitution, the proof
+  kernel, the authoritative low-rung checker, and the current independent
+  diagnostic comparator. Retain a verifier-reconstructible
+  source term for contract parameters/results, Terminal values, structural
+  float leaves, and exact-bit literals; bind its format, projection operation,
+  exact recognized core declaration, and numeric-catalog version. Canonically
+  deduplicate equal tuples to one `ProofValueId` while retaining occurrence/span
+  provenance separately. Require an explicit theorem for distinct terms. Add
+  controls for NaN reflexivity, signed-zero distinction, IEEE-relation
+  separation, lookalike declarations, cross-format/catalog substitution,
+  arbitrary producer IDs, false coalescing, and proof erasure from runtime.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

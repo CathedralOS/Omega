@@ -86,8 +86,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables and postfix-statement category, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q9/Q10/Q11/Q12 diagnostics, complete D36 continuation/state and the remaining D37 control/terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables and postfix-statement category, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q3/Q8/Q9/Q10/Q11 diagnostics, complete D36 continuation/state and the remaining D37 control/terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -611,7 +611,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     neither resource path commits `r254` or a partial descriptor. Exact and
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
-  - [ ] **OWNER-BLOCKED — Q3 Beta call-row profile for the complete Gamma
+  - [ ] **OWNER-BLOCKED — Q2 Beta call-row profile for the complete Gamma
     compiler.** The retained source consumes exactly 994 of D23's 1,024
     non-builtin call rows before a production entry or either adapter. A focused
     adjacent probe admits thirty further calls and refuses the thirty-first as
@@ -1148,7 +1148,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and nested array/view element positions, but reject an exact outer
       parameter, local, or return as `TypeMismatch` at its type token. Treat
       `Main.console` as structurally stored and leave its required sealed type
-      to Q4's entry-shape judgment. This enforces D17's existing storage-only
+      to Q3's entry-shape judgment. This enforces D17's existing storage-only
       rule rather than creating a new Delta decision.
   - [x] **D31 OUTCOME-SCHEMA PLUMBING.** Retain the two source-owned
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
@@ -1162,20 +1162,20 @@ code, discover a closure, manufacture proof premises, or decide admission.
     array structurally by outermost then packed coordinate. Composition-only
     excess remains aggregate with no coordinate. Reserved frame bytes stay
     zero and no refusal publishes tape bytes.
-  - [ ] **OWNER-BLOCKED — Q4 DELTA ENTRY-SHAPE TOTALITY.** The accepted
+  - [ ] **OWNER-BLOCKED — Q3 DELTA ENTRY-SHAPE TOTALITY.** The accepted
     `Console`/`Main`/`Main::main` headline is fixed, but `MissingEntry` versus
     `InvalidEntry`, absent-component and malformed-component coordinates,
     boundary member order/binder-name sensitivity, and ties with ordinary
     body/control failures are not total. Retain entry candidates for the final
     phase, but do not promote a rejection or publish golden coordinates until
-    Q4 settles them. This does not block the independent expression, statement,
+    Q3 settles them. This does not block the independent expression, statement,
     state, transition, and return judgments.
   - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
     type owner, callable, constructor, field, state, and control target against
     the complete census and formed shape graph. Check ordered initialization,
     value/place/call classification, arity and type equality, terminal and
     return obligations, duplicate patterns, and sum exhaustiveness. Accumulate
-    all final-phase candidates by packed coordinate and merge the eventual Q4
+    all final-phase candidates by packed coordinate and merge the eventual Q3
     entry candidates before accepting one resolved program; traversal and wire
     reason order must not select the diagnostic.
   - [x] **IMPLEMENTATION — DELTA RESOLUTION-CATALOG FOUNDATION.** Build one
@@ -1187,7 +1187,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     machine-local state lookups consume those rows without numeric node IDs or
     a second flattened syntax tree. Structural type equality compares nominal
     names and semantic array lengths, and a neutral final-phase bucket retains
-    every reason tied at the smallest coordinate until Q4 settles final-phase
+    every reason tied at the smallest coordinate until Q3 settles final-phase
     composition. D36 separately requires the earlier callable collision census,
     and D37 fixes body/control premise-DAG composition.
     The foundation type-checks through the real Gamma frontend;
@@ -1295,7 +1295,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
         Constructors, bare machines, static receiver-machine spellings, known
         qualified fields/boundary members, and complete noncallable values are
         `TypeMismatch` before arity/type derivation; unresolved premises add no
-        dependent failure. Wrong arity/type and Q11-incomplete admitted calls
+        dependent failure. Wrong arity/type and Q10-incomplete admitted calls
         retain custody without a second mismatch. Value/resultless results may
         be discarded and a successful `never` result is left for the later
         block-flow judgment. This does not claim transition-continuation/state
@@ -1370,25 +1370,25 @@ code, discover a closure, manufacture proof premises, or decide admission.
       fact, reject only the first following ordinary statement at that
       statement's start, and continue checking every authored later child.
       Explicit terminals after `never`, non-resultless falloff, and machine-call
-      continuation exit behavior remain Q12-blocked; transition target and
+      continuation exit behavior remain Q11-blocked; transition target and
       pattern relations remain open independently. The Gamma gate establishes
       source formation only until the real compiler edge exists.
-    - [ ] **OWNER-BLOCKED — Q11 RESULTLESS ARGUMENT ANCHOR.** D37 requires a
+    - [ ] **OWNER-BLOCKED — Q10 RESULTLESS ARGUMENT ANCHOR.** D37 requires a
       resultless call used as an argument to contribute `TypeMismatch`
       independently of callee admission and arity, but does not assign its
       coordinate. The application start collides with `ArityMismatch` and
       would turn ordinary invalid source into `InternalFailure`; the argument
       start is plausible but not yet authoritative. Retain the explicitly
       anchored `never` argument branch and no resultless-argument candidate
-      until Q11 settles the anchor.
-    - [ ] **OWNER-BLOCKED — Q12 DELTA BLOCK-EXIT TOTALITY.** D17 fixes return
+      until Q10 settles the anchor.
+    - [ ] **OWNER-BLOCKED — Q11 DELTA BLOCK-EXIT TOTALITY.** D17 fixes return
       obligations and D37 fixes explicit-return and following-statement
       anchors, but neither assigns a diagnostic to value/`never` falloff or to
       an explicit return/transition after a successful standalone `never`
       call. The return effect of a machine-call transition continuation is also
       unspecified, so complete reachability and block-exit validation would
       invent language behavior. Retain the settled explicit-return and first-
-      following-statement relations, but do not classify those exits until Q12
+      following-statement relations, but do not classify those exits until Q11
       settles them.
   - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
@@ -1464,7 +1464,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q2: COMPLETE D25 OMEGA-COMPILER-REQUEST-WIRE-V1.**
+  - [ ] **OWNER-BLOCKED — Q1: COMPLETE D25 OMEGA-COMPILER-REQUEST-WIRE-V1.**
     Complete the byte-exact `OCREQ` and `OCOUT` profiles shared by `D` and `C`.
     Encode the committed canonical subject and invocation, structural package
     keys, separately selected immutable revisions, graph indices, closed-tree
@@ -1484,7 +1484,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       invocation spans on success. It does not call the source parser, invent a
       package/source identity, add `Main`, or publish `OCOUT`. Exact malformed
       frame vectors remain assigned to the real Delta-compiler gate.
-  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q2 AND INCOMPLETE D:
+  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q1 AND INCOMPLETE D:
     D18/D25 OMEGA-COMPILER-REQUEST-V1.** Implement the canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
@@ -2289,10 +2289,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
   Complete `D` against the full Omega specification, including difficult
   features even if `D` itself uses only plain Delta. Conservative lowering and
   poor optimization are
-  allowed; weakened Omega semantics are not. Q1 blocks the proof-only
-  `FloatMeaning` equality/source-correspondence slice. D31 unblocks the earlier
-  Delta compiler's type-formation implementation, while Q2 blocks the
-  standalone Omega compiler's exact inner wire and failure profile.
+  allowed; weakened Omega semantics are not. D40 fixes the proof-only
+  `FloatMeaning` equality/source-correspondence slice for implementation. D31
+  unblocks the earlier Delta compiler's type-formation implementation, while
+  Q1 blocks the standalone Omega compiler's exact inner wire and failure
+  profile.
   D25 fixes that edge's logical request and outer envelope, and D24 unblocks the
   Delta census implementation. None prevents implementation of independently
   settled source-shaped parser slices.

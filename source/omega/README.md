@@ -58,7 +58,7 @@ Omega request as a resolved package subject plus a bound invocation, complete
 deterministic build-visible snapshots, and the `OCOUT` compiler boundary. D25
 fixes their outer `OCREQ` v1 byte framing, committed subject binding,
 structural graph and closed-tree canonical requirements, validation order, and
-shared 40-byte/source-coordinate-extended 48-byte `OCOUT` shape. Q2 owns the
+shared 40-byte/source-coordinate-extended 48-byte `OCOUT` shape. Q1 owns the
 missing inner field/tag tables, commitment preimage, failure codes, phase
 order, and scalar provisions; `D` currently validates only the settled outer
 envelope. No raw-single-file stdin convention may stand in for it. Each

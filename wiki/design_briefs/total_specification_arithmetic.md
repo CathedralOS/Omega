@@ -195,6 +195,12 @@ reducer; those fences are implementation status, not alternate semantics.
 projections for floats. They produce `FloatMeaning`, retaining signed zero,
 infinity, and NaN as distinct cases and representing each finite nonzero value
 exactly with `Rat::NonZero`. A float is not embedded into `Int` or bare `Rat`.
+Under D40 the proof kernel carries a closed FloatMeaning term and the
+carrier-specific `FloatMeaningEqual` proposition only. The term key is the
+verifier-reconstructed landed float source, exact binary format, projection
+operation, and recognized declaration/catalog contract. Equal keys share one
+canonical proof-value identity; distinct keys require an explicit theorem.
+Source offsets remain diagnostics, and no proof term becomes runtime data.
 
 ## Crash routes
 
@@ -228,8 +234,10 @@ normal returns and is vacuous on a crash path.
 
 Terminal Psi retains only the total proposition expression actually written:
 embedded `Int` terms and their source-carrier identities, Exact operations with
-their discharged formation evidence, or total Wrapping/Saturating terms. It has
-no proof-side Trapping arithmetic node and no predicate-generated effect.
+their discharged formation evidence, total Wrapping/Saturating terms, or D40
+FloatMeaning projections with their reconstructed source and contract
+correspondence. It has no proof-side Trapping arithmetic node and no
+predicate-generated effect.
 
 Executable Trapping operations independently retain their primitive identity,
 catalogued guard, path condition, and crash edge. Independent verification
