@@ -9,7 +9,9 @@ use psi_typed_trees::machine::Machine;
 use psi_typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use psi_typed_trees::state::State;
 use psi_typed_trees::trait_definition::TraitDefinition;
-use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use psi_typed_trees::types::{
+    FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(crate) struct GenericBoundRequirement<'program> {
     pub(crate) signature: &'program StateSignature,
@@ -544,13 +546,49 @@ fn validate_machine_top_level_requirement_conformance(
         .iter()
         .zip(actual_type_parameters)
         .filter_map(|(required, actual)| {
-            matches!(required.kind, TypeParameterKind::Type).then(|| TraitTypeBinding {
+            matches!(
+                (&required.kind, &actual.kind),
+                (TypeParameterKind::Type, TypeParameterKind::Type)
+                    | (
+                        TypeParameterKind::Const { .. },
+                        TypeParameterKind::Const { .. }
+                    )
+            )
+            .then(|| TraitTypeBinding {
                 parameter_symbol: required.symbol,
                 parameter_name: required.name.as_str().to_owned(),
                 target: TraitTypeBindingTarget::Parameter(actual.symbol),
             })
         })
         .collect::<Vec<_>>();
+    for (index, (required, actual)) in required_type_parameters
+        .iter()
+        .zip(actual_type_parameters)
+        .enumerate()
+    {
+        let (
+            TypeParameterKind::Const {
+                type_reference: required_type,
+            },
+            TypeParameterKind::Const {
+                type_reference: actual_type,
+            },
+        ) = (&required.kind, &actual.kind)
+        else {
+            continue;
+        };
+        if !type_references_match_with_trait_bindings(
+            program,
+            *actual_type,
+            *required_type,
+            required_type_parameters,
+            &mut type_bindings,
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} const static parameter {index} has a different type"
+            )));
+        }
+    }
 
     let required_parameters = program.state_parameters(requirement_entry);
     let actual_parameters = program.state_parameters(provider_entry);
@@ -2118,7 +2156,15 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             .iter()
             .zip(actual_type_parameters.iter())
             .filter_map(|(required, actual)| {
-                matches!(required.kind, TypeParameterKind::Type).then(|| TraitTypeBinding {
+                matches!(
+                    (&required.kind, &actual.kind),
+                    (TypeParameterKind::Type, TypeParameterKind::Type)
+                        | (
+                            TypeParameterKind::Const { .. },
+                            TypeParameterKind::Const { .. }
+                        )
+                )
+                .then(|| TraitTypeBinding {
                     parameter_symbol: required.symbol,
                     parameter_name: required.name.as_str().to_owned(),
                     target: TraitTypeBindingTarget::Parameter(actual.symbol),
@@ -2421,14 +2467,18 @@ fn type_references_match_with_trait_bindings(
                 length: required_length,
             },
         ) => {
-            actual_length == required_length
-                && type_references_match_with_trait_bindings(
-                    program,
-                    *actual_element,
-                    *required_element,
-                    trait_type_parameters,
-                    bindings,
-                )
+            fixed_array_lengths_match_with_trait_bindings(
+                program,
+                actual_length,
+                required_length,
+                bindings,
+            ) && type_references_match_with_trait_bindings(
+                program,
+                *actual_element,
+                *required_element,
+                trait_type_parameters,
+                bindings,
+            )
         }
         (
             TypeReferenceNode::Slice {
@@ -2500,6 +2550,44 @@ fn type_references_match_with_trait_bindings(
                 )
             }),
         _ => type_references_match(program, actual, required),
+    }
+}
+
+fn fixed_array_lengths_match_with_trait_bindings(
+    program: &TypedTrees,
+    actual: &FixedArrayLength,
+    required: &FixedArrayLength,
+    bindings: &[TraitTypeBinding],
+) -> bool {
+    let FixedArrayLength::ConstParameter {
+        symbol: required_symbol,
+        name: required_name,
+    } = required
+    else {
+        return actual == required;
+    };
+    let Some(binding) = bindings.iter().find(|binding| {
+        binding.parameter_symbol == *required_symbol
+            && binding.parameter_name == required_name.as_str()
+    }) else {
+        return actual == required;
+    };
+    let FixedArrayLength::ConstParameter {
+        symbol: actual_symbol,
+        ..
+    } = actual
+    else {
+        return false;
+    };
+    match binding.target {
+        TraitTypeBindingTarget::Parameter(expected_symbol) => {
+            expected_symbol.is_valid() && *actual_symbol == expected_symbol
+        }
+        TraitTypeBindingTarget::Type(expected) => matches!(
+            program.type_reference_table.type_reference(expected),
+            TypeReferenceNode::Named { symbol, .. }
+                if symbol.is_valid() && *actual_symbol == *symbol
+        ),
     }
 }
 
@@ -2661,9 +2749,9 @@ mod tests {
     };
     use psi_symbols::SymbolHandle;
     use psi_typed_trees::TypedTrees;
-    use psi_typed_trees::data::{DataDefinition, TypeParameter};
+    use psi_typed_trees::data::{DataDefinition, TypeParameter, TypeParameterKind};
     use psi_typed_trees::name::Identifier;
-    use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+    use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
     fn named(program: &mut TypedTrees, symbol: SymbolHandle, name: &str) -> TypeReferenceHandle {
         program
@@ -2800,6 +2888,54 @@ mod tests {
             required,
             &parameters,
             &mut value_binding(value_symbol, message),
+        ));
+    }
+
+    #[test]
+    fn fixed_array_length_uses_the_positional_const_binder() {
+        let mut program = TypedTrees::default();
+        let element_symbol = SymbolHandle::from_arena_index(10);
+        let requirement_count = SymbolHandle::from_arena_index(20);
+        let provider_count = SymbolHandle::from_arena_index(21);
+        let element = named(&mut program, element_symbol, "u8");
+        let required = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: element,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: requirement_count,
+                    name: Identifier::generated("Count"),
+                },
+            });
+        let actual = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: element,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: provider_count,
+                    name: Identifier::generated("Length"),
+                },
+            });
+        let parameters = [TypeParameter {
+            symbol: requirement_count,
+            name: Identifier::generated("Count"),
+            kind: TypeParameterKind::Const {
+                type_reference: element,
+            },
+            ..TypeParameter::default()
+        }];
+        let mut bindings = vec![TraitTypeBinding {
+            parameter_symbol: requirement_count,
+            parameter_name: "Count".to_owned(),
+            target: TraitTypeBindingTarget::Parameter(provider_count),
+        }];
+
+        assert!(type_references_match_with_trait_bindings(
+            &program,
+            actual,
+            required,
+            &parameters,
+            &mut bindings,
         ));
     }
 }

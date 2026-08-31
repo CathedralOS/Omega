@@ -58,20 +58,32 @@ pub enum PackageReviewExternalStaticParameter {
     Type {
         properties: PackageReviewDataProperties,
     },
+    Const {
+        type_identity: PackageReviewTypeIdentity,
+    },
 }
 
 impl PackageReviewExternalStaticParameter {
     pub const fn type_properties(&self) -> Option<PackageReviewDataProperties> {
         match self {
             Self::Type { properties } => Some(*properties),
+            Self::Const { .. } => None,
+        }
+    }
+
+    pub const fn const_type_identity(&self) -> Option<&PackageReviewTypeIdentity> {
+        match self {
+            Self::Type { .. } => None,
+            Self::Const { type_identity } => Some(type_identity),
         }
     }
 }
 
 /// Self-contained callable shape for executable code supplied outside Omega.
-/// The static telescope currently represents ordinary type parameters and
-/// their exact property bounds; projection rejects other static kinds until
-/// their exact structure has a stable carrier here.
+/// The static telescope currently represents ordinary type parameters with
+/// their exact property bounds and const parameters with their exact carrier;
+/// projection rejects other static kinds until their exact structure has a
+/// stable carrier here.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewExternalCallableSignature {
     pub(crate) lifetime_parameter_count: usize,
