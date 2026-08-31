@@ -16,8 +16,8 @@ use psi_terminal::{
     ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
     StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
     TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
-    TerminalPlacedViewInput, TerminalReborrowRootHandoff, TerminalRootServiceReach,
-    VocabularyMarker,
+    TerminalPlacedViewInput, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
+    TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -210,22 +210,25 @@ fn encode_reborrow_root_handoff(
     writer.string("reborrow state identity", &handoff.source_state_identity)?;
     writer.string("reborrow direct owner", &handoff.direct_root_owner_identity)?;
     encode_owner_path(writer, &handoff.direct_root_owner_path)?;
-    writer.string("reborrow child owner", &handoff.child_owner_identity)?;
-    encode_owner_path(writer, &handoff.child_owner_path)?;
     encode_place(writer, &handoff.direct_root_place)?;
-    encode_place(writer, &handoff.child_place)?;
-    encode_place_segments(writer, &handoff.projection_remainder)?;
     encode_borrow_access(writer, handoff.direct_root_access);
-    encode_borrow_access(writer, handoff.child_access);
     encode_borrow_boundary(writer, &handoff.direct_root_activation)?;
-    encode_borrow_boundary(writer, &handoff.child_activation)?;
-    encode_borrow_boundary(writer, &handoff.formation_boundary)?;
-    encode_borrow_boundary(writer, &handoff.child_weakening)?;
     encode_borrow_boundary(writer, &handoff.direct_root_weakening)?;
     writer.string(
         "reborrow direct-root lifetime",
         &handoff.direct_root_lifetime_identity,
     )?;
+    writer.len("reborrow root-handoff lineage", handoff.lineage.len())?;
+    for step in &handoff.lineage {
+        writer.string("reborrow child owner", &step.child_owner_identity)?;
+        encode_owner_path(writer, &step.child_owner_path)?;
+        encode_place(writer, &step.child_place)?;
+        encode_place_segments(writer, &step.projection_remainder)?;
+        encode_borrow_access(writer, step.child_access);
+        encode_borrow_boundary(writer, &step.child_activation)?;
+        encode_borrow_boundary(writer, &step.formation_boundary)?;
+        encode_borrow_boundary(writer, &step.child_weakening)?;
+    }
     Ok(())
 }
 
@@ -238,19 +241,23 @@ fn decode_reborrow_root_handoff(
         source_state_identity: reader.string("reborrow state identity")?,
         direct_root_owner_identity: reader.string("reborrow direct owner")?,
         direct_root_owner_path: decode_owner_path(reader)?,
-        child_owner_identity: reader.string("reborrow child owner")?,
-        child_owner_path: decode_owner_path(reader)?,
         direct_root_place: decode_place(reader)?,
-        child_place: decode_place(reader)?,
-        projection_remainder: decode_place_segments(reader)?,
         direct_root_access: decode_borrow_access(reader)?,
-        child_access: decode_borrow_access(reader)?,
         direct_root_activation: decode_borrow_boundary(reader)?,
-        child_activation: decode_borrow_boundary(reader)?,
-        formation_boundary: decode_borrow_boundary(reader)?,
-        child_weakening: decode_borrow_boundary(reader)?,
         direct_root_weakening: decode_borrow_boundary(reader)?,
         direct_root_lifetime_identity: reader.string("reborrow direct-root lifetime")?,
+        lineage: decode_counted(reader, |reader| {
+            Ok(TerminalReborrowRootHandoffStep {
+                child_owner_identity: reader.string("reborrow child owner")?,
+                child_owner_path: decode_owner_path(reader)?,
+                child_place: decode_place(reader)?,
+                projection_remainder: decode_place_segments(reader)?,
+                child_access: decode_borrow_access(reader)?,
+                child_activation: decode_borrow_boundary(reader)?,
+                formation_boundary: decode_borrow_boundary(reader)?,
+                child_weakening: decode_borrow_boundary(reader)?,
+            })
+        })?,
     })
 }
 

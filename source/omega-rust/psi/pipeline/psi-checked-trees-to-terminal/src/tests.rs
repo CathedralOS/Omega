@@ -46,6 +46,30 @@ fn reborrow_source(child_access: &str) -> psi_checked_trees::CheckedTrees {
     ))
 }
 
+fn multihop_reborrow_source(
+    middle_access: &str,
+    leaf_access: &str,
+) -> psi_checked_trees::CheckedTrees {
+    let leaf_call = if leaf_access == "&mut" {
+        "mutate(leaf);"
+    } else {
+        "leaf.value = 1;"
+    };
+    checked_source(&format!(
+        r#"
+            data Cell {{ value: i32; }}
+            data Main {{ cell: Cell; }}
+            machine mutate(value: &mut Cell) {{ value.value = 1; }}
+            machine Main::exercise(&mut self) {{
+                let root: &mut Cell = &mut self.cell;
+                let middle: {middle_access} Cell = {middle_access} root;
+                let leaf: {leaf_access} Cell = {leaf_access} middle;
+                {leaf_call}
+            }}
+        "#
+    ))
+}
+
 fn lower_reborrow_rows(
     checked: &psi_checked_trees::CheckedTrees,
 ) -> Result<Vec<psi_terminal::TerminalReborrowRootHandoff>, LoweringError> {
@@ -101,20 +125,156 @@ fn terminal_reborrow_root_handoff_lowers_mutable_and_write_only_children() {
             row.direct_root_access,
             psi_terminal::StructuralAccess::MutableBorrow
         );
+        let [step] = row.lineage.as_slice() else {
+            panic!("one exact child edge")
+        };
         assert_eq!(
-            row.child_access,
+            step.child_access,
             if child_access == "&mut" {
                 psi_terminal::StructuralAccess::MutableBorrow
             } else {
                 psi_terminal::StructuralAccess::WriteOnlyBorrow
             }
         );
-        assert_eq!(row.formation_boundary, row.child_activation);
+        assert_eq!(step.formation_boundary, step.child_activation);
         assert_eq!(
             row.direct_root_lifetime_identity,
             row.direct_root_place.root_identity
         );
     }
+}
+
+#[test]
+fn terminal_reborrow_root_handoff_lowers_finite_linear_exclusive_lineages() {
+    for (middle_access, leaf_access, expected) in [
+        (
+            "&mut",
+            "&mut",
+            [
+                psi_terminal::StructuralAccess::MutableBorrow,
+                psi_terminal::StructuralAccess::MutableBorrow,
+            ],
+        ),
+        (
+            "&mut",
+            "&write",
+            [
+                psi_terminal::StructuralAccess::MutableBorrow,
+                psi_terminal::StructuralAccess::WriteOnlyBorrow,
+            ],
+        ),
+        (
+            "&write",
+            "&write",
+            [
+                psi_terminal::StructuralAccess::WriteOnlyBorrow,
+                psi_terminal::StructuralAccess::WriteOnlyBorrow,
+            ],
+        ),
+    ] {
+        let checked = multihop_reborrow_source(middle_access, leaf_access);
+        let rows = lower_reborrow_rows(&checked)
+            .expect("a finite linear exclusive lineage publishes root custody");
+        let [row] = rows.as_slice() else {
+            panic!("one exact multihop root handoff")
+        };
+        assert_eq!(
+            row.direct_root_access,
+            psi_terminal::StructuralAccess::MutableBorrow
+        );
+        assert_eq!(
+            row.lineage
+                .iter()
+                .map(|step| step.child_access)
+                .collect::<Vec<_>>(),
+            expected,
+        );
+        assert!(row.lineage.iter().all(|step| {
+            step.formation_boundary == step.child_activation
+                && step.child_place.root_identity == row.direct_root_place.root_identity
+        }));
+        assert_eq!(
+            row.direct_root_lifetime_identity,
+            row.direct_root_place.root_identity
+        );
+    }
+}
+
+#[test]
+fn terminal_reborrow_root_handoff_fences_shared_and_branched_lineages() {
+    let shared = reborrow_source("&");
+    assert!(lower_reborrow_rows(&shared).is_err());
+
+    let branched = checked_source(
+        r#"
+            data Cell { value: i32; }
+            data Main { cell: Cell; }
+            machine use_mut(value: &mut Cell) { value.value = 1; }
+            machine Main::exercise(&mut self) {
+                let root: &mut Cell = &mut self.cell;
+                let first: &mut Cell = &mut root;
+                use_mut(first);
+                let second: &mut Cell = &mut root;
+            }
+        "#,
+    );
+    assert!(lower_reborrow_rows(&branched).is_err());
+}
+
+#[test]
+fn terminal_multihop_root_handoff_rejects_missing_or_reordered_checked_edges() {
+    let baseline = multihop_reborrow_source("&mut", "&mut");
+    let containment = baseline
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .next()
+        .expect("first containment edge")
+        .0;
+    let mut missing = baseline.clone();
+    let retained = missing
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .iter()
+        .filter(|(handle, _)| *handle != containment)
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    missing
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .reset_retain_capacity();
+    for row in retained {
+        missing
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .insert(row);
+    }
+    assert!(lower_reborrow_rows(&missing).is_err());
+
+    let mut reordered = baseline;
+    let event = reordered
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .iter()
+        .find(|(_, event)| {
+            event.disposition
+                == psi_checked_trees::CheckedReborrowResourceDisposition::StateExitDirectRootHandoff
+        })
+        .expect("multihop root disposition")
+        .0;
+    reordered
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get_mut(event)
+        .retired_parent_path
+        .swap(0, 1);
+    assert!(lower_reborrow_rows(&reordered).is_err());
 }
 
 #[test]
@@ -202,7 +362,7 @@ fn terminal_reborrow_root_handoff_codec_and_verifier_reject_tampering() {
     assert!(psi_terminal_verifier::validate_module(&amplified).is_err());
 
     let mut redirected = module.clone();
-    redirected.reborrow_root_handoffs[0].formation_boundary =
+    redirected.reborrow_root_handoffs[0].lineage[0].formation_boundary =
         psi_terminal::TerminalBorrowBoundarySource::Statement {
             statement_index: u64::MAX,
         };
@@ -236,6 +396,36 @@ fn terminal_reborrow_root_handoff_codec_and_verifier_reject_tampering() {
         observed_invalid_access_tag,
         "codec rejects a corrupted custody access tag"
     );
+}
+
+#[test]
+fn terminal_multihop_root_handoff_round_trips_and_rejects_lineage_drift() {
+    let checked = multihop_reborrow_source("&mut", "&mut");
+    let module = terminal_module_with_reborrow(&checked);
+    assert_eq!(module.reborrow_root_handoffs[0].lineage.len(), 2);
+    psi_terminal_verifier::validate_module(&module).expect("exact multihop handoff verifies");
+    let encoded = psi_terminal_codec::encode_module(&module).expect("multihop handoff encodes");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&encoded).expect("multihop handoff decodes"),
+        module
+    );
+
+    let mut empty = module.clone();
+    empty.reborrow_root_handoffs[0].lineage.clear();
+    assert!(psi_terminal_verifier::validate_module(&empty).is_err());
+
+    let mut amplified = module.clone();
+    amplified.reborrow_root_handoffs[0].lineage[0].child_access =
+        psi_terminal::StructuralAccess::WriteOnlyBorrow;
+    amplified.reborrow_root_handoffs[0].lineage[1].child_access =
+        psi_terminal::StructuralAccess::MutableBorrow;
+    assert!(psi_terminal_verifier::validate_module(&amplified).is_err());
+
+    let mut retargeted = module;
+    retargeted.reborrow_root_handoffs[0].lineage[1]
+        .projection_remainder
+        .push(psi_terminal::TerminalBorrowPlaceSegment::FixedIndex(0));
+    assert!(psi_terminal_verifier::validate_module(&retargeted).is_err());
 }
 
 #[test]
@@ -1527,7 +1717,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &45_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &46_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -1608,7 +1798,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &45_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &46_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

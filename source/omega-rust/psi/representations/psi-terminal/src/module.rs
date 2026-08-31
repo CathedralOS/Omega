@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        48
+        49
     }
 }
 
@@ -98,9 +98,9 @@ pub struct TerminalModule {
     /// bound to one exact source-derived placement interpretation. This is
     /// semantic custody only and grants no runtime storage or access.
     pub placed_view_inputs: Vec<TerminalPlacedViewInput>,
-    /// Exact direct-root custody restored by independently replayed, one-hop
-    /// exclusive reborrows. These rows grant no cleanup, transfer, or linear
-    /// discharge authority.
+    /// Exact direct-root custody restored by independently replayed, finite
+    /// linear exclusive-reborrow lineages. These rows grant no cleanup,
+    /// transfer, or linear-discharge authority.
     pub reborrow_root_handoffs: Vec<TerminalReborrowRootHandoff>,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
@@ -181,9 +181,28 @@ pub struct TerminalBorrowPlace {
     pub segments: Vec<TerminalBorrowPlaceSegment>,
 }
 
-/// Closed publication of direct-root custody after one exact exclusive child
-/// reborrow has reached a checked state-exit handoff. The row's vocabulary is
-/// intentionally incapable of expressing cleanup, transfer, or discharge.
+/// One exact child edge in a finite exclusive-reborrow root-handoff lineage.
+///
+/// Rows are ordered from the direct-root child toward the leaf whose closure
+/// reaches state exit. The immediate parent's place and access are therefore
+/// the handoff root for the first row and the preceding child's for every later
+/// row. This representation has no shared-cohort or branching vocabulary.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalReborrowRootHandoffStep {
+    pub child_owner_identity: String,
+    pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
+    pub child_place: TerminalBorrowPlace,
+    pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
+    pub child_access: StructuralAccess,
+    pub child_activation: TerminalBorrowBoundarySource,
+    pub formation_boundary: TerminalBorrowBoundarySource,
+    pub child_weakening: TerminalBorrowBoundarySource,
+}
+
+/// Closed publication of direct-root custody after one exact finite linear
+/// exclusive-reborrow lineage has reached a checked state-exit handoff. The
+/// row's vocabulary is intentionally incapable of expressing cleanup,
+/// transfer, discharge, shared cohorts, or branching.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalReborrowRootHandoff {
     pub machine: MachineId,
@@ -191,19 +210,12 @@ pub struct TerminalReborrowRootHandoff {
     pub source_state_identity: String,
     pub direct_root_owner_identity: String,
     pub direct_root_owner_path: Vec<TerminalBorrowOwnerSegment>,
-    pub child_owner_identity: String,
-    pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
     pub direct_root_place: TerminalBorrowPlace,
-    pub child_place: TerminalBorrowPlace,
-    pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
     pub direct_root_access: StructuralAccess,
-    pub child_access: StructuralAccess,
     pub direct_root_activation: TerminalBorrowBoundarySource,
-    pub child_activation: TerminalBorrowBoundarySource,
-    pub formation_boundary: TerminalBorrowBoundarySource,
-    pub child_weakening: TerminalBorrowBoundarySource,
     pub direct_root_weakening: TerminalBorrowBoundarySource,
     pub direct_root_lifetime_identity: String,
+    pub lineage: Vec<TerminalReborrowRootHandoffStep>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
