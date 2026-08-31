@@ -651,3 +651,39 @@ security evidence beyond its per-target results.
   from target-scoped machine rows, iterate `TargetProfile::ALL`, choose an
   arbitrary bootstrap target to discover the set, or emit an aggregate
   proof/audit receipt from repeated compiler success.
+
+## Q13 — Require exact evidence-schema equality until a real migration exists
+
+### Context
+
+P3 requires locally reconstructed package evidence before `PackageInstance` or
+an accepted lock can exist. The only implemented ordinary obligation schema is
+version 2; there is no accepted evidence schema and no second semantic version
+that needs migration. The task nevertheless asks for a generalized classifier
+covering unchanged, added, strengthened, reinterpreted, retired, and
+encoding-only changes.
+
+### Problem statement
+
+Should Omega build a general semantic-schema migration engine before it has one
+concrete migration to check? Such an engine would have to decide that two
+different schemas mean the same thing. Without explicit adjacent schemas and a
+locally checkable translation, that classification is invented authority: a
+meaning change labeled `unchanged` could silently reuse stale acceptance.
+
+### Proposed solution
+
+For the first accepted-evidence format, require exact semantic-schema identity.
+A semantic identity mismatch forces complete local reconstruction and fresh
+root admission; it never reuses old discharge or policy decisions. Keep outer
+encoding revisions local to their codec when decoded semantic content is
+identical. Add a checked pairwise migration only when two concrete adjacent
+semantic schemas and the exact translation between them exist.
+
+### Alternates
+
+- Acceptable: define one explicit pairwise migration for a real version
+  transition as part of introducing that transition.
+- Tempting but wrong: producer-authored change labels, a speculative migration
+  registry, structural field-name matching presented as semantic equivalence,
+  or compiler/toolchain identity used to waive reconstruction.

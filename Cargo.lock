@@ -1037,7 +1037,6 @@ name = "omega-package-advisory"
 version = "0.1.0"
 dependencies = [
  "omega-package-manager",
- "sha2",
 ]
 
 [[package]]

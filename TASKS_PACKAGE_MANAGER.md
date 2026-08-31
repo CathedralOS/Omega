@@ -199,10 +199,13 @@ stop the item on one precise owner question before adding machinery.
   obligations. Compose dependency results and open obligations transitively;
   never compose producer admission decisions.
 
-  Add checked schema-delta handling for unchanged, added, strengthened,
-  reinterpreted, retired, and encoding-only classes. Unknown or meaning-changing
-  deltas force re-derivation. Missing, stale, dependency-hidden, or
-  admission-laundered evidence must reject under local replay.
+  Semantic-schema migration is **OWNER-BLOCKED** on
+  **Require exact evidence-schema equality until a real migration exists** in
+  `OWNER_QUESTIONS.md`. Until resolved, require exact semantic-schema identity;
+  a mismatch receives complete local reconstruction and fresh admission rather
+  than a speculative equivalence classification. Missing, stale,
+  dependency-hidden, or admission-laundered evidence must reject under local
+  replay.
 
 - [ ] **ACCEPTED-LOCK-SCHEMA.** Define and implement the accepted `omega.lock`
   format over the canonical source-closure question, complete package evidence,
@@ -230,17 +233,6 @@ stop the item on one precise owner question before adding machinery.
   policy file, and every decision immediately before mutation. Governance
   metadata may be deployment policy; it must not become proof that an audit
   occurred.
-
-- [ ] **SOURCE-AND-PROVENANCE-TRIAGE.** Produce the bounded advisory-review
-  request beside deterministic source/provenance triage. An optional
-  organization-selected runner may invoke a reviewer and return the existing
-  closed monotone recommendation. Package correctness, install/update
-  availability, and deterministic recommendations must be identical when no
-  runner is configured or reachable. Provider selection, credentials, network
-  access, and invocation are operator tooling, not package-core gates. A
-  supplied advisory result may only add an audit recommendation through root
-  policy; it cannot suppress deterministic recommendations, resolve conflicts,
-  admit evidence, attest review, or mutate project state.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   no review blocker, no review blocker with audit recommended, blocked

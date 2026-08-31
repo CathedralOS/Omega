@@ -2670,30 +2670,27 @@ caches and expanded artifacts may be ignored. If the lock embeds only an
 evidence fingerprint while the corresponding normalized baseline is absent, it
 is not sufficient for update admission.
 
-Projection is target-independent: it enumerates every exact profile column from
-one fetched package without fetching any dependency. That makes the projected
-map complete for that package only, not for the transitive graph. A dependency's
-own map is unknown until its source is resolved. Package review and diagnostics
-must distinguish those facts rather than labeling an unexplored transitive
-column merely "unreviewed."
+Projection is target-independent: it extracts one complete flat unconditional
+dependency-request set from each fetched package without fetching that
+package's dependencies. A dependency's own request set remains unknown until
+its source is resolved. The resulting immutable source graph is the same for
+every target; target identity scopes the exact compiler invocation, review, and
+evidence subject rather than selecting dependency edges.
 
-One workspace lock carries independently populated closure/review sections per
-target profile. Ordinary resolution selects one explicit column. In locked mode,
-an absent column fails without network access; an explicit operation may resolve
-all projected columns sequentially. Common immutable instances may be shared
-across sections, but a retained inactive section grants no authority to the
-current build. Git edges cannot be "resolved but not fetched": verifying a
-commit, tree, workspace declaration, and selected member already exercises
-resolver authority.
+One workspace lock may share that immutable source closure across independently
+accepted evidence sections for exact caller-requested targets. It contains no
+profile columns and makes no claim to have discovered or checked "all" targets.
+In locked mode, missing evidence for the requested target fails without network
+access; an explicit operation may populate a caller-supplied target list by
+running each exact target independently. A retained section for another target
+grants no authority to the current build. Git edges cannot be "resolved but not
+fetched": verifying a commit, tree, workspace declaration, and selected member
+already exercises resolver authority.
 
-Profile keys are checked during projection against the trusted toolchain target
-catalog. The retained projection identity includes the condition-schema version
-and only the exact profile identities the package referenced, not a whole-catalog
-fingerprint; unrelated catalog growth therefore leaves the package stable.
-Package-authored lookalike profile values reject. The target catalog owns the
-canonical Omega value, semantic profile identity, canonical CLI spelling, and
-input-only aliases. Locks retain the semantic identity, never a string, ordinal,
-or temporary Rust enum case.
+Target values are checked against the trusted toolchain target catalog at the
+exact invocation boundary. Package source does not declare a support matrix or
+a dependency condition schema. Locks retain the target's semantic identity,
+never a string, ordinal, or temporary Rust enum case.
 
 The first implementation performs no semantic-version solving. Requests for
 one `PackageKey` that resolve to one immutable source instance deduplicate even
