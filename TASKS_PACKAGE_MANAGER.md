@@ -122,13 +122,16 @@ stop the item on one precise owner question before adding machinery.
   Terminal retains the exact settled join
   `{ authored operator-use coordinate, selected requirement/candidate } ->
   { selected realization machine, selected realization state }` as an ordinary
-  scalar `Call`, without a global conformance scan, and named/fixed-token
-  compiler canaries replay the canonical Terminal artifact through the later
-  boundary consumer. NativeArtifact production remains an engineering
-  continuation: lower mixed scalar calls inside attached Unit machines, then
-  settle compiler-owned target builtins through a distinct compiler/target TCB
-  lane. Do not fabricate package-installation `ProviderExecutionEvidence` for
-  a compiler-owned builtin merely to satisfy the existing settlement API.
+  scalar `Call`, without a global conformance scan. Immediately before either
+  Terminal or NativeArtifact production, Omega rejoins that carrier to the
+  complete still-owned selected ProviderPlan and rejects substitution by a
+  second conforming checked machine. Named/fixed-token compiler canaries replay
+  the canonical Terminal artifact through the later boundary consumer.
+  NativeArtifact production remains an engineering continuation: lower mixed
+  scalar calls inside attached Unit machines, then settle compiler-owned target
+  builtins through a distinct compiler/target TCB lane. Do not fabricate
+  package-installation `ProviderExecutionEvidence` for a compiler-owned builtin
+  merely to satisfy the existing settlement API.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Complete the D26 representation
   projection. Producer availability now rejoins the exact opaque declaration,

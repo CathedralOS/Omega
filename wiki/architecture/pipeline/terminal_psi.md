@@ -2068,9 +2068,13 @@ machine/state application while Unit planning still owns the unrewritten
 operator expression. Attached-Unit production admits only that selected scalar
 graph and its ordinary scalar-call closure, emits the selected realization as
 a distinct Terminal machine, and passes the call result to later operations.
-Missing, duplicate, stale, or coordinate-mismatched applications fail closed;
-neither planning nor production scans conformances for a uniquely shaped
-realization.
+Before Terminal or native production, Omega independently resolves the
+carrier's strong plan identity against its complete retained
+`SelectedProviderPlanFacts` and requires the row's exact checked-adapter machine
+and state. A second conforming machine with compatible signature, contract, and
+reach cannot replace that selected row. Missing, duplicate, stale, or
+coordinate-mismatched applications fail closed; neither planning nor
+production scans conformances for a uniquely shaped realization.
 
 A nonempty path to a relevant Boolean field of a record parameter retains every
 canonical structural-field identity and rebases across structural Unit calls.
