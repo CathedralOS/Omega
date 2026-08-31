@@ -2570,9 +2570,11 @@ Psi now owns one canonical source-free handoff carrier. The
 `CanonicalTerminalArtifact` retains exact semantic, proof, optional debug, and
 manifest identity bytes; construction independently decodes every section and
 rebuilds the manifest before custody crosses into Omega. The typed compiler
-`TerminalArtifact` product stops at this carrier without entering StateGraph,
-native emission, output, or installation. Unsupported Terminal vocabulary
-rejects there and cannot select another backend as a fallback.
+`TerminalArtifact` product then re-decodes the canonical semantic and proof
+sections and runs the Terminal verifier under the request's exact admission
+profile before returning the carrier. It stops without entering StateGraph,
+native emission, output, or installation. Unsupported or unproved Terminal
+vocabulary rejects there and cannot select another backend as a fallback.
 
 Target-owned callback placement remains outside that source-free vocabulary.
 The checked-to-Terminal producer therefore treats the complete ordered sidecar

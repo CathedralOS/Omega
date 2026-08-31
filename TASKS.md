@@ -3041,9 +3041,11 @@ Remaining:
   now makes `Check`, terminal artifact, and retained native artifact explicit.
   `TerminalArtifact`
   now runs the Psi-owned checked frontend and exact canonical producer, returns
-  the complete report-owned artifact, and never enters StateGraph, native
-  emission, output, or installation; unsupported Terminal vocabulary rejects
-  instead of selecting another backend. `NativeArtifact` now enters the
+  the complete report-owned artifact only after canonical re-decode and
+  Terminal verification under the request's exact admission profile, and never
+  enters StateGraph, native emission, output, or installation; unsupported or
+  unproved Terminal vocabulary rejects instead of selecting another backend.
+  `NativeArtifact` now enters the
   same Psi-owned frontend and canonical producer, then crosses one source-free
   native realization operation shared with component staging. Its retained
   report payload owns the canonical Terminal artifact, exact target and

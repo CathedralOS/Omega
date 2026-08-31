@@ -109,6 +109,7 @@ fn terminal_report(
         ))]
     })?;
     let (artifact, callback_placements) = produced.into_parts();
+    verify_terminal_artifact(&artifact, &request.terminal_admission_profile)?;
     let artifact =
         omega_compilation_report::RetainedTerminalArtifact::new(artifact, callback_placements)
             .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -119,4 +120,118 @@ fn terminal_report(
         production_subject,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn verify_terminal_artifact(
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    profile: &psi_proof_admission::AdmissionProfile,
+) -> Result<(), Vec<Diagnostic>> {
+    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "terminal-artifact verification could not decode canonical semantics: {error}"
+        ))]
+    })?;
+    let proof =
+        psi_terminal_codec::decode_proof_bundle(artifact.proof_bytes()).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "terminal-artifact verification could not decode canonical proof: {error}"
+            ))]
+        })?;
+    psi_terminal_verifier::verify_module(&module, &proof, profile)
+        .map(|_| ())
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "terminal-artifact verification failed: {error}"
+            ))]
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::verify_terminal_artifact;
+    use psi_core::{BlockId, ContractId, EdgeId, MachineId, ObligationId, Proposition};
+    use psi_terminal::{
+        Block, ContractClause, MachineContract, TerminalMachine, TerminalMachineResult,
+        TerminalModule, Terminator, VocabularyMarker,
+    };
+    use psi_terminal_verifier::ProofBundle;
+
+    #[test]
+    fn terminal_product_verification_rejects_a_canonical_unproved_contract() {
+        let machine = MachineId::new(900).expect("machine");
+        let block = BlockId::new(900).expect("block");
+        let obligation = ObligationId::new(900).expect("obligation");
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            proof_output_calls: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                structural_parameters: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                parameters: Vec::new(),
+                ranked_scc: None,
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block,
+                blocks: vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(900).expect("edge"),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(900).expect("contract"),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: vec![ContractClause {
+                        obligation,
+                        proposition: Proposition::Truth,
+                    }],
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &module,
+            &ProofBundle::default(),
+            None,
+        )
+        .expect("canonical framing does not prove contract evidence");
+
+        let diagnostics =
+            verify_terminal_artifact(&artifact, &psi_proof_admission::AdmissionProfile::default())
+                .expect_err("Terminal product verification must reconstruct proof obligations");
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("terminal-artifact verification failed: MissingEvidence"),
+            "unexpected diagnostic: {}",
+            diagnostics[0].message
+        );
+    }
 }
