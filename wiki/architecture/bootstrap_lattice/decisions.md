@@ -830,10 +830,10 @@ publication says only that the candidate exists. Consumer-owned demand is
 emitted only for an actual runtime by-value use and binds the exact boundary
 requirement application, opaque declaration, named conformance or
 compiler-owned target-semantics source, concrete carrier, selected target,
-closed shape and movement/finalization plan, representation version and
-origin, closed-conformance commitment, and complete boundary-calling-plan
-commitment. A foreign demand must rejoin the producer's exact canonical rows
-and selected immutable source instance. Names, compact report fingerprints,
+closed shape, physical movement, role-tagged lifecycle disposition,
+representation version and origin, closed-conformance commitment, and complete
+boundary-calling-plan commitment. A foreign demand must rejoin the producer's
+exact canonical rows and selected immutable source instance. Names, compact report fingerprints,
 lockfile strings, and review prose are never agreement.
 
 The selecting build-machine identity, source occurrence, and authored spelling
@@ -1789,6 +1789,53 @@ not a receipt over the process that fetched them. Ordinary live-source and
 snapshot drift checks remain because they compare material consumed across
 resolver-owned phases; only executor drift telemetry and its canonical
 attestation are retired.
+
+## D44 — Opaque representation carriers are inert storage in v1
+
+D26's selected `OpaqueRepresentation<Opaque>` application chooses the physical
+carrier for boundary-opaque data; it does not grant the carrier a second
+lifecycle. The opaque declaration owns semantic multiplicity and every
+authorized discharge, such as `InterruptMaskGuard::restore(self)` or
+`InterruptAcknowledgement::complete(self)`. The compiler-owned representation
+trait is empty, so it has no term in which to relate one of those operations to
+a carrier finalizer. Automatically invoking ordinary carrier cleanup would
+therefore invent semantics that neither source nor build selection expressed.
+
+Every selected v1 application carries a closed, role-tagged lifecycle
+disposition whose sole v1 role is `Inert`. The role is an input to the strong
+application commitment; it is never represented by an absent optional field or
+a provider assertion. V1 decoders reject every unknown role. A later role still
+requires the ordinary coordinated schema/version revision; using a sum now
+keeps the row structurally honest but does not reserve unversioned semantics.
+
+Selection admission compiler-derives the property over the complete closed
+carrier graph. It traverses every field, array element type, and every sum-case
+payload independent of the case active at runtime. The carrier must be legal
+for the required target ABI movement and must contain no independently invoked
+nominal cleanup, nested live linear debt, or unjoined opaque, external, or
+otherwise disposable obligation. A direct no-`drop` check is insufficient, and
+an authored or provider-issued `cleanup_free` assertion is not evidence.
+An invalid explicit selection rejects at its selection occurrence even when no
+by-value use follows; absence remains demand-driven and an unused valid
+selection still emits no consumer-demand row.
+
+Carrier and opaque multiplicities need not match. For affine and linear opaque
+values, physical register, spill, argument, return, and aggregate copies are
+placements or relocations of one ledger-owned semantic occurrence; they never
+manufacture another occurrence. For a copyable opaque value, only a checked
+semantic copy operation creates another occurrence. The ownership ledger, not
+the backend copy instruction, makes that distinction, and admission also
+requires a structurally copyable inert carrier. This is D32's semantic/physical
+split applied to opaque storage: Terminal ownership remains semantic while
+native receipts own placement and emitted realization.
+
+Resource-owning representation is not an interpretation of the empty v1
+relationship. If needed later, it uses a distinct, opt-in, versioned
+relationship such as `ManagedOpaqueRepresentation`, with an exact finalizer and
+total disposition rules for construction, movement, duplication where legal,
+success, failure and retry, return, abandonment, and partial construction.
+Existing inert conformances acquire no new obligation merely because that
+richer relationship is introduced.
 
 ## Dependency order
 

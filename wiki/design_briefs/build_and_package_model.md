@@ -879,6 +879,16 @@ descriptor from the conformance's concrete carrier. Compiler-owned target
 families such as `Ptr<T>` resolve from pinned `TargetSemantics` without an
 authored selection.
 
+The v1 application's lifecycle disposition is the explicit role `Inert`, not
+an omitted field or provider claim. Selection admission proves over every
+reachable field, array element type, and sum payload that the carrier has no
+independently invoked cleanup or disposable obligation. Affine and linear
+opaque values retain one semantic occurrence while lowering copies bytes for
+placement; a copyable opaque additionally requires a structurally copyable
+inert carrier. Cleanup-owning carriers require a separate versioned lifecycle
+relationship with total disposition rules and never inherit ordinary `drop`
+through the empty representation trait.
+
 Resolution is demand-driven. Reference-only opaque pointees and proof-erased
 values may remain `Unbound`; a runtime by-value occurrence may not. Each demand
 must close before calling-policy evaluation, and all selected producers and
@@ -905,7 +915,8 @@ exact opaque declaration and public named-conformance/carrier surface without
 claiming acceptance of a consumer choice. Consumer demand exists only for an
 actual by-value use and binds the requirement application, selected target,
 opaque declaration, conformance or target-semantics source, carrier, derived
-shape and movement/finalization, evidence origin, closed-conformance
+shape, physical movement, role-tagged lifecycle disposition, evidence origin,
+closed-conformance
 commitment, and complete boundary-plan commitment. Foreign demands rejoin the
 producer's exact canonical rows and selected immutable source instance.
 
@@ -3378,9 +3389,9 @@ the package-qualified declaration and public conformance/carrier surface but
 accepts no consumer selection. A demanded runtime by-value row is owned by the
 selecting consumer and binds its exact requirement application to the selected
 or compiler-derived representation: authorized source, carrier, target-
-semantics identity, closed shape graph or sealed ABI leaf, physical
-movement/finalization, representation version, evidence origin, and strong
-conformance and boundary-plan commitments. Foreign demand rejoins the exact
+semantics identity, closed shape graph or sealed ABI leaf, physical movement,
+role-tagged lifecycle disposition, representation version, evidence origin,
+and strong conformance and boundary-plan commitments. Foreign demand rejoins the exact
 producer rows and immutable source instance. `Unbound` is accepted only when no
 active runtime by-value crossing demands the declaration. Introduction or
 material change strongly recommends a code/ABI audit, while unchanged rows

@@ -163,7 +163,8 @@ stop the item on one precise owner question before adding machinery.
   rather than reconstructing either from an aggregate digest. Rejoin the exact
   boundary requirement application, opaque declaration, named conformance or
   compiler-owned target-semantics application, carrier, selected immutable
-  producer source, closed shape graph, physical movement/finalization plan,
+  producer source, closed shape graph, physical movement and role-tagged
+  lifecycle disposition,
   target/representation version, evidence origin, closed-conformance
   commitment, and complete boundary-plan commitment. Keep selecting-build
   occurrence/source custody as provenance outside ABI comparison. Checked
@@ -175,8 +176,8 @@ stop the item on one precise owner question before adding machinery.
   General target layout now consumes the exact selected opaque-to-carrier
   application and derives by-value size/alignment from the carrier while
   references remain representation-free and a direct unselected by-value
-  demand rejects. Complete movement/finalization planning next; Q4 owns the
-  carrier-cleanup rule. Do not publish a partial demand row from
+  demand rejects. Complete movement/lifecycle planning next under D44's
+  inert-carrier rule. Do not publish a partial demand row from
   calling-convention shape or size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
   selections while one later source consumer selects its own application. The
@@ -298,8 +299,8 @@ explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
   - [x] carry the same application into general target layout;
-  - [ ] complete physical move/finalization planning, including the Q4 cleanup
-    ruling and multiplicity checks;
+  - [ ] complete physical movement/lifecycle planning, including D44's
+    transitive inert-carrier proof and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
     consumer demand from retained compiler custody, rejoin foreign demand to
     landed producer-availability rows and immutable source, and preserve strong
