@@ -380,12 +380,8 @@ pub(super) fn assert_fixture_evidence(package: &str, review: &CheckedPackageRevi
             };
             assert_eq!(representation.declaration(), opaque.identity());
             assert_eq!(
-                representation.abi(),
-                PackageReviewRepresentationAbiCommitment::Unbound
-            );
-            assert_eq!(
-                representation.mechanism(),
-                PackageReviewRepresentationMechanism::Unbound
+                representation.kind(),
+                &PackageReviewRepresentationTcbKind::Unbound
             );
             assert!(callable.contracts().is_empty());
             assert!(

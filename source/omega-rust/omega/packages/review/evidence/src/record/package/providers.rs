@@ -249,6 +249,77 @@ pub struct CheckedPackageProviderFamilyReview {
     pub(crate) coordinates: Vec<CheckedPackageProviderFamilyCoordinateReview>,
 }
 
+/// Canonical D29 application shape currently admitted by package review.
+///
+/// The empty telescope is explicit rather than inferred from a missing field.
+/// Type/const applications remain absent until final specialization can
+/// reconstruct and recheck their complete role-specific realization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewBoundaryApplication {
+    Empty,
+}
+
+/// Semantic realization role for one closed boundary application.
+///
+/// This is review vocabulary, not native execution evidence. New roles require
+/// their own closed payload instead of optional fields on this variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewBoundaryApplicationRealizationRole {
+    NongenericCheckedBody,
+}
+
+/// One actual checked boundary-operator application rejoined to its exact
+/// selected plan and independently retained checked realization.
+///
+/// This row deliberately stops before Terminal/native coverage. It records a
+/// compiler-rechecked semantic relation for review and makes no claim that
+/// machine code was emitted or that any external authority admitted it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CheckedPackageBoundaryApplicationRealizationReview {
+    pub(crate) requirement_identity: String,
+    pub(crate) operator_declaration: PackageReviewNominalIdentity,
+    pub(crate) application: PackageReviewBoundaryApplication,
+    pub(crate) selected_plan_digest: [u8; 32],
+    pub(crate) role: PackageReviewBoundaryApplicationRealizationRole,
+    pub(crate) realization_machine: PackageReviewNominalIdentity,
+    pub(crate) realization_state: PackageReviewNominalIdentity,
+    pub(crate) realization_contract_commitment: [u8; 32],
+}
+
+impl CheckedPackageBoundaryApplicationRealizationReview {
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn operator_declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.operator_declaration
+    }
+
+    pub const fn application(&self) -> PackageReviewBoundaryApplication {
+        self.application
+    }
+
+    pub const fn selected_plan_digest(&self) -> &[u8; 32] {
+        &self.selected_plan_digest
+    }
+
+    pub const fn role(&self) -> PackageReviewBoundaryApplicationRealizationRole {
+        self.role
+    }
+
+    pub const fn realization_machine(&self) -> &PackageReviewNominalIdentity {
+        &self.realization_machine
+    }
+
+    pub const fn realization_state(&self) -> &PackageReviewNominalIdentity {
+        &self.realization_state
+    }
+
+    pub const fn realization_contract_commitment(&self) -> &[u8; 32] {
+        &self.realization_contract_commitment
+    }
+}
+
 impl CheckedPackageProviderFamilyReview {
     pub const fn family_identity(&self) -> &PackageReviewNominalIdentity {
         &self.family_identity

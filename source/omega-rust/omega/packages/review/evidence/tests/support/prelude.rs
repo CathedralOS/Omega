@@ -16,6 +16,7 @@ pub(crate) use omega_package_evidence::ledger::{
 pub(crate) use omega_package_evidence::project_checked_package_review;
 pub(crate) use omega_package_evidence::record::{
     CheckedPackageReviewProjection, PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
+    PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationRealizationRole,
     PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCastForm,
     PackageReviewCheckedServiceReach, PackageReviewCollectionViewOperation,

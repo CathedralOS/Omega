@@ -101,6 +101,7 @@ impl PendingPackageReview {
             external_executable_supply: external_executable_supply_sources,
             dangerous_authorities: dangerous_authority_sources,
             dangerous_authority_slack: dangerous_authority_slack_sources,
+            boundary_application_realizations: self.providers.application_realizations.sources,
             selected_provider_set: selected_provider_row_source(
                 compilation,
                 &self.providers.selected,
@@ -126,6 +127,7 @@ impl PendingPackageReview {
             dangerous_authority_slack,
             selected_providers: self.providers.selected,
             selected_provider_families: self.providers.families,
+            boundary_application_realizations: self.providers.application_realizations.rows,
             row_sources,
         })
     }

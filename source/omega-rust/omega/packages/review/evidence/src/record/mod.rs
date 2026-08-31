@@ -62,13 +62,14 @@ pub use identity::{
     PackageReviewToolchainSourceIdentity,
 };
 pub use package::{
-    CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
-    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
-    CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
-    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
-    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
-    PackageReviewSelectedProviderGrant,
+    CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
+    CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
+    CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
+    CheckedPackageReviewProjection, PackageReviewBoundaryApplication,
+    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCheckedServiceReach,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
+    PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
 };
 pub use representation::{PackageReviewRepresentationTcb, PackageReviewRepresentationTcbKind};
 pub use rows::{

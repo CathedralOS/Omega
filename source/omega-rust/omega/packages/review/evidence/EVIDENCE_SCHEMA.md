@@ -1,8 +1,22 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 99 and row schema version 57. This file
+The canonical review schema is version 100 and row schema version 58. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+An actual monomorphic boundary-operator use may now retain one separate
+application-realization review row. The canonical key is the exact
+package-qualified operator overload plus D29's explicit empty application. The
+value rejoins the collision-resistant selected-plan identity, the
+`NongenericCheckedBody` role, exact realization machine and entry state, and
+the independently rechecked machine-contract commitment. Equal joins
+deduplicate only after complete equality while every authored application
+location remains source custody. This is inert semantic review data: it is not
+Terminal/native coverage, package admission, external execution evidence, or
+proof that an audit occurred. Generic applications and other realization roles
+remain absent until their authoritative specialization/admission paths exist.
+This is schema v100 / row v58; canonical-row recovery v15 adds the distinct
+`BoundaryApplicationUse` source role.
 
 Compiler-owned provider execution identity is retained independently from the
 authored realization nominal. The closed review vocabulary currently covers

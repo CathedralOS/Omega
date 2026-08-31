@@ -7,8 +7,9 @@ use super::{
     domains::PackageReviewDomainShape,
     identity::{PackageReviewSemanticDependency, PackageReviewToolchainSourceIdentity},
     package::{
-        CheckedPackageCallableReview, CheckedPackageProviderFamilyReview,
-        CheckedPackageProviderReview, CheckedPackageReviewProjection,
+        CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
+        CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
+        CheckedPackageReviewProjection,
     },
     representation::PackageReviewRepresentationTcb,
     signatures::{
@@ -48,6 +49,10 @@ pub enum PackageReviewCanonicalRowKind {
     /// Opaque executable code supplied through one exact external binding.
     /// This is a blocking trust/TCB disclosure, not Terminal evidence.
     ExternalExecutableSupply,
+    /// One actual canonical-empty D29 application rejoined to a nongeneric
+    /// checked body. This is semantic review data, not Terminal/native
+    /// coverage or package admission.
+    BoundaryApplicationRealization,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -79,6 +84,9 @@ pub enum PackageReviewSourceLocationRole {
     ServiceReach,
     SynchronousInvocation,
     ExternalBinding,
+    /// Exact authored operator application that demanded one reviewed
+    /// role-specific realization.
+    BoundaryApplicationUse,
     /// Exact initializer expression of one public const. This remains
     /// distinct from the declaration-name anchor after value substitution.
     ConstInitializer,
@@ -301,5 +309,11 @@ impl CheckedPackageReviewProjection {
 
     pub fn selected_provider_families(&self) -> &[CheckedPackageProviderFamilyReview] {
         &self.selected_provider_families
+    }
+
+    pub fn boundary_application_realizations(
+        &self,
+    ) -> &[CheckedPackageBoundaryApplicationRealizationReview] {
+        &self.boundary_application_realizations
     }
 }

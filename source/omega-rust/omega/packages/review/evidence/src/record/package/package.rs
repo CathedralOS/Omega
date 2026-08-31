@@ -13,7 +13,8 @@ use super::super::{
     },
 };
 use super::{
-    CheckedPackageCallableReview, CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
+    CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
+    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     PackageReviewCanonicalRowSources,
 };
 use psi_core::PackageKeyIdentity;
@@ -37,6 +38,8 @@ pub struct CheckedPackageReviewProjection {
     pub(crate) dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
     pub(crate) selected_providers: Vec<CheckedPackageProviderReview>,
     pub(crate) selected_provider_families: Vec<CheckedPackageProviderFamilyReview>,
+    pub(crate) boundary_application_realizations:
+        Vec<CheckedPackageBoundaryApplicationRealizationReview>,
     pub(crate) row_sources: PackageReviewCanonicalRowSources,
 }
 
@@ -59,6 +62,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.dangerous_authority_slack == other.dangerous_authority_slack
             && self.selected_providers == other.selected_providers
             && self.selected_provider_families == other.selected_provider_families
+            && self.boundary_application_realizations == other.boundary_application_realizations
     }
 }
 

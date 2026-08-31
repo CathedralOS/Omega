@@ -1,10 +1,11 @@
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach,
+    CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageProviderFamilyReview,
+    CheckedPackageProviderReview, PackageReviewBoundaryApplication,
+    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
 };
 use omega_effects::provider_plan::{
     ProviderBinding, ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind,
@@ -74,6 +75,40 @@ pub(crate) fn encode_provider_family(
         encoder.u64(coordinate.plan_report_fingerprint);
         Ok(())
     })
+}
+
+pub(crate) fn encode_boundary_application_realization_key(
+    encoder: &mut Encoder,
+    realization: &CheckedPackageBoundaryApplicationRealizationReview,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &realization.operator_declaration)?;
+    encoder.string(&realization.requirement_identity)?;
+    encode_boundary_application(encoder, realization.application);
+    Ok(())
+}
+
+pub(crate) fn encode_boundary_application_realization(
+    encoder: &mut Encoder,
+    realization: &CheckedPackageBoundaryApplicationRealizationReview,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_boundary_application_realization_key(encoder, realization)?;
+    encoder.fixed_bytes(&realization.selected_plan_digest);
+    encoder.byte(match realization.role {
+        PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody => 0,
+    });
+    encode_nominal(encoder, &realization.realization_machine)?;
+    encode_nominal(encoder, &realization.realization_state)?;
+    encoder.fixed_bytes(&realization.realization_contract_commitment);
+    Ok(())
+}
+
+fn encode_boundary_application(
+    encoder: &mut Encoder,
+    application: PackageReviewBoundaryApplication,
+) {
+    encoder.byte(match application {
+        PackageReviewBoundaryApplication::Empty => 0,
+    });
 }
 
 pub(super) fn encode_compiler_intrinsic_execution(
