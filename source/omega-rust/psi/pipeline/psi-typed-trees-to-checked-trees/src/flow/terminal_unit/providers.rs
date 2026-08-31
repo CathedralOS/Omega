@@ -120,14 +120,14 @@ pub(super) fn checked_composed_provider_attachment_requirements(
     shapes: &ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
     attachment_type_identity: &str,
-    leaves: [(
+    leaves: &[(
         &psi_typed_trees::state::State,
         &[psi_checked_trees::FlowCallFact],
         &[CheckedUnitEffectOperationPlan],
-    ); 2],
+    )],
 ) -> Option<Vec<CheckedProviderAttachmentRequirementPlan>> {
     let mut requirements = Vec::new();
-    for (state, calls, operations) in leaves {
+    for (state, calls, operations) in leaves.iter().copied() {
         requirements.extend(checked_provider_attachment_requirements(
             program,
             shapes,

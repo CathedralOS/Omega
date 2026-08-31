@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) struct AdmittedComposedUnit<'a> {
     pub(super) entry: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
-    pub(super) leaves: [&'a psi_checked_trees::CheckedComposedUnitControlStatePlan; 2],
+    pub(super) leaves: Vec<&'a psi_checked_trees::CheckedComposedUnitControlStatePlan>,
     pub(super) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
     pub(super) internal_targets: Vec<(&'a psi_checked_trees::CheckedUnitEffectMachinePlan, String)>,
     pub(super) custody: custody::ComposedCustody,
@@ -58,14 +58,14 @@ pub(super) fn admit_composed_unit_control<'a>(
     let (boundaries, internal_targets) = admit_leaf_targets(
         checked,
         plan.machine,
-        [when_true, when_false],
+        &[when_true, when_false],
         custody,
         attachment,
         &plan.provider_attachment_requirements,
     )?;
     Ok(AdmittedComposedUnit {
         entry,
-        leaves: [when_true, when_false],
+        leaves: vec![when_true, when_false],
         boundaries,
         internal_targets,
         custody,
@@ -100,7 +100,7 @@ pub(super) fn exact_attachment<'a>(
 pub(super) fn admit_leaf_targets<'a>(
     checked: &'a CheckedTrees,
     machine: psi_symbols::SymbolHandle,
-    leaves: [&'a psi_checked_trees::CheckedComposedUnitControlStatePlan; 2],
+    leaves: &[&'a psi_checked_trees::CheckedComposedUnitControlStatePlan],
     custody: custody::ComposedCustody,
     attachment: &psi_checked_trees::CheckedUnitStructuralTypePlan,
     provider_attachment_requirements: &[psi_checked_trees::CheckedProviderAttachmentRequirementPlan],
@@ -114,7 +114,7 @@ pub(super) fn admit_leaf_targets<'a>(
     let plans = &checked.facts.flow.terminal_unit_effects;
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
-    for state in leaves {
+    for state in leaves.iter().copied() {
         match &state.operations[0] {
             CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
                 retain_leaf_boundary(checked, machine, state, plans, &mut boundaries)?;
