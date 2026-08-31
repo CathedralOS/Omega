@@ -514,3 +514,66 @@ resource-owning representation protocol.
   automatically run the carrier's ordinary `drop`, ignore carrier cleanup,
   treat an ABI copy as semantic copying, or publish a D26 demand before the
   lifecycle join is complete.
+
+## Q9 — Define the closed terminal-authority classification policy
+
+### Context
+
+The two-axis authority model settles the containment judgment: an exact
+service identity and normalized schema permit terminal-authority classes, and
+a target-qualified exact selected binding plus provider context exercises
+classes. Package review must reject an exercised class outside the permitted
+set, and unknown terminal mechanisms fail closed.
+
+The implementation has exact selected-provider rows for normalized imports,
+the temporary string-backed import bootstrap, syscalls, compiler intrinsics,
+vtable/table operations, and checked adapters. It does not have the normative
+closed policy that assigns classes to arbitrary target-qualified syscall,
+import, firmware, or table coordinates. The existing seven service risk
+classes do not determine those assignments. For example, neither a Linux
+syscall number nor a Windows export name says whether it performs filesystem
+content access, namespace mutation, process control, or no authority without a
+compiler-owned target policy row.
+
+### Problem statement
+
+Define the first closed terminal-authority policy, including:
+
+1. the exact target, binding payload, provider-context, and service-schema
+   coordinates that key every row;
+2. the exercised class set for each currently admitted syscall, import,
+   compiler intrinsic, vtable/table operation, and checked physical operation;
+3. whether known authority-free terminal mechanisms require explicit empty
+   rows or are derived by a separately closed purity catalog; and
+4. the normalization rule for `StringBackedImportBootstrap` where its current
+   payload cannot express an ordinary target locator (notably versioned ELF
+   and Mach-O).
+
+Without these rows, deleting the filename classifier either rejects existing
+supported provider closures as unknown or invents authority semantics from
+names and numeric coordinates. That choice changes the language's installed
+authority claim rather than merely selecting an implementation strategy.
+
+### Proposed direction
+
+Publish a versioned compiler-owned table keyed by the complete tuple above.
+Require explicit rows, including explicit empty exercised sets, for every
+terminal mechanism accepted into package review. Reuse the existing closed
+compiler-intrinsic execution atoms where available. Normalize the bootstrap
+form before lookup only when it reconstructs one exact ordinary foreign
+locator; otherwise reject it until the retained carrier is enriched. Traverse
+checked adapters only through their exact selected closure and reject cycles,
+missing leaves, and unclassified physical operations.
+
+### Alternates
+
+- Acceptable: land a first table covering only the already closed compiler
+  intrinsics and reject every other terminal binding until target policy rows
+  are supplied, provided existing supported-package fallout is intentional.
+- Acceptable: define policy in target-owned modules rather than one central
+  table, provided the combined vocabulary is closed, versioned, exact, and
+  exhaustively validated.
+- Tempting but wrong: classify by service name, source filename, package role,
+  import spelling alone, or syscall number without target and context; assume
+  unknown means harmless; or map every binding beneath a service to that
+  service's permitted class set.
