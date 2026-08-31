@@ -11340,7 +11340,13 @@ checked-result arithmetic decision listed below.
   frontend rebuild now recovers the selected machine only by its exact source
   occurrence and normalized callable identity rather than by name. Continuing
   final checking from the retained base, deleting that rebuild/rebind, and the
-  remaining no-reread and configuration/evidence canaries are still open.
+  remaining configuration/evidence canaries are still open. As the first
+  continuation prerequisite, own generated outputs are now parsed once into an
+  explicit extension-only syntax carrier. It retains exact unit-to-root
+  ownership, source bytes/map, custody, and the base-frontier identity, then is
+  consumed into the unchanged transitional combined pass without source reread
+  or reparse. Seeded syntax-to-resolved and resolved-to-typed continuation APIs
+  remain engineering work, not a language-design blocker.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

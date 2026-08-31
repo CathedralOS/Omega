@@ -832,20 +832,21 @@ fn compile_to_checked_inner_with_replay(
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
         let mut final_syntax = frozen_syntax;
-        let retained = crate::pipeline::source_assembly::append_retained_generated_sources(
-            &mut final_syntax,
+        let extension = crate::pipeline::source_assembly::retain_generated_syntax_extension(
+            &final_syntax,
             package_root,
             Some(package_inputs.root()),
             &computed_build_config.generated_sources,
         )?;
         source_file_count = source_file_count
-            .checked_add(retained.len())
+            .checked_add(extension.source_count())
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "generated package source count exceeds the compiler range",
                 )]
             })?;
-        generated_source_custody.extend(retained);
+        generated_source_custody.extend(extension.generated_source_custody().iter().cloned());
+        extension.append_to(&mut final_syntax)?;
         frontend = lower_checked_frontend(
             final_syntax,
             target_name,
