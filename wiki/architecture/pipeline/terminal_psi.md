@@ -33,11 +33,13 @@ Omega
 Compilation may stop at canonical Terminal Psi and publish it as a standalone
 product. A later interpreter or native lowerer may consume that product on a
 different machine under a different realization authority. Target-constrained
-provider plans and external-binding requirements travel as a canonical bound
-proposal beside the target-neutral semantic module; they do not grant the
-consumer authority. The consumer accepts the exact proposal using its target
-catalog and local admissions or rejects realization without invalidating the
-Psi semantics.
+provider plans, external-binding requirements, target/profile, ProgramEntry,
+and compiler-builtin proposals travel as an exact owned companion beside the
+target-neutral semantic module; they do not grant the consumer authority. The
+consumer accepts the full proposal using its target catalog and local
+admissions or rejects realization without invalidating the Psi semantics. The
+compiler Terminal-product canary discards all frontend objects before
+exercising that consumer boundary.
 
 Publishing an executable is a subsequent product operation that stages and
 replays the retained image bytes; installation is a separate authority-bearing

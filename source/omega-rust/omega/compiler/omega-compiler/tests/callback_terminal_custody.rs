@@ -143,20 +143,28 @@ fn canonical_terminal_handoff_preserves_callback_placements_while_native_remains
     let retained = terminal
         .into_retained_terminal_artifact()
         .expect("Terminal report transfers artifact and callback sidecar together");
-    let (artifact, returned_placements) = retained.into_parts();
+    let (artifact, returned_placements, proposal) = retained.into_parts();
     assert_eq!(returned_placements, expected_placements);
 
     let mut swapped_placements = returned_placements;
     swapped_placements.swap(0, 1);
     let retained =
-        omega_compilation_report::RetainedTerminalArtifact::new(artifact, swapped_placements)
-            .expect("the structural report carrier does not reconstruct checked row provenance");
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact,
+            swapped_placements,
+            proposal.expect("compiler Terminal product retains its native proposal"),
+        )
+        .expect("the structural report carrier does not reconstruct checked row provenance");
     assert_ne!(retained.callback_placements(), expected_placements);
 
-    let (artifact, mut drifted_placements) = retained.into_parts();
+    let (artifact, mut drifted_placements, proposal) = retained.into_parts();
     drifted_placements[0].boundary_calling_plan_report_fingerprint ^= 1;
-    omega_compilation_report::RetainedTerminalArtifact::new(artifact, drifted_placements)
-        .expect_err("callback placement mutation cannot re-enter retained Terminal custody");
+    omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+        artifact,
+        drifted_placements,
+        proposal.expect("retained proposal"),
+    )
+    .expect_err("callback placement mutation cannot re-enter retained Terminal custody");
 
     let native = compile(fixture.request(RequestedCompileProduct::NativeArtifact, "native"))
         .expect_err("native production cannot silently discard callback placements");

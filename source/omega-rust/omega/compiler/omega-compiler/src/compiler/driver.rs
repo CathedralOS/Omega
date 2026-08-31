@@ -110,14 +110,75 @@ fn terminal_report(
     })?;
     let (artifact, callback_placements) = produced.into_parts();
     verify_terminal_artifact(&artifact, &request.terminal_admission_profile)?;
+    let native_realization_proposal =
+        project_terminal_native_realization_proposal(&checked, &artifact)?;
     let artifact =
-        omega_compilation_report::RetainedTerminalArtifact::new(artifact, callback_placements)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact,
+            callback_placements,
+            native_realization_proposal,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     CompileReport::from_retained_terminal_artifact(
         request.options.root_path,
         source_file_count,
         artifact,
         production_subject,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn project_terminal_native_realization_proposal(
+    checked: &crate::pipeline::CheckedCompilation,
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+) -> Result<omega_compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
+    let target_profile = checked.selected_target_profile().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Terminal native proposal requires one selected target profile",
+        )]
+    })?;
+    let native_target = checked.selected_native_target().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Terminal native proposal requires one selected native target",
+        )]
+    })?;
+    let program_entry = checked.selected_program_entry().cloned().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Terminal native proposal requires one exact selected ProgramEntry",
+        )]
+    })?;
+    let terminal_module =
+        psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "Terminal native proposal could not replay canonical semantics: {error}",
+            ))]
+        })?;
+    let demanded_intrinsics =
+        super::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
+    let builtin_proposals =
+        super::intrinsic_settlements::derive_compiler_intrinsic_settlement_proposals(
+            checked,
+            &demanded_intrinsics,
+        )?
+        .into_iter()
+        .map(|proposal| {
+            omega_compilation_report::TerminalCompilerBuiltinProposal::new(
+                proposal.requirement_identity,
+                proposal.plan_index,
+                proposal.execution,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    omega_compilation_report::TerminalNativeRealizationProposal::new(
+        artifact,
+        target_profile,
+        native_target,
+        checked.subsystem(),
+        program_entry,
+        checked.selected_provider_plans().clone(),
+        checked.external_binding_rows().to_vec(),
+        builtin_proposals,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

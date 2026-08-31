@@ -638,6 +638,95 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
 }
 
 #[test]
+fn terminal_product_reloads_native_realization_without_checked_compilation() {
+    let canary = pass_canary("providers/adapter_satisfies_compile");
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompilerOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+    )
+    .expect("Terminal product should retain its target-constrained native proposal");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("Terminal report should transfer complete product custody");
+    let (artifact, callback_placements, proposal) = retained.into_parts();
+    assert!(callback_placements.is_empty());
+    let proposal = proposal.expect("compiler Terminal product retains native proposal");
+    proposal
+        .validate_for_artifact(&artifact)
+        .expect("native proposal must rejoin its canonical Terminal artifact");
+    assert_eq!(
+        proposal.target_profile(),
+        omega_target::TargetProfile::LinuxX64,
+    );
+    assert!(
+        omega_compilation_report::TerminalNativeRealizationProposal::new(
+            &artifact,
+            omega_target::TargetProfile::MacosArm64,
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+        )
+        .is_err(),
+        "a target-profile substitution must not re-enter Terminal product custody",
+    );
+    let calling_plans = proposal
+        .program_entry()
+        .calling_plans()
+        .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
+    let program_entry = omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+        proposal.program_entry().source_signature(),
+        calling_plans,
+    );
+    let compiler_builtins = proposal
+        .compiler_builtins()
+        .iter()
+        .map(
+            |builtin| omega_terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
+                requirement_identity: builtin.requirement_identity(),
+                provider_plan: &proposal.selected_provider_plans().plans()
+                    [builtin.provider_plan_index()],
+                execution: builtin.execution(),
+            },
+        )
+        .collect::<Vec<_>>();
+    let profile = psi_proof_admission::AdmissionProfile::default();
+    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let native = omega_terminal_psi_to_native_artifact::realize_native_artifact(
+        artifact,
+        omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
+            target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            profile: &profile,
+            program_entry,
+            optimization_selections: &optimizations,
+            selected_provider_plans: proposal.selected_provider_plans(),
+            external_binding_rows: proposal.external_binding_rows(),
+            settlements: &[],
+            compiler_builtins: &compiler_builtins,
+        },
+    )
+    .expect("retained Terminal product and independent local admission should realize natively");
+    assert!(native.image().output().bytes.starts_with(b"\x7fELF"));
+    assert_eq!(native.provider_executions().len(), 0);
+    let [settlement] = native.image().boundary_settlements() else {
+        panic!("reloaded product should retain one Console exit settlement")
+    };
+    assert_eq!(
+        settlement.settlement.execution,
+        omega_terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
+            omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+        ),
+    );
+}
+
+#[test]
 fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
     let canary = pass_canary("providers/runtime_boundary_capability_state_forwarding_exit");
     let main_path = canary.join("main.omg");

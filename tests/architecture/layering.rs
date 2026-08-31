@@ -66,6 +66,12 @@ const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[];
 /// Exact upward crate edges whose ownership is documented but whose layer pair
 /// must remain closed to every other crate.
 const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
+    // Legalized-operation identity retains exact Terminal crash routes and
+    // deliberately uses the one canonical leaf encoder rather than defining a
+    // second representation-local wire identity. Keep this exception at the
+    // exact crate edge; it does not authorize a representations-to-semantics
+    // layer pair.
+    ("omega-legalized-operations", "psi-terminal-codec"),
     // This target-neutral semantic service owns the pre-resolution/pre-check
     // conveyors documented in canonical_ir_fuel_and_resource_provisioning.md.
     // Its probe evaluations deliberately invoke these four Psi frontend passes

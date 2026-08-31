@@ -329,7 +329,8 @@ later implementation may evaluate a broader compile-time-admissible projection.
 
 Resolution and admission proceed in this order:
 
-1. Resolve and fetch source under resolver-owned authority.
+1. Resolve and fetch through the host-routed Git/SSH environment, then validate
+   and publish source under resolver-owned custody.
 2. Extract the package declaration hermetically.
 3. Extract its hermetic dependency-source projection.
 4. Recursively resolve the complete source closure.

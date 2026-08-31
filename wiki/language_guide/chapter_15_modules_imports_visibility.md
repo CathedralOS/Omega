@@ -108,7 +108,7 @@ A Git request has two independent coordinates: acquisition identifies the
 repository and revision to fetch, while package selection is explicitly
 `Root` or `Named(PackageName)`. Omitted source spelling normalizes immediately
 to `Root`; absence is not retained in locks or evidence. `Named` selection
-authenticates the repository root, statically projects its declared workspace
+content-verifies the repository root, statically projects its declared workspace
 members, and requires exactly one member whose own `builder.package` declaration
 matches. Recursive `build.omg` search, caller-authored member paths, escaping
 members, and duplicate names reject.
@@ -118,7 +118,7 @@ the base for that member's relative dependencies. It is not package identity:
 moving a member inside the same repository lineage preserves its `PackageKey`.
 The canonical resolved-source question still binds that navigation, so a move
 is visible to lock/review reconstruction. Relative dependencies inside a fetched
-Git member may target only another exact member declared by the authenticated
+Git member may target only another exact member declared by the content-verified
 repository root; recursive discovery and undeclared directories reject.
 Different requesters may use different local aliases for that key, and a parent
 cannot rename aliases internal to a child. A consumer that names a dependency's

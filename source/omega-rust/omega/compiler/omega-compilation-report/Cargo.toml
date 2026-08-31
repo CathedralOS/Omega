@@ -11,11 +11,14 @@ path = "src/lib.rs"
 [dependencies]
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
 omega-backend-plan = { path = "../../backend/plans/omega-backend-plan" }
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-effects = { path = "../../representations/omega-effects" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-native-artifact = { path = "../../backend/artifacts/omega-native-artifact" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-target = { path = "../../representations/omega-target" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-trust-model = { path = "../../build/omega-trust-model" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 sha2 = "0.10.9"

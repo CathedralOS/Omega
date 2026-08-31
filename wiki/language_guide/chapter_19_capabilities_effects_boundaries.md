@@ -979,7 +979,8 @@ raw host provider to acquire filesystem authority itself.
 `build.omg` is an ordinary checked Omega program run with compiler-issued,
 package-scoped Build facets. It has no ambient filesystem, network, process,
 signing, secret, package-acceptance, or standard-library authority. `BuildSource`
-may observe only the authenticated source snapshot, `BuildOutput` may mutate
+may observe only the resolver-published, content-verified source snapshot,
+`BuildOutput` may mutate
 only the sponsored staging tree and publish explicit generated-source handoffs,
 and `BuildLog` emits captured build observations. These facets are part of the
 compiler build protocol and remain available in a freestanding toolchain with
@@ -1000,7 +1001,7 @@ separately designed. A scoped name or receiver never grants build authority.
 Dependency retrieval is a resolver operation performed before downloaded code
 runs. The host-selected Git/SSH stack owns transport and credential authority;
 the resolver owns the closed source protocol surface, archive reading,
-expansion limits, path containment, authenticated object graph, and immutable
+expansion limits, path containment, content-verified object graph, and immutable
 destination publication. A dependency's `build.omg` never inherits transport
 or resolver authority. Imported boundary claims are inert until root policy
 admits the compiler-derived complete claim set; any claim change appears in the

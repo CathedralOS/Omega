@@ -1150,12 +1150,14 @@ under which the build entry can satisfy `terminates`.
 
 Dependency source retrieval precedes dependency-code execution. The root build
 binds an alias to an exact content identity, local path, or repository revision;
-the resolver fetches and unpacks that source under resolver-owned authority.
+the host-routed Git/SSH environment fetches it and the resolver validates and
+publishes the resulting source under resolver-owned custody.
 Downloaded `build.omg` code never receives the resolver's network or archive
 authority. The resolver is consequently a security boundary in its own right:
-retrieval identity, revision resolution, archive path containment, expansion
-limits, and destination writes are checked and receipted rather than treated as
-package plumbing.
+requested lineage, revision resolution, object/content identity, archive path
+containment, expansion limits, and immutable destination bytes are directly
+revalidated rather than treated as package plumbing. No aggregate fetch
+receipt attests the ambient executor or transport chain.
 
 Each dependency build then runs with its own explicitly supplied, package-
 scoped providers. It does not inherit the root build's filesystem, network,
@@ -2718,7 +2720,7 @@ access; an explicit operation may populate a caller-supplied target list by
 running each exact target independently. A retained section for another target
 grants no authority to the current build. Git edges cannot be "resolved but not
 fetched": verifying a commit, tree, workspace declaration, and selected member
-already exercises resolver authority.
+already exercises host-routed acquisition and resolver-owned source validation.
 
 Target values are checked against the trusted toolchain target catalog at the
 exact invocation boundary. Package source does not declare a support matrix or
