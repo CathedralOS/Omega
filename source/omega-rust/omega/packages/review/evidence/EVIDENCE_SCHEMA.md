@@ -1,8 +1,17 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 111 and row schema version 69. This file
+The canonical review schema is version 112 and row schema version 70. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v112 / row v70 admits conformance-bound weakening for top-level
+external requirement supply. Every provider demand must match one distinct
+requirement demand after alpha normalization; requirement-only demands may be
+omitted. Matching ignores each telescope's locally renumbered evidence-binder
+ordinal while preserving binder presence, subject ordinal, public trait,
+selected conformance application, lifetime arguments, and structural
+arguments exactly. Added, changed, or duplicated provider demands reject, and
+both exact telescopes remain in the opaque supply key.
 
 Schema v111 / row v69 admits static-machine parameters in external callable
 signatures. Structural contracts retain their complete recursively alpha-
