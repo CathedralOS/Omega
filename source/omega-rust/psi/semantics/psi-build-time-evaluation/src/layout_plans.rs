@@ -31,15 +31,18 @@ pub use const_materializable::{
     ValidatedConstMaterialization, validate_const_materializable_typed_owned_layout,
 };
 pub use const_record_with_nested_sum_materializable::{
+    ValidatedConstDepthFourNestedSumOccurrenceMaterialization,
     ValidatedConstDepthThreeNestedSumOccurrenceMaterialization,
     ValidatedConstDepthTwoNestedSumOccurrenceMaterialization,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
+    ValidatedConstRecordWithDepthFourNestedSumsMaterialization,
     ValidatedConstRecordWithDepthThreeNestedSumMaterialization,
     ValidatedConstRecordWithDepthThreeNestedSumsMaterialization,
     ValidatedConstRecordWithDepthTwoNestedSumMaterialization,
     ValidatedConstRecordWithDepthTwoNestedSumsMaterialization,
     ValidatedConstRecordWithNestedSumRecordMaterialization,
     ValidatedConstRecordWithNestedSumRecordsMaterialization,
+    validate_const_materializable_record_with_depth_four_nested_sums,
     validate_const_materializable_record_with_depth_three_nested_sum,
     validate_const_materializable_record_with_depth_three_nested_sums,
     validate_const_materializable_record_with_depth_two_nested_sum,

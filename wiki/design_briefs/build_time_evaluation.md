@@ -435,8 +435,22 @@ leaf-occurrence ceiling bound both production and replay. Shallower, deeper,
 recursive, array-mediated, or direct-sum-coexisting paths reject, as does
 target-dependent placement at every layer.
 
+The complete plural depth-four fixed-depth rung admits a nonempty
+authored-order set of
+`Outer -> Second -> First -> Middle -> Leaf -> direct conventional sums`
+chains. Its compact report retains the outer whole-record plan once and one
+exact row per outer occurrence; each row owns the unchanged plural depth-three
+report for that occurrence. A distinct non-clone carrier composes the
+corresponding plural depth-three carriers, preserves repeated nominal
+occurrences separately, independently rebuilds every nested zero-padded image,
+replays layouts and occurrence identities hash-free, and performs one final
+atomic copy. One shared memoized bounded reachability walk and global
+leaf-occurrence ceiling cover the whole cohort. Paths deeper than four records,
+recursion, arrays containing sums, direct sums at an enclosing layer, and
+target-dependent placement remain rejected; shallower APIs are unchanged.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-plural paths deeper than three records, paths deeper than three records, mixed
+plural paths deeper than four records, paths deeper than four records, mixed
 common-field/case shapes, and sums whose all-case geometry requires a target
 capsule remain later rungs. The same NaN, reference, slice, Text, dynamic,
 atomic, and non-copy fences remain in force.
