@@ -253,9 +253,22 @@ does not yet fully satisfy this contract.
   production, independent replay, shared branch inspection, reflow, work
   admission, and canonical artifact assembly. Its existing stage entrance and
   adjacent catalog remain the only execution and exact-enablement owners.
-- No production-classified leaf remains at 750+ lines; 14 governed production
+- Psi value-range analysis now has a 52-line constant/proof fact join over
+  exact proof goals, interval reconstruction, control-flow scope, and canonical
+  fact construction. Allocation-legality computation now has a 108-line root
+  and environment admission/assembly entrance over named function, live-point,
+  early-clobber, fixed-view, and candidate-view leaves. Both retain their
+  existing public validation boundaries and canonical output order.
+- Ranked-u32 countdown replay now has a 48-line ordered machine/object contract
+  join over carrier, proof custody, ranked semantics, calling convention, and
+  structural-frontier leaves. Its largest leaf is 200 lines and its rejection
+  order is explicit at the entrance.
+- Fixed-point execution tests now descend from an 11-line semantic map into
+  algebraic, structural, proof-elision, value-numbering, and cross-pass
+  composition matrices. All 34 tests remain and every leaf is below 400 lines.
+- No production-classified leaf remains at 750+ lines; 11 governed production
   leaves remain at 600-749 lines.
-- Eleven broad test and fixture leaves remain above 1,000 lines even though
+- Ten broad test and fixture leaves remain above 1,000 lines even though
   their production stages already have named taxonomies.
 - The old task ledger and this brief accumulated milestone history instead of
   remaining entrances. Git history is the milestone archive.
