@@ -12,6 +12,7 @@
 
 mod identity;
 mod module;
+mod observation_profile;
 mod proof_values;
 mod quotient_correspondence;
 
@@ -19,5 +20,6 @@ pub use psi_language_core::BindingRelevance;
 
 pub use identity::*;
 pub use module::*;
+pub use observation_profile::*;
 pub use proof_values::*;
 pub use quotient_correspondence::*;

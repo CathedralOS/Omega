@@ -29,6 +29,7 @@ mod scalar_wire;
 mod structural_field_wire;
 mod structural_signature_wire;
 mod structural_type_wire;
+mod terminal_trace_v1_profile;
 mod trust_graph;
 mod wire;
 
@@ -62,6 +63,12 @@ pub use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity};
 pub use publication::{
     PublishedTerminalSemanticArtifact, TerminalSemanticArtifactPublication,
     TerminalSemanticPublicationError,
+};
+pub use terminal_trace_v1_profile::{
+    TerminalTraceV1ProfileAcceptanceError, TerminalTraceV1ProfileBuildError,
+    TerminalTraceV1ProfileCodecError, accept_terminal_trace_v1_profile,
+    decode_terminal_trace_v1_profile, encode_terminal_trace_v1_profile,
+    reconstruct_canonical_terminal_trace_v1_profile,
 };
 pub use trust_graph::{
     TerminalTrustGraphIdentity, TrustAcceptingPolicy, TrustDependencyDigest, TrustDependencyKind,
