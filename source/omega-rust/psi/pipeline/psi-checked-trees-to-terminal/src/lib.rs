@@ -172,8 +172,8 @@ use scalar_graph_lowering::{
     integer_landing_scalar_type, integer_scalar_type, integer_value,
     lower_checked_scalar_expression, lower_checked_scalar_expression_at,
     lower_scalar_graph_machine, prepare_scalar_graph_machine,
-    staged_short_circuit_bindings_terminator, terminal_scalar_type,
-    validate_boolean_parameter_types, validate_direct_parameter_types,
+    prepare_selected_scalar_graph_machine, staged_short_circuit_bindings_terminator,
+    terminal_scalar_type, validate_boolean_parameter_types, validate_direct_parameter_types,
 };
 use scalar_graph_module::build_scalar_graph_module;
 use shared_runtime_parameters::{

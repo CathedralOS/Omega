@@ -15,6 +15,55 @@ fn checked_adapter_identity(
         .identity()
 }
 
+fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompilerOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("{label} should produce a canonical Terminal artifact: {diagnostics:#?}")
+    });
+    let retained = report
+        .into_retained_terminal_artifact()
+        .unwrap_or_else(|| panic!("{label} should retain its Terminal artifact"));
+    retained
+        .validate()
+        .unwrap_or_else(|error| panic!("{label} Terminal artifact should replay: {error}"));
+    let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .unwrap_or_else(|error| panic!("{label} Terminal semantics should decode: {error:?}"));
+    assert!(
+        module.machines.iter().any(|machine| {
+            machine.blocks.iter().any(|block| {
+                block
+                    .operations
+                    .iter()
+                    .enumerate()
+                    .any(|(call_index, operation)| {
+                        let psi_terminal::OperationKind::Call { .. } = &operation.kind else {
+                            return false;
+                        };
+                        let psi_terminal::OperationResult::Scalar(result) = &operation.result
+                        else {
+                            return false;
+                        };
+                        block.operations[call_index + 1..].iter().any(|consumer| {
+                            matches!(
+                                &consumer.kind,
+                                psi_terminal::OperationKind::BoundaryCall { arguments, .. }
+                                    if arguments == &[result.id]
+                            )
+                        })
+                    })
+            })
+        }),
+        "{label} should pass the selected scalar Call result to its later boundary consumer"
+    );
+}
+
 #[test]
 fn runtime_adapter_dispatch_exit_canary_runs() {
     // PRV4 adapter dispatch: the boundary-trait call rewrites to the unique
@@ -64,25 +113,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
         outcome.error,
     );
 
-    let scratch = std::env::temp_dir().join(format!(
-        "omega-checked-operator-dispatch-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&scratch);
-    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.join("out"))
-        .expect("checked boundary-operator canary should compile natively");
-    let executable = compilation
-        .checked_native_executable_path()
-        .expect("checked boundary-operator canary should retain its executable receipt");
-    let output = Command::new(executable)
-        .output()
-        .expect("checked boundary-operator canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "native execution dispatches the selected checked operator body"
-    );
-    let _ = fs::remove_dir_all(&scratch);
+    assert_selected_operator_terminal_call(&canary, "checked boundary-operator canary");
 }
 
 #[test]
@@ -97,6 +128,7 @@ fn checked_fixed_operator_dispatch_exit_canary_runs() {
         "interpreter dispatches the selected fixed-token operator body; error: {:?}",
         outcome.error,
     );
+    assert_selected_operator_terminal_call(&canary, "checked fixed-token operator canary");
 }
 
 #[test]

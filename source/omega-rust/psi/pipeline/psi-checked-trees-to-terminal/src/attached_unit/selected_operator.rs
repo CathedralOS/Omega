@@ -14,6 +14,7 @@ pub(super) fn validate_selected_operator_scalar_call(
     realization_machine: psi_symbols::SymbolHandle,
     realization_state: psi_symbols::SymbolHandle,
     realization_contract_report_fingerprint: u64,
+    realization_contract_commitment: psi_checked_trees::MachineContractCommitment,
     service_reach: psi_language_semantics::ServiceReachSummary,
     scalar_argument_count: usize,
 ) -> Result<(), LoweringError> {
@@ -93,7 +94,19 @@ pub(super) fn validate_selected_operator_scalar_call(
         })
         .map(|(_, state)| state.service_reach)
         .collect::<Vec<_>>();
+    let realization_contract_rows = checked
+        .facts
+        .operators
+        .operator_realization_contracts
+        .iter()
+        .filter(|row| {
+            row.machine_symbol() == realization_machine
+                && row.operator_symbol() == requirement_operator
+        })
+        .count();
     if contract.report_fingerprint != realization_contract_report_fingerprint
+        || contract.commitment != realization_contract_commitment
+        || realization_contract_rows != 1
         || checked
             .typed
             .primitive_type_reference(realization.return_type)
@@ -103,6 +116,23 @@ pub(super) fn validate_selected_operator_scalar_call(
     {
         return unsupported(
             "selected Unit operator realization drifted from its checked machine, state, contract, result, arguments, or reach",
+        );
+    }
+    if !checked
+        .facts
+        .service_reaches
+        .rows
+        .services(service_reach.direct)
+        .is_empty()
+        || !checked
+            .facts
+            .service_reaches
+            .rows
+            .services(service_reach.transitive)
+            .is_empty()
+    {
+        return unsupported(
+            "selected scalar realization with services requires terminal scalar service lowering",
         );
     }
     Ok(())
