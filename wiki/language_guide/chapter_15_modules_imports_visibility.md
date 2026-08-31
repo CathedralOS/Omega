@@ -49,10 +49,11 @@ to form the stable `PackageKey` used by locks and nominal symbols; exact source
 content, produced artifact identity, per-subject obligation-semantics identity,
 re-derived verification results, and disclosed open assumptions form a
 `PackageInstance`. A same-spelled package or boundary from another lineage is
-therefore a different identity. Compiler and toolchain provenance remain
-separate review metadata for reproduction, cache partitioning, and incident
-response; it never seals the instance or proves that the producer or an audit
-was trustworthy.
+therefore a different identity. Explicit compiler/toolchain semantic, build,
+and encoding identities remain separately labeled only where a concrete
+reproduction, compatibility, or deployment claim consumes them. Bytes read
+through the running process's executable pathname are never package review,
+lock, cache, or admission identity and never seal the instance.
 
 Packages and applications use the same `PackageKey`: declared name plus source
 lineage. Role remains an explicit companion fact. A selected root may be either

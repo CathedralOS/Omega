@@ -949,15 +949,9 @@ fn package_crates_keep_one_way_ownership() {
 #[test]
 fn package_semantics_exclude_executable_provenance_and_model_protocols() {
     let graph = load_graph();
-    let manager = graph
-        .get("omega-package-manager")
-        .expect("package manager crate participates in architecture metadata");
     assert!(
-        !manager
-            .deps
-            .iter()
-            .any(|dependency| dependency == "omega-build-provenance"),
-        "package semantics must not depend on executable incident provenance"
+        !graph.contains_key("omega-build-provenance"),
+        "retired executable-path provenance must not return to the workspace"
     );
 
     let root = workspace_root();
@@ -1013,24 +1007,37 @@ fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
-fn compiler_executable_review_identity_is_build_provenance_owned() {
+fn compiler_executable_review_identity_stays_retired() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");
     assert!(
         !compiler
             .join("src/pipeline/compiler_executable_commitment.rs")
             .exists(),
-        "review-only compiler executable identity must not return to omega-compiler"
+        "compiler executable path-byte identity must not return to omega-compiler"
     );
     assert!(
-        root.join("source/omega-rust/omega/build/omega-build-provenance/src/lib.rs")
-            .is_file(),
-        "omega-build-provenance must own the compiler executable review identity"
+        !root
+            .join("source/omega-rust/omega/build/omega-build-provenance/Cargo.toml")
+            .exists()
+            && !root
+                .join("source/omega-rust/omega/build/omega-build-provenance/src/lib.rs")
+                .exists(),
+        "retired omega-build-provenance carrier must not return"
     );
 
     let public_api =
         std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
     assert!(!public_api.contains("CompilerExecutableCommitment"));
+
+    for file in ["Cargo.toml", "Cargo.lock"] {
+        let contents = std::fs::read_to_string(root.join(file))
+            .unwrap_or_else(|error| panic!("read workspace {file}: {error}"));
+        assert!(
+            !contents.contains("omega-build-provenance"),
+            "workspace {file} must not restore retired executable provenance"
+        );
+    }
 }
 
 #[test]

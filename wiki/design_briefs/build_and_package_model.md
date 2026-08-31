@@ -2005,10 +2005,12 @@ Terminal evidence. It is never merely a compiler-authored verdict packet.
 Concretely, the ordinary artifact is the complete versioned package-admission
 semantic row set under one exact package key, target, dependency closure, and
 obligation schema. Compiler review may emit candidate bytes in that same
-vocabulary, but only independent reconstruction from the exact source subject
-and byte-for-byte comparison gives them evidentiary force. Source bytes,
-certificates, proof routes, compiler observations, and decisions remain separate
-subjects or provenance. The current incomplete review rows are not promoted by
+vocabulary, but only consumer reconstruction from the exact source subject and
+byte-for-byte comparison gives them evidentiary force. In the current pipeline
+that reconstruction is an internal same-process semantic check, not executable
+attestation. Source bytes, certificates, proof routes, explicit semantic/build
+identities, and decisions remain separate subjects or provenance. The current
+incomplete review rows are not promoted by
 terminology.
 The resulting package-evidence record is a cache of this re-derivable fact, not
 an assertion a verifier may ask consumers to believe. Exact certificate bytes,
@@ -2362,10 +2364,13 @@ their canonical spelling with the source substring. Transparent aliases
 recursively flatten to sorted, deduplicated package-qualified atoms. Authored
 toolchain nominals bind a canonical toolchain-relative source path plus exact
 source-byte commitment in review evidence; this records their semantic origin
-but does not make producer pedigree authoritative. Compiler carry aliases
+without treating the running executable pathname as review identity. Compiler
+carry aliases
 expand to closed `CarryPermission` atoms rather than invented nominal owners;
 valid package declarations cannot enter that lane merely through a resembling
-diagnostic path. Whole compiler/toolchain commitment remains separate.
+diagnostic path. Exact compiler/toolchain artifact custody remains separate
+and applies only when that artifact is itself a bootstrap or deployment
+subject.
 Predicate-body presence and
 currently representable structural expression/membership facts retain the
 domain carrier and exact
@@ -2654,7 +2659,9 @@ The unified lock artifact records the resolved closure:
 - per-subject obligation-semantics and evidence-schema identities;
 - exact certificate provenance, re-derived discharge results, and transitive
   open obligations;
-- compiler/toolchain provenance as separately labeled review metadata;
+- explicit compiler/toolchain semantic or build identity as separately labeled
+  metadata only when a concrete compatibility, reproduction, or deployment
+  claim consumes it, never bytes reread through `current_exe()`;
 - the normalized accepted package capability/API baseline, not only its
   fingerprint;
 - build observation ceilings, realized classes, and replay receipts;
@@ -3577,12 +3584,13 @@ by granting package prose authority over admission.
 
 No package artifact proves that this workflow was performed seriously. Local
 compiler output prevents dependency-authored manifests from impersonating
-review rows, but the selected compiler remains an untrusted producer for
-package soundness. Consumers trust the small checking base, canonical semantics,
-and their explicitly accepted admissions, and independently reconstruct the
-question from exact source and artifact subjects. Compiler, toolchain, and
-execution observations remain provenance for replay, cache partitioning, and
-incident response, not proof of producer honesty. Likewise, signatures and
+review rows. The package manager drives compiler review in the same `omega`
+process, and its reconstruction checks canonical and semantic consistency; it
+is not isolation from that process or evidence about the loaded executable.
+Consumers rely on canonical semantics and their explicitly accepted admissions
+and reconstruct the question from exact source and artifact subjects. D46
+therefore excludes `current_exe()` path-byte observations from review, lock,
+conflict, cache, and admission identity. Likewise, signatures and
 recorded review fields establish custody over a decision, not its quality; PCC
 establishes only the exact proposition checked by its kernel. The accepted
 project commit and the organization controlling it authorize the update.
