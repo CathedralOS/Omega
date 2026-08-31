@@ -42,31 +42,9 @@ fn exact_projection_operation(
     };
     let operation =
         FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())?;
-    let [parameter] = program.operator_parameters(operator) else {
-        return None;
-    };
-    if operator.is_boundary
-        || !operator.symbol.is_valid()
-        || operator.spelling.is_some()
-        || !operator.lifetime_parameters.is_empty()
-        || !program.operator_type_parameters(operator).is_empty()
-        || parameter.is_const
-        || parameter.is_mutable
-        || parameter.is_self
-        || !program
-            .named_type_reference(operator.return_type)
-            .is_some_and(|name| name.as_str() == "FloatMeaning")
-    {
-        return None;
-    }
-    let primitive = program.primitive_type_reference(parameter.type_reference)?;
-    let expected = match operation {
-        FloatProjectionOperation::Meaning32 => PrimitiveType::F32,
-        FloatProjectionOperation::Meaning64 => PrimitiveType::F64,
-    };
-    if primitive != expected {
-        return None;
-    }
+    let primitive = crate::float_projection_bindings::exact_toolchain_float_projection_primitive(
+        program, operator, operation,
+    )?;
     Some((operator.symbol, primitive, operation))
 }
 

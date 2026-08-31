@@ -6,6 +6,13 @@
 
 use crate::float_semantics::{FloatFormat, FloatMeaning};
 
+/// Toolchain source that owns the closed public float-projection declarations.
+/// A declaration with the same path and signature in any other source has no
+/// projection semantics.
+pub const FLOAT_PROJECTION_CORE_SOURCE: &str = "float_operations.omg";
+/// Toolchain source that owns the proof-only projection result carrier.
+pub const FLOAT_MEANING_CORE_SOURCE: &str = "float_meaning.omg";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FloatProjectionOperation {
     Meaning32,

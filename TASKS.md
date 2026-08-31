@@ -10460,9 +10460,14 @@ Remaining N6/N8 work:
   The float catalog fixes exact `meaning32`/`meaning64` projection: finite
   values map to exact nonzero rationals, signed zero/infinity survive, NaN
   payloads erase, and cross-format projection rejects. Checked interpretation
-  consumes the catalog. Current source binding validates an ordinary tokenless
-  `Float::meaning32`/`meaning64` path and signature but does not yet retain the
-  recognized core declaration as contract owner. Checked and Terminal rows
+  consumes the catalog. Source admission now requires the exact sealed
+  toolchain `Float::meaning32`/`meaning64` declaration from
+  `float_operations.omg`, including its hermetic symbol identity and ordinary
+  tokenless signature, and the exact toolchain `FloatMeaning` result from
+  `float_meaning.omg`; checked replay repeats those ownership joins, so a local
+  same-shaped lookalike cannot mint or inherit projection facts. Checked and
+  Terminal rows still do not retain the recognized declaration/catalog tuple
+  as artifact-reconstructible contract ownership. They
   retain proof-position invocation, format, equality, and projection-table
   coordinates, and
   replay rejects missing, reordered, substituted, noncanonical, or cross-format
@@ -10505,8 +10510,9 @@ Remaining N6/N8 work:
   substitution, and unknown source tags. Resolved symbols and other nonliteral
   typed expressions still use an explicitly transitional lowering-local
   coordinate. Still open are artifact-aware carriers for contract parameters/
-  results, Terminal values, and structural float leaves, exact source contract-
-  owner retention, and production proof-ledger discharge.
+  results, Terminal values, and structural float leaves, artifact-carried
+  source contract-owner/catalog retention, and production proof-ledger
+  discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.
