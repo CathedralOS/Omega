@@ -25,6 +25,7 @@ pub use parameter::{
     StraightLineIntegerParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationReceipt,
     StraightLineSaturatingIntegerAddParametersTranslationReceipt,
+    StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
@@ -69,6 +70,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineWrappingIntegerAddParameters(
         StraightLineWrappingIntegerAddParametersTranslationReceipt,
+    ),
+    StraightLineSaturatingIntegerSubtractParameters(
+        StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     ),
     StraightLineWrappingIntegerSubtractParameters(
         StraightLineWrappingIntegerSubtractParametersTranslationReceipt,

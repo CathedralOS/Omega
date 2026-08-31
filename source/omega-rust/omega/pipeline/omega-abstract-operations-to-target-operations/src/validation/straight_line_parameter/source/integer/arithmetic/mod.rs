@@ -3,6 +3,7 @@
 pub(in crate::validation::straight_line_parameter) mod exact_add;
 pub(in crate::validation::straight_line_parameter) mod reconstruction;
 pub(in crate::validation::straight_line_parameter) mod saturating_add;
+pub(in crate::validation::straight_line_parameter) mod saturating_subtract;
 pub(in crate::validation::straight_line_parameter) mod wrapping_add;
 pub(in crate::validation::straight_line_parameter) mod wrapping_multiply;
 pub(in crate::validation::straight_line_parameter) mod wrapping_subtract;
@@ -25,6 +26,15 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add
     crate::validation::model::StraightLineSaturatingIntegerAddParametersTranslationError,
 > {
     reconstruction::reconstruct_saturating_add(function)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_subtract(
+    function: &AbstractFunction,
+) -> Result<
+    super::super::super::model::IntegerArithmeticParametersSource,
+    crate::validation::model::StraightLineSaturatingIntegerSubtractParametersTranslationError,
+> {
+    reconstruction::reconstruct_saturating_subtract(function)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_add(

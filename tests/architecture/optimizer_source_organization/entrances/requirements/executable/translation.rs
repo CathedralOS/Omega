@@ -91,6 +91,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_exact_add",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_saturating_add",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_saturating_subtract",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
         coordination_marker: "fn reconstruct_wrapping_add",
     },
     RequiredCoordinationEntrance {
@@ -120,6 +132,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/bitwise/mod.rs",
         coordination_marker: "fn reconstruct_bitwise_xor",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_exact_add",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_saturating_add",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
+        coordination_marker: "fn reconstruct_saturating_subtract",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",

@@ -50,6 +50,8 @@ pub use validation::{
     StraightLineIntegerWidenParameterTranslationReceipt,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationReceipt,
+    StraightLineSaturatingIntegerSubtractParametersTranslationError,
+    StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
