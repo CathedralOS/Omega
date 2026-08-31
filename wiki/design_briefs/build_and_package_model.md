@@ -2545,8 +2545,17 @@ replay, not type authority. Malformed encoding, embedded-name spoofing,
 carrier substitution, private selection, top-level arrays, and broader generic
 or recursive carriers reject. Canonical-row recovery remains v15.
 
-Package review v101/canonical row v59 admits the first checked non-data nested
-static application in a contract-expression call: one lifetime-free,
+Package review v103/canonical row v61 extends the checked closed-conformance
+contract-argument lane to a declaration telescope containing exact type
+arguments and parser-canonical integer-literal const arguments. The row retains
+the consts in declaration order, so `FieldOrder<Card, 7>` and
+`FieldOrder<Card, 8>` cannot alias. Forwarded const binders, named or structured
+consts, and lifetime, machine, or proposition parameters remain fail-closed.
+The target-trait telescope remains type-only; const target arguments cannot be
+relabelled as type identities. Canonical-row recovery remains v15.
+
+Package review v101/canonical row v59 introduced the first checked non-data
+nested static application in a contract-expression call: one lifetime-free,
 type-only, public closed conformance supplied to an explicit conformance-binder
 slot. The checked proof facts retain the exact owner, fact, call occurrence,
 static ordinal, and complete `ClosedConformanceApplication`. Review requires
@@ -2554,10 +2563,11 @@ one matching occurrence row, recloses the authored application, compares the
 complete checked structure, rejoins the exact public-interface conformance
 selection retained from the authored call, and projects its package-qualified
 declaration, ordered type arguments, instantiated subject, and target trait
-application. Both the conformance declaration telescope and target-trait
-telescope must contain only type parameters with exact arity; a machine,
-const, or proposition target-trait parameter rejects rather than being
-mislabeled as a type identity. Missing, duplicate, redirected, substituted,
+application. In v101, both the conformance declaration telescope and
+target-trait telescope had to contain only type parameters with exact arity; a
+machine, const, or proposition target-trait parameter rejected rather than
+being mislabeled as a type identity. Missing, duplicate, redirected,
+substituted,
 or source-selection custody rejects. The compact
 report fingerprint and commitment remain local joins, not portable package
 identity. Evidence projections into executable calls, proposition parameters
