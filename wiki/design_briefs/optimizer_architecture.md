@@ -159,6 +159,12 @@ binds both the legacy semantic identity and the exact canonical V5 content;
 this closes caller/callee call-plan fields that independent validation checks
 but the selected semantic identity does not fully cover.
 
+Function-relative realization uses the same source-navigation rule for its V9
+manifest: `codec/mod.rs` owns magic/version framing and final protocol
+admission, while content encoding/decoding, post-allocation tags, target layout,
+rendering, errors, and cursor mechanics descend into named leaves. Persisted
+custody boundaries are executable entrances, not generic codec buckets.
+
 ## Where to enter the source
 
 ```text

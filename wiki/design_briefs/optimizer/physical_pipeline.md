@@ -251,6 +251,13 @@ function-relative realization is v9, while fragment emission and fragment text
 placement are v8. Their records retain the exact selected-lowering selection
 or post-allocation optimization, not a broad optimization level.
 
+Function-relative V9 persistence enters through a 78-line framing and final-
+admission join. Canonical content encoding, ordered decoding, post-allocation
+optimization tags and custody, target layout, rendering, errors, and cursor
+mechanics descend into named leaves. The split preserves every byte and the
+existing trailing-data, conflicting-transformation, then identity-mismatch
+rejection order.
+
 The Terminal-Psi-to-native stage now exposes its full physical composition as
 small owning entrances. Source-entry settlement replays declaration and
 calling-plan custody. Native realization then chooses the ordinary or exact
