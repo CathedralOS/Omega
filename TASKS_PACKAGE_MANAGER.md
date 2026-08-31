@@ -67,10 +67,12 @@ stop the item on one precise owner question before adding machinery.
   ceilings, and deliberately non-receipted neighbors live in
   `source/omega-rust/omega/build/omega-build-evaluation/BUILD_OBSERVATION_REPLAY.md`.
 
-  The first exact denied-operation rung is complete: one literal-mode
-  Source-root `create` denial retains its rooted operand and exact grant
-  refusal, replays as compiler policy before generic Output handling, and
-  survives canonical recovery. Broader refusal families remain below.
+  The first two exact denied-operation rungs are complete: literal-mode
+  Source-root `create` and operand-free Source-root `remove` retain their
+  rooted operand and exact grant refusal, replay as compiler policy before
+  generic Output handling, and survive canonical recovery. Broader refusal
+  families remain below; add one only for a concrete receipted-build need,
+  not to fill out an operation matrix.
 
   Remaining work:
 

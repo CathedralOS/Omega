@@ -565,31 +565,33 @@ unrelated candidate does not disable package commands globally. This classifies
 evidence owned by Omega; it does not claim that the original host filesystem or
 provider was contained.
 
-## Source-root write denial (summary v74, replay record v54)
+## Source-root namespace-write denials (summary v75, replay record v55)
 
-The first exact grant-refusal lane accepts one tag-1 `create` attempt through a
-compiler-issued Source coordinate. The attempt retains operand-0 Source root
-and canonical nonempty relative path, operand-1 `i32` mode `438`, scoped-real
-provider, scalar result `-1`, post-error `13`, and exactly one operand-0
-`Write`/`OutsideGrantedRoots` refusal. Authorization, handle, returned-path,
-metadata, mutable-carrier, output, retirement, generated-source, and every
-other operand lane remain empty; this exact rung also carries no BuildLog
-output.
+The exact grant-refusal lane accepts one tag-1 `create` or tag-9 `remove`
+attempt through a compiler-issued Source coordinate. Both retain operand-0
+Source root and canonical nonempty relative path, scoped-real provider, scalar
+result `-1`, post-error `13`, and exactly one operand-0
+`Write`/`OutsideGrantedRoots` refusal. Create additionally fixes operand-1
+`i32` mode `438`; remove has no scalar operands. Authorization, handle,
+returned-path, metadata, mutable-carrier, output, retirement, generated-source,
+and every other operand lane remain empty; these exact rungs also carry no
+BuildLog output.
 
 Provider-free replay checks the prepared rooted coordinate and injects the
-compiler-owned grant-policy denial without executing a virtual create. The
-tag-1 row is recognized before generic Output-create classification, produces
-no Output entry, and must reproduce the complete attempt and build result
-before the compiler issues the closed replay verdict. Canonical recovery
-retains the refusal ordinal, access, and reason rather than merely counting the
-row.
+compiler-owned grant-policy denial without executing a virtual create or
+remove. The Source rows are recognized before generic Output-create or
+Output-remove classification, produce no Output entry, and must reproduce the
+complete attempt and build result before the compiler issues the closed replay
+verdict. Canonical recovery retains the selected operation, rooted coordinate,
+refusal ordinal, access, and reason rather than merely counting the row.
 
-Alternate modes, roots, providers, results, errors, refusal classes, multiple
-attempts, Source prefixes, authorized or mixed operations, symlink escapes,
-unresolvable or unrepresentable paths, evidence-limit failures, rename
-denials, and host error text remain non-receipted. This receipts an immutable
-compiler grant decision; it makes no claim about host permission enforcement
-or containment.
+Alternate create modes, roots, providers, results, errors, refusal classes,
+multiple attempts, Source prefixes, authorized or mixed operations, symlink
+escapes, unresolvable or unrepresentable paths, evidence-limit failures,
+directory mutations, rename denials, and host error text remain non-receipted.
+Further operation families require a concrete receipted-build need; matrix
+completeness is not a goal. This receipts an immutable compiler grant decision;
+it makes no claim about host permission enforcement or containment.
 
 ## Compiler-owned build log (summary v63, replay record v43)
 

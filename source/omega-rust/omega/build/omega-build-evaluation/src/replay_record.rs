@@ -98,7 +98,7 @@ use symlinks::{rehydrate_output_symlink_shape, validate_output_symlink_shape};
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 54;
+const VERSION: u16 = 55;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -464,12 +464,17 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
             )
         });
     }
-    if operation_suffix_start == 0 && shapes.len() == 1 && shapes[0].operation == 1 {
+    if operation_suffix_start == 0 && shapes.len() == 1 && matches!(shapes[0].operation, 1 | 9) {
         validate_source_write_refusal_shape(&shapes[0])?;
         let [rooted] = shapes[0].rooted_paths.as_slice() else {
             unreachable!("validated refused Source write has one rooted path")
         };
         let record = psi_checked_interpreter::FilesystemSourceWriteRefusalReplayRecord::new(
+            if shapes[0].operation == 1 {
+                psi_checked_interpreter::FilesystemSourceWriteRefusalReplayKind::Create
+            } else {
+                psi_checked_interpreter::FilesystemSourceWriteRefusalReplayKind::RemoveFile
+            },
             crate::BUILD_SOURCE_ROOT_IDENTITY,
             clone_bytes(rooted.bytes)?,
         )
@@ -1928,7 +1933,7 @@ fn validate_first_rung(
         ));
     }
     if cursor < shapes.len() {
-        if cursor == 0 && shapes.len() == 1 && shapes[cursor].operation == 1 {
+        if cursor == 0 && shapes.len() == 1 && matches!(shapes[cursor].operation, 1 | 9) {
             validate_source_write_refusal_shape(&shapes[cursor])?;
             return Ok(());
         }
@@ -2198,11 +2203,15 @@ fn validate_source_write_refusal_shape(
             "filesystem replay refused Source write has no unique rooted path",
         ));
     };
-    if attempt.operation != 1
+    let operation_is_exact = match attempt.operation {
+        1 => attempt.scalars.as_slice() == [(1, ShapeScalar::I32(438))],
+        9 => attempt.scalars.is_empty(),
+        _ => false,
+    };
+    if !operation_is_exact
         || attempt.provider != 2
         || attempt.result != ShapeResult::Scalar(-1)
         || attempt.post_error != 13
-        || attempt.scalars.as_slice() != [(1, ShapeScalar::I32(438))]
         || rooted.ordinal != 0
         || rooted.root != 0
         || !psi_checked_interpreter::filesystem_root_relative_path_is_canonical(rooted.bytes, false)

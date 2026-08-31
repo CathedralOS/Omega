@@ -42,6 +42,13 @@ fn exact_attempt() -> BuildFilesystemOperationAttempt {
     }
 }
 
+fn exact_remove_attempt() -> BuildFilesystemOperationAttempt {
+    let mut attempt = exact_attempt();
+    attempt.operation_tag = 9;
+    attempt.scalar_operands.clear();
+    attempt
+}
+
 fn summary(attempts: Vec<BuildFilesystemOperationAttempt>) -> BuildObservationSummary {
     BuildObservationSummary {
         schema_version: BUILD_OBSERVATION_SCHEMA_VERSION,
@@ -104,6 +111,32 @@ fn refused_source_write_recovers_and_rehydrates_without_output() {
 }
 
 #[test]
+fn refused_source_remove_recovers_as_policy_not_output_mutation() {
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let captured = capture_verified_build_filesystem_replay_record(
+        &summary(vec![exact_remove_attempt()]),
+        limits,
+    )
+    .expect("exact refused Source remove encodes")
+    .expect("verified refused Source remove retains custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(captured.canonical_bytes(), limits)
+            .expect("exact refused Source remove recovers");
+    let replay = rehydrate_review_only_build_filesystem_replay_record(&recovered, limits)
+        .expect("exact refused Source remove rehydrates");
+
+    assert!(!replay.has_output_attempts());
+    assert!(replay.output_entries().is_empty());
+    let [attempt] = replay.attempts() else {
+        panic!("refused Source remove replay must retain one attempt")
+    };
+    assert_eq!(attempt.operation_tag(), 9);
+    assert!(attempt.scalar_operands().is_empty());
+    assert_eq!(attempt.rooted_path_operand_resolutions().len(), 1);
+    assert_eq!(attempt.grant_refusals().len(), 1);
+}
+
+#[test]
 fn refused_source_write_codec_rejects_omission_duplication_and_framing_mutation() {
     let limits = BuildFilesystemReplayRecordLimits::default();
     assert!(capture_verified_build_filesystem_replay_record(&summary(Vec::new()), limits).is_err());
@@ -125,6 +158,10 @@ fn refused_source_write_codec_rejects_omission_duplication_and_framing_mutation(
     let mut trailing = captured.canonical_bytes().to_vec();
     trailing.push(0);
     assert!(recover_review_only_build_filesystem_replay_record(&trailing, limits).is_err());
+
+    let mut prior_version = captured.canonical_bytes().to_vec();
+    prior_version[MAGIC.len()..MAGIC.len() + 2].copy_from_slice(&54u16.to_le_bytes());
+    assert!(recover_review_only_build_filesystem_replay_record(&prior_version, limits).is_err());
 }
 
 #[test]
@@ -195,6 +232,29 @@ fn refused_source_write_codec_rejects_independent_semantic_mutations() {
             operand_ordinal: 0,
             access: BuildFilesystemGrantAccess::Write,
             root: BuildFilesystemRoot::Source,
+            relative_path: b"blocked.bin".to_vec(),
+        });
+    capture_rejects(changed);
+}
+
+#[test]
+fn refused_source_remove_rejects_create_mode_and_output_authorization_shapes() {
+    let mut changed = exact_remove_attempt();
+    changed.scalar_operands.push(BuildFilesystemScalarOperand {
+        operand_ordinal: 1,
+        value: BuildFilesystemScalarOperandValue::I32(438),
+    });
+    capture_rejects(changed);
+
+    let mut changed = exact_remove_attempt();
+    changed.rooted_path_operand_resolutions[0].root = BuildFilesystemRoot::Output;
+    changed.grant_refusals.clear();
+    changed
+        .authorized_paths
+        .push(BuildFilesystemAuthorizedPath {
+            operand_ordinal: 0,
+            access: BuildFilesystemGrantAccess::Write,
+            root: BuildFilesystemRoot::Output,
             relative_path: b"blocked.bin".to_vec(),
         });
     capture_rejects(changed);
