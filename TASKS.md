@@ -8973,7 +8973,10 @@ compiler concept is introduced.
   enabled facets. Evidence over the current raw `i32` descriptors may claim
   operation classes only. Add typed unforgeable descriptor handles and checked
   attenuation before claiming that reads or writes are confined to objects
-  opened with corresponding authority.
+  opened with corresponding authority. The redirect is owner-blocked on Q9's
+  first closed target/binding classification table; the containment formula
+  alone does not determine authority for current syscall, import, firmware,
+  table, or checked-physical coordinates.
 - **R5:** continue exact inferred may-write summaries and relational candidates.
   Exact frames compose through transparent returns/helpers, caller-isolated
   scratch locals, statement/value positions, stable mutable aliases, and direct
