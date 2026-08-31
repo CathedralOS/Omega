@@ -1656,6 +1656,16 @@ only when the verifier reconstructs the public meaning. Other landed source
 forms remain explicitly transitional until their artifact-relative carriers
 exist.
 
+Source admission now recognizes the projection declaration only when its
+resolved symbol has the exact toolchain-owned `Float::meaning32` or
+`Float::meaning64` hermetic identity and originates in the sealed
+`float_operations.omg` source, with the exact toolchain `FloatMeaning` result
+owned by `float_meaning.omg`. Checked binding independently repeats these
+joins. A local same-path, same-signature operator or result lookalike therefore
+cannot mint facts or receive already validated facts. Carrying the exact
+declaration/catalog tuple into artifact-relative proof ownership remains
+separate engineering.
+
 The compiler canonicalizes equal tuples to one proof value before equality is
 formed. Multiple authored occurrences may therefore reference the same
 `ProofValueId`; the verifier independently reconstructs the tuple and the

@@ -104,6 +104,13 @@ fn replay_invocation(
                     "validated float-meaning projection operator identity is not canonical",
                 )
             })?;
+    let Some(replayed_primitive) =
+        psi_validation::exact_toolchain_float_projection_primitive(program, operator, operation)
+    else {
+        return Err(Diagnostic::error(
+            "validated float-meaning projection lost its sealed toolchain declaration before checked binding",
+        ));
+    };
     if operation != fact.operation {
         return Err(Diagnostic::error(
             "validated float-meaning projection operation drifted before checked binding",
@@ -132,12 +139,7 @@ fn replay_invocation(
             "validated float-meaning projection call no longer has one source operand",
         ));
     };
-    if *source != fact.source
-        || program.primitive_type_reference(parameter.type_reference) != Some(fact.source_primitive)
-        || !program
-            .named_type_reference(operator.return_type)
-            .is_some_and(|name| name.as_str() == "FloatMeaning")
-    {
+    if *source != fact.source || replayed_primitive != fact.source_primitive {
         return Err(Diagnostic::error(
             "validated float-meaning projection source/result shape drifted before checked binding",
         ));
@@ -297,35 +299,121 @@ pub(crate) fn bind_float_meaning_projection_facts(
 mod tests {
     use super::*;
     use psi_checked_trees::{CheckedFloatProjectionInputId, CheckedProofValueId};
+    use psi_source::{SourceMap, SourceOrigin};
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+    use psi_syntax_trees_to_symbol_resolved_trees::{
+        lower_syntax_trees, lower_syntax_trees_with_sources,
+    };
+    use psi_tokens_to_syntax_trees::{
+        parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
+    };
+    use std::path::PathBuf;
+    use std::sync::Arc;
+
+    const CORE_FLOAT_MEANING: &str = "data FloatMeaning { }";
+    const CORE_PROJECTIONS: &str = r#"
+        operator Float::meaning32(value: f32) -> FloatMeaning;
+        operator Float::meaning64(value: f64) -> FloatMeaning;
+    "#;
+
+    fn lower_projection_fixture(source: &str) -> TypedTrees {
+        lower_projection_fixture_with_meaning_origin(source, SourceOrigin::Toolchain)
+    }
+
+    fn lower_projection_fixture_with_meaning_origin(
+        source: &str,
+        meaning_origin: SourceOrigin,
+    ) -> TypedTrees {
+        lower_projection_fixture_with_metadata(
+            source,
+            meaning_origin,
+            CORE_PROJECTIONS,
+            "float_operations.omg",
+            SourceOrigin::Toolchain,
+        )
+    }
+
+    fn lower_projection_fixture_with_metadata(
+        source: &str,
+        meaning_origin: SourceOrigin,
+        projection_declarations: &str,
+        projection_file: &str,
+        projection_origin: SourceOrigin,
+    ) -> TypedTrees {
+        let mut sources = SourceMap::default();
+        let meaning_source_id = sources
+            .add_with_metadata(
+                PathBuf::from("source/library/core/float_meaning.omg"),
+                CORE_FLOAT_MEANING.to_owned(),
+                PathBuf::from("source/library/core"),
+                None,
+                meaning_origin,
+            )
+            .source_id;
+        let projection_source_id = sources
+            .add_with_metadata(
+                PathBuf::from("source/library/core").join(projection_file),
+                projection_declarations.to_owned(),
+                PathBuf::from("source/library/core"),
+                None,
+                projection_origin,
+            )
+            .source_id;
+        let user_source_id = sources
+            .add(
+                PathBuf::from("tests/float_projection/main.omg"),
+                source.to_owned(),
+            )
+            .source_id;
+        let meaning_tokens = Lexer::new(CORE_FLOAT_MEANING)
+            .tokenize()
+            .expect("tokenize float meaning");
+        let mut syntax = parse_syntax_trees_with_id(meaning_source_id, &meaning_tokens)
+            .expect("parse float meaning");
+        let projection_tokens = Lexer::new(projection_declarations)
+            .tokenize()
+            .expect("tokenize projections");
+        parse_syntax_trees_into_with_id(&mut syntax, projection_source_id, &projection_tokens)
+            .expect("parse core projections");
+        let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
+        parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
+            .expect("parse fixture");
+        let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+            .expect("resolve source-aware projection fixture");
+        lower_symbol_resolved_trees(&resolved).expect("type projection fixture")
+    }
+
+    fn lower_local_projection_lookalike(source: &str) -> TypedTrees {
+        let combined = format!("{CORE_FLOAT_MEANING}\n{CORE_PROJECTIONS}\n{source}");
+        let tokens = Lexer::new(&combined)
+            .tokenize()
+            .expect("tokenize lookalike");
+        let syntax = parse_syntax_trees(&tokens).expect("parse lookalike");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve lookalike");
+        lower_symbol_resolved_trees(&resolved).expect("type lookalike")
+    }
 
     fn typed_projection_program() -> TypedTrees {
-        let source = r#"
-            data FloatMeaning { }
-            operator Float::meaning32(value: f32) -> FloatMeaning;
-            operator Float::meaning64(value: f64) -> FloatMeaning;
+        lower_projection_fixture(projection_source())
+    }
 
+    fn local_projection_program() -> TypedTrees {
+        lower_local_projection_lookalike(projection_source())
+    }
+
+    fn projection_source() -> &'static str {
+        r#"
             machine prove(value32: f32, value64: f64)
             requires
                 Float::meaning32(value32) == Float::meaning32(value32);
                 Float::meaning64(value64) == Float::meaning64(value64);
             { }
-        "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
-        lower_symbol_resolved_trees(&resolved).expect("type")
+        "#
     }
 
     fn typed_literal_projection_program() -> TypedTrees {
         let source = r#"
-            data FloatMeaning { }
-            operator Float::meaning32(value: f32) -> FloatMeaning;
-            operator Float::meaning64(value: f64) -> FloatMeaning;
-
             machine prove()
             requires
                 Float::meaning32(0.0f32) == Float::meaning32(0.00f32);
@@ -333,10 +421,7 @@ mod tests {
                 Float::meaning64(0.1f64) == Float::meaning64(0.10f64);
             { }
         "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = lower_syntax_trees(&syntax).expect("resolve");
-        lower_symbol_resolved_trees(&resolved).expect("type")
+        lower_projection_fixture(source)
     }
 
     #[test]
@@ -467,6 +552,108 @@ mod tests {
         )
         .expect_err("cross-format operation must reject");
         assert!(diagnostics[0].message.contains("operation drifted"));
+        assert!(proof.float_meaning_projections.is_empty());
+    }
+
+    #[test]
+    fn proof_projection_call_rejects_a_local_operator_lookalike() {
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(
+                &local_projection_program(),
+            )
+            .expect_err("a local projection spelling has no closed-catalog authority");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("did not resolve one exact canonical operator signature"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0],
+        );
+    }
+
+    #[test]
+    fn canonical_projection_rejects_a_user_owned_float_meaning_result() {
+        let program =
+            lower_projection_fixture_with_meaning_origin(projection_source(), SourceOrigin::User);
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect_err("the canonical operator cannot return a user FloatMeaning lookalike");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("sealed toolchain `FloatMeaning`"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0],
+        );
+    }
+
+    #[test]
+    fn projection_call_rejects_a_toolchain_declaration_from_the_wrong_file() {
+        let program = lower_projection_fixture_with_metadata(
+            projection_source(),
+            SourceOrigin::Toolchain,
+            CORE_PROJECTIONS,
+            "float_projection_lookalike.omg",
+            SourceOrigin::Toolchain,
+        );
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect_err("a different toolchain file cannot own Float projection semantics");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("did not resolve one exact canonical operator signature"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0],
+        );
+    }
+
+    #[test]
+    fn canonical_projection_declaration_rejects_source_format_drift() {
+        let program = lower_projection_fixture_with_metadata(
+            "machine main() { }",
+            SourceOrigin::Toolchain,
+            r#"
+                operator Float::meaning32(value: f64) -> FloatMeaning;
+                operator Float::meaning64(value: f64) -> FloatMeaning;
+            "#,
+            "float_operations.omg",
+            SourceOrigin::Toolchain,
+        );
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect_err("the sealed meaning32 declaration cannot drift to binary64");
+        assert!(
+            diagnostics[0].message.contains("from `f32`"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0],
+        );
+    }
+
+    #[test]
+    fn checked_binding_rejects_validated_facts_replayed_on_a_local_lookalike() {
+        let canonical = typed_projection_program();
+        let validation =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(
+                &canonical,
+            )
+            .expect("validate canonical toolchain projections");
+        let local = local_projection_program();
+        let mut proof = ProofFacts::default();
+        let diagnostics = bind_float_meaning_projection_facts(
+            &local,
+            &mut proof,
+            &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
+        )
+        .expect_err("validated facts cannot transfer to a local projection lookalike");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("sealed toolchain declaration"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0],
+        );
         assert!(proof.float_meaning_projections.is_empty());
     }
 

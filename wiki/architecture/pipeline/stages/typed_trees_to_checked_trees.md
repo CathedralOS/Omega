@@ -871,6 +871,12 @@ Current ownership is:
   Exact-bit literals now realize this requirement end to end: checked facts
   retain raw `u32`/`u64` bits, equal tuples deduplicate independently of
   occurrences, and Terminal/verifier replay uses no producer coordinate.
+  Projection admission additionally requires the exact toolchain-owned
+  `Float::meaning32`/`meaning64` symbol from `float_operations.omg`, and checked
+  binding replays that origin/path/identity join plus the exact toolchain
+  `FloatMeaning` result from `float_meaning.omg` before emitting any row.
+  Structurally identical local operator or result declarations reject rather
+  than borrowing the closed catalog semantics.
   Other source forms remain explicitly transitional pending their artifact-
   relative carriers.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:

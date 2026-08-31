@@ -3190,6 +3190,12 @@ format, closed catalog operation, and payload-erased meaning; canonical
 validation rejects duplicate tuples and cross-format substitution. Contract,
 Terminal-value, and structural-leaf sources still use the explicit
 transitional coordinate and confer no artifact-aware correspondence yet.
+Upstream source admission and checked replay now require the exact sealed
+toolchain projection declaration from `float_operations.omg` and exact
+toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
+operator or result declaration cannot reach this Terminal side table. The
+table still needs an artifact-carried exact declaration/catalog owner before it
+becomes production proof-ledger evidence.
 
 The relation is structural equality of the already payload-erased
 `FloatMeaning` sum, not IEEE comparison: NaN is reflexive and signed zero is
