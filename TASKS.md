@@ -3068,6 +3068,14 @@ Remaining:
   Terminal verification under the request's exact admission profile, and never
   enters StateGraph, native emission, output, or installation; unsupported or
   unproved Terminal vocabulary rejects instead of selecting another backend.
+  That product stop now delegates one complete operation to the dedicated
+  compiler Terminal-product owner. The owner retains checked callback custody,
+  invokes the canonical Psi producer, re-decodes and verifies the artifact,
+  constructs the exact native-realization proposal, and returns the complete
+  retained product. The driver keeps only the stage call, production-subject
+  projection, and final `CompileReport` assembly; an architecture canary rejects
+  moving producer, verifier, proposal, or retained-product construction back
+  into the coordinator.
   `NativeArtifact` now enters the
   same Psi-owned frontend and canonical producer, then crosses one source-free
   native realization operation shared with component staging. Its retained
