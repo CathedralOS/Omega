@@ -2112,15 +2112,15 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third and fourth bounded represented-record levels are now live under the
-  same nonzero, acyclic, non-generic, case-free rules. Their custody
+  Third, fourth, and fifth bounded represented-record levels are now live under
+  the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A fifth
+  storage, content, domain, provider, or establishment authority. A sixth
   represented record level and broader
   recursion, structurally zero-layout wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -9526,11 +9526,22 @@ reach or trust, and private proof improvements do not change public identity.
   installation replay retain the common length-ten root and exact nine-
   operation/one-edge fuel ordinals. Missing, reordered, redirected-
   root, wrong-length, index, cleanup-order, and artifact mutations reject;
-  `[T; 11]` and wider prefixes remain fail closed without runtime liveness state
+  wider prefixes at that rung remain fail closed without runtime liveness state
+  or a loop.
+
+  The following bounded construction-prefix successor is now closed. The same
+  exact carrier admits `[T; 11]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]` and ordinary cleanup
+  `[9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Checked production, Terminal verification,
+  codec and interpretation, machine emission, object/image validation, and
+  installation replay retain the common length-eleven root and exact ten-
+  operation/one-edge fuel ordinals. Missing, reordered, redirected-root,
+  wrong-length, index, cleanup-order, and artifact mutations reject;
+  `[T; 12]` and wider prefixes remain fail closed without runtime liveness state
   or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 6]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 10]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 11]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
