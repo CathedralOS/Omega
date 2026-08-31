@@ -434,38 +434,63 @@ fn checked_source_wrapping_divide_uses_known_nonzero_divisor() {
 }
 
 #[test]
-fn only_canonical_nonzero_rows_bypass_legacy_divisor_reduction() {
+fn exact_nonzero_rows_keep_the_canonical_divisor_question() {
     let checked = compile_to_checked(&source_canary(), None)
         .expect("known-divisor source canaries should compile");
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
     for machine in [
         "terminal_exact_divide_known_right",
         "terminal_exact_remainder_known_right",
     ] {
         let lowered = lower_machine(&checked, machine)
             .unwrap_or_else(|error| panic!("{machine} should lower: {error:?}"));
-        let obligation = lowered.semantic_module.machines[0]
+        let (obligation, right) = lowered.semantic_module.machines[0]
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
             .find_map(|operation| match operation.kind {
-                OperationKind::ExactIntegerDivide { obligation, .. }
-                | OperationKind::ExactIntegerRemainder { obligation, .. } => Some(obligation),
+                OperationKind::ExactIntegerDivide {
+                    obligation, right, ..
+                }
+                | OperationKind::ExactIntegerRemainder {
+                    obligation, right, ..
+                } => Some((obligation, right)),
                 _ => None,
             })
             .expect("controlled operation owns an obligation");
         let reconstructed =
             psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
                 .unwrap_or_else(|error| panic!("{machine} should reconstruct: {error:?}"));
-        assert_eq!(
-            reconstructed
-                .iter()
-                .find(|site| site.obligation.id == obligation)
-                .expect("operation obligation is reconstructed")
-                .obligation
-                .proposition,
-            psi_core::Proposition::Truth,
-            "{machine} remains on its literal-aware legacy reducer"
+        let site = reconstructed
+            .iter()
+            .find(|site| site.obligation.id == obligation)
+            .expect("operation obligation is reconstructed");
+        assert!(
+            site.canonical_certificate,
+            "{machine} uses the canonical proof question"
         );
+        assert_eq!(
+            site.obligation.proposition,
+            psi_core::Proposition::LessOrEqual(
+                psi_core::ScalarTerm::integer(u32_type, IntegerValue::Unsigned(1)).unwrap(),
+                psi_core::ScalarTerm::value(right, ScalarType::Integer(u32_type)),
+            ),
+            "{machine} keeps the fact-independent canonical nonzero question"
+        );
+        let evidence = lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .find(|evidence| evidence.obligation == obligation)
+            .expect("known literal divisor has a certificate");
+        let psi_proof_admission::EvidenceRoute::CertificateDerived(certificate) = &evidence.route
+        else {
+            panic!("{machine} must use a checked certificate")
+        };
+        assert!(matches!(
+            certificate.proof.rule,
+            psi_proof_admission::ProofRule::IntegerLessOrEqualSubstitution { endpoint: 1, .. }
+        ));
     }
 }
 
