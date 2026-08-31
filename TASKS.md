@@ -9072,9 +9072,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to fifteen unary, binary, primitive-cast,
+  call producers in up to sixteen unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  sixteenth direct scalar shell remains fenced; aggregate fields and projected
+  seventeenth direct scalar shell remains fenced; aggregate fields and projected
   concrete record, selected-case, or fixed-array literals retain their
   separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9118,7 +9118,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a sixteenth direct scalar computed shell,
+  aggregate/literal computed shell, a seventeenth direct scalar computed shell,
   other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
