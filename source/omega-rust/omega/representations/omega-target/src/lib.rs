@@ -13,8 +13,8 @@ pub use elf_loader::{
     ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
 };
 pub use foreign_locator::{
-    ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
-    normalize_foreign_locator,
+    ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
+    NormalizedForeignLocator, normalize_foreign_locator,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetEntryStackSubject,

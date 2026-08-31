@@ -1,5 +1,31 @@
 use super::*;
 
+fn evaluated_import(
+    locator: omega_target::NormalizedForeignLocator,
+) -> omega_effects::provider_plan::EvaluatedForeignImport {
+    let usage = omega_effects::provider_plan::EvaluatedBindingUsage::from_evaluator(
+        7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0,
+    )
+    .expect("valid fixture usage");
+    let receipt = omega_effects::provider_plan::EvaluatedBindingReceipt::from_evaluation(
+        None,
+        "fixture::producer".to_owned(),
+        omega_effects::provider_plan::EvaluatedBindingProducerClosureDigest::from_bytes([11; 32])
+            .unwrap(),
+        1,
+        usage,
+        omega_effects::provider_plan::EvaluatedBindingEvaluationDigest::from_bytes([12; 32])
+            .unwrap(),
+        1,
+        omega_effects::provider_plan::EvaluatedBindingMaterializationDigest::from_bytes([13; 32])
+            .unwrap(),
+        locator.identity_digest(),
+    )
+    .expect("valid fixture receipt");
+    omega_effects::provider_plan::EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+        .expect("receipt matches fixture locator")
+}
+
 pub(super) fn import_plan(symbol: &[u8], profile: omega_target::TargetProfile) -> ProviderPlan {
     let requirement = "omega::test::Foreign::leaf()";
     ProviderPlan {
@@ -40,15 +66,17 @@ pub(super) fn import_plan(symbol: &[u8], profile: omega_target::TargetProfile) -
             method: "leaf".into(),
             requirement_identity: requirement.into(),
             binding: ProviderBinding::Import {
-                locator: omega_target::normalize_foreign_locator(
-                    omega_target::ForeignLocatorCandidate::ElfVersioned {
-                        object: b"libomega-test.so".to_vec(),
-                        symbol: symbol.to_vec(),
-                        version: b"OMEGA_TEST_1".to_vec(),
-                    },
-                    profile,
-                )
-                .unwrap(),
+                evaluated: evaluated_import(
+                    omega_target::normalize_foreign_locator(
+                        omega_target::ForeignLocatorCandidate::ElfVersioned {
+                            object: b"libomega-test.so".to_vec(),
+                            symbol: symbol.to_vec(),
+                            version: b"OMEGA_TEST_1".to_vec(),
+                        },
+                        profile,
+                    )
+                    .unwrap(),
+                ),
             },
         }],
         origin_package_identity: None,

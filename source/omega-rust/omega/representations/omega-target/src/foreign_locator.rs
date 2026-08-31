@@ -6,6 +6,7 @@
 //! object, symbol, version, or ordinal values.
 
 use crate::TargetProfile;
+use sha2::{Digest, Sha256};
 use std::fmt;
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
@@ -61,6 +62,19 @@ pub struct NormalizedForeignLocator {
     target: TargetProfile,
     locator: ForeignLocatorCandidate,
     non_authoritative_compatibility_fingerprint: u64,
+    identity_digest: ForeignLocatorIdentityDigest,
+}
+
+/// Collision-resistant identity of one complete normalized locator. This is
+/// the dependency-light join used by evaluated-binding receipts; it grants no
+/// provider or loader authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ForeignLocatorIdentityDigest([u8; 32]);
+
+impl ForeignLocatorIdentityDigest {
+    pub const fn as_bytes(self) -> [u8; 32] {
+        self.0
+    }
 }
 
 impl NormalizedForeignLocator {
@@ -77,6 +91,10 @@ impl NormalizedForeignLocator {
     /// identity, not collision-resistant admission evidence.
     pub const fn non_authoritative_compatibility_fingerprint(&self) -> u64 {
         self.non_authoritative_compatibility_fingerprint
+    }
+
+    pub const fn identity_digest(&self) -> ForeignLocatorIdentityDigest {
+        self.identity_digest
     }
 }
 
@@ -149,10 +167,12 @@ pub fn normalize_foreign_locator(
     validate_coordinates(&locator)?;
     let non_authoritative_compatibility_fingerprint =
         non_authoritative_compatibility_fingerprint(&locator, target);
+    let identity_digest = identity_digest(&locator, target);
     Ok(NormalizedForeignLocator {
         target,
         locator,
         non_authoritative_compatibility_fingerprint,
+        identity_digest,
     })
 }
 
@@ -271,6 +291,55 @@ fn non_authoritative_compatibility_fingerprint(
         }
     }
     hash.finish()
+}
+
+fn identity_digest(
+    locator: &ForeignLocatorCandidate,
+    target: TargetProfile,
+) -> ForeignLocatorIdentityDigest {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.foreign-locator.sha256.v1\0");
+    hash_bytes(&mut digest, target.target_name().as_bytes());
+    match locator {
+        ForeignLocatorCandidate::PeByName { library, export } => {
+            digest.update([1]);
+            hash_bytes(&mut digest, library);
+            hash_bytes(&mut digest, export);
+        }
+        ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+            digest.update([2]);
+            hash_bytes(&mut digest, library);
+            hash_bytes(&mut digest, &ordinal.to_le_bytes());
+        }
+        ForeignLocatorCandidate::ElfVersioned {
+            object,
+            symbol,
+            version,
+        } => {
+            digest.update([3]);
+            hash_bytes(&mut digest, object);
+            hash_bytes(&mut digest, symbol);
+            hash_bytes(&mut digest, version);
+        }
+        ForeignLocatorCandidate::MachODylibSymbol {
+            install_name,
+            symbol,
+        } => {
+            digest.update([4]);
+            hash_bytes(&mut digest, install_name);
+            hash_bytes(&mut digest, symbol);
+        }
+    }
+    ForeignLocatorIdentityDigest(digest.finalize().into())
+}
+
+fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
+    digest.update(
+        u64::try_from(bytes.len())
+            .expect("normalized foreign-locator coordinate length fits u64")
+            .to_le_bytes(),
+    );
+    digest.update(bytes);
 }
 
 struct Fnv1a(u64);

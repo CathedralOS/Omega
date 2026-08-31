@@ -469,7 +469,7 @@ pub enum TrustProgressPremiseSubject {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrustProviderRealization {
     Import {
-        locator: omega_effects::NormalizedForeignLocator,
+        evaluated: omega_effects::provider_plan::EvaluatedForeignImport,
     },
     /// Temporary source `via Binding::DllImport("library", "symbol")`
     /// realization. This remains visibly distinct from an evaluated,
@@ -506,15 +506,20 @@ impl TrustProviderRealization {
     /// this trust row. Other realization cases have no locator report.
     pub fn foreign_locator_compatibility_report_identity(&self) -> Option<u64> {
         match self {
-            Self::Import { locator } => Some(locator.non_authoritative_compatibility_fingerprint()),
+            Self::Import { evaluated } => Some(
+                evaluated
+                    .locator()
+                    .non_authoritative_compatibility_fingerprint(),
+            ),
             _ => None,
         }
     }
 
     fn validate_reported_target(&self, reported_target: &str) -> Result<(), String> {
-        let Self::Import { locator } = self else {
+        let Self::Import { evaluated } = self else {
             return Ok(());
         };
+        let locator = evaluated.locator();
         let locator_target = locator.target().target_name();
         if reported_target != locator_target {
             return Err(format!(
@@ -527,20 +532,22 @@ impl TrustProviderRealization {
 
     fn report_text(&self) -> String {
         match self {
-            Self::Import { locator } => {
+            Self::Import { evaluated } => {
+                let locator = evaluated.locator();
                 let identity = locator.non_authoritative_compatibility_fingerprint();
                 let target = locator.target().target_name();
+                let receipt = hex_bytes(&evaluated.receipt().identity_digest());
                 match locator.locator() {
                     omega_effects::ForeignLocatorCandidate::PeByName { library, export } => {
                         format!(
-                            "normalized import PeByName [{identity:016x}] target `{target}` library bytes {} export bytes {}",
+                            "normalized import PeByName [{identity:016x}] receipt [{receipt}] target `{target}` library bytes {} export bytes {}",
                             hex_bytes(library),
                             hex_bytes(export),
                         )
                     }
                     omega_effects::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
                         format!(
-                            "normalized import PeByOrdinal [{identity:016x}] target `{target}` library bytes {} ordinal {ordinal}",
+                            "normalized import PeByOrdinal [{identity:016x}] receipt [{receipt}] target `{target}` library bytes {} ordinal {ordinal}",
                             hex_bytes(library),
                         )
                     }
@@ -549,7 +556,7 @@ impl TrustProviderRealization {
                         symbol,
                         version,
                     } => format!(
-                        "normalized import ElfVersioned [{identity:016x}] target `{target}` object bytes {} symbol bytes {} version bytes {}",
+                        "normalized import ElfVersioned [{identity:016x}] receipt [{receipt}] target `{target}` object bytes {} symbol bytes {} version bytes {}",
                         hex_bytes(object),
                         hex_bytes(symbol),
                         hex_bytes(version),
@@ -558,7 +565,7 @@ impl TrustProviderRealization {
                         install_name,
                         symbol,
                     } => format!(
-                        "normalized import MachODylibSymbol [{identity:016x}] target `{target}` install-name bytes {} symbol bytes {}",
+                        "normalized import MachODylibSymbol [{identity:016x}] receipt [{receipt}] target `{target}` install-name bytes {} symbol bytes {}",
                         hex_bytes(install_name),
                         hex_bytes(symbol),
                     ),

@@ -94,8 +94,11 @@ fn extract_external_binding_rows_for_scope(
                 continue;
             }
             let binding = match &row.binding {
-                ProviderBinding::Import { locator } => ExternalBindingKind::Import {
-                    locator: locator.clone(),
+                ProviderBinding::Import { evaluated } => ExternalBindingKind::Import {
+                    // The selected plan already commits the atomic evaluation
+                    // receipt; this ABI-facing row owns only physical locator
+                    // coordinates.
+                    locator: evaluated.locator().clone(),
                 },
                 ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
                     ExternalBindingKind::StringBackedImportBootstrap {

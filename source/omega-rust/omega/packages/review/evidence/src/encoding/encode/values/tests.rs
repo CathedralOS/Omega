@@ -13,7 +13,11 @@ use crate::record::{
     PackageReviewMachineParameterContract, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
 };
-use omega_effects::provider_plan::ProviderBinding;
+use omega_effects::provider_plan::{
+    EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
+    EvaluatedBindingProducerClosureDigest, EvaluatedBindingReceipt, EvaluatedBindingUsage,
+    EvaluatedForeignImport, ProviderBinding,
+};
 use psi_core::PackageKeyIdentity;
 
 use super::callables::{encode_external_callable_signature, encode_external_executable_supply_key};
@@ -202,20 +206,43 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
 pub(crate) fn normalized_import_row(
     export: &[u8],
 ) -> omega_effects::provider_plan::ProviderPlanRow {
+    let locator = omega_effects::normalize_foreign_locator(
+        omega_effects::ForeignLocatorCandidate::PeByName {
+            library: b"kernel32.dll".to_vec(),
+            export: export.to_vec(),
+        },
+        omega_target::TargetProfile::WindowsX64,
+    )
+    .expect("normalized import fixture");
     omega_effects::provider_plan::ProviderPlanRow {
         method: "write".to_owned(),
         requirement_identity: "Console::write#exact".to_owned(),
         binding: ProviderBinding::Import {
-            locator: omega_effects::normalize_foreign_locator(
-                omega_effects::ForeignLocatorCandidate::PeByName {
-                    library: b"kernel32.dll".to_vec(),
-                    export: export.to_vec(),
-                },
-                omega_target::TargetProfile::WindowsX64,
-            )
-            .expect("normalized import fixture"),
+            evaluated: evaluated_import(locator, 11),
         },
     }
+}
+
+fn evaluated_import(
+    locator: omega_effects::NormalizedForeignLocator,
+    seed: u8,
+) -> EvaluatedForeignImport {
+    let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
+        .expect("valid fixture usage");
+    let receipt = EvaluatedBindingReceipt::from_evaluation(
+        None,
+        format!("fixture::producer::{seed}"),
+        EvaluatedBindingProducerClosureDigest::from_bytes([seed; 32]).unwrap(),
+        1,
+        usage,
+        EvaluatedBindingEvaluationDigest::from_bytes([seed.wrapping_add(1); 32]).unwrap(),
+        1,
+        EvaluatedBindingMaterializationDigest::from_bytes([seed.wrapping_add(2); 32]).unwrap(),
+        locator.identity_digest(),
+    )
+    .expect("valid fixture receipt");
+    EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+        .expect("receipt matches fixture locator")
 }
 
 #[test]
@@ -276,14 +303,17 @@ fn macho_import_review_encoding_retains_raw_atomic_coordinates() {
             method: "write".to_owned(),
             requirement_identity: "Console::write#exact".to_owned(),
             binding: ProviderBinding::Import {
-                locator: omega_effects::normalize_foreign_locator(
-                    omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
-                        install_name: install_name.to_vec(),
-                        symbol: symbol.to_vec(),
-                    },
-                    omega_target::TargetProfile::MacosArm64,
-                )
-                .expect("normalized Mach-O import fixture"),
+                evaluated: evaluated_import(
+                    omega_effects::normalize_foreign_locator(
+                        omega_effects::ForeignLocatorCandidate::MachODylibSymbol {
+                            install_name: install_name.to_vec(),
+                            symbol: symbol.to_vec(),
+                        },
+                        omega_target::TargetProfile::MacosArm64,
+                    )
+                    .expect("normalized Mach-O import fixture"),
+                    21,
+                ),
             },
         };
         let mut encoder = Encoder::bounded(1024);

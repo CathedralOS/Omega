@@ -3,8 +3,8 @@
 pub mod analysis;
 pub mod foreign_locator {
     pub use omega_target::{
-        ForeignLocatorCandidate, ForeignLocatorValidationError, NormalizedForeignLocator,
-        normalize_foreign_locator,
+        ForeignLocatorCandidate, ForeignLocatorIdentityDigest, ForeignLocatorValidationError,
+        NormalizedForeignLocator, normalize_foreign_locator,
     };
 }
 pub mod provider_approval;

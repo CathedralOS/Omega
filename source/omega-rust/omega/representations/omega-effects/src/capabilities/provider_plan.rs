@@ -10,7 +10,7 @@
 //! never author-selected plan data -- which is why no trust field exists
 //! on these types.
 
-use super::foreign_locator::NormalizedForeignLocator;
+use super::foreign_locator::{ForeignLocatorIdentityDigest, NormalizedForeignLocator};
 pub use psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment;
 use sha2::{Digest, Sha256};
 
@@ -199,6 +199,286 @@ pub struct ServiceResultClaim {
     pub effective_carry: psi_language_semantics::CarryPolicy,
 }
 
+macro_rules! evaluated_binding_digest {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name([u8; 32]);
+
+        impl $name {
+            #[doc(hidden)]
+            pub fn from_bytes(bytes: [u8; 32]) -> Result<Self, String> {
+                if bytes == [0; 32] {
+                    return Err(concat!(stringify!($name), " cannot be zero").to_owned());
+                }
+                Ok(Self(bytes))
+            }
+
+            pub const fn as_bytes(self) -> [u8; 32] {
+                self.0
+            }
+        }
+    };
+}
+
+evaluated_binding_digest!(EvaluatedBindingProducerClosureDigest);
+evaluated_binding_digest!(EvaluatedBindingEvaluationDigest);
+evaluated_binding_digest!(EvaluatedBindingMaterializationDigest);
+
+/// Complete deterministic evaluator usage retained by one successful foreign
+/// binding materialization. The evaluator owns these values; this carrier only
+/// preserves them in provider identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EvaluatedBindingUsage {
+    usage_schema_version: u32,
+    step_schedule_marker: u32,
+    fuel_units: u64,
+    fuel_ceiling: u64,
+    build_log_bytes: u64,
+    filesystem_operation_attempts: u64,
+    peak_live_cells: u64,
+    peak_live_text_bytes: u64,
+    result_cells: u64,
+    result_text_bytes: u64,
+}
+
+impl EvaluatedBindingUsage {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_evaluator(
+        usage_schema_version: u32,
+        step_schedule_marker: u32,
+        fuel_units: u64,
+        fuel_ceiling: u64,
+        build_log_bytes: u64,
+        filesystem_operation_attempts: u64,
+        peak_live_cells: u64,
+        peak_live_text_bytes: u64,
+        result_cells: u64,
+        result_text_bytes: u64,
+    ) -> Result<Self, String> {
+        if usage_schema_version == 0 || step_schedule_marker == 0 {
+            return Err(
+                "evaluated binding usage requires nonzero schema and step-schedule identities"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            usage_schema_version,
+            step_schedule_marker,
+            fuel_units,
+            fuel_ceiling,
+            build_log_bytes,
+            filesystem_operation_attempts,
+            peak_live_cells,
+            peak_live_text_bytes,
+            result_cells,
+            result_text_bytes,
+        })
+    }
+
+    pub const fn usage_schema_version(self) -> u32 {
+        self.usage_schema_version
+    }
+
+    pub const fn step_schedule_marker(self) -> u32 {
+        self.step_schedule_marker
+    }
+
+    pub const fn fuel_units(self) -> u64 {
+        self.fuel_units
+    }
+
+    pub const fn fuel_ceiling(self) -> u64 {
+        self.fuel_ceiling
+    }
+
+    pub const fn build_log_bytes(self) -> u64 {
+        self.build_log_bytes
+    }
+
+    pub const fn filesystem_operation_attempts(self) -> u64 {
+        self.filesystem_operation_attempts
+    }
+
+    pub const fn peak_live_cells(self) -> u64 {
+        self.peak_live_cells
+    }
+
+    pub const fn peak_live_text_bytes(self) -> u64 {
+        self.peak_live_text_bytes
+    }
+
+    pub const fn result_cells(self) -> u64 {
+        self.result_cells
+    }
+
+    pub const fn result_text_bytes(self) -> u64 {
+        self.result_text_bytes
+    }
+}
+
+/// Durable receipt for one exact source evaluation and binding
+/// materialization. Arena handles, source spans, and raw traces deliberately
+/// remain outside this identity carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedBindingReceipt {
+    producer_package: Option<psi_core::PackageKeyIdentity>,
+    producer_callable_identity: String,
+    producer_closure_digest: EvaluatedBindingProducerClosureDigest,
+    evaluator_semantics_marker: u32,
+    evaluation_usage: EvaluatedBindingUsage,
+    evaluation_digest: EvaluatedBindingEvaluationDigest,
+    materializer_schema_version: u32,
+    materialization_digest: EvaluatedBindingMaterializationDigest,
+    locator_identity_digest: ForeignLocatorIdentityDigest,
+}
+
+impl EvaluatedBindingReceipt {
+    #[doc(hidden)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_evaluation(
+        producer_package: Option<psi_core::PackageKeyIdentity>,
+        producer_callable_identity: String,
+        producer_closure_digest: EvaluatedBindingProducerClosureDigest,
+        evaluator_semantics_marker: u32,
+        evaluation_usage: EvaluatedBindingUsage,
+        evaluation_digest: EvaluatedBindingEvaluationDigest,
+        materializer_schema_version: u32,
+        materialization_digest: EvaluatedBindingMaterializationDigest,
+        locator_identity_digest: ForeignLocatorIdentityDigest,
+    ) -> Result<Self, String> {
+        if producer_callable_identity.is_empty() {
+            return Err("evaluated binding receipt requires an exact producer identity".to_owned());
+        }
+        if evaluator_semantics_marker == 0 || materializer_schema_version == 0 {
+            return Err(
+                "evaluated binding receipt requires nonzero evaluator and materializer identities"
+                    .to_owned(),
+            );
+        }
+        Ok(Self {
+            producer_package,
+            producer_callable_identity,
+            producer_closure_digest,
+            evaluator_semantics_marker,
+            evaluation_usage,
+            evaluation_digest,
+            materializer_schema_version,
+            materialization_digest,
+            locator_identity_digest,
+        })
+    }
+
+    pub const fn producer_package(&self) -> Option<psi_core::PackageKeyIdentity> {
+        self.producer_package
+    }
+
+    pub fn producer_callable_identity(&self) -> &str {
+        &self.producer_callable_identity
+    }
+
+    pub const fn producer_closure_digest(&self) -> EvaluatedBindingProducerClosureDigest {
+        self.producer_closure_digest
+    }
+
+    pub const fn evaluator_semantics_marker(&self) -> u32 {
+        self.evaluator_semantics_marker
+    }
+
+    pub const fn evaluation_usage(&self) -> EvaluatedBindingUsage {
+        self.evaluation_usage
+    }
+
+    pub const fn evaluation_digest(&self) -> EvaluatedBindingEvaluationDigest {
+        self.evaluation_digest
+    }
+
+    pub const fn materializer_schema_version(&self) -> u32 {
+        self.materializer_schema_version
+    }
+
+    pub const fn materialization_digest(&self) -> EvaluatedBindingMaterializationDigest {
+        self.materialization_digest
+    }
+
+    pub const fn locator_identity_digest(&self) -> ForeignLocatorIdentityDigest {
+        self.locator_identity_digest
+    }
+
+    /// Collision-resistant commitment to every retained receipt field.
+    pub fn identity_digest(&self) -> [u8; 32] {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.evaluated-binding-receipt.sha256.v1\0");
+        match self.producer_package {
+            Some(package) => {
+                digest.update([1]);
+                receipt_hash_bytes(&mut digest, &package.digest());
+            }
+            None => digest.update([0]),
+        }
+        receipt_hash_bytes(&mut digest, self.producer_callable_identity.as_bytes());
+        receipt_hash_bytes(&mut digest, &self.producer_closure_digest.as_bytes());
+        digest.update(self.evaluator_semantics_marker.to_le_bytes());
+        let usage = self.evaluation_usage;
+        digest.update(usage.usage_schema_version.to_le_bytes());
+        digest.update(usage.step_schedule_marker.to_le_bytes());
+        digest.update(usage.fuel_units.to_le_bytes());
+        digest.update(usage.fuel_ceiling.to_le_bytes());
+        digest.update(usage.build_log_bytes.to_le_bytes());
+        digest.update(usage.filesystem_operation_attempts.to_le_bytes());
+        digest.update(usage.peak_live_cells.to_le_bytes());
+        digest.update(usage.peak_live_text_bytes.to_le_bytes());
+        digest.update(usage.result_cells.to_le_bytes());
+        digest.update(usage.result_text_bytes.to_le_bytes());
+        receipt_hash_bytes(&mut digest, &self.evaluation_digest.as_bytes());
+        digest.update(self.materializer_schema_version.to_le_bytes());
+        receipt_hash_bytes(&mut digest, &self.materialization_digest.as_bytes());
+        receipt_hash_bytes(&mut digest, &self.locator_identity_digest.as_bytes());
+        digest.finalize().into()
+    }
+}
+
+fn receipt_hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
+    digest.update(
+        u64::try_from(bytes.len())
+            .expect("evaluated binding receipt field length fits u64")
+            .to_le_bytes(),
+    );
+    digest.update(bytes);
+}
+
+/// Atomic normalized import plus the receipt that produced it. Construction
+/// rejects a receipt committed to any different locator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedForeignImport {
+    locator: NormalizedForeignLocator,
+    receipt: EvaluatedBindingReceipt,
+}
+
+impl EvaluatedForeignImport {
+    #[doc(hidden)]
+    pub fn from_retained_evidence(
+        locator: NormalizedForeignLocator,
+        receipt: EvaluatedBindingReceipt,
+    ) -> Result<Self, String> {
+        if receipt.locator_identity_digest() != locator.identity_digest() {
+            return Err(
+                "evaluated binding receipt does not commit to the supplied normalized locator"
+                    .to_owned(),
+            );
+        }
+        Ok(Self { locator, receipt })
+    }
+
+    pub const fn locator(&self) -> &NormalizedForeignLocator {
+        &self.locator
+    }
+
+    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
+        &self.receipt
+    }
+}
+
 /// How one method binds on one target -- the Binding sum's union with the
 /// platform tables' mechanisms. Aligned with the host-ABI plan's
 /// `HostBindingMechanism` so PRV4's relocation is a rename. Instructions are
@@ -209,7 +489,7 @@ pub enum ProviderBinding {
     /// One evaluated, target-validated physical foreign locator. Its atomic
     /// byte coordinates remain sealed together through selection and opaque
     /// executable accounting.
-    Import { locator: NormalizedForeignLocator },
+    Import { evaluated: EvaluatedForeignImport },
     /// Temporary source `via Binding::DllImport("library", "symbol")` bridge.
     ///
     /// This is intentionally distinct from [`Self::Import`]: string pairs are
@@ -1153,9 +1433,16 @@ impl ProviderPlan {
         });
         for row in rows {
             let binding_identity = match &row.binding {
-                ProviderBinding::Import { locator } => {
+                ProviderBinding::Import { evaluated } => {
+                    let locator = evaluated.locator();
+                    let receipt = evaluated
+                        .receipt()
+                        .identity_digest()
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
                     format!(
-                        "NormalizedImport:{:016x}",
+                        "EvaluatedImport:{:016x}/{receipt}",
                         locator.non_authoritative_compatibility_fingerprint(),
                     )
                 }
@@ -1518,7 +1805,8 @@ impl ProviderPlan {
                 ));
             }
             match &row.binding {
-                ProviderBinding::Import { locator } => {
+                ProviderBinding::Import { evaluated } => {
+                    let locator = evaluated.locator();
                     if self.target != locator.target().target_name() {
                         errors.push(format!(
                             "plan `{}` row `{}` normalized import targets `{}`, but the provider plan targets `{}`",
@@ -1851,7 +2139,8 @@ impl ProviderPlanDigestEncoder {
 
     fn provider_binding(&mut self, binding: &ProviderBinding) {
         match binding {
-            ProviderBinding::Import { locator } => {
+            ProviderBinding::Import { evaluated } => {
+                let locator = evaluated.locator();
                 self.byte(0);
                 self.string(locator.target().target_name());
                 match locator.locator() {
@@ -1884,6 +2173,7 @@ impl ProviderPlanDigestEncoder {
                         self.bytes(symbol);
                     }
                 }
+                self.bytes(&evaluated.receipt().identity_digest());
             }
             ProviderBinding::StringBackedImportBootstrap { library, symbol } => {
                 self.byte(1);
@@ -1945,29 +2235,50 @@ impl ServiceSchema {
 mod tests {
     use super::*;
 
+    fn evaluated_import(locator: NormalizedForeignLocator, seed: u8) -> EvaluatedForeignImport {
+        let usage = EvaluatedBindingUsage::from_evaluator(7, 1, 10, 1_000, 0, 0, 4, 12, 3, 0)
+            .expect("valid fixture usage");
+        let receipt = EvaluatedBindingReceipt::from_evaluation(
+            None,
+            format!("fixture::producer::{seed}"),
+            EvaluatedBindingProducerClosureDigest::from_bytes([seed; 32]).unwrap(),
+            1,
+            usage,
+            EvaluatedBindingEvaluationDigest::from_bytes([seed.wrapping_add(1); 32]).unwrap(),
+            1,
+            EvaluatedBindingMaterializationDigest::from_bytes([seed.wrapping_add(2); 32]).unwrap(),
+            locator.identity_digest(),
+        )
+        .expect("valid fixture receipt");
+        EvaluatedForeignImport::from_retained_evidence(locator, receipt)
+            .expect("receipt matches fixture locator")
+    }
+
     fn normalized_windows_import(library: &[u8], export: &[u8]) -> ProviderBinding {
+        let locator = crate::normalize_foreign_locator(
+            crate::ForeignLocatorCandidate::PeByName {
+                library: library.to_vec(),
+                export: export.to_vec(),
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("valid normalized Windows import");
         ProviderBinding::Import {
-            locator: crate::normalize_foreign_locator(
-                crate::ForeignLocatorCandidate::PeByName {
-                    library: library.to_vec(),
-                    export: export.to_vec(),
-                },
-                omega_target::TargetProfile::WindowsX64,
-            )
-            .expect("valid normalized Windows import"),
+            evaluated: evaluated_import(locator, 11),
         }
     }
 
     fn normalized_macos_import(install_name: &[u8], symbol: &[u8]) -> ProviderBinding {
+        let locator = crate::normalize_foreign_locator(
+            crate::ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: install_name.to_vec(),
+                symbol: symbol.to_vec(),
+            },
+            omega_target::TargetProfile::MacosArm64,
+        )
+        .expect("valid normalized Mach-O import");
         ProviderBinding::Import {
-            locator: crate::normalize_foreign_locator(
-                crate::ForeignLocatorCandidate::MachODylibSymbol {
-                    install_name: install_name.to_vec(),
-                    symbol: symbol.to_vec(),
-                },
-                omega_target::TargetProfile::MacosArm64,
-            )
-            .expect("valid normalized Mach-O import"),
+            evaluated: evaluated_import(locator, 21),
         }
     }
 
@@ -3146,6 +3457,35 @@ mod tests {
         let mut changed_export = baseline.clone();
         changed_export.rows[0].binding = normalized_windows_import(b"kernel32.dll", b"ReadFile");
         assert_ne!(baseline_identity, changed_export.report_fingerprint());
+    }
+
+    #[test]
+    fn evaluated_receipt_enters_provider_plan_identity_atomically() {
+        let locator = crate::normalize_foreign_locator(
+            crate::ForeignLocatorCandidate::PeByName {
+                library: b"kernel32.dll".to_vec(),
+                export: b"WriteFile".to_vec(),
+            },
+            omega_target::TargetProfile::WindowsX64,
+        )
+        .expect("valid normalized Windows import");
+        let mut baseline = windows_console_plan();
+        baseline.rows[0].binding = ProviderBinding::Import {
+            evaluated: evaluated_import(locator.clone(), 11),
+        };
+        let mut changed_receipt = baseline.clone();
+        changed_receipt.rows[0].binding = ProviderBinding::Import {
+            evaluated: evaluated_import(locator, 21),
+        };
+
+        assert_ne!(
+            baseline.report_fingerprint(),
+            changed_receipt.report_fingerprint()
+        );
+        assert_ne!(
+            baseline.identity_digest(),
+            changed_receipt.identity_digest()
+        );
     }
 
     #[test]

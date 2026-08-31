@@ -43,7 +43,7 @@ pub(super) fn rejoin_normalized_foreign_call(
     };
     let (
         omega_effects::provider_plan::ProviderBinding::Import {
-            locator: selected_locator,
+            evaluated: selected_import,
         },
         omega_calling_conventions::ExternalBindingKind::Import {
             locator: retained_locator,
@@ -59,6 +59,10 @@ pub(super) fn rejoin_normalized_foreign_call(
             "normalized foreign realization for `{requirement}` does not rejoin an evaluated import row with a calling plan"
         ))]);
     };
+    // Physical settlement consumes only the locator after the selected
+    // provider-closure digest has already committed the atomic evaluation
+    // receipt. It never reconstructs or re-evaluates provenance here.
+    let selected_locator = selected_import.locator();
     if selected_locator != retained_locator || retained_locator.target().native_target() != target {
         return Err(vec![Diagnostic::error(format!(
             "normalized foreign realization for `{requirement}` does not match the exact selected locator and native target"

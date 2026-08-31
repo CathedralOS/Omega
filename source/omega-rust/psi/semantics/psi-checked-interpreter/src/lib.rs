@@ -158,6 +158,22 @@ pub use value::{Cell, Value};
 
 use psi_checked_trees::CheckedTrees;
 
+/// Versioned identity of the checked interpreter semantics used for
+/// build-time result evaluation. This is independent of work accounting: a
+/// semantic change must advance this marker even when the step schedule and
+/// usage-record shape stay unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct EvaluationSemanticsIdentity(u32);
+
+impl EvaluationSemanticsIdentity {
+    pub const fn marker(self) -> u32 {
+        self.0
+    }
+}
+
+pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
+    EvaluationSemanticsIdentity(1);
+
 /// Identity of the deterministic evaluator-step schedule used before the
 /// canonical portable IR exists.
 ///
