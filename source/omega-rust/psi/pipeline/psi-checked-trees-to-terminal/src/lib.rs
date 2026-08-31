@@ -1071,7 +1071,15 @@ fn retain_selected_placed_view_inputs(
     {
         let lowered = lower_placed_view_input(checked, input, terminal_machine)?;
         if let Some(existing) = module.placed_view_inputs.iter().find(|existing| {
-            (existing.machine, existing.position) == (lowered.machine, lowered.position)
+            (
+                existing.machine,
+                &existing.source_state_identity,
+                existing.position,
+            ) == (
+                lowered.machine,
+                &lowered.source_state_identity,
+                lowered.position,
+            )
         }) {
             if existing != &lowered {
                 return unsupported("placed-view input custody disagrees across Terminal lowering");
@@ -1108,10 +1116,8 @@ fn lower_placed_view_input(
         input.schema,
         "placed-view schema has no hermetic declaration identity",
     )?;
-    let view_identity = psi_terminal::canonical_placed_view_identity(
-        &policy_identity,
-        &schema_identity,
-    );
+    let view_identity =
+        psi_terminal::canonical_placed_view_identity(&policy_identity, &schema_identity);
     Ok(TerminalPlacedViewInput {
         machine,
         position: input.position,
@@ -1121,7 +1127,7 @@ fn lower_placed_view_input(
         )?,
         source_state_identity: identity(
             input.state,
-            "placed-view entry state has no hermetic declaration identity",
+            "placed-view state has no hermetic declaration identity",
         )?,
         source_parameter_identity: identity(
             input.parameter,

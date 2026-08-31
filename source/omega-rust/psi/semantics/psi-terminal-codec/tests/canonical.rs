@@ -61,7 +61,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
     let identity = |name: &str| format!("package:{}::{name}", "01".repeat(32));
     let policy_identity = identity("Uart");
     let schema_identity = identity("Registers");
-    module.placed_view_inputs.push(TerminalPlacedViewInput {
+    let input = TerminalPlacedViewInput {
         machine: module.entry,
         position: 0,
         source_machine_identity: identity("inspect"),
@@ -79,6 +79,13 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
         schema_identity,
         placement_report_fingerprint: 41,
         placement_commitment: [0x5a; 32],
+    };
+    module.placed_view_inputs.push(input.clone());
+    module.placed_view_inputs.push(TerminalPlacedViewInput {
+        position: 0,
+        source_state_identity: identity("inspect::next"),
+        source_parameter_identity: identity("inspect::next::view"),
+        ..input
     });
 
     let bytes = encode_module(&module).expect("placed-view input should encode");

@@ -6310,11 +6310,12 @@ Remaining:
   unresolved-machine-parameter shapes keep failing closed. Carry the settled
   `Placed<P, T>` non-runtime-field input paths and per-outcome dispositions
   through checked and terminal representations. The first bounded checked
-  input carrier is live for one direct concrete entry reference: it retains
-  exact machine/state/parameter position and identity, reference access,
+  input carrier is live for direct concrete state references, including entry
+  and subordinate states: it retains exact machine/state/parameter position
+  and identity, reference access,
   binding mode, synthesized view, policy, producing `Policy::plan` machine,
   schema, and the complete validated placement rather than its compact report
-  fingerprint. Value-form and subordinate-state inputs remain fenced, and no
+  fingerprint. Value-form inputs remain fenced, and no
   runtime storage, accessor, provider, or ABI authority is created. The same
   bounded row now crosses Terminal through hermetic machine/state/parameter,
   policy, producing-plan-machine, and schema identities, a canonical

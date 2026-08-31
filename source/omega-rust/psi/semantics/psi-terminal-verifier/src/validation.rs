@@ -207,9 +207,14 @@ fn validate_placed_view_inputs(
     let inputs = &module.placed_view_inputs;
     let mut coordinates = BTreeSet::new();
     for input in inputs {
-        if !coordinates.insert((input.machine, input.position)) {
+        if !coordinates.insert((
+            input.machine,
+            input.source_state_identity.as_str(),
+            input.position,
+        )) {
             return Err(ModuleError::DuplicatePlacedViewInput {
                 machine: input.machine,
+                source_state_identity: input.source_state_identity.clone(),
                 position: input.position,
             });
         }
