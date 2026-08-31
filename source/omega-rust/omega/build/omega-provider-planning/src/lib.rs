@@ -15,7 +15,6 @@ mod selection;
 pub mod task_plans;
 
 pub use selection::{
-    ProviderOperatorFamilyCoordinate, ProviderOperatorFamilyExactApplicationCoverage,
-    ProviderOperatorFamilySelection, ProviderSelection, ProviderSelectionIdentity,
-    ProviderSelectionSubject,
+    ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection, ProviderSelection,
+    ProviderSelectionIdentity, ProviderSelectionSubject,
 };

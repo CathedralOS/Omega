@@ -187,13 +187,9 @@ fn validate_selected_provider_closure(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_effects::SelectedProviderPlanFacts;
     use omega_effects::provider_plan::{
         ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
-    };
-    use omega_effects::{
-        ConcreteIndexedProviderApplication, IndexedProviderConcreteArgument,
-        IndexedProviderRequirementSchema, ProviderAssertedIndexedApplicationCoverage,
-        SelectedProviderPlanFacts,
     };
 
     fn selected_plan() -> ProviderPlan {
@@ -239,72 +235,11 @@ mod tests {
         }
     }
 
-    fn schema() -> IndexedProviderRequirementSchema {
-        IndexedProviderRequirementSchema::new("IndexedRequirement", None, 2)
-            .expect("valid free indexed schema")
-    }
-
     fn projected(plan: &ProviderPlan) -> Vec<NativeSelectedProviderPlan> {
         vec![NativeSelectedProviderPlan::new(
             plan.report_fingerprint(),
             vec!["IndexedRequirement::apply".into()],
         )]
-    }
-
-    #[test]
-    fn component_replay_binds_indexed_coverage_even_when_plan_projection_is_unchanged() {
-        let plan = selected_plan();
-        let plan_identity = plan.report_fingerprint();
-        let base = SelectedProviderPlanFacts::from_selected_plans(vec![plan.clone()])
-            .expect("complete selected plan");
-        let generic = base
-            .clone()
-            .with_indexed_provider_application_coverage(vec![
-                ProviderAssertedIndexedApplicationCoverage::generic(plan_identity, schema())
-                    .expect("generic structural coverage"),
-            ])
-            .expect("generic coverage attaches to the selected slot");
-        let exact_application = ConcreteIndexedProviderApplication::new(
-            schema(),
-            vec![
-                IndexedProviderConcreteArgument::new("Plan").unwrap(),
-                IndexedProviderConcreteArgument::new("Value").unwrap(),
-            ],
-        )
-        .expect("exact structural application");
-        let exact = base
-            .with_indexed_provider_application_coverage(vec![
-                ProviderAssertedIndexedApplicationCoverage::exact_family(
-                    plan_identity,
-                    schema(),
-                    vec![exact_application],
-                )
-                .expect("exact structural coverage"),
-            ])
-            .expect("exact coverage attaches to the same selected slot");
-        let native_plans = projected(&plan);
-        assert_ne!(generic.identity_digest(), exact.identity_digest());
-
-        validate_selected_provider_closure(
-            generic.compatibility_report_identity(),
-            NativeSelectedProviderClosureDigest::from_digest(*generic.identity_digest().as_bytes()),
-            &native_plans,
-            &generic,
-        )
-        .expect("exact selected closure identity replays");
-        assert_eq!(
-            validate_selected_provider_closure(
-                generic.compatibility_report_identity(),
-                NativeSelectedProviderClosureDigest::from_digest(
-                    *generic.identity_digest().as_bytes(),
-                ),
-                &native_plans,
-                &exact,
-            ),
-            Err(
-                "component candidate selected provider closure report identity disagrees with its native artifact"
-            )
-        );
     }
 
     #[test]

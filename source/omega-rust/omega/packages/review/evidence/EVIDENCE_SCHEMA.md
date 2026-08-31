@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 96 and row schema version 54. This file
+The canonical review schema is version 97 and row schema version 55. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -60,15 +60,14 @@ distinct from provider selection and makes no audit or Terminal claim.
 Explicit boundary-operator family review rows retain one exact family and
 provider identity, selected target, selection authority, complete-declaration
 coverage, and the canonical exact-coordinate-to-plan mapping. Independent
-single-coordinate selections are not inferred into a family. Exact static
-application coverage is schema v87 / row v45.
+single-coordinate selections are not inferred into a family.
 
-D35 retires that provider-asserted arity/string field. The implementation
-migration advances review schema 96 to 97 and row schema 54 to 55, removes both
-the `NonGeneric` and `ExactApplications` variants, and keeps recovery current-
-version-only. No current record or compatibility parser may reinterpret the
-v87 field as D29 coverage; D29 requires compiler-derived tagged demand joined
-to an independently rechecked role-specific realization.
+D35 retired the provider-asserted exact-application arity/string field formerly
+introduced by schema v87 / row v45. Schema 97 / row 55 removes both the
+`NonGeneric` and `ExactApplications` variants and keeps recovery limited to the
+current version. No current record or compatibility parser may reinterpret the
+retired field as D29 coverage; D29 requires compiler-derived tagged demand
+joined to an independently rechecked role-specific realization.
 
 Installation-bound selected-provider rows retain the exact published service
 ceiling and the exact checked realization reach beneath their existing

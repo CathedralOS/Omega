@@ -1,4 +1,4 @@
-//! Provisional provider-coverage scaffolding for device/DMA ordering roles.
+//! Provisional provider-claim scaffolding for device/DMA ordering roles.
 //!
 //! This module closes only the non-authorizing requirement/discharge shape.
 //! A structurally closed row retains one provider assertion for the exact
@@ -61,7 +61,7 @@ pub enum DeviceOperation {
     PostedWriteCompletion,
 }
 
-/// One provisional candidate demand for structural provider coverage.
+/// One provisional candidate demand for structural provider claim.
 ///
 /// Mapping and schema/device fields are full opaque structural contexts, not
 /// compact IDs. The ordering-scope ID remains an inert nominal coordinate in
@@ -118,15 +118,15 @@ impl DeviceOperationRequirement {
 ///
 /// Construction snapshots the complete demand instead of asking a provider to
 /// restate public IDs or geometry. The provider-plan ID is provenance for the
-/// admitted coverage row; it is not operation or mapping authority.
+/// asserted claim row; it is not admission, operation, or mapping authority.
 #[derive(Debug)]
-#[must_use = "device-operation coverage retains one exact provider assertion"]
-pub struct ProviderAssertedDeviceOperationCoverage {
+#[must_use = "device-operation claim retains one exact provider assertion"]
+pub struct ProviderAssertedDeviceOperationClaim {
     provider_plan: DeviceOperationProviderPlanId,
     requirement: DeviceOperationRequirement,
 }
 
-impl ProviderAssertedDeviceOperationCoverage {
+impl ProviderAssertedDeviceOperationClaim {
     pub fn from_provider_assertion(
         provider_plan: DeviceOperationProviderPlanId,
         requirement: &DeviceOperationRequirement,
@@ -146,11 +146,11 @@ impl ProviderAssertedDeviceOperationCoverage {
     }
 }
 
-/// One exact demand joined to one exact provider-asserted coverage row.
+/// One exact demand joined to one exact provider-asserted claim row.
 #[derive(Debug)]
 pub struct StructurallyClosedDeviceOperationRequirement {
     requirement: DeviceOperationRequirement,
-    coverage: ProviderAssertedDeviceOperationCoverage,
+    claim: ProviderAssertedDeviceOperationClaim,
 }
 
 impl StructurallyClosedDeviceOperationRequirement {
@@ -159,11 +159,11 @@ impl StructurallyClosedDeviceOperationRequirement {
     }
 
     pub const fn provider_plan(&self) -> DeviceOperationProviderPlanId {
-        self.coverage.provider_plan
+        self.claim.provider_plan
     }
 
     fn validate_structure(&self) -> Result<(), AccessPlanDiagnostic> {
-        if self.requirement != self.coverage.requirement {
+        if self.requirement != self.claim.requirement {
             return Err(AccessPlanDiagnostic(
                 "structurally closed device-operation row no longer matches its provider assertion"
                     .into(),
@@ -207,7 +207,7 @@ impl StructurallyClosedDeviceOperationRequirements {
 #[derive(Debug)]
 pub struct DeviceOperationStructuralClosureError {
     requirements: Vec<DeviceOperationRequirement>,
-    coverage: Vec<ProviderAssertedDeviceOperationCoverage>,
+    claims: Vec<ProviderAssertedDeviceOperationClaim>,
     diagnostic: AccessPlanDiagnostic,
 }
 
@@ -220,27 +220,27 @@ impl DeviceOperationStructuralClosureError {
         self,
     ) -> (
         Vec<DeviceOperationRequirement>,
-        Vec<ProviderAssertedDeviceOperationCoverage>,
+        Vec<ProviderAssertedDeviceOperationClaim>,
     ) {
-        (self.requirements, self.coverage)
+        (self.requirements, self.claims)
     }
 }
 
-/// Close every emitted demand against exactly one admitted provider row.
+/// Close every emitted demand against exactly one supplied provider claim.
 ///
 /// Validation borrows the complete input first. No evidence is consumed into
 /// a success row until duplicate, missing, extra, and structural-drift checks
 /// all pass.
 pub fn structurally_close_device_operation_requirements(
     requirements: Vec<DeviceOperationRequirement>,
-    coverage: Vec<ProviderAssertedDeviceOperationCoverage>,
+    claims: Vec<ProviderAssertedDeviceOperationClaim>,
 ) -> Result<StructurallyClosedDeviceOperationRequirements, DeviceOperationStructuralClosureError> {
-    let coverage_order = match validate_device_operation_requirements(&requirements, &coverage) {
-        Ok(coverage_order) => coverage_order,
+    let claim_order = match validate_device_operation_requirements(&requirements, &claims) {
+        Ok(claim_order) => claim_order,
         Err(diagnostic) => {
             return Err(DeviceOperationStructuralClosureError {
                 requirements,
-                coverage,
+                claims,
                 diagnostic,
             });
         }
@@ -248,14 +248,14 @@ pub fn structurally_close_device_operation_requirements(
 
     // Validation above borrowed the original vectors. Consumption and
     // normalization into emitted-requirement order begins only after closure.
-    let mut coverage = coverage.into_iter().map(Some).collect::<Vec<_>>();
+    let mut claims = claims.into_iter().map(Some).collect::<Vec<_>>();
     let rows = requirements
         .into_iter()
-        .zip(coverage_order)
+        .zip(claim_order)
         .map(
             |(requirement, index)| StructurallyClosedDeviceOperationRequirement {
                 requirement,
-                coverage: coverage[index]
+                claim: claims[index]
                     .take()
                     .expect("validated unique evidence index is consumed exactly once"),
             },
@@ -270,7 +270,7 @@ pub fn structurally_close_device_operation_requirements(
 
 fn validate_device_operation_requirements(
     requirements: &[DeviceOperationRequirement],
-    coverage: &[ProviderAssertedDeviceOperationCoverage],
+    claims: &[ProviderAssertedDeviceOperationClaim],
 ) -> Result<Vec<usize>, AccessPlanDiagnostic> {
     let mut requirement_indices = BTreeMap::new();
     for (index, requirement) in requirements.iter().enumerate() {
@@ -285,41 +285,41 @@ fn validate_device_operation_requirements(
         }
     }
 
-    let mut coverage_indices = BTreeMap::new();
-    for (index, row) in coverage.iter().enumerate() {
+    let mut claim_indices = BTreeMap::new();
+    for (index, row) in claims.iter().enumerate() {
         let identity = row.requirement.identity;
-        if coverage_indices.insert(identity, index).is_some() {
+        if claim_indices.insert(identity, index).is_some() {
             return Err(AccessPlanDiagnostic(format!(
-                "device-operation requirement identity {} has duplicate provider coverage assertions",
+                "device-operation requirement identity {} has duplicate provider claims",
                 identity.normalized_identity()
             )));
         }
     }
 
-    let mut coverage_order = Vec::with_capacity(requirements.len());
+    let mut claim_order = Vec::with_capacity(requirements.len());
     for requirement in requirements {
-        let Some(&coverage_index) = coverage_indices.get(&requirement.identity) else {
+        let Some(&claim_index) = claim_indices.get(&requirement.identity) else {
             return Err(AccessPlanDiagnostic(format!(
-                "device-operation requirement identity {} has no provider coverage assertion",
+                "device-operation requirement identity {} has no provider claim",
                 requirement.identity.normalized_identity()
             )));
         };
-        if *requirement != coverage[coverage_index].requirement {
+        if *requirement != claims[claim_index].requirement {
             return Err(AccessPlanDiagnostic(format!(
-                "device-operation requirement identity {} has structurally drifted provider coverage",
+                "device-operation requirement identity {} has structurally drifted provider claim",
                 requirement.identity.normalized_identity()
             )));
         }
-        coverage_order.push(coverage_index);
+        claim_order.push(claim_index);
     }
 
-    for row in coverage {
+    for row in claims {
         if !requirement_indices.contains_key(&row.requirement.identity) {
             return Err(AccessPlanDiagnostic(format!(
-                "provider coverage names un-emitted device-operation requirement identity {}",
+                "provider claim names un-emitted device-operation requirement identity {}",
                 row.requirement.identity.normalized_identity()
             )));
         }
     }
-    Ok(coverage_order)
+    Ok(claim_order)
 }

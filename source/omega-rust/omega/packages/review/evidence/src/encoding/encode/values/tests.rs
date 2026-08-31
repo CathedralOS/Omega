@@ -4,15 +4,11 @@ use super::super::review::{encode, encode_with_limits};
 use super::super::rows::{encode_rows, encode_rows_with_limits};
 use crate::record::package::PackageReviewCanonicalRowSources;
 use crate::record::{
-    CheckedPackageProviderFamilyCoordinateReview,
-    CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageReviewProjection, PackageReviewCanonicalRowSource,
     PackageReviewCollectionViewOperation, PackageReviewCompilerIntrinsicExecution,
     PackageReviewContractCallTarget, PackageReviewContractExpression, PackageReviewExternalBinding,
     PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewProviderFamilyApplicationCoverage, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderSelectionAuthority, PackageReviewSyntheticSourceKind,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSyntheticSourceKind,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use psi_core::PackageKeyIdentity;
@@ -20,9 +16,7 @@ use psi_core::PackageKeyIdentity;
 use super::callables::encode_external_executable_supply_key;
 use super::expressions::encode_contract_expression;
 use super::identity::encode_nominal;
-use super::providers::{
-    encode_compiler_intrinsic_execution, encode_provider_family, encode_provider_row,
-};
+use super::providers::{encode_compiler_intrinsic_execution, encode_provider_row};
 
 #[test]
 fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
@@ -267,47 +261,6 @@ fn compiler_conversion_encoding_has_explicit_numeric_and_domain_tags() {
             [2, 9, 8, tag as u8],
         );
     }
-}
-
-fn encoded_exact_application_family(argument: &str) -> Vec<u8> {
-    let package = PackageKeyIdentity::from_digest([7; 32]).expect("package identity");
-    let nominal = |path: &str| PackageReviewNominalIdentity {
-        owner: PackageReviewNominalOwner::Package(package),
-        path: path.to_owned(),
-    };
-    let family = CheckedPackageProviderFamilyReview {
-        family_identity: nominal("Transfer::move"),
-        provider_type_declaration: nominal("TransferProvider"),
-        target: omega_target::TargetProfile::LinuxX64,
-        authority: PackageReviewProviderSelectionAuthority::BuildOverride,
-        coverage: PackageReviewProviderFamilyCoverage::CompleteDeclarationFamily,
-        coordinates: vec![CheckedPackageProviderFamilyCoordinateReview {
-            requirement_identity: "operator::Transfer::move($0)->unit".to_owned(),
-            operator_declaration: nominal("Transfer::move"),
-            plan_report_fingerprint: 41,
-            application_coverage: PackageReviewProviderFamilyApplicationCoverage::ExactApplications(
-                vec![CheckedPackageProviderFamilyExactApplicationReview {
-                    arguments: vec![argument.to_owned()],
-                    report_fingerprint: 73,
-                }],
-            ),
-        }],
-    };
-    let mut encoder = Encoder::bounded(4096);
-    encode_provider_family(&mut encoder, &family).expect("encode exact application family");
-    encoder.finish().expect("bounded family encoding")
-}
-
-#[test]
-fn provider_family_encoding_retains_exact_structural_application_arguments() {
-    let bytes = encoded_exact_application_family("pkg::Bytes");
-    let changed = encoded_exact_application_family("pkg::Message");
-    assert_ne!(bytes, changed);
-    assert!(
-        bytes
-            .windows(b"pkg::Bytes".len())
-            .any(|window| window == b"pkg::Bytes")
-    );
 }
 
 pub(crate) fn empty_review() -> CheckedPackageReviewProjection {

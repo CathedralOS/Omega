@@ -198,8 +198,8 @@ scanners, or receipts.
   standalone component candidate now independently rejoins a domain-separated
   SHA-256 commitment to the complete selected-provider closure; native
   artifacts retain the historical FNV value only as a compatibility report
-  coordinate. Exact plans, execution scope, indexed coverage, opaque
-  admissions, and installation-reach resolutions enter the commitment, and an
+  coordinate. Exact plans, execution scope, opaque admissions, and
+  installation-reach resolutions enter the commitment, and an
   architecture inventory plus adversarial test reject a compact-equal
   structural substitution. Provider-execution coordinates projected through
   target operations, machine code, installation encoding, and retained native

@@ -60,7 +60,7 @@ pub use corresponded_stable_compound::{
 pub use device_operation_requirements::{
     DeviceOperation, DeviceOperationProviderPlanId, DeviceOperationRequirement,
     DeviceOperationRequirementId, DeviceOperationStructuralClosureError, DeviceOrderingScopeId,
-    ProviderAssertedDeviceOperationCoverage, StructurallyClosedDeviceOperationRequirement,
+    ProviderAssertedDeviceOperationClaim, StructurallyClosedDeviceOperationRequirement,
     StructurallyClosedDeviceOperationRequirements,
     structurally_close_device_operation_requirements,
 };

@@ -241,10 +241,6 @@ machine build(builder: &mut Build) {
             .windows(2)
             .all(|pair| pair[0].requirement_identity() < pair[1].requirement_identity())
     );
-    assert!(coordinates.iter().all(|coordinate| matches!(
-        coordinate.application_coverage(),
-        omega_package_evidence::record::PackageReviewProviderFamilyApplicationCoverage::NonGeneric
-    )));
     let selected_fingerprints = review
         .selected_providers()
         .iter()

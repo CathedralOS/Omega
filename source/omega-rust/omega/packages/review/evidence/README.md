@@ -51,6 +51,6 @@ equality.
 The crate root exports `project_checked_package_review` as its operation. The
 manager owns comparison and policy; this crate never admits a package.
 
-The canonical review schema is version 96 and row schema version 54. Exact
+The canonical review schema is version 97 and row schema version 55. Exact
 vocabulary and revision notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

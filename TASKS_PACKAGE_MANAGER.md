@@ -61,15 +61,14 @@ stop the item on one precise owner question before adding machinery.
     return-only, or unresolved applications remain demand work rather than
     being mislabeled concrete. Remaining work is artifact-qualified symbolic
     demand and final substitution, role-specific realization replay, D32's
-    optimized-projection-to-physical-child join, and D35's deletion of the
-    provisional arity/string coverage identity. The
-    physical child must bind its exact Terminal parent and surviving optimized
-    operation occurrence, and the complete child set must match the derived
-    surviving occurrence set. Equal applications may share one semantic parent
-    but not one child. Lifetime, machine, and proposition operator applications
-    remain fail-closed. D28 authorizes no generic-coverage implementation until
-    a checked generic operator realization supplies a producer; generic
-    assertions remain non-authorizing;
+    optimized-projection-to-physical-child join. The physical child must bind
+    its exact Terminal parent and surviving optimized operation occurrence, and
+    the complete child set must match the derived surviving occurrence set.
+    Equal applications may share one semantic parent but not one child.
+    Lifetime, machine, and proposition operator applications remain fail-
+    closed. D28 authorizes no generic-coverage implementation until a checked
+    generic operator realization supplies a producer; generic assertions
+    remain non-authorizing;
   - complete exact semantic-subject commitments, certificate closure, and
     reproducibility dispositions.
 
@@ -348,15 +347,6 @@ explicitly.
   under D28; package evidence must never substitute declaration order, display
   signatures, ordinals, authored assertions, bootstrap lowering, or
   reach-selected subsets.
-  D35 retires the non-authorizing provider-asserted arity/string scaffold.
-  Delete its effects model, selected-plan attachment and fingerprints,
-  planning rejoin, package-review `NonGeneric` / `ExactApplications` field and
-  encoding, and obsolete fixtures. Advance package-review schema 96 -> 97 and
-  row schema 54 -> 55; current recovery rejects older vocabularies and retains
-  no legacy parser or record row. Rewrite any still-useful malformed-order and
-  substitution cases against D29's tagged arguments. Keep D27's independent
-  device-operation scaffold, but rename provider-authored `Coverage` there to
-  `Claim` or `Candidate`.
 
 - [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
   explicit requirement declaration separately from every checked/external

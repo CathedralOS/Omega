@@ -63,10 +63,9 @@ pub use identity::{
 };
 pub use package::{
     CheckedPackageCallableReview, CheckedPackageProviderFamilyCoordinateReview,
-    CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
-    CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    CheckedPackageReviewProjection, PackageReviewCheckedServiceReach,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyApplicationCoverage,
+    CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
+    CheckedPackageProviderRowIdentity, CheckedPackageReviewProjection,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
     PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
     PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
     PackageReviewSelectedProviderGrant,

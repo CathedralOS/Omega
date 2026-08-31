@@ -1,10 +1,9 @@
 use super::super::semantics::declarations::nominal_identity;
 use super::selection::validate_selected_provider_declaration_owner;
 use crate::record::{
-    CheckedPackageProviderFamilyCoordinateReview,
-    CheckedPackageProviderFamilyExactApplicationReview, CheckedPackageProviderFamilyReview,
-    CheckedPackageProviderReview, PackageReviewProviderFamilyApplicationCoverage,
-    PackageReviewProviderFamilyCoverage, PackageReviewProviderSelectionAuthority,
+    CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
+    CheckedPackageProviderReview, PackageReviewProviderFamilyCoverage,
+    PackageReviewProviderSelectionAuthority,
 };
 use omega_compiler::CheckedCompilation;
 use omega_provider_planning::{ProviderSelection, ProviderSelectionSubject};
@@ -56,49 +55,6 @@ fn provenance_selects_family(
                 .iter()
                 .any(|declaration| same_family_selection(declaration, &seed.declaration))
     })
-}
-
-fn project_exact_application_reviews(
-    family_package: Option<psi_core::PackageKeyIdentity>,
-    coordinate: &omega_provider_planning::ProviderOperatorFamilyCoordinate,
-    expected_static_parameter_count: usize,
-    applications: &[omega_effects::ConcreteIndexedProviderApplication],
-) -> Result<Vec<CheckedPackageProviderFamilyExactApplicationReview>, Vec<Diagnostic>> {
-    if applications.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator coordinate `{}` retains an empty exact application family",
-            coordinate.requirement_identity,
-        ))]);
-    }
-    if applications.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(vec![Diagnostic::error(format!(
-            "selected boundary-operator coordinate `{}` retains reordered or duplicate exact applications",
-            coordinate.requirement_identity,
-        ))]);
-    }
-    let mut projected = Vec::with_capacity(applications.len());
-    for application in applications {
-        if application.schema().trait_package_identity() != family_package
-            || application.schema().trait_name() != coordinate.requirement_identity
-            || application.schema().application_arity() != expected_static_parameter_count
-            || application.arguments().len() != expected_static_parameter_count
-            || application.report_fingerprint() == 0
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "selected boundary-operator coordinate `{}` retains a tampered exact application outside its static telescope",
-                coordinate.requirement_identity,
-            ))]);
-        }
-        projected.push(CheckedPackageProviderFamilyExactApplicationReview {
-            arguments: application
-                .arguments()
-                .iter()
-                .map(|argument| argument.normalized_identity().to_owned())
-                .collect(),
-            report_fingerprint: application.report_fingerprint(),
-        });
-    }
-    Ok(projected)
 }
 
 fn validate_retained_static_parameter_count(
@@ -201,13 +157,6 @@ pub(crate) fn project_selected_provider_families(
             ))]);
         }
 
-        let exact_application_coverage = family
-            .exact_application_coverage(
-                compilation.selected_provider_plans(),
-                &seed.declaration.provider_type,
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-
         let selected_by_family = provenance
             .iter()
             .filter(|retained| provenance_selects_family(&retained.selected_by, &seed))
@@ -236,6 +185,12 @@ pub(crate) fn project_selected_provider_families(
             let expected_static_parameter_count = operator.lifetime_parameters.len()
                 + compilation.operator_type_parameters(operator).len();
             validate_retained_static_parameter_count(coordinate, expected_static_parameter_count)?;
+            if expected_static_parameter_count != 0 {
+                return Err(vec![Diagnostic::error(format!(
+                    "generic boundary-operator coordinate `{}` remains outside package review until final specialization reconstructs D29 demand and rechecks the selected realization",
+                    coordinate.requirement_identity,
+                ))]);
+            }
             let operator_declaration = nominal_identity(compilation, coordinate.symbol)?;
             if operator_declaration != family_identity {
                 return Err(vec![Diagnostic::error(format!(
@@ -270,38 +225,10 @@ pub(crate) fn project_selected_provider_families(
                     provider_type_declaration.path(),
                 ))]);
             }
-            let application_coverage = if coordinate.static_parameter_count == 0 {
-                PackageReviewProviderFamilyApplicationCoverage::NonGeneric
-            } else {
-                let matches = exact_application_coverage
-                    .iter()
-                    .filter(|coverage| {
-                        coverage.requirement_identity() == coordinate.requirement_identity
-                            && coverage.provider_plan_report_identity()
-                                == selected_provider.plan_report_fingerprint()
-                    })
-                    .collect::<Vec<_>>();
-                let [coverage] = matches.as_slice() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "selected boundary-operator coordinate `{}` maps to {} retained exact application-coverage rows; expected one",
-                        coordinate.requirement_identity,
-                        matches.len(),
-                    ))]);
-                };
-                PackageReviewProviderFamilyApplicationCoverage::ExactApplications(
-                    project_exact_application_reviews(
-                        family.package,
-                        coordinate,
-                        expected_static_parameter_count,
-                        coverage.applications(),
-                    )?,
-                )
-            };
             coordinates.push(CheckedPackageProviderFamilyCoordinateReview {
                 requirement_identity: coordinate.requirement_identity.clone(),
                 operator_declaration,
                 plan_report_fingerprint: selected_provider.plan_report_fingerprint(),
-                application_coverage,
             });
         }
         if coordinates
@@ -354,82 +281,8 @@ mod tests {
         }
     }
 
-    fn indexed_schema(name: &str, arity: usize) -> omega_effects::IndexedProviderRequirementSchema {
-        omega_effects::IndexedProviderRequirementSchema::new(name, None, arity)
-            .expect("indexed operator schema")
-    }
-
-    fn application(
-        schema: &omega_effects::IndexedProviderRequirementSchema,
-        arguments: &[&str],
-    ) -> omega_effects::ConcreteIndexedProviderApplication {
-        omega_effects::ConcreteIndexedProviderApplication::new(
-            schema.clone(),
-            arguments
-                .iter()
-                .map(|argument| {
-                    omega_effects::IndexedProviderConcreteArgument::new(*argument)
-                        .expect("normalized application argument")
-                })
-                .collect(),
-        )
-        .expect("concrete indexed application")
-    }
-
     #[test]
-    fn exact_application_review_retains_normalized_arguments_in_canonical_order() {
-        let coordinate = coordinate(2);
-        let schema = indexed_schema(&coordinate.requirement_identity, 2);
-        let first = application(&schema, &["Bytes", "Message"]);
-        let second = application(&schema, &["Card", "Message"]);
-        let projected = project_exact_application_reviews(
-            None,
-            &coordinate,
-            2,
-            &[first.clone(), second.clone()],
-        )
-        .expect("canonical exact application family");
-        assert_eq!(projected[0].arguments(), ["Bytes", "Message"]);
-        assert_eq!(projected[1].arguments(), ["Card", "Message"]);
-
-        let reordered = project_exact_application_reviews(None, &coordinate, 2, &[second, first])
-            .expect_err("reordered applications must reject during package review");
-        assert!(reordered[0].message.contains("reordered or duplicate"));
-    }
-
-    #[test]
-    fn exact_application_review_rejects_duplicate_and_tampered_telescope() {
-        let coordinate = coordinate(2);
-        let schema = indexed_schema(&coordinate.requirement_identity, 2);
-        let exact = application(&schema, &["Bytes", "Message"]);
-        let duplicate =
-            project_exact_application_reviews(None, &coordinate, 2, &[exact.clone(), exact])
-                .expect_err("duplicate applications must reject during package review");
-        assert!(duplicate[0].message.contains("reordered or duplicate"));
-
-        let wrong_schema = indexed_schema("operator::Transfer::copy($0,$1)->unit", 2);
-        let tampered = project_exact_application_reviews(
-            None,
-            &coordinate,
-            2,
-            &[application(&wrong_schema, &["Bytes", "Message"])],
-        )
-        .expect_err("cross-coordinate applications must reject during package review");
-        assert!(tampered[0].message.contains("tampered exact application"));
-
-        let wrong_arity = indexed_schema(&coordinate.requirement_identity, 1);
-        let tampered = project_exact_application_reviews(
-            None,
-            &coordinate,
-            2,
-            &[application(&wrong_arity, &["Bytes"])],
-        )
-        .expect_err("wrong-arity applications must reject during package review");
-        assert!(tampered[0].message.contains("static telescope"));
-    }
-
-    #[test]
-    fn exact_application_review_rejects_retained_telescope_arity_drift() {
+    fn family_review_rejects_retained_telescope_arity_drift() {
         let coordinate = coordinate(1);
         let diagnostics = validate_retained_static_parameter_count(&coordinate, 2)
             .expect_err("review must rederive telescope arity from the typed declaration");
