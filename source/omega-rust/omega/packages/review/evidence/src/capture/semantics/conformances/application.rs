@@ -120,7 +120,7 @@ fn selected_conformance_application_type_reference(
         }))
 }
 
-pub(super) fn project_selected_conformance_application(
+pub(crate) fn project_selected_conformance_application(
     compilation: &CheckedCompilation,
     selected: &psi_typed_trees::expression::StaticMachineArgument,
     binders: &[(SymbolHandle, String)],

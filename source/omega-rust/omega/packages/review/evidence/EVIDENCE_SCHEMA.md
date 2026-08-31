@@ -1,8 +1,21 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 100 and row schema version 58. This file
+The canonical review schema is version 101 and row schema version 59. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v101 / row v59 admits one exact lifetime-free, type-only closed
+conformance application in a public contract-expression call's static
+conformance-binder slot. Checked facts bind the owning contract fact, exact
+call occurrence, static ordinal, and complete closed application. Projection
+requires exactly one such row, recloses the authored application, compares the
+complete checked structure, rejoins the exact public-interface conformance
+selection retained from the authored call, and emits package-qualified
+declaration, ordered arguments, instantiated subject, and target-trait
+application. Missing, duplicate, redirected, substituted, or source-selection
+custody rejects. Compact
+report fingerprints and commitments are not portable identity, and this row
+does not claim execution, package admission, or audit.
 
 An actual monomorphic boundary-operator use may now retain one separate
 application-realization review row. The canonical key is the exact

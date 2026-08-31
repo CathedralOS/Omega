@@ -1,3 +1,5 @@
+mod conformance;
+
 use super::names::portable_parameter_position;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -9,11 +11,15 @@ use psi_diagnostics::Diagnostic;
 use psi_language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use psi_symbols::SymbolHandle;
 
+use conformance::project_contract_conformance_application;
+pub(crate) use conformance::require_exact_conformance_static_argument_selections;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ContractCallStaticParameterKind {
     Type,
     Const,
     Machine,
+    Conformance,
     Proposition,
 }
 
@@ -46,6 +52,17 @@ pub(crate) fn contract_call_static_parameter_kinds(
             .map(contract_call_static_parameter_kind)
             .collect::<Vec<_>>()
     };
+    let project_machine = |machine: &psi_typed_trees::machine::Machine| {
+        let mut kinds = project(compilation.machine_type_parameters(machine));
+        kinds.extend(
+            machine
+                .conformance_bounds
+                .iter()
+                .filter(|bound| bound.binder.is_some())
+                .map(|_| ContractCallStaticParameterKind::Conformance),
+        );
+        kinds
+    };
     let mut candidates = compilation
         .machines()
         .iter()
@@ -55,7 +72,7 @@ pub(crate) fn contract_call_static_parameter_kinds(
                 .iter()
                 .any(|state| state.symbol == target)
         })
-        .map(|machine| project(compilation.machine_type_parameters(machine)))
+        .map(project_machine)
         .collect::<Vec<_>>();
     if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
         candidates.push(project(
@@ -105,10 +122,29 @@ pub(crate) fn project_contract_static_argument(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
+    checked_fact: Option<psi_arena::Handle<psi_typed_trees::domain::ProofFact>>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    static_argument_position: usize,
     argument: &psi_typed_trees::expression::StaticMachineArgument,
     parameter_kind: ContractCallStaticParameterKind,
     depth: usize,
 ) -> Result<PackageReviewContractStaticArgument, Vec<Diagnostic>> {
+    if argument.symbol.is_valid()
+        && compilation.typed.symbols.get(argument.symbol).kind
+            == psi_symbols::SymbolKind::Conformance
+    {
+        return project_contract_conformance_application(
+            compilation,
+            context,
+            binders,
+            checked_fact,
+            expression,
+            static_argument_position,
+            argument,
+            parameter_kind,
+            depth,
+        );
+    }
     project_static_argument(
         compilation,
         context.subject_kind,
