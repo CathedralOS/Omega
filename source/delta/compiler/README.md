@@ -210,8 +210,15 @@ relations consume only complete values. Assignment checks its left value/place
 and right value branches independently, and compares against the retained
 storage type only after both facts exist; this admits `i32` establishment into
 `u8` storage without treating its zero-extended read type as the place type.
-Remaining transition/control context, return, and terminal-flow candidates
-still require the rest of the D37 premise DAG. The fact pass now
+The enclosing machine's optional return type now reaches entry, state, and arm
+returns. Explicit absence/value relations use D37's exact anchors and category
+premises without resolving the expression twice. A source-shaped statement
+flow fact retains a successful standalone `never` result, diagnoses only the
+first following ordinary statement, and still visits every later authored
+child. Q12 blocks explicit terminals after that `never`, forbidden falloff,
+and machine-continuation exit effects; remaining transition/control and
+terminal-flow candidates still require the rest of the D37 premise DAG. The
+fact pass now
 implements D38's accepted receiver/result, exact contextual failures, and
 `array.as_slice()` value-call rejection; D37 still fixes how the remaining
 nested failure candidates compose. This foundation does not claim final

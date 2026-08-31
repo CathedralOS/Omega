@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables and postfix-statement category, field/index/slice projection facts, D37 scalar, argument-`never`, and let/assignment/assert relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q9/Q10/Q11 diagnostics, complete D36 continuation/state and the remaining D37 control/return/terminal premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables and postfix-statement category, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q9/Q10/Q11/Q12 diagnostics, complete D36 continuation/state and the remaining D37 control/terminal/falloff premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1325,8 +1325,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       argument walk, context gate, independent arity derivation, complete-value
       type join, and result production without an error type or guessed fact.
       The later milestones below close the settled non-continuation call forms
-      and ordinary place/statement relations; transition, return, and terminal
-      flow remain open.
+      and ordinary place/statement relations; transition, explicit return, and
+      terminal flow were still open at this milestone.
     - [x] Centralize settled field selection in one complete-result classifier.
       Exact data fields retain owner/member custody and inherited places before
       contextual names; cases and known callable members are `TypeMismatch`;
@@ -1356,9 +1356,23 @@ code, discover a closure, manufacture proof premises, or decide admission.
       type only when both premises exist. This preserves zero-extended `u8`
       reads while admitting `i32` establishment into a `u8` place, derives no
       secondary mismatch from an unresolved or non-place left side, and keeps
-      exact candidate deduplication. Return and transition relations and
-      terminal flow remain open. The Gamma gate
+      exact candidate deduplication. Transition relations, explicit returns,
+      and terminal flow remained for later slices. The Gamma gate
       establishes source formation only until the real compiler edge exists.
+    - [x] Thread each enclosing machine's exact optional return type through
+      entry blocks, states, and transition arms. An explicit `return;` is
+      admitted only for a resultless machine; an absent required value rejects
+      at the `return` keyword; and an authored return expression uses the
+      ordinary complete-value/resultless/`never` branch before comparing its
+      type at the expression start. The same relation owns terminal returns and
+      return continuations without resolving an expression twice. Track
+      successful standalone `never` statements as a source-shaped block-flow
+      fact, reject only the first following ordinary statement at that
+      statement's start, and continue checking every authored later child.
+      Explicit terminals after `never`, non-resultless falloff, and machine-call
+      continuation exit behavior remain Q12-blocked; transition target and
+      pattern relations remain open independently. The Gamma gate establishes
+      source formation only until the real compiler edge exists.
     - [ ] **OWNER-BLOCKED — Q11 RESULTLESS ARGUMENT ANCHOR.** D37 requires a
       resultless call used as an argument to contribute `TypeMismatch`
       independently of callee admission and arity, but does not assign its
@@ -1367,6 +1381,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
       start is plausible but not yet authoritative. Retain the explicitly
       anchored `never` argument branch and no resultless-argument candidate
       until Q11 settles the anchor.
+    - [ ] **OWNER-BLOCKED — Q12 DELTA BLOCK-EXIT TOTALITY.** D17 fixes return
+      obligations and D37 fixes explicit-return and following-statement
+      anchors, but neither assigns a diagnostic to value/`never` falloff or to
+      an explicit return/transition after a successful standalone `never`
+      call. The return effect of a machine-call transition continuation is also
+      unspecified, so complete reachability and block-exit validation would
+      invent language behavior. Retain the settled explicit-return and first-
+      following-statement relations, but do not classify those exits until Q12
+      settles them.
   - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
     once and retain a non-place immutable full-range view without allocation,
@@ -1384,7 +1407,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       once; the contextual relation introduces no field custody, allocation,
       copy, bounds candidate, or trap. Named field-versus-receiver-machine call
       heads remain with D36 rather than being selected by D38.
-    - [ ] Once the remaining D36/D37 continuation, return, and terminal-flow
+    - [ ] Once the remaining D36/D37 continuation, terminal-flow/falloff
       relations plus lowering are present, execute the place-array,
       computed-index, view,
       non-place-array, extra-call, authored-field, and nested-failure controls;
