@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | resolve Q3 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution, scalar/aggregate value-place facts, and symbolic Alpha encoding | resolve Q4 entry diagnostics, implement D36/D37/D38 callable, premise-DAG, and `.as_slice` rules, complete body/control checking and lowering, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/unqualified/named-receiver callable facts, D38 `.as_slice` facts, and symbolic Alpha encoding | resolve Q4/Q10/Q11 diagnostics, complete D36 continuation/state and D37 body/control premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1269,13 +1269,28 @@ code, discover a closure, manufacture proof premises, or decide admission.
         admitted-machine join owns arity/type/result derivation, and complete
         value/resultless/`never` extra-call bases use D37's category/terminal
         failures without manufacturing facts.
+      - [x] Thread each qualified machine's exact resolved catalog owner into
+        its local environment and give `self` nominal value/place custody only
+        in a receiver-bearing data machine, including all of its states.
+        Resolve grouped field-shaped call heads against complete named
+        receivers: a receiver-bearing data machine or sealed boundary member
+        retains exact callable custody before the receiver-place, arity, type,
+        and result joins; static machines reached through `.` are
+        `TypeMismatch`; non-place receivers are `InvalidPlace`; and absent
+        members are `UnknownName`. A same-spelled authored field remains an
+        ordinary field fallback while call syntax selects a same-spelled
+        machine, and an already rejected case/machine collision selects
+        neither. Chained resultless and `never` receivers retain D37's
+        category/terminal failures. This closes the positive `self`, data
+        receiver, and exact `Console` receiver-call slice without claiming the
+        remaining non-named projection or continuation/state judgments.
       - [ ] **OWNER-BLOCKED — DELTA BARE STATE TRANSFER.** The continuation
         grammar and D36 do not decide whether a zero-parameter state transfer
         may be a bare state spelling or must author `()`. Implement explicit
         state applications and state/machine collision independently; do not
         accept or reject the bare form until the owner queue ruling lands.
       - [ ] **OWNER-BLOCKED — DELTA INVALID `self`.** Positive `self` custody
-        inside a receiver-bearing qualified data machine is unblocked. The
+        inside a receiver-bearing qualified data machine is implemented. The
         language does not assign a rejection reason/anchor to `self` outside
         that scope; leave only that negative relation pending its owner ruling.
   - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every

@@ -41,8 +41,10 @@ It deliberately has no `main`, emitted placeholder, or canonical tape. Every
 D17 grammar form now parses, including boundary/data/machine declarations,
 qualified-only receiver forms, states, and exact nonempty whole-program
 exhaustion. D36's declaration syntax and cross-kind callable census are now
-implemented; qualified-expression application classification remains with
-body/control checking, including the rest of D37's premise-DAG composition.
+implemented. Direct-qualified, unqualified, named-data receiver, and exact
+sealed-boundary applications now retain source identity and settled result
+facts; continuation/state classification and the remaining body/control
+judgments stay with the rest of D37's premise-DAG composition.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
@@ -144,11 +146,20 @@ value position contributes D36's `TypeMismatch` at the qualified expression
 start. Unqualified machine lookup precedes local-value fallback because call
 grammar selects that namespace; a genuinely absent head retains the local
 `UnknownName`/`UseBeforeInitialization` premise, while a completed noncallable
-local is `TypeMismatch` at the application. One admitted-machine join owns
+local is `TypeMismatch` at the application. One admitted-signature join owns
 arity, complete argument typing, and value/resultless/`never` production for
-both direct qualified and unqualified spellings. Qualified/receiver grouped
-heads, receiver-field calls, full statement admission, and continuation/state
-admission remain with the wider body/control judgment.
+direct-qualified, unqualified, data-receiver, and sealed-boundary spellings.
+Exact catalog ownership gives `self` its nominal value and storage place only
+inside a receiver-bearing qualified data machine and all of that machine's
+states; invalid `self` remains factless pending Q11's rejection ruling.
+Grouped named-receiver heads preserve exact data-machine or boundary-member
+custody before receiver-place and signature checks. Static machines are never
+inferred to have a receiver. Same-spelled record fields fall back to ordinary
+field custody and the general value-call failure, while call syntax selects a
+same-spelled machine and an invalid case/machine collision selects neither.
+Chained resultless/`never` receivers retain their category/terminal failures.
+Full continuation/state admission and non-named negative projection remain
+with the wider body/control judgment.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
@@ -157,10 +168,10 @@ place-valued base, and storage `u8` reads as value `i32` without losing its
 produce a place. Array/view `.len` is non-place `i32`, and complete range
 slices produce a non-place immutable view. Present indexes and bounds require
 complete `i32` facts, but bounds remain runtime `Bounds` checks rather than
-static folding. A field selector used as a receiver-call head remains untouched
-for callable resolution. Record fields literally named `len` or `as_slice`
-remain ordinary fields because contextual array/view members are selected only
-after base-type classification.
+static folding. A field selector in call-head position is classified against
+its complete receiver before ordinary field fallback. Record fields literally
+named `len` or `as_slice` remain ordinary fields because contextual array/view
+members are selected only after base-type classification.
 
 The fact pass follows D37 by producing no parent fact or dependent diagnostic
 while a consumed child premise is absent. Admitted callable arity is a sibling
@@ -248,7 +259,11 @@ separate machines, parameter and ordered let visibility,
 isolation, arm-local binder visibility, exact same-start postfix separation,
 literal/read/group/arithmetic facts, record-field custody, `u8` read/place
 splitting, array-place versus immutable-view indexing, every optional slice-
-bound shape, `.len`, and call-head selector nonclassification. D38 adds a
+bound shape, `.len`, positive receiver-scoped `self`, grouped named-data and
+sealed-`Console` receiver calls, authored-field fallback, same-spelled
+field/machine call selection, static-machine-via-receiver refusal, receiver
+place refusal, unknown receiver members, and chained resultless/`never`
+receiver failures. D38 adds a
 place-valued fixed array and computed `array[i()].as_slice` positive case;
 view `.as_slice` as `TypeMismatch`; a non-place array result as `InvalidPlace`;
 the parsed extra-call form `array.as_slice()` as `TypeMismatch`; an ordinary
