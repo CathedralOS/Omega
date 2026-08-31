@@ -29,6 +29,7 @@ pub struct CheckedCompilation {
     own_generated_sources: Vec<omega_build_output::PackageGeneratedSource>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
+    x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
     selected_program_entry: Option<omega_build_evaluation::SelectedCompilerProgramEntry>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     selected_build_machine_identity: Option<String>,
@@ -68,6 +69,7 @@ impl PartialEq for CheckedCompilation {
             && self.own_generated_sources == other.own_generated_sources
             && self.selected_target_profile == other.selected_target_profile
             && self.selected_native_target == other.selected_native_target
+            && self.x86_scalar_fma_provider == other.x86_scalar_fma_provider
             && self.selected_program_entry == other.selected_program_entry
             && self.selected_build_machine_symbol == other.selected_build_machine_symbol
             && self.selected_build_machine_identity == other.selected_build_machine_identity
@@ -210,6 +212,16 @@ impl CheckedCompilation {
     /// `windows_x64` and `uefi_x64`.
     pub const fn selected_target_profile(&self) -> Option<omega_target::TargetProfile> {
         self.selected_target_profile
+    }
+
+    /// Exact build-selected x86 scalar FMA admission for this compilation.
+    /// Absence preserves the generic SSE2 baseline. The retained provider
+    /// carries the canonical semantic cancellation-vector admission but does
+    /// not claim native differential execution.
+    pub const fn x86_scalar_fma_provider(
+        &self,
+    ) -> Option<omega_target::AdmittedX86ScalarFmaProvider> {
+        self.x86_scalar_fma_provider
     }
 
     /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
@@ -919,6 +931,7 @@ fn compile_to_checked_inner_with_replay(
             package_inputs,
         )?;
     let opaque_representation_selections = build_config.opaque_representation_selections.clone();
+    let x86_scalar_fma_provider = build_config.x86_scalar_fma_provider;
     let subsystem = build_config.subsystem;
     let optimization = super::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
         build_config.optimizations.clone(),
@@ -1074,6 +1087,7 @@ fn compile_to_checked_inner_with_replay(
         own_generated_sources,
         selected_target_profile,
         selected_native_target,
+        x86_scalar_fma_provider,
         selected_program_entry,
         selected_build_machine_symbol,
         selected_build_machine_identity,

@@ -166,3 +166,98 @@ machine build(builder: &mut Build) { }
         "unexpected diagnostics: {diagnostics}"
     );
 }
+
+#[test]
+fn exact_x86_build_must_opt_in_before_fma_admission_exists() {
+    let baseline = TempProject::new(&exact_target_build(""));
+    let checked = compile_to_checked(&baseline.main(), Some("windows_x86_64"))
+        .expect("generic x86 baseline must remain available");
+    assert_eq!(checked.x86_scalar_fma_provider(), None);
+
+    let opted_in = TempProject::new(&exact_target_build(
+        "    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;",
+    ));
+    let checked = compile_to_checked(&opted_in.main(), Some("windows_x86_64"))
+        .expect("exact x86 build may select the canonical AVX+FMA3 deployment pair");
+    let provider = checked
+        .x86_scalar_fma_provider()
+        .expect("explicit feature selection must retain one admitted provider");
+    assert_eq!(provider.profile(), omega_target::TargetProfile::WindowsX64);
+    assert!(provider.has_canonical_identity());
+    assert_eq!(
+        provider.deployment().features(),
+        &omega_target::X86_SCALAR_FMA_REQUIRED_FEATURES
+    );
+}
+
+#[test]
+fn x86_fma_build_admission_binds_the_exact_selected_profile() {
+    let project = TempProject::new(
+        r#"target linux_x86_64 { }
+target windows_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("profile-bound-fma");
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}
+"#,
+    );
+    let linux = compile_to_checked(&project.main(), Some("linux_x86_64"))
+        .expect("Linux x86 deployment selection");
+    let windows = compile_to_checked(&project.main(), Some("windows_x86_64"))
+        .expect("Windows x86 deployment selection");
+    let linux = linux.x86_scalar_fma_provider().expect("Linux admission");
+    let windows = windows
+        .x86_scalar_fma_provider()
+        .expect("Windows admission");
+
+    assert_eq!(linux.profile(), omega_target::TargetProfile::LinuxX64);
+    assert_eq!(windows.profile(), omega_target::TargetProfile::WindowsX64);
+    assert_ne!(linux.identity(), windows.identity());
+}
+
+#[test]
+fn non_x86_profile_rejects_x86_deployment_feature_selection() {
+    let project = TempProject::new(
+        r#"target linux_arm64 { }
+machine build(builder: &mut Build) {
+    builder.application("invalid-arm-fma");
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}
+"#,
+    );
+    let diagnostics = compile_to_checked(&project.main(), Some("linux_arm64"))
+        .expect_err("an AArch64 profile cannot admit x86 deployment features")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        diagnostics.contains(
+            "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `linux_arm64`"
+        ),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn targetless_build_cannot_mint_x86_deployment_feature_admission() {
+    let project = TempProject::new(
+        r#"machine build(builder: &mut Build) {
+    builder.application("targetless-fma");
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}
+"#,
+    );
+    let diagnostics = compile_to_checked(&project.main(), None)
+        .expect_err("targetless checking has no deployment feature field")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        diagnostics.contains("x86_deployment_features"),
+        "unexpected diagnostics: {diagnostics}"
+    );
+}

@@ -276,6 +276,11 @@ pub struct BuildConfig {
     /// Exact root-build optimization selections. Empty is the ordinary
     /// compiler path and constructs no optimizer machinery.
     pub optimizations: OptimizationSelections,
+    /// Explicit x86 deployment-feature opt-in admitted for the exact selected
+    /// profile. `None` is the generic SSE2 baseline and grants no FMA route.
+    /// This carrier retains the canonical semantic cancellation-vector
+    /// admission only; it is not a native differential execution receipt.
+    pub x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
     /// CH10 ROOT GRANTS (GR3): the symbol paths the final build accepted
     /// via `b.accept_boundary<pkg::symbol>();` -- harvested STATICALLY
     /// from the build machine's marker calls (grants are declarations,
@@ -1304,6 +1309,7 @@ pub struct AdmittedBuildTargetInputs {
     profile: omega_target::TargetProfile,
     build_symbol: SymbolHandle,
     target_field_symbol: SymbolHandle,
+    x86_deployment_features_field_symbol: SymbolHandle,
 }
 
 impl AdmittedBuildTargetInputs {
@@ -1317,6 +1323,10 @@ impl AdmittedBuildTargetInputs {
 
     pub const fn target_field_symbol(self) -> SymbolHandle {
         self.target_field_symbol
+    }
+
+    pub const fn x86_deployment_features_field_symbol(self) -> SymbolHandle {
+        self.x86_deployment_features_field_symbol
     }
 }
 
@@ -1429,6 +1439,7 @@ impl AdmittedBuildProgram {
             profile,
             build_symbol: vocabulary.build_symbol,
             target_field_symbol: vocabulary.target_field_symbol,
+            x86_deployment_features_field_symbol: vocabulary.x86_deployment_features_field_symbol,
         })
     }
 
@@ -2223,6 +2234,7 @@ impl Default for BuildConfig {
             subsystem: 3, // IMAGE_SUBSYSTEM_WINDOWS_CUI -- the Console case's meaning
             freestanding: false,
             optimizations: OptimizationSelections::default(),
+            x86_scalar_fma_provider: None,
             grants: Vec::new(),
             provider_selections: Vec::new(),
             opaque_representation_selections: Vec::new(),
@@ -2400,6 +2412,7 @@ fn is_exact_toolchain_build_prelude_data(
 struct TargetBuildVocabulary {
     build_symbol: SymbolHandle,
     target_field_symbol: SymbolHandle,
+    x86_deployment_features_field_symbol: SymbolHandle,
 }
 
 fn type_reference_names_exact_data(
@@ -2419,9 +2432,10 @@ fn type_reference_names_exact_data(
     }
 }
 
-/// Admit `Build.target` only when both the field and its closed enum type come
-/// from the exact toolchain virtual source. `BuildTimeValue` is structurally
-/// named, so this nominal check must precede argument construction.
+/// Admit `Build.target` and its deployment-feature companion only when every
+/// field and closed enum type comes from the exact toolchain virtual source.
+/// `BuildTimeValue` is structurally named, so this nominal check must precede
+/// argument construction.
 fn target_build_vocabulary(
     typed: &TypedTrees,
     selected_target: Option<omega_target::TargetProfile>,
@@ -2470,9 +2484,41 @@ fn target_build_vocabulary(
             "toolchain Build.target must have the exact toolchain TargetProfile type",
         )]);
     }
+    let x86_feature_fields = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            psi_typed_trees::data::DataMember::Field(field)
+                if field.name.as_str() == "x86_deployment_features" =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [x86_feature_field] = x86_feature_fields.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain Build declares {} `x86_deployment_features` fields; exact-target activation requires exactly one",
+            x86_feature_fields.len()
+        ))]);
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(x86_feature_field.type_reference)
+    else {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
+        )]);
+    };
+    if !is_exact_toolchain_build_prelude_data(typed, *symbol, "X86DeploymentFeatures") {
+        return Err(vec![Diagnostic::error(
+            "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
+        )]);
+    }
     Ok(Some(TargetBuildVocabulary {
         build_symbol: build.symbol,
         target_field_symbol: target_field.symbol,
+        x86_deployment_features_field_symbol: x86_feature_field.symbol,
     }))
 }
 
@@ -3759,6 +3805,13 @@ pub fn admit_build_program(
             "target".to_owned(),
             BuildTimeValue::Case {
                 variant: profile.build_case_name().to_owned(),
+                payload: Vec::new(),
+            },
+        ));
+        build_fields.push((
+            "x86_deployment_features".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Baseline".to_owned(),
                 payload: Vec::new(),
             },
         ));
@@ -5301,6 +5354,45 @@ fn extract_build_config(
         );
     }
 
+    let x86_scalar_fma_provider = if has_target_vocabulary {
+        let profile = selected_target_profile.ok_or_else(|| {
+            "toolchain Build.x86_deployment_features exists without an exact invocation target"
+                .to_owned()
+        })?;
+        let BuildTimeValue::Case { variant, payload } = field("x86_deployment_features")? else {
+            return Err(
+                "Build.x86_deployment_features is not an X86DeploymentFeatures case".to_owned(),
+            );
+        };
+        if !payload.is_empty() {
+            return Err(format!(
+                "Build.x86_deployment_features case `{variant}` unexpectedly carries a payload"
+            ));
+        }
+        match variant.rsplit("::").next().unwrap_or(variant) {
+            "Baseline" => None,
+            "AvxFma3" => Some(
+                omega_target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                    profile,
+                    &omega_target::X86_SCALAR_FMA_REQUIRED_FEATURES,
+                )
+                .map_err(|error| {
+                    format!(
+                        "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `{}`: {error:?}",
+                        profile.target_name()
+                    )
+                })?,
+            ),
+            other => {
+                return Err(format!(
+                    "Build.x86_deployment_features has unknown X86DeploymentFeatures case `{other}`"
+                ));
+            }
+        }
+    } else {
+        None
+    };
+
     let subsystem = match field("subsystem")? {
         BuildTimeValue::Case { variant, payload } => {
             match variant.rsplit("::").next().unwrap_or(variant) {
@@ -5341,6 +5433,7 @@ fn extract_build_config(
             subsystem,
             freestanding,
             optimizations,
+            x86_scalar_fma_provider,
             grants: Vec::new(),
             provider_selections: Vec::new(),
             opaque_representation_selections: Vec::new(),

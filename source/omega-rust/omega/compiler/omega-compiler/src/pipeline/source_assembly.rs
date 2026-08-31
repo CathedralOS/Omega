@@ -554,6 +554,7 @@ pub data Subsystem {
     case Unspecified(value: u16);
 }
 // compiler-owned TargetProfile declaration
+// compiler-owned X86DeploymentFeatures declaration
 // compiler-owned optimization declarations
 // Compiler-owned package-build path carrier. The evaluator replaces values
 // produced by `resolve` with activation-local rooted authority; an authored
@@ -568,6 +569,7 @@ pub data BuildLog {
 }
 pub data Build {
     // compiler-owned Build.target field
+    // compiler-owned Build.x86_deployment_features field
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
@@ -634,6 +636,7 @@ pub data Subsystem {
     case Unspecified(value: u16);
 }
 // compiler-owned TargetProfile declaration
+// compiler-owned X86DeploymentFeatures declaration
 // compiler-owned optimization declarations
 pub data BuildSource {
 }
@@ -643,6 +646,7 @@ pub data BuildLog {
 }
 pub data Build {
     // compiler-owned Build.target field
+    // compiler-owned Build.x86_deployment_features field
     subsystem: Subsystem;
     freestanding: bool;
     optimizations: Optimizations;
@@ -685,6 +689,10 @@ pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 
 const BUILD_TARGET_FIELD_SLOT: &str = "    // compiler-owned Build.target field\n";
 const BUILD_TARGET_FIELD: &str = "    target: TargetProfile;\n";
+const BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT: &str =
+    "    // compiler-owned Build.x86_deployment_features field\n";
+const BUILD_X86_DEPLOYMENT_FEATURES_FIELD: &str =
+    "    x86_deployment_features: X86DeploymentFeatures;\n";
 const BUILD_TARGET_PROFILE_SLOT: &str = "// compiler-owned TargetProfile declaration\n";
 const BUILD_TARGET_PROFILE: &str = r#"pub data TargetProfile {
     case LinuxArm64;
@@ -694,6 +702,13 @@ const BUILD_TARGET_PROFILE: &str = r#"pub data TargetProfile {
     case UefiX86_64;
     case CrossPlatformCli;
     case LocalUnchecked;
+}
+"#;
+const BUILD_X86_DEPLOYMENT_FEATURES_SLOT: &str =
+    "// compiler-owned X86DeploymentFeatures declaration\n";
+const BUILD_X86_DEPLOYMENT_FEATURES: &str = r#"pub data X86DeploymentFeatures {
+    case Baseline;
+    case AvxFma3;
 }
 "#;
 
@@ -708,6 +723,17 @@ fn construct_build_prelude(base: &str, has_exact_target: bool) -> String {
         1,
         "build prelude must contain exactly one compiler-owned target profile slot"
     );
+    assert_eq!(
+        base.matches(BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT)
+            .count(),
+        1,
+        "build prelude must contain exactly one compiler-owned x86 deployment-feature field slot"
+    );
+    assert_eq!(
+        base.matches(BUILD_X86_DEPLOYMENT_FEATURES_SLOT).count(),
+        1,
+        "build prelude must contain exactly one compiler-owned x86 deployment-feature declaration slot"
+    );
     let replacement = if has_exact_target {
         BUILD_TARGET_FIELD
     } else {
@@ -715,7 +741,21 @@ fn construct_build_prelude(base: &str, has_exact_target: bool) -> String {
     };
     let with_target = base
         .replacen(BUILD_TARGET_PROFILE_SLOT, BUILD_TARGET_PROFILE, 1)
-        .replacen(BUILD_TARGET_FIELD_SLOT, replacement, 1);
+        .replacen(
+            BUILD_X86_DEPLOYMENT_FEATURES_SLOT,
+            BUILD_X86_DEPLOYMENT_FEATURES,
+            1,
+        )
+        .replacen(BUILD_TARGET_FIELD_SLOT, replacement, 1)
+        .replacen(
+            BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT,
+            if has_exact_target {
+                BUILD_X86_DEPLOYMENT_FEATURES_FIELD
+            } else {
+                ""
+            },
+            1,
+        );
     super::optimization::build_vocabulary::install(&with_target)
 }
 
@@ -1079,6 +1119,31 @@ mod tests {
                         .collect::<Vec<_>>(),
                     expected_cases
                 );
+                let x86_deployment_features = syntax_trees
+                    .root_items()
+                    .find_map(|item| match item {
+                        psi_syntax_trees::item::Item::Data(data)
+                            if data.name.as_str() == "X86DeploymentFeatures" =>
+                        {
+                            Some(data)
+                        }
+                        _ => None,
+                    })
+                    .expect("build prelude must define X86DeploymentFeatures");
+                assert_eq!(
+                    syntax_trees
+                        .items
+                        .data_members(x86_deployment_features.members)
+                        .iter()
+                        .filter_map(|member| match member {
+                            psi_syntax_trees::item::DataMember::Variant(variant) => {
+                                Some(variant.name.as_str())
+                            }
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>(),
+                    ["Baseline", "AvxFma3"]
+                );
                 let build = syntax_trees
                     .root_items()
                     .find_map(|item| match item {
@@ -1111,6 +1176,29 @@ mod tests {
                             .type_reference(field.type_reference),
                         psi_syntax_trees::types::TypeReferenceNode::Named(name)
                             if name.as_str() == "TargetProfile"
+                    ));
+                }
+                let x86_feature_fields = syntax_trees
+                    .items
+                    .data_members(build.members)
+                    .iter()
+                    .filter_map(|member| match member {
+                        psi_syntax_trees::item::DataMember::Field(field)
+                            if field.name.as_str() == "x86_deployment_features" =>
+                        {
+                            Some(field)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(x86_feature_fields.len(), expected_target_fields);
+                if let [field] = x86_feature_fields.as_slice() {
+                    assert!(matches!(
+                        syntax_trees
+                            .type_references
+                            .type_reference(field.type_reference),
+                        psi_syntax_trees::types::TypeReferenceNode::Named(name)
+                            if name.as_str() == "X86DeploymentFeatures"
                     ));
                 }
             }

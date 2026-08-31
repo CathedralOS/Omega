@@ -813,8 +813,12 @@ requires a feature-qualified or checked software satisfier. The first opt-in
 x86 hardware carrier now admits only an exact deployment profile plus AVX+FMA3,
 binds both generic FMA slots to the scalar VEX instructions, and retains
 raw-bit fused-versus-unfused cancellation receipts through final image replay.
-It does not change generic target selection; ordinary build/source selection of
-that carrier remains pending. AArch64 also
+An exact-target build can now select the closed `AvxFma3` deployment value and
+retain that admitted carrier on the checked compilation; targetless, non-x86,
+and cross-profile substitution reject. This selection is not native execution
+evidence and does not change generic target selection. Source ProviderPlan
+selection and compiler/native lowering that consume the carrier remain
+pending. AArch64 also
 selects exact F32/F64 FMA-toward-zero/positive/negative satisfiers. Each
 directed ternary operation changes FPCR only around one scalar `FMADD`, while
 the interpreter consumes the corresponding directed `FloatSemantics` identity;
