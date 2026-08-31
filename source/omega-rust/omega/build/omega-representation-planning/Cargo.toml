@@ -9,6 +9,7 @@ name = "omega_representation_planning"
 path = "src/lib.rs"
 
 [dependencies]
+omega-representation-selections = { path = "../../representations/omega-representation-selections" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }

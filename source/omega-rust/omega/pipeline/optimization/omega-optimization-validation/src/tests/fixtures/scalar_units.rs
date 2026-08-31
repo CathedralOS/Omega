@@ -14,7 +14,6 @@ pub(crate) fn unit() -> PsiOptimizationUnit {
         },
         entry: machine,
         structural_types: Vec::new(),
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -106,7 +105,6 @@ fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
             identity: "test::i32".into(),
             shape: psi_terminal::StructuralTypeShape::PrimitiveScalar(scalar_type),
         }],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -158,7 +156,6 @@ pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
         },
         entry: machine,
         structural_types: Vec::new(),
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -243,7 +240,6 @@ pub(crate) fn scalar_call_unit() -> PsiOptimizationUnit {
         },
         entry: caller,
         structural_types: Vec::new(),
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -335,7 +331,6 @@ pub(crate) fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
         },
         entry: machine,
         structural_types: Vec::new(),
-        placed_view_inputs: Vec::new(),
         boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
             id: boundary,
             identity: "validation::scalar-boundary".into(),
@@ -428,7 +423,6 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                 psi_terminal::ByteSequenceCarrier::BorrowedView,
             ),
         }],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![

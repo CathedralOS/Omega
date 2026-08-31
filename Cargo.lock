@@ -778,7 +778,7 @@ name = "omega-layout"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-representation-planning",
+ "omega-representation-selections",
  "omega-runtime-abi",
  "omega-target",
  "psi-arena",
@@ -1295,12 +1295,22 @@ dependencies = [
 name = "omega-representation-planning"
 version = "0.1.0"
 dependencies = [
+ "omega-representation-selections",
  "psi-diagnostics",
  "psi-language-semantics",
  "psi-source",
  "psi-symbols",
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "omega-representation-selections"
+version = "0.1.0"
+dependencies = [
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
 ]
 
 [[package]]

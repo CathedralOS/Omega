@@ -20,7 +20,7 @@ psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 omega-runtime-abi = { path = "../runtime/omega-runtime-abi" }
 omega-target = { path = "../../representations/omega-target" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
-omega-representation-planning = { path = "../../build/omega-representation-planning" }
+omega-representation-selections = { path = "../../representations/omega-representation-selections" }
 
 [dev-dependencies]
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }

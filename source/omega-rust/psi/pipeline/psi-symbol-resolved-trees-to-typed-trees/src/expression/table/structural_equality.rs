@@ -17,8 +17,8 @@
 use super::lowerer::ExpressionTableLowerer;
 use crate::equatable::{
     DataEqualityShape, FieldEquality, data_definition_by_name, data_equality_shape,
-    equatable_conformance_declared, field_equality, value_type_base_name,
-    written_equals_state_symbol,
+    equatable_conformance_declared, field_equality, synthesized_equals_state_symbol,
+    value_type_base_name, written_equals_state_symbol,
 };
 use crate::name::lower_name;
 use psi_arena::HandleSpan;
@@ -45,6 +45,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
     /// them from the receiver's conformance and lack of an authored override.
     pub(super) fn try_lower_synthesized_equatable_call(
         &mut self,
+        expression: resolved::expression::ExpressionHandle,
         call: &resolved::expression::TableCallExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
         if call.target.as_str() != "equals" || !call.receiver.is_valid() {
@@ -61,6 +62,13 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         {
             return Ok(None);
         }
+        let synthesized_target =
+            synthesized_equals_state_symbol(program, &type_name).ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "compiler-generated `{type_name}::equals` declaration is missing or ambiguous"
+                ))
+            })?;
+        self.finalize_synthesized_equatable_call_selection(expression, synthesized_target)?;
         let [argument] = self.source.expression_handles(call.arguments) else {
             return Ok(None);
         };
@@ -86,6 +94,63 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 right,
             }),
         )))
+    }
+
+    fn finalize_synthesized_equatable_call_selection(
+        &mut self,
+        expression: resolved::expression::ExpressionHandle,
+        synthesized_target: psi_symbols::SymbolHandle,
+    ) -> Result<(), Diagnostic> {
+        let occurrences = self
+            .source
+            .authored_selection_occurrences(expression)
+            .filter(|occurrence| {
+                self.target_trees
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .is_some_and(|selection| {
+                        selection.kind()
+                            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                    })
+            })
+            .collect::<Vec<_>>();
+        let [occurrence] = occurrences.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "authored synthesized equality call retains {} call selections; expected one",
+                occurrences.len()
+            )));
+        };
+
+        let mut selections = self.target_trees.authored_declaration_selections().clone();
+        let selection = selections.get(*occurrence).ok_or_else(|| {
+            Diagnostic::error("authored synthesized equality call lost its selection custody")
+        })?;
+        match selection.target() {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            ) => selections
+                .finalize_late_bound(
+                    *occurrence,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall,
+                    synthesized_target,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to bind authored synthesized equality call: {error:?}"
+                    ))
+                })?,
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
+                target,
+            ) if target.selected_symbol() == synthesized_target => {}
+            _ => {
+                return Err(Diagnostic::error(
+                    "authored synthesized equality call retains contradictory selection custody",
+                ));
+            }
+        }
+        self.target_trees
+            .retain_authored_declaration_selections(selections);
+        Ok(())
     }
 
     /// Expand `==`/`!=` when an operand types to a structural (record /

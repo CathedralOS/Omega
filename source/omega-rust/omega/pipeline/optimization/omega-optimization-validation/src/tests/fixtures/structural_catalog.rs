@@ -31,7 +31,6 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                     }],
                 },
             }],
-            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![
@@ -434,7 +433,6 @@ pub(crate) fn provider_attachment_specialization_unit() -> PsiOptimizationUnit {
                 )],
             },
         )],
-        placed_view_inputs: Vec::new(),
         boundary_machines: vec![
             boundary(first_boundary, "validation::provider-first"),
             boundary(second_boundary, "validation::provider-second"),
@@ -546,7 +544,6 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                 psi_terminal::ByteSequenceCarrier::BorrowedView,
             ),
         }],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -732,7 +729,6 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
         },
         entry: machine,
         structural_types: vec![local_type.clone()],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![AbstractFunction {
@@ -813,7 +809,6 @@ pub(crate) fn explicit_trivial_affine_return_unit() -> PsiOptimizationUnit {
             },
             entry: machine,
             structural_types: vec![structural_type_declaration.clone()],
-            placed_view_inputs: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             functions: vec![AbstractFunction {

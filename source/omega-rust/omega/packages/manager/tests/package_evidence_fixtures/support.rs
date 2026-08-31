@@ -1,10 +1,9 @@
 use super::*;
 
-pub(super) const PACKAGES: &[&str] = &[
+pub(super) const REVIEWABLE_PACKAGES: &[&str] = &[
     "arithmetic-kernels",
     "generated-table",
     "file-journal",
-    "process-exit",
     "network-overreach",
     "remote-journal",
     "axiom-ledger",

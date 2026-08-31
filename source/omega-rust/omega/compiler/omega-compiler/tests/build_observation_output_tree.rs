@@ -1,7 +1,9 @@
 use omega_build_evaluation::{
-    BuildFilesystemGrantAccess, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemReplayRecordLimits, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, capture_verified_build_filesystem_replay_record,
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildFilesystemGrantAccess,
+    BuildFilesystemOperationObservationClass, BuildFilesystemOperationResult,
+    BuildFilesystemProvider, BuildFilesystemReplayRecordLimits, BuildFilesystemRoot,
+    BuildFilesystemScalarOperandValue, BuildObservationClass,
+    capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,
 };
 use omega_build_output::BuildStagedOutputTree;
@@ -416,7 +418,15 @@ fn absent_output_file_and_directory_removals_replay_without_a_tree_entry() {
     assert!(summary.filesystem_replay_verdict().replays_source_inputs());
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
-    assert_eq!(summary.schema_version(), 71);
+    assert_eq!(summary.schema_version(), BUILD_OBSERVATION_SCHEMA_VERSION);
+    assert!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .all(|attempt| {
+                attempt.observation_class() == BuildFilesystemOperationObservationClass::Receipted
+            })
+    );
     let [remove_directory, remove_file] = summary.filesystem_operation_attempts() else {
         panic!("absent removals retain two exact attempts")
     };
@@ -541,9 +551,17 @@ fn empty_output_directory_tree_replays_without_host_output() {
     let summary = checked
         .build_observation_summary()
         .expect("directory build retains observations");
-    assert_eq!(summary.schema_version(), 71);
+    assert_eq!(summary.schema_version(), BUILD_OBSERVATION_SCHEMA_VERSION);
     assert!(summary.filesystem_replay_verdict().is_complete());
     assert_eq!(summary.realized(), BuildObservationClass::Receipted);
+    assert!(
+        summary
+            .filesystem_operation_attempts()
+            .iter()
+            .all(|attempt| {
+                attempt.observation_class() == BuildFilesystemOperationObservationClass::Receipted
+            })
+    );
     assert_eq!(
         summary
             .filesystem_operation_attempts()

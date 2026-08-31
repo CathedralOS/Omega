@@ -107,7 +107,6 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                 },
             },
         ],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -236,7 +235,6 @@ pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
                 },
             },
         ],
-        placed_view_inputs: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         functions: vec![
@@ -417,7 +415,6 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
             identity: "validation::affine-claim-join".into(),
             shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
         }],
-        placed_view_inputs: Vec::new(),
         boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
             id: boundary,
             identity: "validation::affine-claim-settlement".into(),

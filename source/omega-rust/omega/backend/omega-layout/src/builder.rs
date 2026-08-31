@@ -12,7 +12,7 @@ use omega_calling_conventions::{
     callback_layout_field_slot_id, callback_layout_plan_id, callback_layout_slot_id,
     callback_plan_laid_layout_id, callback_requirement_id,
 };
-use omega_representation_planning::{OpaqueRepresentationSelection, selection_for_opaque};
+use omega_representation_selections::{OpaqueRepresentationSelection, selection_for_opaque};
 use omega_target::NativeTarget;
 use psi_arena::Arena;
 use psi_checked_trees::CheckedTrees;
