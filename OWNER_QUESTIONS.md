@@ -301,6 +301,16 @@ retain exact requirement, selected ProviderPlan row, target, lowering identity,
 and emitted-artifact custody while preserving the stronger evidence requirement
 for installed and foreign providers.
 
+### Current code state
+
+Current `main` violates this boundary. The compiler constructs
+`CompilerIntrinsicSettlementEvidence`, derives four self-issued hash
+coordinates, implements package-style `ProviderExecutionEvidence` for that
+compiler-owned value, and feeds it through `NativeProviderSettlement`. Those
+coordinates establish no installation, external audit, or independent
+execution fact; they only restate compiler-owned inputs. Treat this lane as
+unratified and do not extend it while Q5 is open.
+
 ### Proposed solution
 
 Give compiler-owned builtin bindings a distinct native settlement lane. The

@@ -118,7 +118,9 @@ stop the item on one precise owner question before adding machinery.
   scalar calls inside attached Unit machines, then settle compiler-owned target
   builtins through a distinct compiler/target TCB lane. Do not fabricate
   package-installation `ProviderExecutionEvidence` for a compiler-owned builtin
-  merely to satisfy the existing settlement API.
+  merely to satisfy the existing settlement API. Current `main` does exactly
+  that through `CompilerIntrinsicSettlementEvidence`; Q5 blocks extending or
+  ratifying that lane and requires its replacement.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Add D26 consumer demand only for an
   actual runtime by-value use, consuming the exact retained
