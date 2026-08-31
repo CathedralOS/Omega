@@ -2594,9 +2594,9 @@ stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/
 
 PASS=0; FAIL=0
 # Pin Q2's measured retained call-row pressure without adding a production
-# entry or adapter. Thirty-three appended references exactly fill 1,024 rows;
-# the thirty-fourth must be the Beta compiler's canonical adjacent refusal.
-for gamma_call_probe_count in 33 34; do
+# entry or adapter. Fifty-nine appended references exactly fill 1,024 rows;
+# the sixtieth must be the Beta compiler's canonical adjacent refusal.
+for gamma_call_probe_count in 59 60; do
   {
     sed -n '1,$p' gamma_compiler.beta
     printf '%s\n' 'proc main() {'
@@ -2607,18 +2607,18 @@ for gamma_call_probe_count in 33 34; do
   } | "$T/bc.exe" > "$T/call-rows-$gamma_call_probe_count.out"
   gamma_call_probe_status=$?
   case "$gamma_call_probe_count" in
-    33) gamma_call_probe_status_33=$gamma_call_probe_status ;;
-    34) gamma_call_probe_status_34=$gamma_call_probe_status ;;
+    59) gamma_call_probe_status_59=$gamma_call_probe_status ;;
+    60) gamma_call_probe_status_60=$gamma_call_probe_status ;;
   esac
 done
-gamma_call_probe_size=$(wc -c < "$T/call-rows-34.out" | tr -d ' ')
-gamma_call_probe_kind=$(od -An -tu1 -j 8 -N 1 "$T/call-rows-34.out" | tr -d ' ')
-gamma_call_probe_space=$(od -An -tu1 -j 9 -N 1 "$T/call-rows-34.out" | tr -d ' ')
-gamma_call_probe_code=$(od -An -tx1 -j 12 -N 4 "$T/call-rows-34.out" | tr -d ' \n')
-gamma_call_probe_limit=$(od -An -tx1 -j 24 -N 8 "$T/call-rows-34.out" | tr -d ' \n')
-gamma_call_probe_requested=$(od -An -tx1 -j 32 -N 8 "$T/call-rows-34.out" | tr -d ' \n')
-if [ "$gamma_call_probe_status_33" = 0 ] &&
-   [ "$gamma_call_probe_status_34" = 2 ] &&
+gamma_call_probe_size=$(wc -c < "$T/call-rows-60.out" | tr -d ' ')
+gamma_call_probe_kind=$(od -An -tu1 -j 8 -N 1 "$T/call-rows-60.out" | tr -d ' ')
+gamma_call_probe_space=$(od -An -tu1 -j 9 -N 1 "$T/call-rows-60.out" | tr -d ' ')
+gamma_call_probe_code=$(od -An -tx1 -j 12 -N 4 "$T/call-rows-60.out" | tr -d ' \n')
+gamma_call_probe_limit=$(od -An -tx1 -j 24 -N 8 "$T/call-rows-60.out" | tr -d ' \n')
+gamma_call_probe_requested=$(od -An -tx1 -j 32 -N 8 "$T/call-rows-60.out" | tr -d ' \n')
+if [ "$gamma_call_probe_status_59" = 0 ] &&
+   [ "$gamma_call_probe_status_60" = 2 ] &&
    [ "$gamma_call_probe_size" = 40 ] &&
    [ "$gamma_call_probe_kind" = 2 ] &&
    [ "$gamma_call_probe_space" = 1 ] &&
@@ -2628,9 +2628,9 @@ if [ "$gamma_call_probe_status_33" = 0 ] &&
   PASS=$((PASS+1))
 else
   FAIL=$((FAIL+1))
-  echo "  FAIL Gamma retained call rows: exact=$gamma_call_probe_status_33 adjacent=$gamma_call_probe_status_34 frame=$gamma_call_probe_size/$gamma_call_probe_kind/$gamma_call_probe_space/$gamma_call_probe_code/$gamma_call_probe_limit/$gamma_call_probe_requested"
+  echo "  FAIL Gamma retained call rows: exact=$gamma_call_probe_status_59 adjacent=$gamma_call_probe_status_60 frame=$gamma_call_probe_size/$gamma_call_probe_kind/$gamma_call_probe_space/$gamma_call_probe_code/$gamma_call_probe_limit/$gamma_call_probe_requested"
 fi
-unset gamma_call_probe_count gamma_call_probe_status gamma_call_probe_status_33 gamma_call_probe_status_34
+unset gamma_call_probe_count gamma_call_probe_status gamma_call_probe_status_59 gamma_call_probe_status_60
 unset gamma_call_probe_size gamma_call_probe_kind gamma_call_probe_space
 unset gamma_call_probe_code gamma_call_probe_limit gamma_call_probe_requested
 schema_case() { # name profile source status kind code space coordinate
