@@ -72,15 +72,23 @@ decision. Only true language-semantic questions belong in
    guards fold to checked Boolean constants; implicit borrowed `self` remains
    attachment context; and one provider-backed attachment field lowers through
    shared requirement validation into exact `ProviderAttachment` roots. The
-   checked producer and Terminal verifier/codec regression are green. The real
+   checked producer and Terminal verifier/codec regression are green. The
+   composed carrier now also admits exactly one qualification-free owned
+   linear whole-root parameter: both Boolean arms transfer their distinct
+   checked state-entry aliases, each bodyless attached-Unit boundary leaf
+   consumes its alias with a matching completion receipt, and independent
+   checked-to-Terminal replay binds all three source claim identities to one
+   Terminal claim. Corrupting either edge transfer, a leaf entry claim, the
+   completion receipt, the consume event, or the boundary attachment fails
+   closed; Terminal verification and codec replay remain green. Producer and
+   consumer retain 23- and 24-line entrances over named topology/custody and
+   admission/custody/catalog/emission rungs. The real
    `runtime_free_const_exit` compiler canary now crosses this formerly missing
    Terminal route and stops later on the documented host-realization fence:
    only Linux `exit_process(i32)` currently has a closed compiler-intrinsic
-   execution identity, while the local macOS plan has none. Next widen the
-   composed carrier with shared structural arguments and claims, then internal
+   execution identity, while the local macOS plan has none. Next add internal
    Unit-call leaves and larger acyclic graphs. This is engineering, not an
-   owner language decision. A smaller recurring custody
-   class leaves
+   owner language decision. A smaller recurring custody class leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine

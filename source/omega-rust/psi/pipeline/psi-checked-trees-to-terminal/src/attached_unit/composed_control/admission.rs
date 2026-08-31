@@ -3,8 +3,10 @@
 use super::*;
 
 pub(super) struct AdmittedComposedUnit<'a> {
+    pub(super) entry: &'a psi_checked_trees::CheckedComposedUnitControlStatePlan,
     pub(super) leaves: [&'a psi_checked_trees::CheckedComposedUnitControlStatePlan; 2],
     pub(super) boundaries: Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+    pub(super) custody: custody::ComposedCustody,
 }
 
 pub(super) fn admit_composed_unit_control<'a>(
@@ -14,11 +16,7 @@ pub(super) fn admit_composed_unit_control<'a>(
     let [entry, when_true, when_false] = plan.states.as_slice() else {
         return unsupported("composed Unit control requires exactly three states");
     };
-    if !plan.body_qualifications.is_empty()
-        || !entry.structural_parameters.is_empty()
-        || !entry.entry_claims.is_empty()
-        || !entry.operations.is_empty()
-    {
+    if !plan.body_qualifications.is_empty() || !entry.operations.is_empty() {
         return unsupported("composed Unit entry is outside the exact scalar-control slice");
     }
     let CheckedComposedUnitControlTerminatorPlan::Conditional {
@@ -34,13 +32,18 @@ pub(super) fn admit_composed_unit_control<'a>(
         || false_edge.statement_ordinal != 1
         || true_edge.target_state != when_true.state
         || false_edge.target_state != when_false.state
-        || !successor_is_empty(true_edge)
-        || !successor_is_empty(false_edge)
     {
         return unsupported("composed Unit successors drifted from the checked state graph");
     }
     validate_leaf(when_true)?;
     validate_leaf(when_false)?;
+    let custody = custody::admit(
+        checked,
+        plan,
+        entry,
+        [when_true, when_false],
+        [true_edge, false_edge],
+    )?;
     if entry.state == when_true.state
         || entry.state == when_false.state
         || when_true.state == when_false.state
@@ -73,13 +76,8 @@ pub(super) fn admit_composed_unit_control<'a>(
     if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
         return unsupported("composed Unit boundaries have duplicate canonical identities");
     }
-    if boundaries.iter().any(|(boundary, _)| {
-        boundary.attachment_type_identity.is_some()
-            || !boundary.structural_parameters.is_empty()
-            || !boundary.domain_requirements.is_empty()
-            || boundary.result_type.is_some()
-    }) {
-        return unsupported("composed Unit boundary is not scalar-only Unit");
+    for (boundary, _) in &boundaries {
+        custody::validate_boundary(custody, boundary)?;
     }
     let called_boundaries = [when_true, when_false]
         .iter()
@@ -96,8 +94,10 @@ pub(super) fn admit_composed_unit_control<'a>(
         &called_boundaries,
     )?;
     Ok(AdmittedComposedUnit {
+        entry,
         leaves: [when_true, when_false],
         boundaries,
+        custody,
     })
 }
 
@@ -163,17 +163,12 @@ fn retain_leaf_boundary<'a>(
         target_state,
         target_contract_report_fingerprint,
         service_reach,
-        structural_arguments,
-        completion_receipts,
         ..
     } = &state.operations[0]
     else {
         unreachable!("leaf shape was validated")
     };
-    if !structural_arguments.is_empty() || !completion_receipts.is_empty() {
-        return unsupported("composed Unit boundary call carries structural custody");
-    }
-    retain_exact_flow_call(checked, machine, state.state, *coordinate, *target_machine)?;
+    retain_exact_flow_call(checked, machine, state.state, *coordinate, *target_state)?;
     retain_exact_unit_boundary(
         checked,
         plans,
@@ -186,22 +181,10 @@ fn retain_leaf_boundary<'a>(
     )
 }
 
-fn successor_is_empty(
-    successor: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
-) -> bool {
-    successor.transfers.is_empty()
-        && successor.scalar_arguments.is_empty()
-        && successor
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
-}
-
 fn validate_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
-    if !state.structural_parameters.is_empty()
-        || !state.scalar_parameters.is_empty()
-        || !state.entry_claims.is_empty()
+    if !state.scalar_parameters.is_empty()
         || !matches!(
             state.operations.as_slice(),
             [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]

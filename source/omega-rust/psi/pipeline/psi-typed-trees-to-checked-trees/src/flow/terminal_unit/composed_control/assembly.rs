@@ -11,8 +11,24 @@ pub(super) fn build(
 ) -> Option<CheckedComposedUnitControlMachinePlan> {
     let graph = super::topology::admit(program, facts, shapes, machine)?;
     let leaves = [
-        super::leaves::build(program, facts, machine, graph.leaves[0], boundaries)?,
-        super::leaves::build(program, facts, machine, graph.leaves[1], boundaries)?,
+        super::leaves::build(
+            program,
+            facts,
+            machine,
+            graph.leaves[0],
+            boundaries,
+            &graph.leaf_structural_parameters[0],
+            &graph.leaf_entry_claims[0],
+        )?,
+        super::leaves::build(
+            program,
+            facts,
+            machine,
+            graph.leaves[1],
+            boundaries,
+            &graph.leaf_structural_parameters[1],
+            &graph.leaf_entry_claims[1],
+        )?,
     ];
     let true_flow = state_flow(facts, machine.symbol, graph.leaves[0].symbol)?;
     let false_flow = state_flow(facts, machine.symbol, graph.leaves[1].symbol)?;
@@ -59,9 +75,9 @@ pub(super) fn build(
         states: vec![
             CheckedComposedUnitControlStatePlan {
                 state: graph.entry.symbol,
-                structural_parameters: Vec::new(),
+                structural_parameters: graph.entry_structural_parameters,
                 scalar_parameters: graph.entry_scalar_parameters,
-                entry_claims: Vec::new(),
+                entry_claims: graph.entry_claims,
                 operations: Vec::new(),
                 terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
                     guard: graph.guard,

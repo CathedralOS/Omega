@@ -8,9 +8,7 @@ pub(super) fn emit_composed_unit_control(
     admitted: admission::AdmittedComposedUnit<'_>,
     catalogs: catalogs::ComposedCatalogs,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let [entry, _, _] = plan.states.as_slice() else {
-        unreachable!("admission retained exactly three states")
-    };
+    let entry = admitted.entry;
     let entry_parameters = entry
         .scalar_parameters
         .iter()
@@ -26,6 +24,40 @@ pub(super) fn emit_composed_unit_control(
         .iter()
         .map(|parameter| parameter.scalar_type)
         .collect::<Vec<_>>();
+    let mut next_place = catalogs.next_place;
+    let structural_parameters = lower_unit_parameters(
+        &entry.structural_parameters,
+        &catalogs.type_ids,
+        &[],
+        &mut next_place,
+    )?;
+    let claims = super::super::claims::lower_unit_entry_claims(
+        plan.machine,
+        entry.state,
+        &entry.entry_claims,
+        &structural_parameters,
+    )?;
+    let mut claim_bindings = claims.source_claims;
+    if let custody::ComposedCustody::WholeRootLinear {
+        entry_claim,
+        leaf_claims,
+    } = admitted.custody
+    {
+        let claim = lookup_claim_id(&claim_bindings, entry_claim)?;
+        for alias in leaf_claims {
+            if claim_bindings.iter().any(|(source, _)| *source == alias) {
+                return unsupported("composed Unit leaf claim alias is duplicated");
+            }
+            claim_bindings.push((alias, claim));
+        }
+    }
+    let content_entry_claims = content_conservation::lower_whole_content_entry_claims(
+        checked,
+        &entry.structural_parameters,
+        &structural_parameters,
+        &entry.entry_claims,
+        &claim_bindings,
+    )?;
     let CheckedComposedUnitControlTerminatorPlan::Conditional { guard, .. } = &entry.terminator
     else {
         unreachable!("admission retained one conditional entry")
@@ -61,6 +93,10 @@ pub(super) fn emit_composed_unit_control(
             state,
             *block,
             &catalogs.lowered_boundaries,
+            &catalogs.type_ids,
+            &catalogs.structural_types,
+            &structural_parameters,
+            &claim_bindings,
             &mut next_value,
             &mut next_operation,
             &mut next_edge,
@@ -77,9 +113,8 @@ pub(super) fn emit_composed_unit_control(
     let provider_boundaries = catalogs
         .lowered_boundaries
         .iter()
-        .map(|(symbol, boundary, _)| (*symbol, *boundary))
+        .map(|boundary| (boundary.source, boundary.id))
         .collect::<Vec<_>>();
-    let mut next_place = 1_u64;
     let structural_places = super::super::provider_attachments::lower_provider_attachment_places(
         attachment,
         attachment_declaration,
@@ -91,11 +126,21 @@ pub(super) fn emit_composed_unit_control(
         id: machine_id(1),
         attachment: Some(attachment),
         parameters: entry_parameters,
-        structural_parameters: Vec::new(),
+        structural_parameters: structural_parameters.clone(),
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
-        structural_places,
-        entry_claims: Vec::new(),
+        structural_places: structural_parameters
+            .iter()
+            .map(|parameter| StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                },
+            })
+            .chain(structural_places)
+            .collect(),
+        entry_claims: claims.entry_claims,
         published_service_ceiling: lower_installation_machine_service_ceiling(
             checked,
             plan.machine,
@@ -103,7 +148,7 @@ pub(super) fn emit_composed_unit_control(
             plan.service_reach,
             &catalogs.service_ids,
         )?,
-        content_entry_claims: Vec::new(),
+        content_entry_claims,
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),
         entry: state_ids[0],
@@ -122,11 +167,11 @@ pub(super) fn emit_composed_unit_control(
 fn emit_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
     block: BlockId,
-    boundaries: &[(
-        psi_symbols::SymbolHandle,
-        BoundaryMachineId,
-        Vec<ScalarType>,
-    )],
+    boundaries: &[catalogs::LoweredComposedBoundary],
+    type_ids: &[(String, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
+    parameters: &[StructuralParameterDeclaration],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     next_value: &mut u64,
     next_operation: &mut u64,
     next_edge: &mut u64,
@@ -136,24 +181,55 @@ fn emit_leaf(
         source_site,
         target_machine,
         scalar_arguments,
+        structural_arguments,
+        completion_receipts,
         ..
     } = &state.operations[0]
     else {
         unreachable!("admission retained one boundary call")
     };
-    let (_, boundary, target_types) = boundaries
+    let target = boundaries
         .iter()
-        .find(|(candidate, _, _)| candidate == target_machine)
+        .find(|candidate| candidate.source == *target_machine)
         .ok_or(LoweringError::Unsupported(
             "composed Unit boundary target is absent from its exact catalog",
         ))?;
-    if scalar_arguments.len() != target_types.len() {
+    if scalar_arguments.len() != target.scalar_parameters.len() {
         return unsupported("composed Unit boundary scalar arity drifted");
     }
+    let expected_claim_arguments = structural_arguments
+        .iter()
+        .enumerate()
+        .flat_map(|(argument_index, argument)| {
+            state
+                .entry_claims
+                .iter()
+                .filter(move |claim| {
+                    claim.parameter_index == argument.source_parameter_index
+                        && (argument.path.is_empty() || claim.path == argument.path)
+                })
+                .map(move |_| {
+                    u32::try_from(argument_index).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "composed Unit boundary argument index exceeds u32",
+                        )
+                    })
+                })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    validate_transfer_shape(
+        structural_arguments,
+        completion_receipts,
+        parameters,
+        &target.checked_structural_parameters,
+        type_ids,
+        structural_types,
+        &expected_claim_arguments,
+    )?;
     let mut operations = OperationBuffer::new(*next_operation - 1);
     let arguments = scalar_arguments
         .iter()
-        .zip(target_types)
+        .zip(&target.scalar_parameters)
         .map(|(argument, target_type)| {
             let argument = lower_checked_scalar_expression(argument)?;
             if argument.scalar_type() != *target_type {
@@ -187,10 +263,22 @@ fn emit_leaf(
         id: call_id,
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
-            boundary: *boundary,
+            boundary: target.id,
             arguments,
-            structural_arguments: Vec::new(),
-            completion_receipts: Vec::new(),
+            structural_arguments: lower_structural_arguments(
+                structural_arguments,
+                parameters,
+                &[],
+            )?,
+            completion_receipts: completion_receipts
+                .iter()
+                .map(|receipt| {
+                    Ok(CompletionReceipt {
+                        claim: lookup_claim_id(claim_bindings, receipt.claim_identity)?,
+                        argument_index: receipt.argument_index,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?,
             requirement_obligations: Vec::new(),
         },
     });
