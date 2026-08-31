@@ -1023,6 +1023,172 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_named_canonical_const_values_in_closed_contract_conformances() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let original = TempPackage::new();
+    let changed = TempPackage::new();
+    let source = |rank: u64, marker: u8| {
+        format!(
+            r#"pub trait Ranked {{}}
+pub data Card {{}}
+pub data Marker {{ value: u8; }}
+pub data Alternate {{ value: u64; }}
+pub const RANK: u64 = {rank};
+pub const MARKER: Marker = Marker {{ value: {marker} }};
+pub const OTHER: Alternate = Alternate {{ value: 0 }};
+pub FieldOrder<Element, const Rank: u64, const Mark: Marker>: Element satisfies Ranked {{}}
+pub machine tag<Element, Order: Element satisfies Ranked>() -> u64 {{ 0 }}
+boundary machine trusted() -> u64
+ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
+"#,
+        )
+    };
+    original.write("main.omg", &source(7, 1));
+    changed.write("main.omg", &source(8, 2));
+    let build = r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    original.write("build.omg", build);
+    changed.write("build.omg", build);
+    let compile = |package: &TempPackage| {
+        compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("named canonical const conformance arguments should check")
+    };
+    let checked = compile(&original);
+    let changed_checked = compile(&changed);
+    let retained = &checked
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .application;
+    assert_eq!(retained.const_arguments.len(), 2);
+    assert!(
+        retained.const_arguments.iter().all(|argument| matches!(
+            argument,
+            psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated { .. }
+        )),
+        "checked closure must retain exact carriers and canonical values",
+    );
+    let review = project_checked_package_review(&checked)
+        .expect("named canonical const conformance arguments should project");
+    let changed_review = project_checked_package_review(&changed_checked)
+        .expect("changed named canonical const conformance arguments should project");
+    let trusted = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "trusted")
+        .expect("trusted boundary callable");
+    let [contract] = trusted.contracts() else {
+        panic!("one trusted contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        right,
+        ..
+    }) = contract.fact()
+    else {
+        panic!("trusted equality contract")
+    };
+    let PackageReviewContractExpression::Call {
+        static_arguments, ..
+    } = right.as_ref()
+    else {
+        panic!("generic tag call")
+    };
+    let [
+        PackageReviewContractStaticArgument::Type(_),
+        PackageReviewContractStaticArgument::ConformanceApplication { arguments, .. },
+    ] = static_arguments.as_slice()
+    else {
+        panic!("type and closed-conformance static arguments")
+    };
+    assert!(matches!(
+        arguments.as_slice(),
+        [
+            PackageReviewContractStaticArgument::Type(_),
+            PackageReviewContractStaticArgument::ConstInteger(rank),
+            PackageReviewContractStaticArgument::ConstStructured {
+                declared_type,
+                canonical_value_encoding,
+            },
+        ] if rank == "7"
+            && declared_type.canonical().contains("Marker")
+            && canonical_value_encoding.starts_with("record")
+    ));
+    assert_ne!(
+        review.canonical_review_bytes().unwrap(),
+        changed_review.canonical_review_bytes().unwrap(),
+        "changing named canonical values must change review identity",
+    );
+
+    let alternate_carrier = checked
+        .const_declarations()
+        .iter()
+        .find(|declaration| checked.symbols.name(declaration.symbol) == "OTHER")
+        .expect("OTHER declaration")
+        .declared_type;
+    let mut carrier_drift = checked.clone();
+    let psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
+        declared_carrier,
+        ..
+    } = &mut carrier_drift
+        .facts
+        .proof
+        .contract_expression_static_conformance_applications[0]
+        .application
+        .const_arguments[1]
+    else {
+        panic!("named structured const must retain one evaluated argument")
+    };
+    *declared_carrier = alternate_carrier;
+    let diagnostics = project_checked_package_review(&carrier_drift)
+        .expect_err("post-check named const carrier drift must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("retained checked occurrence disagrees with the authored application")
+    }));
+
+    let changed_rank_encoding = changed_checked
+        .const_declarations()
+        .iter()
+        .find(|declaration| changed_checked.symbols.name(declaration.symbol) == "RANK")
+        .and_then(|declaration| declaration.canonical_value_encoding.clone())
+        .expect("changed RANK canonical value");
+    let mut tampered = checked;
+    let rank = tampered
+        .typed
+        .tables
+        .const_declarations
+        .iter()
+        .find_map(|(handle, declaration)| {
+            (tampered.symbols.name(declaration.symbol) == "RANK").then_some(handle)
+        })
+        .expect("RANK declaration");
+    tampered
+        .typed
+        .tables
+        .const_declarations
+        .get_mut(rank)
+        .canonical_value_encoding = Some(changed_rank_encoding);
+    let diagnostics = project_checked_package_review(&tampered)
+        .expect_err("post-check named const value drift must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("retained checked occurrence disagrees with the authored application")
+    }));
+}
+
+#[test]
 fn review_alpha_normalizes_forwarded_const_binders_in_closed_contract_conformances() {
     let Some(target) = host_target_name() else {
         return;
@@ -1144,12 +1310,22 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&package.0),
     )
     .expect("integer-const conformance occurrence fixture should check");
-    checked
+    let retained = &mut checked
         .facts
         .proof
         .contract_expression_static_conformance_applications[0]
         .application
-        .const_arguments[0] = "8".to_owned();
+        .const_arguments[0];
+    let psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated { value, .. } =
+        retained
+    else {
+        panic!("integer literal must retain one evaluated const argument")
+    };
+    value.encoding = psi_language_semantics::const_value::CanonicalConstIdentity::integer(
+        value.type_name.clone(),
+        8,
+    )
+    .encoding;
     let diagnostics = project_checked_package_review(&checked)
         .expect_err("checked const-value drift must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

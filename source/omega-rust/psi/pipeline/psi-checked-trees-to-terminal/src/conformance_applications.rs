@@ -1,5 +1,5 @@
-use psi_checked_trees::CheckedTrees;
 use psi_checked_trees::data::TypeParameterKind;
+use psi_checked_trees::{CheckedTrees, ClosedConformanceConstArgument};
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, TerminalModule,
@@ -116,7 +116,22 @@ pub(super) fn lower_closed_conformance_applications(
                         (ClosedConformanceParameterKind::Type, argument)
                     }
                     TypeParameterKind::Const { .. } => {
-                        let argument = application.const_arguments.get(const_index).cloned();
+                        let argument = match application.const_arguments.get(const_index) {
+                            Some(ClosedConformanceConstArgument::Evaluated { value, .. }) => Some(
+                                psi_language_semantics::const_value::CanonicalConstValue::new(
+                                    value.type_name.clone(),
+                                    value.encoding.clone(),
+                                    "",
+                                )
+                                .atom(),
+                            ),
+                            Some(ClosedConformanceConstArgument::CallerBinder { .. }) => {
+                                return Err(LoweringError::Unsupported(
+                                    "closed conformance application reaches Terminal with an unsubstituted const binder",
+                                ));
+                            }
+                            None => None,
+                        };
                         const_index += 1;
                         (ClosedConformanceParameterKind::Const, argument)
                     }

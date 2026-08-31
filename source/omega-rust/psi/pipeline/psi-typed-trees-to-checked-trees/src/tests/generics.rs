@@ -2431,7 +2431,26 @@ fn selected_bound_application_substitutes_forwarded_type_const_and_machine_argum
         panic!("one selected bound application");
     };
     assert_eq!(application.type_arguments, ["Card", "Message"]);
-    assert_eq!(application.const_arguments, ["7"]);
+    let [
+        psi_typed_trees::typed_trees::ClosedConformanceConstArgument::Evaluated {
+            parameter_carrier,
+            declared_carrier,
+            value,
+        },
+    ] = application.const_arguments.as_slice()
+    else {
+        panic!("literal const application retains one evaluated value")
+    };
+    assert_eq!(parameter_carrier, declared_carrier);
+    assert!(matches!(
+        value.decode_encoding(),
+        Some(
+            psi_language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                value: 7,
+                ..
+            }
+        )
+    ));
     assert_eq!(application.machine_arguments, [rank]);
     assert_eq!(application.subject_identity.as_deref(), Some("Card"));
 }

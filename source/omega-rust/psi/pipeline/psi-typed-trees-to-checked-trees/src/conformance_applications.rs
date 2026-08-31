@@ -5,12 +5,15 @@
 //! argument-sensitive semantic identity.
 
 use psi_diagnostics::Diagnostic;
+use psi_language_semantics::const_value::{CanonicalConstIdentity, CanonicalConstValue};
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::TypeParameterKind;
 use psi_typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use psi_typed_trees::statement::StatementNode;
-use psi_typed_trees::typed_trees::{ClosedConformanceApplication, ClosedConformanceRowIdentity};
+use psi_typed_trees::typed_trees::{
+    ClosedConformanceApplication, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
+};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use sha2::{Digest, Sha256};
 
@@ -183,23 +186,16 @@ pub fn close_conformance_application(
                 substitutions.push((parameter.symbol, identity.clone()));
                 type_arguments.push(identity);
             }
-            TypeParameterKind::Const { .. } => {
-                if argument.const_literal.is_none()
-                    && !matches!(
-                        program.symbols.get(argument.symbol).kind,
-                        SymbolKind::TypeParameter
-                    )
-                {
-                    return Err(category_error(
-                        declaration_name,
-                        parameter.name.as_str(),
-                        "const",
-                        argument,
-                    ));
-                }
-                let identity = static_argument_identity(program, argument);
-                substitutions.push((parameter.symbol, identity.clone()));
-                const_arguments.push(identity);
+            TypeParameterKind::Const { type_reference } => {
+                let (argument, substitution_identity) = close_const_argument(
+                    program,
+                    declaration_name,
+                    parameter.name.as_str(),
+                    *type_reference,
+                    argument,
+                )?;
+                substitutions.push((parameter.symbol, substitution_identity));
+                const_arguments.push(argument);
             }
             TypeParameterKind::Machine { .. } => {
                 if !matches!(
@@ -369,6 +365,127 @@ fn category_error(
     ))
 }
 
+fn close_const_argument(
+    program: &TypedTrees,
+    conformance: &str,
+    parameter: &str,
+    parameter_carrier: TypeReferenceHandle,
+    argument: &StaticMachineArgument,
+) -> Result<(ClosedConformanceConstArgument, String), Diagnostic> {
+    if let Some(literal) = argument.const_literal.as_ref() {
+        let value = literal.text().parse::<i128>().map_err(|_| {
+            Diagnostic::error(format!(
+                "conformance `{conformance}` parameter `{parameter}` has a non-integer const literal `{}`",
+                literal.text(),
+            ))
+        })?;
+        let primitive = program
+            .type_reference_table
+            .primitive_type(parameter_carrier)
+            .filter(|primitive| primitive.accepts_integer_literal())
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "conformance `{conformance}` parameter `{parameter}` has an integer literal under a non-integer carrier",
+                ))
+            })?;
+        let value = CanonicalConstIdentity::integer(primitive.name(), value);
+        psi_validation::validate_exact_const_value_encoding(
+            program,
+            parameter_carrier,
+            value.encoding.as_str(),
+        )
+        .map_err(|reason| {
+            Diagnostic::error(format!(
+                "conformance `{conformance}` parameter `{parameter}` has an invalid literal value: {reason}",
+            ))
+        })?;
+        return Ok((
+            ClosedConformanceConstArgument::Evaluated {
+                parameter_carrier,
+                declared_carrier: parameter_carrier,
+                value,
+            },
+            literal.text().to_owned(),
+        ));
+    }
+    if program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter {
+        let matching = program
+            .data_type_parameters
+            .iter()
+            .map(|(_, parameter)| parameter)
+            .filter(|parameter| parameter.symbol == argument.symbol)
+            .collect::<Vec<_>>();
+        let [binder] = matching.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "conformance `{conformance}` parameter `{parameter}` resolves caller const binder `{}` to {} declarations; expected exactly one",
+                argument.display_name(),
+                matching.len(),
+            )));
+        };
+        let TypeParameterKind::Const {
+            type_reference: binder_carrier,
+        } = binder.kind
+        else {
+            return Err(category_error(conformance, parameter, "const", argument));
+        };
+        return Ok((
+            ClosedConformanceConstArgument::CallerBinder {
+                parameter_carrier,
+                binder: binder.symbol,
+                binder_carrier,
+            },
+            argument.display_name(),
+        ));
+    }
+    if program.symbols.get(argument.symbol).kind != SymbolKind::Const {
+        return Err(category_error(conformance, parameter, "const", argument));
+    }
+    let declarations = program
+        .const_declarations()
+        .iter()
+        .filter(|declaration| declaration.symbol == argument.symbol)
+        .collect::<Vec<_>>();
+    let [declaration] = declarations.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "conformance `{conformance}` parameter `{parameter}` resolves named const `{}` to {} declarations; expected exactly one",
+            argument.display_name(),
+            declarations.len(),
+        )));
+    };
+    let Some(encoding) = declaration.canonical_value_encoding.as_deref() else {
+        return Err(Diagnostic::error(format!(
+            "conformance `{conformance}` parameter `{parameter}` names const `{}` without a canonical checked value",
+            argument.display_name(),
+        )));
+    };
+    for carrier in [declaration.declared_type, parameter_carrier] {
+        psi_validation::validate_exact_const_value_encoding(program, carrier, encoding).map_err(
+            |reason| {
+                Diagnostic::error(format!(
+                    "conformance `{conformance}` parameter `{parameter}` names const `{}` whose canonical value does not replay against its exact carriers: {reason}",
+                    argument.display_name(),
+                ))
+            },
+        )?;
+    }
+    let value = CanonicalConstIdentity {
+        type_name: program
+            .normalized_type_identity(declaration.declared_type)
+            .into_string(),
+        encoding: encoding.to_owned(),
+    };
+    let substitution_identity =
+        CanonicalConstValue::new(value.type_name.clone(), value.encoding.clone(), "").atom();
+    Ok((
+        ClosedConformanceConstArgument::Evaluated {
+            parameter_carrier,
+            declared_carrier: declaration.declared_type,
+            value,
+        },
+        substitution_identity,
+    ))
+}
+
 pub(crate) fn static_argument_identity(
     _program: &TypedTrees,
     argument: &StaticMachineArgument,
@@ -507,7 +624,7 @@ fn application_identity(
     declaration: &str,
     lifetime_arguments: &[String],
     type_arguments: &[String],
-    const_arguments: &[String],
+    const_arguments: &[ClosedConformanceConstArgument],
     machine_arguments: &[SymbolHandle],
     subject: Option<&str>,
     trait_name: &str,
@@ -528,7 +645,6 @@ fn application_identity(
     for lane in [
         lifetime_arguments,
         type_arguments,
-        const_arguments,
         trait_lifetime_arguments,
         trait_arguments,
     ] {
@@ -538,6 +654,56 @@ fn application_identity(
             bytes.extend(item.as_bytes());
         }
         bytes.push(0xff);
+    }
+    bytes.extend((const_arguments.len() as u64).to_le_bytes());
+    for argument in const_arguments {
+        let append = |bytes: &mut Vec<u8>, value: &str| {
+            bytes.extend((value.len() as u64).to_le_bytes());
+            bytes.extend(value.as_bytes());
+        };
+        match argument {
+            ClosedConformanceConstArgument::Evaluated {
+                parameter_carrier,
+                declared_carrier,
+                value,
+            } => {
+                bytes.push(0);
+                append(
+                    &mut bytes,
+                    program
+                        .normalized_type_identity(*parameter_carrier)
+                        .as_str(),
+                );
+                append(
+                    &mut bytes,
+                    program.normalized_type_identity(*declared_carrier).as_str(),
+                );
+                append(&mut bytes, value.type_name.as_str());
+                append(&mut bytes, value.encoding.as_str());
+            }
+            ClosedConformanceConstArgument::CallerBinder {
+                parameter_carrier,
+                binder,
+                binder_carrier,
+            } => {
+                bytes.push(1);
+                append(
+                    &mut bytes,
+                    program
+                        .normalized_type_identity(*parameter_carrier)
+                        .as_str(),
+                );
+                append(
+                    &mut bytes,
+                    program.normalized_type_identity(*binder_carrier).as_str(),
+                );
+                append(
+                    &mut bytes,
+                    program.symbols.display_path(*binder, "::").as_str(),
+                );
+            }
+        }
+        bytes.push(0xfd);
     }
     for machine in machine_arguments {
         let identity = program
@@ -587,7 +753,7 @@ fn application_identity(
     }
     let mut hash = OFFSET;
     let mut strong = Sha256::new();
-    strong.update(b"omega.psi.closed-conformance-application.v2\0");
+    strong.update(b"omega.psi.closed-conformance-application.v3\0");
     strong.update(&bytes);
     for byte in bytes {
         hash ^= u64::from(byte);

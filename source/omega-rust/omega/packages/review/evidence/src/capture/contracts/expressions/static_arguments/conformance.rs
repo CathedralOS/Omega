@@ -140,14 +140,15 @@ pub(super) fn project_contract_conformance_application(
         .application
         .as_ref()
         .map_or(&[][..], |application| application.arguments.as_ref());
-    let retained_const_arguments = parameters
+    let const_parameter_count = parameters
         .iter()
-        .zip(supplied)
-        .filter_map(|(parameter, argument)| match parameter.kind {
-            psi_typed_trees::data::TypeParameterKind::Const { .. } => Some(argument.display_name()),
-            _ => None,
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                psi_typed_trees::data::TypeParameterKind::Const { .. }
+            )
         })
-        .collect::<Vec<_>>();
+        .count();
     if !declaration.lifetime_parameters.is_empty()
         || parameters.len() != supplied.len()
         || parameters
@@ -162,16 +163,19 @@ pub(super) fn project_contract_conformance_application(
                                 && compilation.typed.symbols.get(*symbol).kind
                                     == psi_symbols::SymbolKind::TypeParameter
                         })
+                        && (!argument.symbol.is_valid()
+                            || compilation.typed.symbols.get(argument.symbol).kind
+                                != psi_symbols::SymbolKind::Const)
                 }
                 psi_typed_trees::data::TypeParameterKind::Machine { .. }
                 | psi_typed_trees::data::TypeParameterKind::Proposition { .. } => true,
             })
         || !closed.lifetime_arguments.is_empty()
-        || closed.const_arguments != retained_const_arguments
+        || closed.const_arguments.len() != const_parameter_count
         || !closed.machine_arguments.is_empty()
     {
         return Err(rejected(
-            "outside the lifetime-free cohort with type parameters and exact integer-literal or caller-binder const parameters",
+            "outside the lifetime-free cohort with type parameters and exact literal, caller-binder, or named canonical const parameters",
         ));
     }
     let projected =
