@@ -124,6 +124,7 @@ pub(super) fn build_affine_array_construction_prefix(
         9 => 10,
         10 => 11,
         11 => 12,
+        12 => 13,
         _ => return None,
     };
     if !local.is_mutable
