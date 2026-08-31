@@ -1,13 +1,19 @@
 //! Exact block-parameter substitution reconstruction shared by both merge rules.
 
-use super::super::*;
+use omega_abstract_operations::ValueBinding;
+use omega_optimization_unit::{OptimizationBlock, ScalarSubstitution};
+use psi_core::{BlockId, MachineId};
+
+use crate::UseDefinitionAnalysis;
+
+use super::super::super::support::replacement_dominates_parameter_uses;
 
 pub(super) fn merge_substitutions(
     machine: MachineId,
-    target: &omega_optimization_unit::OptimizationBlock,
-    bindings: &[omega_abstract_operations::ValueBinding],
+    target: &OptimizationBlock,
+    bindings: &[ValueBinding],
     dominators: &[(BlockId, Vec<BlockId>)],
-    use_definitions: &crate::UseDefinitionAnalysis,
+    use_definitions: &UseDefinitionAnalysis,
 ) -> Option<Vec<ScalarSubstitution>> {
     let mut substitutions = target
         .parameters

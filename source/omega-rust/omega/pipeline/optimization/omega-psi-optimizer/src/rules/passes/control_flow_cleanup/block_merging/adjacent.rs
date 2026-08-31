@@ -1,5 +1,17 @@
+use omega_abstract_operations::AbstractOperation as O;
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
+    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use omega_optimization_unit::{
+    AdjacentBlockMergeRewrite, NodeLocation, PsiOptimizationUnit, PsiProvenance,
+    PsiRewriteCandidate,
+};
+
+use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+
+use super::super::super::CONTROL_FLOW_CLEANUP_PASS_NAME;
 use super::super::merge_boundary_ownership::merge_boundary_ownership_witness;
-use super::super::*;
 use super::adjacent_accounting::adjacent_merge_accounting;
 use super::substitutions::merge_substitutions;
 
