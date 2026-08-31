@@ -47,14 +47,19 @@ decision. Only true language-semantic questions belong in
    differential target now uses the same tagged carrier for all six provider
    settlements and is green 7/7 across O0/O1 realization, deterministic image
    replay, and provider-requirement rejection.
-   The same audit still classifies the broad 1,258-case language canary at 114
-   passes / 1,144 native-production closure failures, predominantly missing
-   checked transitive machine plans or exact selected program entries, with a
-   smaller unresolved checked-expression class. Native-filesystem canaries are
-   likewise 0/89 on that closure, and narrower structural-return, generic-
-   instance, package-review, and native-coverage failures remain. Run the full
-   gate again only after the next coherent repair batch; no result here permits
-   implicit optimizer enablement.
+   The latest excluded-target continuation after upstream movement identifies
+   14 failing targets. The broad 1,258-case language canary is 114 pass / 1,144
+   fail and native-filesystem is 0/89; repeated-runtime, recast-view, sample,
+   service-contract, subslice, and wire-plan targets share the dominant
+   `attached Unit closure is missing a checked transitive machine plan`
+   diagnostic. A smaller recurring custody class leaves `CheckedStructLiteralType`,
+   `CheckedOperator`, or compiler-derived member access unresolved. Independent
+   failures remain in layering, the legacy `Pair` layout fixture, one generic
+   erased-record instance, nominal-affine lowering (stack overflow), and the
+   compiler/compilation-report doctests. Repair checked Unit transitive-plan
+   custody first, then authored checked selections, then the isolated fixtures
+   and docs. Run the full gate again only after that coherent repair batch; no
+   result here permits implicit optimizer enablement.
 6. [>] Finish the exact-rule navigation refactor across Psi passes. Copy
    propagation and dead-scalar elimination now use exact named leaves, the
    dead-scalar entrance is a 31-line ordered roster, and the guard rejects new
