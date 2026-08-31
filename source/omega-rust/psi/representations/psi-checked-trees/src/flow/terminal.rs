@@ -512,6 +512,9 @@ pub struct CheckedUnitEffectPlans {
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
     pub machines: Vec<CheckedUnitEffectMachinePlan>,
+    /// Multi-state Unit machines whose exact control and effect rows were
+    /// admitted as one atomic executable plan.
+    pub composed_machines: Vec<CheckedComposedUnitControlMachinePlan>,
 }
 
 impl CheckedUnitEffectPlans {
@@ -527,6 +530,39 @@ impl CheckedUnitEffectPlans {
             .iter()
             .find(|plan| plan.machine == machine)
     }
+
+    pub fn composed_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedComposedUnitControlMachinePlan> {
+        self.composed_machines
+            .iter()
+            .find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedComposedUnitControlMachinePlan {
+    pub machine: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
+    pub body_qualifications: Vec<SemanticDomainId>,
+    pub contract_report_fingerprint: u64,
+    pub contract_commitment: crate::MachineContractCommitment,
+    pub contract_service_reach: ServiceReachPlan,
+    pub service_reach: ServiceReachSummary,
+    pub states: Vec<CheckedComposedUnitControlStatePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedComposedUnitControlStatePlan {
+    pub state: SymbolHandle,
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
+    /// Ordered effect operations only. Control exits remain in `terminator`.
+    pub operations: Vec<CheckedUnitEffectOperationPlan>,
+    pub terminator: CheckedStructuralUnitControlTerminatorPlan,
 }
 
 /// Source-handle-free checked plans for the bounded structural-result lanes.

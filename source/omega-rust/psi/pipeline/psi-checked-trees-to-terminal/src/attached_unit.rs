@@ -8,6 +8,7 @@ use super::*;
 
 mod call_closure;
 mod catalog;
+mod composed_control;
 mod parameters;
 mod providers;
 mod selected_operator;
@@ -30,6 +31,7 @@ use catalog::{
     lower_unit_services, lower_unit_structural_domains, lower_unit_structural_types,
     require_valid_service_row,
 };
+pub(super) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(super) use parameters::lower_contract_service_ceiling;
 pub(super) use parameters::{
@@ -90,7 +92,7 @@ fn retain_exact_checked_flow_call(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn retain_exact_unit_boundary<'plans>(
+pub(super) fn retain_exact_unit_boundary<'plans>(
     checked: &CheckedTrees,
     plans: &'plans psi_checked_trees::CheckedUnitEffectPlans,
     boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
