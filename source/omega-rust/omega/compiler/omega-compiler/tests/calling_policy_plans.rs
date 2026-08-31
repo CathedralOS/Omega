@@ -782,6 +782,43 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         psi_typed_trees::snapshot::ExpressionSnapshot::Name { path }
             if path == &["self"]
     ));
+    let complete = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")
+        .expect("checked-in core completion requirement");
+    assert!(complete.is_public);
+    assert_eq!(
+        complete.supply_mode,
+        psi_language_semantics::MachineSupplyMode::TopLevelRequirement
+    );
+    assert!(!complete.body_is_present);
+    assert!(!complete.service_reach_is_installation_bound);
+    let complete_snapshot = checked
+        .typed
+        .snapshot()
+        .roots
+        .machines
+        .into_iter()
+        .find(|machine| machine.name == "InterruptAcknowledgement::complete")
+        .expect("completion requirement snapshot");
+    assert_eq!(complete_snapshot.service_reach, ["PortIo"]);
+    let [complete_contract] = complete_snapshot.contracts.as_slice() else {
+        panic!("completion requirement must retain only its Pending precondition")
+    };
+    assert_eq!(complete_contract.kind, "requires");
+    let [psi_typed_trees::snapshot::ProofFactSnapshot::Membership { domain, value, .. }] =
+        complete_contract.facts.as_slice()
+    else {
+        panic!("completion requirement must retain one membership precondition")
+    };
+    assert_eq!(domain, &["InterruptAcknowledgement", "Pending"]);
+    assert!(matches!(
+        value,
+        psi_typed_trees::snapshot::ExpressionSnapshot::Name { path }
+            if path == &["self"]
+    ));
     let selection = retained_interrupt_representation(&checked);
     let timer_entry = checked
         .typed

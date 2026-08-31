@@ -54,8 +54,7 @@ reaches MachineControl
 requires
     self in InterruptMaskGuard::Active;
 
-boundary machine InterruptAcknowledgement::complete(self)
+pub boundary requirement InterruptAcknowledgement::complete(self)
 reaches PortIo
 requires
-    self in InterruptAcknowledgement::Pending
-ensures true;
+    self in InterruptAcknowledgement::Pending;

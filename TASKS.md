@@ -874,13 +874,13 @@ Remaining:
   source-form inference, and removal of `via Binding::CompilerIntrinsic`
   remain open.
 
-  `InterruptMaskGuard::restore` now uses the public top-level requirement form
-  with its exact `Active` precondition and fixed `MachineControl` reach; its
-  vacuous legacy guarantee is gone. Migrate
-  `InterruptAcknowledgement::complete`, `Task::request_cancel`, and
-  `Task::finish` to this form. Change `complete` to
+  `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
+  `Task::request_cancel`, and `Task::finish` now use the public top-level
+  requirement form with their exact preconditions, operational ceilings, and
+  fixed service reaches; their vacuous legacy guarantees are gone. Change
+  `complete` from its current fixed `PortIo` reach to
   `reaches <= MachineControl + PortIo` only when its satisfier and selection
-  route land, and remove vacuous `ensures true` clauses. Keep
+  route land. Keep
   `PlacedField::read/take/write` as external realizations: they already carry
   exact `satisfies` edges. Complete the `no_wrap` proposition migration under
   **TARGET-SEMANTIC-APPLICATIONS**; remove the fake bodyless `embed` declaration in favor of the

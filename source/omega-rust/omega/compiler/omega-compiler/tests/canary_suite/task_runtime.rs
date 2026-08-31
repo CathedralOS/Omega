@@ -11,12 +11,40 @@ fn render(diagnostics: &[Diagnostic]) -> String {
 #[test]
 fn lifecycle_operations_conserve_the_linear_claim() {
     let pass = pass_canary("core/task_lifecycle_operations");
-    compile_canary_without_output(&pass).unwrap_or_else(|diagnostics| {
+    let checked = compile_to_checked(&pass.join("main.omg"), None).unwrap_or_else(|diagnostics| {
         panic!(
             "task lifecycle operations should conserve the claim:\n{}",
             render(&diagnostics)
         )
     });
+    let snapshot = checked.typed.snapshot();
+    for (name, suspends, blocks) in [
+        ("Task::request_cancel", false, false),
+        ("Task::finish", true, true),
+    ] {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("checked-in core requirement `{name}`"));
+        assert!(machine.is_public, "{name}");
+        assert_eq!(
+            machine.supply_mode,
+            psi_language_semantics::MachineSupplyMode::TopLevelRequirement,
+            "{name}"
+        );
+        assert!(!machine.body_is_present, "{name}");
+        let machine_snapshot = snapshot
+            .roots
+            .machines
+            .iter()
+            .find(|machine| machine.name == name)
+            .unwrap_or_else(|| panic!("snapshot for `{name}`"));
+        assert_eq!(machine_snapshot.suspends, suspends, "{name}");
+        assert_eq!(machine_snapshot.blocks, blocks, "{name}");
+        assert!(machine_snapshot.contracts.is_empty(), "{name}");
+    }
 
     let fail = fail_canary("core/task_core_scope_loss");
     let diagnostics = compile_canary_without_output(&fail)

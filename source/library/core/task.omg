@@ -43,12 +43,10 @@ data StartOutcome<T, Arguments> {
 // Cancellation requests retain the linear claim. `finish` is the terminal
 // operation: it may park while the provider reaches a lifecycle outcome and
 // consumes the claim exactly once.
-boundary machine Task::request_cancel<T>(&self)
-ensures true;
+pub boundary requirement Task::request_cancel<T>(&self);
 
-boundary machine Task::finish<T>(self) -> TaskOutcome<T>
+pub boundary requirement Task::finish<T>(self) -> TaskOutcome<T>
 suspends; blocks;
-ensures true;
 
 // Runtime authority is an ordinary selected boundary capability. These
 // generic boundary requirements give
