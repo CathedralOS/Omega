@@ -12,6 +12,10 @@ builder.optimizations.enable(Optimization::GlobalValueNumbering);
 builder.optimizations.enable(Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1);
 ```
 
+The rollout architecture gate rejects broad level, size-profile, and
+build-mode spellings if they ever enter the canonical optimization vocabulary;
+this is an executable constraint, not naming guidance.
+
 This document is the entrance to the optimizer design. It owns the invariants,
 the pipeline, and the source taxonomy. Details descend into the linked briefs;
 the execution checklist lives in [`TASKS_OPTIMIZER.md`](../../TASKS_OPTIMIZER.md).
@@ -213,9 +217,12 @@ their original component blocks. A private resolver accepts each exact
 certificate constant either at its original role location or in the sole
 preheader's canonical constant suffix before the entry jump, and current/
 Terminal ranking comparison remains the admission seam. Reconstruction runs
-before the unchanged ranked-block freeze, so relocation-shaped fixtures prove
-the ranking evidence survives and then still fail at the correct freeze. This
-changes no certificate identity, public carrier, rewrite API, or execution
+before a preservation-aware freeze that independently compares normalized
+source and current component blocks. Only the authenticated zero/one position
+may differ; source provenance and fuel remain byte-exact, while definition,
+use, and effect rows are revalidated by ordinary core validation at their new
+coordinates. Successful relocation reissues identical component and ranking
+custody. This changes no certificate identity, public rewrite API, or execution
 authority.
 
 Allocation recovery is one phase carrier rather than one carrier per exact
@@ -365,6 +372,15 @@ select the lowest compatible view for each later segment. Both reload- and
 original-victim chains close without residual pressure on x86-64 and AArch64.
 The artifact grants no instruction, memory effect, frame address, fault,
 encoding, emission, or publication authority.
+
+The adjacent `spill_pseudo_instructions/homed` V2 entrance consumes the
+byte-stable V1 pseudo artifact plus final recursive homes. It retains V1's
+abstract storage, typed sources, order, and rewrite producer while adding the
+exact `destination_view` to every reload. A distinct policy, identity, direct
+producer, and independently keyed replay prevent this field from silently
+widening V1. This is still compiler-private pseudo custody, not selected or
+machine instruction, address, memory, frame, trap, encoding, emission, or
+publication authority.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

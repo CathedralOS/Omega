@@ -128,9 +128,10 @@ Optimizer-only ranked-cycle admission follows the same visible descent.
 small executable context-validation entrance. Its `ranked_cycles` stage group
 descends through `graph.rs`, `topology.rs`, and `components.rs` for independent
 Terminal/current reconstruction; `model.rs` owns the structural component ID
-and opaque validated carrier, `freeze.rs` owns immutable component comparison,
-and `replay.rs` owns post-run rederivation. The 33-line stage-group entrance is
-not a second public validation entrance.
+and opaque validated carrier, `freeze.rs` coordinates component preservation,
+and `freeze/normalized_component.rs` independently owns the sole authenticated
+zero/one relocation normalization. `replay.rs` owns post-run rederivation. The
+33-line stage-group entrance is not a second public validation entrance.
 The mirrored `omega-optimization-pipeline/src/tests/cyclic_psi.rs` leaf builds a
 real source countdown and pins CFG, dominator, SCC, loop, and liveness analysis
 plus topology/frozen-body corruption. General cyclic authority and cyclic
@@ -166,9 +167,12 @@ The ranking validator's current-IR side descends through the private
 `countdown_ranking/current/invariant_constants.rs` resolver. The existing
 `current.rs` coordinator still derives the complete certificate, while the new
 leaf owns only unique zero/one lookup in the original role block or canonical
-preheader suffix. Ranked-cycle validation reconstructs current/Terminal
-ranking before the unchanged freeze. The mirrored relocation-shaped cyclic-Psi
-leaf and layering guard prove this is reconstruction mechanics, not an import
+preheader suffix. Ranked-cycle validation reconstructs current/Terminal ranking
+before the preservation-aware freeze. That freeze admits only the exact
+certificate-owned zero/one canonical-suffix relocation while requiring source
+provenance and fuel to remain identical; every other component node remains
+positionally frozen. The mirrored relocation-shaped cyclic-Psi leaf and
+layering guard prove this is independent validation mechanics, not an import
 from optimizer placement analyses or a rewrite entrance.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
@@ -365,6 +369,17 @@ exceeds 200 lines. The mirrored `register_allocation/recursive_reload_value_home
 test owns both victim paths, exact rosters, corruption, budget, and cross-target
 custody; architecture guards register the entrance and full ladder.
 
+Homed pseudo closure enters through the 26-line
+`spill_pseudo_instructions/homed/mod.rs` coordination file beside the unchanged
+V1 entrance. `model.rs`, `identity.rs`, and `validate.rs` own the distinct V2
+policy, carrier, identity, and receipt; `compute.rs` owns direct traversal and
+`replay.rs` independently reconstructs keyed storage/instruction/rewrite rows
+with destination homes. The mirrored
+`register_allocation/homed_spill_pseudo_instructions.rs` leaf owns both victim
+paths, V1 byte stability, corruption, budgets, and cross-target custody.
+Architecture guards register the entrance and ladder and prohibit replay from
+calling producer mechanics.
+
 Function-relative V9 mutation coverage enters through the five-line
 `function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
 into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,
@@ -557,6 +572,15 @@ fixture, corruption, catalog, and optimized-custody leaves cover signed/
 unsigned fixed 8/16/32/64 and address64 on all five targets while remaining
 disjoint from exact/saturating add, subtract/multiply, plain immediate, and the
 parameter wrapping-add family.
+Constant wrapping integer-subtract immediate translation is the adjacent exact
+ordered sibling under `straight_line_wrapping_integer_subtract_immediate/`.
+Its 27-line entrance joins the two-constant four-operation grammar to
+independent `ReturnIntegerImmediate` replay using
+`IntegerType::wrapping_subtract`. Dedicated fixture, corruption, catalog, and
+optimized-custody leaves cover signed/unsigned fixed 8/16/32/64 and address64
+on all five targets with 180 direct and 180 optimized cases. The family remains
+disjoint from exact/saturating subtract, wrapping add/multiply, plain immediate,
+and parameter wrapping-subtract.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line
