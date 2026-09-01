@@ -486,7 +486,6 @@ mod tests {
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),
-            requirement_obligations: Vec::new(),
         };
         assert_eq!(
             classify_operation(&boundary),
@@ -646,7 +645,6 @@ mod tests {
                         },
                     ],
                     completion_receipts: Vec::new(),
-                    requirement_obligations: Vec::new(),
                 },
             },
             Operation {

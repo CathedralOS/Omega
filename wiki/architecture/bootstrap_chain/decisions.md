@@ -2097,15 +2097,13 @@ generic proof cannot replace sealed routed provenance such as the qualification
 introduced by `InterruptEntry::enter`; the boundary call merely consumes the
 already-established result.
 
-Terminal's current boundary `requirement_obligations` wire slot is a legacy
-always-empty field. The verifier continues to reject every nonempty roster as
-`BoundaryStructuralRequirementsMintObligations`. At the next Terminal format
-and vocabulary revision, the boundary variant and wire payload remove the slot
-entirely and bump both markers. The new format says that the field is absent,
-not that boundary calls own an optional proof facility. Abstract lowering and
-native settlement retain the boundary, structural arguments, completion
-receipts, and declaration join; they do not fabricate or preserve boundary
-proof IDs.
+Terminal format 54 and vocabulary 57 remove the former boundary
+`requirement_obligations` field and wire payload. The preceding current-only
+format required the legacy slot to remain empty and rejected every nonempty
+roster; the new format says that the field is absent, not that boundary calls
+own an optional proof facility. Abstract lowering and native settlement retain
+the boundary, structural arguments, completion receipts, and declaration join;
+they do not fabricate or preserve boundary proof IDs.
 
 Qualification rosters are non-recomputable carried semantic facts. A
 transformation may retain a qualification only when every incoming occurrence

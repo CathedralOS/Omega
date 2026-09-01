@@ -231,7 +231,6 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                 arguments,
                 structural_arguments,
                 completion_receipts,
-                requirement_obligations,
             } => {
                 writer.u8(35);
                 writer.id(boundary);
@@ -245,7 +244,6 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
                     writer.id(settlement.claim);
                     writer.u32(settlement.argument_index);
                 }
-                encode_obligation_ids(writer, &requirement_obligations)?;
             }
             OperationKind::PortWrite {
                 service,
@@ -871,7 +869,6 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
                         argument_index: reader.u32()?,
                     })
                 })?,
-                requirement_obligations: decode_ids(reader, "ObligationId")?,
             },
             36 => OperationKind::PortWrite {
                 service: reader.id("ServiceId")?,

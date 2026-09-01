@@ -343,7 +343,6 @@ pub(super) fn emit_boundary_call_operation(
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
-            requirement_obligations: Vec::new(),
         },
     });
     Ok(())

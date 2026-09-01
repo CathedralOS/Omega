@@ -108,7 +108,6 @@ pub(super) fn provider_module() -> TerminalModule {
                         arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         completion_receipts: Vec::new(),
-                        requirement_obligations: Vec::new(),
                     },
                 },
                 service,

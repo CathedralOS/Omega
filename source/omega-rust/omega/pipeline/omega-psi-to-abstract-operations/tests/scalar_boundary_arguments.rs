@@ -85,7 +85,6 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
                         arguments: vec![byte.id, boolean.id],
                         structural_arguments: Vec::new(),
                         completion_receipts: Vec::new(),
-                        requirement_obligations: Vec::new(),
                     },
                 }],
                 terminator: Terminator::ReturnUnit {

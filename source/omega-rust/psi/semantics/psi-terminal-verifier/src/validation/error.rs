@@ -464,7 +464,6 @@ pub enum ModuleError {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
-    BoundaryStructuralRequirementsMintObligations(OperationId),
     StructuralArgumentArityMismatch {
         operation: OperationId,
         expected: usize,

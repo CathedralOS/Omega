@@ -684,7 +684,6 @@ pub(super) fn validate_unit_operation_static(
             arguments: _,
             structural_arguments,
             completion_receipts,
-            requirement_obligations,
         } => {
             let boundary = module
                 .boundary_machines
@@ -694,11 +693,6 @@ pub(super) fn validate_unit_operation_static(
                     operation: operation.id,
                     boundary: *boundary,
                 })?;
-            if !requirement_obligations.is_empty() {
-                return Err(ModuleError::BoundaryStructuralRequirementsMintObligations(
-                    operation.id,
-                ));
-            }
             validate_structural_arguments(
                 module,
                 machine,

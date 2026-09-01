@@ -4918,7 +4918,6 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
                         claim,
                         argument_index: 0,
                     }],
-                    requirement_obligations: Vec::new(),
                 },
             }],
             terminator: Terminator::Return {

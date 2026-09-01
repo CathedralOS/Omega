@@ -808,7 +808,6 @@ mod tests {
                         },
                     ],
                     completion_receipts: Vec::new(),
-                    requirement_obligations: Vec::new(),
                 },
             },
             Operation {

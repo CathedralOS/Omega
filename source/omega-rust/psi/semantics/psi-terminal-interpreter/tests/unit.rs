@@ -2280,7 +2280,6 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                                 path: Vec::new(),
                             }],
                             completion_receipts: Vec::new(),
-                            requirement_obligations: Vec::new(),
                         },
                     },
                 ],
@@ -2376,7 +2375,6 @@ fn scalar_boundary_effect_module() -> TerminalModule {
                             arguments: vec![value_id(1), value_id(2)],
                             structural_arguments: Vec::new(),
                             completion_receipts: Vec::new(),
-                            requirement_obligations: Vec::new(),
                         },
                     },
                 ],
@@ -2548,7 +2546,6 @@ fn effect_module() -> TerminalModule {
                                 claim: claim_id(1),
                                 argument_index: 0,
                             }],
-                            requirement_obligations: Vec::new(),
                         },
                     }],
                     terminator: Terminator::ReturnUnit {
