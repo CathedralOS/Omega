@@ -1249,7 +1249,17 @@ as `[13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the verifier, codec,
 interpreter, Omega lowering, native emission, object/image replay, and
 installation encoding retain the common root plus exact fifteen fuel units.
 Missing/reordered operations or cleanup, changed indices/root length, and
-length-sixteen or wider prefixes reject; no runtime liveness bitmap or cleanup
+other prefix drift rejects; no runtime liveness bitmap or cleanup
+loop is introduced.
+
+The next bounded carrier admits the same shape at length sixteen with
+establishments `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]`. Terminal
+publishes fifteen ordered zero-ABI local places, the Unit return discards them
+as `[14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the verifier,
+codec, interpreter, Omega lowering, native emission, object/image replay, and
+installation encoding retain the common root plus exact sixteen fuel units.
+Missing/reordered operations or cleanup, changed indices/root length, and
+length-seventeen or wider prefixes reject; no runtime liveness bitmap or cleanup
 loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
