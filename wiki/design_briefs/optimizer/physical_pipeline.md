@@ -437,12 +437,14 @@ The current policy is centralized at
 `coordination/physical_pipeline/routes/composition/mod.rs`. Owning catalogs
 first validate each phase selection and target predicate; this entrance alone
 admits baseline, selected lowering, one allocation-recovery rule alone, one
-post-allocation rule with optional selected lowering, or function-relative
-layout with optional selected lowering. Multiple recovery or machine rules,
-recovery mixed with another physical phase, and machine plus layout reject
-before route execution. The canonical post-allocation catalog entry survives
-composition and its closed execution kind selects the named leaf; lower leaves
-independently validate transformation and custody.
+post-allocation rule with optional selected lowering, function-relative layout
+with optional selected lowering, and one exact cross-phase pair:
+active-resident immediate-U64 multi-use rematerialization followed by x86
+MOV-r32-imm32 selection. Multiple recovery or machine rules, every other
+recovery-machine pair, and machine plus layout reject before route execution.
+The canonical post-allocation catalog entry survives composition and its closed
+execution kind selects the named leaf; lower leaves independently validate
+transformation and custody.
 
 ## Required tests
 
@@ -461,8 +463,8 @@ Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
 The adjacent composition matrix covers all 105 unordered exact-name pairs on
-both x86-64 and AArch64. Its 210 cells contain 120 admitted routes, 50 typed
-composition rejections, and 40 target rejections. Every cell also checks the
+both x86-64 and AArch64. Its 210 cells contain 121 admitted routes, 48 typed
+composition rejections, and 41 target rejections. Every cell also checks the
 exact Psi pass projection and proves that overlaying the complete Psi suite
 does not change the physical disposition; focused triple cases pin the two
 selected-lowering rules with machine and layout routes.
@@ -492,8 +494,12 @@ taxonomy has `FixedViewCopies` and `ActiveResidentRematerialization` leaves;
 each leaf retains its exact upstream receipt and post-allocation transformation
 identity, while the carrier owns the common machine plan, selected-form
 encoding, resolved layout, whole-function exit contract, and realization
-manifest. The physical pipeline therefore returns one `AllocationRecovery`
+manifest. Recovery alone returns the physical pipeline's `AllocationRecovery`
 variant, and fragment admission consumes one `AllocationRecoveryV1` source
-kind. Fixed-view copies and active-resident rematerialization do not own
-parallel publication routes. Fragment and fragment-text manifests use schema
-v9 because the source-kind tag now denotes this generic carrier.
+kind. The admitted active-resident-plus-MOV pair instead moves the same source
+taxonomy into the generic post-allocation realization's
+`AfterAllocationRecovery` leaf. That join independently replays recovery,
+machine-plan, MOV, encoding, layout, and exit custody and publishes the generic
+post-allocation source kind. Neither recovery rule owns a parallel publication
+vertical. Fragment and fragment-text manifests use schema v9 because the
+source-kind tag denotes these generic carriers.

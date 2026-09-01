@@ -1,13 +1,14 @@
 use super::prelude::*;
 use super::{assembly::final_layout, model::*};
 
-/// The only two custody origins admitted to the post-allocation realization
-/// join.  Keeping this distinction inside the carrier avoids multiplying the
-/// public pipeline by source route and optimization rule.
+/// The custody origins admitted to the post-allocation realization join.
+/// Keeping this distinction inside the carrier avoids multiplying the public
+/// pipeline by source route and optimization rule.
 #[derive(Debug)]
 pub enum StagedPostAllocationMachineFunctionRelativeSource {
     Direct(StagedOptimizedRegisterHomes),
     AfterSelectedLowering(StagedOptimizedRegisterHomesAfterSelectedLowering),
+    AfterAllocationRecovery(StagedAllocationRecoveryFunctionRelativeSource),
 }
 
 #[derive(Debug)]
@@ -75,6 +76,7 @@ impl StagedPostAllocationMachineFunctionRelativeRealization {
 pub enum PostAllocationMachineFunctionRelativeSourceCustody {
     Direct(StagedOptimizedRegisterHomeCustodyReceipt),
     AfterSelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
+    AfterAllocationRecovery(StagedAllocationRecoverySourceCustodyReceipt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

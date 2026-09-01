@@ -167,6 +167,14 @@ fragment, object, and callable stages sit above that taxonomy. Adding another
 recovery rule therefore adds a source leaf and catalog disposition, not a new
 publication vertical.
 
+The first admitted recovery-machine composition preserves that taxonomy:
+active-resident immediate-U64 multi-use rematerialization can feed the exact
+x86 MOV-r32-imm32 rule through the generic post-allocation realization's
+`AfterAllocationRecovery` source leaf. The composition entrance names this one
+pair explicitly; all other recovery-machine pairs still reject. The join
+retains both phase-selection roots and independently replays source, machine,
+encoding, layout, and exit custody before publication.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and

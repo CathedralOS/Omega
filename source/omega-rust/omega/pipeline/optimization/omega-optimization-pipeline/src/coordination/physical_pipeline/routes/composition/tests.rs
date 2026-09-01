@@ -1,6 +1,6 @@
 use omega_machine_optimizer::{
-    POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogEntry,
-    PostAllocationMachineRuleCatalogError,
+    PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleCatalogError,
+    POST_ALLOCATION_MACHINE_RULE_CATALOG,
 };
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use omega_psi_optimizer::built_in_psi_registries;
@@ -55,8 +55,35 @@ fn expected_pair(
     if allocation_recovery > 1 {
         return ExpectedDisposition::AllocationRecoveryComposition;
     }
-    if allocation_recovery == 1 && selected_lowering + post_allocation + function_relative != 0 {
-        return ExpectedDisposition::UnsupportedPhysicalComposition;
+    if allocation_recovery == 1 {
+        if selected_lowering + function_relative != 0 {
+            return ExpectedDisposition::UnsupportedPhysicalComposition;
+        }
+        if post_allocation == 1 {
+            let admitted = pair
+                .contains(&Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
+                && pair
+                    .contains(&Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1);
+            if !admitted {
+                return ExpectedDisposition::UnsupportedPhysicalComposition;
+            }
+            let optimization = Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1;
+            let entry = post_allocation_entry(optimization);
+            let required = entry.payload().architecture();
+            if required != architecture {
+                return ExpectedDisposition::PostAllocationTarget {
+                    optimization,
+                    required,
+                    actual: architecture,
+                };
+            }
+            return ExpectedDisposition::Route(
+                ResolvedPhysicalPhaseComposition::AllocationRecovery {
+                    rule: Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                    post_allocation: Some(entry),
+                },
+            );
+        }
     }
     if post_allocation > 1 {
         return ExpectedDisposition::PostAllocationComposition(first.min(second));
@@ -114,6 +141,7 @@ fn expected_pair(
             .unwrap();
         return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::AllocationRecovery {
             rule,
+            post_allocation: None,
         });
     }
     if selected_lowering != 0 {
@@ -223,9 +251,9 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
     }
 
     assert_eq!(cells, 210);
-    assert_eq!(accepted, 120);
-    assert_eq!(unsupported, 50);
-    assert_eq!(wrong_target, 40);
+    assert_eq!(accepted, 121);
+    assert_eq!(unsupported, 48);
+    assert_eq!(wrong_target, 41);
 }
 
 #[test]

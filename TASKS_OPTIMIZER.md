@@ -472,8 +472,11 @@ decision. Only true language-semantic questions belong in
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
   fragment emission, relocation-free text/object custody, validated object
   publication, and callable-entry replay with exact source-kind, manifest, byte,
-  and corruption checks. The remaining source families and publication routes
-  are not yet complete.
+  and corruption checks. That rule also composes after active-resident
+  rematerialization through the generic post-allocation realization and final
+  publication path, retaining both phase identities and rejecting manifest,
+  exit-contract, target, and unadmitted-pair corruption. The remaining source
+  families and publication routes are not yet complete.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
@@ -585,6 +588,12 @@ decision. Only true language-semantic questions belong in
 - [x] Retain the canonical post-allocation catalog entry through physical
   composition and dispatch both source lineages on its closed typed rule kind;
   the pipeline contains no duplicate exact-name schedule.
+- [x] Admit the first allocation-recovery plus post-allocation-machine pair:
+  active-resident immediate-U64 multi-use rematerialization followed by x86
+  MOV-r32-imm32 selection. One generic realization retains both phase roots,
+  exact baseline/final bytes, whole-function exit custody, and final
+  fragment/object/callable publication; every other recovery-machine pair
+  remains a typed rejection.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
   - [x] Establish the first bounded terminal-pair matcher and move the AArch64

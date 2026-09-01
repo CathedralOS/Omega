@@ -9,7 +9,7 @@ mod model;
 mod tests;
 
 use omega_machine_optimizer::selected_post_allocation_machine_rule;
-use omega_optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use omega_regalloc::{resolve_selected_lowering_rules, selected_allocation_recovery_rule};
 use omega_target::Architecture;
 
@@ -35,15 +35,34 @@ pub(crate) fn resolve_physical_phase_composition(
         selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
 
     if let Some(rule) = allocation_recovery {
-        if !selected_lowering.is_empty()
-            || !post_allocation.is_empty()
-            || !function_relative.is_empty()
-        {
+        if !selected_lowering.is_empty() || !function_relative.is_empty() {
             return Err(
                 OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
             );
         }
-        return Ok(ResolvedPhysicalPhaseComposition::AllocationRecovery { rule });
+        let post_allocation = if post_allocation.is_empty() {
+            None
+        } else {
+            if rule != Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1
+                || post_allocation.as_slice()
+                    != [Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1]
+            {
+                return Err(
+                    OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
+                );
+            }
+            Some(
+                selected_post_allocation_machine_rule(selections, architecture)
+                    .map_err(
+                        OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog,
+                    )?
+                    .0,
+            )
+        };
+        return Ok(ResolvedPhysicalPhaseComposition::AllocationRecovery {
+            rule,
+            post_allocation,
+        });
     }
 
     if !post_allocation.is_empty() && !function_relative.is_empty() {
