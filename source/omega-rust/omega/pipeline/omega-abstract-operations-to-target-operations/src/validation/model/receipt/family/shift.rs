@@ -7,6 +7,9 @@ pub(super) const fn family(
     receipt: &AbstractToTargetFunctionTranslationReceipt,
 ) -> AbstractToTargetTranslationFamily {
     match receipt {
+        AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerShiftLeftParameters(
+            _,
+        ) => AbstractToTargetTranslationFamily::StraightLineExactIntegerShiftLeftParameters,
         AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerShiftRightParameters(
             _,
         ) => AbstractToTargetTranslationFamily::StraightLineExactIntegerShiftRightParameters,

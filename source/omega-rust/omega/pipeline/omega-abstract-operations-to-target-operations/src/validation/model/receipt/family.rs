@@ -59,6 +59,7 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             receipt @ (Self::StraightLineWrappingIntegerShiftLeftParameters(_)
             | Self::StraightLineWrappingIntegerShiftRightParameters(_)
+            | Self::StraightLineExactIntegerShiftLeftParameters(_)
             | Self::StraightLineExactIntegerShiftRightParameters(_)) => shift::family(receipt),
             receipt @ (Self::StraightLineExactIntegerAddParameters(_)
             | Self::StraightLineExactIntegerSubtractParameters(_)

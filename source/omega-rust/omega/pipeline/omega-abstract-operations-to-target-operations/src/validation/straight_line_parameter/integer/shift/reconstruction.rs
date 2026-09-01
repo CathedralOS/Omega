@@ -8,16 +8,39 @@ use psi_core::ScalarType;
 use super::super::super::{
     abi,
     model::{
-        IntegerShiftParametersSource, ReconstructedExactIntegerShiftRightParameters,
-        ReconstructedIntegerShiftParameters,
+        IntegerShiftParametersSource, ReconstructedExactIntegerShiftLeftParameters,
+        ReconstructedExactIntegerShiftRightParameters, ReconstructedIntegerShiftParameters,
     },
 };
 use crate::validation::model::{
+    StraightLineExactIntegerShiftLeftParametersTranslationError,
     StraightLineExactIntegerShiftRightParametersTranslationError,
     StraightLineParameterReconstructionError,
     StraightLineWrappingIntegerShiftLeftParametersTranslationError,
     StraightLineWrappingIntegerShiftRightParametersTranslationError,
 };
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_left(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedExactIntegerShiftLeftParameters,
+    StraightLineExactIntegerShiftLeftParametersTranslationError,
+> {
+    let source = super::super::super::source::integer::shift::reconstruct_exact_left(function)?;
+    let shift = reconstruct(
+        function,
+        expected_target,
+        target,
+        source.shift,
+        StraightLineExactIntegerShiftLeftParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedExactIntegerShiftLeftParameters {
+        shift,
+        obligation: source.obligation,
+    })
+}
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_right(
     function: &AbstractFunction,

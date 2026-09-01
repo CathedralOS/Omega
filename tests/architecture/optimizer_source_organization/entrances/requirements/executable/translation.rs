@@ -103,6 +103,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/shift/mod.rs",
+        coordination_marker: "reconstruct_exact_left",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/shift/mod.rs",
         coordination_marker: "reconstruct_exact_right",
     },
     RequiredCoordinationEntrance {
@@ -112,6 +116,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/shift/mod.rs",
         coordination_marker: "reconstruct_wrapping_right",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/shift/mod.rs",
+        coordination_marker: "reconstruct_exact_left",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/shift/mod.rs",
@@ -292,6 +300,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/parameter/shift/mod.rs",
         coordination_marker: "WRAPPING_INTEGER_SHIFT_RIGHT",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/parameter/shift/mod.rs",
+        coordination_marker: "EXACT_INTEGER_SHIFT_LEFT",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/parameter/shift/mod.rs",
