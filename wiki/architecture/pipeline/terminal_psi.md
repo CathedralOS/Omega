@@ -486,43 +486,20 @@ publication prerequisites.
 
 #### Retired object-store and installation prototype
 
-The following object-store and installation sequence belonged to the removed
-custom/unknown carrier. It is historical context, not a live canonical-
-Terminal path.
+The removed custom/unknown carrier used a field/BSS object-store request,
+`RuntimeStorageAddress`, compiler-inserted address-store operations, and a
+callback-specific installation manifest. None of those carriers is part of the
+current canonical direct-parameter path, and no surviving task may cite them as
+runtime registration, lifetime, or publication authority.
 
-Object planning permitted one further evidence-only join for an exact
-one-slot `Field` whose assigned registrar operand is
-`RuntimeStorageAddress`. The ordered request binds that operand's storage
-region/base and target-closed field geometry to the canonical BSS storage
-symbol and binds the demand's function identity to one exact private text
-symbol. Full snapshots replay against the rebuilt object plan; `DataAddress`,
-direct parameters, ambiguous or malformed symbols, and geometry drift reject.
-For this one-slot production shape, backend orchestration now inserts an exact
-`WriteFunctionAddressToRuntimeStorage` operation contiguously before the
-registrar call and rederives its target/assigned identity after every operation
-arena rebuild. Both target encoders retain separate symbolic function and BSS
-bases, relocation planning emits the architecture-specific pair(s), and final
-replay independently binds function identity, storage symbol, sites, kinds,
-addends, origin, cardinality, and unchanged instruction bits. The operation's
-scratch/state demand is included in the validated root boundary footprint.
-This grants no runtime registration, invocation, callback lifetime/lease, or
-publication authority; `DataAddress`, direct parameters, and multi-segment
-paths remain fenced.
-
-Retained native artifacts now carry one ordered non-Clone callback installation
-manifest. Each entry preserves the complete private object-store request and
-checked placement identity, a domain-separated callback entry identity, exact
-Text interval and BSS snapshot, encoded address store, and target relocation
-rows; retained-artifact validation independently replays the full snapshot.
-Deployment projects those entries into the artifact entry catalog, then binds
-the complete sealed entry to a domain-separated digest of the exact installed
-occurrence, architecture, unrelocated/materialized bytes, and entry offset.
-Root installation requires the same installed-occurrence digest, entry, and
-requirement, and pending/live/error/
-cleanup/quiescence custody never drops that attribution. The manifest exposes
-no resolved address and grants no registrar invocation, source `Registration`,
-capacity, lease, or publication authority. `DataAddress`, direct parameters,
-and multi-segment physical paths remain fenced.
+The current path instead passes the callback address directly in the declared
+native parameter. Object and final-image validation bind the relocation to one
+compiler-private function. Canonical installation format 50 then retains that
+function's exact private identity, source-Psi identity, artifact-local machine,
+fixed-integer ABI, and final text interval and rejoins the decoded record to the
+same executable image. This remains non-authoritative installation evidence;
+it creates no installed entry, resolved address, registrar result, external
+root, `Registration`, capacity, lease, or publication authority.
 
 Provider-execution metadata crossing target operations, machine code, and the
 native artifact is an authority-free report projection. Its compact selected
@@ -539,22 +516,13 @@ of Terminal Psi. While checked source and the canonical artifact coexist, the
 compiler product driver joins each validated placement to one emitted
 `BoundaryCall` `OperationId`, then retains the occurrence and direct native-
 parameter application in the native-realization proposal beside the artifact.
-Terminal artifact production is live; native artifact production remains
-fenced until native realization consumes this sidecar with complete replay.
-
-Deployment now owns a separate two-phase reclaimable callback custody path. It
-installs an independently admitted root before the ordinary registrar call and
-retains the installed root plus exact ledger in a pending non-Clone carrier.
-The later provider result establishes live registration custody only when its
-receipt binds that exact root and reports success. Provider unregister and root
-quiescence then complete transactionally and return the original slot
-authority; every rejection retains the registration/root, ledger access, and
-receipts needed to retry, while a false registrar result supports explicit
-pending-root removal. The carrier now retains the exact installed callback-entry
-attribution derived from the emitted store/demand manifest through pending,
-live, rejection, cleanup, and quiescence results. It still does not invoke the
-registrar, mint the source-level `Registration`, or supply live-registration
-capacity.
+Terminal artifact production is live. Native realization consumes and replays
+the sidecar through target operations, physical assignment, object/image
+relocation, and canonical installation custody; it may not reconstruct the
+authored callback join after handoff. No callback-specific deployment
+pending/live carrier currently exists. Generic installed-code and external-root
+primitives survive, but the registrar-result, capacity, lease, source
+`Registration`, and transactional retry joins remain open engineering work.
 
 Reference identities retain loan compatibility and permitted operations
 separately. `&write T` carries an exclusive loan over an existing valid `T`

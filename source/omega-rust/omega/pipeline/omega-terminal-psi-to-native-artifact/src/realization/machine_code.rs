@@ -435,13 +435,30 @@ mod tests {
         assert_eq!(image.private_functions(), object.private_functions());
         omega_image_emission::validate_executable_image(&object, &image)
             .expect("private callback executable replay");
-        assert!(matches!(
-            omega_image_emission::build_installation_record(
-                &image,
-                psi_core::ProfileDecisionId::new(1).expect("profile decision"),
-            ),
-            Err(omega_image_emission::InstallationError::UnsettledCompilerPrivateFunctions)
-        ));
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .expect("private callback installation custody");
+        let [installed_private] = installation.private_functions() else {
+            panic!("installation must retain one private callback function");
+        };
+        assert_eq!(installed_private.identity, private.identity);
+        assert_eq!(installed_private.source_psi, private.source_psi);
+        assert_eq!(installed_private.machine, private.function.machine);
+        assert_eq!(
+            Some(&installed_private.fixed_integer_scalar_abi),
+            private.function.fixed_integer_scalar_abi.as_ref()
+        );
+        assert_eq!(installed_private.text_offset, private.function.text_offset);
+        assert_eq!(installed_private.byte_count, private.function.byte_count);
+        let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("private callback installation encoding");
+        let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+            .expect("private callback installation decoding");
+        assert_eq!(decoded, installation);
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("private callback installation replay");
 
         let mut wrong_role = object_input.clone();
         wrong_role.private_functions[0].identity =

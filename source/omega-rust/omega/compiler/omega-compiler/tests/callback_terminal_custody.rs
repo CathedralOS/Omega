@@ -880,4 +880,33 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         .checked_add(private_plan.offset as u64)
         .expect("private callback target");
     assert_eq!(actual_target, expected_target);
+
+    let installation = omega_image_emission::build_installation_record_with_provider_executions(
+        artifact.image(),
+        psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+        [&execution],
+    )
+    .expect("source-derived callback installation");
+    let [installed_private] = installation.private_functions() else {
+        panic!("installation must retain one compiler-private callback function");
+    };
+    let [image_private] = artifact.image().private_functions() else {
+        panic!("image must retain one compiler-private callback function");
+    };
+    assert_eq!(installed_private.identity, callback_identity);
+    assert_eq!(installed_private.source_psi, image_private.source_psi);
+    assert_eq!(installed_private.machine, image_private.function.machine);
+    assert_eq!(installed_private.text_offset, private_plan.offset);
+    assert_eq!(installed_private.byte_count, private_plan.size);
+    assert_eq!(
+        Some(&installed_private.fixed_integer_scalar_abi),
+        image_private.function.fixed_integer_scalar_abi.as_ref()
+    );
+    let installation_bytes = omega_image_emission::encode_installation_record(&installation)
+        .expect("source-derived callback installation encoding");
+    let decoded = omega_image_emission::decode_installation_record(&installation_bytes)
+        .expect("source-derived callback installation decoding");
+    assert_eq!(decoded, installation);
+    omega_image_emission::validate_installation_record(&decoded, artifact.image())
+        .expect("source-derived callback installation replay");
 }
