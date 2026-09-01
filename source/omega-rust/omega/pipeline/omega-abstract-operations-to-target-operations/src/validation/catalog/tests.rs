@@ -365,6 +365,34 @@ fn ieee_float_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
     )
 }
 
+fn ieee_float_literal_sequence_unit_return_pair() -> (AbstractFunction, TargetFunction) {
+    let (mut source, mut target) = ieee_float_literal_unit_return_pair();
+    let operation = OperationId::new(59_006).unwrap();
+    let result = ValueId::new(59_007).unwrap();
+    let value = IeeeFloatValue::Binary32(0x8000_0000);
+    source.operations.insert(
+        1,
+        AbstractOperation::IeeeFloatConstant {
+            psi_operation: operation,
+            result,
+            value,
+        },
+    );
+    target.provenance.operations.push(operation);
+    let TargetOperation::UnitBody(body) = &mut target.operation else {
+        unreachable!()
+    };
+    body.operations.insert(
+        1,
+        TargetUnitOperation::IeeeFloatConstant {
+            psi_operation: operation,
+            result,
+            value,
+        },
+    );
+    (source, target)
+}
+
 fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(53_001).unwrap();
     let entry = BlockId::new(53_002).unwrap();
@@ -460,6 +488,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
+            AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
             AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
@@ -684,6 +713,41 @@ fn ieee_float_literal_unit_return_catalog_omission_and_duplicate_fail_closed() {
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
                 first: AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
                 second: AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
+                ..
+            }
+        )
+    ));
+}
+
+#[test]
+fn ieee_float_literal_sequence_catalog_omission_and_duplicate_fail_closed() {
+    let (source, target) = ieee_float_literal_sequence_unit_return_pair();
+    assert_eq!(
+        selection::validate(&source, NativeTarget::linux_x64(), &target, &[]).unwrap(),
+        AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
+
+    let family = ENABLED_TRANSLATION_FAMILIES
+        .iter()
+        .find(|descriptor| {
+            descriptor.family
+                == AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn
+        })
+        .copied()
+        .unwrap();
+    assert!(matches!(
+        selection::validate(
+            &source,
+            NativeTarget::linux_x64(),
+            &target,
+            &[family, family]
+        ),
+        Err(
+            AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
+                first:
+                    AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
+                second:
+                    AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
                 ..
             }
         )

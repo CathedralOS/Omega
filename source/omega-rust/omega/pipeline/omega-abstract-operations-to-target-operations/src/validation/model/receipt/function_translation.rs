@@ -23,6 +23,7 @@ use super::parameter::{
 };
 use super::terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
+    StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
     StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt,
     StraightLineIntegerLiteralUnitReturnTranslationReceipt,
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
@@ -54,6 +55,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerLiteralUnitReturn(StraightLineIntegerLiteralUnitReturnTranslationReceipt),
     StraightLineIeeeFloatLiteralUnitReturn(
         StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt,
+    ),
+    StraightLineIeeeFloatLiteralSequenceUnitReturn(
+        StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
     ),
     StraightLineTrivialAffineLocalUnitReturn(
         StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,

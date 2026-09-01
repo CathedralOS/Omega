@@ -248,6 +248,14 @@ mechanics. The result still grants no selected VReg, instruction, memory,
 frame, trap, unwind, encoding, emission, or publication authority; the retained
 pressure is the sole input to a later bounded recovery epoch.
 
+That consumer is the small `generalized_spill_recovery_worklist` entrance.
+Its direct producer and separately keyed replay project the retained epoch-one
+pressure into one compiler-private epoch-two work identity while preserving
+the complete candidate domain and blocker roster. The item is deliberately
+distinct from a spill action and a selected VReg. It chooses no victim or home
+and grants no instruction, memory, frame, trap, unwind, encoding, emission, or
+publication authority; a later bounded choice boundary must consume it.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and

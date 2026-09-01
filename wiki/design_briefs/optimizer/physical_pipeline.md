@@ -15,11 +15,12 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-two families reconstruct parameterless straight-line
+replay. Its first forty-three families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
-IEEE literal establishment followed by Unit return, integer and Boolean literal
+IEEE literal establishment, including an ordered sequence of at least two IEEE
+literals, followed by Unit return, integer and Boolean literal
 returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -72,6 +73,13 @@ float conversion. All three independently replay their identities,
 provenance, empty native Unit call plan, return edge, cleanup, and global
 structural roster across every native target; deleting an unused literal sends
 the transformed plan through the separate return-only family.
+The IEEE-sequence sibling admits two or more consecutive constants and retains
+each operation/result identity, each raw Binary32/Binary64 bit pattern, exact
+order and provenance, the return edge, empty native Unit call plan, cleanup,
+and global structural roster. Independent replay therefore preserves signed
+zero and NaN payloads without host-float conversion while the operation-count
+grammar keeps the sequence disjoint from both the singleton IEEE and
+return-only families.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -449,7 +457,16 @@ homes: the epoch-zero reload and original `v5`. The artifact binds every source
 root and exact work usage `{3, 4, 18, 1, 3}` but creates no selected VReg,
 instruction, memory, frame, trap, unwind, encoding, emission, or publication
 authority. Turning that retained pressure into the next bounded recovery item
-is the next allocation boundary.
+is the next allocation boundary. The adjacent 25-line
+`generalized_spill_recovery_worklist` entrance now performs that projection.
+V1 accepts only epoch-one pressure and emits one distinct compiler-private
+epoch-two work identity per pressured function. Direct production and keyed
+replay separately retain the source pressure action and lineage, block,
+`[14,15)` lifetime, class, complete two-view domain, both blocker homes, all
+custody roots, and exact usage `{2, 2, 13, 1, 1}`. The item is not a generalized
+spill action or selected VReg; it chooses no victim or home and grants no
+instruction, memory, frame, trap, unwind, encoding, emission, or publication
+authority. Epoch-two victim choice is the next allocation boundary.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

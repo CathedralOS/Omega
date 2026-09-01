@@ -24,6 +24,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::terminal::BYTE_SEQUENCE_LITERAL_UNIT_RETURN,
     dispatch::terminal::INTEGER_LITERAL_UNIT_RETURN,
     dispatch::terminal::IEEE_FLOAT_LITERAL_UNIT_RETURN,
+    dispatch::terminal::IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN,
     dispatch::terminal::TRIVIAL_AFFINE_LOCAL_UNIT_RETURN,
     dispatch::terminal::SCALAR_CRASH,
     dispatch::parameter::direct::INTEGER,

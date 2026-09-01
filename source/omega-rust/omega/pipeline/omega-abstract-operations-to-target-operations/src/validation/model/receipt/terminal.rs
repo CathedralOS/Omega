@@ -295,6 +295,72 @@ impl StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IeeeFloatLiteralSequenceMember {
+    operation: OperationId,
+    result: ValueId,
+    value: IeeeFloatValue,
+}
+
+impl IeeeFloatLiteralSequenceMember {
+    pub(in crate::validation) const fn new(
+        operation: OperationId,
+        result: ValueId,
+        value: IeeeFloatValue,
+    ) -> Self {
+        Self {
+            operation,
+            result,
+            value,
+        }
+    }
+
+    pub const fn operation(&self) -> OperationId {
+        self.operation
+    }
+
+    pub const fn result(&self) -> ValueId {
+        self.result
+    }
+
+    pub const fn value(&self) -> IeeeFloatValue {
+        self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt {
+    machine: MachineId,
+    literals: Vec<IeeeFloatLiteralSequenceMember>,
+    return_edge: EdgeId,
+}
+
+impl StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt {
+    pub(in crate::validation) fn new(
+        machine: MachineId,
+        literals: Vec<IeeeFloatLiteralSequenceMember>,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            literals,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub fn literals(&self) -> &[IeeeFloatLiteralSequenceMember] {
+        &self.literals
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StraightLineTrivialAffineLocalUnitReturnTranslationReceipt {
     machine: MachineId,

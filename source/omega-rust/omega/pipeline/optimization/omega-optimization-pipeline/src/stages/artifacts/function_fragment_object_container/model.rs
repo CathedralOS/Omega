@@ -242,7 +242,30 @@ impl StagedOptimizedRelocationFreeObjectContainer {
     }
 
     #[cfg(test)]
-    pub(crate) fn corrupt_custody_for_test(&mut self) {
+    pub(crate) fn corrupt_custody_source_text_section_manifest_for_test(&mut self) {
+        self.custody.source_text_section_manifest =
+            FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_text_section_for_test(&mut self) {
+        self.custody.text_section =
+            TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_object_for_test(&mut self) {
+        self.custody.object = RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_object_container_for_test(&mut self) {
+        self.custody.object_container =
+            RelocationFreeObjectContainerIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_manifest_for_test(&mut self) {
         self.custody.manifest =
             FunctionFragmentObjectContainerManifestIdentity::from_canonical_bytes(b"corrupt");
     }

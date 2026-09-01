@@ -167,6 +167,41 @@ pub(crate) fn ieee_float_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    for (operation, result, scalar_type, value) in [
+        (
+            3_520,
+            3_521,
+            ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
+            psi_core::IeeeFloatValue::Binary32(0x8000_0000),
+        ),
+        (
+            3_522,
+            3_523,
+            ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
+            psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+        ),
+        (
+            3_524,
+            3_525,
+            ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64),
+            psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+        ),
+    ] {
+        module.machines[0].blocks[0].operations.push(Operation {
+            id: OperationId::new(operation).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(result).unwrap(),
+                scalar_type,
+            }),
+            kind: OperationKind::IeeeFloatConstant { value },
+        });
+    }
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
     let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
