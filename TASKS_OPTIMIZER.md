@@ -601,7 +601,12 @@ unchecked rewrite or opt into lossy floating-point semantics.
 ## P9 — Verification, stabilization, and rollout
 
 - [>] Complete per-rule positive, negative, boundary, disabled, budget,
-  determinism, idempotence, and corruption coverage.
+  determinism, idempotence, and corruption coverage. Every SCCP binary integer
+  rule now has a direct positive semantic canary with independently validated
+  typed output, exact safety class, and proof/exact witness form. Thirteen
+  proof-certified overflow, zero-divisor, signed-quotient, and shift-domain
+  cases pin refusal. The remaining axes and other rule families are not yet
+  complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

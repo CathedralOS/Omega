@@ -223,6 +223,14 @@ identity and safety class to positions 0–18 and 22–24. The guard pins each
 proposal join and retires the former aggregate arithmetic, quotient, shift,
 and bitwise definition leaves.
 
+The SCCP tests mirror that descent. Integer-result cases enter a small group
+map over binary, unary, and propagation behavior. Binary fixtures live below
+the SCCP fixture family and construct fresh typed units instead of mutating an
+unrelated rule fixture. The 22-row positive matrix distinguishes wrapping and
+saturating overflow behavior, signed quotient policies, distinct shift-count
+types, and bitwise results; a separate proof-certified refusal matrix covers
+overflow and undefined domains.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.
