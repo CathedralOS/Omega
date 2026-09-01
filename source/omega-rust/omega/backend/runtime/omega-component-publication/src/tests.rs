@@ -141,6 +141,7 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
             ProviderPlanRow {
                 method: "wait".into(),
                 requirement_identity: "Scheduler::wait#exact".into(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CompilerIntrinsic {
                     machine: "TestScheduler::wait".into(),
                 },
@@ -148,6 +149,7 @@ fn runnable_fixture_at(seed: u64, placement_base: u64) -> RunnableFixture {
             ProviderPlanRow {
                 method: "grant_weak_fair".into(),
                 requirement_identity: route.requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CompilerIntrinsic {
                     machine: "TestScheduler::grant_weak_fair".into(),
                 },

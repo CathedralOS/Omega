@@ -770,6 +770,7 @@ mod tests {
             rows: vec![omega_effects::provider_plan::ProviderPlanRow {
                 method: "run".to_owned(),
                 requirement_identity: "Pair::run".to_owned(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: omega_effects::provider_plan::ProviderBinding::VtableSlot { index: 0 },
             }],
             ..Default::default()

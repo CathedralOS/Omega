@@ -115,6 +115,9 @@ pub struct OwnedData {
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
+    /// Explicit target-trait lifetime arguments, still named until typed
+    /// lowering resolves them against the realizing machine telescope.
+    pub lifetime_arguments: Vec<DiagnosticName>,
     pub arguments: HandleSpan<crate::types::TypeReference>,
     /// The exact requirement binding (`satisfies Trait::requirement`). Source
     /// lowering always supplies `Some`; `alias` names the satisfier
@@ -139,6 +142,7 @@ impl Default for TraitConformance {
         Self {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::default(),
+            lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
             requirement: None,
             alias: None,

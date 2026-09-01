@@ -116,6 +116,10 @@ pub struct OwnedData {
 pub struct TraitConformance {
     pub symbol: SymbolHandle,
     pub name: Identifier,
+    /// Raw declaration-order ordinals into the realizing machine's lifetime
+    /// telescope, one per target-trait lifetime parameter. Public edge
+    /// identity first-occurrence-normalizes this vector instead of exposing it.
+    pub trait_lifetime_arguments: Vec<u32>,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     /// The exact requirement binding (`satisfies Trait::requirement`). Source
     /// lowering always supplies `Some`; `alias` names the satisfier
@@ -147,6 +151,7 @@ impl Default for TraitConformance {
         Self {
             symbol: SymbolHandle::invalid(),
             name: Identifier::default(),
+            trait_lifetime_arguments: Vec::new(),
             arguments: HandleSpan::empty(),
             requirement: None,
             requirement_symbol: SymbolHandle::invalid(),
@@ -157,6 +162,27 @@ impl Default for TraitConformance {
             external_binding_source_span: None,
         }
     }
+}
+
+/// Canonical public identity of an exact requirement lifetime application.
+/// Raw ordinals are private checking custody; only the equality partition in
+/// target-trait parameter order crosses provider and package boundaries.
+pub fn normalize_requirement_lifetime_partition(raw: &[u32]) -> Vec<u32> {
+    let mut representatives = Vec::new();
+    raw.iter()
+        .map(|ordinal| {
+            if let Some(index) = representatives
+                .iter()
+                .position(|representative| representative == ordinal)
+            {
+                u32::try_from(index).expect("lifetime partition index exceeds u32")
+            } else {
+                representatives.push(*ordinal);
+                u32::try_from(representatives.len() - 1)
+                    .expect("lifetime partition index exceeds u32")
+            }
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy)]

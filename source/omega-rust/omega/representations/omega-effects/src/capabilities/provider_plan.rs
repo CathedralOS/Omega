@@ -533,6 +533,10 @@ pub struct ProviderPlanRow {
     /// Exact requirement overload supplied by this row. It is always nonempty;
     /// a method spelling is display/debug data, not dispatch identity.
     pub requirement_identity: String,
+    /// First-occurrence-normalized equality partition for the target trait's
+    /// lifetime application on this exact realization edge. Empty for a
+    /// lifetime-free trait, operator, or top-level requirement.
+    pub requirement_lifetime_partition: Vec<u32>,
     pub binding: ProviderBinding,
 }
 
@@ -1297,11 +1301,19 @@ impl ProviderPlan {
             left.method
                 .cmp(&right.method)
                 .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+                .then_with(|| {
+                    left.requirement_lifetime_partition
+                        .cmp(&right.requirement_lifetime_partition)
+                })
         });
         encoder.len(rows.len());
         for row in rows {
             encoder.string(&row.method);
             encoder.string(&row.requirement_identity);
+            encoder.len(row.requirement_lifetime_partition.len());
+            for ordinal in &row.requirement_lifetime_partition {
+                encoder.u64(u64::from(*ordinal));
+            }
             encoder.provider_binding(&row.binding);
         }
         encoder.package_identity(self.origin_package_identity);
@@ -1467,8 +1479,11 @@ impl ProviderPlan {
                 binding => format!("{binding:?}"),
             };
             rendered.push_str(&format!(
-                "\nr:{}/{}/{}",
-                row.method, row.requirement_identity, binding_identity
+                "\nr:{}/{}/lifetimes:{:?}/{}",
+                row.method,
+                row.requirement_identity,
+                row.requirement_lifetime_partition,
+                binding_identity
             ));
         }
         let mut hash: u64 = 0xcbf29ce484222325;
@@ -1802,6 +1817,15 @@ impl ProviderPlan {
                 errors.push(format!(
                     "plan `{}` row `{}` has no exact requirement identity",
                     self.name, row.method
+                ));
+            }
+            if psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+                &row.requirement_lifetime_partition,
+            ) != row.requirement_lifetime_partition
+            {
+                errors.push(format!(
+                    "plan `{}` row `{}` has a noncanonical requirement lifetime partition",
+                    self.name, row.method,
                 ));
             }
             match &row.binding {
@@ -2362,6 +2386,7 @@ mod tests {
                 ProviderPlanRow {
                     method: "write_line".to_owned(),
                     requirement_identity: "Console::write_line".to_owned(),
+                    requirement_lifetime_partition: Vec::new(),
                     binding: ProviderBinding::StringBackedImportBootstrap {
                         library: "kernel32.dll".to_owned(),
                         symbol: "WriteFile".to_owned(),
@@ -2370,6 +2395,7 @@ mod tests {
                 ProviderPlanRow {
                     method: "read_byte".to_owned(),
                     requirement_identity: "Console::read_byte".to_owned(),
+                    requirement_lifetime_partition: Vec::new(),
                     binding: ProviderBinding::StringBackedImportBootstrap {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ReadFile".to_owned(),
@@ -2378,6 +2404,7 @@ mod tests {
                 ProviderPlanRow {
                     method: "exit_process".to_owned(),
                     requirement_identity: "Console::exit_process".to_owned(),
+                    requirement_lifetime_partition: Vec::new(),
                     binding: ProviderBinding::StringBackedImportBootstrap {
                         library: "kernel32.dll".to_owned(),
                         symbol: "ExitProcess".to_owned(),
@@ -2682,11 +2709,13 @@ mod tests {
         plan.rows.push(ProviderPlanRow {
             method: "not_a_method".to_owned(),
             requirement_identity: "Console::not_a_method".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Syscall { number: 1 },
         });
         plan.rows.push(ProviderPlanRow {
             method: "exit_process".to_owned(),
             requirement_identity: "Console::exit_process".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Syscall { number: 0 },
         });
         let errors = plan.validate_against_schema();
@@ -2728,6 +2757,7 @@ mod tests {
         plan.rows.push(ProviderPlanRow {
             method: "not_in_schema".to_owned(),
             requirement_identity: "Console::not_in_schema".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::VtableSlot { index: 0 },
         });
         assert!(
@@ -2760,11 +2790,13 @@ mod tests {
             ProviderPlanRow {
                 method: "convert".to_owned(),
                 requirement_identity: plan.schema.methods[0].requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::Syscall { number: 1 },
             },
             ProviderPlanRow {
                 method: "convert".to_owned(),
                 requirement_identity: plan.schema.methods[1].requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::Syscall { number: 2 },
             },
         ];

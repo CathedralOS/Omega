@@ -114,6 +114,32 @@ pub(crate) fn lower_machine(
                 .type_reference_table
                 .push_type_reference_handle(&mut arguments, argument);
         }
+        let trait_lifetime_arguments = conformance
+            .lifetime_arguments
+            .iter()
+            .map(|argument| {
+                machine
+                    .lifetime_parameters
+                    .iter()
+                    .position(|parameter| parameter.as_str() == argument.as_str())
+                    .ok_or_else(|| {
+                        Diagnostic::error(format!(
+                            "machine `{}` satisfies `{}` with lifetime `'{}'` outside its lifetime telescope",
+                            machine.name, conformance.name, argument,
+                        ))
+                        .with_source_span(argument.source_span())
+                    })
+                    .and_then(|ordinal| {
+                        u32::try_from(ordinal).map_err(|_| {
+                            Diagnostic::error(format!(
+                                "machine `{}` lifetime telescope exceeds the supported ordinal range",
+                                machine.name,
+                            ))
+                            .with_source_span(argument.source_span())
+                        })
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let via_expression = conformance
             .via_expression
             .is_valid()
@@ -125,6 +151,7 @@ pub(crate) fn lower_machine(
             typed::machine::TraitConformance {
                 symbol: conformance.symbol,
                 name: crate::name::lower_name(&conformance.name),
+                trait_lifetime_arguments,
                 arguments,
                 requirement: conformance
                     .requirement

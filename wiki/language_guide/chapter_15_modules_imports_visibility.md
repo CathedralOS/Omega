@@ -175,10 +175,11 @@ obligation-semantics and evidence-schema identity, exact certificate
 provenance, discharged obligations, and still-open obligations. A parent cannot
 absorb a dependency's open obligation merely because its producer accepted it.
 Each consuming project rechecks the certificates and independently decides
-every disclosed admission before creating accepted lock state. A checked schema
-migration may reuse only the obligation classes it proves unchanged and exposes
-new or changed classes as open obligations; an unknown migration forces
-re-derivation.
+every disclosed admission before creating accepted lock state. Accepted locks
+are exact-current generated artifacts: a semantic-schema mismatch forces
+complete local reconstruction and fresh admission. Current admission has no
+schema-migration registry or compatibility classifier and never reuses old
+discharge or policy decisions.
 
 Here, the produced artifact is the exact canonical package artifact whose
 claims are being checked, not necessarily a final executable. A claim about

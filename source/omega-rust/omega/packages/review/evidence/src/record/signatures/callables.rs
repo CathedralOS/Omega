@@ -22,6 +22,7 @@ pub struct PackageReviewCallableParameter {
 pub struct PackageReviewCallableConformance {
     pub(crate) trait_identity: PackageReviewNominalIdentity,
     pub(crate) requirement_identity: PackageReviewNominalIdentity,
+    pub(crate) requirement_lifetime_partition: Vec<u32>,
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
     pub(crate) alias: Option<String>,
 }
@@ -37,6 +38,10 @@ impl PackageReviewCallableConformance {
 
     pub const fn requirement_identity(&self) -> &PackageReviewNominalIdentity {
         &self.requirement_identity
+    }
+
+    pub fn requirement_lifetime_partition(&self) -> &[u32] {
+        &self.requirement_lifetime_partition
     }
 
     pub fn arguments(&self) -> &[PackageReviewTypeIdentity] {

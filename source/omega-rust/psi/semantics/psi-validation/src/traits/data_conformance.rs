@@ -254,6 +254,7 @@ fn validate_closed_rows(
             state,
             declaring_trait,
             requirement,
+            None,
             &arguments,
             diagnostics,
         );
@@ -343,6 +344,7 @@ fn validate_data_satisfies_trait(
             state,
             trait_definition,
             requirement,
+            None,
             explicit_type_arguments,
             diagnostics,
         );

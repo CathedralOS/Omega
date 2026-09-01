@@ -373,6 +373,10 @@ pub(crate) fn encode_provider_row(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.string(&row.method)?;
     encoder.string(&row.requirement_identity)?;
+    encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
+        encoder.u32(*ordinal);
+        Ok(())
+    })?;
     match &row.binding {
         ProviderBinding::Import { evaluated } => {
             let locator = evaluated.locator();

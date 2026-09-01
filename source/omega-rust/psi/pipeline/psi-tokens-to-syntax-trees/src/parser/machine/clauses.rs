@@ -901,8 +901,8 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
     let mut clause_count = 0u32;
 
     loop {
-        let (trait_name, rest) = input.take_identifier()?;
-        let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+        let ((trait_name, lifetime_arguments, arguments), mut rest) =
+            crate::parser::item::parse_conformance_trait_application(syntax_trees, input)?;
 
         // The single-requirement binding (rearrange settle 2026-07-18):
         // `satisfies Trait::requirement [as Alias]` conforms THIS machine to
@@ -953,6 +953,7 @@ pub(super) fn parse_satisfies_traits<'tokens, 'source>(
 
         let handle = syntax_trees.items.append_satisfies_clause(SatisfiesClause {
             trait_name,
+            lifetime_arguments,
             arguments,
             requirement,
             alias,

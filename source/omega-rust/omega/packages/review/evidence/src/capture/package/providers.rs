@@ -82,6 +82,13 @@ pub(super) fn project_selected_providers(
             .zip(&retained.row_compiler_intrinsic_executions)
             .zip(&plan.rows)
             .map(|(((requirement, realization), retained_execution), row)| {
+                validate_selected_requirement_lifetime_partition(
+                    compilation,
+                    plan,
+                    row,
+                    *requirement,
+                    *realization,
+                )?;
                 let requirement_identity = provider_requirement_identity(
                     compilation,
                     retained.provider.schema,
@@ -235,4 +242,83 @@ pub(super) fn project_selected_providers(
         families,
         application_realizations,
     })
+}
+
+fn validate_selected_requirement_lifetime_partition(
+    compilation: &CheckedCompilation,
+    plan: &omega_effects::provider_plan::ProviderPlan,
+    row: &omega_effects::provider_plan::ProviderPlanRow,
+    requirement: psi_symbols::SymbolHandle,
+    realization: psi_symbols::SymbolHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    let declaring_traits = compilation
+        .traits()
+        .iter()
+        .filter(|definition| {
+            compilation
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|candidate| candidate.symbol == requirement)
+        })
+        .collect::<Vec<_>>();
+    let ([] | [_]) = declaring_traits.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "selected provider plan `{}` requirement `{}` belongs to {} exact traits",
+            plan.name,
+            row.requirement_identity,
+            declaring_traits.len(),
+        ))]);
+    };
+    let [] = declaring_traits.as_slice() else {
+        let [definition] = declaring_traits.as_slice() else {
+            unreachable!("trait declaration cardinality checked above")
+        };
+        let machines = compilation
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == realization)
+            .collect::<Vec<_>>();
+        let [machine] = machines.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` row `{}` realization has {} exact typed machines",
+                plan.name,
+                row.requirement_identity,
+                machines.len(),
+            ))]);
+        };
+        let applications = compilation
+            .machine_trait_conformances(machine)
+            .iter()
+            .filter(|conformance| {
+                conformance.symbol == definition.symbol
+                    && conformance.requirement_symbol == requirement
+            })
+            .collect::<Vec<_>>();
+        let [application] = applications.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` row `{}` realization retains {} exact requirement lifetime applications",
+                plan.name,
+                row.requirement_identity,
+                applications.len(),
+            ))]);
+        };
+        let replayed = psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+            &application.trait_lifetime_arguments,
+        );
+        if replayed != row.requirement_lifetime_partition {
+            return Err(vec![Diagnostic::error(format!(
+                "selected provider plan `{}` row `{}` requirement lifetime partition differs from its exact realization edge",
+                plan.name, row.requirement_identity,
+            ))]);
+        }
+        return Ok(());
+    };
+    if row.requirement_lifetime_partition.is_empty() {
+        Ok(())
+    } else {
+        Err(vec![Diagnostic::error(format!(
+            "selected provider plan `{}` non-trait row `{}` retains a target-trait lifetime partition",
+            plan.name, row.requirement_identity,
+        ))])
+    }
 }

@@ -90,6 +90,13 @@ pub(crate) fn encode_callable_conformance(
 ) -> Result<(), PackageReviewEncodingError> {
     encode_nominal(encoder, &conformance.trait_identity)?;
     encode_nominal(encoder, &conformance.requirement_identity)?;
+    encoder.sequence(
+        &conformance.requirement_lifetime_partition,
+        |encoder, ordinal| {
+            encoder.u32(*ordinal);
+            Ok(())
+        },
+    )?;
     encoder.sequence(&conformance.arguments, encode_type_identity)?;
     encoder.option(conformance.alias.as_deref(), |encoder, alias| {
         encoder.string(alias)

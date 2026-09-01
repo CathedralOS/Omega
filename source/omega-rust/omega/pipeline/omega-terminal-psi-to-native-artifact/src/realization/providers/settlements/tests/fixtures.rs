@@ -65,6 +65,7 @@ pub(super) fn import_plan(symbol: &[u8], profile: omega_target::TargetProfile) -
         rows: vec![ProviderPlanRow {
             method: "leaf".into(),
             requirement_identity: requirement.into(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Import {
                 evaluated: evaluated_import(
                     omega_target::normalize_foreign_locator(

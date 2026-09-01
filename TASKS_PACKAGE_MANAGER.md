@@ -39,14 +39,6 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining projection work includes:
 
-  - **IMPLEMENTATION — D55 exact-requirement lifetime applications:** parse the
-    complete target-trait application on machine `satisfies`, thread raw
-    realizer-binder ordinals through resolved/typed/checked custody, reuse the
-    whole-conformance arity/in-telescope/substitution judgment, and publish only
-    the first-occurrence-normalized trait-lifetime equality partition in checked
-    and external package-review edge identity. Add repeated-binder, reordered/
-    unused-private-binder stability, distinct-partition, checked/external
-    equality, missing/foreign-binder, and zero-copy result-borrow canaries;
   - finish D29's artifact-qualified symbolic demand/final substitution for
     separately compiled generic artifacts and unsupported operator categories,
     then D32's exact optimized-projection-to-physical-child join. Each physical

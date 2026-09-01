@@ -46,6 +46,7 @@ fn checked_adapter_plan(
         rows: vec![ProviderPlanRow {
             method: "enter".into(),
             requirement_identity: requirement.into(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CheckedAdapter {
                 machine_identity: machine.into(),
                 machine_package_identity: None,

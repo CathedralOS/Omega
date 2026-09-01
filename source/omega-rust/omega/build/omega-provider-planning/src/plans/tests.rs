@@ -56,6 +56,51 @@ fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
 }
 
 #[test]
+fn exact_requirement_lifetime_partition_is_stable_across_checked_and_external_supply() {
+    let checked_source = r#"
+        boundary trait Pair<'left, 'right> {
+            machine consume(first: &'left u64, second: &'right u64) reaches Pair;
+        }
+
+        machine consume<'unused, 'x, 'y>(first: &'x u64, second: &'y u64)
+            satisfies Pair<'x, 'y>::consume
+        {
+        }
+    "#;
+    let external_source = r#"
+        boundary trait Pair<'left, 'right> {
+            machine consume(first: &'left u64, second: &'right u64) reaches Pair;
+        }
+
+        machine consume<'y, 'unused, 'x>(first: &'x u64, second: &'y u64)
+            satisfies Pair<'x, 'y>::consume
+            via Binding::Syscall(60);
+    "#;
+    let (checked_typed, checked_plan) = derive_provider_fixture(checked_source);
+    let (external_typed, external_plan) = derive_provider_fixture(external_source);
+    psi_typed_trees_to_checked_trees::lower_typed_trees(checked_typed.clone())
+        .expect("checked exact realization");
+    psi_typed_trees_to_checked_trees::lower_typed_trees(external_typed.clone())
+        .expect("external exact realization");
+
+    assert_eq!(checked_plan.rows[0].requirement_lifetime_partition, [0, 1]);
+    assert_eq!(
+        checked_plan.rows[0].requirement_lifetime_partition,
+        external_plan.rows[0].requirement_lifetime_partition,
+        "private realizer binder order and supply mode are outside edge identity",
+    );
+
+    let mut tampered = checked_plan;
+    tampered.rows[0].requirement_lifetime_partition = vec![0, 0];
+    let diagnostics = validate_provider_plan_candidates(&checked_typed, &[tampered]);
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requirement lifetime partition differs from its exact realization edge")
+    }));
+}
+
+#[test]
 fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
     let source = r#"
         boundary trait MachineControl {}
@@ -830,6 +875,7 @@ fn selection_plan(name: &str, methods: &[&str], rows: &[&str]) -> ProviderPlan {
             .map(|method| ProviderPlanRow {
                 method: (*method).to_owned(),
                 requirement_identity: format!("Pair::{method}"),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::VtableSlot { index: 0 },
             })
             .collect(),
@@ -2559,6 +2605,7 @@ fn table_field_leaf_requires_an_attached_layout_owner() {
     plan.rows.push(ProviderPlanRow {
         method: "first".to_owned(),
         requirement_identity: "Pair::first".to_owned(),
+        requirement_lifetime_partition: Vec::new(),
         binding: ProviderBinding::VtableField {
             table: String::new(),
             field: "first".to_owned(),
@@ -2582,6 +2629,7 @@ fn checked_adapter_requires_a_nominal_provider_type() {
     plan.rows.push(ProviderPlanRow {
         method: "first".to_owned(),
         requirement_identity: "Pair::first".to_owned(),
+        requirement_lifetime_partition: Vec::new(),
         binding: ProviderBinding::CheckedAdapter {
             machine_identity: "first_adapter".to_owned(),
             machine_package_identity: None,

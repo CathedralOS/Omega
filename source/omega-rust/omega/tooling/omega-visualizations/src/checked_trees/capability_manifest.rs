@@ -743,6 +743,7 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: "wait".into(),
                 requirement_identity: "Scheduler::wait#exact".into(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine_identity: "SchedulerProvider::wait".into(),
                     machine_package_identity: Some(package),
@@ -906,6 +907,7 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: "complete".into(),
                 requirement_identity: requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CompilerIntrinsic {
                     machine: "LegacyPic::complete".into(),
                 },
