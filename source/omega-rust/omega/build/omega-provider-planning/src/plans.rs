@@ -1222,6 +1222,39 @@ pub fn derive_satisfies_plans_with_provenance(
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<DerivedProviderPlan> {
+    derive_satisfies_plans_with_optional_evaluated_bindings(typed, selected_target, None)
+}
+
+/// Strict production derivation after all ordinary `via` expressions have
+/// been evaluated. Legacy external leaves remain on their segregated carrier;
+/// an ordinary `via` row can only consume its exact table entry.
+pub fn derive_satisfies_plans_with_evaluated_bindings(
+    typed: &TypedTrees,
+    selected_target: Option<&str>,
+    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+) -> Result<Vec<DerivedProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
+    let retained_target = evaluated_bindings
+        .target()
+        .map(omega_target::TargetProfile::target_name);
+    if retained_target != selected_target {
+        return Err(vec![psi_diagnostics::Diagnostic::error(format!(
+            "evaluated `via` binding table target `{}` does not match provider derivation target `{}`",
+            retained_target.unwrap_or("<none>"),
+            selected_target.unwrap_or("<none>"),
+        ))]);
+    }
+    Ok(derive_satisfies_plans_with_optional_evaluated_bindings(
+        typed,
+        selected_target,
+        Some(evaluated_bindings),
+    ))
+}
+
+fn derive_satisfies_plans_with_optional_evaluated_bindings(
+    typed: &TypedTrees,
+    selected_target: Option<&str>,
+    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+) -> Vec<DerivedProviderPlan> {
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Target filtering has already admitted only unscoped and selected-target
     // machines into typed trees. Derive from their exact retained conformance
@@ -1253,11 +1286,11 @@ pub fn derive_satisfies_plans_with_provenance(
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
-            let binding_kind = match (machine.supply_mode, clause.external_binding) {
+            let row_binding = match (machine.supply_mode, clause.external_binding) {
                 (
                     psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
                     Some(conformance_binding),
-                ) => {
+                ) if !clause.via_expression.is_valid() => {
                     let Some(binding) = exact_installed_external_binding_identity(
                         typed,
                         machine,
@@ -1267,9 +1300,35 @@ pub fn derive_satisfies_plans_with_provenance(
                     ) else {
                         continue;
                     };
-                    Some(binding)
+                    external_provider_binding(
+                        binding,
+                        machine
+                            .attached_data
+                            .as_ref()
+                            .map(|name| name.as_str())
+                            .unwrap_or_default(),
+                        &realization_machine_identity(typed, machine.name.as_str()),
+                    )
                 }
-                (psi_language_semantics::MachineSupplyMode::CheckedBody, None) => {
+                (
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: None,
+                        mechanism: None,
+                    },
+                    None,
+                ) if !machine.body_is_present && clause.via_expression.is_valid() => {
+                    let Some(row) = evaluated_bindings.and_then(|table| {
+                        table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
+                    }) else {
+                        continue;
+                    };
+                    ProviderBinding::Import {
+                        evaluated: row.evaluated().clone(),
+                    }
+                }
+                (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
+                    if machine.body_is_present && !clause.via_expression.is_valid() =>
+                {
                     // A CHECKED ADAPTER derives a plan row only over a
                     // BOUNDARY trait (a service schema). A plain trait's
                     // conformance -- including its service-reach ceiling -- is the
@@ -1281,31 +1340,24 @@ pub fn derive_satisfies_plans_with_provenance(
                     if !is_boundary_trait {
                         continue;
                     }
-                    None
+                    ProviderBinding::CheckedAdapter {
+                        machine_identity: typed
+                            .normalized_machine_overload_identity(machine)
+                            .map(|identity| identity.identity())
+                            .unwrap_or_default(),
+                        machine_package_identity: typed
+                            .symbols
+                            .symbol_package_identity(machine.symbol),
+                    }
                 }
                 _ => continue, // refused elsewhere (via rungs)
             };
-            let binding = binding_kind;
             let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = machine
                 .attached_data
                 .as_ref()
                 .map(|name| name.as_str().to_owned())
                 .unwrap_or_default();
-            let row_binding = match binding {
-                None => ProviderBinding::CheckedAdapter {
-                    machine_identity: typed
-                        .normalized_machine_overload_identity(machine)
-                        .map(|identity| identity.identity())
-                        .unwrap_or_default(),
-                    machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
-                },
-                Some(binding) => external_provider_binding(
-                    binding,
-                    &provider_type,
-                    &realization_machine_identity(typed, machine.name.as_str()),
-                ),
-            };
             let requirement_identity = satisfied_requirement_identity(
                 typed,
                 machine.name.as_str(),
@@ -1380,10 +1432,12 @@ pub fn derive_satisfies_plans_with_provenance(
     plans.extend(derive_boundary_operator_plans_with_provenance(
         typed,
         selected_target,
+        evaluated_bindings,
     ));
     plans.extend(derive_top_level_requirement_plans_with_provenance(
         typed,
         selected_target,
+        evaluated_bindings,
     ));
     plans
 }
@@ -1391,6 +1445,7 @@ pub fn derive_satisfies_plans_with_provenance(
 fn derive_top_level_requirement_plans_with_provenance(
     typed: &TypedTrees,
     selected_target: Option<&str>,
+    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
@@ -1447,7 +1502,7 @@ fn derive_top_level_requirement_plans_with_provenance(
             }
             let binding = match (machine.supply_mode, clause.external_binding) {
                 (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
-                    if machine.body_is_present =>
+                    if machine.body_is_present && !clause.via_expression.is_valid() =>
                 {
                     ProviderBinding::CheckedAdapter {
                         machine_identity: typed
@@ -1462,7 +1517,7 @@ fn derive_top_level_requirement_plans_with_provenance(
                 (
                     psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
                     Some(conformance_binding),
-                ) if !machine.body_is_present => {
+                ) if !machine.body_is_present && !clause.via_expression.is_valid() => {
                     let Some(binding) = exact_installed_external_binding_identity(
                         typed,
                         machine,
@@ -1481,6 +1536,22 @@ fn derive_top_level_requirement_plans_with_provenance(
                         &provider_type,
                         &realization_machine_identity(typed, machine.name.as_str()),
                     )
+                }
+                (
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: None,
+                        mechanism: None,
+                    },
+                    None,
+                ) if !machine.body_is_present && clause.via_expression.is_valid() => {
+                    let Some(row) = evaluated_bindings.and_then(|table| {
+                        table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
+                    }) else {
+                        continue;
+                    };
+                    ProviderBinding::Import {
+                        evaluated: row.evaluated().clone(),
+                    }
                 }
                 _ => continue,
             };
@@ -1615,6 +1686,7 @@ fn provider_plan_schema_targets(
 fn derive_boundary_operator_plans_with_provenance(
     typed: &TypedTrees,
     selected_target: Option<&str>,
+    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
@@ -1637,7 +1709,7 @@ fn derive_boundary_operator_plans_with_provenance(
                 (
                     psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
                     Some(conformance_binding),
-                ) => {
+                ) if !clause.via_expression.is_valid() => {
                     let Some(binding) = exact_installed_external_binding_identity(
                         typed,
                         machine,
@@ -1660,7 +1732,25 @@ fn derive_boundary_operator_plans_with_provenance(
                             .unwrap_or_default(),
                     )
                 }
-                (psi_language_semantics::MachineSupplyMode::CheckedBody, None) => {
+                (
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: None,
+                        mechanism: None,
+                    },
+                    None,
+                ) if !machine.body_is_present && clause.via_expression.is_valid() => {
+                    let Some(row) = evaluated_bindings.and_then(|table| {
+                        table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
+                    }) else {
+                        continue;
+                    };
+                    ProviderBinding::Import {
+                        evaluated: row.evaluated().clone(),
+                    }
+                }
+                (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
+                    if machine.body_is_present && !clause.via_expression.is_valid() =>
+                {
                     ProviderBinding::CheckedAdapter {
                         machine_identity: typed
                             .normalized_machine_overload_identity(machine)

@@ -41,6 +41,8 @@ pub struct CheckedCompilation {
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     selected_provider_grants: Vec<omega_trust_model::ResolvedAuthoredSelectedProviderGrant>,
     provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
+    evaluated_via_bindings:
+        omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
     root_grants: Vec<String>,
     accepted_template_classifications: omega_trust_model::AcceptedTemplateClassifications,
@@ -79,6 +81,7 @@ impl PartialEq for CheckedCompilation {
             && self.selected_provider_plans == other.selected_provider_plans
             && self.selected_provider_grants == other.selected_provider_grants
             && self.provider_plans == other.provider_plans
+            && self.evaluated_via_bindings == other.evaluated_via_bindings
             && self.external_binding_rows == other.external_binding_rows
             && self.root_grants == other.root_grants
             && self.accepted_template_classifications == other.accepted_template_classifications
@@ -316,6 +319,17 @@ impl CheckedCompilation {
     #[doc(hidden)]
     pub fn provider_plans(&self) -> &[omega_effects::provider_plan::ProviderPlan] {
         &self.provider_plans
+    }
+
+    /// Complete exact ordinary-`via` evaluation population, including leaves
+    /// not selected for this executable. Package review consumes this table;
+    /// backend lowering consumes only the evaluated imports installed in
+    /// provider plans.
+    #[doc(hidden)]
+    pub const fn evaluated_via_bindings(
+        &self,
+    ) -> &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable {
+        &self.evaluated_via_bindings
     }
 
     /// Exact selected normalized-import bindings and their evaluated calling
@@ -959,11 +973,18 @@ fn compile_to_checked_inner_with_replay(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
+    let evaluated_via_bindings =
+        omega_provider_planning::evaluated_via_bindings::evaluate_via_bindings(
+            &typed,
+            selected_target_profile,
+            package_inputs,
+        )?;
     let derived_provider_plans =
-        crate::pipeline::provider_plans::derive_satisfies_plans_with_provenance(
+        crate::pipeline::provider_plans::derive_satisfies_plans_with_evaluated_bindings(
             &typed,
             target_name,
-        );
+            &evaluated_via_bindings,
+        )?;
     let provider_plans = derived_provider_plans
         .iter()
         .map(|derived| derived.plan.clone())
@@ -1097,6 +1118,7 @@ fn compile_to_checked_inner_with_replay(
         selected_provider_plans: selected_execution_settlement.selected_provider_plan_facts,
         selected_provider_grants: selected_execution_settlement.selected_provider_grants,
         provider_plans,
+        evaluated_via_bindings,
         external_binding_rows,
         root_grants,
         accepted_template_classifications: selected_execution_settlement

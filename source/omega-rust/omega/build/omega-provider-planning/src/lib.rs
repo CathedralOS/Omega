@@ -10,6 +10,7 @@
 pub mod approval;
 pub mod calling_policy_plans;
 pub mod component_progress;
+pub mod evaluated_via_bindings;
 pub mod plans;
 mod selection;
 pub mod task_plans;
