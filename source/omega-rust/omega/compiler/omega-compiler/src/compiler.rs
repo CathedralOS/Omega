@@ -22,9 +22,9 @@ pub use optimization::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};
 pub use report::{
     CompileOutputKind, CompileReport, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, OptimizationRollbackReceipt, ProductionArtifactIdentity,
-    ProductionCompilationManifest, ProductionCompilationManifestIdentity,
-    ProductionCompilationSubject, RetainedNativeArtifact,
+    ExecutablePublicationReceipt, FinalRealizationEvidenceError, OptimizationRollbackReceipt,
+    ProductionArtifactIdentity, ProductionCompilationManifest,
+    ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedNativeArtifact,
 };
 pub use request::{CompileRequest, RequestedCompileProduct};
 

@@ -3785,6 +3785,98 @@ fn native_package_product_retains_one_canonical_production_manifest() {
         manifest.artifact(),
         omega_compiler::ProductionArtifactIdentity::Native(_)
     ));
+    assert!(
+        report
+            .require_package_native_physical_evidence()
+            .expect("an empty native entry has a complete empty physical projection")
+            .children()
+            .is_empty()
+    );
+
+    let standalone = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(output.0.join("standalone")),
+            target_name: Some(target_name.to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .expect("standalone native fixture should compile without package evidence");
+    assert_eq!(
+        standalone
+            .require_package_native_physical_evidence()
+            .expect_err("standalone production cannot issue package final evidence"),
+        omega_compiler::FinalRealizationEvidenceError::PackageProductionManifestRequired,
+    );
+}
+
+#[test]
+fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("repository root");
+    let exit_root = repository.join("tests/omega/pass/providers/adapter_satisfies_compile");
+    let empty_root = repository.join("tests/omega/pass/optimizer/no_selection_empty_entry");
+    let port_root = repository.join("tests/omega/pass/inline_asm/asm_port_out_final_validation");
+    let output = TempTree::new();
+
+    let compile_package = |root: &Path, marker: u8, label: &str| {
+        let package = identity(marker);
+        let inputs = PackageCompilationInputs::new_package(
+            package,
+            vec![PackageSourceBinding::new(
+                package,
+                label,
+                root.to_path_buf(),
+            )],
+            Vec::new(),
+        )
+        .expect("single-package native graph");
+        compile(
+            CompileRequest::new(CompileOptions {
+                root_path: root.join("main.omg"),
+                build_dir: Some(output.0.join(label)),
+                target_name: Some("linux_x86_64".to_owned()),
+            })
+            .with_package_inputs(inputs)
+            .with_requested_product(RequestedCompileProduct::NativeArtifact),
+        )
+        .expect("package-aware Linux native fixture should compile")
+    };
+
+    let exit = compile_package(&exit_root, 45, "physical-exit");
+    let evidence = exit
+        .require_package_native_physical_evidence()
+        .expect("the supported Linux exit lane carries exact physical evidence");
+    assert_eq!(evidence.children().len(), 1);
+    assert!(std::ptr::eq(
+        evidence,
+        exit.retained_native_artifact()
+            .expect("retained native artifact")
+            .physical_evidence()
+            .expect("artifact-owned physical evidence"),
+    ));
+
+    let empty = compile_package(&empty_root, 46, "physical-empty");
+    assert_eq!(
+        exit.production_manifest()
+            .expect("exit production manifest")
+            .require_native_physical_evidence(
+                empty
+                    .retained_native_artifact()
+                    .expect("empty retained native artifact"),
+            )
+            .expect_err("a manifest cannot consume a substituted native artifact"),
+        omega_compiler::FinalRealizationEvidenceError::NativeArtifactMismatch,
+    );
+
+    let port = compile_package(&port_root, 47, "physical-port");
+    assert_eq!(
+        port.require_package_native_physical_evidence()
+            .expect_err("the PortIo lane has no D32 physical evidence yet"),
+        omega_compiler::FinalRealizationEvidenceError::NativePhysicalEvidenceUnavailable,
+    );
 }
 
 fn host_target_name() -> Option<&'static str> {

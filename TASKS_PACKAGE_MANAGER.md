@@ -116,9 +116,16 @@ stop the item on one precise owner question before adding machinery.
   A nonempty D29 roster, explicit optimization, port effect, admitted native
   provider, normalized foreign call, or another executable evidence role
   retains no D32 evidence rather than publishing partial coverage or rejecting
-  an otherwise valid artifact. Remaining work is the D29 parent,
-  admitted-provider parent, and verified non-identity optimization projection
-  lanes, followed by final package-evidence consumption.
+  an otherwise valid artifact. The first package-aware consumer is complete:
+  `ProductionCompilationManifest` validates itself and the exact retained
+  `NativeArtifact`, rejoins target and artifact identity, requires physical
+  evidence, and returns the artifact-owned evidence by reference. The report
+  gate rejects standalone or already-published custody; it mints no receipt and
+  does not contaminate ordinary package review. The eventual accepted package
+  assembler consumes this gate under
+  `PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION`. Remaining producer work is the
+  D29 parent, admitted-provider parent, and verified non-identity optimization
+  projection lanes.
 
   The first standalone-product lane now retains the selected provider-plan
   facts, external-binding requirements, target/profile, ProgramEntry, and

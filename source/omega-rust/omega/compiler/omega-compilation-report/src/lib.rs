@@ -6,7 +6,7 @@ mod production_manifest;
 mod terminal_product;
 pub use optimization_rollback::OptimizationRollbackReceipt;
 pub use production_manifest::{
-    ProductionArtifactIdentity, ProductionCompilationManifest,
+    FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
 };
 pub use terminal_product::{
@@ -702,6 +702,29 @@ impl CompileReport {
 
     pub const fn production_manifest(&self) -> Option<&ProductionCompilationManifest> {
         self.production_manifest.as_ref()
+    }
+
+    /// Require the exact native physical evidence for this package-aware,
+    /// retained-native production. Standalone and already-published reports do
+    /// not carry the package/artifact join needed to make this claim.
+    pub fn require_package_native_physical_evidence(
+        &self,
+    ) -> Result<&omega_native_artifact::NativePhysicalEvidence, FinalRealizationEvidenceError> {
+        if !self.has_consistent_executable_publication_custody() {
+            return Err(FinalRealizationEvidenceError::InvalidReportCustody);
+        }
+        if self.output_kind != CompileOutputKind::RetainedNativeArtifact {
+            return Err(FinalRealizationEvidenceError::RetainedNativeArtifactRequired);
+        }
+        let artifact = self
+            .retained_native_artifact
+            .as_ref()
+            .ok_or(FinalRealizationEvidenceError::RetainedNativeArtifactRequired)?;
+        let manifest = self
+            .production_manifest
+            .as_ref()
+            .ok_or(FinalRealizationEvidenceError::PackageProductionManifestRequired)?;
+        manifest.require_native_physical_evidence(artifact)
     }
 
     pub fn with_trust_admission_settlement(

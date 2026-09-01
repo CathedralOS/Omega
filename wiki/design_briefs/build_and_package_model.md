@@ -2048,6 +2048,13 @@ set under the selected semantics, and checks the exact retained certificates.
 The produced subject is the canonical package artifact for ordinary package
 claims; final-realization claims additionally bind the exact native artifact and
 Terminal evidence. It is never merely a compiler-authored verdict packet.
+The current native-production join exposes this as a fail-closed borrowed gate:
+the package `ProductionCompilationManifest` and retained `NativeArtifact` must
+both validate, their target and artifact identities must agree, and the artifact
+must carry exact physical evidence for the requested lane. The gate returns that
+artifact-owned evidence directly; it creates no review row, receipt, audit
+claim, or generic completeness bit. Standalone and already-published reports
+cannot issue package final-realization evidence.
 Concretely, the ordinary artifact is the complete versioned package-admission
 semantic row set under one exact package key, target, dependency closure, and
 obligation schema. Compiler review may emit candidate bytes in that same
