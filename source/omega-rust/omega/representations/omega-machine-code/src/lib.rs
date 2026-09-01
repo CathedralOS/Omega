@@ -153,6 +153,9 @@ pub struct ForeignCallRelocation {
     /// Optional fixed-integer result normalized from its evaluated ABI
     /// placement and stored in a durable attached-Unit scalar home.
     pub scalar_result: Option<ForeignCallScalarResultRecord>,
+    /// Complete MXCSR preservation around this returning x86 foreign call.
+    /// AArch64 retains `None` until equivalent FPCR custody is implemented.
+    pub x86_floating_control: Option<X86ForeignCallFloatingControlRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.
     pub unit_stack: UnitCallStackEvidence,

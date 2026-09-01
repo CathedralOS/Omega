@@ -554,6 +554,27 @@ mod tests {
                 2,
             );
             assert_eq!(artifact.relocations().record_count(), 3);
+            match target {
+                TargetProfile::LinuxX64 => {
+                    let controls = artifact
+                        .foreign_calls()
+                        .iter()
+                        .map(|call| call.x86_floating_control.expect("x86 MXCSR custody"))
+                        .collect::<Vec<_>>();
+                    assert!(controls.windows(2).all(|pair| {
+                        pair[0].saved_slot_byte_offset == pair[1].saved_slot_byte_offset
+                            && pair[0].restore_offset + pair[0].restore_byte_count
+                                <= pair[1].save_offset
+                    }));
+                }
+                TargetProfile::LinuxArm64 => assert!(
+                    artifact
+                        .foreign_calls()
+                        .iter()
+                        .all(|call| call.x86_floating_control.is_none())
+                ),
+                _ => unreachable!(),
+            }
             let first = emit_dynamic_elf_image(&artifact, interpreter(target)).unwrap();
             let replay = emit_dynamic_elf_image(&artifact, interpreter(target)).unwrap();
 
@@ -659,6 +680,43 @@ mod tests {
         assert!(matches!(
             build_object_artifact(&wrong_target),
             Err(crate::ObjectError::ForeignCallTargetMismatch { .. })
+        ));
+
+        let mut missing_control = machine_code_plan(TargetProfile::LinuxX64);
+        missing_control.functions[0].foreign_calls[0].x86_floating_control = None;
+        assert!(matches!(
+            build_object_artifact(&missing_control),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut wrong_slot = machine_code_plan(TargetProfile::LinuxX64);
+        wrong_slot.functions[0].foreign_calls[0]
+            .x86_floating_control
+            .as_mut()
+            .unwrap()
+            .saved_slot_byte_offset = u32::MAX;
+        assert!(matches!(
+            build_object_artifact(&wrong_slot),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut mutated_save = machine_code_plan(TargetProfile::LinuxX64);
+        let save_offset = mutated_save.functions[0].foreign_calls[0]
+            .x86_floating_control
+            .unwrap()
+            .save_offset;
+        mutated_save.functions[0].bytes[save_offset] ^= 1;
+        assert!(matches!(
+            build_object_artifact(&mutated_save),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut substituted_interval = machine_code_plan(TargetProfile::LinuxX64);
+        substituted_interval.functions[0].foreign_calls[0].x86_floating_control =
+            substituted_interval.functions[0].foreign_calls[1].x86_floating_control;
+        assert!(matches!(
+            build_object_artifact(&substituted_interval),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
         ));
     }
 

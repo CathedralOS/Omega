@@ -175,7 +175,14 @@ fn validate_home_roster(
         cursor = cursor.checked_add(8).ok_or_else(invalid)?;
     }
     let expected_frame = match target.architecture {
-        Architecture::X86_64 => align(cursor, 16).ok_or_else(invalid)?,
+        Architecture::X86_64 => {
+            let homes = align(cursor, 16).ok_or_else(invalid)?;
+            if function.x86_floating_control.is_some() || !function.foreign_calls.is_empty() {
+                homes.checked_add(16).ok_or_else(invalid)?
+            } else {
+                homes
+            }
+        }
         Architecture::Aarch64 => {
             let link_offset = align(cursor, 8).ok_or_else(invalid)?;
             if function

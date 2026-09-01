@@ -38,7 +38,6 @@ pub(super) fn lower_unit_function(
 ) -> Result<TargetFunction, LoweringError> {
     validate_unit_function_shape(function)?;
     validate_unit_scalar_definitions(function)?;
-
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let parameter_shapes = function

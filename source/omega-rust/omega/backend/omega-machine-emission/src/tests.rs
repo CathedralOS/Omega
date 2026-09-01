@@ -305,7 +305,35 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
             omega_target::Architecture::X86_64 => {
                 assert_eq!(function.bytes[call.offset - 1], 0xe8);
                 assert_eq!(&function.bytes[call.offset..call.offset + 4], &[0; 4]);
-                assert_eq!(call.unit_stack.outbound.unwrap().byte_size, 8);
+                let outbound = call.unit_stack.outbound.unwrap();
+                assert_eq!(outbound.byte_size, 8);
+                let control = call
+                    .x86_floating_control
+                    .expect("returning x86 foreign call preserves MXCSR");
+                assert_eq!(control.target, target);
+                assert_eq!(control.saved_slot_byte_offset, 0);
+                assert_eq!(
+                    control.save_offset + control.save_byte_count,
+                    outbound.allocation_offset
+                );
+                assert_eq!(
+                    outbound.release_offset + outbound.release_byte_count,
+                    control.restore_offset
+                );
+                assert_eq!(
+                    &function.bytes
+                        [control.save_offset..control.save_offset + control.save_byte_count],
+                    omega_isa_x86_64::encode_stmxcsr_rsp_displacement(0)
+                        .unwrap()
+                        .as_slice()
+                );
+                assert_eq!(
+                    &function.bytes[control.restore_offset
+                        ..control.restore_offset + control.restore_byte_count],
+                    omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(0)
+                        .unwrap()
+                        .as_slice()
+                );
             }
             omega_target::Architecture::Aarch64 => {
                 assert_eq!(
@@ -313,6 +341,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
                     &0x9400_0000_u32.to_le_bytes()
                 );
                 assert_eq!(call.unit_stack.outbound, None);
+                assert_eq!(call.x86_floating_control, None);
             }
         }
 

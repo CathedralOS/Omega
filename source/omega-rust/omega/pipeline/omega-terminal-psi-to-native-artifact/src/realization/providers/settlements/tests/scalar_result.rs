@@ -241,6 +241,32 @@ fn assert_exact_fixed_integer_foreign_result_flow(
         &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count],
         expected_argument_bytes(target.architecture)
     );
+    match target.architecture {
+        omega_target::Architecture::X86_64 => {
+            let producer_control = producer
+                .x86_floating_control
+                .expect("x86 producer preserves MXCSR");
+            let consumer_control = consumer
+                .x86_floating_control
+                .expect("x86 consumer preserves MXCSR");
+            assert_eq!(
+                producer_control.saved_slot_byte_offset,
+                consumer_control.saved_slot_byte_offset
+            );
+            assert_eq!(
+                result.code_offset,
+                producer_control.restore_offset + producer_control.restore_byte_count
+            );
+            assert!(
+                producer_control.restore_offset + producer_control.restore_byte_count
+                    <= consumer_control.save_offset
+            );
+        }
+        omega_target::Architecture::Aarch64 => {
+            assert_eq!(producer.x86_floating_control, None);
+            assert_eq!(consumer.x86_floating_control, None);
+        }
+    }
 
     let mut stripped_result = machine_code.clone();
     stripped_result.functions[0].foreign_calls[0].scalar_result = None;
@@ -318,6 +344,10 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
     assert_eq!(object.foreign_calls().len(), 2);
     assert!(object.foreign_calls()[0].scalar_result.is_some());
+    assert_eq!(
+        object.foreign_calls()[0].x86_floating_control.is_some(),
+        target.architecture == omega_target::Architecture::X86_64
+    );
     let interpreter = omega_target::normalize_elf_interpreter_plan(
         match profile {
             omega_target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".to_vec(),

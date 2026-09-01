@@ -598,9 +598,7 @@ impl NativeArtifact {
             compiler_entry_region_binding,
             compiler_entry_footprint_binding,
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
-            foreign_stack_contribution_digest: foreign_stack_contribution_digest(
-                self.image.foreign_calls(),
-            ),
+            foreign_call_custody_digest: foreign_call_custody_digest(self.image.foreign_calls()),
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
@@ -848,7 +846,7 @@ struct NativeArtifactIdentityFields<'a> {
     compiler_entry_region_binding: Option<([u8; 32], u64)>,
     compiler_entry_footprint_binding: Option<([u8; 32], u64)>,
     selected_provider_closure_digest: [u8; 32],
-    foreign_stack_contribution_digest: [u8; 32],
+    foreign_call_custody_digest: [u8; 32],
     selected_provider_plans: &'a [NativeSelectedProviderPlan],
     provider_executions: &'a [NativeProviderExecution],
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
@@ -908,7 +906,7 @@ fn derive_native_artifact_identity(
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_region_binding);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_footprint_binding);
     digest.update(fields.selected_provider_closure_digest);
-    digest.update(fields.foreign_stack_contribution_digest);
+    digest.update(fields.foreign_call_custody_digest);
     digest.update(canonical_usize(fields.selected_provider_plans.len()));
     for plan in fields.selected_provider_plans {
         digest.update(plan.report_identity.to_le_bytes());
@@ -951,11 +949,9 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
     digest.update(bytes);
 }
 
-fn foreign_stack_contribution_digest(
-    calls: &[omega_image_emission::ObjectForeignCall],
-) -> [u8; 32] {
+fn foreign_call_custody_digest(calls: &[omega_image_emission::ObjectForeignCall]) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.native-artifact.foreign-stack-contributions.v1\0");
+    digest.update(b"omega.native-artifact.foreign-call-custody.v2\0");
     digest.update(canonical_usize(calls.len()));
     for call in calls {
         digest.update(call.machine.get().to_le_bytes());
@@ -976,6 +972,32 @@ fn foreign_stack_contribution_digest(
         }
         digest.update(canonical_usize(call.text_offset));
         digest.update(call.caller_live_bytes.to_le_bytes());
+        match call.x86_floating_control {
+            None => digest.update([0]),
+            Some(control) => {
+                digest.update([1]);
+                digest.update([match control.target.architecture {
+                    omega_target::Architecture::Aarch64 => 1,
+                    omega_target::Architecture::X86_64 => 2,
+                }]);
+                digest.update([match control.target.object_format {
+                    omega_target::ObjectFormat::Elf => 1,
+                    omega_target::ObjectFormat::MachO => 2,
+                    omega_target::ObjectFormat::Coff => 3,
+                }]);
+                digest.update(canonical_usize(control.target.pointer_size));
+                digest.update(canonical_usize(control.target.pointer_alignment));
+                digest.update(control.saved_slot_byte_offset.to_le_bytes());
+                for value in [
+                    control.save_offset,
+                    control.save_byte_count,
+                    control.restore_offset,
+                    control.restore_byte_count,
+                ] {
+                    digest.update(canonical_usize(value));
+                }
+            }
+        }
         let contribution = &call.same_stack_contribution;
         digest.update(
             contribution
@@ -1102,7 +1124,7 @@ mod tests {
             compiler_entry_region_binding: evidence,
             compiler_entry_footprint_binding: evidence,
             selected_provider_closure_digest: [fixture.provider_closure_marker; 32],
-            foreign_stack_contribution_digest: [fixture.foreign_stack_marker; 32],
+            foreign_call_custody_digest: [fixture.foreign_stack_marker; 32],
             selected_provider_plans: &plans,
             provider_executions: &executions,
             terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity::from_parts(

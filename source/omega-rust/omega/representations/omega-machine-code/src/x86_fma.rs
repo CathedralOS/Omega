@@ -61,6 +61,19 @@ pub struct X86FloatingControlRecord {
     pub restore_byte_count: usize,
 }
 
+/// Per-call proof that one returning x86 foreign boundary preserved the
+/// caller's complete MXCSR. The slot may be reused by sequential calls, while
+/// each call retains distinct save/restore instruction intervals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86ForeignCallFloatingControlRecord {
+    pub target: NativeTarget,
+    pub saved_slot_byte_offset: u32,
+    pub save_offset: usize,
+    pub save_byte_count: usize,
+    pub restore_offset: usize,
+    pub restore_byte_count: usize,
+}
+
 /// Exact machine-code custody for one feature-requiring scalar FMA3 interval.
 ///
 /// This record does not admit its feature requirement and does not select a

@@ -276,23 +276,20 @@ fn validate_floating_control(
     function: &MachineCodeFunction,
     control: omega_machine_code::X86FloatingControlRecord,
 ) -> Result<(), ObjectError> {
-    let expected_save = omega_isa_x86_64::encode_stmxcsr_rsp_disp8(
-        u8::try_from(control.saved_slot_byte_offset)
-            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?,
-    );
-    let expected_store = omega_isa_x86_64::encode_store_mxcsr_constant_rsp_disp8(
-        u8::try_from(control.canonical_slot_byte_offset)
-            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?,
+    let expected_save =
+        omega_isa_x86_64::encode_stmxcsr_rsp_displacement(control.saved_slot_byte_offset)
+            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?;
+    let expected_store = omega_isa_x86_64::encode_store_mxcsr_constant_rsp_displacement(
+        control.canonical_slot_byte_offset,
         omega_isa_x86_64::OMEGA_CANONICAL_MXCSR,
-    );
-    let expected_install = omega_isa_x86_64::encode_ldmxcsr_rsp_disp8(
-        u8::try_from(control.canonical_slot_byte_offset)
-            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?,
-    );
-    let expected_restore = omega_isa_x86_64::encode_ldmxcsr_rsp_disp8(
-        u8::try_from(control.saved_slot_byte_offset)
-            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?,
-    );
+    )
+    .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?;
+    let expected_install =
+        omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(control.canonical_slot_byte_offset)
+            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?;
+    let expected_restore =
+        omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(control.saved_slot_byte_offset)
+            .map_err(|_| ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine))?;
     let exact = |offset: usize, count: usize, expected: &[u8]| {
         count == expected.len()
             && function.bytes.get(offset..offset.saturating_add(count)) == Some(expected)
