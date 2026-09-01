@@ -1015,9 +1015,20 @@ an ordinary machine-lowering path. The rows still own no machine or
 operation, normal validation continues to reject every quotient operation, and
 a batch with one unsupported request yields no partial rows. This is a
 source-erasure, module-retention, and replay prerequisite, not executable
-stage-4 admission. Package review still blanket-rejects quotient contract
-calls and has no quotient-operation record; executable checked operation/result
-lowering and the full package-review migration remain open.
+stage-4 admission. A separate proof-only package-review projection now retains
+the exact total, direct `define` correspondence. It transactionally rederives
+the complete all-program extractor batch, requires exact batch equality, and
+then selects a nonempty subset by the requested package's exact public
+operation identity. The source-free canonical row retains the full theorem and
+contract-fact coordinates, positional relations, eligibility, and direct
+result coordinate; its explanatory source role names the public operation
+declaration, not the compiler-synthesized typed call node. Package-review
+schema 120 / row schema 78 / recovery schema 16 add the blocking row kind and
+bounded opaque row recovery. Mixed-package extraction is permitted only by
+filtering each review to its own rows; lift, adapted, private, unselected,
+wrong-package, and batch drift remain rejected. Ordinary checked package
+review still blanket-rejects quotient contract calls, so executable checked
+operation/result lowering and the full package-review migration remain open.
 
 The collection migration is now live through sealed typed requests, checked
 relation planning, and the proof-only total-direct `define` plus bounded direct

@@ -8,6 +8,7 @@ pub(super) mod effects;
 pub(super) mod expressions;
 pub(super) mod identity;
 pub(super) mod providers;
+pub(super) mod quotients;
 
 #[cfg(test)]
 mod tests;

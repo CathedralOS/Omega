@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 119 and row schema version 77. This file
+The canonical review schema is version 120 and row schema version 78. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -8,6 +8,21 @@ The ordinary obligation-semantics schema is version 4. Its in-memory result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 and external executable supplies open for root admission. The outer ledger
 encoding remains version 2; no new persistence authority is introduced.
+
+Schema v120 / row v78 / recovery v16 adds the separate proof-only blocking row
+for the bounded total, direct quotient `define` correspondence. Its producer
+reruns the complete transactional source extractor, requires exact batch
+equality, and selects a nonempty subset by the requested package's exact public
+operation.
+The row encodes the complete source-free correspondence: callable and closed
+application identities, positional relations, theorem role/application and
+contract-fact coordinates, eligibility, and direct result coordinate.
+Explanatory source custody is the authored public operation declaration; the
+compiler-synthesized typed quotient-call node is not claimed as authored.
+Mixed-package extraction filters to each requested package. Lift, adapted,
+private, unselected, wrong-package, and batch-drift forms remain rejected, as
+do all ordinary checked and executable quotient requests. This is not the full
+package-review migration and grants no package or executable authority.
 
 Schema v119 / row v77 implements D55 exact-requirement lifetime applications.
 Checked and external realization edges retain raw machine-lifetime ordinals for

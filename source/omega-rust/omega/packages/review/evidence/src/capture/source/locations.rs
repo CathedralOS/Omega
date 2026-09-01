@@ -174,6 +174,52 @@ pub(crate) fn canonical_source_span_location(
     })
 }
 
+/// Canonicalize one authored package span before ordinary checked compilation
+/// exists. The proof-only quotient review entrance uses this narrower helper;
+/// toolchain spans remain owned by the checked-compilation path above because
+/// their exact source commitments are compiler custody.
+pub(crate) fn canonical_typed_package_source_span_location(
+    program: &psi_typed_trees::TypedTrees,
+    span: psi_source::SourceSpan,
+    role: PackageReviewSourceLocationRole,
+) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
+    let source_file = program.symbols.source_file(span).ok_or_else(|| {
+        vec![Diagnostic::error(
+            "reviewed declaration source span has no retained source file",
+        )]
+    })?;
+    if span.span.start >= span.span.end
+        || span.span.end > source_file.source.len()
+        || !source_file.source.is_char_boundary(span.span.start)
+        || !source_file.source.is_char_boundary(span.span.end)
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed declaration source span is outside `{}`",
+            source_file.path.display()
+        ))]);
+    }
+    if source_file.origin != psi_source::SourceOrigin::User {
+        return Err(vec![Diagnostic::error(
+            "proof-only quotient package review requires an authored package declaration source",
+        )]);
+    }
+    let owner = PackageReviewSourceLocationOwner::Package(
+        source_file.package_identity.ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed package source `{}` has no reconciled package identity",
+                source_file.path.display()
+            ))]
+        })?,
+    );
+    Ok(PackageReviewSourceLocation {
+        owner,
+        relative_path: canonical_review_relative_path(source_file)?,
+        start_byte: u64::try_from(span.span.start).expect("retained source byte offset fits u64"),
+        end_byte: u64::try_from(span.span.end).expect("retained source byte offset fits u64"),
+        role,
+    })
+}
+
 pub(crate) fn canonical_review_relative_path(
     source_file: &psi_source::SourceFile,
 ) -> Result<String, Vec<Diagnostic>> {

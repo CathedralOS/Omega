@@ -62,9 +62,13 @@ The manager may propagate those open obligations to a consuming root, but this
 crate provides no certificate, policy decision, persistence codec, accepted
 lock, or `PackageInstance` route.
 
-The crate root exports `project_checked_package_review` as its operation. The
-manager owns comparison and policy; this crate never admits a package.
+The crate root exports `project_checked_package_review` for ordinary checked
+review and the separately non-executable
+`project_non_executable_quotient_package_review` for the bounded proof-only
+quotient correspondence. The manager owns comparison and policy; neither
+entrance admits a package.
 
-The canonical review schema is version 119 and row schema version 77. Exact
-vocabulary and revision notes live in
+The canonical review schema is version 120, row schema version 78, and
+canonical-row recovery envelope version 16. Exact vocabulary and revision
+notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

@@ -393,6 +393,28 @@ pub(crate) fn encode_row(
     encode_key: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
     encode_value: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
 ) -> Result<PackageReviewCanonicalRow, PackageReviewEncodingError> {
+    encode_subject_row(
+        review.package,
+        review.target,
+        limits,
+        kind,
+        risk,
+        source,
+        encode_key,
+        encode_value,
+    )
+}
+
+pub(crate) fn encode_subject_row(
+    package: psi_core::PackageKeyIdentity,
+    target: omega_target::TargetProfile,
+    limits: PackageReviewEncodingLimits,
+    kind: PackageReviewCanonicalRowKind,
+    risk: PackageReviewCanonicalRowRisk,
+    source: PackageReviewCanonicalRowSource,
+    encode_key: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+    encode_value: impl FnOnce(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+) -> Result<PackageReviewCanonicalRow, PackageReviewEncodingError> {
     let mut key = Encoder::bounded(limits.maximum_row_key_bytes);
     encode_key(&mut key)?;
     let key_bytes = key.finish()?;
@@ -403,8 +425,8 @@ pub(crate) fn encode_row(
     canonical.fixed_bytes(ROW_MAGIC);
     canonical.u16(PACKAGE_REVIEW_ROW_ENCODING_VERSION);
     canonical.u16(PACKAGE_REVIEW_ENCODING_VERSION);
-    canonical.package_identity(review.package);
-    canonical.string(review.target.target_name())?;
+    canonical.package_identity(package);
+    canonical.string(target.target_name())?;
     canonical.byte(canonical_row_kind_tag(kind));
     canonical.byte(canonical_row_risk_tag(risk));
     canonical.bytes(&key_bytes)?;
@@ -456,5 +478,6 @@ pub(crate) const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) 
         PackageReviewCanonicalRowKind::PublicConformance => 14,
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
         PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
+        PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => 17,
     }
 }

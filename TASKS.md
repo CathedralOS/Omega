@@ -10608,10 +10608,24 @@ Remaining N6/N8 work:
   role order, fact-major source order, theorem-coordinate order, and the exact
   congruence-`P`/transport-`P` join. Adapted lift shapes remain outside this
   first carrier. Execution validation still rejects every retained row.
-  Package review still has no quotient operation record because quotient
-  contract calls remain blanket-rejected, so package-review representation and
-  executable admission remain open; this does not close the full stage-4
-  migration.
+  Package review now has a separate proof-only record for the exact total,
+  direct `define` correspondence. Its producer reruns the all-program
+  transactional extractor, requires exact batch equality, then selects the
+  requested package's nonempty public-operation subset. Each source-free row
+  binds the complete canonical correspondence, including exact public callable,
+  theorem application and contract-fact coordinates, positional relations,
+  eligibility, and direct result coordinate; explanatory custody points to the
+  selected public operation declaration because the typed quotient call itself
+  is synthesized. Canonical package-review schema 120 / row schema 78 /
+  recovery schema 16 add the blocking row kind, deterministic key order, and
+  bounded opaque row recovery.
+  Foreign-package rows in the complete extractor batch do not poison the
+  selected package, while lift, adapted, private, omitted/substituted/reordered/
+  partial/duplicate batches, and a requested package with no owned row remain
+  rejected. This record is deliberately not part of ordinary checked package
+  projection: quotient contract calls and every executable request remain
+  blanket-rejected, and full package-review migration plus executable admission
+  remain open. This does not close the full stage-4 migration.
 
   A failed built-in implication diagnostic must print the expected public and
   representative fact coordinates and point directly to

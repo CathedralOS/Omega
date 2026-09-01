@@ -53,6 +53,9 @@ pub enum PackageReviewCanonicalRowKind {
     /// checked body. This is semantic review data, not Terminal/native
     /// coverage or package admission.
     BoundaryApplicationRealization,
+    /// One proof-only total-direct quotient `define` correspondence, rederived
+    /// transactionally from source and carrying no executable authority.
+    NonExecutableQuotientCorrespondence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -106,6 +109,10 @@ pub enum PackageReviewSourceLocationRole {
     /// Exact declaration or derivation origin of one value parameter on a
     /// reviewed callable, public operator, or public trait requirement.
     CallableParameter,
+    /// Exact authored declaration of the selected public package operation.
+    /// The typed quotient-call node is compiler-synthesized and therefore is
+    /// not claimed as authored source custody.
+    QuotientOperationDeclaration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

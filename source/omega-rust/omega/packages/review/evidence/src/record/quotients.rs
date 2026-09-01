@@ -1,0 +1,33 @@
+use super::PackageReviewCanonicalRowSource;
+use omega_target::TargetProfile;
+use psi_core::PackageKeyIdentity;
+use psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence;
+
+/// Proof-only package-review projection of the bounded total-direct quotient
+/// correspondence batch.
+///
+/// This record is deliberately separate from [`super::CheckedPackageReviewProjection`]:
+/// ordinary checking still rejects every quotient operation request. The
+/// compiler can issue this review record only through the transactional
+/// source-validation entrance that owns the complete batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NonExecutableQuotientPackageReview {
+    pub(crate) package: PackageKeyIdentity,
+    pub(crate) target: TargetProfile,
+    pub(crate) correspondences: Vec<CanonicalQuotientCorrespondence>,
+    pub(crate) row_sources: Vec<PackageReviewCanonicalRowSource>,
+}
+
+impl NonExecutableQuotientPackageReview {
+    pub const fn package(&self) -> PackageKeyIdentity {
+        self.package
+    }
+
+    pub const fn target(&self) -> TargetProfile {
+        self.target
+    }
+
+    pub fn correspondences(&self) -> &[CanonicalQuotientCorrespondence] {
+        &self.correspondences
+    }
+}

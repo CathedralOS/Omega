@@ -3,7 +3,9 @@
 //! Encoding owns stable framing only. It consumes inert evidence and does not
 //! inspect compiler state or decide whether evidence should be admitted.
 
-use crate::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
+use crate::record::{
+    CheckedPackageReviewProjection, NonExecutableQuotientPackageReview, PackageReviewCanonicalRow,
+};
 
 mod encode;
 mod recovery;
@@ -36,5 +38,15 @@ impl CheckedPackageReviewProjection {
         &self,
     ) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
         encode::rows::encode_rows(self)
+    }
+}
+
+impl NonExecutableQuotientPackageReview {
+    /// Independently framed, source-handle-free proof-only quotient rows. The
+    /// rows remain review evidence and grant no checked or executable operation.
+    pub fn canonical_rows(
+        &self,
+    ) -> Result<Vec<PackageReviewCanonicalRow>, PackageReviewEncodingError> {
+        encode::quotients::encode_rows(self)
     }
 }
