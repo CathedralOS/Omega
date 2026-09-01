@@ -85,6 +85,29 @@ pub(super) fn import_plan(symbol: &[u8], profile: omega_target::TargetProfile) -
     }
 }
 
+pub(super) fn terminal_policy(
+    plan: &ProviderPlan,
+    boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
+) -> crate::realization::TerminalAuthorityPolicy {
+    let [row] = plan.rows.as_slice() else {
+        panic!("fixture plan must contain one import row")
+    };
+    let ProviderBinding::Import { evaluated } = &row.binding else {
+        panic!("fixture plan must contain one normalized import")
+    };
+    crate::realization::terminal_authority_policy_with_rows(vec![
+        crate::realization::TerminalAuthorityPolicyRow::new(
+            crate::realization::normalized_foreign_terminal_mechanism(
+                evaluated.locator(),
+                boundary_entry_plan,
+            )
+            .expect("fixture boundary plan forms an exact foreign mechanism"),
+            omega_effects::TerminalAuthorityDisposition::from_classes([]),
+        ),
+    ])
+    .expect("fixture receiving policy is exact")
+}
+
 #[derive(Debug)]
 pub(super) struct TestProviderExecution {
     pub(super) requirement: String,

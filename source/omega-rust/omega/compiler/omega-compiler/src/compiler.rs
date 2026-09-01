@@ -30,6 +30,7 @@ pub use request::{CompileRequest, RequestedCompileProduct};
 pub use terminal_native_realization::{
     SourceEvaluatedImportSettlement,
     realize_retained_terminal_artifact_with_source_evaluated_imports,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
 };
 
 /// The reusable production compiler coordinator.

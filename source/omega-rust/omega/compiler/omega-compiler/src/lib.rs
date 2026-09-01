@@ -15,6 +15,7 @@ pub use compiler::{
     RetainedNativeArtifact, SourceEvaluatedImportSettlement, TrustAdmission,
     TrustAdmissionSettlement, compile,
     realize_retained_terminal_artifact_with_source_evaluated_imports,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
 };
 pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

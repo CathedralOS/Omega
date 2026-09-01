@@ -9182,17 +9182,32 @@ compiler concept is introduced.
   or Mach-O locators. The target-constrained Terminal proposal rejoins every
   selected evaluated import to exactly one physical external row. Legacy
   string-backed imports remain segregated and never enter accepted
-  classification directly. The next D45 work is to add receiving target-policy
-  rows for these normalized foreign mechanisms, traverse the complete selected-
-  provider closure, and replace the blessed filename classifier with exact
-  service/schema permissions plus binding-derived containment. Native
-  settlement of source-evaluated imports still separately requires externally
-  admitted provider execution and task-stack custody; classification must not
-  manufacture either. The first consumer seam is now live: the compiler can
-  consume those two external inputs for each demanded import, derive the exact
-  retained plan internally, and realize a zero-argument `MachODylibSymbol`
-  call through ordinary object and Mach-O image emission. This is not an
-  admission owner and does not close the D45 policy work above.
+  classification directly. D45's receiving policy now uses one shared role-
+  tagged `TerminalMechanismIdentity`: the exhaustive 494-row compiler-
+  intrinsic inventory occupies its compiler-intrinsic role, while normalized
+  foreign leaves occupy an exact target/locator/admitted-contract role. The
+  latter binds the collision-resistant normalized locator identity to the
+  canonical admitted `BoundaryEntryPlan` contract commitment, never to a
+  provider report fingerprint. Receiving authorities supply an explicit finite
+  foreign-row table; version 2 commits the complete intrinsic and foreign row
+  set, canonical order, and each exact disposition. Duplicate or reserved rows
+  and empty contract identities reject while building the policy. Native
+  realization classifies every directly demanded normalized import before
+  provider settlement and rejects a missing row, locator or contract
+  substitution, wrong receiving target, duplicate selected/external row, or
+  legacy string-backed binding. PE-by-name, PE-by-ordinal, versioned ELF, and
+  Mach-O identities have exact policy coverage, and the accepted v2 identity
+  remains in `NativeArtifact` replay. Native settlement still separately
+  requires externally admitted provider execution and task-stack custody;
+  classification manufactures neither. The compiler's first consumer seam can
+  consume those inputs for each demanded import, derive the exact retained plan
+  internally, and realize a zero-argument `MachODylibSymbol` call through
+  ordinary object and Mach-O image emission.
+
+  The remaining D45 work is to traverse complete selected-provider closures,
+  including checked adapters, join exact service/schema permissions to every
+  classified leaf, and delete the blessed filename classifier. This direct-
+  import rung claims neither closure completeness nor containment.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,

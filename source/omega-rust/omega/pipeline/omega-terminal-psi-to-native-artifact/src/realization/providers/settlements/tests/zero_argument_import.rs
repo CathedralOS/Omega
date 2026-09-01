@@ -113,9 +113,10 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             requirement,
         )
         .unwrap();
+        let external_rows = vec![external];
         let foreign = rejoin_normalized_foreign_call(
             &selected_plan,
-            &[external],
+            &external_rows,
             &same_stack,
             report_identity,
             requirement,
@@ -131,6 +132,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         ])
         .unwrap();
         let exact_plan = &selected_plans.plans()[0];
+        let policy = terminal_policy(exact_plan, &boundary_entry_plan);
         let normalized_settlement = NativeProviderSettlement {
             provider_execution: &evidence,
             provider_plan: exact_plan,
@@ -139,12 +141,90 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         validate_source_evaluated_import_coverage(
             &abstract_plan,
             &selected_plans,
+            &policy,
+            target,
+            &external_rows,
             &[normalized_settlement],
         )
         .expect("the demanded evaluated import has one normalized settlement");
+        let unclassified = validate_source_evaluated_import_coverage(
+            &abstract_plan,
+            &selected_plans,
+            &crate::realization::current_terminal_authority_policy(),
+            target,
+            &external_rows,
+            &[],
+        )
+        .expect_err("a demanded import cannot inherit an absent policy row");
+        assert!(unclassified[0].message.contains("does not classify"));
+        let wrong_target = match profile {
+            omega_target::TargetProfile::LinuxX64 => omega_target::NativeTarget::linux_arm64(),
+            omega_target::TargetProfile::LinuxArm64 => omega_target::NativeTarget::linux_x64(),
+            _ => unreachable!(),
+        };
+        let wrong_target_error = validate_source_evaluated_import_coverage(
+            &abstract_plan,
+            &selected_plans,
+            &policy,
+            wrong_target,
+            &external_rows,
+            &[],
+        )
+        .expect_err("a normalized locator cannot cross receiving targets");
         assert!(
-            validate_source_evaluated_import_coverage(&abstract_plan, &selected_plans, &[],)
-                .is_err(),
+            wrong_target_error[0]
+                .message
+                .contains("rather than the receiving native target")
+        );
+
+        let mut contract_substitution = external_rows.clone();
+        let substituted_plan = contract_substitution[0]
+            .boundary_entry_plan
+            .as_mut()
+            .expect("fixture external row retains its admitted plan");
+        substituted_plan.state.preemption = omega_calling_conventions::Preemption::ProviderDefined;
+        let contract_error = validate_source_evaluated_import_coverage(
+            &abstract_plan,
+            &selected_plans,
+            &policy,
+            target,
+            &contract_substitution,
+            &[],
+        )
+        .expect_err("a substituted implementation contract cannot reuse a policy row");
+        assert!(contract_error[0].message.contains("does not classify"));
+
+        let mut legacy = exact_plan.clone();
+        legacy.rows[0].binding = ProviderBinding::StringBackedImportBootstrap {
+            library: "libomega-test.so".into(),
+            symbol: "selected_leaf".into(),
+        };
+        let legacy =
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![legacy]).unwrap();
+        let legacy_error = validate_source_evaluated_import_coverage(
+            &abstract_plan,
+            &legacy,
+            &policy,
+            target,
+            &external_rows,
+            &[],
+        )
+        .expect_err("legacy strings never become classified terminal mechanisms");
+        assert!(
+            legacy_error[0]
+                .message
+                .contains("legacy string-backed binding")
+        );
+        assert!(
+            validate_source_evaluated_import_coverage(
+                &abstract_plan,
+                &selected_plans,
+                &policy,
+                target,
+                &external_rows,
+                &[],
+            )
+            .is_err(),
             "a demanded evaluated import cannot omit its settlement",
         );
         let builtin_substitution = NativeProviderSettlement {
@@ -158,6 +238,9 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             validate_source_evaluated_import_coverage(
                 &abstract_plan,
                 &selected_plans,
+                &policy,
+                target,
+                &external_rows,
                 &[builtin_substitution],
             )
             .is_err(),
