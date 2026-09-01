@@ -14,6 +14,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn evaluate",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/regression_manifest.rs",
+        coordination_marker: "pub(super) fn create",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/corpus/mod.rs",
         coordination_marker: "pub fn admit_external_decision_logs",
     },
@@ -28,5 +32,9 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/evaluation/mod.rs",
         coordination_marker: "pub(super) fn evaluate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/regression_manifest/mod.rs",
+        coordination_marker: "pub(super) fn create",
     },
 ];

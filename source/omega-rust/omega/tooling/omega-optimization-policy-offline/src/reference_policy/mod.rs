@@ -10,6 +10,7 @@ mod evaluation;
 mod identity;
 mod inference;
 mod model;
+mod regression_manifest;
 mod training;
 
 #[cfg(test)]
@@ -23,6 +24,9 @@ pub use identity::{
 pub use model::{
     CostThresholdV1Model, OfflinePolicyConfusion, OfflinePolicyEvaluationReport,
     OfflinePolicyEvaluationSummary, OfflinePolicyPrediction, OfflinePolicyReferenceError,
+};
+pub use regression_manifest::{
+    OfflinePolicyRegressionManifest, OfflinePolicyRegressionManifestIdentity,
 };
 
 use crate::{OfflinePolicySplit, ValidatedOfflinePolicyCorpus};
@@ -54,4 +58,19 @@ pub fn decode_cost_threshold_v1_report(
     model: &CostThresholdV1Model,
 ) -> Result<OfflinePolicyEvaluationReport, OfflinePolicyReferenceError> {
     codec::decode_report(encoded, corpus, model)
+}
+
+pub fn create_cost_threshold_v1_regression_manifest(
+    corpus: &ValidatedOfflinePolicyCorpus,
+    model: &CostThresholdV1Model,
+) -> Result<OfflinePolicyRegressionManifest, OfflinePolicyReferenceError> {
+    regression_manifest::create(corpus, model)
+}
+
+pub fn decode_cost_threshold_v1_regression_manifest(
+    encoded: &[u8],
+    corpus: &ValidatedOfflinePolicyCorpus,
+    model: &CostThresholdV1Model,
+) -> Result<OfflinePolicyRegressionManifest, OfflinePolicyReferenceError> {
+    regression_manifest::decode(encoded, corpus, model)
 }

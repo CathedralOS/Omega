@@ -8,7 +8,9 @@ pub(super) const USAGE: &str = "usage:
   omega-optimization-policy-offline capture <output-corpus> <decision-log>...
   omega-optimization-policy-offline train <input-corpus> <output-model>
   omega-optimization-policy-offline evaluate <input-corpus> <input-model> <output-report>
-  omega-optimization-policy-offline regression <input-corpus> <input-model> <output-report>";
+  omega-optimization-policy-offline regression <input-corpus> <input-model> <output-report>
+  omega-optimization-policy-offline create-regression-manifest <input-corpus> <input-model> <output-manifest>
+  omega-optimization-policy-offline check-regression-manifest <input-corpus> <input-model> <input-manifest>";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CaptureRequest {
@@ -30,11 +32,27 @@ pub(super) struct EvaluationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RegressionManifestCreationRequest {
+    pub(super) corpus: PathBuf,
+    pub(super) model: PathBuf,
+    pub(super) output: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct RegressionManifestCheckRequest {
+    pub(super) corpus: PathBuf,
+    pub(super) model: PathBuf,
+    pub(super) manifest: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum OfflinePolicyCommand {
     Capture(CaptureRequest),
     Train(TrainingRequest),
     Evaluate(EvaluationRequest),
     Regression(EvaluationRequest),
+    CreateRegressionManifest(RegressionManifestCreationRequest),
+    CheckRegressionManifest(RegressionManifestCheckRequest),
     Help,
 }
 
@@ -55,8 +73,47 @@ pub(super) fn parse(
         Some("train") => parse_training(arguments),
         Some("evaluate") => parse_evaluation(arguments, false),
         Some("regression") => parse_evaluation(arguments, true),
+        Some("create-regression-manifest") => parse_regression_manifest(arguments, false),
+        Some("check-regression-manifest") => parse_regression_manifest(arguments, true),
         _ => Err(OfflinePolicyCommandError::Usage("unknown command")),
     }
+}
+
+fn parse_regression_manifest(
+    mut arguments: impl Iterator<Item = OsString>,
+    check: bool,
+) -> Result<OfflinePolicyCommand, OfflinePolicyCommandError> {
+    let corpus = required_path(&mut arguments, "missing input corpus path")?;
+    let model = required_path(&mut arguments, "missing input model path")?;
+    let artifact = required_path(
+        &mut arguments,
+        if check {
+            "missing input manifest path"
+        } else {
+            "missing output manifest path"
+        },
+    )?;
+    reject_trailing(
+        &mut arguments,
+        if check {
+            "check-regression-manifest accepts exactly three paths"
+        } else {
+            "create-regression-manifest accepts exactly three paths"
+        },
+    )?;
+    Ok(if check {
+        OfflinePolicyCommand::CheckRegressionManifest(RegressionManifestCheckRequest {
+            corpus,
+            model,
+            manifest: artifact,
+        })
+    } else {
+        OfflinePolicyCommand::CreateRegressionManifest(RegressionManifestCreationRequest {
+            corpus,
+            model,
+            output: artifact,
+        })
+    })
 }
 
 fn parse_capture(

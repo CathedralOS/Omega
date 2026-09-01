@@ -17,8 +17,10 @@ pub use corpus::{
 pub use reference_policy::{
     CostThresholdV1Model, OfflinePolicyAlgorithmIdentity, OfflinePolicyConfusion,
     OfflinePolicyEvaluationReport, OfflinePolicyEvaluationSummary, OfflinePolicyModelIdentity,
-    OfflinePolicyPrediction, OfflinePolicyReferenceError, OfflinePolicyReportIdentity,
+    OfflinePolicyPrediction, OfflinePolicyReferenceError, OfflinePolicyRegressionManifest,
+    OfflinePolicyRegressionManifestIdentity, OfflinePolicyReportIdentity,
     OfflinePolicySplitIdentity, cost_threshold_v1_algorithm_identity,
-    decode_cost_threshold_v1_model, decode_cost_threshold_v1_report, evaluate_cost_threshold_v1,
-    offline_policy_split_identity, train_cost_threshold_v1,
+    create_cost_threshold_v1_regression_manifest, decode_cost_threshold_v1_model,
+    decode_cost_threshold_v1_regression_manifest, decode_cost_threshold_v1_report,
+    evaluate_cost_threshold_v1, offline_policy_split_identity, train_cost_threshold_v1,
 };

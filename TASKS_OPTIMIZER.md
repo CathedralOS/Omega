@@ -1497,7 +1497,7 @@ consumes and retains their identities through publication.
   mismatches, and a checked-i128 selected-cost sum; strict model/report codecs
   reject every custody substitution. This is plumbing and recorded-label
   agreement, not an optimization-quality claim. The explicit offline command
-  now exposes four exact artifact routes: `capture` admits canonical V2 logs,
+  now exposes four exact data routes: `capture` admits canonical V2 logs,
   `train` consumes one validated corpus, and distinct `evaluate` and
   `regression` commands pin their corresponding split instead of accepting an
   open split argument. Strict corpus/model admission, independent library
@@ -1505,8 +1505,15 @@ consumes and retains their identities through publication.
   split refusal, create-once publication, and no-partial-output behavior are
   tested. These routes execute only the built-in deterministic reference
   algorithm; they have no compiler, build, process, arbitrary-model, or policy-
-  replay authority. Checked regression manifests, measured objective labels,
-  and external trainers/models remain open.
+  replay authority. A strict V1 regression manifest now binds the corpus,
+  model, algorithm, regression split, expected report, and every exact summary
+  field. Its validator recomputes the complete regression report before
+  accepting the manifest; canonical identity/codec, every custody-axis
+  corruption, substitution, deterministic bytes, and empty-regression refusal
+  are tested. Separate `create-regression-manifest` and read-only
+  `check-regression-manifest` commands prevent verification from updating its
+  own baseline. Measured objective labels and external trainers/models remain
+  open.
 
 ML may rank already-declared equal transformations. It cannot invent an
 unchecked rewrite or opt into lossy floating-point semantics.

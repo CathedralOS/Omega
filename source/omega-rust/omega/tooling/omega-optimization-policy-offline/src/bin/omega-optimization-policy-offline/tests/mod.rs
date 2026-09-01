@@ -5,3 +5,4 @@ mod capture;
 mod fixture;
 mod publication;
 mod reference;
+mod regression_manifest;

@@ -4,4 +4,5 @@ mod codec;
 mod evaluation;
 mod fixture;
 mod refusal;
+mod regression_manifest;
 mod training;
