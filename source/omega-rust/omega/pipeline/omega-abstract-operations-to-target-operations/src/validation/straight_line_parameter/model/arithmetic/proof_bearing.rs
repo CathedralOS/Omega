@@ -44,3 +44,7 @@ proof_bearing_arithmetic_carriers!(
     WrappingIntegerDivideParametersSource,
     ReconstructedWrappingIntegerDivideParameters
 );
+proof_bearing_arithmetic_carriers!(
+    WrappingIntegerRemainderParametersSource,
+    ReconstructedWrappingIntegerRemainderParameters
+);

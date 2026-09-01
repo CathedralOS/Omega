@@ -32,6 +32,7 @@ pub use error::{
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
+    StraightLineWrappingIntegerRemainderParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 pub use family::AbstractToTargetTranslationFamily;
@@ -65,5 +66,6 @@ pub use receipt::{
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
     StraightLineWrappingIntegerDivideParametersTranslationReceipt,
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
+    StraightLineWrappingIntegerRemainderParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };

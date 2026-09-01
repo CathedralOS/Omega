@@ -1,4 +1,4 @@
-//! Exact `[WrappingIntegerDivide(parameter, parameter), Return]` source replay.
+//! Wrapping `[WrappingIntegerDivide(parameter, parameter), Return]` source replay.
 //! Only a nonzero divisor is required; a signed `MIN / -1` quotient wraps.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};

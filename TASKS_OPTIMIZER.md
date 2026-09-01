@@ -465,10 +465,10 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty-eight abstract-to-target families, including
+  machine-rule family. Twenty-nine abstract-to-target families, including
   proof-bearing exact parameterized fixed-integer addition, subtraction,
-  multiplication, division, and remainder, proof-bearing wrapping division,
-  plus saturating parameterized integer addition, subtraction, and
+  multiplication, division, and remainder, proof-bearing wrapping division and
+  remainder, plus saturating parameterized integer addition, subtraction, and
   multiplication, selected incoming u12 folds, current machine substitutions,
   structural-Unit encoding, resolved layout, and ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
@@ -547,12 +547,12 @@ decision. Only true language-semantic questions belong in
   exact-divide, and exact-remainder also cross optimized-target custody with real
   Terminal certificates; quotient and remainder use Terminal's canonical
   nonzero-divisor and representable-result goal.
-- [x] Add independent proof-bearing wrapping-divide parameter translation. Its
-  exact catalog row retains ordered fixed-integer operands and the source
-  obligation, rejects address carriers and every arithmetic-policy
-  substitution, and crosses optimized-target custody with Terminal's canonical
-  nonzero-divisor certificate. Signed `MIN / -1` remains defined by
-  wrap-to-carrier and therefore does not acquire exact division's
+- [x] Add independent proof-bearing wrapping-divide and wrapping-remainder
+  parameter translation. Their exact catalog rows retain ordered fixed-integer
+  operands and the source obligation, reject address carriers and every
+  arithmetic-policy substitution, and cross optimized-target custody with
+  Terminal's canonical nonzero-divisor certificate. Signed `MIN / -1` wraps to
+  `MIN`; signed `MIN % -1` is zero. Neither acquires exact division's
   representable-result precondition.
 - [x] Add independent saturating-add and saturating-subtract parameter
   translation families. Each exact catalog row reconstructs ordered source

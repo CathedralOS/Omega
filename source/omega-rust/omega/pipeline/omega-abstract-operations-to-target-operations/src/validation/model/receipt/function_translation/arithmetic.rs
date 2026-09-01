@@ -1,0 +1,17 @@
+//! Compact payload vocabulary for arithmetic-family translation receipts.
+
+pub(super) use super::super::parameter::{
+    StraightLineExactIntegerAddParametersTranslationReceipt as ExactAddReceipt,
+    StraightLineExactIntegerDivideParametersTranslationReceipt as ExactDivideReceipt,
+    StraightLineExactIntegerMultiplyParametersTranslationReceipt as ExactMultiplyReceipt,
+    StraightLineExactIntegerRemainderParametersTranslationReceipt as ExactRemainderReceipt,
+    StraightLineExactIntegerSubtractParametersTranslationReceipt as ExactSubtractReceipt,
+    StraightLineSaturatingIntegerAddParametersTranslationReceipt as SaturatingAddReceipt,
+    StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt as SaturatingMultiplyReceipt,
+    StraightLineSaturatingIntegerSubtractParametersTranslationReceipt as SaturatingSubtractReceipt,
+    StraightLineWrappingIntegerAddParametersTranslationReceipt as WrappingAddReceipt,
+    StraightLineWrappingIntegerDivideParametersTranslationReceipt as WrappingDivideReceipt,
+    StraightLineWrappingIntegerMultiplyParametersTranslationReceipt as WrappingMultiplyReceipt,
+    StraightLineWrappingIntegerRemainderParametersTranslationReceipt as WrappingRemainderReceipt,
+    StraightLineWrappingIntegerSubtractParametersTranslationReceipt as WrappingSubtractReceipt,
+};

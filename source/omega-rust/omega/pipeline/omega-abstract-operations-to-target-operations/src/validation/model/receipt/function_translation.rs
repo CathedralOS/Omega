@@ -1,5 +1,7 @@
 //! Closed tagged carrier for one independently replayed function family.
 
+mod arithmetic;
+
 use super::immediate::{
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationReceipt,
 };
@@ -7,11 +9,6 @@ use super::parameter::{
     StraightLineBooleanEqualParametersTranslationReceipt,
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationReceipt,
-    StraightLineExactIntegerAddParametersTranslationReceipt,
-    StraightLineExactIntegerDivideParametersTranslationReceipt,
-    StraightLineExactIntegerMultiplyParametersTranslationReceipt,
-    StraightLineExactIntegerRemainderParametersTranslationReceipt,
-    StraightLineExactIntegerSubtractParametersTranslationReceipt,
     StraightLineIntegerBitwiseAndParametersTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,
     StraightLineIntegerBitwiseOrParametersTranslationReceipt,
@@ -22,15 +19,14 @@ use super::parameter::{
     StraightLineIntegerLessThanParametersTranslationReceipt,
     StraightLineIntegerParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationReceipt,
-    StraightLineSaturatingIntegerAddParametersTranslationReceipt,
-    StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt,
-    StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
-    StraightLineWrappingIntegerAddParametersTranslationReceipt,
-    StraightLineWrappingIntegerDivideParametersTranslationReceipt,
-    StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
-    StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };
 use super::terminal::StraightLineScalarCrashTranslationReceipt;
+use arithmetic::{
+    ExactAddReceipt, ExactDivideReceipt, ExactMultiplyReceipt, ExactRemainderReceipt,
+    ExactSubtractReceipt, SaturatingAddReceipt, SaturatingMultiplyReceipt,
+    SaturatingSubtractReceipt, WrappingAddReceipt, WrappingDivideReceipt, WrappingMultiplyReceipt,
+    WrappingRemainderReceipt, WrappingSubtractReceipt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetFunctionTranslationReceipt {
@@ -60,38 +56,17 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationReceipt,
     ),
-    StraightLineExactIntegerAddParameters(StraightLineExactIntegerAddParametersTranslationReceipt),
-    StraightLineExactIntegerSubtractParameters(
-        StraightLineExactIntegerSubtractParametersTranslationReceipt,
-    ),
-    StraightLineExactIntegerMultiplyParameters(
-        StraightLineExactIntegerMultiplyParametersTranslationReceipt,
-    ),
-    StraightLineExactIntegerDivideParameters(
-        StraightLineExactIntegerDivideParametersTranslationReceipt,
-    ),
-    StraightLineExactIntegerRemainderParameters(
-        StraightLineExactIntegerRemainderParametersTranslationReceipt,
-    ),
-    StraightLineWrappingIntegerDivideParameters(
-        StraightLineWrappingIntegerDivideParametersTranslationReceipt,
-    ),
-    StraightLineSaturatingIntegerAddParameters(
-        StraightLineSaturatingIntegerAddParametersTranslationReceipt,
-    ),
-    StraightLineWrappingIntegerAddParameters(
-        StraightLineWrappingIntegerAddParametersTranslationReceipt,
-    ),
-    StraightLineSaturatingIntegerSubtractParameters(
-        StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
-    ),
-    StraightLineWrappingIntegerSubtractParameters(
-        StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
-    ),
-    StraightLineWrappingIntegerMultiplyParameters(
-        StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
-    ),
-    StraightLineSaturatingIntegerMultiplyParameters(
-        StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt,
-    ),
+    StraightLineExactIntegerAddParameters(ExactAddReceipt),
+    StraightLineExactIntegerSubtractParameters(ExactSubtractReceipt),
+    StraightLineExactIntegerMultiplyParameters(ExactMultiplyReceipt),
+    StraightLineExactIntegerDivideParameters(ExactDivideReceipt),
+    StraightLineExactIntegerRemainderParameters(ExactRemainderReceipt),
+    StraightLineWrappingIntegerDivideParameters(WrappingDivideReceipt),
+    StraightLineWrappingIntegerRemainderParameters(WrappingRemainderReceipt),
+    StraightLineSaturatingIntegerAddParameters(SaturatingAddReceipt),
+    StraightLineWrappingIntegerAddParameters(WrappingAddReceipt),
+    StraightLineSaturatingIntegerSubtractParameters(SaturatingSubtractReceipt),
+    StraightLineWrappingIntegerSubtractParameters(WrappingSubtractReceipt),
+    StraightLineWrappingIntegerMultiplyParameters(WrappingMultiplyReceipt),
+    StraightLineSaturatingIntegerMultiplyParameters(SaturatingMultiplyReceipt),
 }
