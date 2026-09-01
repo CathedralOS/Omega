@@ -789,6 +789,47 @@ fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
 }
 
 #[test]
+fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
+    let demand_source = checked_source(
+        r#"
+            boundary operator == Number::equal(left: i32, right: i32) -> bool;
+
+            machine launch(left: i32, right: i32) -> bool {
+                left == right
+            }
+        "#,
+    );
+    let [expected] = demand_source
+        .facts
+        .operators
+        .boundary_applications
+        .as_slice()
+    else {
+        panic!("one exact checked boundary-operator demand")
+    };
+    let expected = expected.clone();
+    // This milestone closes scope custody only. Source-free operation matching
+    // remains the next D29/D32 join, so use an independently lowerable Terminal
+    // fixture and verify that its companion retains the exact checked row.
+    let mut checked = checked_source(
+        r#"
+            data Main {}
+            machine Main::launch() {}
+        "#,
+    );
+    checked.facts.operators.boundary_applications = vec![expected.clone()];
+    let produced =
+        produce_terminal_artifact_with_checked_boundary_operator_scope(&checked, "Main::launch")
+            .expect("checked Terminal production retains exact D29 demand custody");
+
+    assert_eq!(
+        produced.boundary_operator_scope().applications(),
+        std::slice::from_ref(&expected)
+    );
+    assert!(!produced.boundary_operator_scope().is_empty());
+}
+
+#[test]
 fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
     let checked = checked_source(
         r#"
