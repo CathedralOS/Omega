@@ -12110,6 +12110,10 @@ checked-result arithmetic decision listed below.
   records, recursive or array-mediated paths, direct-sum coexistence, and
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
+  The `omega-layout` materialization owner's 6,224-line regression corpus now
+  lives in a private test child. The 3,864-line production owner retains all 43
+  production functions, all 19 public projection entry points, exact module
+  paths, diagnostics, and the complete 27-test crate behavior unchanged.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
   twelve records, plural paths deeper than twelve records, mixed common-field/case
   shapes,
