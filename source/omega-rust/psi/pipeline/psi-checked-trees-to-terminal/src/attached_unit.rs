@@ -35,10 +35,11 @@ use catalog::{
     require_valid_service_row,
 };
 use claims::lower_unit_entry_claims;
-pub(super) use composed_control::{
-    emit_direct_dynamic_boundary_leaf, lower_composed_unit_control_machine,
-    lower_direct_dynamic_control_catalogs,
+pub(super) use composed_control::dynamic_result::{
+    emit_boundary_leaf as emit_direct_dynamic_boundary_leaf,
+    lower_control_catalogs as lower_direct_dynamic_control_catalogs,
 };
+pub(super) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(super) use parameters::lower_contract_service_ceiling;
 pub(super) use parameters::{
