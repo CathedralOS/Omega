@@ -1797,6 +1797,7 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-diagnostics",
+ "psi-generic-instances",
  "psi-language-core",
  "psi-language-semantics",
  "psi-numerics",

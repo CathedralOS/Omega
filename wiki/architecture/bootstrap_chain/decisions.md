@@ -476,10 +476,24 @@ selected build symbol without source/callable-identity rebind. This includes
 erased-lifetime-only data graphs whose reference lifetimes name the owning
 data binders and whose lifetime applications select an exact zero-runtime-
 parameter data declaration at its complete arity without runtime arguments.
-Runtime-generic, constrained, invalid-lifetime, const-expression, dynamic,
+Other runtime-generic, constrained, invalid-lifetime, const-expression, dynamic,
 fact-bearing, quotient, zero-gated, or non-data shapes return the owned base
-to the unchanged full frontend rebuild/rebind fallback. General seeded typing
-and deletion of that fallback remain open. The source-side prerequisite
+to the unchanged full frontend rebuild/rebind fallback. One exact runtime-
+generic successor now bypasses that fallback: a single generated unit may own
+one methodless record template with one default-bound Type parameter, one
+wrapper directly naming exactly two uses of one builtin-argument application,
+and the one deduplicated synthesized instance. Template companions are limited
+to direct Unit/builtin fields; wrapper companions may additionally name exact
+zero-parameter retained-base data, never extension-local data. The compiler normalizes a per-unit
+clone before seeded resolution but retains the raw parsed unit for fallback;
+the continuation independently binds the local template and builtin symbols,
+canonical instance origin/spelling/retired identities, direct field substitution,
+declaration/parameter/field symbol ownership, wrapper uses, and common source
+ownership. Base-owned or cross-unit synthesis, multiple or
+nested instances, lifetime/const/constrained/nondefault parameters, indirect
+parameter shells, facts, quotients, zero gates, and attached methods remain on
+the raw full-rebuild path. General seeded typing and deletion of that fallback
+remain open. The source-side prerequisite
 is now explicit: own generated outputs are parsed once into a retained
 extension-only syntax carrier bound to the exact base source frontier, unit
 roots, bytes, and custody. The carrier feeds the unchanged transitional

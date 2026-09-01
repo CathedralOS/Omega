@@ -1,6 +1,7 @@
 use super::{
-    SeededPlainDataContinuationError, lower_seeded_plain_data_extension,
-    lower_symbol_resolved_trees, lower_symbol_resolved_trees_to_seeded_plain_data_base,
+    SeededPlainDataContinuationError, exact_field_symbol, exact_top_level_data_symbol,
+    lower_seeded_plain_data_extension, lower_symbol_resolved_trees,
+    lower_symbol_resolved_trees_to_seeded_plain_data_base, plain_data_extension_shape_is_supported,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -64,6 +65,61 @@ fn seeded_plain_data_inputs(
         )
         .expect("rebase extension selections");
     assert_eq!(rebased.trees().symbols.source_files().count(), 2);
+    (typing_base, rebased)
+}
+
+fn seeded_normalized_plain_data_inputs(
+    base_source: &str,
+    extension_source: &str,
+) -> (
+    super::SeededPlainDataTypingBase,
+    RebasedSeededSymbolResolvedTrees,
+) {
+    let mut base_sources = SourceMap::default();
+    let base_id = base_sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let base_syntax = parse_syntax_trees_with_id(
+        base_id,
+        &Lexer::new(base_source).tokenize().expect("tokenize base"),
+    )
+    .expect("parse base");
+    let resolved = lower_syntax_trees_with_sources(&base_syntax, Arc::new(base_sources.clone()))
+        .expect("resolve base");
+    let typing_base = lower_symbol_resolved_trees_to_seeded_plain_data_base(resolved)
+        .expect("type retained base");
+    let mut sources = base_sources;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_syntax = parse_syntax_trees_with_id(
+        extension_id,
+        &Lexer::new(extension_source)
+            .tokenize()
+            .expect("tokenize extension"),
+    )
+    .expect("parse extension");
+    let extension_syntax = psi_generic_instances::normalize_pre_resolution(extension_syntax)
+        .expect("normalize extension unit");
+    let seeded = lower_syntax_extension_with_authored_selection_frontier(
+        typing_base.resolved_base_for_extension(),
+        &extension_syntax,
+        Arc::new(sources),
+        Vec::new(),
+    )
+    .expect("resolve normalized seeded extension");
+    let rebased = seeded
+        .rebase_authored_selections_for_typed_continuation(
+            typing_base.typed().authored_declaration_selections(),
+        )
+        .expect("rebase normalized extension selections");
     (typing_base, rebased)
 }
 
@@ -3584,6 +3640,19 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
             source_conformance: None,
         });
     let before = base.typed().clone();
+    let before_members = before
+        .data_members
+        .iter()
+        .map(|(handle, member)| (handle, member.clone()))
+        .collect::<Vec<_>>();
+    let before_type_count = before.type_reference_table.type_reference_count();
+    let before_symbols = before
+        .symbols
+        .symbols()
+        .nodes()
+        .iter()
+        .map(|(handle, symbol)| (handle, symbol.clone()))
+        .collect::<Vec<_>>();
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
     let typed = lower_seeded_plain_data_extension(extension, base)
@@ -3594,6 +3663,33 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
         before.data_definitions()
     );
     assert_eq!(typed.evidence_forwardings, before.evidence_forwardings);
+    assert_eq!(
+        typed
+            .data_members
+            .iter()
+            .take(before_members.len())
+            .map(|(handle, member)| (handle, member.clone()))
+            .collect::<Vec<_>>(),
+        before_members
+    );
+    for arena_index in 1..=u32::try_from(before_type_count).expect("type count") {
+        let handle = psi_arena::Handle::from_arena_index(arena_index);
+        assert_eq!(
+            typed.type_reference_table.type_reference(handle),
+            before.type_reference_table.type_reference(handle)
+        );
+    }
+    assert_eq!(
+        typed
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .take(before_symbols.len())
+            .map(|(handle, symbol)| (handle, symbol.clone()))
+            .collect::<Vec<_>>(),
+        before_symbols
+    );
     assert!(
         typed
             .authored_declaration_selections()
@@ -3736,14 +3832,16 @@ fn seeded_plain_data_continuation_appends_owner_local_type_parameter_data() {
     else {
         panic!("Generated has value and pair fields")
     };
-    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-        typed.type_reference_table.type_reference(value.type_reference)
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(value.type_reference)
     else {
         panic!("Generated.value remains the owner-local type parameter")
     };
     assert_eq!(*symbol, parameter.symbol);
-    let psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
-        typed.type_reference_table.type_reference(pair.type_reference)
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } = typed
+        .type_reference_table
+        .type_reference(pair.type_reference)
     else {
         panic!("Generated.pair remains a fixed array")
     };
@@ -3753,6 +3851,498 @@ fn seeded_plain_data_continuation_appends_owner_local_type_parameter_data() {
         panic!("Generated.pair element remains the owner-local type parameter")
     };
     assert_eq!(*symbol, parameter.symbol);
+}
+
+#[test]
+fn seeded_plain_data_continuation_appends_one_exact_local_primitive_instance() {
+    let (mut base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        r#"
+            data Cell<T> { value: T; }
+            data Generated { first: Cell<u32>; second: Cell<u32>; base: Authored; }
+        "#,
+    );
+    base.typed_mut()
+        .evidence_forwardings
+        .push(psi_typed_trees::typed_trees::EvidenceForwarding {
+            machine_symbol: psi_symbols::SymbolHandle::invalid(),
+            state_symbol: psi_symbols::SymbolHandle::invalid(),
+            statement_index: 29,
+            source_statement_index: 31,
+            target: psi_typed_trees::name::Identifier::generated_static("instance-target"),
+            source: psi_typed_trees::name::Identifier::generated_static("instance-source"),
+            source_conformance: None,
+        });
+    let before = base.typed().clone();
+    let before_members = before
+        .data_members
+        .iter()
+        .map(|(handle, member)| (handle, member.clone()))
+        .collect::<Vec<_>>();
+    let before_type_count = before.type_reference_table.type_reference_count();
+    let before_symbols = before
+        .symbols
+        .symbols()
+        .nodes()
+        .iter()
+        .map(|(handle, symbol)| (handle, symbol.clone()))
+        .collect::<Vec<_>>();
+    let resolved_ledger = extension.trees().authored_declaration_selections().clone();
+
+    let typed = lower_seeded_plain_data_extension(extension, base)
+        .expect("one local primitive instance should append");
+
+    assert_eq!(
+        &typed.data_definitions()[..before.data_definitions().len()],
+        before.data_definitions()
+    );
+    assert_eq!(typed.evidence_forwardings, before.evidence_forwardings);
+    assert_eq!(
+        typed
+            .data_members
+            .iter()
+            .take(before_members.len())
+            .map(|(handle, member)| (handle, member.clone()))
+            .collect::<Vec<_>>(),
+        before_members
+    );
+    for arena_index in 1..=u32::try_from(before_type_count).expect("type count") {
+        let handle = psi_arena::Handle::from_arena_index(arena_index);
+        assert_eq!(
+            typed.type_reference_table.type_reference(handle),
+            before.type_reference_table.type_reference(handle)
+        );
+    }
+    assert_eq!(
+        typed
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .take(before_symbols.len())
+            .map(|(handle, symbol)| (handle, symbol.clone()))
+            .collect::<Vec<_>>(),
+        before_symbols
+    );
+    assert!(
+        typed
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(resolved_ledger.as_slice())
+    );
+    let template = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Cell")
+        .expect("local generic template");
+    let instance = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.generic_instance.is_some())
+        .expect("one synthesized instance");
+    let wrapper = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Generated")
+        .expect("generated wrapper");
+    let origin = instance.generic_instance.expect("instance origin");
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = typed.type_reference_table.type_reference(origin)
+    else {
+        panic!("instance retains its exact generic origin")
+    };
+    assert_eq!(*base_symbol, template.symbol);
+    assert!(lifetime_arguments.is_empty());
+    let [argument] = typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("one exact instance argument")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named {
+        symbol: argument_symbol,
+        ..
+    } = typed.type_reference_table.type_reference(*argument)
+    else {
+        panic!("primitive instance argument remains nominal")
+    };
+    assert_eq!(
+        typed.symbols.get(*argument_symbol).kind,
+        psi_symbols::SymbolKind::BuiltinType
+    );
+    let [psi_typed_trees::data::DataMember::Field(value)] = typed.data_members(instance) else {
+        panic!("instance has one substituted field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
+        .type_reference_table
+        .type_reference(value.type_reference)
+    else {
+        panic!("instance field is the primitive argument")
+    };
+    assert_eq!(*symbol, *argument_symbol);
+    let wrapper_instance_uses = typed
+        .data_members(wrapper)
+        .iter()
+        .filter(|member| {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                return false;
+            };
+            matches!(
+                typed.type_reference_table.type_reference(field.type_reference),
+                psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                    if *symbol == instance.symbol
+            )
+        })
+        .count();
+    assert_eq!(
+        wrapper_instance_uses, 2,
+        "repeated uses deduplicate to one instance"
+    );
+}
+
+#[test]
+fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Cell<T> { value: T; } data Generated { first: Cell<u32>; second: Cell<u32>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+    let instance_index = (frontier..resolved.data_definitions.len())
+        .find(|index| resolved.data_definitions[*index].generic_instance.is_some())
+        .expect("one instance index");
+    let template_symbol = match resolved.data_definitions[instance_index]
+        .generic_instance
+        .as_ref()
+    {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => {
+            origin.base_symbol
+        }
+        _ => unreachable!(),
+    };
+    let template_index = (frontier..resolved.data_definitions.len())
+        .find(|index| resolved.data_definitions[*index].symbol == template_symbol)
+        .expect("one template index");
+    let wrapper_index = (frontier..resolved.data_definitions.len())
+        .find(|index| *index != instance_index && *index != template_index)
+        .expect("one wrapper index");
+    let template = &resolved.data_definitions[template_index];
+    let instance = &resolved.data_definitions[instance_index];
+    let wrapper = &resolved.data_definitions[wrapper_index];
+    let instance_members = instance.members;
+    let wrapper_members = wrapper.members;
+    assert!(exact_top_level_data_symbol(&resolved, template));
+    assert!(exact_top_level_data_symbol(&resolved, instance));
+    assert!(exact_top_level_data_symbol(&resolved, wrapper));
+    let [psi_symbol_resolved_trees::data::DataMember::Field(template_field)] =
+        resolved.data_members(template.members)
+    else {
+        panic!("one template field")
+    };
+    let [psi_symbol_resolved_trees::data::DataMember::Field(instance_field)] =
+        resolved.data_members(instance.members)
+    else {
+        panic!("one instance field")
+    };
+    let [
+        psi_symbol_resolved_trees::data::DataMember::Field(first_wrapper_field),
+        psi_symbol_resolved_trees::data::DataMember::Field(second_wrapper_field),
+    ] = resolved.data_members(wrapper.members)
+    else {
+        panic!("two wrapper fields")
+    };
+    assert_ne!(template_field.symbol, instance_field.symbol);
+    assert!(exact_field_symbol(
+        &resolved,
+        template.symbol,
+        template_field
+    ));
+    assert!(exact_field_symbol(
+        &resolved,
+        instance.symbol,
+        instance_field
+    ));
+    assert!(exact_field_symbol(
+        &resolved,
+        wrapper.symbol,
+        first_wrapper_field
+    ));
+    assert!(exact_field_symbol(
+        &resolved,
+        wrapper.symbol,
+        second_wrapper_field
+    ));
+    assert!(
+        !exact_field_symbol(&resolved, wrapper.symbol, template_field),
+        "a coordinated field-row retarget must not erase its exact parent"
+    );
+
+    let mut wrong_origin = resolved.clone();
+    let Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) = wrong_origin
+        .data_definitions[instance_index]
+        .generic_instance
+        .as_mut()
+    else {
+        unreachable!()
+    };
+    origin.base_name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    assert!(!plain_data_extension_shape_is_supported(
+        &wrong_origin,
+        frontier
+    ));
+
+    let mut missing_argument = resolved.clone();
+    let Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) = missing_argument
+        .data_definitions[instance_index]
+        .generic_instance
+        .as_mut()
+    else {
+        unreachable!()
+    };
+    origin.arguments = psi_arena::HandleSpan::empty();
+    assert!(!plain_data_extension_shape_is_supported(
+        &missing_argument,
+        frontier
+    ));
+
+    let mut wrong_instance_identity = resolved.clone();
+    wrong_instance_identity.data_definitions[instance_index].name =
+        psi_symbol_resolved_trees::name::DiagnosticName::generated("Cell<u64>");
+    assert!(!plain_data_extension_shape_is_supported(
+        &wrong_instance_identity,
+        frontier
+    ));
+
+    let mut wrong_retired_identity = resolved.clone();
+    wrong_retired_identity.data_definitions[instance_index]
+        .retired_identities
+        .push(71);
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_retired_identity, frontier),
+        "the instance must retain the template's exact retired-identity set"
+    );
+
+    let mut wrong_substitution_name = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(instance_field) =
+        wrong_substitution_name
+            .tables
+            .declarations
+            .data_members
+            .get_mut(instance_members.start())
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Named { name, .. } =
+        &mut instance_field.type_reference
+    else {
+        unreachable!()
+    };
+    *name = psi_symbol_resolved_trees::name::DiagnosticName::generated("u64");
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_substitution_name, frontier),
+        "the substituted builtin spelling must remain joined to its symbol"
+    );
+
+    let mut wrong_wrapper_type_name = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(wrapper_field) = wrong_wrapper_type_name
+        .tables
+        .declarations
+        .data_members
+        .get_mut(wrapper_members.start())
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Named { name, .. } =
+        &mut wrapper_field.type_reference
+    else {
+        unreachable!()
+    };
+    *name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Cell<u64>");
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_wrapper_type_name, frontier),
+        "a wrapper use's diagnostic name cannot drift from the selected instance"
+    );
+
+    let authored_symbol = resolved.data_definitions[0].symbol;
+    let mut wrong_parent = resolved.clone();
+    let template_span = wrong_parent.data_definitions[template_index]
+        .name
+        .source_span();
+    let instance_span = wrong_parent.data_definitions[instance_index]
+        .name
+        .source_span();
+    wrong_parent.data_definitions[template_index].symbol = authored_symbol;
+    wrong_parent.data_definitions[template_index].name =
+        psi_symbol_resolved_trees::name::DiagnosticName::new("Authored", template_span);
+    wrong_parent.data_definitions[instance_index].name =
+        psi_symbol_resolved_trees::name::DiagnosticName::new("Authored<u32>", instance_span);
+    let Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) = wrong_parent
+        .data_definitions[instance_index]
+        .generic_instance
+        .as_mut()
+    else {
+        unreachable!()
+    };
+    origin.base_symbol = authored_symbol;
+    origin.base_name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Authored");
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_parent, frontier),
+        "coordinated top-level identity retarget cannot detach parameter/field children"
+    );
+
+    let mut wrong_kind = resolved.clone();
+    wrong_kind.data_definitions[wrapper_index].symbol = template_field.symbol;
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_kind, frontier),
+        "a Field symbol cannot impersonate the wrapper Data declaration"
+    );
+
+    let mut wrong_field_parent = resolved.clone();
+    wrong_field_parent.data_definitions[wrapper_index].members =
+        wrong_field_parent.data_definitions[template_index].members;
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_field_parent, frontier),
+        "a coordinated member-span retarget cannot reuse another owner's fields"
+    );
+
+    let mut lifetime_template = resolved.clone();
+    lifetime_template.data_definitions[template_index]
+        .lifetime_parameters
+        .push(psi_symbol_resolved_trees::name::DiagnosticName::generated(
+            "scope",
+        ));
+    assert!(!plain_data_extension_shape_is_supported(
+        &lifetime_template,
+        frontier
+    ));
+
+    let mut fact_instance = resolved.clone();
+    fact_instance.data_definitions[instance_index].where_facts =
+        psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(1), 1);
+    assert!(!plain_data_extension_shape_is_supported(
+        &fact_instance,
+        frontier
+    ));
+
+    let mut quotient_wrapper = resolved.clone();
+    quotient_wrapper.data_definitions[wrapper_index].quotient =
+        Some(psi_symbol_resolved_trees::data::QuotientDefinition {
+            carrier: psi_symbol_resolved_trees::types::TypeReference::Unit,
+            relation: Vec::new(),
+            relation_symbol: psi_symbols::SymbolHandle::invalid(),
+            equivalence: None,
+        });
+    assert!(!plain_data_extension_shape_is_supported(
+        &quotient_wrapper,
+        frontier
+    ));
+
+    let mut zero_gated_instance = resolved;
+    zero_gated_instance.data_definitions[instance_index].zero_gated = true;
+    assert!(!plain_data_extension_shape_is_supported(
+        &zero_gated_instance,
+        frontier
+    ));
+}
+
+#[test]
+fn seeded_plain_data_continuation_fences_broader_normalized_generic_instances() {
+    for (name, extension_source) in [
+        (
+            "multiple_instances",
+            "data Cell<T> { value: T; } data Generated { left: Cell<u32>; right: Cell<u64>; }",
+        ),
+        (
+            "one_wrapper_use",
+            "data Cell<T> { value: T; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "template_wrapper_cycle",
+            "data Cell<T> { value: T; companion: Generated; } data Generated { first: Cell<u32>; second: Cell<u32>; }",
+        ),
+        (
+            "wrapper_self_cycle",
+            "data Cell<T> { value: T; } data Generated { first: Cell<u32>; second: Cell<u32>; next: Generated; }",
+        ),
+        (
+            "nested_instances",
+            "data Cell<T> { value: T; } data Outer<T> { value: T; } data Generated { value: Outer<Cell<u32>>; }",
+        ),
+        (
+            "lifetime_instance",
+            "data Cell<'scope, T> { value: &'scope T; } data Generated<'scope> { value: Cell<'scope, u32>; }",
+        ),
+        (
+            "const_instance",
+            "data Cell<const N: u64> { value: [u8; N]; } data Generated { value: Cell<2>; }",
+        ),
+        (
+            "constrained_argument",
+            "data Cell<T> { value: T; } data Generated { value: Cell<u32 in Wrapping>; }",
+        ),
+        (
+            "nominal_argument",
+            "data Cell<T> { value: T; } data Generated { value: Cell<Authored>; }",
+        ),
+        (
+            "nondefault_bound",
+            "data Cell<T [copy]> { value: T; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "multiple_parameters",
+            "data Cell<T, U> { left: T; right: U; } data Generated { value: Cell<u32, u64>; }",
+        ),
+        (
+            "phantom_parameter",
+            "data Cell<T> { tag: u8; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "indirect_template_parameter",
+            "data Cell<T> { values: [T; 2]; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "indirect_wrapper_use",
+            "data Cell<T> { value: T; } data Generated { values: [Cell<u32>; 2]; }",
+        ),
+        (
+            "attached_method",
+            "data Cell<T> { value: T; } machine Cell::clear<T>(&self) {} data Generated { value: Cell<u32>; }",
+        ),
+    ] {
+        let (base, extension) =
+            seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
+        let expected = base.typed().clone();
+        let Err((returned, error)) = lower_seeded_plain_data_extension(extension, base) else {
+            panic!("{name} must remain on the rebuild path")
+        };
+        assert_eq!(
+            error,
+            SeededPlainDataContinuationError::UnsupportedExtensionShape,
+            "{name}"
+        );
+        assert_eq!(returned.into_typed(), expected, "{name}");
+    }
+}
+
+#[test]
+fn seeded_plain_data_continuation_fences_base_owned_generic_application() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Cell<T> { value: T; }",
+        "data Generated { value: Cell<u32>; }",
+    );
+    let expected = base.typed().clone();
+    let (returned, error) = lower_seeded_plain_data_extension(extension, base)
+        .expect_err("base-owned applications require the whole-program normalizer");
+    assert_eq!(
+        error,
+        SeededPlainDataContinuationError::UnsupportedExtensionShape
+    );
+    assert_eq!(returned.into_typed(), expected);
 }
 
 #[test]
