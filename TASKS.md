@@ -6847,7 +6847,7 @@ Owners:
   resource, activation, parent-entry formation, weakening, captured-place,
   projection-remainder, and `ExclusiveSuspension` containment row before
   accepting the leaf's exact `StateExitDirectRootHandoff` and root-lifetime
-  target. Terminal format 49 / vocabulary 52 retain the complete lineage in one
+  target. Terminal format 50 / vocabulary 53 retain the complete lineage in one
   canonical row. Codec and verifier reject empty, reordered, duplicated,
   access-amplified, malformed, redirected, branched, shared, or non-state-exit
   lineages. The row grants root custody only; its vocabulary cannot express
@@ -10251,11 +10251,27 @@ Remaining N6/N8 work:
   pins identical ABI, storage, operation shape, and fixed fuel to the matching
   runtime-only call. Independent Terminal replay rejoins the closed row to its
   retained source realization identity and the artifact-local realization ID
-  to the exact ordinary call. Canonical artifact identity and retained
-  compilation custody currently bind those two names; portable untrusted
-  standalone replay still needs an explicit source-callable-identity-to-machine
-  map so a coordinated identity/`MachineId` retarget rejects independently.
-  That inherited standalone-replay defense is an engineering follow-up, not a
+  to the exact ordinary call. The first standalone replay rung is now explicit
+  for this bounded static cohort: the owning closed application carries an
+  ordered canonical source-callable-identity-to-artifact-`MachineId` registry
+  containing exactly one entry, the selected row is the sole mapped row and
+  retains only its optional callable-identity reference, and the dispatch
+  retains that identity independently. Producer lowering derives
+  the registry from the exact checked source-machine closure and the row
+  reference from the exact checked application/row. Terminal replay requires
+  a global registry bijection, rejects duplicate, unused, unconsumed, or plural
+  entries/mapped rows, and joins row reference, registry entry, dispatch,
+  runtime call, realization identity, and emitted machine. Callable, machine,
+  row, registry, application
+  commitment, codec, or coordinated dispatch retargeting rejects while the
+  canonical registry remains rooted. Nonstatic conformance applications and
+  rows remain map-free, and execution, ABI, storage, operation shape, and fixed
+  fuel remain unchanged. Terminal codec format 50 / vocabulary 53 carry this
+  exact registry. The registry is a canonical artifact assertion, not a value
+  derived from machine bytes: mutating the registry itself changes
+  Terminal/artifact identity and rejects only when replay is rooted in an
+  externally expected identity. Broader source-callable maps remain an
+  engineering extension for broader static/runtime dispatch cohorts, not a
   language-design blocker. The public requirement may own any finite ordered
   set of subjectless named `requires` lanes, including none, and must own at
   least one subjectless unconditional named `ensures` lane; every public row in
@@ -10272,8 +10288,8 @@ Remaining N6/N8 work:
   requirement contract, while the runtime call still targets the private
   realization. The captured output is a fresh opaque requirement-level term:
   satisfier-local input aliases, concrete strengthening selectors, forwarding
-  identity, and producer provenance do not escape. Terminal codec format 33 /
-  vocabulary 35 retain the normalized public requirement plus an independently
+  identity, and producer provenance do not escape. Terminal codec format 50 /
+  vocabulary 53 retain the normalized public requirement plus an independently
   replayed owner-scoped closed-conformance/runtime realization link. The
   verifier rejects row, application, identity, runtime-callee, or freshness
   drift, and differential coverage keeps ABI, storage, operation shape, and
@@ -10542,7 +10558,7 @@ Remaining N6/N8 work:
   position-preserving transport lift: each public-`Q`, representative-`P`, and
   congruence-legality row preserves its Left/Right application side, authored
   source coordinate, and selected-theorem coordinate. Canonical identity,
-  format 49/vocabulary 52 bytes, decoding, and representation validation bind
+  format 50/vocabulary 53 bytes, decoding, and representation validation bind
   role order, fact-major source order, theorem-coordinate order, and the exact
   congruence-`P`/transport-`P` join. Adapted lift shapes remain outside this
   first carrier. Execution validation still rejects every retained row.
@@ -10734,7 +10750,7 @@ Remaining N6/N8 work:
   `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
   exact toolchain operator and result owners, private contract-free ordinary
   signature, source carrier, hermetic operation identity, and catalog version.
-  Checked deduplication and Terminal format 49 / vocabulary 52 retain that
+  Checked deduplication and Terminal format 50 / vocabulary 53 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
   operands to share that exact format and contract carrier. Resolved symbols
