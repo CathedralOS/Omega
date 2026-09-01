@@ -3945,15 +3945,15 @@ Remaining:
   Current migration inventory: the canonical proof synopsis now publishes one
   validated source-bound trust graph for the exact Rust decoder, proof kernel,
   verifier, eight sufficient-form reduction families, the current unproved
-  ledger framework, 36 closed leaf-schema rows, and four separate call-
-  composition rows covering all 40 `OperationKind` variants. Node
+  ledger framework, 38 closed leaf-schema rows, and five separate call-
+  composition rows covering all 43 `OperationKind` variants. Node
   digests bind the exact deciding Rust/specification bytes and explicit
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
   The first production Rust ledger slice now has one closed
-  `psi-terminal-semantics` table covering all 40 operation kinds and preserving
-  the 36 leaf / 4 call-composition custody split. Twenty goal-free scalar leaves
+  `psi-terminal-semantics` table covering all 43 operation kinds and preserving
+  the 38 leaf / 5 call-composition custody split. Twenty goal-free scalar leaves
   carry explicit result, operand, denotation, goal, fact, crash, fuel, and
   frontier axes and reconstruct their local equations through one generic
   interpreter. Exact lookup rejects missing or duplicate rows. The terminal
@@ -3961,29 +3961,30 @@ Remaining:
   maintaining independent operation matches. Structural/effect rows and
   call/control composition remain separate and are not promoted into the
   goal-free scalar table. The second production Rust ledger slice
-  now owns a separate exact-unique four-row structural/effect table: byte-
-  sequence literal establishment, Boolean field reads, port writes, and trivial
-  affine-local establishment keep result, custody, action, external-effect,
-  fuel, and place-frontier axes explicit. One generic interpreter emits distinct
+  now owns a separate exact-unique six-row structural/effect table: write-only
+  primitive stores, payloadless-case establishment, byte-sequence literal
+  establishment, Boolean field reads, port writes, and trivial affine-local
+  establishment keep result, custody, action, external-effect, fuel, and place-
+  frontier axes explicit. One generic interpreter emits distinct
   fact, effect, or frontier observations; the verifier consumes its Boolean
   equation instead of reconstructing that row independently. The trust graph
-  consumes the same table as 32 scalar-denotation plus four structural/effect
-  nodes while preserving the 36 leaf / four call-composition operation-custody
+  consumes the same table as 32 scalar-denotation plus six structural/effect
+  nodes while preserving the 38 leaf / five call-composition operation-custody
   split.
   The modular verifier source split is also fully rebound into trust identities:
   evidence provenance, integer foundations, proof-bundle custody,
   reconstruction, and substitution bytes can no longer change outside the
   registered verifier/ledger dependency digests.
-  The third production Rust ledger slice now owns an exact-unique four-row
-  call-composition table. Scalar, structural Unit, structural-scalar, and
-  boundary calls
+  The third production Rust ledger slice now owns an exact-unique five-row
+  call-composition table. Scalar, structural Unit, structural-scalar,
+  structural-result, and boundary calls
   retain independent target, result, argument, requirement, transfer, outcome,
   crash-route, evidence-lifetime, fuel, and frontier policies. The verifier's
   contract composition moved out of general operation reconstruction into one
   focused table-selected module; existing module validation still proves the
   concrete signature, movement, coverage, substitution, outcome, crash, and
   evidence invariants before composition. Call policy and implementation bytes
-  are both bound into the same four call trust nodes.
+  are both bound into the same five call trust nodes.
   The fourth production Rust ledger slice now owns the twelve proof-bearing
   scalar leaves in a separate exact-unique table. Exact cast, left/right shift,
   exact add/subtract/multiply, and exact/wrapping/saturating divide/remainder
@@ -3998,6 +3999,14 @@ Remaining:
   the dispatcher falsely claims a kernel derivation of the canonical goal. The
   trust graph binds the table to exactly those twelve denotation nodes and the
   dispatcher to every affected reducer.
+  Canonical-goal representation, proposition projection, and their focused
+  tests now live in a dedicated responsibility, while proof-bearing row
+  identity, exact-unique validation, denotation construction, and operation
+  interpretation remain separately owned. All twelve proof-bearing trust nodes
+  bind both exact source files. This is a semantics-preserving source split:
+  every row remains an explicit trusted judgment, the artifact closure remains
+  `fully-derived false`, and low-rung row theorems plus the global composition
+  bridge remain open.
   Eleven of those Terminal rows now rejoin the settled shared integer-policy
   catalog by exact primitive/domain identity: exact add/subtract/multiply,
   exact divide/remainder, exact left/right shift, and wrapping/saturating
@@ -5441,9 +5450,9 @@ Remaining:
   caused most remaining repetition. The format-bound implementation was retired
   after its format-18/vocabulary-20 decoder fell behind the live artifact;
   commit `a5cfd83cc` and its follow-ups retain the executable provenance. Its
-  reusable structure now lives in production's exact-unique 40-row inventory:
-  32 scalar denotations plus four structural/effect rows form 36 leaf rows, and
-  four call-composition rows remain a separate algebra with mutation coverage.
+  reusable structure now lives in production's exact-unique 43-row inventory:
+  32 scalar denotations plus six structural/effect rows form 38 leaf rows, and
+  five call-composition rows remain a separate algebra with mutation coverage.
   Reusable low-rung byte, scalar/type/value, UTF-8, and structural-leaf grammar
   fragments remain gated without claiming a fixed terminal header or complete
   live decoder. The full assurance-owned low generator, row proofs, and

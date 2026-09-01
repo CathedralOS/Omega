@@ -70,6 +70,8 @@ const TERMINAL_MODEL_SOURCE: &[u8] =
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
 const TERMINAL_PROOF_BEARING_SCALAR_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-semantics/src/proof_bearing_scalar.rs");
+const TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE: &[u8] =
+    include_bytes!("../../psi-terminal-semantics/src/proof_bearing_scalar/canonical_goal.rs");
 const TERMINAL_CALL_COMPOSITION_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-semantics/src/call_composition.rs");
 const TERMINAL_STRUCTURAL_EFFECT_SOURCE: &[u8] =
@@ -614,7 +616,7 @@ mod tests {
             .iter()
             .find(|node| node.identity == "schema:operation:exact-integer-add")
             .expect("exact-add denotation node");
-        let without_proof_bearing_schema = TrustDependencyNode::new(
+        let without_canonical_goal_source = TrustDependencyNode::new(
             exact_add.identity.clone(),
             exact_add.kind,
             exact_add.status,
@@ -636,12 +638,16 @@ mod tests {
                     RECONSTRUCTION_SOURCE,
                 ),
                 ("psi-terminal-semantics/lib.rs", TERMINAL_SEMANTICS_SOURCE),
+                (
+                    "psi-terminal-semantics/proof_bearing_scalar.rs",
+                    TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+                ),
             ],
         );
         assert_ne!(
             exact_add.digest(),
-            without_proof_bearing_schema.digest(),
-            "proof-bearing leaf custody must bind its exact canonical-goal table",
+            without_canonical_goal_source.digest(),
+            "proof-bearing leaf custody must bind its exact canonical-goal source",
         );
     }
 

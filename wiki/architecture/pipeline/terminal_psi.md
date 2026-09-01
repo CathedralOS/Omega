@@ -3237,6 +3237,14 @@ directly from their exact operation tags. The former exact-multiply migration
 dispatcher and sufficient-proposition dependency are absent from production
 reconstruction; producer discovery cannot change obligation identity.
 
+Canonical-goal representation, total proposition projection, and their focused
+tests now live in `proof_bearing_scalar/canonical_goal.rs`. The parent retains
+the exact row catalog, row validation, denotation construction, and operation
+interpretation. Every proof-bearing trust node binds both exact source files.
+This source split changes no semantics or trust status: all twelve rows remain
+trusted judgments, the closure remains `fully-derived false`, and the low-rung
+row theorems and global composition bridge remain open.
+
 `NonzeroDivisor`, `ExactDivisionDefined`, `ExactShiftCount`,
 `ExactShiftLeftRepresentable`, `ExactCastRepresentable`, exact-add,
 exact-subtract, and exact-multiply
@@ -4294,9 +4302,9 @@ lifetime composition obligations are established.
 The current Rust migration surface is now exposed by `psi-terminal-codec` in
 every verified proof synopsis. Its validated graph binds exact source bytes and
 explicit versions for the decoder, proof kernel, verifier, each sufficient-form
-reducer, the unproved ledger framework, 32 scalar-denotation rows, four
-separate structural/effect rows, and four call-composition rows covering every
-closed `OperationKind`. The 36 leaf / four call operation-custody split remains
+reducer, the unproved ledger framework, 32 scalar-denotation rows, six
+separate structural/effect rows, and five call-composition rows covering every
+closed `OperationKind`. The 38 leaf / five call operation-custody split remains
 unchanged. Dependency edges
 contribute to the graph identity; unknown, cyclic, unreachable, duplicate, or
 noncanonical custody rejects. The entry deliberately reports `fully-derived
@@ -4304,6 +4312,7 @@ false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
 
 The production structural/effect table extends the closed-row schema:
+`WriteOnlyPrimitiveStore`, `EstablishPayloadlessCase`,
 `EstablishByteSequenceLiteral`, `BooleanStructuralField`, `PortWrite`, and
 `EstablishTrivialAffineLocal` expose
 their result, exact custody, action, external-effect, one-fuel, and place-
@@ -4316,11 +4325,11 @@ proof-bundle, reconstruction, and substitution sources, so splitting the former
 monolith does not weaken exact deciding-byte custody.
 
 Call composition follows the same production shape without pretending that a
-call is a primitive denotation. One exact-unique four-row table independently
+call is a primitive denotation. One exact-unique five-row table independently
 declares target, result, positional arguments, requirement handling, structural
 transfer, successful outcome, crash routes, evidence lifetime, fuel, and
-frontier policy for `Call`, `CallUnit`, `CallStructuralScalar`, and
-`BoundaryCall`. Execution-grade
+frontier policy for `Call`, `CallUnit`, `CallStructuralScalar`,
+`CallStructural`, and `BoundaryCall`. Execution-grade
 module validation remains responsible for proving each concrete signature,
 state/movement, clause coverage, capture-free substitution, transfer, outcome,
 crash, and evidence invariant. Only then does the focused call-composition
@@ -4341,9 +4350,9 @@ format-22/vocabulary-25 artifact. Git commit `a5cfd83cc` and its follow-ups
 retain the executable
 provenance; dead source is not carried as a parallel verifier.
 
-The reusable result now lives in production's closed 40-row inventory: 32
-scalar denotations plus four structural/effect leaves form 36 leaf rows, while
-four call-composition rows remain a separate algebra. Exact-unique lookup and
+The reusable result now lives in production's closed 43-row inventory: 32
+scalar denotations plus six structural/effect leaves form 38 leaf rows, while
+five call-composition rows remain a separate algebra. Exact-unique lookup and
 mutation tests retain the schema discipline. Reusable low-rung byte,
 scalar/type/value, UTF-8, and structural-leaf grammar fragments remain gated,
 but deliberately claim neither a fixed terminal header nor a complete live
