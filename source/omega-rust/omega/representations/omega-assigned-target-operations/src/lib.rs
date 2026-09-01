@@ -22,7 +22,8 @@ pub use scalar::{
     AssignedScalarLocation, EntryRegisterSpill, ExpressionFrame,
 };
 pub use unit::{
-    AssignedAggregateCopy, AssignedIeeeFloatFmaOperand, AssignedNormalizedForeignScalarArgument,
-    AssignedRankedU32Countdown, AssignedUnitBody, AssignedUnitOperation,
-    AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
+    AssignedAggregateCopy, AssignedDynamicTraitDescriptorAbi, AssignedIeeeFloatFmaOperand,
+    AssignedNormalizedForeignScalarArgument, AssignedRankedU32Countdown, AssignedUnitBody,
+    AssignedUnitOperation, AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument,
+    AssignedUnitScalarHome,
 };

@@ -3,9 +3,9 @@ pub(crate) use std::collections::BTreeMap;
 pub(crate) use omega_assigned_target_operations::{
     AssignedAggregateCopy, AssignedBooleanControl, AssignedBooleanExpression, AssignedCallArgument,
     AssignedCallDestination, AssignedConditionalBooleanArm, AssignedConditionalIntegerArm,
-    AssignedFunction, AssignedIeeeFloatFmaOperand, AssignedIntegerControl,
-    AssignedIntegerExpression, AssignedNormalizedForeignScalarArgument, AssignedOperation,
-    AssignedOperationPlan, AssignedRankedU32Countdown, AssignedScalarExpression,
+    AssignedDynamicTraitDescriptorAbi, AssignedFunction, AssignedIeeeFloatFmaOperand,
+    AssignedIntegerControl, AssignedIntegerExpression, AssignedNormalizedForeignScalarArgument,
+    AssignedOperation, AssignedOperationPlan, AssignedRankedU32Countdown, AssignedScalarExpression,
     AssignedScalarLocation, AssignedUnitBody, AssignedUnitOperation,
     AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
     EntryRegisterSpill, ExpressionFrame,

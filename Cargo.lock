@@ -336,7 +336,6 @@ name = "omega-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-runtime-abi",
  "omega-target",
  "omega-target-operations",
  "psi-core",
