@@ -286,8 +286,8 @@ explicitly.
     current trait-fixture compatibility seams are the two synthesized
     trait-default roots that still need separate authored-requirement and
     executable-realization custody plus a Terminal composed-Unit plan; the
-    remaining local named-`dyn` work is attachment scalar field store/read and
-    native custody for the direct fixture, plus rebound dynamic
+    remaining local named-`dyn` work is native projected-store, integer-field,
+    and structural-call custody for the direct fixture, plus rebound dynamic
     descriptor/table custody for the rebound fixture; the
     two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
