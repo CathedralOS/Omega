@@ -176,8 +176,16 @@ stop the item on one precise owner question before adding machinery.
   replays a complete candidate-bound root policy before exposing the in-memory
   acceptance. A rejected, missing, stale, foreign, or row-substituted policy
   fails; a closure with no blockers gets no synthetic policy record. This still
-  issues no certificate,
-  accepted lock, package instance, or mutation authority.
+  issues no certificate, accepted lock, package instance, or mutation
+  authority. The first consumer-owned promotion gate is now complete for these
+  implemented ordinary lanes: `AcceptedOrdinaryClosureEvidence` revalidates
+  live resolver custody, reruns the complete reconstruction and root-policy
+  replay, and binds each exact resolution, source-consumption commitment,
+  ordinary ledger artifact, local result set, build derivation, and generated-
+  source bundle under accepted-evidence schema v1. Its types have no public
+  constructor and accept no decoded question, review capsule, fingerprint, or
+  preassembled acceptance as authority. The result remains in-memory and has no
+  codec or mutation route.
   Add another result class only with a concrete compiler-owned obligation and
   certificate route or explicit open status. Do not persist this partial lane,
   cite the standalone `psi-proof` ledger as production enforcement, or invent
@@ -194,7 +202,12 @@ stop the item on one precise owner question before adding machinery.
   produced artifact, obligation schema and locally reconstructed obligation
   set, certificate bundle, derivation provenance, discharge result, and open
   obligations. Compose dependency results and open obligations transitively;
-  never compose producer admission decisions.
+  never compose producer admission decisions. The in-memory promotion gate now
+  performs this join for the current explicitly open ordinary obligation lanes.
+  Remaining work is concrete certificate-bearing result classes when the
+  compiler owns them, final-realization artifact joins where required, and the
+  persistable complete evidence form; do not add an empty generic certificate
+  framework in anticipation of those lanes.
 
   Apply **Accepted locks are current-version generated artifacts**. Require
   exact semantic-schema identity; a mismatch receives complete local

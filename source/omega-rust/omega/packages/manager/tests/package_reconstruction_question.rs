@@ -3,6 +3,10 @@ use omega_package_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass, PackageReviewExternalBinding,
 };
+use omega_package_manager::admission::{
+    ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION, AcceptedOrdinaryEvidenceError,
+    accept_ordinary_closure_evidence,
+};
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_external_local_package_closure_with_storage,
@@ -220,6 +224,36 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     )
     .expect("every exact graph-workbench blocker is accepted");
     assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    let evidence = accept_ordinary_closure_evidence(
+        &closure,
+        &reviews,
+        limits,
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&accepted_policy),
+    )
+    .expect("fresh reconstruction and exact root policy issue accepted evidence");
+    assert_eq!(
+        evidence.schema().version(),
+        ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION
+    );
+    assert_eq!(evidence.packages().len(), closure.graph().packages().len());
+    assert_eq!(evidence.root_policy(), Some(&accepted_policy));
+    let file_journal = evidence
+        .packages()
+        .iter()
+        .find(|package| package.package().name().as_str() == "file-journal")
+        .expect("dependency evidence retains its original package owner");
+    assert_eq!(
+        file_journal.artifact().package(),
+        file_journal.package().identity()
+    );
+    assert_eq!(file_journal.results().open_dangerous_authorities().len(), 1);
+    assert_eq!(
+        file_journal.source_consumption(),
+        file_journal
+            .generated_sources()
+            .source_consumption_commitment()
+    );
     remove_temporary_tree(&temporary);
 }
 
@@ -269,6 +303,66 @@ machine build(builder: &mut Build) {
             .next()
             .is_none()
     );
+    let evidence = accept_ordinary_closure_evidence(
+        &closure,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        None,
+    )
+    .expect("blocker-free closure produces accepted evidence without policy");
+    assert!(evidence.root_policy().is_none());
+    assert_eq!(evidence.packages().len(), 1);
+
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
+fn accepted_evidence_rechecks_live_source_custody_after_review() {
+    let temporary = temporary_root("accepted-source-custody");
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&root).expect("create accepted-evidence root");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("custody-canary");
+}
+"#,
+    )
+    .expect("write custody-canary build");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write custody-canary source");
+
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews =
+        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
+            .expect("compile custody-canary review");
+    let selected_root = closure.graph().root().clone();
+    let snapshot_main = closure
+        .source_root(&selected_root)
+        .expect("root source custody")
+        .join("main.omg");
+    let mut permissions = std::fs::metadata(&snapshot_main)
+        .expect("snapshot source metadata")
+        .permissions();
+    permissions.set_readonly(false);
+    std::fs::set_permissions(&snapshot_main, permissions).expect("make snapshot writable");
+    std::fs::write(&snapshot_main, "pub machine altered() -> u64 { 2 }\n")
+        .expect("tamper reviewed snapshot");
+
+    assert!(matches!(
+        accept_ordinary_closure_evidence(
+            &closure,
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            None,
+        ),
+        Err(AcceptedOrdinaryEvidenceError::SourceCustody { package, .. })
+            if package == selected_root
+    ));
 
     remove_temporary_tree(&temporary);
 }
@@ -374,14 +468,16 @@ machine build(builder: &mut Build) {
         .expect("fresh accepted claim is blocking");
 
     assert!(matches!(
-        bind_fresh_package_root_policy(
+        accept_ordinary_closure_evidence(
             &closure,
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
             None,
         ),
-        Err(FreshPackageRootPolicyError::MissingRootPolicy)
+        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
+            FreshPackageRootPolicyError::MissingRootPolicy
+        ))
     ));
 
     let rejected_decision = claim_package
@@ -394,14 +490,16 @@ machine build(builder: &mut Build) {
         resolve_review_only_root_policy_decisions(&conflicts, &[rejected_decision])
             .expect("complete rejecting policy");
     assert!(matches!(
-        bind_fresh_package_root_policy(
+        accept_ordinary_closure_evidence(
             &closure,
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
             Some(&rejected_policy),
         ),
-        Err(FreshPackageRootPolicyError::RejectedBlockingConflict)
+        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
+            FreshPackageRootPolicyError::RejectedBlockingConflict
+        ))
     ));
 
     let accepted_decision = claim_package
@@ -446,14 +544,16 @@ ensures result == 1;
     )
     .expect("compile changed claim closure");
     assert!(matches!(
-        bind_fresh_package_root_policy(
+        accept_ordinary_closure_evidence(
             &changed_closure,
             &changed_reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
             Some(&accepted_policy),
         ),
-        Err(FreshPackageRootPolicyError::InvalidRootPolicy(_))
+        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
+            FreshPackageRootPolicyError::InvalidRootPolicy(_)
+        ))
     ));
 
     remove_temporary_tree(&temporary);

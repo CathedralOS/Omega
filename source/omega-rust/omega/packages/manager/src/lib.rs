@@ -7,6 +7,7 @@
 //! checked [`declarations`], exact [`resolution`], and compiler-issued
 //! [`review`] facts each operation composes.
 
+pub mod admission;
 pub mod declarations;
 pub mod operations;
 pub mod resolution;
