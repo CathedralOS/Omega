@@ -215,6 +215,7 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::TraitRequirement => 22,
         PackageReviewSourceLocationRole::DataMember => 23,
         PackageReviewSourceLocationRole::CallableParameter => 24,
+        PackageReviewSourceLocationRole::QuotientOperationDeclaration => 27,
     }
 }
 
@@ -249,6 +250,7 @@ fn decode_source_location_role(
         22 => Ok(PackageReviewSourceLocationRole::TraitRequirement),
         23 => Ok(PackageReviewSourceLocationRole::DataMember),
         24 => Ok(PackageReviewSourceLocationRole::CallableParameter),
+        27 => Ok(PackageReviewSourceLocationRole::QuotientOperationDeclaration),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown role tag",
         )),

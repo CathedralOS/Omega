@@ -10,6 +10,7 @@ mod data;
 mod domains;
 mod identity;
 pub(crate) mod package;
+mod quotients;
 mod representation;
 mod rows;
 mod signatures;
@@ -72,6 +73,7 @@ pub use package::{
     PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
     PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
 };
+pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{PackageReviewRepresentationTcb, PackageReviewRepresentationTcbKind};
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,

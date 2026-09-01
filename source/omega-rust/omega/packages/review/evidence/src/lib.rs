@@ -13,4 +13,4 @@ pub mod encoding;
 pub mod ledger;
 pub mod record;
 
-pub use capture::project_checked_package_review;
+pub use capture::{project_checked_package_review, project_non_executable_quotient_package_review};
