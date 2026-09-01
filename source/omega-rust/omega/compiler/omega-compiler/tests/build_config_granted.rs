@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T> {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T> {{ inner: Cell<T>; direct: T; }}\ndata Item {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -246,6 +246,19 @@ machine build(builder: &mut Build) {{
         .iter()
         .find(|definition| definition.name.as_str() == "Cell")
         .expect("generated template");
+    let [template_parameter] = checked.typed.data_type_parameters(template) else {
+        panic!("Cell retains its one Type parameter")
+    };
+    assert_eq!(
+        template_parameter.bounds.multiplicity,
+        psi_language_semantics::Multiplicity::Unrestricted,
+        "the seeded continuation must retain the declared [copy] bound"
+    );
+    assert_eq!(
+        template.properties.multiplicity,
+        psi_language_semantics::Multiplicity::Unrestricted,
+        "the generated template retains its [copy] data property"
+    );
     let instances = checked
         .typed
         .data_definitions()
@@ -258,6 +271,10 @@ machine build(builder: &mut Build) {{
         .copied()
         .find(|definition| definition.name.as_str() == "Cell<u32>")
         .expect("selected Cell<u32> instance");
+    assert_eq!(
+        instance.properties, template.properties,
+        "the closed instance retains the exact bounded template properties"
+    );
     let wrapper = checked
         .typed
         .data_definitions()

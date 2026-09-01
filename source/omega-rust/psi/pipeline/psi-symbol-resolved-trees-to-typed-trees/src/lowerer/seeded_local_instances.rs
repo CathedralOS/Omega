@@ -53,7 +53,6 @@ pub(super) fn template_application_is_supported(
                     parameter.kind,
                     psi_symbol_resolved_trees::data::TypeParameterKind::Type
                 )
-                && parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
         })
         && arguments.iter().all(|argument| {
             let TypeReference::Named { symbol, name } = argument else {
@@ -190,7 +189,6 @@ fn validate_instance(
                 parameter.kind,
                 psi_symbol_resolved_trees::data::TypeParameterKind::Type
             )
-            || parameter.bounds != psi_symbol_resolved_trees::data::DataProperties::default()
             || !supported_named_argument(
                 source,
                 validated_instances,

@@ -314,6 +314,42 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     );
 }
 
+pub(crate) fn validate_generic_instance_argument_bounds(
+    program: &TypedTrees,
+    instance: &psi_typed_trees::data::DataDefinition,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(origin) = instance.generic_instance else {
+        return;
+    };
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(origin)
+    else {
+        diagnostics.push(Diagnostic::error(format!(
+            "generated data instance `{}` has a non-generic derivation origin",
+            instance.name
+        )));
+        return;
+    };
+    validate_generic_argument_bounds(
+        program,
+        symbols,
+        *base_symbol,
+        base_name.as_str(),
+        *arguments,
+        TypeParameterScope {
+            type_parameters: &[],
+            lifetime_parameters: &instance.lifetime_parameters,
+        },
+        diagnostics,
+    );
+}
+
 fn validate_type_reference_handle_with_context(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
