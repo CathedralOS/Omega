@@ -84,6 +84,34 @@ pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
     assert_aarch64_oracle(&first, artifact.expected);
 }
 
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+pub(super) fn exercise_host_native(case: &CorpusCase, artifact: &CorpusArtifact) {
+    let (target, optimization) = if cfg!(target_arch = "x86_64") {
+        (
+            NativeTarget::host(),
+            Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+        )
+    } else {
+        (
+            NativeTarget::host(),
+            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+        )
+    };
+    let first = run_machine(case, artifact, target.clone(), optimization);
+    let second = run_machine(case, artifact, target, optimization);
+    assert_eq!(first, second, "host-native corpus case drifted: {case:?}");
+    if cfg!(target_arch = "x86_64") {
+        assert_x86_oracle(&first, artifact.expected);
+    } else {
+        assert_aarch64_oracle(&first, artifact.expected);
+    }
+    super::native::assert_u64_result(&first.layout, artifact.expected);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PsiEvidence {
     unit: omega_optimization_core::OptimizationUnitIdentity,
@@ -237,21 +265,19 @@ fn assert_sccp(
     rewritten.sort_unstable();
     assert_eq!(rewritten, artifact.add_operations);
     for &add_operation in &artifact.add_operations {
-        assert!(
-            optimized.plan().functions[0]
-                .operations
-                .iter()
-                .any(|operation| {
-                    matches!(
-                        operation,
-                        AbstractOperation::IntegerConstant {
-                            psi_operation,
-                            value: IntegerValue::Unsigned(value),
-                            ..
-                        } if *psi_operation == add_operation && *value == artifact.expected.into()
-                    )
-                })
-        );
+        assert!(optimized.plan().functions[0]
+            .operations
+            .iter()
+            .any(|operation| {
+                matches!(
+                    operation,
+                    AbstractOperation::IntegerConstant {
+                        psi_operation,
+                        value: IntegerValue::Unsigned(value),
+                        ..
+                    } if *psi_operation == add_operation && *value == artifact.expected.into()
+                )
+            }));
     }
 }
 

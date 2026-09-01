@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-nine abstract-to-target families are covered,
+  machine-rule family. Forty abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -480,7 +480,11 @@ decision. Only true language-semantic questions belong in
   parameterless `EstablishTrivialAffineLocal; ReturnUnit` family independently
   reconstructs its empty-record local, declaration ordinal, absent
   construction, exact discard cleanup, provenance, and native Unit call plan
-  across all five targets. Coverage also includes proof-bearing exact
+  across all five targets. Its adjacent parameterless
+  `EstablishByteSequenceLiteral; ReturnUnit` family retains the exact borrowed-
+  view byte-sequence type, canonical literal place, arbitrary byte payload,
+  empty cleanup, provenance, and native Unit call plan across all five targets.
+  Coverage also includes proof-bearing exact
   parameterized fixed-integer addition,
   subtraction, multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
@@ -545,9 +549,12 @@ decision. Only true language-semantic questions belong in
   Missing, sibling, duplicate, unsorted, wrong-domain, detached, widened, and
   root-path substitutions fail closed. Target lowering rejects the retained
   projected roster explicitly until downstream carriers support it rather than
-  inferring authority from root shape or carrier equality. Operation-result
-  path rosters and explicit join-intersection/CSE behavior remain later
-  engineering work, not open language semantics.
+  inferring authority from root shape or carrier equality. The next audited
+  slice is paired function-result and operation-result path custody: a call
+  result may copy only the callee result's exact roster, and return replay must
+  retain it. Join intersection remains later work because current joins and GVN
+  have no structural result carrier or executable consumer. Neither item is an
+  open language-semantic question.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
   versioned structural selected subtree; public encoding now emits v6 with
   exact structural-call requirement and crash-continuation rows plus
@@ -558,9 +565,14 @@ decision. Only true language-semantic questions belong in
   The authenticated payload also
   closes caller/callee call-plan fields that independent validation checks but
   the selected semantic identity does not fully cover.
-- [ ] Add generated differential testing across interpreter/reference native
+- [>] Add generated differential testing across interpreter/reference native
   execution for exact integer, float, trap, atomic, placed-memory, cleanup, and
-  transition cases.
+  transition cases. V2 adds the first same-artifact host-native exact-integer
+  lane: both Boolean paths of one Terminal immediate-return artifact are
+  interpreted, the exact host post-allocation materialization rule is applied,
+  and the resulting linked function is called on both paths and compared with
+  the interpreter result. Float, trap, atomic, placed-memory, cleanup, and
+  transition lanes remain open.
 - [ ] Add end-to-end mutation tests for every manifest and custody field.
 
 ## P3 — Psi optimizer
@@ -735,9 +747,17 @@ decision. Only true language-semantic questions belong in
   source reload, machine, block, half-open lifetime, class, complete canonical
   candidate domain, and separate reload-trigger/worklist budgets. It grants no
   victim choice, assigned view, selected virtual register, rewrite, memory,
-  frame, trap, unwind, encoding, emission, or publication authority. Remaining
-  work consumes that item by choosing the next victim and generalizing logical
-  insertion/reanalysis.
+  frame, trap, unwind, encoding, emission, or publication authority. A seventh
+  independently replayed V1 artifact now consumes that item and reconstructs
+  the post-first-spill allocation twice: production uses a sorted schedule and
+  validation uses a point-indexed event timeline. It retains the complete
+  active-resident and recoverable-contender rosters and deterministically
+  chooses the farthest-ending, then highest-VReg second victim. The public
+  x86-64/AArch64 fixture selects `v3 [9,15)` over `v4 [11,13)` at reload point
+  12 with exact usage `{5, 2, 10, 1, 1}`. It grants no eviction, logical spill,
+  rewrite, storage, selected identity, memory, frame, trap, unwind, encoding,
+  emission, or publication authority. Remaining work generalizes the logical
+  second-spill action, insertion, and reanalysis.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
@@ -976,7 +996,7 @@ unchecked rewrite or opt into lossy floating-point semantics.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The
-  versioned V1 corpus deterministically generates 64 target-paired records from
+  versioned V2 corpus deterministically generates 64 target-paired records from
   one fixed seed, verifies its checked-in shape and record digest, independently
   interprets both Boolean paths of every valid Terminal-Psi artifact, and runs
   each lane twice while comparing optimizer identities, pass manifests,
@@ -985,10 +1005,14 @@ unchecked rewrite or opt into lossy floating-point semantics.
   the separately interpreted selected-machine lane exercises x86-64
   zero-extended `MOV r32, imm32`, sign-extended `MOV r64, imm32`, and AArch64
   shortest `MOVN` materialization with independent ISA decoders/validators.
-  `OMEGA_OPTIMIZER_CORPUS_CASE=<n>` replays one fully printed record. This
-  separation is explicit because folded SCCP source provenance is not yet an
-  admitted selected-lowering constant definition; the corpus does not claim an
-  unsupported composed carrier.
+  V2 additionally interprets both paths of a third immediate-leaf artifact,
+  applies the exact host post-allocation materialization rule twice, links the
+  optimized bytes, executes both Boolean paths, and requires their U64 result
+  to equal the interpreter result. `OMEGA_OPTIMIZER_CORPUS_CASE=<n>` replays one
+  fully printed record. The SCCP and selected-machine fixtures remain separate
+  because folded SCCP with retained dead source literals is not yet an admitted
+  selected-lowering shape; the corpus does not claim that unsupported composed
+  carrier.
 - [ ] Add supported target/OS allocator, encoding, unwind, object, and callable
   matrices. The first applied selected-lowering publication matrix now covers
   exact incoming-u12 add and subtract on Linux x64, Windows x64, Linux Arm64,

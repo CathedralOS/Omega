@@ -138,6 +138,60 @@ impl StraightLineUnitCallReturnTranslationReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StraightLineByteSequenceLiteralUnitReturnTranslationReceipt {
+    machine: MachineId,
+    establishment_operation: OperationId,
+    place: StructuralPlaceDeclaration,
+    structural_type: StructuralTypeDeclaration,
+    bytes: Vec<u8>,
+    return_edge: EdgeId,
+}
+
+impl StraightLineByteSequenceLiteralUnitReturnTranslationReceipt {
+    pub(in crate::validation) fn new(
+        machine: MachineId,
+        establishment_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+        bytes: Vec<u8>,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            establishment_operation,
+            place,
+            structural_type,
+            bytes,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn establishment_operation(&self) -> OperationId {
+        self.establishment_operation
+    }
+
+    pub const fn place(&self) -> &StructuralPlaceDeclaration {
+        &self.place
+    }
+
+    pub const fn structural_type(&self) -> &StructuralTypeDeclaration {
+        &self.structural_type
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StraightLineTrivialAffineLocalUnitReturnTranslationReceipt {
     machine: MachineId,
     establishment_operation: OperationId,

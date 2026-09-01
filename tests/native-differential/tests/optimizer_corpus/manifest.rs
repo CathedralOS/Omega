@@ -1,14 +1,14 @@
 use sha2::{Digest, Sha256};
 
-use super::generator::{CASE_COUNT, CorpusCase, FORMAT, GENERATOR, SEED};
+use super::generator::{CorpusCase, CASE_COUNT, FORMAT, GENERATOR, SEED};
 
 const CHECKED_IN: &str =
-    include_str!("../../corpora/optimizer/v1/conditional_u64_optimizer_lanes.txt");
+    include_str!("../../corpora/optimizer/v2/conditional_u64_optimizer_lanes.txt");
 
 pub(super) fn validate(cases: &[CorpusCase]) {
     assert_eq!(cases.len(), CASE_COUNT);
     let rendered = format!(
-        "format={FORMAT}\ngenerator={GENERATOR}\nseed={SEED:#018x}\ncase_count={CASE_COUNT}\npsi_shape=boolean_conditional_identical_wrapping_add_leaves\nselected_machine_shape=boolean_conditional_identical_immediate_leaves\nx86_lane=nonzero_zero_extended_u32\naarch64_lane=single_complemented_u16_chunk\nrecords_sha256={}\n",
+        "format={FORMAT}\ngenerator={GENERATOR}\nseed={SEED:#018x}\ncase_count={CASE_COUNT}\npsi_shape=boolean_conditional_identical_wrapping_add_leaves\nselected_machine_shape=boolean_conditional_identical_immediate_leaves\nhost_native_shape=boolean_conditional_identical_immediate_leaves_same_artifact\nhost_native_oracle=terminal_interpreter_equals_postallocation_optimized_native_u64\nx86_lane=nonzero_zero_extended_u32\naarch64_lane=single_complemented_u16_chunk\nrecords_sha256={}\n",
         records_digest(cases),
     );
     assert_eq!(CHECKED_IN, rendered, "optimizer corpus manifest drifted");

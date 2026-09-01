@@ -396,8 +396,19 @@ separately identity-bound trigger/worklist budgets. Production and validation
 reconstruct all usage axes independently. The item does not choose a second
 victim or assigned view, create a selected virtual register or rewrite, or
 grant memory, frame, trap, unwind, encoding, emission, or publication
-authority. Its next consumer must make the second spill choice and generalize
-logical insertion/reanalysis under a new bounded contract.
+authority.
+
+The adjacent spill-recovery choice entrance is that first consumer. Its V1
+artifact reconstructs the post-first-spill allocation from the validated
+worklist and retains the complete active-resident and recoverable-contender
+rosters. Production uses a sorted allocation schedule; independent replay uses
+a point-indexed event timeline. The bounded policy selects the resident with
+the farthest live end, then the highest virtual-register identity. It records a
+choice only: no eviction, logical spill, assigned view, selected identity,
+rewrite, storage, memory, frame, trap, unwind, encoding, emission, or
+publication authority follows from it. The next consumer must generalize the
+logical second-spill action, insertion, and reanalysis under a new bounded
+contract.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

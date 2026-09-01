@@ -8,10 +8,16 @@
 mod optimizer_corpus {
     mod generator;
     mod manifest;
+    #[cfg(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "aarch64"),
+    ))]
+    mod native;
     mod psi;
     mod selected_machine;
 
-    use generator::{CASE_COUNT, cases};
+    use generator::{cases, CASE_COUNT};
 
     #[test]
     fn deterministic_valid_psi_and_selected_machine_corpus() {
@@ -47,6 +53,22 @@ mod optimizer_corpus {
 
             let aarch64_artifact = psi::wrapping_add_artifact(case.ordinal, case.aarch64, 20_000);
             selected_machine::exercise_aarch64(case, &aarch64_artifact);
+
+            #[cfg(any(
+                all(target_os = "linux", target_arch = "x86_64"),
+                all(target_os = "linux", target_arch = "aarch64"),
+                all(target_os = "macos", target_arch = "aarch64"),
+            ))]
+            {
+                let host_lane = if cfg!(target_arch = "x86_64") {
+                    case.x86
+                } else {
+                    case.aarch64
+                };
+                let host_artifact =
+                    psi::immediate_artifact(case.ordinal, host_lane.expected, 50_000);
+                selected_machine::exercise_host_native(case, &host_artifact);
+            }
         }
     }
 }

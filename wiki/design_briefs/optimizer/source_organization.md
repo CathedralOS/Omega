@@ -86,8 +86,9 @@ The randomized differential corpus follows the same entrance contract outside
 the production crates. `tests/native-differential/tests/optimizer_corpus.rs`
 owns admission and replay dispatch in one small file, then points directly to
 the adjacent `optimizer_corpus/` leaves: `generator.rs`, `manifest.rs`,
-`psi.rs`, and `selected_machine.rs`. The checked-in V1 corpus identity lives
-under `tests/native-differential/corpora/optimizer/v1/`; it is data custody, not
+`psi.rs`, `selected_machine.rs`, and the host-only `native.rs`. The current
+checked-in V2 corpus identity lives under
+`tests/native-differential/corpora/optimizer/v2/`; it is data custody, not
 a second schedule or rule registry.
 
 `omega-image-emission/ranked_u32_countdown` is deliberately outside this

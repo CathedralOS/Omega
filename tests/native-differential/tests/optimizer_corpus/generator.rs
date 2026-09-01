@@ -1,4 +1,4 @@
-pub(super) const FORMAT: &str = "omega.optimizer-corpus.v1";
+pub(super) const FORMAT: &str = "omega.optimizer-corpus.v2";
 pub(super) const GENERATOR: &str = "omega-test-lcg64-v1";
 pub(super) const SEED: u64 = 0x4f4d_4547_415f_4f50;
 pub(super) const CASE_COUNT: usize = 64;

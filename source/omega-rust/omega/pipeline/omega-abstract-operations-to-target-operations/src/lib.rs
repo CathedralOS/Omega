@@ -1,7 +1,5 @@
 #![forbid(unsafe_code)]
-
 //! Optimizer module role: crate map. Enter `lowering/mod.rs`, then descend by result family and semantic responsibility.
-
 mod lowering;
 mod model;
 mod validation;
@@ -28,6 +26,8 @@ pub use validation::{
     StraightLineBooleanNotParameterTranslationError,
     StraightLineBooleanNotParameterTranslationReceipt,
     StraightLineBooleanParameterTranslationError, StraightLineBooleanParameterTranslationReceipt,
+    StraightLineByteSequenceLiteralUnitReturnTranslationError,
+    StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineExactIntegerAddParametersTranslationReceipt,
     StraightLineExactIntegerDivideParametersTranslationError,
