@@ -1437,8 +1437,12 @@ decision. Only true language-semantic questions belong in
     destination to share one physical view/storage and the destination VReg to
     be the compare input, and preserves exact footprint, liveness, and
     provenance custody. Its rule-local independent replay, shared authenticated
-    copy-elision codec V2, budgets, corruption matrix, sole machine-catalog
-    row, and generic downstream custody are pinned. The shared matcher
+    copy-elision codec V2, exact five-axis success/first-over budget matrix,
+    action/codec corruption matrix, sole machine-catalog row, and generic
+    downstream custody are pinned. Exact compiler selection retains its
+    distinct policy through Linux and macOS AArch64 object/callable
+    publication; the current compiler fixture truthfully records zero actions.
+    The shared matcher
     vocabulary is now truthfully named instruction-pair rather than terminal-
     pair; arbitrary-length patterns remain outside its authority.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
@@ -1628,12 +1632,17 @@ unchecked rewrite or opt into lossy floating-point semantics.
   first-over-boundary matrix for all five work axes; reauthenticated action
   corruption is independently refused in its named operational leaf, and its
   direct publication crosses all eight shared custody mutations. True
-  same-view copy elision now adds a two-pair independently replayed fixture with
-  exact usage `{5, 2, 2, 2, 3}` and representable first-over failures on all
-  five work axes; its existing applied/negative/equality, disabled,
-  deterministic, action/codec corruption, eight-field publication custody,
-  target, and composition evidence remains intact. True second-application
-  idempotence remains open for all six rules: each
+  Both exact AArch64 same-view copy-elision policies now have two-pair,
+  independently replayed fixtures with exact usage `{5, 2, 2, 2, 3}` and
+  representable first-over failures on all five work axes. Both pin
+  applied/negative/equality outcomes, deterministic reconstruction,
+  action/codec corruption, exact disabled/wrong-target routing, and all eight
+  generic publication-custody mutations. The before-compare-zero policy also
+  retains its distinct identity through Linux and macOS AArch64 object and
+  callable publication; current compiler-facing fixtures truthfully publish a
+  zero-action result rather than claiming a lowering-generated candidate.
+  True second-application idempotence remains open for all seven
+  post-allocation machine rules: each
   publishes an immutable encoding-choice artifact, not a rewritten
   `PostAllocationMachinePlan` that it can honestly consume again.
   Repeated reconstruction remains determinism evidence and is not relabelled as

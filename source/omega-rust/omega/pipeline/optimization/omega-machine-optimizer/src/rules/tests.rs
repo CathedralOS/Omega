@@ -35,7 +35,12 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
         PostAllocationMachineRuleKind::X86MovR32Imm32,
         PostAllocationMachineRuleKind::X86MovR64Imm32SignExtended,
         PostAllocationMachineRuleKind::Aarch64SameViewCopyElision,
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareZeroElision,
     ];
+    assert_eq!(
+        POST_ALLOCATION_MACHINE_RULE_CATALOG.len(),
+        expected_kinds.len()
+    );
     for (descriptor, expected_kind) in POST_ALLOCATION_MACHINE_RULE_CATALOG
         .into_iter()
         .zip(expected_kinds)
