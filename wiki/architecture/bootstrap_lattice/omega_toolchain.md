@@ -84,8 +84,10 @@ activations publish durable generated-source bundles and evidence; a consumer
 does not rerun them and no graph-wide set of live partial frontend checkpoints
 is carried. The Omega edge publishes raw success bytes or its edge-specific
 `OCOUT` failure frame under the common four-case compiler boundary, never a
-partial artifact. Q1 still owns the inner field/tag tables, exact commitment
-preimage, closed failure/resource tables, phase order, and scalar provisions.
+partial artifact. D59 fixes the one-flat-profile, exact-commitment,
+framing-before-capacity, shared-diagnostic, and bounded-publication rules. Its
+closed inner field/tag, failure/resource, phase, and scalar-provision tables
+remain implementation work.
 `OCOUT` keeps the shared 40-byte header; only a package/source
 coordinate adds the exact eight-byte package-and-unit tail. Diagnostics in
 compiler-generated source re-anchor to the authored `include_source` handoff,

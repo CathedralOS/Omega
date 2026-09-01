@@ -367,10 +367,12 @@ alias. The stable package lineage and exact selected immutable resolution are
 separate facts. V1 retains both but carries no preaccepted compiled
 `PackageInstance`; that later carrier requires a new request version.
 
-Q1 owns the still-missing inner row order/width/tag tables, exact commitment
-domain/preimage, closed `OCOUT` failure/resource tables and phase order, and
-named scalar provisions. Until those are fixed, the outer frame can be
-validated but neither standalone compiler has a complete interoperable V1 wire.
+D59 fixes one flat inner profile, the exact commitment domain/preimage,
+framing-before-capacity validation, common `OCOUT` diagnostic selection, and
+`INT32_MAX` publication normalization. Its closed row/tag, failure/resource,
+phase, and scalar-provision tables still must be assigned and implemented;
+until then the outer frame can be validated but neither standalone compiler has
+a complete interoperable V1 wire.
 
 Each package snapshot is a deterministic virtual filesystem rather than a
 filesystem replay transcript. It contains every file, directory, absence,

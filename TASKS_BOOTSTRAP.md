@@ -1587,7 +1587,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
-  - [ ] **OWNER-BLOCKED — Q1: COMPLETE D25 OMEGA-COMPILER-REQUEST-WIRE-V1.**
+  - [ ] **IMPLEMENTATION-INCOMPLETE — D25/D59 OMEGA-COMPILER-REQUEST-WIRE-V1.**
     Complete the byte-exact `OCREQ` and `OCOUT` profiles shared by `D` and `C`.
     Encode the committed canonical subject and invocation, structural package
     keys, separately selected immutable revisions, graph indices, closed-tree
@@ -1596,7 +1596,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
     conversion, validate exact end and canonical order, and implement the
     shared 40-byte `OCOUT` header plus its sole eight-byte package/source
     coordinate tail. Retain the edge-owned closed reason/resource tables and
-    exact scalar profile provisions; neither compiler may use the Rust request
+    exact scalar profile provisions; apply D59's framing-before-capacity order,
+    exact subject commitment, shared diagnostic selection, and `INT32_MAX`
+    publication normalization. Neither compiler may use the Rust request
     object, host serde, paths, replay, or a private replacement as wire
     authority.
     - [x] Implement the settled outer `OCREQ` envelope in `D` without claiming
@@ -1607,8 +1609,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
       invocation spans on success. It does not call the source parser, invent a
       package/source identity, add `Main`, or publish `OCOUT`. Exact malformed
       frame vectors remain assigned to the real Delta-compiler gate.
-  - [ ] **OWNER/DEPENDENCY-BLOCKED — Q1 AND INCOMPLETE D:
-    D18/D25 OMEGA-COMPILER-REQUEST-V1.** Implement the canonical sealed Omega
+  - [ ] **DEPENDENCY-BLOCKED — INCOMPLETE D AND D59 TABLE IMPLEMENTATION:
+    D18/D25/D59 OMEGA-COMPILER-REQUEST-V1.** Implement the canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
     `OmegaCompilationSubject` and bound `OmegaInvocation`, complete deterministic
     build-visible package snapshots, explicit bootstrap Alpha-tape product, and
@@ -2428,8 +2430,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   allowed; weakened Omega semantics are not. D40 fixes the proof-only
   `FloatMeaning` equality/source-correspondence slice for implementation. D31
   unblocks the earlier Delta compiler's type-formation implementation, while
-  Q1 blocks the standalone Omega compiler's exact inner wire and failure
-  profile.
+  D59 fixes the standalone Omega compiler's exact inner-wire rules and failure
+  profile; assigning and implementing its checked numeric tables remains open.
   D25 fixes that edge's logical request and outer envelope, and D24 unblocks the
   Delta census implementation. None prevents implementation of independently
   settled source-shaped parser slices.
