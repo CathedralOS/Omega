@@ -13,9 +13,9 @@
 // receiver-aliasing bug); `start_keep`/`end_keep` hold the captured
 // instants between calls.
 // Expected exit: 70.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {

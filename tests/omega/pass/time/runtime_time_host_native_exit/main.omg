@@ -13,9 +13,9 @@
 // (13_411_699_200) and ~2076 (15_000_000_000): a zeroed or garbage result
 // fails low, an un-divided raw FILETIME (~10^17) fails high.
 // Expected exit: 70.
-use omega::language::std::time_host;
+use omega_language_std::time_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

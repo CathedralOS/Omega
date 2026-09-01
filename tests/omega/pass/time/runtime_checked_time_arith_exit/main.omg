@@ -18,9 +18,9 @@
 // AUTHORING: receivers route through the FIRST field of each type (`ia` for
 // Instant, `wa` for SystemTime).
 // Expected exit: 70.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

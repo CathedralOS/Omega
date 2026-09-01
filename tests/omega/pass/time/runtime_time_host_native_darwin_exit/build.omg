@@ -3,5 +3,8 @@ target macos_arm64 { }
 
 machine build(builder: &mut Build) {
     builder.application("runtime-time-host-native-darwin-exit");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/std"
+    });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

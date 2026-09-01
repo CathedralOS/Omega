@@ -269,6 +269,56 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
 }
 
 #[test]
+fn time_canaries_declare_ordinary_standard_library_edges() {
+    let time_cases = repository_root().join("tests/omega/pass/time");
+    let mut roots = Vec::new();
+    collect_build_roots(&time_cases, &mut roots);
+    assert_eq!(
+        roots.len(),
+        14,
+        "unexpected packaged time-canary population"
+    );
+
+    for root in roots {
+        let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
+            panic!(
+                "time-canary role/dependency projection failed for {}: {error}",
+                root.display()
+            )
+        });
+        assert_eq!(
+            projection.dependencies(),
+            [DependencySourceRequest::Path {
+                explicit_alias: None,
+                location: "../../../../../source/library/std".to_owned(),
+            }],
+            "unexpected time-canary dependency declaration in {}",
+            root.display()
+        );
+
+        for source in fs::read_dir(&root)
+            .unwrap_or_else(|error| panic!("read time canary {}: {error}", root.display()))
+            .map(|entry| entry.expect("read time-canary source entry").path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
+            .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
+        {
+            let contents = fs::read_to_string(&source)
+                .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
+            assert!(
+                !contents.contains("omega::language::std"),
+                "packaged time canary {} retains a bundled std import",
+                source.display()
+            );
+            assert!(
+                contents.contains("omega_language_std"),
+                "packaged time canary {} does not use its dependency alias",
+                source.display()
+            );
+        }
+    }
+}
+
+#[test]
 fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     let cases = repository_root().join("tests/omega");
     let mut roots = Vec::new();

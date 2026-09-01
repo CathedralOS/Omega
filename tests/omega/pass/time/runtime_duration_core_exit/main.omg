@@ -4,9 +4,9 @@
 // 2.6s), the ZERO clamp of saturating_subtract (2.6s - 3.5s), ordering, and
 // the underflow arm. Every failure exits a distinct code.
 // Expected exit: 70.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -2,9 +2,9 @@
 // {2, 600000000} totals 2_600_000_000 ns / 2_600_000 us / 2_600 ms;
 // Duration::MAX overflows (its seconds exceed every threshold).
 // Expected exit: 70.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
