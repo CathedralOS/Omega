@@ -313,6 +313,39 @@ fn checked_boundary_operator_physical_custody_canary_compiles() {
 }
 
 #[test]
+fn checked_fixed_operator_physical_custody_canary_compiles() {
+    let canary = pass_canary("providers/checked_fixed_operator_physical_custody");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("fixed-token physical-custody canary should check");
+    let selected_subtracts = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .filter(|operator_use| {
+            operator_use.spelling == psi_language_core::OperatorSpelling::Subtract
+        })
+        .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
+        .filter(|candidate| candidate.is_boundary)
+        .count();
+    assert_eq!(selected_subtracts, 1, "one exact boundary `-` selection");
+    assert_selected_operator_native_physical_call(
+        &canary,
+        "checked fixed-token operator physical-custody canary",
+        omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+    );
+
+    let dynamic_exit = pass_canary("providers/checked_fixed_operator_dispatch_exit");
+    let diagnostics =
+        compile_rooted_backend_canary_without_output_for_target(&dynamic_exit, "linux_x86_64")
+            .expect_err("the immediate-only exit settlement must reject a fixed-token call result");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("InvalidLinuxExitGroupShape") })
+    );
+}
+
+#[test]
 fn specialized_boundary_operator_physical_custody_canary_compiles() {
     let canary = pass_canary("providers/specialized_boundary_operator_physical_custody");
     assert_selected_operator_native_physical_call(
