@@ -111,6 +111,7 @@ pub use nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
+mod proof_recursion;
 mod quotient_correspondence;
 mod reborrow_restored_call_use;
 mod reborrow_root_handoff;
@@ -169,6 +170,7 @@ use operation_emission::{
     emit_staged_scalar_call_binding, finalize_operation_proofs,
 };
 use payloadless_case_return::lower_payloadless_case_return_machine;
+use proof_recursion::lower_and_install_proof_recursion;
 pub use quotient_correspondence::install_non_executable_quotient_correspondences;
 use scalar_call_closure::checked_scalar_call_closure;
 use scalar_graph_lowering::{
@@ -1262,6 +1264,12 @@ pub fn lower_machine(
         .map(lower_float_meaning_equality)
         .collect();
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
+    lower_and_install_proof_recursion(
+        checked,
+        &source_machines,
+        &mut lowered.semantic_module,
+        &mut lowered.proof_bundle,
+    )?;
     if lowered
         .semantic_module
         .machines
