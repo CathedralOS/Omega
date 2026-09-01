@@ -8,6 +8,9 @@ version.workspace = true
 name = "omega_build_evaluation"
 path = "src/lib.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 omega-build-output = { path = "../omega-build-output" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }

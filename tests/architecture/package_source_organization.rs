@@ -146,6 +146,21 @@ fn manager_and_compiler_evidence_have_exact_reader_entrances() {
 }
 
 #[test]
+fn manager_tests_do_not_revive_retired_runtime_filesystem_build_authority() {
+    let manager_source = package_root().join("manager/src");
+    for path in rust_files(&manager_source) {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+        assert!(
+            !source.contains("omega::language::std::filesystem_host")
+                && !source.contains("builder.filesystem"),
+            "package-manager source must use compiler-owned Build facets, not retired runtime filesystem authority: {}",
+            path.display()
+        );
+    }
+}
+
+#[test]
 fn ordinary_compilation_handoff_belongs_to_resolution_not_review() {
     let packages = package_root();
     let manager = packages.join("manager");

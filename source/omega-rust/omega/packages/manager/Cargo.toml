@@ -30,4 +30,5 @@ cap-std = "4.0.3"
 sha2 = "0.10.9"
 
 [dev-dependencies]
+omega-build-evaluation = { path = "../../build/omega-build-evaluation", features = ["test-support"] }
 omega-package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }
