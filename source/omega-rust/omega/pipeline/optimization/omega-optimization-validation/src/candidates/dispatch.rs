@@ -6,6 +6,9 @@ pub fn validate_psi_rewrite_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    if is_proof_check_elision_rule(candidate.rule()) {
+        return validate_proof_check_elision_candidate(input, candidate);
+    }
     match candidate.patch() {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(_)
         | PsiRewritePatch::ReplaceBooleanOperationWithConstant(_) => {
@@ -45,7 +48,7 @@ pub fn validate_psi_rewrite_candidate(
             validate_phi_translated_scalar_common_subexpression_candidate(input, candidate)
         }
         PsiRewritePatch::EliminateProofCertifiedScalarIdentity(_) => {
-            validate_proof_certified_scalar_identity_candidate(input, candidate)
+            validate_proof_check_elision_candidate(input, candidate)
         }
         PsiRewritePatch::EliminateTotalScalarIdentity(_) => {
             validate_total_scalar_identity_candidate(input, candidate)

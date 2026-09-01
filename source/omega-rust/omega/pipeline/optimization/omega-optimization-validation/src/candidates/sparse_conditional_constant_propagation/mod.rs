@@ -34,43 +34,6 @@ pub fn validate_scalar_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    if candidate.rule()
-        == OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
-        )
-    {
-        return validate_proof_certified_exact_integer_self_subtract_candidate(input, candidate);
-    }
-    if candidate.rule()
-        == OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.live-proof-certified-integer-self-remainder-elimination.v1",
-        )
-    {
-        return validate_proof_certified_integer_self_remainder_candidate(input, candidate);
-    }
-    if candidate.rule()
-        == OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
-        )
-    {
-        return validate_proof_certified_integer_self_divide_candidate(input, candidate);
-    }
-    if candidate.rule()
-        == OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
-        )
-    {
-        return validate_proof_certified_integer_remainder_by_one_candidate(input, candidate);
-    }
-    if candidate.rule()
-        == OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
-        )
-    {
-        return validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
-            input, candidate,
-        );
-    }
     match candidate.patch() {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(_) => {
             validate_integer_evaluation_candidate(input, candidate)

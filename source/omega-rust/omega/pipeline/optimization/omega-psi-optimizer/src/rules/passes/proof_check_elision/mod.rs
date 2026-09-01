@@ -2,8 +2,7 @@
 
 use crate::rules::catalog::BuiltInRuleRegistration;
 
-use super::dead_scalar_elimination::ProofCertifiedDeadScalarEliminationRule;
-
+mod dead_scalar;
 mod divide_by_one;
 mod identity_rewrite;
 mod multiply_by_zero;
@@ -17,6 +16,7 @@ mod signed_remainder_by_negative_one;
 mod zero_dividend;
 mod zero_value_shift;
 
+pub use dead_scalar::*;
 pub use divide_by_one::*;
 pub use multiply_by_zero::*;
 pub use negative_one_shift_right::*;

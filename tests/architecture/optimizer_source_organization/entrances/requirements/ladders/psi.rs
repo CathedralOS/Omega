@@ -268,12 +268,12 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/mod.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/literal/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/literal/operation_admission.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/unconditionally_total/mod.rs",
-            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/proof_certified/mod.rs",
-            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/family.rs",
-            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/proposal.rs",
-            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/shapes.rs",
-            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/accounting.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/unconditionally_total/operation_admission.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/support/dead_scalar_node/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/support/dead_scalar_node/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/support/dead_scalar_node/proposal.rs",
         ],
     },
     SemanticLadder {
@@ -289,6 +289,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "proof-check identity rules",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/dead_scalar/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/dead_scalar/operation_admission.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/scalar_identities.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/divide_by_one.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/multiply_by_zero.rs",
@@ -313,6 +315,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/proof_check_elision/mod.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/proof_check_elision/contract_custody.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/pass_manager/tests/execution/fixed_points/proof_check_operational.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "independent proof-check validation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/rule_catalog.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/candidate_validation.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/identity_classification.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/same_operand.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/unit_divisor.rs",
         ],
     },
 ];

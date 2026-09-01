@@ -1,3 +1,6 @@
+//! Liveness, effect, accounting, and witness coordination for dead scalar nodes.
+
+use omega_abstract_operations::AbstractOperation;
 use omega_optimization_core::{AnalysisKind, OptimizationRuleContract};
 use omega_optimization_unit::{
     DeadScalarNodeRewrite, NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate,
@@ -5,16 +8,47 @@ use omega_optimization_unit::{
 
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-use super::{
-    accounting::dead_scalar_node_accounting, family::DeadScalarFamily, shapes::dead_scalar_shape,
-};
-use crate::rules::passes::accepted_obligation_fact;
+use super::DeadScalarShape;
+use crate::rules::passes::support::{accepted_obligation_fact, node_elision_accounting};
 
-pub(super) fn propose_dead_scalar_nodes(
+type Classifier = fn(&AbstractOperation) -> Option<DeadScalarShape>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Evidence {
+    Structural,
+    AcceptedObligation,
+}
+
+pub(in crate::rules::passes) fn propose_unproved_dead_scalar_nodes(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
-    family: DeadScalarFamily,
+    classify: Classifier,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    propose(unit, analyses, contract, classify, Evidence::Structural)
+}
+
+pub(in crate::rules::passes) fn propose_proof_certified_dead_scalar_nodes(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    classify: Classifier,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    propose(
+        unit,
+        analyses,
+        contract,
+        classify,
+        Evidence::AcceptedObligation,
+    )
+}
+
+fn propose(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    classify: Classifier,
+    evidence: Evidence,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     let Some(AnalysisProduct::ValueLiveness(liveness)) = analyses.get(AnalysisKind::ValueLiveness)
     else {
@@ -33,9 +67,7 @@ pub(super) fn propose_dead_scalar_nodes(
     for function in &unit.functions {
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                let Some((source_operation, result, scalar_type)) =
-                    dead_scalar_shape(&node.operation, family)
-                else {
+                let Some(shape) = classify(&node.operation) else {
                     continue;
                 };
                 let Some(next) = block.nodes.get(node_index + 1) else {
@@ -60,7 +92,7 @@ pub(super) fn propose_dead_scalar_nodes(
                         && row.block == block.id
                         && row.node == node_index
                 });
-                if live.is_none_or(|row| row.exit.contains(&result))
+                if live.is_none_or(|row| row.exit.contains(&shape.result))
                     || effect.is_none_or(|row| {
                         row.revision != unit.identity
                             || row.class != crate::EffectClass::PureScalar
@@ -78,35 +110,40 @@ pub(super) fn propose_dead_scalar_nodes(
                     node: node_index,
                 };
                 let Some((affected_blocks, provenance)) =
-                    dead_scalar_node_accounting(function, location)
+                    node_elision_accounting(function, location, shape.result)
                 else {
                     continue;
                 };
                 let patch = DeadScalarNodeRewrite {
                     location,
-                    source_operation,
-                    result,
-                    scalar_type,
+                    source_operation: shape.source_operation,
+                    result: shape.result,
+                    scalar_type: shape.scalar_type,
                 };
-                let candidate = if family == DeadScalarFamily::ProofCertified {
-                    PsiRewriteCandidate::new_proof_certified_dead_scalar_node(
-                        unit.identity,
-                        contract,
-                        affected_blocks,
-                        provenance,
-                        accepted_obligation_fact(unit, function.machine, source_operation)?,
-                        -1,
-                        patch,
-                    )
-                } else {
-                    PsiRewriteCandidate::new_dead_scalar_node(
+                let candidate = match evidence {
+                    Evidence::Structural => PsiRewriteCandidate::new_dead_scalar_node(
                         unit.identity,
                         contract,
                         affected_blocks,
                         provenance,
                         -1,
                         patch,
-                    )
+                    ),
+                    Evidence::AcceptedObligation => {
+                        PsiRewriteCandidate::new_proof_certified_dead_scalar_node(
+                            unit.identity,
+                            contract,
+                            affected_blocks,
+                            provenance,
+                            accepted_obligation_fact(
+                                unit,
+                                function.machine,
+                                shape.source_operation,
+                            )?,
+                            -1,
+                            patch,
+                        )
+                    }
                 };
                 candidates.push(candidate.map_err(RuleProposalError::InvalidCandidate)?);
             }
