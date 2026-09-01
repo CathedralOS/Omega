@@ -235,6 +235,17 @@ enablement and order.
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
+Fixed/precolored interval analysis is deliberately absent from the selectable
+rule table. Its 24-line
+`omega-regalloc/src/analyses/fixed_precolored_intervals/mod.rs` entrance joins
+`compute.rs` to independently keyed `replay.rs` through the sole `validate.rs`
+admission seam; `model.rs` and `identity.rs` own its closed point-interval and
+receipt vocabulary. The mirrored cross-target tests live below
+`register_allocation/fixed_precolored_intervals/`, and architecture guards name
+both production and test ladders while preventing replay from importing the
+producer. This is fixed-constraint evidence, not home selection, copy
+insertion, range splitting, or a selectable optimization.
+
 Logical spill planning is deliberately absent from this rule table. It is a
 non-selectable allocation decision below
 `omega-regalloc/src/allocation/logical_spill_operations/mod.rs`. That small
@@ -463,13 +474,21 @@ inventory registers the complete ladder and forbids compiler, build, pipeline,
 Psi-optimizer, and process-tooling dependencies. This is corpus custody, not a
 second policy catalog or compiler activation path.
 
+The 38-line `src/bin/omega-optimization-policy-offline/main.rs` command
+entrance coordinates the closed command vocabulary with exactly one capture
+route. Its adjacent `arguments`, `capture`, `publication`, and `error` leaves
+make positional admission, canonical corpus custody, create-once file output,
+and exit classification separately visible. The architecture inventory names
+that full descent. Command tests live under the sibling `tests/` rung; model
+training and evaluation remain library calls rather than hidden command modes.
+
 The adjacent `reference_policy/mod.rs` entrance exposes only deterministic
 training, evaluation, and strict decode calls. Its `training/mod.rs` and
 `evaluation/mod.rs` entrances each join separate compute and independent replay
 leaves; `identity`, `inference`, `model`, and `codec/` remain named sibling
 rungs. Tests mirror codec, training, evaluation, and refusal behavior, and the
-tooling architecture ladder registers all three entrances. No CLI, process, or
-compiler route is hidden below them.
+tooling architecture ladder registers all three entrances. No training,
+evaluation, process, or compiler command route is hidden below them.
 
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
@@ -480,15 +499,19 @@ execution rung switches on its closed rule kind and contains no exact
 `Optimization` names.
 
 The machine peephole rung is itself navigable: `peephole_matching/mod.rs`
-coordinates one immutable terminal-pair input through `instruction.rs`,
+coordinates one immutable instruction-pair input and closed topology through
+`instruction.rs`,
 `registers.rs`, `relations.rs`, and `liveness.rs`, with vocabulary in
 `model.rs`. Exact pattern data stays with each rule, currently the cataloged
 `aarch64/compare_zero_branch_nonzero/pattern.rs` and
-`aarch64/elide_same_view_copy_before_return/pattern.rs`. The latter rule's tiny
-entrance visibly joins proposal to independent replay, while its `validate/`
-group reconstructs footprints and roots without importing the matcher. The
-shared rung owns neither enablement nor rewriting, and validators do not
-import it. This keeps the path from exact rule entrance to pattern, named
+`aarch64/elide_same_view_copy_before_return/pattern.rs`, plus the adjacent-body
+`aarch64/elide_same_view_copy_before_compare_zero/pattern.rs`. Each copy rule's
+tiny entrance visibly joins proposal to independent replay; its validation
+rung reconstructs footprints and roots without importing the matcher. The
+shared rung owns neither enablement nor rewriting, and validators do not import
+it. The only topologies are body-tail/terminator and adjacent ordinary-body
+instructions; there is no generic pattern AST. This keeps the path from exact
+rule entrance to pattern, named
 matcher mechanics, and independent replay visible without creating a proxy
 rule schedule. Only a catalog row may grant compiler enablement.
 
@@ -614,6 +637,13 @@ joins the exact ordered four-operation grammar to independent
 fixture, corruption, catalog, and optimized-custody leaves cover 180 direct and
 180 optimized fixed/address cases across all five targets while remaining
 disjoint from plain immediate, bitwise-not, AND/XOR, and parameter OR.
+Constant integer bitwise-XOR immediate translation owns the matching
+`straight_line_integer_bitwise_xor_immediate/` taxonomy. Its 27-line entrance
+joins the exact ordered four-operation grammar to independent
+`ReturnIntegerImmediate` replay using `IntegerType::bitwise_xor`. Dedicated
+fixture, corruption, catalog, and optimized-custody leaves cover 180 direct and
+180 optimized fixed/address cases across all five targets while remaining
+disjoint from plain immediate, bitwise-not, AND/OR, and parameter XOR.
 Constant wrapping integer-add immediate translation is its exact arithmetic
 sibling under `straight_line_wrapping_integer_add_immediate/`. Its 27-line
 entrance joins the ordered two-constant grammar to independent

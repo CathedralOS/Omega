@@ -192,6 +192,15 @@ through `IntegerType::bitwise_or`; and independently requires one
 fixed/address carriers, four ordered boundary pairs, and five targets produce
 180 direct plus 180 optimized-custody cases. Plain immediate, bitwise-not,
 AND/XOR, parameter OR, and runtime-expression substitution all fail closed.
+Constant integer bitwise-XOR is the third independent binary bitwise sibling.
+It validates the exact ordered
+`[IntegerConstant, IntegerConstant, IntegerBitwiseXor, Return]` grammar,
+computes the declared carrier through `IntegerType::bitwise_xor`, and requires
+one `ReturnIntegerImmediate` with all source operations retained in order. The
+nine fixed/address carriers, four ordered boundary pairs, and five targets
+produce 180 direct plus 180 optimized-custody cases. Plain immediate,
+bitwise-not, AND/OR, parameter XOR, and runtime-expression substitution all
+fail closed.
 Constant wrapping integer add is a separate exact four-operation family. It
 validates two ordered same-type constants, `WrappingIntegerAdd`, and `Return`,
 computes modulo the declared width through `IntegerType::wrapping_add`, and
@@ -463,6 +472,17 @@ Allocation computes selected-CFG liveness, live-range fragments,
 interference, allowed views, ABI constraints, clobbers, and spill legality.
 Home assignment, copy insertion, spilling, coalescing, and bounded
 rematerialization are separately validated decisions.
+
+The first fixed/precolored interval boundary consumes validated live ranges and
+allocation legality without assigning a home. Its 24-line entrance joins one
+direct positional derivation to an independently keyed replay. V1 resolves
+each authenticated entry or operand fixed constraint to one canonical
+half-open `[point, point + 1)` interval and exact physical view, binds ordinary
+and structural roots plus register environment, allocator availability, fuel,
+policy, budget, usage, and identity, and refuses early-clobber fixed
+definitions explicitly. The dual-target fixture has four exact intervals and
+usage `{1, 4, 6, 4, 2}`. This grants factual precoloring evidence only; home,
+copy, split, spill, memory, frame, and publication decisions remain separate.
 
 Fixed-view-copy validation descends from one small independent join through
 root and copy-constraint custody, work and budget replay, leaf-local or
@@ -781,8 +801,8 @@ the complete compiler route does not grow a new parallel carrier family for
 each rule.
 
 CBNZ is the first rule whose producer consumes a declarative symbolic
-terminal-pair descriptor. That descriptor states the exact compare and branch
-alternative keys; operand and allocatable `x0..x30` view shape; named `nzcv`
+instruction-pair descriptor. That descriptor states the exact compare and
+branch alternative keys; operand and allocatable `x0..x30` view shape; named `nzcv`
 and `pc` unit sets; memory, stack, trap, and control effects; compare-to-branch
 liveness continuity; and flags-dead-after eligibility. The shared matcher is
 partitioned into instruction, register, and liveness leaves under one small
@@ -791,7 +811,7 @@ its separate replay logic. Other materialization rules remain rule-local
 selection until a genuinely shared pattern vocabulary is demonstrated.
 
 The shared matcher now has a second, still-bounded descriptor consumer. The
-AArch64 same-view-copy owner matches an exact terminal
+AArch64 same-view-copy owner matches an exact body-tail/terminator
 `CopyI64; ReturnI64` pair, including cross-instruction virtual-register and
 physical-view/storage relations, then joins its proposal to an independently
 replayed symbolic disposition and canonical codec. Its exact opt-in and sole
@@ -803,6 +823,18 @@ fails with a typed refusal. Consequently applied positive coverage remains at
 the machine-rule boundary. Compiler coverage proves honest zero-action routing,
 not arbitrary peephole topology, general copy removal, or a compiler-generated
 applied deletion.
+
+The exact `Aarch64ElideSameViewCopyI64BeforeCompareZeroV1` rule proves the
+second closed instruction-pair topology. It scans adjacent ordinary-body
+`CopyI64; CompareI64Zero` instructions, requires equal copy source/destination
+physical view and storage plus an exact destination-to-compare VReg relation,
+and records only the copy disposition. Its small owner joins descriptor-based
+proposal to independent rule-local replay of footprints, liveness, provenance,
+actions, and revisions. The existing copy-elision artifact family advances to
+an authenticated V2 policy tag, while the sole new catalog row and exact build
+selection use the generic composition, layout, realization, manifest, object,
+and callable route. The topology enum admits only body-tail/terminator and
+adjacent-body pairs; it grants no generic or arbitrary-length matcher.
 
 The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
 binds the complete native target and model version into a stable identity, and

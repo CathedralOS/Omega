@@ -554,10 +554,19 @@ elision. Its sub-40-line rule entrance joins a declarative
 identity, model, pattern, validation, and test rungs sit immediately below it.
 Its exact build selection and sole machine-catalog row feed a rule-neutral
 pipeline leaf, which retains the validated disposition through physical
-publication. No current ordinary lowering emits the exact terminal pair, so
+publication. No current ordinary lowering emits the exact body-tail pair, so
 applied deletion remains proven only at the rule boundary and compiler routing
 is a deterministic zero-action path. Fixed-view recovery's different shape is
 an explicit typed composition refusal rather than an inferred match.
+
+The third cataloged descriptor consumer is the exact AArch64
+`CopyI64; CompareI64Zero` elision. It proves a second closed matcher topology
+for adjacent ordinary-body instructions, but no generic pattern AST. Its own
+small rule entrance joins bounded descriptor proposal to rule-local independent
+replay of physical footprints, liveness, provenance, actions, and revisions.
+The shared copy-elision artifact codec and generic downstream carrier retain
+the new policy without creating a second enablement schedule or vertical
+pipeline.
 
 ## Deeper briefs
 

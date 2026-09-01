@@ -471,7 +471,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Sixty-one abstract-to-target families are covered,
+  machine-rule family. Sixty-two abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -1007,6 +1007,14 @@ decision. Only true language-semantic questions belong in
     180 signed/unsigned fixed-or-address type/pair/target cases, while catalog
     ambiguity, corruption, and plain/not/AND/XOR/parameter-OR substitution fail
     closed.
+  - [x] Add constant integer-bitwise-XOR-to-immediate as its own exact abstract-
+    to-target family. Its independently reconstructed four-operation grammar
+    retains both ordered constants, all three definitions, return edge, and
+    provenance; independent replay uses `IntegerType::bitwise_xor` and requires
+    the exact `ReturnIntegerImmediate`. Direct and optimized custody each cover
+    180 signed/unsigned fixed-or-address type/pair/target cases, while catalog
+    ambiguity, corruption, and plain/not/AND/OR/parameter-XOR substitution fail
+    closed.
   - [x] Add constant wrapping-integer-add-to-immediate as its own exact
     abstract-to-target family. Its four-operation grammar and independent
     replay retain both ordered constants, all definitions, return/provenance,
@@ -1342,8 +1350,20 @@ decision. Only true language-semantic questions belong in
   insertion is owner-blocked only on the spill-access fault semantics recorded
   in `OWNER_QUESTIONS.md`; the abstract schedules, reload-home analyses, and
   synthetic namespaces are not blocked.
-- [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
-  rematerialization cost decisions.
+- [>] Add coalescing, live-range splitting, fixed/precolored intervals, and
+  rematerialization cost decisions. The first fixed/precolored analysis now
+  converts authenticated entry/operand constraints into canonical half-open
+  `[point, point + 1)` intervals under `FixedConstraintPointIntervalsV1`.
+  Direct positional production and independently keyed replay bind ordinary
+  and structural roots, target register environment, allocator availability,
+  fuel, policy, every interval, exact usage `{1, 4, 6, 4, 2}`, and the receipt
+  identity. Cross-target/root/row/usage corruption and every representable
+  first-under budget fail closed; early-clobber fixed definitions receive an
+  explicit typed refusal rather than an under-modeled interval. The x86-64 and
+  AArch64 fixtures retain four exact rows. This is factual precoloring evidence
+  only: it chooses no home, copy, split, spill, instruction, memory operation,
+  frame coordinate, or publication. Coalescing, live-range splitting,
+  precolor-aware home decisions, and rematerialization costs remain open.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,
   probing, stable-address loans, and dynamic-allocation constraints.
 - [ ] Extend call-clobber validation through general scalar calls and
@@ -1370,8 +1390,9 @@ decision. Only true language-semantic questions belong in
   every other recovery-machine pair remains a typed rejection.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
-  - [x] Establish the first bounded terminal-pair matcher and move the AArch64
-    compare-zero/branch-nonzero producer onto an exact declarative descriptor
+  - [x] Establish the first bounded body-tail/terminator instruction-pair
+    matcher and move the AArch64 compare-zero/branch-nonzero producer onto an
+    exact declarative descriptor
     covering selected kinds, alternatives, operands, named physical units,
     register views, encoded effects, liveness continuity, and dead flags. Keep
     the existing independent validator as a separate replay implementation.
@@ -1388,14 +1409,24 @@ decision. Only true language-semantic questions belong in
     shape and composition is a typed refusal. Applied positive coverage remains
     at the machine-rule boundary, while compiler-facing coverage proves honest
     deterministic zero-action selection and publication.
-  - [ ] Generalize beyond the body-tail/terminator pair only when a second
-    exact rule proves a non-terminal-pair topology; the copy-elision rule
-    deliberately retains the existing bounded topology.
+  - [x] Generalize beyond the body-tail/terminator pair only after a second
+    exact rule proves the topology. The explicit instruction-pair topology now
+    distinguishes `BodyTailAndTerminatorV1` from
+    `AdjacentBodyInstructionsV1`; it is not a generic pattern AST. The exact
+    opt-in `Aarch64ElideSameViewCopyI64BeforeCompareZeroV1` recognizes adjacent
+    ordinary-body `CopyI64; CompareI64Zero`, requires the copy source and
+    destination to share one physical view/storage and the destination VReg to
+    be the compare input, and preserves exact footprint, liveness, and
+    provenance custody. Its rule-local independent replay, shared authenticated
+    copy-elision codec V2, budgets, corruption matrix, sole machine-catalog
+    row, and generic downstream custody are pinned. The shared matcher
+    vocabulary is now truthfully named instruction-pair rather than terminal-
+    pair; arbitrary-length patterns remain outside its authority.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling where independently verifiable. The
-  admitted same-view return-copy case is evidence for the first family, not
-  completion of general copy removal or a claim that current lowering produces
-  its exact candidate.
+  admitted same-view return-copy and before-compare-zero cases are evidence for
+  the first family, not completion of general copy removal or a claim that
+  current lowering produces either exact candidate.
 - [x] Add target cost models as non-authoritative identities. The V1 entrance
   binds exact native-target identity to retained exact-or-bounded size
   knowledge while keeping latency explicitly unavailable. Machine-rule
@@ -1465,9 +1496,13 @@ consumes and retains their identities through publication.
   prediction, exact-action agreement, choose/skip confusion, chosen-candidate
   mismatches, and a checked-i128 selected-cost sum; strict model/report codecs
   reject every custody substitution. This is plumbing and recorded-label
-  agreement, not an optimization-quality claim. CLI capture, checked
-  regression manifests, measured objective labels, external trainers/models,
-  and any compiler/model execution remain open.
+  agreement, not an optimization-quality claim. The explicit offline command
+  now captures one or more canonical V2 log files into a validated corpus file
+  through the same admission boundary. Its closed vocabulary, fail-closed
+  reads, create-once publication, canonical round trip, and no-overwrite
+  behavior are tested; it has no train, evaluate, compiler, process, or model-
+  execution command. Checked regression manifests, measured objective labels,
+  external trainers/models, and any compiler/model execution remain open.
 
 ML may rank already-declared equal transformations. It cannot invent an
 unchecked rewrite or opt into lossy floating-point semantics.
