@@ -603,8 +603,8 @@ This remains target-neutral logical scheduling and grants no physical slot,
 address, instruction, memory, frame, trap, unwind, encoding, emission, or
 publication authority.
 
-An original-victim canary is deliberately still upstream of this allocation
-boundary. The exact proposed graph is
+The original-victim canary now reaches this allocation boundary. Its exact
+graph is
 `r + ((r + (a + b)) + (b + r))`: its middle original remains unused at the
 epoch-two pressure point and is therefore eligible for guarded-original
 ranking. Canonical Psi proof production now advances that prerequisite with a
@@ -620,8 +620,14 @@ fixed-integer endpoints plus one exact cited definition produce a
 kernel-checked `IntegerExactAddDefinitionBound`. The intended graph now crosses
 that full proof path. The shared search state separately budgets the one
 computed join; a second join exhausts and refuses, so arbitrary exact-add DAG
-proof authority is not implied. The allocator fixture and original-victim
-spill-action authority remain separate unimplemented boundaries.
+proof authority is not implied. A distinct appended legalization recipe and
+independent replay retain the complete graph, and selected construction emits
+exactly 10 virtual registers and 13 instructions. In the public x86-64/AArch64
+fixture, guarded choice compares `Original(v5)` at `[13,17)` with the epoch-zero
+reload at `[12,19)`, prefers the eligible original under exact usage
+`{4, 2, 46, 1, 1}`, and rejects forged choices and cross-target custody. The
+following logical-action stage still returns its typed unsupported-original
+error; original-victim spill-action authority remains unimplemented.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

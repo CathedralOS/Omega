@@ -1084,10 +1084,9 @@ decision. Only true language-semantic questions belong in
   custody fail closed. The 26-line entrance grants no selected VReg,
   instruction, physical slot, address, memory effect, frame, trap, or
   publication authority. V1 deliberately refuses an original-value victim;
-  a fixture where an original passes the new choice proof and the corresponding
-  typed action generalization remain engineering work. The intended public
-  prerequisite graph is exactly `r + ((r + (a + b)) + (b + r))`, but it cannot
-  yet reach allocation honestly. Canonical Psi proof production now has one
+  the corresponding typed action generalization remains engineering work. The
+  exact public prerequisite graph `r + ((r + (a + b)) + (b + r))` now reaches
+  allocation honestly. Canonical Psi proof production has one
   bounded prerequisite slice: a 94-line direct-add entrance preserves the
   established correlated/targeted/flat precedence and may then combine two
   recursively proven affine-chain endpoints under one shared definition/depth
@@ -1102,8 +1101,18 @@ decision. Only true language-semantic questions belong in
   Terminal, proof-bundle format 23, and independent verifier replay. The same
   shared deterministic definition/depth/memo/cycle state owns a distinct
   one-join budget; a second computed join and arbitrary exact-add DAG authority
-  remain explicitly refused. The allocator original-victim fixture still does
-  not exist. No original-victim allocation claim exists yet. A
+  remain explicitly refused. A distinct appended legalization recipe and
+  independently replayed carrier retain that exact fork/join graph; selected
+  construction produces 10 virtual registers and 13 instructions without
+  changing older recipe tags. The public x86-64/AArch64 allocation fixture
+  carries the graph through two-view legality and epoch-two pressure. Its
+  guarded-original policy sees exactly `Original(v5)` at `[13,17)` and the
+  epoch-zero reload at `[12,19)`, then chooses `v5` under exact usage
+  `{4, 2, 46, 1, 1}`. Determinism, representable budget axes, forged choices,
+  root mutation, and cross-target custody fail closed. The downstream logical
+  action planner still returns its typed unsupported-original-victim error, so
+  this is original-victim choice evidence rather than a spill-action,
+  memory/frame, fault, unwind, or publication claim. A
   fourteenth independently replayed V1 artifact now integrates the validated epoch-two
   reload-victim obligations into one complete recursive logical insertion
   schedule. Its distinct stored-value type prevents a compiler-private reload

@@ -287,6 +287,15 @@ guards register the full ladder and prohibit validator reentry into proposal.
 This is compiler-private choice evidence, not an optimization catalog or
 physical spill action.
 
+The exact guarded-original prerequisite does not add another regalloc
+coordinator. Its distinct legalized source/replay leaves retain
+`r + ((r + (a + b)) + (b + r))`; named selected construction and block-replay
+leaves carry the same fork/join into the existing choice entrance. The mirrored
+`register_allocation/guarded_original_spill_recovery_choice.rs` leaf pins the
+exact original/reload contenders, choice, budgets, corruption fences, and the
+following typed action refusal. Older recipe tags and the choice taxonomy stay
+unchanged.
+
 Epoch-two logical action planning continues at
 `omega-regalloc/src/allocation/generalized_spill_recovery_actions/mod.rs`.
 Its 26-line executable entrance joins direct schedule traversal to an
