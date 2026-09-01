@@ -3177,8 +3177,12 @@ Remaining:
   alone enters native realization and whose optional receipt alone enters the
   final report; empty rollback preserves the exact build selection without
   minting a receipt. Architecture tests prevent the driver from rebuilding
-  that fallback. It only coordinates an admitted request through the shared
-  frontend and selected product stop.
+  that fallback. Native requests no longer take a second private driver
+  entrance or a second request validator: every product crosses the same
+  request admission, checked-Psi frontend, and exhaustive product stop. The
+  private checked/native receipt remains an in-arm custody check rather than a
+  callable compilation route. The driver only coordinates an admitted request
+  through the shared frontend and selected product stop.
 
   Restore the driver contract:
 

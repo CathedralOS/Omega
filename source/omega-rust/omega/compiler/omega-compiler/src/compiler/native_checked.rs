@@ -8,7 +8,7 @@ use crate::pipeline::CheckedCompilation;
 /// callers from pairing independently produced checked and native products.
 #[derive(Debug)]
 #[must_use = "a native compilation receipt retains the checked/native invocation join"]
-pub(crate) struct NativeCompilationWithCheckedReceipt {
+pub(super) struct NativeCompilationWithCheckedReceipt {
     checked: CheckedCompilation,
     report: CompileReport,
 }
@@ -53,36 +53,8 @@ impl NativeCompilationWithCheckedReceipt {
         Ok(Self { checked, report })
     }
 
-    /// The exact checked program consumed by this native invocation.
-    #[cfg(test)]
-    pub(crate) const fn checked(&self) -> &CheckedCompilation {
-        &self.checked
-    }
-
-    /// The native report produced by this invocation.
-    #[cfg(test)]
-    pub(crate) const fn report(&self) -> &CompileReport {
-        &self.report
-    }
-
-    /// Exact deployment-policy profile selected by checking.
-    #[cfg(test)]
-    pub(crate) fn target_profile(&self) -> omega_target::TargetProfile {
-        self.checked
-            .selected_target_profile()
-            .expect("checked native receipt constructor requires a target profile")
-    }
-
-    /// Exact native object/ABI target shared by checking and realization.
-    #[cfg(test)]
-    pub(crate) fn native_target(&self) -> omega_target::NativeTarget {
-        self.checked
-            .selected_native_target()
-            .expect("checked native receipt constructor requires a native target")
-    }
-
     /// Consume the checked/native pairing and return the legacy report.
-    pub(crate) fn into_report(self) -> CompileReport {
+    pub(super) fn into_report(self) -> CompileReport {
         let Self { checked, report } = self;
         drop(checked);
         report
