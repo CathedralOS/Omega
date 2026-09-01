@@ -3,7 +3,7 @@
 // dispatch is exhaustive WITHOUT `_`. Runs to verify the counted dispatch
 // still selects the right arm (exit 70 = the held case's arm).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case None;

@@ -8,7 +8,7 @@
 // untouched, membership must still hit (rung 3, exit 73). Exits 70 when all
 // three are right.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     consumed: bool;

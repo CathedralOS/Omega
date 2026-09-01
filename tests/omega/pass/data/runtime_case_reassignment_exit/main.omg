@@ -5,7 +5,7 @@
 // so a tag that never changed (or compared too wide) would take it. Exits 70
 // only when the second construction fully replaces the first.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Mode {
     case Stand;

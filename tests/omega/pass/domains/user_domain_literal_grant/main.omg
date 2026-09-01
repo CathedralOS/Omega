@@ -7,7 +7,7 @@
 // `in Ascii` requirement. The literal also flows as a real `&[u8]` view, so
 // `measure("hi")` reads its slice length 2 at runtime.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Ascii
 requires

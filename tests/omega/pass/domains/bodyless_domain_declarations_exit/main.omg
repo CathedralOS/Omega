@@ -1,7 +1,7 @@
 // P1a: the canonical semicolon spelling and the empty-braced spelling both
 // declare bodyless facts. An explicit `true` body remains a predicate body.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Ticket {
     serial: u64;

@@ -3,7 +3,7 @@
 // default and a Saturating result; a typed LET must bind the latter while an
 // ordinary LET binds the former. Runtime values differ so symbol/backend
 // identity mistakes are observable.
-use omega::language::std::console;
+use omega_language_std::console;
 
 machine convert(value: i32) -> i32 {
     transition { _ -> (69) }

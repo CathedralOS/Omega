@@ -8,7 +8,7 @@
 // the FIRST payload field (`power`) on to the target state. Exits 70 only
 // when both payload fields read correctly.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Attack {
     case Idle;

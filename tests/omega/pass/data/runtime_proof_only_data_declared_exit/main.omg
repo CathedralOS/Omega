@@ -7,7 +7,7 @@
 // templates are skipped. N2 gives these types their bignum fact
 // evaluation; the fail twins (fail/data/proof_only_*) pin each
 // consumption face's refusal.
-use omega::language::std::console;
+use omega_language_std::console;
 data Nat { case Zero; case Succ(prev: Nat); }
 data Tree { case Leaf; case Node(forest: Forest); }
 data Forest { case Empty; case Grow(tree: Tree, rest: Forest); }

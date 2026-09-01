@@ -409,6 +409,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("borrow", 3),
         ("comptime", 4),
         ("constants", 2),
+        ("data", 20),
         ("dependent", 11),
         ("errors", 1),
         ("layouts", 19),
@@ -467,6 +468,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("range", 6, 6),
         ("core", 10, 7),
         ("dungeon", 14, 7),
+        ("domains", 22, 19),
         ("host", 9, 8),
         ("providers", 16, 9),
     ] {

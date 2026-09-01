@@ -11,7 +11,7 @@
 //   5. tag dispatch with payload binding on the case part.
 // Exits 70 only when every step observes the right value.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data RoomEvent {
     consumed: bool;
