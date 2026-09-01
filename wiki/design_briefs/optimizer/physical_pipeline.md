@@ -176,6 +176,14 @@ and maximum endpoints plus both ordered endpoint directions cross direct and
 public optimized custody for fixed 8/16/32/64 and address64 on all five native
 targets. Its catalog row and replay remain disjoint from strict ordering,
 constant equality, and parameter inclusive ordering.
+Constant integer bitwise-AND is a distinct four-operation materialization
+family. It validates two ordered, same-type native integer constants,
+`IntegerBitwiseAnd`, and `Return`; independently computes the exact typed result
+with `IntegerType::bitwise_and`; and requires `ReturnIntegerImmediate` with all
+three source operations retained in order. Signed/unsigned fixed 8/16/32/64
+and address64 cross four ordered boundary pairs at direct and public optimized
+custody on all five targets. Its catalog row is disjoint from bitwise-not,
+bitwise-OR/XOR, plain immediate, and parameter AND.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -622,17 +630,17 @@ victim type. Direct traversal and independently indexed replay reconstruct the
 original U64 definition, one-block lifetime, pressure-point absence, and every
 later flexible use before emitting the store/reload/rewrite obligations. The
 public dual-target graph stores `v5` before point 14 and reloads it before the
-point-16 use under usage `{1, 1, 38, 1, 1}`. Recursive insertion rejects that
-victim kind explicitly, so no recursive schedule or physical authority is
-implied. The
-adjacent 26-line `recursive_spill_insertion` entrance now consumes those
-validated obligations and the prior generalized schedule. Direct projection
-and independently keyed replay recolor the complete closed-lifetime set and
-reconstruct one canonical event stream. A typed stored-value enum distinguishes
-original selected VRegs from compiler-private reload actions. In the current
-dual-target fixture, `[9,12]`, `[12,14]`, and `[14,16]` receive offsets 0, 8,
-and 0 in a still-16-byte abstract spill area; the epoch-two store precedes the
-pressured reload at point 14 and the new reload/rewrite occur at point 16.
+point-16 use under usage `{1, 1, 38, 1, 1}`. The adjacent 26-line
+`recursive_spill_insertion` entrance now exposes a separate original-victim V2
+policy beside the byte-stable reload-victim V1 policy. Direct projection and
+independently keyed replay admit only the matching victim/source kind, recolor
+the complete closed-lifetime set, and reconstruct one canonical event stream.
+A typed action-source enum retains the original VReg without pretending it is a
+compiler-private reload action. In the current dual-target fixture, `[9,12]`,
+`[12,14]`, and `[14,16]` receive offsets 0, 8, and 0 in a still-16-byte abstract
+spill area; the original-victim schedule contains eleven events under exact
+usage `{1, 3, 15, 3, 4}`. The epoch-two store names `Original(v5)`, precedes the
+pressured reload at point 14, and the new reload/rewrite occur at point 16.
 This remains target-neutral logical scheduling and grants no physical slot,
 address, instruction, memory, frame, trap, unwind, encoding, emission, or
 publication authority.
@@ -661,9 +669,9 @@ fixture, guarded choice compares `Original(v5)` at `[13,17)` with the epoch-zero
 reload at `[12,19)`, prefers the eligible original under exact usage
 `{4, 2, 46, 1, 1}`, and rejects forged choices and cross-target custody. The
 following V2 logical-action entry now retains the exact original store, reload,
-and rewrite obligations. The adjacent recursive insertion stage still returns
-its typed unsupported-original-victim error, keeping broader scheduling and
-every physical claim closed.
+and rewrite obligations. Its matching V2 recursive-insertion policy carries
+those obligations through the abstract schedule and existing spill-pseudo
+boundary while keeping every physical claim closed.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
