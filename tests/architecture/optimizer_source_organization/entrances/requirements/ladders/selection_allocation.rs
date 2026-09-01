@@ -22,6 +22,27 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "stack-slot coloring",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/compute/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/compute/intervals.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/compute/first_fit.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/compute/work.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/validate/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/validate/root.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/validate/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/validate/work.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/validate/receipt.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/codec/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/codec/encoding.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/codec/decoding.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/codec/cursor.rs",
+        ],
+    },
+    SemanticLadder {
         family: "selected machine-effect carrier",
         paths: &[
             "source/omega-rust/omega/representations/omega-selected-instructions/src/machine_effects/mod.rs",
@@ -113,6 +134,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/logical_spill_operations.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/register_homes.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/selected_input.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/stack_slot_coloring.rs",
         ],
     },
     SemanticLadder {
