@@ -32,3 +32,30 @@ Omega guarantee. If the boundary or enforceable claim is genuinely ambiguous,
 promote that narrow ambiguity here before adding machinery.
 
 Last pruned: 2026-08-31.
+
+## Q1 — Compiler-inserted spill-access fault semantics
+
+Omega must compile ordinary register-pressure programs by relocating live
+values through compiler-owned spill storage. Chapter 16 currently requires
+operation- or platform-triggered faults to remain inside explicit
+`crashes Trap` ceilings, while the optimizer semantic contract forbids
+introducing an observable trap or exit change. Neither contract says whether
+a fault caused only by realizing an otherwise-valid value in a
+compiler-selected stack slot is an Omega program observation.
+
+Choose the semantic boundary for compiler-inserted spill loads/stores:
+
+- the target/runtime must establish sufficient spill storage before entering
+  the checked invocation, making admitted spill accesses non-faulting in the
+  language model and treating establishment failure as an outer activation or
+  deployment failure;
+- each possibly faulting spill access is a platform-triggered `Trap` site that
+  must enter inferred/published crash ceilings with retained guard and
+  provenance; or
+- a versioned target realization profile explicitly selects between those
+  contracts and becomes part of optimization, frame, and publication custody.
+
+This decision blocks only conversion of the validated abstract spill schedule
+into real memory operations and frame/probing code. Logical spill choice,
+abstract slot coloring, reload-value allocation, and non-authoritative frame
+planning may proceed without making a trap claim.
