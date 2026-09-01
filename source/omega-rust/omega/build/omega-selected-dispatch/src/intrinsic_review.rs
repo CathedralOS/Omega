@@ -31,6 +31,61 @@ impl ResolvedAcceptedSemanticBinding {
     }
 }
 
+/// Resolve one requirement-only semantic role against an exact package-owned
+/// boundary declaration. Unlike Console execution settlement, this does not
+/// claim or synthesize a provider plan.
+pub fn resolve_accepted_service_binding(
+    checked: &CheckedTrees,
+    binding: &omega_package_compilation::AcceptedSemanticBinding,
+) -> Result<ResolvedAcceptedSemanticBinding, Diagnostic> {
+    if binding.role()
+        != omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService
+        || binding.selected_provider_plan_digest().is_some()
+    {
+        return Err(Diagnostic::error(format!(
+            "accepted semantic binding {:?} is not a requirement-only service binding",
+            binding.role(),
+        )));
+    }
+
+    let matches = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| {
+            definition.is_boundary
+                && checked
+                    .typed
+                    .symbols
+                    .symbol_package_identity(definition.symbol)
+                    == Some(binding.package())
+                && checked.typed.symbols.display_path(definition.symbol, "::")
+                    == binding.declaration_path()
+                && omega_effects::provider_plan::ServiceSchema::from_typed(
+                    &checked.typed,
+                    definition,
+                )
+                .is_some_and(|schema| {
+                    schema.trait_package_identity == Some(binding.package())
+                        && schema.identity_digest() == binding.normalized_schema_digest()
+                })
+        })
+        .map(|definition| definition.symbol)
+        .collect::<Vec<_>>();
+
+    let [declaration_symbol] = matches.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "accepted semantic binding {:?} resolved to {} exact package-owned boundary declarations instead of one",
+            binding.role(),
+            matches.len(),
+        )));
+    };
+    Ok(ResolvedAcceptedSemanticBinding {
+        accepted: binding.clone(),
+        declaration_symbol: *declaration_symbol,
+    })
+}
+
 /// Close row-aligned package-review identity after checked provider execution
 /// has been selected.
 ///

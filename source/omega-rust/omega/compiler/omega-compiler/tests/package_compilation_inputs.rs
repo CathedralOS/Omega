@@ -49,6 +49,32 @@ fn identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
 }
 
+#[test]
+fn package_aware_import_cannot_mount_bundled_standard_library() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        "use omega::language::std::console;\n",
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect_err("package-aware compilation must not mount bundled std");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("omega::language::std::console")
+                && diagnostic.message.contains("ordinary package dependency")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
 fn generated_source(
     relative_path: &[u8],
     bytes: &[u8],
@@ -4069,15 +4095,162 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
+    let tree = TempTree::new();
+    let root = tree.package("filesystem-application");
+    let filesystem = tree.package("filesystem-package");
+    let root_package = identity(50);
+    let filesystem_package = identity(51);
+    TempTree::write(
+        filesystem.join("filesystem_host.omg"),
+        r#"pub boundary trait FilesystemHost {
+    machine write(descriptor: i32, bytes: &[u8]) -> i64
+    reaches FilesystemHost;
+}
+"#,
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use host_services::filesystem_host;
+pub machine append(filesystem: FilesystemHost, descriptor: i32, bytes: &[u8]) -> i64
+reaches FilesystemHost
+invokes filesystem;
+{
+    filesystem.write(descriptor, bytes)
+}
+"#,
+    );
+    let base_inputs = || {
+        PackageCompilationInputs::new_package(
+            root_package,
+            vec![
+                PackageSourceBinding::new(root_package, "filesystem-application", root.clone()),
+                PackageSourceBinding::new(
+                    filesystem_package,
+                    "filesystem-package",
+                    filesystem.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_package,
+                "host_services",
+                filesystem_package,
+            )],
+        )
+        .expect("ordinary filesystem dependency graph")
+    };
+
+    let candidate = compile_to_checked_with_packages(&root.join("main.omg"), None, base_inputs())
+        .expect("ordinary filesystem requirement should check without semantic authority");
+    assert!(
+        candidate
+            .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+            .is_none(),
+        "a readable service name alone cannot grant filesystem authority",
+    );
+    let accepted = candidate
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            filesystem_package,
+            "FilesystemHost",
+        )
+        .expect("compiler should derive exact ordinary-package filesystem coordinates");
+
+    for (label, stale) in [
+        (
+            "package owner",
+            AcceptedSemanticBinding::new_service(
+                AcceptedSemanticBindingRole::FilesystemHostService,
+                root_package,
+                accepted.declaration_path(),
+                accepted.normalized_schema_digest(),
+            )
+            .unwrap(),
+        ),
+        (
+            "nominal declaration",
+            AcceptedSemanticBinding::new_service(
+                AcceptedSemanticBindingRole::FilesystemHostService,
+                filesystem_package,
+                "OtherFilesystemHost",
+                accepted.normalized_schema_digest(),
+            )
+            .unwrap(),
+        ),
+        (
+            "service schema",
+            AcceptedSemanticBinding::new_service(
+                AcceptedSemanticBindingRole::FilesystemHostService,
+                filesystem_package,
+                accepted.declaration_path(),
+                omega_effects::provider_plan::ServiceSchemaDigest::from_digest([93; 32]),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let diagnostics = compile_to_checked_with_packages(
+            &root.join("main.omg"),
+            None,
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![stale])
+                .expect("stale binding still names a package in the closure"),
+        )
+        .expect_err("stale filesystem authority must not survive exact settlement");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("resolved to 0 exact package-owned boundary declarations")),
+            "unexpected {label} diagnostics: {diagnostics:#?}",
+        );
+    }
+
+    let accepted_compilation = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        None,
+        base_inputs()
+            .with_accepted_semantic_bindings(vec![accepted.clone()])
+            .expect("exact accepted binding names the ordinary dependency"),
+    )
+    .expect("exact ordinary-package filesystem authority should settle");
+    assert_eq!(
+        accepted_compilation
+            .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+            .expect("exact filesystem binding was consumed")
+            .accepted(),
+        &accepted,
+    );
+}
+
+#[test]
 fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
         .expect("repository root");
-    let exit_root = repository.join("tests/omega/pass/providers/adapter_satisfies_compile");
+    let output = TempTree::new();
+    let exit_root = output.package("physical-exit-source");
+    TempTree::write(
+        exit_root.join("main.omg"),
+        r#"use host_services::console;
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
+"#,
+    );
+    TempTree::write(
+        exit_root.join("build.omg"),
+        r#"target linux_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("physical-exit");
+    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    let host_services_root = repository.join("tests/fixtures/packages/host-services");
     let empty_root = repository.join("tests/omega/pass/optimizer/no_selection_empty_entry");
     let port_root = repository.join("tests/omega/pass/inline_asm/asm_port_out_final_validation");
-    let output = TempTree::new();
 
     let compile_package = |root: &Path, marker: u8, label: &str| {
         let package = identity(marker);
@@ -4103,7 +4276,66 @@ fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
         .expect("package-aware Linux native fixture should compile")
     };
 
-    let exit = compile_package(&exit_root, 45, "physical-exit");
+    let exit_package = identity(45);
+    let host_services_package = identity(52);
+    let exit_inputs = || {
+        PackageCompilationInputs::new_package(
+            exit_package,
+            vec![
+                PackageSourceBinding::new(exit_package, "physical-exit", exit_root.clone()),
+                PackageSourceBinding::new(
+                    host_services_package,
+                    "host-services",
+                    host_services_root.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                exit_package,
+                "host_services",
+                host_services_package,
+            )],
+        )
+        .expect("ordinary process-exit dependency graph")
+    };
+    let exit_candidate = compile_to_checked_with_packages(
+        &exit_root.join("main.omg"),
+        Some("linux_x86_64"),
+        exit_inputs(),
+    )
+    .expect("ordinary process-exit candidate should check");
+    let (console_plan, console_provenance) = exit_candidate
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(exit_candidate.selected_provider_provenance())
+        .find(|(plan, _)| plan.schema.trait_name == "Console")
+        .expect("process-exit candidate retains selected Console plan");
+    let console_path = exit_candidate
+        .typed
+        .symbols
+        .display_path(console_provenance.provider.schema.symbol(), "::");
+    let console_binding = AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        host_services_package,
+        console_path,
+        console_plan.schema.identity_digest(),
+        console_plan.identity_digest(),
+    )
+    .expect("exact process-exit Console candidate");
+    let exit = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: exit_root.join("main.omg"),
+            build_dir: Some(output.0.join("physical-exit")),
+            target_name: Some("linux_x86_64".to_owned()),
+        })
+        .with_package_inputs(
+            exit_inputs()
+                .with_accepted_semantic_bindings(vec![console_binding])
+                .expect("accept exact ordinary Console binding"),
+        )
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .expect("package-aware ordinary process-exit fixture should compile");
     let evidence = exit
         .require_package_native_physical_evidence()
         .expect("the supported Linux exit lane carries exact physical evidence");

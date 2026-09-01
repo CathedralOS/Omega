@@ -18,7 +18,8 @@ use omega_package_manager::review::{
     FreshPackageRootPolicyError, LocallyComposedPackageObligationResults,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
     bind_fresh_package_root_policy, compare_review_only_initial_capabilities,
-    compile_resolved_package_reviews, resolve_review_only_root_policy_decisions,
+    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
+    resolve_review_only_root_policy_decisions,
 };
 use omega_package_source::{
     ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
@@ -103,9 +104,12 @@ fn graph_workbench_question() -> (
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve graph-workbench source closure");
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
-            .expect("compile graph-workbench package reviews");
+    let reviews = compile_resolved_package_candidate_reviews(
+        &closure,
+        "windows_x86_64",
+        &temporary.join("build"),
+    )
+    .expect("compile graph-workbench package reviews");
     let question = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
         &closure,
         &reviews,
@@ -136,8 +140,9 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     for entry in question.entries() {
         assert_eq!(entry.obligations().package(), entry.package().identity());
         let expected_transitive_packages = match entry.package().name().as_str() {
-            "graph-workbench" => 3,
-            "arithmetic-kernels" | "file-journal" => 1,
+            "graph-workbench" => 4,
+            "file-journal" => 2,
+            "arithmetic-kernels" | "host-services" => 1,
             package => panic!("unexpected graph-workbench package `{package}`"),
         };
         assert_eq!(
@@ -761,7 +766,7 @@ fn recovery_rejects_missing_duplicate_reordered_and_source_inconsistent_ledgers(
     let (temporary, _closure, _reviews, question) = graph_workbench_question();
     let limits = CanonicalPackageReconstructionQuestionLimits::default();
     let (version, source, ledgers) = split_question(question.canonical_bytes());
-    assert_eq!(ledgers.len(), 3);
+    assert_eq!(ledgers.len(), 4);
 
     let mut missing = ledgers.clone();
     missing.pop();

@@ -101,10 +101,10 @@ pub(super) fn assert_fixture_evidence(package: &str, review: &CheckedPackageRevi
             panic!("{package} exact dangerous authority")
         };
         assert_eq!(authority.class(), expected_class);
-        let PackageReviewNominalOwner::ToolchainSource(source) = authority.service().owner() else {
-            panic!("{package} dangerous authority must retain exact toolchain source")
+        let PackageReviewNominalOwner::Package(owner) = authority.service().owner() else {
+            panic!("{package} dangerous authority must retain exact ordinary-package owner")
         };
-        assert_ne!(source.digest(), [0; 32]);
+        assert_ne!(owner.digest(), [0; 32]);
         assert_eq!(authority.service().path(), expected_service);
     }
     assert_eq!(

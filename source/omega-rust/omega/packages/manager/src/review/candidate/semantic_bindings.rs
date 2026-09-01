@@ -1,8 +1,12 @@
 use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
+use omega_compiler::CheckedCompilation;
 use omega_package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use omega_package_evidence::record::{CheckedPackageProviderReview, PackageReviewNominalOwner};
+use omega_package_evidence::record::{
+    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// One consumer-scoped semantic-binding policy input for candidate review.
@@ -72,6 +76,15 @@ pub(super) fn candidate_semantic_binding_inputs(
 ) -> Result<Vec<ConsumerScopedSemanticBindingReviewInput>, CompileResolvedPackageReviewsError> {
     let mut inputs = Vec::new();
     for review in preliminary.reviews() {
+        inputs.extend(
+            review
+                .semantic_binding_candidates
+                .iter()
+                .cloned()
+                .map(|binding| {
+                    ConsumerScopedSemanticBindingReviewInput::new(review.key().clone(), binding)
+                }),
+        );
         let candidates = review
             .projection()
             .selected_providers()
@@ -114,6 +127,94 @@ pub(super) fn candidate_semantic_binding_inputs(
         ));
     }
     Ok(inputs)
+}
+
+/// Nominate exact package-owned requirement surfaces that the consumer's
+/// checked API actually reaches. Readable names guide this confined candidate
+/// pass only; the returned row binds exact package ownership, nominal path, and
+/// normalized schema and must be consumed by the compiler on the final pass.
+pub(super) fn candidate_service_bindings(
+    checked: &CheckedCompilation,
+    projection: &CheckedPackageReviewProjection,
+    consumer: &PackageKey,
+) -> Result<Vec<AcceptedSemanticBinding>, CompileResolvedPackageReviewsError> {
+    let referenced = projection
+        .callables()
+        .iter()
+        .flat_map(callable_service_references)
+        .filter(|service| {
+            service.path() == "FilesystemHost"
+                && matches!(service.owner(), PackageReviewNominalOwner::Package(_))
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let candidates = referenced
+        .iter()
+        .filter_map(|service| match service.owner() {
+            PackageReviewNominalOwner::Package(package) => {
+                Some((package, service.path().to_owned()))
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let candidates = candidates.iter().collect::<Vec<_>>();
+    let [(package, path)] = candidates.as_slice() else {
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        return Err(
+            CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+                consumer: consumer.clone(),
+                role: AcceptedSemanticBindingRole::FilesystemHostService,
+                candidate_count: candidates.len(),
+            },
+        );
+    };
+    checked
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            *package,
+            path,
+        )
+        .map(|binding| vec![binding])
+        .map_err(
+            |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: consumer.clone(),
+                role: AcceptedSemanticBindingRole::FilesystemHostService,
+            },
+        )
+}
+
+fn callable_service_references(
+    callable: &CheckedPackageCallableReview,
+) -> Vec<&PackageReviewNominalIdentity> {
+    let mut services = Vec::new();
+    if let Some(reach) = callable.declared_service_reach() {
+        services.extend(reach);
+    }
+    if let Some(reach) = callable.checked_service_reach().realized() {
+        services.extend(reach);
+    }
+    if let Some(reach) = callable.checked_service_reach().concrete() {
+        services.extend(reach);
+    }
+    for reach in callable.unresolved_installation_reaches() {
+        services.extend(reach.upper_bound());
+    }
+    if let Some(invocations) = callable.declared_synchronous_invocations() {
+        services.extend(
+            invocations
+                .iter()
+                .filter_map(|invocation| invocation.service()),
+        );
+    }
+    services.extend(
+        callable
+            .realized_synchronous_invocations()
+            .iter()
+            .filter_map(|invocation| invocation.service()),
+    );
+    services
 }
 
 fn is_package_console_intrinsic_candidate(provider: &CheckedPackageProviderReview) -> bool {

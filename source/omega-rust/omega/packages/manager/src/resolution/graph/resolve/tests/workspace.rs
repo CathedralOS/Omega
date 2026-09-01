@@ -17,7 +17,7 @@ fn resolves_explicit_workspace_path_closure() {
     )
     .expect("resolve local fixture closure");
 
-    assert_eq!(closure.graph().packages().len(), 3);
+    assert_eq!(closure.graph().packages().len(), 4);
     let root = closure
         .graph()
         .package(closure.graph().root())
@@ -44,7 +44,7 @@ fn resolves_explicit_workspace_path_closure() {
     assert_eq!(member_path.as_str(), "graph-workbench");
     assert_eq!(requested_workspace_root, &fixture_root());
     assert_eq!(root_binding.selected().key(), closure.graph().root());
-    assert_eq!(closure.source_requests().dependencies().count(), 2);
+    assert_eq!(closure.source_requests().dependencies().count(), 3);
 
     drop(storage);
     let _ = std::fs::remove_dir_all(cache_base);

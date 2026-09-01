@@ -1,0 +1,63 @@
+pub data ByteRead {
+    case Eof;
+    case Byte(value: i32 [0..=255]);
+}
+
+pub boundary trait Console {
+    machine write_line(text: &[u8]) reaches Console;
+    machine write(text: &[u8]) reaches Console;
+    machine read_line(out_line: &mut [u8]) reaches Console;
+    machine read_byte() -> ByteRead reaches Console;
+    machine write_byte(byte: i32) reaches Console;
+    machine exit_process(return_code: i32) reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+
+linux_x86_64 machine ConsoleNativeProvider::write_line(text: &[u8])
+satisfies Console::write_line
+via Binding::CompilerIntrinsic;
+
+linux_x86_64 machine ConsoleNativeProvider::write(text: &[u8])
+satisfies Console::write
+via Binding::CompilerIntrinsic;
+
+linux_x86_64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
+satisfies Console::read_line
+via Binding::CompilerIntrinsic;
+
+linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+satisfies Console::read_byte
+via Binding::CompilerIntrinsic;
+
+linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+satisfies Console::write_byte
+via Binding::CompilerIntrinsic;
+
+linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+satisfies Console::exit_process
+via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ConsoleNativeProvider::write_line(text: &[u8])
+satisfies Console::write_line
+via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ConsoleNativeProvider::write(text: &[u8])
+satisfies Console::write
+via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ConsoleNativeProvider::read_line(out_line: &mut [u8])
+satisfies Console::read_line
+via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+satisfies Console::read_byte
+via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+satisfies Console::write_byte
+via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+satisfies Console::exit_process
+via Binding::CompilerIntrinsic;

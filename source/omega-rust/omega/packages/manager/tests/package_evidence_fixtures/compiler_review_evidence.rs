@@ -16,7 +16,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
             PackageSourceClosureLimits::default(),
         )
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
-        let reviews = compile_resolved_package_reviews(
+        let reviews = compile_resolved_package_candidate_reviews(
             &closure,
             "windows_x86_64",
             &cache.join("compiler-build"),
@@ -614,7 +614,7 @@ fn process_exit_fixture_retains_closed_exit_and_unresolved_console_siblings() {
     )
     .expect("process-exit source closure should resolve");
 
-    let reviews = compile_resolved_package_reviews(
+    let reviews = compile_resolved_package_candidate_reviews(
         &closure,
         "linux_x86_64",
         &cache.join("compiler-build"),

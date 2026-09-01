@@ -8,7 +8,7 @@ use super::ledger::{
 use super::rows::ReviewOnlyCanonicalRow;
 use super::semantic_bindings::{
     ConsumerScopedSemanticBindingReviewInput, candidate_semantic_binding_inputs,
-    semantic_bindings_by_consumer,
+    candidate_service_bindings, semantic_bindings_by_consumer,
 };
 use super::session::ReviewBuildSession;
 use super::{
@@ -235,6 +235,7 @@ fn compile_resolved_package_reviews_in_session(
         if projection.package() != key.identity() {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: key });
         }
+        let semantic_binding_candidates = candidate_service_bindings(&checked, &projection, &key)?;
         let canonical_review_bytes = projection.canonical_review_bytes().map_err(|error| {
             CompileResolvedPackageReviewsError::Encoding {
                 package: key.clone(),
@@ -315,6 +316,7 @@ fn compile_resolved_package_reviews_in_session(
             build_evaluation_usage,
             build_observation_summary,
             semantic_bindings,
+            semantic_binding_candidates,
             generated_source_bundle: generated_source_bundle.clone(),
             projection,
             canonical_review_bytes,

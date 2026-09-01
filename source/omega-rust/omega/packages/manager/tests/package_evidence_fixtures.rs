@@ -23,8 +23,9 @@ use omega_package_manager::review::{
     assemble_initial_source_review, assemble_update_source_review,
     assemble_update_source_review_from_baseline, compare_review_only_capabilities,
     compare_review_only_capabilities_from_baseline, compare_review_only_initial_capabilities,
-    compile_resolved_package_reviews, triage_initial_install, triage_review_update,
-    triage_review_update_from_baseline, triage_update_without_admission_baseline,
+    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
+    triage_initial_install, triage_review_update, triage_review_update_from_baseline,
+    triage_update_without_admission_baseline,
 };
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolverStorage,

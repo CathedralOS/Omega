@@ -1,5 +1,5 @@
-// Public reach of the exact toolchain-owned Console boundary.
-use omega::language::std::console;
+// Public reach of one exact ordinary-package Console boundary.
+use host_services::console;
 
 pub machine terminate(console: Console, return_code: i32)
 reaches Console

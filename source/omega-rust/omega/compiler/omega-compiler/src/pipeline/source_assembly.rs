@@ -254,7 +254,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             let mut storage = SourceStorage::for_package_compilation(
                 root_package,
                 package_inputs.root(),
-                toolchain_root,
+                crate::pipeline::frontend::bundled_core_root(),
             );
             for (identity, source_root) in package_inputs.packages() {
                 storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
@@ -498,7 +498,7 @@ fn validate_package_source_frontier(
     frontier: Vec<PathBuf>,
     package_inputs: &PackageCompilationInputs,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-    let toolchain_root = crate::pipeline::frontend::bundled_omega_root();
+    let toolchain_root = crate::pipeline::frontend::bundled_core_root();
     let mut validated = Vec::with_capacity(frontier.len());
     let mut diagnostics = Vec::new();
 

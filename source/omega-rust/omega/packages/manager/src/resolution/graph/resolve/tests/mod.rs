@@ -4,7 +4,7 @@ use crate::review::{
     PackageSourceReviewLimits, PackageTriageDisposition, PackageTriageReason,
     ReviewOnlyCapabilityConflictChange, ReviewOnlyCapabilityConflictLimits,
     assemble_update_source_review, compare_review_only_capabilities,
-    compile_resolved_package_reviews, triage_review_update,
+    compile_resolved_package_candidate_reviews, triage_review_update,
 };
 use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,

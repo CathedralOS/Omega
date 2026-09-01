@@ -23,9 +23,11 @@ Packages:
 - `arithmetic-kernels`: pure public helper baseline with no declared host reach.
 - `generated-table`: package-local Source read plus one-file generated output;
   sponsored review realizes the first bounded `Receipted` grammar.
-- `file-journal`: public API with exact toolchain filesystem reach and
+- `host-services`: ordinary replacement package for exact Console and
+  FilesystemHost semantic-binding canaries; its name has no privilege.
+- `file-journal`: public API with exact accepted-package filesystem reach and
   invocation.
-- `process-exit`: public API with exact toolchain `Console` reach and process
+- `process-exit`: public API with exact accepted-package `Console` reach and process
   termination authority.
 - `network-overreach`: intentionally over-declared public network reach.
 - `remote-journal`: retained canonical-filesystem plus package-local network

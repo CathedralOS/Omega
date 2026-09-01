@@ -222,7 +222,7 @@ end_root_policy_resolution\n",
 
     write_package(
         &scenario.live,
-        r#"use omega::language::std::filesystem_host;
+        r#"pub boundary trait FilesystemHost { }
 
 pub machine reserved_filesystem_authority()
 reaches FilesystemHost
@@ -238,7 +238,7 @@ reaches FilesystemHost
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve dangerous-slack candidate");
-    let dangerous_slack_reviews = compile_resolved_package_reviews(
+    let dangerous_slack_reviews = compile_resolved_package_candidate_reviews(
         &dangerous_slack_sources,
         "windows_x86_64",
         &scenario.build_root,

@@ -1,0 +1,6 @@
+target linux_x86_64 { }
+target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("host-services");
+}
