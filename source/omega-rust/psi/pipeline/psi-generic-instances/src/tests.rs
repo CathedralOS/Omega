@@ -1180,6 +1180,140 @@ fn closed_generic_data_instance_preserves_public_visibility() {
 }
 
 #[test]
+fn closed_generic_composite_shells_substitute_nested_type_parameters() {
+    let source = r#"
+        data Shell<T> {
+            shared: &T;
+            values: [T];
+            nested: &[T; 2];
+        }
+        data Generated { value: Shell<u32>; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+    desugar_generic_data_instances(&mut syntax).expect("monomorphize composite shells");
+
+    let shell = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Shell<u32>" => Some(definition),
+            _ => None,
+        })
+        .expect("closed Shell instance");
+    let [
+        DataMember::Field(shared),
+        DataMember::Field(values),
+        DataMember::Field(nested),
+    ] = syntax.items.data_members(shell.members)
+    else {
+        panic!("Shell<u32> retains its three fields")
+    };
+    let TypeReferenceNode::Reference { referee, .. } =
+        syntax.type_references.type_reference(shared.type_reference)
+    else {
+        panic!("shared remains a reference")
+    };
+    assert!(matches!(
+        syntax.type_references.type_reference(*referee),
+        TypeReferenceNode::Named(name) if name.as_str() == "u32"
+    ));
+    let TypeReferenceNode::Slice { element_type } =
+        syntax.type_references.type_reference(values.type_reference)
+    else {
+        panic!("values remains a slice")
+    };
+    assert!(matches!(
+        syntax.type_references.type_reference(*element_type),
+        TypeReferenceNode::Named(name) if name.as_str() == "u32"
+    ));
+    let TypeReferenceNode::Reference { referee, .. } =
+        syntax.type_references.type_reference(nested.type_reference)
+    else {
+        panic!("nested remains a reference")
+    };
+    let TypeReferenceNode::FixedArray { element_type, .. } =
+        syntax.type_references.type_reference(*referee)
+    else {
+        panic!("nested reference retains its fixed-array referee")
+    };
+    assert!(matches!(
+        syntax.type_references.type_reference(*element_type),
+        TypeReferenceNode::Named(name) if name.as_str() == "u32"
+    ));
+}
+
+#[test]
+fn closed_generic_reference_instance_retains_erased_lifetime_application() {
+    let source = r#"
+        data Borrowed<'scope, T> { value: &'scope T; }
+        data Generated<'scope> { value: Borrowed<'scope, u32>; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+    desugar_generic_data_instances(&mut syntax).expect("monomorphize lifetime-bearing reference");
+
+    let borrowed = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Borrowed<u32>" => {
+                Some(definition)
+            }
+            _ => None,
+        })
+        .expect("closed Borrowed instance");
+    assert_eq!(
+        borrowed
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["scope"]
+    );
+    let [DataMember::Field(value)] = syntax.items.data_members(borrowed.members) else {
+        panic!("Borrowed<u32> retains its reference field")
+    };
+    let TypeReferenceNode::Reference {
+        referee, lifetime, ..
+    } = syntax.type_references.type_reference(value.type_reference)
+    else {
+        panic!("value remains a reference")
+    };
+    assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("scope"));
+    assert!(matches!(
+        syntax.type_references.type_reference(*referee),
+        TypeReferenceNode::Named(name) if name.as_str() == "u32"
+    ));
+
+    let generated = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Generated" => Some(definition),
+            _ => None,
+        })
+        .expect("Generated wrapper");
+    let [DataMember::Field(value)] = syntax.items.data_members(generated.members) else {
+        panic!("Generated retains its one field")
+    };
+    let TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = syntax.type_references.type_reference(value.type_reference)
+    else {
+        panic!("wrapper retains an erased-lifetime application")
+    };
+    assert_eq!(base_name.as_str(), "Borrowed<u32>");
+    assert_eq!(
+        lifetime_arguments
+            .iter()
+            .map(|argument| argument.as_str())
+            .collect::<Vec<_>>(),
+        ["scope"]
+    );
+    assert!(arguments.is_empty());
+}
+
+#[test]
 fn closed_generic_sum_preserves_payload_relevance_and_identities() {
     let source = r#"
         data Evidence { case Only; }

@@ -1554,8 +1554,8 @@ pub(super) fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<Type
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
 /// generic data definition, record the rewrite-to-plain-name and the (deduped)
 /// instantiation. Anything Phase 1 cannot lower completely -- a non-generic base,
-/// wrong arity, a non-sluggable argument, or a base that is not a plain record
-/// whose fields are each exactly the parameter or parameter-free -- is left
+/// wrong arity, a non-sluggable argument, or a data shape whose members cannot
+/// substitute every parameter occurrence exactly -- is left
 /// UNTOUCHED for the existing type-check-only path (skip, never reject).
 pub(super) fn consider_generic_spelling(
     syntax: &mut SyntaxTrees,
