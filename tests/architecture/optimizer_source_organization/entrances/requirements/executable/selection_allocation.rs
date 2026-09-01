@@ -238,6 +238,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn derive_abstract_spill_memory_effects",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_access_constraints/mod.rs",
+        coordination_marker: "pub fn constrain_abstract_spill_accesses",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_worklist/mod.rs",
         coordination_marker: "pub fn seed_spill_recovery_worklist",
     },
