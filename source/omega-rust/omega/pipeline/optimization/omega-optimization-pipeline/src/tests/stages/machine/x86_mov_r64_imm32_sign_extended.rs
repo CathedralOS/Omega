@@ -1,6 +1,10 @@
+//! Direct publication canary plus the exact rule's named custody-corruption rung.
+
 use omega_isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
 
 use crate::tests::*;
+
+mod custody_corruption;
 
 #[test]
 fn x86_mov_r64_imm32_sign_extended_reaches_publication_with_replayable_custody() {
@@ -76,7 +80,25 @@ fn x86_mov_r64_imm32_sign_extended_reaches_publication_with_replayable_custody()
     );
     assert_eq!(custody.artifact_identity(), receipt.identity().bytes());
     assert_eq!(custody.selections(), selections.identity());
+    assert_eq!(
+        custody.post_allocation_machine_selections(),
+        selections.identity()
+    );
     assert_eq!(custody.source(), machine.machine().receipt().identity());
+    assert_eq!(
+        custody.baseline_bytes(),
+        plan.actions
+            .iter()
+            .map(|action| u64::from(action.baseline_byte_count))
+            .sum::<u64>()
+    );
+    assert_eq!(
+        custody.selected_bytes(),
+        plan.actions
+            .iter()
+            .map(|action| u64::from(action.selected_byte_count))
+            .sum::<u64>()
+    );
     assert_eq!(
         selected_encoding.post_allocation_machine_optimization(),
         Some(custody)
