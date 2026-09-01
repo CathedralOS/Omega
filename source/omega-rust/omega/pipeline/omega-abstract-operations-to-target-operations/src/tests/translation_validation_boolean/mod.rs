@@ -31,6 +31,8 @@ mod target_corruption;
 mod equal_immediate;
 #[path = "../translation_validation_integer_equal_immediate/mod.rs"]
 mod integer_equal_immediate;
+#[path = "../translation_validation_integer_less_or_equal_immediate/mod.rs"]
+mod integer_less_or_equal_immediate;
 #[path = "../translation_validation_integer_less_than_immediate/mod.rs"]
 mod integer_less_than_immediate;
 #[path = "../translation_validation_boolean_not_immediate/mod.rs"]

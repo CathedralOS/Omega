@@ -10,6 +10,7 @@ use super::immediate::{
     StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
     StraightLineIntegerEqualImmediateTranslationReceipt,
     StraightLineIntegerLessThanImmediateTranslationReceipt,
+    StraightLineIntegerLessOrEqualImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
@@ -65,6 +66,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationReceipt),
     StraightLineIntegerLessThanImmediate(StraightLineIntegerLessThanImmediateTranslationReceipt),
+    StraightLineIntegerLessOrEqualImmediate(
+        StraightLineIntegerLessOrEqualImmediateTranslationReceipt,
+    ),
     StraightLineIntegerExactCastImmediateOperand(
         StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     ),

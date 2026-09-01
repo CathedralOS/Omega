@@ -24,6 +24,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerLessThanImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerLessThanImmediate
             }
+            Self::StraightLineIntegerLessOrEqualImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualImmediate
+            }
             Self::StraightLineIntegerExactCastImmediateOperand(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerExactCastImmediateOperand
             }

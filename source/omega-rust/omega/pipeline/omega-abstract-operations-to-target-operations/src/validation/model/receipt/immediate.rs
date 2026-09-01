@@ -1,7 +1,9 @@
 //! Parameterless scalar-immediate receipts.
 
+mod integer_less_or_equal;
 mod integer_less_than;
 
+pub use integer_less_or_equal::StraightLineIntegerLessOrEqualImmediateTranslationReceipt;
 pub use integer_less_than::StraightLineIntegerLessThanImmediateTranslationReceipt;
 
 use psi_core::{EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ValueId};

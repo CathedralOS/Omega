@@ -15,6 +15,7 @@ mod comparison;
 mod direct;
 mod immediate;
 mod integer_equal_immediate;
+mod integer_less_or_equal_immediate;
 mod integer_less_than_immediate;
 mod locations;
 mod shift;
