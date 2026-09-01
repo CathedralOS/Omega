@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -265,7 +265,7 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 7, "seven deduplicated closed instances");
+    assert_eq!(instances.len(), 9, "nine deduplicated closed instances");
     let instance = instances
         .iter()
         .copied()
@@ -385,6 +385,100 @@ machine build(builder: &mut Build) {{
     assert_erased_application(find_data("WithBorrow"), borrowed_instance.symbol);
     assert_erased_application(nested_borrow_instance, borrowed_instance.symbol);
     assert_erased_application(find_data("WithNestedBorrow"), nested_borrow_instance.symbol);
+    let const_block_template = find_data("ConstBlock");
+    let [_, const_parameter] = checked.typed.data_type_parameters(const_block_template) else {
+        panic!("ConstBlock retains its Type and const binders")
+    };
+    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } = const_parameter.kind
+    else {
+        panic!("ConstBlock.N remains a const binder")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "u64"
+    ));
+    let const_block_instance = instances
+        .iter()
+        .copied()
+        .find(|definition| definition.name.as_str() == "ConstBlock<u16, 2>")
+        .expect("selected ConstBlock<u16, 2> instance");
+    let [psi_typed_trees::data::DataMember::Field(values)] =
+        checked.typed.data_members(const_block_instance)
+    else {
+        panic!("ConstBlock<u16, 2> retains its values field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
+        element_type,
+        length,
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(values.type_reference)
+    else {
+        panic!("ConstBlock<u16, 2>.values remains an array")
+    };
+    assert_eq!(
+        *length,
+        psi_typed_trees::types::FixedArrayLength::Literal(2)
+    );
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(*element_type),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "u16"
+    ));
+    let const_origin = const_block_instance
+        .generic_instance
+        .expect("const instance retains its exact origin");
+    let psi_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(const_origin)
+    else {
+        panic!("const instance origin remains structural")
+    };
+    let [_, const_argument] = checked
+        .typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("const instance origin retains two arguments")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(*const_argument),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if !symbol.is_valid() && name.as_str() == "2"
+    ));
+    let nested_const_instance = instances
+        .iter()
+        .copied()
+        .find(|definition| definition.name.as_str() == "NestedConst<u16, 2>")
+        .expect("selected NestedConst<u16, 2> instance");
+    let assert_named_field = |owner: &psi_typed_trees::data::DataDefinition, expected_symbol| {
+        let [psi_typed_trees::data::DataMember::Field(field)] = checked.typed.data_members(owner)
+        else {
+            panic!("{} retains its one field", owner.name.as_str())
+        };
+        assert!(matches!(
+            checked
+                .typed
+                .type_reference_table
+                .type_reference(field.type_reference),
+            psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+                if *symbol == expected_symbol
+        ));
+    };
+    assert_named_field(nested_const_instance, const_block_instance.symbol);
+    assert_named_field(find_data("WithConst"), nested_const_instance.symbol);
     let wrapper = checked
         .typed
         .data_definitions()

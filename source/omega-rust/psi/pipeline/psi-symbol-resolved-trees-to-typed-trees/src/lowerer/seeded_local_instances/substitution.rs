@@ -133,14 +133,18 @@ fn type_matches(
             let TypeReference::FixedArray(instance_array) = instance else {
                 return false;
             };
-            template_array.length == instance_array.length
-                && type_matches(
-                    source,
-                    substitutions,
-                    validated_instances,
-                    source.child_type_reference(template_array.element_type),
-                    source.child_type_reference(instance_array.element_type),
-                )
+            super::const_arguments::substituted_array_length_matches(
+                source,
+                substitutions,
+                &template_array.length,
+                &instance_array.length,
+            ) && type_matches(
+                source,
+                substitutions,
+                validated_instances,
+                source.child_type_reference(template_array.element_type),
+                source.child_type_reference(instance_array.element_type),
+            )
         }
         TypeReference::Reference(template_reference) => {
             let TypeReference::Reference(instance_reference) = instance else {

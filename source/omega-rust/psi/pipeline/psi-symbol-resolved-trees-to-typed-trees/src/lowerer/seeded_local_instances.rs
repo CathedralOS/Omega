@@ -4,8 +4,26 @@ use super::exact_top_level_data_symbol;
 use psi_symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
 use psi_symbols::SymbolHandle;
 
+mod const_arguments;
 mod reachability;
 mod substitution;
+
+pub(super) fn parameter_is_supported(
+    source: &SymbolResolvedTrees,
+    owner: SymbolHandle,
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+) -> bool {
+    const_arguments::parameter_is_supported(source, owner, parameter)
+}
+
+pub(super) fn array_length_is_supported(
+    source: &SymbolResolvedTrees,
+    owner: SymbolHandle,
+    owner_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    length: &psi_symbol_resolved_trees::types::FixedArrayLength,
+) -> bool {
+    const_arguments::array_length_is_supported(source, owner, owner_parameters, length)
+}
 
 pub(super) fn instance_application_is_supported(
     source: &SymbolResolvedTrees,
@@ -79,45 +97,21 @@ pub(super) fn template_application_is_supported(
         && exact_top_level_data_symbol(source, template)
         && !parameters.is_empty()
         && parameters.len() == arguments.len()
-        && parameters.iter().all(|parameter| {
-            parameter.symbol.is_valid()
-                && source.symbols.get(parameter.symbol).kind
-                    == psi_symbols::SymbolKind::TypeParameter
-                && source.symbols.get(parameter.symbol).parent == template.symbol
-                && source.symbols.name(parameter.symbol) == parameter.name.as_str()
-                && matches!(
-                    parameter.kind,
-                    psi_symbol_resolved_trees::data::TypeParameterKind::Type
+        && parameters
+            .iter()
+            .all(|parameter| parameter_is_supported(source, template.symbol, parameter))
+        && parameters
+            .iter()
+            .zip(arguments)
+            .all(|(parameter, argument)| {
+                template_argument_is_supported(
+                    source,
+                    owner,
+                    owner_type_parameters,
+                    parameter,
+                    argument,
                 )
-        })
-        && arguments.iter().all(|argument| {
-            let TypeReference::Named { symbol, name } = argument else {
-                return false;
-            };
-            if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {
-                return false;
-            }
-            match source.symbols.get(*symbol).kind {
-                psi_symbols::SymbolKind::TypeParameter => {
-                    source.symbols.get(*symbol).parent == owner
-                        && owner_type_parameters
-                            .iter()
-                            .any(|parameter| parameter.symbol == *symbol)
-                }
-                psi_symbols::SymbolKind::BuiltinType => true,
-                psi_symbols::SymbolKind::Data => source
-                    .data_definitions
-                    .iter()
-                    .find(|definition| definition.symbol == *symbol)
-                    .is_some_and(|definition| {
-                        exact_top_level_data_symbol(source, definition)
-                            && definition.lifetime_parameters.is_empty()
-                            && definition.type_parameters.is_empty()
-                            && definition.generic_instance.is_none()
-                    }),
-                _ => false,
-            }
-        })
+            })
 }
 
 /// Reconstruct every admitted local instance independently and return the exact
@@ -125,9 +119,9 @@ pub(super) fn template_application_is_supported(
 ///
 /// No fixed declaration or use count belongs here. The normalizer's retained
 /// origin is sufficient to rejoin each instance to one same-unit template,
-/// replay Type-parameter substitution through fields or case payloads, and require at least one
-/// ordinary-data use. Unsupported synthesis shapes reject the whole candidate
-/// transactionally.
+/// replay Type and scalar-const substitution through fields or case payloads,
+/// and require at least one ordinary-data use. Unsupported synthesis shapes
+/// reject the whole candidate transactionally.
 pub(super) fn validated_symbols(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
@@ -210,26 +204,14 @@ fn validate_instance(
     let mut argument_names = Vec::with_capacity(arguments.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let TypeReference::Named {
-            symbol: argument_symbol,
             name: argument_name,
+            ..
         } = argument
         else {
             return false;
         };
-        if !parameter.symbol.is_valid()
-            || source.symbols.get(parameter.symbol).kind != psi_symbols::SymbolKind::TypeParameter
-            || source.symbols.get(parameter.symbol).parent != template.symbol
-            || source.symbols.name(parameter.symbol) != parameter.name.as_str()
-            || !matches!(
-                parameter.kind,
-                psi_symbol_resolved_trees::data::TypeParameterKind::Type
-            )
-            || !supported_named_argument(
-                source,
-                validated_instances,
-                *argument_symbol,
-                argument_name.as_str(),
-            )
+        if !parameter_is_supported(source, template.symbol, parameter)
+            || !instance_argument_is_supported(source, validated_instances, parameter, argument)
         {
             return false;
         }
@@ -258,6 +240,81 @@ fn validate_instance(
                 )
             },
         )
+}
+
+fn template_argument_is_supported(
+    source: &SymbolResolvedTrees,
+    owner: SymbolHandle,
+    owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+    argument: &TypeReference,
+) -> bool {
+    match parameter.kind {
+        psi_symbol_resolved_trees::data::TypeParameterKind::Type => {
+            let TypeReference::Named { symbol, name } = argument else {
+                return false;
+            };
+            if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {
+                return false;
+            }
+            match source.symbols.get(*symbol).kind {
+                psi_symbols::SymbolKind::TypeParameter => {
+                    source.symbols.get(*symbol).parent == owner
+                        && owner_type_parameters.iter().any(|candidate| {
+                            candidate.symbol == *symbol
+                                && matches!(
+                                    candidate.kind,
+                                    psi_symbol_resolved_trees::data::TypeParameterKind::Type
+                                )
+                        })
+                }
+                psi_symbols::SymbolKind::BuiltinType => true,
+                psi_symbols::SymbolKind::Data => source
+                    .data_definitions
+                    .iter()
+                    .find(|definition| definition.symbol == *symbol)
+                    .is_some_and(|definition| {
+                        exact_top_level_data_symbol(source, definition)
+                            && definition.lifetime_parameters.is_empty()
+                            && definition.type_parameters.is_empty()
+                            && definition.generic_instance.is_none()
+                    }),
+                _ => false,
+            }
+        }
+        psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+            const_arguments::template_argument_is_supported(
+                source,
+                owner,
+                owner_type_parameters,
+                parameter,
+                argument,
+            )
+        }
+        psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+        | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+    }
+}
+
+fn instance_argument_is_supported(
+    source: &SymbolResolvedTrees,
+    validated_instances: &[SymbolHandle],
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+    argument: &TypeReference,
+) -> bool {
+    match parameter.kind {
+        psi_symbol_resolved_trees::data::TypeParameterKind::Type => {
+            let TypeReference::Named { symbol, name } = argument else {
+                return false;
+            };
+            supported_named_argument(source, validated_instances, *symbol, name.as_str())
+        }
+        psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
+            const_arguments::closed_argument_is_supported(source, parameter, argument)
+        }
+        psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
+        | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
+    }
 }
 
 fn supported_named_argument(
