@@ -3,11 +3,13 @@
 [Chain overview](bootstrap_chain.md) | [Standing decisions](decisions.md) |
 [Product repository layout](../repository_layout.md)
 
-The repository groups source by the language a compiler accepts. The source
-suffix records the language in which that compiler is implemented. Bootstrap is
-a build-graph property, not a generic folder or source owner.
+The baseline repository groups source by the language a compiler accepts. The
+source suffix records the language in which that compiler is implemented.
+Bootstrap is a build-graph property, not a generic folder or source owner. The
+layout changes atomically if the chain experiment removes a rung; empty owners
+and compatibility directories do not survive topology selection.
 
-## Target layout
+## Baseline layout
 
 ```text
 source/

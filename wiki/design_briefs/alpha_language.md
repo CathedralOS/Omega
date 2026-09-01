@@ -66,7 +66,7 @@ standing design brief as universal constants.
 
 ## Bootstrap role
 
-The language spine and hosted build are:
+The currently implemented baseline and hosted build are:
 
 ```text
 Alpha VM → Beta assembler → Gamma → Delta → Epsilon

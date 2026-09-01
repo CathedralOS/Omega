@@ -1,19 +1,21 @@
 # Bootstrap minimization
 
-> **Status: design and measurement work queued.** The language spine remains
-> `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`; the feature surface,
-> compiler boundary protocols, and checker calculus at each rung are open to
-> reduction. Existing implementation and corpus usage price migration but do
-> not justify retention.
+> **Status: design and measurement work queued.** The current
+> `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega` spine is the comparison
+> baseline, not a constraint. Whole rungs, compiler edges, checker placements,
+> feature surfaces, and boundary protocols are open to removal or replacement.
+> Existing implementation and corpus usage price migration but do not justify
+> retention. Candidate topologies and their shared experiment are defined in
+> [Bootstrap chain alternatives](bootstrap_chain_alternatives.md).
 
 ## Objective
 
-The bootstrap chain constructs one exact successor at each edge. It is not a
-family of public compiler services and its intermediate languages do not need
-general-purpose completeness. The optimization target is the smallest whole
-chain that remains readable, expressive enough for its exact successor,
-locally auditable, bounded, and capable of carrying the required checked
-source-to-Alpha claims.
+The bootstrap process constructs the first full Omega compiler. It is not a
+family of public compiler services, and its intermediate languages do not need
+general-purpose completeness or even permanent existence. The optimization
+target is the smallest whole path that remains readable, expressive enough for
+its exact required programs, locally auditable, bounded, and capable of carrying
+the required checked claims.
 
 Source bytes alone are not the objective. Moving repeated source into a more
 powerful lower-rung primitive can shorten one compiler while enlarging every
@@ -35,18 +37,21 @@ complexity into an opaque primitive is a regression even when it saves bytes.
 
 ## Non-negotiable properties
 
-Minimization preserves:
+Every candidate must preserve:
 
-- one immediate-predecessor compiler source and one exact Alpha tape per edge;
 - deterministic written semantics for every retained language construct;
-- a closed textual source envelope and bounded execution;
+- exact identity for every admitted seed and generated artifact;
+- a closed source envelope and bounded execution for every retained language;
 - `Complete`, invalid-source, insufficient-capacity/support, and compiler-
   contradiction outcomes as semantically distinct facts;
 - exact successful tape bytes and fail-closed publication;
 - independent reconstruction of the proposition checked for each exact source
   and tape subject; and
-- the absence of native compilers, source-specific Alpha accelerators, hidden
-  host semantic stages, or cross-rung parsing.
+- the absence of hidden host semantic stages and source-specific accelerators.
+
+A candidate may replace an immediate-predecessor compiler with a directly
+audited seed, delete a language, interpret rather than compile an early source,
+or move the checker. Those choices count in full against its root audit.
 
 The work may change syntax, compiler internals, diagnostic detail, resource
 profiles, certificate formats, and the checker calculus. Existing decisions
@@ -58,7 +63,7 @@ smaller design.
 Work backward from the exact successor source rather than forward from the
 features an intermediate language currently offers.
 
-For each rung:
+For each rung and each skip-rung alternative:
 
 1. Freeze the exact successor source closure used for measurement.
 2. Inventory every instruction, grammar production, value category, control
@@ -66,9 +71,9 @@ For each rung:
    proof rule, and host helper.
 3. Map each retained item to the exact successor construct or checked edge
    property that needs it. Current users establish migration cost only.
-4. Compare four shapes: retain it; express the need with existing machinery;
-   restructure the successor to remove the need; or add one narrower lower-
-   rung mechanism that reduces total chain cost.
+4. Compare five shapes: retain it; express the need with existing machinery;
+   restructure the successor to remove the need; add one narrower lower-rung
+   mechanism; or delete the entire rung and connect its neighbors directly.
 5. Measure source/tape size, semantic rule count, mutable state and table
    count, proof/certificate burden, checking work, and permanent tests/tools
    for every viable shape.
@@ -145,7 +150,8 @@ needed by a compiler edge.
 
 ## Sequencing
 
-1. Establish the common inventory and cost report before changing a rung.
+1. Establish the common inventory and candidate experiment before selecting a
+   permanent topology.
 2. Settle the minimal compiler outcome/profile contract before completing
    Delta's `DCOUT`/`ECOUT` adapters or adding further profile machinery.
 3. Audit the checker against explicit candidate edge propositions before

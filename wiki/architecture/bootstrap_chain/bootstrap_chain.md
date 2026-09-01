@@ -1,15 +1,16 @@
 # The Bootstrap Chain
 
-> **Status: fixed spine, surfaces under minimization, incomplete upper
-> implementations.** The language spine is
+> **Status: implemented baseline under whole-topology comparison, incomplete
+> upper implementations.** The current language spine is
 > `Alpha → Beta → Gamma → Delta → Epsilon → Omega`. Alpha tape is the canonical
-> executable form of every bootstrap compiler. The existence and ordering of
-> the rungs are fixed; their instruction sets, language features, compiler
-> boundary protocols, and checker calculus are not presumed minimal. Current
+> executable form of the implemented bootstrap compilers. The existence and
+> ordering of the rungs are no longer presumed optimal; whole rungs may be
+> removed or replaced alongside their instruction sets, language features,
+> compiler boundary protocols, and checker placement. Current
 > Gamma has its canonical immediate-predecessor source and direct tape; its full
 > refinement remains open, as do the upper compiler implementations.
 
-## The chain
+## The implemented baseline
 
 Let `D` be the exact Epsilon-written source closure of the first full Omega
 compiler, and `C` the exact Omega-written source closure of the self-hosting
@@ -53,11 +54,12 @@ weighted more heavily because every later edge inherits it. Saving source bytes
 by adding an opaque compound opcode or proof axiom is not minimization.
 
 The active method and completion criteria live in
-[Bootstrap minimization](../../design_briefs/bootstrap_minimization.md). The
-ordered audit and implementation tasks are in `TASKS_BOOTSTRAP.md`. The audit
-works backward from exact successor sources, selects one whole-chain design,
-then implementation and artifact reconstruction proceed from the lowest
-changed rung upward.
+[Bootstrap minimization](../../design_briefs/bootstrap_minimization.md).
+[Bootstrap chain alternatives](../../design_briefs/bootstrap_chain_alternatives.md)
+defines the candidate topologies and common audit experiment. The ordered audit
+and implementation tasks are in `TASKS_BOOTSTRAP.md`. The audit works backward
+from exact successor sources, selects one whole-chain design, then implementation
+and artifact reconstruction proceed from the lowest changed component upward.
 
 Beta assembly, Gamma, Delta, and Epsilon implementation source also share the
 closed textual-ASCII envelope fixed by [D15](decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).
@@ -136,9 +138,9 @@ lemmas—not executable bridge stages.
 
 No implementation gains authority by occupying more than one role.
 
-## The fixed language spine
+## Baseline language spine
 
-| Rung | Responsibility | Canonical implementation direction |
+| Rung | Responsibility | Current implementation direction |
 | --- | --- | --- |
 | [Alpha](rungs/alpha.md) | minimal deterministic tape execution | written semantics plus audited native VM seeds |
 | [Beta](rungs/beta.md) | textual Alpha assembly | direct Alpha tape plus readable self-host source |
@@ -147,10 +149,11 @@ No implementation gains authority by occupying more than one role.
 | [Epsilon](rungs/epsilon.md) | deterministic compiler-host systems language | Delta-written compiler to Alpha tape |
 | [Omega](omega_toolchain.md) | full product language and compiler | Epsilon-written first compiler, then Omega-written compiler |
 
-The Alpha-owned [proof kernel](proof_kernel.md) is universal checker
-infrastructure, not another rung. Terminal Psi is an internal product compiler
-boundary, not a language rung. The Rust compiler is a comparator and working
-implementation, not part of the canonical chain.
+The Alpha-owned [proof kernel](proof_kernel.md) is currently checker
+infrastructure rather than another rung; its placement is part of the topology
+comparison. Terminal Psi is an internal product compiler boundary, not
+automatically a bootstrap rung. The Rust compiler is a comparator and working
+implementation, not part of the authoritative baseline.
 
 ## Orchestration is replaceable
 

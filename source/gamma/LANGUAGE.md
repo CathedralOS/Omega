@@ -2,8 +2,9 @@
 
 > The small structured systems layer above Beta assembly. The canonical
 > compiler is implemented in Beta.
-> The rung name and place in `Alpha → Beta → Gamma → Delta → Epsilon` are fixed by
-> bootstrap decision D6.
+> Its current place in `Alpha → Beta → Gamma → Delta → Epsilon` is the
+> implemented baseline recorded by bootstrap decision D6. The whole-rung
+> comparison may remove Gamma from the selected chain.
 > Runtime meaning is fixed separately by [`SEMANTICS.md`](SEMANTICS.md).
 
 ## What it is

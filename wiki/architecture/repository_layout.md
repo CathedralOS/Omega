@@ -8,11 +8,12 @@ This page is a map and a placement guide. It should help answer two questions:
 The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
-How Omega reaches its hosted compiler—the trust architecture and the exact
-`Alpha → Beta → Gamma → Delta → Epsilon` language spine—is a build-graph property
+How Omega reaches its hosted compiler—the trust architecture and the currently
+implemented `Alpha → Beta → Gamma → Delta → Epsilon` baseline—is a build-graph property
 described by [The Bootstrap Chain](bootstrap_chain/bootstrap_chain.md)
 and its [target repository structure](bootstrap_chain/repository_structure.md).
-It is not a separate source ownership domain.
+It is not a separate source ownership domain. Competing smaller topologies are
+defined in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_alternatives.md).
 
 ## Design Bias
 
