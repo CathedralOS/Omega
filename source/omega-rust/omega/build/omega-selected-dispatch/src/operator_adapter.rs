@@ -59,14 +59,15 @@ pub fn settle_selected_operator_adapter_dispatch(
 
     let applications = rewrites
         .iter()
-        .map(|rewrite| unit::selected_unit_application(checked, rewrite))
+        .map(|rewrite| unit::selected_application(checked, rewrite))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|diagnostic| vec![diagnostic])?;
     let mut staged = checked.as_ref().clone();
-    psi_typed_trees_to_checked_trees::rebuild_checked_unit_effect_plans_with_selected_operators(
+    psi_typed_trees_to_checked_trees::rebuild_checked_terminal_plans_with_selected_execution(
         &mut staged,
         &applications,
-    );
+        &[],
+    )?;
     for rewrite in &rewrites {
         unit::validate_selected_unit_application(&staged, rewrite)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -198,6 +199,109 @@ pub fn validate_selected_operator_terminal_custody(
                 ))),
                 Err(diagnostic) => diagnostics.push(diagnostic),
             }
+        }
+    }
+    for machine in &checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .selected_operator_machines
+    {
+        let origin = CheckedValueOrigin::StateStatement {
+            machine_symbol: machine.machine,
+            state_symbol: machine.state,
+            statement_index: match usize::try_from(machine.return_statement_ordinal) {
+                Ok(statement_index) => statement_index,
+                Err(_) => {
+                    diagnostics.push(Diagnostic::error(
+                        "selected structural operator statement coordinate exceeds usize",
+                    ));
+                    continue;
+                }
+            },
+            role: CheckedValueStatementRole::Expression,
+        };
+        let uses = checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .map(|(_, operator_use)| {
+                (
+                    operator_use.expression,
+                    operator_use.origin,
+                    operator_use.selected_operator_symbol,
+                    operator_use.provider_plan_report_fingerprint,
+                    operator_use.provider_plan_commitment,
+                )
+            })
+            .chain(
+                checked
+                    .facts
+                    .operators
+                    .uses
+                    .iter()
+                    .map(|(_, operator_use)| {
+                        (
+                            operator_use.expression,
+                            operator_use.origin,
+                            operator_use.selected_operator_symbol,
+                            operator_use.provider_plan_report_fingerprint,
+                            operator_use.provider_plan_commitment,
+                        )
+                    }),
+            )
+            .filter(|(_, use_origin, operator, report, commitment)| {
+                *use_origin == origin
+                    && *operator == machine.requirement_operator
+                    && *report == machine.provider_plan_report_fingerprint
+                    && *commitment == machine.provider_plan_commitment
+            })
+            .collect::<Vec<_>>();
+        let [(expression, _, _, _, _)] = uses.as_slice() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected structural operator at {origin:?} retained {} matching authored uses; expected exactly one",
+                uses.len(),
+            )));
+            continue;
+        };
+        let plan = match resolve_exact_selected_plan(
+            selected_provider_plans.plans(),
+            machine.provider_plan_report_fingerprint,
+            machine.provider_plan_commitment,
+            "selected structural operator call",
+        ) {
+            Ok(plan) => plan,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        let operator =
+            match exact_operator_definition(checked, *expression, machine.requirement_operator) {
+                Ok(operator) => operator,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    continue;
+                }
+            };
+        match resolve_checked_adapter_for_operator(checked, operator, plan, *expression) {
+            Ok(Some((expected_machine, _, expected_state)))
+                if expected_machine == machine.realization_machine
+                    && expected_state == machine.realization_state => {}
+            Ok(Some((expected_machine, expected_name, expected_state))) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected structural operator at {origin:?} retains realization {:?}/{:?}, but its exact ProviderPlan selects `{expected_name}` at {:?}/{:?}",
+                    machine.realization_machine,
+                    machine.realization_state,
+                    expected_machine,
+                    expected_state,
+                )));
+            }
+            Ok(None) => diagnostics.push(Diagnostic::error(format!(
+                "selected structural operator at {origin:?} is not backed by a checked-adapter ProviderPlan row",
+            ))),
+            Err(diagnostic) => diagnostics.push(diagnostic),
         }
     }
     if diagnostics.is_empty() {
@@ -334,13 +438,13 @@ pub(super) fn apply_selected_operator_adapter_rewrites(
     }
 }
 
-pub(super) fn selected_unit_applications(
+pub(super) fn selected_operator_applications(
     checked: &CheckedTrees,
     rewrites: &[OperatorAdapterRewrite],
-) -> Result<Vec<psi_typed_trees_to_checked_trees::SelectedOperatorUnitApplication>, Diagnostic> {
+) -> Result<Vec<psi_typed_trees_to_checked_trees::SelectedOperatorApplication>, Diagnostic> {
     rewrites
         .iter()
-        .map(|rewrite| unit::selected_unit_application(checked, rewrite))
+        .map(|rewrite| unit::selected_application(checked, rewrite))
         .collect()
 }
 

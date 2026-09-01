@@ -13,6 +13,7 @@ use crate::scalar_graph_lowering::lower_scalar_graph_machine;
 use crate::structural_call_return::lower_structural_call_return_machine;
 use crate::structural_return::lower_structural_return_machine;
 use crate::structural_scalar_return::{
+    lower_selected_operator_structural_scalar_return_machine,
     lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
 };
 use crate::structural_unit_control::lower_structural_unit_control_machine;
@@ -27,6 +28,9 @@ pub(super) enum SelectedMachineRoute {
         target_machine: psi_symbols::SymbolHandle,
     },
     TraitOperatorScalarReturn {
+        realization_machine: psi_symbols::SymbolHandle,
+    },
+    SelectedOperatorStructuralScalarReturn {
         realization_machine: psi_symbols::SymbolHandle,
     },
     StructuralScalarReturn,
@@ -85,6 +89,19 @@ pub(super) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .selected_operator_for_machine(selection.machine)
+    {
+        return routed_machine(
+            lower_selected_operator_structural_scalar_return_machine(checked, plan),
+            SelectedMachineRoute::SelectedOperatorStructuralScalarReturn {
+                realization_machine: plan.realization_machine,
+            },
+        );
+    }
     if let Some(plan) = checked
         .facts
         .flow

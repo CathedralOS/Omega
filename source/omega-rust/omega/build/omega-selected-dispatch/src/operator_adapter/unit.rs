@@ -2,10 +2,10 @@
 
 use super::*;
 
-pub(super) fn selected_unit_application(
+pub(super) fn selected_application(
     checked: &CheckedTrees,
     rewrite: &OperatorAdapterRewrite,
-) -> Result<psi_typed_trees_to_checked_trees::SelectedOperatorUnitApplication, Diagnostic> {
+) -> Result<psi_typed_trees_to_checked_trees::SelectedOperatorApplication, Diagnostic> {
     let operands = match &rewrite.source {
         OperatorAdapterSource::NamedCall => {
             let ExpressionNode::Call(call) = checked
@@ -27,7 +27,7 @@ pub(super) fn selected_unit_application(
         OperatorAdapterSource::Spelled(operands) => operands.to_vec(),
     };
     Ok(
-        psi_typed_trees_to_checked_trees::SelectedOperatorUnitApplication {
+        psi_typed_trees_to_checked_trees::SelectedOperatorApplication {
             expression: rewrite.expression,
             origin: rewrite.origin,
             requirement_operator: rewrite.requirement_operator,

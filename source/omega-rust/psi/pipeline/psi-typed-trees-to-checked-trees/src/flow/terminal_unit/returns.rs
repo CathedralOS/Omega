@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod selected_operator;
+use selected_operator::build_selected_operator_structural_scalar_return_machine;
+
 /// Build the exact checked carriers for `T in D -> T in D` whole-root
 /// passthrough and the separate zero-input payload-less sum-case constructor.
 /// Every wider ownership or control shape is omitted atomically.
@@ -1363,17 +1366,10 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
-    let trait_operator_machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_trait_operator_scalar_return_machine(program, facts, &mut shapes, machine)
-        })
-        .collect::<Vec<_>>();
     let machines = program
         .machines()
         .iter()
@@ -1387,6 +1383,29 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
                 machine,
                 diagnostics,
             )
+        })
+        .collect::<Vec<_>>();
+    let selected_operator_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_selected_operator_structural_scalar_return_machine(
+                program,
+                facts,
+                &mut shapes,
+                machine,
+                &machines,
+                selected_operator_applications,
+            )
+        })
+        .collect::<Vec<_>>();
+    let trait_operator_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_trait_operator_scalar_return_machine(program, facts, &mut shapes, machine)
         })
         .collect::<Vec<_>>();
     let retained = machines
@@ -1411,11 +1430,18 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
                         .map(|parameter| parameter.type_identity.as_str()),
                 )
         }))
+        .chain(selected_operator_machines.iter().flat_map(|machine| {
+            machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity.as_str())
+        }))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedStructuralScalarReturnPlans {
         structural_types: shapes.types.into_values().collect(),
         machines,
+        selected_operator_machines,
         trait_operator_machines,
     }
 }

@@ -7,9 +7,9 @@ pub(super) fn selected_operator_scalar_result_local<'applications>(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     statements: &[StatementNode],
-    applications: &'applications [crate::SelectedOperatorUnitApplication],
+    applications: &'applications [crate::SelectedOperatorApplication],
 ) -> Option<(
-    &'applications crate::SelectedOperatorUnitApplication,
+    &'applications crate::SelectedOperatorApplication,
     CheckedUnitScalarResultBindingPlan,
 )> {
     let StatementNode::LocalData(local) = statements.first()? else {
@@ -48,7 +48,7 @@ pub(super) fn build_selected_operator_scalar_call(
     program: &TypedTrees,
     facts: &CheckFacts,
     source_state: &psi_typed_trees::state::State,
-    application: &crate::SelectedOperatorUnitApplication,
+    application: &crate::SelectedOperatorApplication,
     result: CheckedUnitScalarResultBindingPlan,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let realization_machine = program
