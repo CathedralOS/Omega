@@ -40,6 +40,8 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         assert_eq!(first.receipt().action_count(), 1);
         assert_eq!(first.receipt().rewrite_count(), 1);
         assert_eq!(first.receipt().usage(), exact_usage());
+        assert_eq!(first.receipt().selected(), None);
+        assert_eq!(first.receipt().ranges(), None);
         assert_eq!(
             first.receipt().reload_value_homes(),
             homes.receipt().identity()
@@ -51,12 +53,18 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         assert_eq!(action.source_work_item.ordinal, 0);
         assert_eq!(action.pressure_point, LiveRangePoint(14));
         assert_eq!(action.source_pressure, id(1, 0));
-        assert_eq!(action.victim, id(0, 0));
+        assert_eq!(
+            action.victim,
+            omega_regalloc::GeneralizedSpillRecoveryVictim::Reload(id(0, 0))
+        );
         assert_eq!(action.current_view, action.reclaimed_view);
         assert_eq!(action.storage.id, id(2, 0));
         assert_eq!(action.store.before_pressure_reload, id(1, 0));
         assert_eq!(action.store.before_instruction.0, 7);
-        assert_eq!(action.store.source, id(0, 0));
+        assert_eq!(
+            action.store.source,
+            omega_regalloc::GeneralizedSpillRecoveryVictim::Reload(id(0, 0))
+        );
         assert_eq!(action.reload.before_instruction.0, 8);
         assert_eq!(action.reload.result, id(2, 0));
         assert_eq!(action.rewrites.len(), 1);
@@ -64,6 +72,28 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
         assert_eq!(action.rewrites[0].instruction.0, 8);
         assert_eq!(action.rewrites[0].result, id(2, 0));
     }
+}
+
+#[test]
+fn legacy_reload_victim_identity_remains_byte_stable() {
+    let (sources, homes, choices) = sources(NativeTarget::linux_x64());
+    let actions = sources
+        .plan_generalized_recovery_actions(&homes, &choices, selected_lowering_budget())
+        .unwrap();
+    assert_eq!(
+        actions.receipt().identity().bytes(),
+        [
+            128, 96, 170, 253, 105, 130, 188, 156, 240, 244, 18, 80, 215, 182, 242, 164, 146, 86,
+            196, 76, 164, 200, 152, 222, 51, 218, 62, 218, 235, 220, 154, 122,
+        ]
+    );
+    let mut wrong_policy = actions.plan().clone();
+    wrong_policy.policy =
+        omega_regalloc::GeneralizedSpillRecoveryActionPolicy::EpochTwoOriginalVictimLaterSelectedRewritesV1;
+    assert_eq!(
+        sources.validate_generalized_recovery_actions(&homes, &choices, wrong_policy),
+        Err(omega_regalloc::GeneralizedSpillRecoveryActionError::UnsupportedPolicy)
+    );
 }
 
 #[test]
@@ -87,6 +117,16 @@ fn replay_rejects_every_root_and_logical_action_surface_corruption() {
             |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
                 plan.choices =
                     omega_regalloc::GeneralizedSpillRecoveryChoiceIdentity::from_bytes([0xd3; 32]);
+            },
+            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+                plan.selected = Some(
+                    omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
+                        [0xd7; 32],
+                    ),
+                );
+            },
+            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
+                plan.ranges = Some(omega_regalloc::LiveRangeIdentity::from_bytes([0xd8; 32]));
             },
             |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
                 plan.register_environment =
@@ -114,7 +154,12 @@ fn replay_rejects_every_root_and_logical_action_surface_corruption() {
 
         for corrupt in [
             |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
-                plan.actions[0].victim.ordinal += 1
+                let omega_regalloc::GeneralizedSpillRecoveryVictim::Reload(victim) =
+                    &mut plan.actions[0].victim
+                else {
+                    unreachable!()
+                };
+                victim.ordinal += 1
             },
             |plan: &mut omega_regalloc::GeneralizedSpillRecoveryActionPlan| {
                 plan.actions[0].pressure_point.0 += 1

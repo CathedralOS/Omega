@@ -2,13 +2,16 @@ use omega_optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };
 use omega_register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use omega_selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use omega_selected_instructions::{
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+};
 use psi_core::{FuelScheduleIdentity, MachineId};
 
 use crate::{
     AllocatorAvailabilityIdentity, GeneralizedReloadValueHomeIdentity, GeneralizedSpillActionId,
     GeneralizedSpillInsertionIdentity, GeneralizedSpillRecoveryChoiceIdentity,
-    GeneralizedSpillRecoveryWorkItemId, LiveRangePoint, LogicalSpillStorageClass,
+    GeneralizedSpillRecoveryWorkItemId, LiveRangeIdentity, LiveRangePoint,
+    LogicalSpillStorageClass,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,6 +30,7 @@ impl GeneralizedSpillRecoveryActionIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GeneralizedSpillRecoveryActionPolicy {
     EpochTwoReloadVictimLaterGeneralizedRewritesV1,
+    EpochTwoOriginalVictimLaterSelectedRewritesV1,
 }
 
 /// Logical recovery obligations only. Action IDs remain compiler-private and
@@ -36,6 +40,8 @@ pub struct GeneralizedSpillRecoveryActionPlan {
     pub generalized_spill_insertion: GeneralizedSpillInsertionIdentity,
     pub reload_value_homes: GeneralizedReloadValueHomeIdentity,
     pub choices: GeneralizedSpillRecoveryChoiceIdentity,
+    pub selected: Option<SelectedInstructionPlanIdentity>,
+    pub ranges: Option<LiveRangeIdentity>,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
@@ -54,7 +60,7 @@ pub struct GeneralizedSpillRecoveryLogicalAction {
     pub block: SelectedBlockId,
     pub pressure_point: LiveRangePoint,
     pub source_pressure: GeneralizedSpillActionId,
-    pub victim: GeneralizedSpillActionId,
+    pub victim: GeneralizedSpillRecoveryVictim,
     pub victim_class: RegisterClassId,
     pub current_view: RegisterViewId,
     pub reclaimed_view: RegisterViewId,
@@ -62,6 +68,14 @@ pub struct GeneralizedSpillRecoveryLogicalAction {
     pub store: GeneralizedSpillRecoveryLogicalStore,
     pub reload: GeneralizedSpillRecoveryLogicalReload,
     pub rewrites: Vec<GeneralizedSpillRecoveryLogicalUseRewrite>,
+}
+
+/// The exact compiler-private value being displaced. A selected VReg and a
+/// prior logical reload remain distinct through every later boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum GeneralizedSpillRecoveryVictim {
+    Original(VirtualRegisterId),
+    Reload(GeneralizedSpillActionId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,7 +90,7 @@ pub struct GeneralizedSpillRecoveryLogicalStore {
     pub before_pressure_reload: GeneralizedSpillActionId,
     /// Selected-program anchor only; not an inserted instruction.
     pub before_instruction: SelectedInstructionId,
-    pub source: GeneralizedSpillActionId,
+    pub source: GeneralizedSpillRecoveryVictim,
     pub source_view: RegisterViewId,
     pub storage: GeneralizedSpillActionId,
 }
@@ -105,6 +119,8 @@ pub struct GeneralizedSpillRecoveryActionReceipt {
     pub(crate) generalized_spill_insertion: GeneralizedSpillInsertionIdentity,
     pub(crate) reload_value_homes: GeneralizedReloadValueHomeIdentity,
     pub(crate) choices: GeneralizedSpillRecoveryChoiceIdentity,
+    pub(crate) selected: Option<SelectedInstructionPlanIdentity>,
+    pub(crate) ranges: Option<LiveRangeIdentity>,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) usage: OptimizationWorkUsage,
@@ -124,6 +140,12 @@ impl GeneralizedSpillRecoveryActionReceipt {
     }
     pub const fn choices(self) -> GeneralizedSpillRecoveryChoiceIdentity {
         self.choices
+    }
+    pub const fn selected(self) -> Option<SelectedInstructionPlanIdentity> {
+        self.selected
+    }
+    pub const fn ranges(self) -> Option<LiveRangeIdentity> {
+        self.ranges
     }
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {
         self.optimization_unit
@@ -166,6 +188,18 @@ pub enum GeneralizedSpillRecoveryActionError {
     },
     UnsupportedVictim {
         function: usize,
+    },
+    MissingOriginalVictim {
+        function: usize,
+        register: VirtualRegisterId,
+    },
+    NoFutureOriginalRewrite {
+        function: usize,
+        register: VirtualRegisterId,
+    },
+    InvalidOriginalRewrite {
+        function: usize,
+        register: VirtualRegisterId,
     },
     MissingVictimAction {
         function: usize,

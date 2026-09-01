@@ -247,12 +247,24 @@ fn project_recovery_action(
     let Some(first) = action.rewrites.first() else {
         return Err(invalid(function, id));
     };
+    let victim = match (action.victim, action.store.source) {
+        (
+            crate::GeneralizedSpillRecoveryVictim::Reload(victim),
+            crate::GeneralizedSpillRecoveryVictim::Reload(source),
+        ) if victim == source => victim,
+        (victim, _) => {
+            return Err(RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
+                function,
+                action: id,
+                victim,
+            });
+        }
+    };
     if id.epoch != 2
         || action.storage.id != id
         || action.store.storage != id
         || action.reload.storage != id
         || action.reload.result != id
-        || action.store.source != action.victim
         || action.store.before_pressure_reload != action.source_pressure
         || action.reload.before_instruction != first.instruction
         || action.current_view != action.reclaimed_view
@@ -281,7 +293,7 @@ fn project_recovery_action(
         source: RecursiveSpillActionSource::EpochTwo {
             work_item: action.source_work_item,
             source_pressure: action.source_pressure,
-            victim: action.victim,
+            victim,
         },
         class: action.storage.class,
         block: action.block,
@@ -289,7 +301,7 @@ fn project_recovery_action(
         through: first.point,
         store_instruction: action.store.before_instruction,
         before_reload: Some(action.store.before_pressure_reload),
-        stored_value: RecursiveSpillStoredValue::Reload(action.store.source),
+        stored_value: RecursiveSpillStoredValue::Reload(victim),
         source_view: action.store.source_view,
         reload_instruction: action.reload.before_instruction,
         destination_class: action.reload.destination_class,

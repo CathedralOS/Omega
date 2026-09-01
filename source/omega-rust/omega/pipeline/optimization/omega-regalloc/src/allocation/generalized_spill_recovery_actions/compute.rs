@@ -7,10 +7,13 @@ use crate::{
     GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionPolicy,
     GeneralizedSpillRecoveryLogicalAction, GeneralizedSpillRecoveryLogicalReload,
     GeneralizedSpillRecoveryLogicalStorage, GeneralizedSpillRecoveryLogicalStore,
-    GeneralizedSpillRecoveryLogicalUseRewrite, LogicalSpillStorageClass,
-    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
-    ValidatedGeneralizedSpillRecoveryChoices,
+    GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
+    LogicalSpillStorageClass, ValidatedGeneralizedReloadValueHomes,
+    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
+
+mod original;
 
 pub(super) fn compute(
     insertion: &ValidatedGeneralizedSpillInsertion,
@@ -20,7 +23,11 @@ pub(super) fn compute(
     budget: OptimizationWorkBudget,
 ) -> Result<GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionError> {
     admit_roots(insertion, homes, choices)?;
-    admit_policy(policy)?;
+    if policy
+        != GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1
+    {
+        return Err(GeneralizedSpillRecoveryActionError::UnsupportedPolicy);
+    }
     let mut actions = Vec::with_capacity(choices.plan().choices.len());
     for choice in &choices.plan().choices {
         let function = insertion.plan().functions.get(choice.function).ok_or(
@@ -31,7 +38,7 @@ pub(super) fn compute(
         actions.push(build_action(choice, function)?);
     }
     actions.sort_by_key(|action| (action.source_work_item, action.function));
-    let usage = work_usage(&actions)?;
+    let usage = work_usage(&actions, 0)?;
     if !usage.within(budget) {
         return Err(GeneralizedSpillRecoveryActionError::BudgetExceeded {
             required: usage,
@@ -43,6 +50,8 @@ pub(super) fn compute(
         generalized_spill_insertion: insertion.receipt().identity(),
         reload_value_homes: home.identity(),
         choices: choices.receipt().identity(),
+        selected: None,
+        ranges: None,
         register_environment: home.register_environment(),
         allocator_availability: home.allocator_availability(),
         optimization_unit: home.optimization_unit(),
@@ -54,15 +63,80 @@ pub(super) fn compute(
     })
 }
 
-pub(super) fn admit_policy(
-    policy: GeneralizedSpillRecoveryActionPolicy,
-) -> Result<(), GeneralizedSpillRecoveryActionError> {
-    if policy
-        != GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1
+pub(super) fn compute_original<S: ValidatedSelectedAnalysis>(
+    insertion: &ValidatedGeneralizedSpillInsertion,
+    homes: &ValidatedGeneralizedReloadValueHomes,
+    choices: &ValidatedGeneralizedSpillRecoveryChoices,
+    selected: &S,
+    ranges: &ValidatedLiveRanges,
+    budget: OptimizationWorkBudget,
+) -> Result<GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionError> {
+    admit_roots(insertion, homes, choices)?;
+    let choice_receipt = choices.receipt();
+    if choice_receipt.selected() != selected.selected_identity()
+        || choice_receipt.ranges() != ranges.receipt().identity()
+        || ranges.receipt().selected() != choice_receipt.selected()
+        || selected.optimization_unit_identity() != choice_receipt.optimization_unit()
+        || selected.fuel_schedule_identity() != choice_receipt.fuel_schedule()
     {
-        return Err(GeneralizedSpillRecoveryActionError::UnsupportedPolicy);
+        return Err(GeneralizedSpillRecoveryActionError::RootMismatch);
     }
-    Ok(())
+    let mut actions = Vec::with_capacity(choices.plan().choices.len());
+    let mut additional_steps = 0_u64;
+    for choice in &choices.plan().choices {
+        let function = insertion.plan().functions.get(choice.function).ok_or(
+            GeneralizedSpillRecoveryActionError::FunctionMismatch {
+                function: choice.function,
+            },
+        )?;
+        let selected_function = selected
+            .selected_plan()
+            .functions
+            .get(choice.function)
+            .ok_or(GeneralizedSpillRecoveryActionError::FunctionMismatch {
+                function: choice.function,
+            })?;
+        let range_function = ranges.plan().functions.get(choice.function).ok_or(
+            GeneralizedSpillRecoveryActionError::FunctionMismatch {
+                function: choice.function,
+            },
+        )?;
+        let (action, steps) = original::build(
+            choice,
+            function,
+            selected_function,
+            range_function,
+            choices.plan().policy,
+        )?;
+        additional_steps = additional_steps
+            .checked_add(steps)
+            .ok_or(GeneralizedSpillRecoveryActionError::WorkOverflow)?;
+        actions.push(action);
+    }
+    actions.sort_by_key(|action| (action.source_work_item, action.function));
+    let usage = work_usage(&actions, additional_steps)?;
+    if !usage.within(budget) {
+        return Err(GeneralizedSpillRecoveryActionError::BudgetExceeded {
+            required: usage,
+            budget,
+        });
+    }
+    let home = homes.receipt();
+    Ok(GeneralizedSpillRecoveryActionPlan {
+        generalized_spill_insertion: insertion.receipt().identity(),
+        reload_value_homes: home.identity(),
+        choices: choice_receipt.identity(),
+        selected: Some(choice_receipt.selected()),
+        ranges: Some(choice_receipt.ranges()),
+        register_environment: home.register_environment(),
+        allocator_availability: home.allocator_availability(),
+        optimization_unit: home.optimization_unit(),
+        fuel_schedule: home.fuel_schedule(),
+        policy: GeneralizedSpillRecoveryActionPolicy::EpochTwoOriginalVictimLaterSelectedRewritesV1,
+        budget,
+        usage,
+        actions,
+    })
 }
 
 pub(super) fn admit_roots(
@@ -232,7 +306,7 @@ fn build_action(
         block: choice.block,
         pressure_point: choice.point,
         source_pressure: choice.source_pressure,
-        victim,
+        victim: GeneralizedSpillRecoveryVictim::Reload(victim),
         victim_class,
         current_view: choice.selected_victim_view,
         reclaimed_view: choice.reclaimed_view,
@@ -243,7 +317,7 @@ fn build_action(
         store: GeneralizedSpillRecoveryLogicalStore {
             before_pressure_reload: choice.source_pressure,
             before_instruction: pressure_instruction,
-            source: victim,
+            source: GeneralizedSpillRecoveryVictim::Reload(victim),
             source_view: choice.selected_victim_view,
             storage: id,
         },
@@ -280,6 +354,7 @@ fn unique_slot(
 
 pub(super) fn work_usage(
     actions: &[GeneralizedSpillRecoveryLogicalAction],
+    additional_steps: u64,
 ) -> Result<OptimizationWorkUsage, GeneralizedSpillRecoveryActionError> {
     let count = u64::try_from(actions.len())
         .map_err(|_| GeneralizedSpillRecoveryActionError::WorkOverflow)?;
@@ -297,6 +372,7 @@ pub(super) fn work_usage(
         validation_steps: count
             .checked_mul(6)
             .and_then(|fixed| fixed.checked_add(rewrites))
+            .and_then(|fixed| fixed.checked_add(additional_steps))
             .ok_or(GeneralizedSpillRecoveryActionError::WorkOverflow)?,
         commits: count,
         iterations: count,

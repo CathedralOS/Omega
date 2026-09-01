@@ -197,6 +197,11 @@ pub enum RecursiveSpillInsertionError {
         function: usize,
         action: GeneralizedSpillActionId,
     },
+    UnsupportedRecoveryVictim {
+        function: usize,
+        action: GeneralizedSpillActionId,
+        victim: crate::GeneralizedSpillRecoveryVictim,
+    },
     UnsupportedStorageClass {
         function: usize,
         action: GeneralizedSpillActionId,

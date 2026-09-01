@@ -174,6 +174,48 @@ impl Sources {
         )
     }
 
+    pub(super) fn plan_original_recovery_actions(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        budget: OptimizationWorkBudget,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        omega_regalloc::GeneralizedSpillRecoveryActionError,
+    > {
+        let ranges = self.reloads.legality().live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        omega_regalloc::plan_generalized_original_spill_recovery_actions(
+            &self.generalized,
+            homes,
+            choices,
+            selected.selected(),
+            ranges.ranges(),
+            budget,
+        )
+    }
+
+    pub(super) fn validate_original_recovery_actions(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        plan: omega_regalloc::GeneralizedSpillRecoveryActionPlan,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        omega_regalloc::GeneralizedSpillRecoveryActionError,
+    > {
+        let ranges = self.reloads.legality().live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        omega_regalloc::validate_generalized_original_spill_recovery_actions(
+            &self.generalized,
+            homes,
+            choices,
+            selected.selected(),
+            ranges.ranges(),
+            plan,
+        )
+    }
+
     pub(super) fn schedule_recursive_spills(
         &self,
         recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
