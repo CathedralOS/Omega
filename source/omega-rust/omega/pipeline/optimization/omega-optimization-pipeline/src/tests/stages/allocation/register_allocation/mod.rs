@@ -10,6 +10,7 @@ mod logical_spill_operations;
 mod register_homes;
 mod reload_value_homes;
 mod selected_input;
+mod spill_recovery_choice;
 mod spill_recovery_worklist;
 mod stack_slot_coloring;
 mod synthetic_reload_values;

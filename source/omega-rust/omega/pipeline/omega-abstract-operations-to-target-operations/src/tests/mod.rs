@@ -50,6 +50,7 @@ mod translation_validation_boolean;
 mod translation_validation_boolean_equal_parameters;
 mod translation_validation_boolean_not_parameter;
 mod translation_validation_boolean_parameter;
+mod translation_validation_byte_sequence_literal_unit_return;
 mod translation_validation_crash;
 mod translation_validation_exact_integer_add_parameters;
 mod translation_validation_exact_integer_divide_parameters;

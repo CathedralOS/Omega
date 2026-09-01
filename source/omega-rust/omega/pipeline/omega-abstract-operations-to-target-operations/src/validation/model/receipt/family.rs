@@ -24,6 +24,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineUnitCallReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLineUnitCallReturn
             }
+            Self::StraightLineByteSequenceLiteralUnitReturn(_) => {
+                AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn
+            }
             Self::StraightLineTrivialAffineLocalUnitReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn
             }

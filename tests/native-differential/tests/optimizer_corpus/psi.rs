@@ -9,7 +9,7 @@ use psi_terminal::{
     VocabularyMarker,
 };
 use psi_terminal_interpreter::{
-    TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact_measured,
+    interpret_terminal_artifact_measured, TerminalExecutionResult, TerminalScalarValue,
 };
 use psi_terminal_verifier::ProofBundle;
 

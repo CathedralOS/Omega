@@ -6,13 +6,13 @@ use omega_selected_instructions::SelectedBlockId;
 
 use super::reload_value_homes::ReloadSources;
 
-fn pressure_sources(target: NativeTarget) -> ReloadSources {
+pub(super) fn pressure_sources(target: NativeTarget) -> ReloadSources {
     ReloadSources::from_legality(staged_active_resident_bridge_chain_two_view_legality(
         target,
     ))
 }
 
-fn seed(
+pub(super) fn seed(
     sources: &ReloadSources,
     budget: OptimizationWorkBudget,
 ) -> Result<

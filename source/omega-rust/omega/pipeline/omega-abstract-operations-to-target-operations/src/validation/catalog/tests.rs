@@ -13,8 +13,8 @@ use psi_core::{
     StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalAffineCleanupAction,
+    ByteSequenceCarrier, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction,
 };
 
 use super::*;
@@ -151,6 +151,85 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
     )
 }
 
+fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
+    let machine = MachineId::new(54_001).unwrap();
+    let entry = BlockId::new(54_002).unwrap();
+    let structural_type = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(54_003).unwrap(),
+        identity: "BorrowedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+    };
+    let place = StructuralPlaceDeclaration {
+        id: PlaceId::new(54_004).unwrap(),
+        kind: StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: 0,
+            structural_type: structural_type.id,
+        },
+    };
+    let operation = OperationId::new(54_005).unwrap();
+    let edge = EdgeId::new(54_006).unwrap();
+    let bytes = vec![0x4f, 0x6d, 0x65, 0x67, 0x61];
+    (
+        AbstractFunction {
+            machine,
+            attachment: None,
+            entry,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: entry,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::EstablishByteSequenceLiteral {
+                    psi_operation: operation,
+                    place: place.clone(),
+                    structural_type: structural_type.clone(),
+                    bytes: bytes.clone(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        },
+        TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![operation],
+                edges: vec![edge],
+            },
+            operation: TargetOperation::UnitBody(TargetUnitBody {
+                structural_types: vec![structural_type.clone()],
+                call_plan: evaluate_call_plan(
+                    CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+                    &CallSignature::default(),
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                operations: vec![
+                    TargetUnitOperation::EstablishByteSequenceLiteral {
+                        psi_operation: operation,
+                        place,
+                        structural_type,
+                        bytes,
+                    },
+                    TargetUnitOperation::Return {
+                        psi_edge: edge,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }),
+        },
+    )
+}
+
 fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(53_001).unwrap();
     let entry = BlockId::new(53_002).unwrap();
@@ -243,6 +322,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineUnitReturn,
             AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+            AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
             AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
@@ -367,6 +447,40 @@ fn unit_call_catalog_omission_and_duplicate_fail_closed() {
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
                 first: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
                 second: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+                ..
+            }
+        )
+    ));
+}
+
+#[test]
+fn byte_sequence_literal_catalog_omission_and_duplicate_fail_closed() {
+    let (source, target) = byte_sequence_literal_pair();
+    assert_eq!(
+        selection::validate(&source, NativeTarget::linux_x64(), &target, &[]).unwrap(),
+        AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
+
+    let family = ENABLED_TRANSLATION_FAMILIES
+        .iter()
+        .find(|descriptor| {
+            descriptor.family
+                == AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn
+        })
+        .copied()
+        .unwrap();
+    assert!(matches!(
+        selection::validate(
+            &source,
+            NativeTarget::linux_x64(),
+            &target,
+            &[family, family]
+        ),
+        Err(
+            AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
+                first: AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
+                second:
+                    AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
                 ..
             }
         )

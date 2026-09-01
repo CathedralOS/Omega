@@ -121,6 +121,36 @@ pub(crate) fn unit_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn byte_sequence_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let structural_type = StructuralTypeId::new(3_515).unwrap();
+    let place = PlaceId::new(3_516).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "BorrowedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView),
+    });
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: 0,
+                structural_type,
+            },
+        });
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(3_517).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::EstablishByteSequenceLiteral {
+            destination: place,
+            bytes: vec![0x00, 0x4f, 0x6d, 0x65, 0x67, 0x61, 0xff],
+        },
+    });
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
     let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();

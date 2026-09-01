@@ -2,6 +2,67 @@ use super::*;
 use psi_terminal::TerminalAffineCleanupAction;
 
 #[test]
+fn optimized_target_lowering_retains_byte_sequence_literal_custody() {
+    let expected_bytes = [0x00, 0x4f, 0x6d, 0x65, 0x67, 0x61, 0xff];
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = byte_sequence_literal_unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let receipt = target.translation_validation();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineByteSequenceLiteralUnitReturn(
+                row,
+            ),
+        ) = receipt.function_roster()[0].translation()
+        else {
+            panic!("optimized byte-sequence literal must retain its validated family row")
+        };
+        assert_eq!(
+            row.establishment_operation(),
+            OperationId::new(3_517).unwrap()
+        );
+        assert_eq!(row.place().id, PlaceId::new(3_516).unwrap());
+        assert_eq!(
+            row.structural_type().id,
+            StructuralTypeId::new(3_515).unwrap()
+        );
+        assert_eq!(row.bytes(), expected_bytes);
+        let TargetOperation::UnitBody(body) = &target.target_operations().functions[0].operation
+        else {
+            panic!("optimized byte-sequence literal must remain in the Unit body carrier")
+        };
+        assert!(matches!(
+            body.operations.as_slice(),
+            [
+                TargetUnitOperation::EstablishByteSequenceLiteral {
+                    psi_operation,
+                    place,
+                    structural_type,
+                    bytes,
+                },
+                TargetUnitOperation::Return { cleanup_actions, .. },
+            ] if *psi_operation == OperationId::new(3_517).unwrap()
+                && place.id == PlaceId::new(3_516).unwrap()
+                && structural_type.id == StructuralTypeId::new(3_515).unwrap()
+                && bytes.as_slice() == expected_bytes.as_slice()
+                && cleanup_actions.is_empty()
+        ));
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_trivial_affine_local_cleanup_custody() {
     for target_profile in [
         NativeTarget::linux_x64(),
