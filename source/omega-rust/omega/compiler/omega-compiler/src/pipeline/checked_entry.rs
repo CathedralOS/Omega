@@ -1106,8 +1106,11 @@ fn compile_to_checked_inner_with_replay(
         selected_target_profile.map(omega_target::TargetProfile::native_target);
     let provider_selection_target =
         selected_native_target.unwrap_or_else(omega_target::NativeTarget::host);
-    let diagnostics =
-        crate::pipeline::provider_plans::validate_provider_plan_candidates(&typed, &provider_plans);
+    let diagnostics = crate::pipeline::provider_plans::validate_derived_provider_plan_candidates(
+        &typed,
+        &evaluated_via_bindings,
+        &derived_provider_plans,
+    );
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -1137,6 +1140,7 @@ fn compile_to_checked_inner_with_replay(
     let (selected_provider_plan_facts, selected_provider_provenance) =
         crate::pipeline::provider_plans::selected_provider_plan_facts_with_provenance(
             &typed,
+            &evaluated_via_bindings,
             selected_provider_plans,
         )?;
     let root_grants = build_config

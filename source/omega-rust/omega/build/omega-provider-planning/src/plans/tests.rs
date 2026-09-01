@@ -230,6 +230,12 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .expect("type external top-level requirement fixture");
     psi_typed_trees_to_checked_trees::lower_typed_trees(typed.clone())
         .expect("the exact external satisfier should pass conformance validation");
+    let evaluated_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
+        &typed,
+        Some(omega_target::TargetProfile::LinuxX64),
+        None,
+    )
+    .expect("legacy-only fixture has an exact empty evaluated-via table");
 
     let requirement = typed
         .machines()
@@ -309,8 +315,12 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         &[],
     )
     .expect("the unique external candidate retains exact selection provenance");
-    selected_provider_plan_facts_with_provenance(&typed, selected_with_provenance.clone())
-        .expect("selected facts must replay the external realization and binding");
+    selected_provider_plan_facts_with_provenance(
+        &typed,
+        &evaluated_bindings,
+        selected_with_provenance.clone(),
+    )
+    .expect("selected facts must replay the external realization and binding");
 
     let mut drifted = derived.plan.clone();
     drifted.rows[0].binding = ProviderBinding::Syscall { number: 61 };
@@ -327,13 +337,16 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     let mut drifted_binding_provenance = selected_with_provenance.clone();
     drifted_binding_provenance[0].derived.plan.rows[0].binding =
         ProviderBinding::Syscall { number: 61 };
-    let diagnostics =
-        selected_provider_plan_facts_with_provenance(&typed, drifted_binding_provenance)
-            .expect_err("selected provenance must reject substituted external binding identity");
+    let diagnostics = selected_provider_plan_facts_with_provenance(
+        &typed,
+        &evaluated_bindings,
+        drifted_binding_provenance,
+    )
+    .expect_err("selected provenance must reject substituted external binding identity");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("resolves to 0 exact typed external realizations")
+            .contains("binding does not equal its exact typed realization replay")
     }));
 
     let mut drifted_realization_provenance = selected_with_provenance.clone();
@@ -341,13 +354,16 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .derived
         .provenance
         .row_realizations[0] = requirement.symbol;
-    let diagnostics =
-        selected_provider_plan_facts_with_provenance(&typed, drifted_realization_provenance)
-            .expect_err("selected provenance must reject a substituted realization symbol");
+    let diagnostics = selected_provider_plan_facts_with_provenance(
+        &typed,
+        &evaluated_bindings,
+        drifted_realization_provenance,
+    )
+    .expect_err("selected provenance must reject a substituted realization symbol");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("not its exact typed external realization")
+            .contains("does not rejoin its exact nominal provider provenance")
     }));
 
     let mut drifted_requirement_provenance = selected_with_provenance;
@@ -355,13 +371,16 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .derived
         .provenance
         .row_requirements[0] = provider.symbol;
-    let diagnostics =
-        selected_provider_plan_facts_with_provenance(&typed, drifted_requirement_provenance)
-            .expect_err("selected provenance must reject a substituted requirement symbol");
+    let diagnostics = selected_provider_plan_facts_with_provenance(
+        &typed,
+        &evaluated_bindings,
+        drifted_requirement_provenance,
+    )
+    .expect_err("selected provenance must reject a substituted requirement symbol");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("without its exact requirement declaration")
+            .contains("to 0 exact boundary declarations")
     }));
 }
 
