@@ -4675,6 +4675,123 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
 }
 
 #[test]
+fn seeded_integer_const_instance_gate_rejects_carrier_origin_and_shape_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Block<T, const N: u64> { values: [T; N]; } data Nested<T, const N: u64> { value: Block<T, N>; } data Generated { value: Nested<u16, 2>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let block_template_index = index("Block");
+    let nested_template_index = index("Nested");
+    let block_instance_index = index("Block<u16, 2>");
+    let block_parameters = resolved.data_definitions[block_template_index].type_parameters;
+    let nested_template_members = resolved.data_definitions[nested_template_index].members;
+    let block_instance_members = resolved.data_definitions[block_instance_index].members;
+    let block_origin_arguments = match resolved.data_definitions[block_instance_index]
+        .generic_instance
+        .as_ref()
+    {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        _ => unreachable!(),
+    };
+
+    let mut unsupported_carrier = resolved.clone();
+    unsupported_carrier
+        .tables
+        .declarations
+        .data_type_parameters
+        .span_mut_or_empty(block_parameters)[1]
+        .kind = psi_symbol_resolved_trees::data::TypeParameterKind::Const {
+        type_reference: psi_symbol_resolved_trees::types::TypeReference::Unit,
+    };
+    assert!(
+        !plain_data_extension_shape_is_supported(&unsupported_carrier, frontier),
+        "the scalar const rung cannot silently widen to an unsupported carrier"
+    );
+
+    let mut noncanonical_origin = resolved.clone();
+    noncanonical_origin
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(block_origin_arguments)[1] =
+        psi_symbol_resolved_trees::types::TypeReference::Named {
+            symbol: psi_symbols::SymbolHandle::invalid(),
+            name: psi_symbol_resolved_trees::name::DiagnosticName::generated("02"),
+        };
+    assert!(
+        !plain_data_extension_shape_is_supported(&noncanonical_origin, frontier),
+        "a closed const origin must retain canonical decimal spelling"
+    );
+
+    let mut wrong_substituted_length = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut wrong_substituted_length
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(block_instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::FixedArray(array) =
+        &mut field.type_reference
+    else {
+        unreachable!()
+    };
+    array.length = psi_symbol_resolved_trees::types::FixedArrayLength::Literal(3);
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_substituted_length, frontier),
+        "the instance array length must replay the exact const argument"
+    );
+
+    let mut wrong_forwarded_binder = resolved;
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut wrong_forwarded_binder
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(nested_template_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &field.type_reference
+    else {
+        unreachable!()
+    };
+    let arguments = application.arguments;
+    let arguments = wrong_forwarded_binder
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(arguments);
+    arguments[1] = arguments[0].clone();
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_forwarded_binder, frontier),
+        "a const slot cannot be redirected to an ordinary Type binder"
+    );
+
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Tiny<const N: u8> { tag: u8; } data Generated { value: Tiny<256>; }",
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(
+            extension.trees(),
+            base.typed().data_definitions().len(),
+        ),
+        "a closed scalar const argument must fit its exact declared carrier"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -4765,6 +4882,26 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             "nested_lifetime_sum_payload",
             "data Borrowed<'scope, T> { value: &'scope T; } data MaybeBorrow<'scope, T> { case None; case Some(value: Borrowed<'scope, T>); } data Generated<'scope> { value: MaybeBorrow<'scope, u32>; }",
         ),
+        (
+            "integer_const_instance_graph",
+            "data Block<T, const N: u64> { values: [T; N]; } data Nested<T, const N: u64> { value: Block<T, N>; } data Generated { value: Nested<u16, 2>; }",
+        ),
+        (
+            "signed_integer_const_instance",
+            "data Offset<const N: i64> { tag: u8; } data Generated { value: Offset<-2>; }",
+        ),
+        (
+            "zero_integer_const_array_instance",
+            "data Block<const N: u64> { values: [u8; N]; } data Generated { value: Block<0>; }",
+        ),
+        (
+            "closed_expression_const_instance",
+            "data Block<const N: u64> { values: [u8; N]; } data Generated { value: Block<1 + 1>; }",
+        ),
+        (
+            "const_instance_as_type_argument",
+            "data Block<const N: u64> { values: [u8; N]; } data Box<T> { value: T; } data Generated { value: Box<Block<2> >; }",
+        ),
     ] {
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
@@ -4781,10 +4918,6 @@ fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instance
         (
             "cyclic_instances",
             "data Left<T> { right: Right<T>; } data Right<T> { left: Left<T>; } data Generated { value: Left<u32>; }",
-        ),
-        (
-            "const_instance",
-            "data Cell<const N: u64> { value: [u8; N]; } data Generated { value: Cell<2>; }",
         ),
         (
             "constrained_argument",

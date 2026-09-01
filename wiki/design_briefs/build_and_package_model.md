@@ -311,8 +311,9 @@ independently into a seeded-only clone while its raw tree remains owned by the
 fallback. Within one unit, the closed-instance continuation validates a
 collection of methodless data templates, instances, ordinary data declarations,
 and use sites without declaration-count or ordering assumptions. A template may
-have any nonzero number of Type parameters with their exact declared property
-bounds. Local template applications retain those bounds. Every synthesized
+have any nonzero number of Type parameters with exact declared property bounds
+plus scalar integer const parameters. Local template applications retain Type
+bounds. Every synthesized
 data definition's retained `generic_instance` origin is an explicit checked-
 property-bound validation root, so closed nominal arguments that fail a
 declared property bound reject after normalization as well; seeded admission
@@ -326,6 +327,12 @@ field or case-payload dependency graphs, including through the admitted shells.
 Every synthesized definition retains its template's exact erased lifetime
 binder roster; internal and ordinary applications retain exact arity and order
 from their owner's lifetime binders.
+Scalar const binders retain an exact compiler-owned signed/unsigned integer or
+address carrier. Closed arguments use canonical in-range decimal leaves, and
+already-normalized closed expressions share that identity. Internal forwarding
+rejoins an exact owner const binder and carrier; literal-array lengths replay the
+substituted value. These instances join the same finite dependency graph and may
+themselves become Type arguments to later local instances.
 Arguments may be builtins, exact nongeneric nominal data, or already-validated
 local closed instances. Finite acyclic nested-instance dependency chains are
 reconstructed in dependency order, every instance must remain transitively
@@ -338,8 +345,8 @@ template/argument/origin tuple, canonical instance spelling and retired
 identities, recursive field/payload substitution, declaration/parameter/field/
 case ownership, same-unit source ownership, and use-site spelling. It does not
 infer an instance across generated units. Cyclic instance dependencies,
-lifetime-bearing local instances used as Type arguments, const/constrained
-applications, parameter-bearing
+lifetime-bearing local instances used as Type arguments, Boolean or structured-
+canonical const applications, constrained applications, parameter-bearing
 constrained/dynamic/other composite shells, fact-bearing, quotient, zero-gated,
 generated-method-bearing, dynamic, or non-data forms return the owned base and raw parsed extension to
 the existing full rebuild/rebind. Retained-base type applications
@@ -359,8 +366,9 @@ identities, wrong arity, and broader extension roots return the untouched
 checkpoint and raw extension to the fallback. Every retained symbol/table and
 authored-selection prefix, generated-source custody row, and the selected
 build symbol remain unchanged. Lifetime-bearing local instances used as Type
-arguments, const or constrained extension-local instances, generated attached
-methods, non-data continuation, and removal of that fallback remain open.
+arguments, Boolean or structured-canonical const and constrained extension-
+local instances, generated attached methods, non-data continuation, and removal
+of that fallback remain open.
 Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is

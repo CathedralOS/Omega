@@ -217,13 +217,11 @@ fn plain_data_extension_shape_is_supported(
                 let type_parameters = source.data_type_parameters(definition.type_parameters);
                 exact_top_level_data_symbol(source, definition)
                     && type_parameters.iter().all(|parameter| {
-                        parameter.symbol.is_valid()
-                            && source.symbols.get(parameter.symbol).kind
-                                == psi_symbols::SymbolKind::TypeParameter
-                            && matches!(
-                                parameter.kind,
-                                psi_symbol_resolved_trees::data::TypeParameterKind::Type
-                            )
+                        seeded_local_instances::parameter_is_supported(
+                            source,
+                            definition.symbol,
+                            parameter,
+                        )
                     })
                     && definition.quotient.is_none()
                     && definition.where_facts.is_empty()
@@ -285,7 +283,7 @@ fn plain_type_is_supported(
     owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
     type_reference: &psi_symbol_resolved_trees::types::TypeReference,
 ) -> bool {
-    use psi_symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
+    use psi_symbol_resolved_trees::types::TypeReference;
     match type_reference {
         TypeReference::Named { symbol, .. } if !symbol.is_valid() => false,
         TypeReference::Named { symbol, name } if source.symbols.name(*symbol) != name.as_str() => {
@@ -299,9 +297,15 @@ fn plain_type_is_supported(
                     && definition.type_parameters.is_empty()
                     && (definition.generic_instance.is_none() || local_instances.contains(symbol))
             }),
-            psi_symbols::SymbolKind::TypeParameter => owner_type_parameters
-                .iter()
-                .any(|parameter| parameter.symbol == *symbol),
+            psi_symbols::SymbolKind::TypeParameter => {
+                owner_type_parameters.iter().any(|parameter| {
+                    parameter.symbol == *symbol
+                        && matches!(
+                            parameter.kind,
+                            psi_symbol_resolved_trees::data::TypeParameterKind::Type
+                        )
+                })
+            }
             _ => false,
         },
         TypeReference::SelfType { symbol } => *symbol == owner,
@@ -331,16 +335,20 @@ fn plain_type_is_supported(
             source.child_type_reference(slice.element_type),
         ),
         TypeReference::FixedArray(array) => {
-            matches!(array.length, FixedArrayLength::Literal(_))
-                && plain_type_is_supported(
-                    source,
-                    data_frontier,
-                    local_instances,
-                    owner,
-                    owner_lifetimes,
-                    owner_type_parameters,
-                    source.child_type_reference(array.element_type),
-                )
+            seeded_local_instances::array_length_is_supported(
+                source,
+                owner,
+                owner_type_parameters,
+                &array.length,
+            ) && plain_type_is_supported(
+                source,
+                data_frontier,
+                local_instances,
+                owner,
+                owner_lifetimes,
+                owner_type_parameters,
+                source.child_type_reference(array.element_type),
+            )
         }
         TypeReference::Generic(generic) => {
             seeded_local_instances::instance_application_is_supported(
