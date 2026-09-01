@@ -8,12 +8,19 @@ use super::structural_layout::{
 };
 
 mod boundary_call;
+mod preflight;
 mod return_unit;
 mod scalar_call;
+mod scalar_definitions;
 
 use boundary_call::lower_boundary_call;
+use preflight::validate_unit_function_shape;
 use return_unit::lower_unit_return;
-use scalar_call::{KnownUnitInteger, insert_known_unit_integer, lower_scalar_call};
+use scalar_call::{insert_known_unit_integer, lower_scalar_call, KnownUnitInteger};
+use scalar_definitions::{
+    lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
+    validate_unit_scalar_definitions,
+};
 
 pub(super) fn lower_unit_function(
     function: &AbstractFunction,
@@ -29,47 +36,8 @@ pub(super) fn lower_unit_function(
     fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
 ) -> Result<TargetFunction, LoweringError> {
-    if !function.parameters.is_empty() {
-        return Err(LoweringError::UnitFunctionHasScalarParameters(
-            function.machine,
-        ));
-    }
-    if function.block_entries.len() != 1
-        || function.block_entries[0].block != function.entry
-        || !function.block_entries[0].parameters.is_empty()
-    {
-        return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
-    }
-    if let Some(AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }) = function
-        .operations
-        .iter()
-        .find(|operation| matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. }))
-    {
-        return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
-            machine: function.machine,
-            operation: *psi_operation,
-        });
-    }
-    let has_ieee_float_fma = function.operations.iter().any(|operation| {
-        matches!(
-            operation,
-            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
-        )
-    });
-    if has_ieee_float_fma
-        && function.operations.iter().any(|operation| {
-            !matches!(
-                operation,
-                AbstractOperation::IeeeFloatConstant { .. }
-                    | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
-                    | AbstractOperation::ReturnUnit { .. }
-            )
-        })
-    {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    }
+    validate_unit_function_shape(function)?;
+    validate_unit_scalar_definitions(function)?;
 
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
@@ -518,57 +486,31 @@ pub(super) fn lower_unit_function(
                 result,
                 scalar_type: ScalarType::Integer(scalar_type),
                 value,
-            } => {
-                if nonreturning_boundary {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
-                }
-                if !scalar_type.admits(*value) {
-                    return Err(LoweringError::IntegerConstantOutsideType(*result));
-                }
-                insert_known_unit_integer(
-                    &mut scalar_values,
-                    *result,
-                    KnownUnitInteger::Immediate {
-                        defining_operation: *psi_operation,
-                        scalar_type: *scalar_type,
-                        value: *value,
-                    },
-                )?;
-                if integer_constants
-                    .insert(*result, (*psi_operation, *scalar_type, *value))
-                    .is_some()
-                {
-                    return Err(LoweringError::DuplicateValue(*result));
-                }
-                operations.push(TargetUnitOperation::IntegerConstant {
-                    psi_operation: *psi_operation,
-                    result: *result,
-                    scalar_type: *scalar_type,
-                    value: *value,
-                });
-                provenance.operations.push(*psi_operation);
-            }
+            } => lower_integer_constant(
+                function.machine,
+                *psi_operation,
+                *result,
+                *scalar_type,
+                *value,
+                nonreturning_boundary,
+                &mut integer_constants,
+                &mut scalar_values,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::IeeeFloatConstant {
                 psi_operation,
                 result,
                 value,
-            } => {
-                if nonreturning_boundary
-                    || ieee_float_constants
-                        .insert(*result, (*psi_operation, *value))
-                        .is_some()
-                {
-                    return Err(LoweringError::DuplicateValue(*result));
-                }
-                operations.push(TargetUnitOperation::IeeeFloatConstant {
-                    psi_operation: *psi_operation,
-                    result: *result,
-                    value: *value,
-                });
-                provenance.operations.push(*psi_operation);
-            }
+            } => lower_ieee_float_constant(
+                *psi_operation,
+                *result,
+                *value,
+                nonreturning_boundary,
+                &mut ieee_float_constants,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
                 psi_operation,
                 result,
@@ -576,42 +518,20 @@ pub(super) fn lower_unit_function(
                 left,
                 right,
                 addend,
-            } => {
-                if nonreturning_boundary {
-                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                        function.machine,
-                    ));
-                }
-                let operand = |source: ValueId| {
-                    let Some((defining_operation, value)) =
-                        ieee_float_constants.get(&source).copied()
-                    else {
-                        return Err(LoweringError::IeeeFloatFmaOperandMismatch(source));
-                    };
-                    if value.format() != *format {
-                        return Err(LoweringError::IeeeFloatFmaOperandMismatch(source));
-                    }
-                    Ok(TargetIeeeFloatFmaOperand {
-                        defining_operation,
-                        source_value: source,
-                        value,
-                    })
-                };
-                let settlement = ieee_float_fma
-                    .get(psi_operation)
-                    .copied()
-                    .ok_or(LoweringError::MissingIeeeFloatFmaSettlement(*psi_operation))?;
-                operations.push(TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
-                    psi_operation: *psi_operation,
-                    result: *result,
-                    format: *format,
-                    left: operand(*left)?,
-                    right: operand(*right)?,
-                    addend: operand(*addend)?,
-                    settlement,
-                });
-                provenance.operations.push(*psi_operation);
-            }
+            } => lower_ieee_float_fma(
+                function.machine,
+                *psi_operation,
+                *result,
+                *format,
+                *left,
+                *right,
+                *addend,
+                nonreturning_boundary,
+                &ieee_float_constants,
+                ieee_float_fma,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::Crash { .. }
             | AbstractOperation::CallStructuralScalar { .. }
             | AbstractOperation::CallStructural { .. }
