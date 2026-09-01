@@ -33,6 +33,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::parameter::bitwise::INTEGER_OR,
     dispatch::parameter::bitwise::INTEGER_XOR,
     dispatch::parameter::shift::WRAPPING_INTEGER_SHIFT_LEFT,
+    dispatch::parameter::shift::WRAPPING_INTEGER_SHIFT_RIGHT,
     dispatch::parameter::arithmetic::EXACT_INTEGER_ADD,
     dispatch::parameter::arithmetic::EXACT_INTEGER_SUBTRACT,
     dispatch::parameter::arithmetic::EXACT_INTEGER_MULTIPLY,

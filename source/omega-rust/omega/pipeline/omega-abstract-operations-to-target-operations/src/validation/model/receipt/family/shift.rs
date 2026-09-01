@@ -10,6 +10,9 @@ pub(super) const fn family(
         AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerShiftLeftParameters(
             _,
         ) => AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftLeftParameters,
+        AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerShiftRightParameters(
+            _,
+        ) => AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftRightParameters,
         _ => panic!("the receipt family entrance routes only shift variants here"),
     }
 }

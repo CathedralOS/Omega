@@ -28,6 +28,7 @@ use super::{
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerRemainderParametersTranslationError,
     StraightLineWrappingIntegerShiftLeftParametersTranslationError,
+    StraightLineWrappingIntegerShiftRightParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 
@@ -129,6 +130,9 @@ map_parameter_reconstruction_error!(StraightLineWrappingIntegerAddParametersTran
 map_parameter_reconstruction_error!(StraightLineWrappingIntegerDivideParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineWrappingIntegerRemainderParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineWrappingIntegerShiftLeftParametersTranslationError);
+map_parameter_reconstruction_error!(
+    StraightLineWrappingIntegerShiftRightParametersTranslationError
+);
 map_parameter_reconstruction_error!(StraightLineWrappingIntegerSubtractParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineWrappingIntegerMultiplyParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineBooleanEqualParametersTranslationError);

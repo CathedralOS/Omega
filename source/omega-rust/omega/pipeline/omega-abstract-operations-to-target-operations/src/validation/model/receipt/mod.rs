@@ -40,6 +40,7 @@ pub use parameter::{
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
     StraightLineWrappingIntegerRemainderParametersTranslationReceipt,
     StraightLineWrappingIntegerShiftLeftParametersTranslationReceipt,
+    StraightLineWrappingIntegerShiftRightParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };
 pub use roster::{

@@ -15,7 +15,7 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-two families reconstruct parameterless straight-line
+replay. Its first thirty-three families reconstruct parameterless straight-line
 integer and Boolean literal returns, scalar `Crash`, direct integer and Boolean
 parameter returns, Boolean negation of a parameter, and equality of two Boolean
 parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -26,7 +26,8 @@ exact-subtract, exact-multiply, exact-divide, or exact-remainder, plus
 wrapping-divide, wrapping-remainder, saturating-add, wrapping-add,
 saturating-divide, saturating-remainder, saturating-subtract, wrapping-subtract,
 wrapping-multiply, or saturating-multiply of two same-type integer parameters,
-plus wrapping shift-left of an independently typed integer value and count,
+plus wrapping shift-left or shift-right of an independently typed integer value
+and count,
 without calling
 `lowering`, `KnownScalar`, or the scalar-return helper. The distinct parameter
 families share governed source-envelope and whole-roster ABI replay rungs,
@@ -52,11 +53,13 @@ integer-widen retains distinct source/target types, and exact-cast additionally
 retains its proof obligation through `ReturnIntegerExpression`.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
-same-type carrier. Wrapping shift-left admits fixed or address64 carriers
-independently for value and count and reduces signed negative counts with
-Euclidean modulo by the value width. Its specific family identity cannot be
-substituted with wrapping-right, either proof-bearing exact shift, bitwise, or
-arithmetic expressions even when an individual runtime value agrees.
+same-type carrier. Both wrapping directions admit fixed or address64 carriers
+independently for value and count and reduce signed negative counts with
+Euclidean modulo by the value width. Wrapping right shift separately preserves
+unsigned fixed/address zero-fill and signed fixed sign-fill. Neither
+direction's specific family identity can be substituted with its sibling,
+either proof-bearing exact shift, bitwise, or arithmetic expressions even when
+an individual runtime value agrees.
 Exact-add independently retains its range-obligation identity, rejects address
 carriers, and rejects substitution with wrapping or saturating addition.
 Saturating-add independently rejects both wrapping and proof-bearing exact-add

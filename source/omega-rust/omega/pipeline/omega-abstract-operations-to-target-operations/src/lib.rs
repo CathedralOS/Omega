@@ -77,6 +77,8 @@ pub use validation::{
     StraightLineWrappingIntegerRemainderParametersTranslationReceipt,
     StraightLineWrappingIntegerShiftLeftParametersTranslationError,
     StraightLineWrappingIntegerShiftLeftParametersTranslationReceipt,
+    StraightLineWrappingIntegerShiftRightParametersTranslationError,
+    StraightLineWrappingIntegerShiftRightParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
     validate_abstract_to_target_translation,
