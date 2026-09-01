@@ -1037,8 +1037,8 @@ transformation and custody.
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
 
-The catalog matrix covers all 17 current exact names across all five native
-target constructors: 68 admitted cells and 17 typed architecture rejections.
+The catalog matrix covers all 18 current exact names across all five native
+target constructors: 70 admitted cells and 20 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
