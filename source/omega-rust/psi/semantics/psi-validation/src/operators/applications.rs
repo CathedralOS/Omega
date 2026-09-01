@@ -3,7 +3,7 @@ use psi_language_semantics::const_value::CanonicalConstIdentity;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::TypeParameterKind;
-use psi_typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use psi_typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorDefinition};
 use psi_typed_trees::statement::{StatementHandle, TableCall};
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -336,6 +336,42 @@ pub fn validate_named_operator_application(
     Ok(Some(inferred))
 }
 
+/// Recover the exact builtin type carried by a width-landed integer literal.
+///
+/// Place lookup deliberately does not classify literals. Generic operator
+/// applications still need a concrete operand type before specialization,
+/// and a width suffix already provides that source-owned fact. This
+/// helper rejoins the landing to the compiler-installed builtin symbol and an
+/// existing typed type-reference; spelling alone never selects the type.
+pub fn landed_integer_literal_type_reference(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let atom = match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => match literal.landing()?.landed_type {
+            psi_numerics::literals::LandedIntegerType::I8 => psi_symbols::BuiltinTypeAtom::I8,
+            psi_numerics::literals::LandedIntegerType::I16 => psi_symbols::BuiltinTypeAtom::I16,
+            psi_numerics::literals::LandedIntegerType::I32 => psi_symbols::BuiltinTypeAtom::I32,
+            psi_numerics::literals::LandedIntegerType::I64 => psi_symbols::BuiltinTypeAtom::I64,
+            psi_numerics::literals::LandedIntegerType::U8 => psi_symbols::BuiltinTypeAtom::U8,
+            psi_numerics::literals::LandedIntegerType::U16 => psi_symbols::BuiltinTypeAtom::U16,
+            psi_numerics::literals::LandedIntegerType::U32 => psi_symbols::BuiltinTypeAtom::U32,
+            psi_numerics::literals::LandedIntegerType::U64 => psi_symbols::BuiltinTypeAtom::U64,
+            psi_numerics::literals::LandedIntegerType::Addr => {
+                psi_symbols::BuiltinTypeAtom::Address
+            }
+        },
+        _ => return None,
+    };
+    let symbol = program
+        .symbols
+        .child_handles(program.symbols.root())?
+        .find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))?;
+    program
+        .type_reference_table
+        .find_named_type_reference(symbol)
+}
+
 pub fn validated_boundary_operator_application(
     site: ValidatedBoundaryOperatorApplicationUseSite,
     operator: &OperatorDefinition,
@@ -424,6 +460,7 @@ pub(crate) fn validate_named_statement_operator_application(
             .iter()
             .map(|argument| {
                 crate::places::declared_place_type(program, machine, Some(state), *argument)
+                    .or_else(|| landed_integer_literal_type_reference(program, *argument))
             }),
     );
     match validate_named_operator_application(

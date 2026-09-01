@@ -110,8 +110,8 @@ pub use machine_specialization_identity::{
 pub use operators::{
     ValidatedBoundaryOperatorApplication, ValidatedBoundaryOperatorApplicationArgument,
     ValidatedBoundaryOperatorApplicationUseSite, canonical_closed_operator_realization_bytes,
-    checked_operator_application_matches_realization, validate_closed_operator_application,
-    validate_named_operator_application,
+    checked_operator_application_matches_realization, landed_integer_literal_type_reference,
+    validate_closed_operator_application, validate_named_operator_application,
 };
 pub use placed_views::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,

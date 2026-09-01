@@ -365,7 +365,11 @@ fn named_expression_operand_types(
             .expression_table
             .expression_handles(call.arguments)
             .iter()
-            .map(|argument| expression_type_reference_for_origin(program, *argument, origin)),
+            .map(|argument| {
+                expression_type_reference_for_origin(program, *argument, origin).or_else(|| {
+                    psi_validation::landed_integer_literal_type_reference(program, *argument)
+                })
+            }),
     );
     operand_types
 }

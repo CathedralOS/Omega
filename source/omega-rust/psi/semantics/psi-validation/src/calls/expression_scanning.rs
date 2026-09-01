@@ -184,6 +184,9 @@ fn validate_expression_call_bounds(
                     Some(current_state),
                     *argument,
                 )
+                .or_else(|| {
+                    crate::operators::landed_integer_literal_type_reference(program, *argument)
+                })
             })
             .collect::<Vec<_>>();
         match crate::operators::validate_named_operator_application(

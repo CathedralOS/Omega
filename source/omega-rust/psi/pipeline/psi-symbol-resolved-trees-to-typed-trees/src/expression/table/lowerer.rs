@@ -55,6 +55,38 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self.target_trees.expression_table
     }
 
+    fn retain_landed_integer_type_reference(
+        &mut self,
+        atom: psi_symbols::BuiltinTypeAtom,
+    ) -> Result<(), Diagnostic> {
+        let Some(program) = self.program else {
+            return Ok(());
+        };
+        let symbol = program
+            .symbols
+            .child_handles(program.symbols.root())
+            .and_then(|mut symbols| {
+                symbols.find(|symbol| program.symbols.builtin_type_atom(*symbol) == Some(atom))
+            })
+            .ok_or_else(|| {
+                Diagnostic::error("landed literal lost its compiler-installed builtin type")
+            })?;
+        if self
+            .target_trees
+            .type_reference_table
+            .find_named_type_reference(symbol)
+            .is_none()
+        {
+            self.target_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::Named {
+                    symbol,
+                    name: typed::name::Identifier::generated_static(atom.symbol_name()),
+                });
+        }
+        Ok(())
+    }
+
     pub(super) fn in_fact_position(mut self) -> Self {
         self.fact_position = true;
         self
@@ -291,9 +323,42 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         typed::expression::TableIndexedExpression { collection, index },
                     )))
             }
-            resolved::expression::ExpressionNode::Integer(value) => Ok(self
-                .target()
-                .insert(typed::expression::ExpressionNode::Integer(value.clone()))),
+            resolved::expression::ExpressionNode::Integer(value) => {
+                if let Some(landing) = value.landing() {
+                    self.retain_landed_integer_type_reference(match landing.landed_type {
+                        psi_numerics::literals::LandedIntegerType::I8 => {
+                            psi_symbols::BuiltinTypeAtom::I8
+                        }
+                        psi_numerics::literals::LandedIntegerType::I16 => {
+                            psi_symbols::BuiltinTypeAtom::I16
+                        }
+                        psi_numerics::literals::LandedIntegerType::I32 => {
+                            psi_symbols::BuiltinTypeAtom::I32
+                        }
+                        psi_numerics::literals::LandedIntegerType::I64 => {
+                            psi_symbols::BuiltinTypeAtom::I64
+                        }
+                        psi_numerics::literals::LandedIntegerType::U8 => {
+                            psi_symbols::BuiltinTypeAtom::U8
+                        }
+                        psi_numerics::literals::LandedIntegerType::U16 => {
+                            psi_symbols::BuiltinTypeAtom::U16
+                        }
+                        psi_numerics::literals::LandedIntegerType::U32 => {
+                            psi_symbols::BuiltinTypeAtom::U32
+                        }
+                        psi_numerics::literals::LandedIntegerType::U64 => {
+                            psi_symbols::BuiltinTypeAtom::U64
+                        }
+                        psi_numerics::literals::LandedIntegerType::Addr => {
+                            psi_symbols::BuiltinTypeAtom::Address
+                        }
+                    })?;
+                }
+                Ok(self
+                    .target()
+                    .insert(typed::expression::ExpressionNode::Integer(value.clone())))
+            }
             resolved::expression::ExpressionNode::Membership(membership) => {
                 self.lower_membership_expression(membership)
             }

@@ -155,6 +155,44 @@ fn assert_selected_operator_native_physical_call(
             panic!("{label} should retain one exact checked-body realization")
         };
         assert_eq!(realization.role(), expected_role);
+        let [demand] = coverage.demands().rows() else {
+            panic!("{label} should retain one exact checked-body demand")
+        };
+        match expected_role {
+            omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody => {
+                assert_eq!(
+                    demand.application(),
+                    &omega_boundary_applications::BoundaryApplication::Empty,
+                );
+            }
+            omega_boundary_applications::BoundaryApplicationRealizationRole::SpecializedCheckedBody => {
+                let [omega_boundary_applications::BoundaryApplicationArgument::Type {
+                    binder_ordinal,
+                    type_identity,
+                }] = demand.application().arguments()
+                else {
+                    panic!("{label} should retain one exact type application")
+                };
+                assert_eq!(*binder_ordinal, 0);
+                assert!(type_identity.canonical().contains("i32"));
+                let omega_boundary_applications::BoundaryApplicationRealization::SpecializedCheckedBody {
+                    realization_template,
+                    realization_machine,
+                    specialization_commitment,
+                    realization_contract_commitment,
+                    ..
+                } = realization.realization()
+                else {
+                    panic!("{label} specialized role should retain its closed payload")
+                };
+                assert_ne!(realization_template, realization_machine);
+                assert_ne!(*specialization_commitment, [0; 32]);
+                assert_ne!(*realization_contract_commitment, [0; 32]);
+            }
+            omega_boundary_applications::BoundaryApplicationRealizationRole::ExactCompilerIntrinsic => {
+                panic!("{label} checked-body helper cannot accept a compiler intrinsic")
+            }
+        }
         let operator_children = physical
             .children()
             .iter()
@@ -271,6 +309,16 @@ fn checked_boundary_operator_physical_custody_canary_compiles() {
         diagnostics
             .iter()
             .any(|diagnostic| { diagnostic.message.contains("InvalidLinuxExitGroupShape") })
+    );
+}
+
+#[test]
+fn specialized_boundary_operator_physical_custody_canary_compiles() {
+    let canary = pass_canary("providers/specialized_boundary_operator_physical_custody");
+    assert_selected_operator_native_physical_call(
+        &canary,
+        "specialized boundary-operator physical-custody canary",
+        omega_boundary_applications::BoundaryApplicationRealizationRole::SpecializedCheckedBody,
     );
 }
 
