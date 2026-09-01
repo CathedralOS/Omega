@@ -52,6 +52,7 @@ fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOp
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -175,6 +176,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_remainder_by_one_unit()
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -292,6 +294,7 @@ pub(in crate::pass_manager::tests) fn verified_exact_signed_remainder_by_negativ
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,

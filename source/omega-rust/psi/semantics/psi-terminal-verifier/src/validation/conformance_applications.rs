@@ -156,7 +156,7 @@ pub(super) fn validate_closed_conformance_applications(
         ) {
             ([], []) => {}
             ([callable], [row]) => {
-                let consumed = module.proof_output_calls.iter().any(|invocation| {
+                let proof_output_consumed = module.proof_output_calls.iter().any(|invocation| {
                     invocation.caller == application.owner
                         && invocation
                             .static_requirement_dispatch
@@ -179,7 +179,30 @@ pub(super) fn validate_closed_conformance_applications(
                                         == Some(callable_runtime_result(callable.result))
                             })
                 });
-                if !consumed {
+                let dynamic_dispatch_consumed = module
+                    .dynamic_dispatch
+                    .direct_dispatches
+                    .iter()
+                    .any(|dispatch| {
+                        dispatch.owner == application.owner
+                            && dispatch.declaring_trait_identity == row.declaring_trait_identity
+                            && dispatch.public_requirement_identity
+                                == row.public_requirement_identity
+                            && dispatch.requirement_identity == row.requirement_identity
+                            && dispatch.realization_identity == row.realization_identity
+                            && dispatch.realization_callable_identity
+                                == callable.source_callable_identity
+                            && dispatch.realization == callable.machine
+                            && module.dynamic_dispatch.selections.iter().any(|selection| {
+                                selection.owner == dispatch.owner
+                                    && selection.ordinal == dispatch.selection_ordinal
+                                    && selection.conformance_application_report_fingerprint
+                                        == application.report_fingerprint
+                                    && selection.conformance_application_commitment
+                                        == application.commitment
+                            })
+                    });
+                if !proof_output_consumed && !dynamic_dispatch_consumed {
                     return Err(ModuleError::InvalidClosedConformanceApplication {
                         owner: application.owner,
                         declaration: application.declaration_identity.clone(),

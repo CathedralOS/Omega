@@ -892,6 +892,7 @@ fn lower_structural_scalar_return_machine_in_namespace(
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },

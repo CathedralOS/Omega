@@ -67,6 +67,8 @@ const OBLIGATION_LEDGER_CODEC_SOURCE: &[u8] = include_bytes!("obligation_ledger.
 const PROPOSITION_SOURCE: &[u8] = include_bytes!("../../../foundation/psi-core/src/proposition.rs");
 const TERMINAL_MODEL_SOURCE: &[u8] =
     include_bytes!("../../../representations/psi-terminal/src/module.rs");
+const TERMINAL_DYNAMIC_DISPATCH_SOURCE: &[u8] =
+    include_bytes!("../../../representations/psi-terminal/src/dynamic_dispatch.rs");
 const TERMINAL_SEMANTICS_SOURCE: &[u8] = include_bytes!("../../psi-terminal-semantics/src/lib.rs");
 const TERMINAL_PROOF_BEARING_SCALAR_SOURCE: &[u8] =
     include_bytes!("../../psi-terminal-semantics/src/proof_bearing_scalar.rs");

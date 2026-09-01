@@ -288,6 +288,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {

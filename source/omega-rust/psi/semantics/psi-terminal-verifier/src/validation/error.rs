@@ -21,6 +21,33 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    NonCanonicalDynamicConformanceSelectionOrder,
+    DuplicateDynamicConformanceSelection {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    NonDenseDynamicConformanceSelection {
+        owner: MachineId,
+        expected: u32,
+        actual: u32,
+    },
+    InvalidDynamicConformanceSelection {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    OrphanDynamicConformanceSelection {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    NonCanonicalDirectDynamicDispatchOrder,
+    DuplicateDirectDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
+    InvalidDirectDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
     NonCanonicalReborrowRestoredCallUseOrder,
     DuplicateReborrowRestoredCallUse,
     DuplicateReborrowRestoredCallLifecycle,

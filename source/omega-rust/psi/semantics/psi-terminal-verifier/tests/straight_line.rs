@@ -625,6 +625,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(10).expect("machine"),
@@ -732,6 +733,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(20).expect("machine"),
@@ -873,6 +875,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(30).expect("machine"),
@@ -1023,6 +1026,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(40).expect("machine"),
@@ -1195,6 +1199,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(50).expect("machine"),
@@ -1356,6 +1361,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(60).expect("machine"),
@@ -1496,6 +1502,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(65).expect("machine"),
@@ -1616,6 +1623,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(68).expect("machine"),
@@ -1764,6 +1772,7 @@ fn preserves_address_carrier_identity() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(168).expect("machine"),
@@ -1839,6 +1848,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(170).expect("machine"),
@@ -1960,6 +1970,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(180).expect("machine"),
@@ -2057,6 +2068,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(190).expect("machine"),
@@ -2153,6 +2165,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(194).expect("machine"),
@@ -2234,6 +2247,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(198).expect("machine"),
@@ -2315,6 +2329,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(202).expect("machine"),
@@ -2404,6 +2419,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(212).expect("machine"),
@@ -2511,6 +2527,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(222).expect("machine"),
@@ -2591,6 +2608,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(232).expect("machine"),
@@ -2671,6 +2689,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(242).expect("machine"),
@@ -2751,6 +2770,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(252).expect("machine"),
@@ -2831,6 +2851,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(256).expect("machine"),
@@ -2940,6 +2961,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: MachineId::new(70).expect("machine"),
@@ -4702,6 +4724,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -4907,6 +4930,7 @@ fn structural_call_module() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller_machine, callee_machine],
     }
@@ -5234,6 +5258,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -5380,6 +5405,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -5900,6 +5926,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -5997,6 +6024,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -6094,6 +6122,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -6191,6 +6220,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -6288,6 +6318,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -6385,6 +6416,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            dynamic_dispatch: Default::default(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
@@ -6534,6 +6566,7 @@ fn unit_module() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: MachineId::new(900).unwrap(),
@@ -6904,6 +6937,7 @@ impl Fixture {
                 proof_output_calls: Vec::new(),
                 proof_recursive_components: Vec::new(),
                 closed_conformance_applications: Vec::new(),
+                dynamic_dispatch: Default::default(),
                 quotient_correspondences: Vec::new(),
                 machines: vec![machine],
             },

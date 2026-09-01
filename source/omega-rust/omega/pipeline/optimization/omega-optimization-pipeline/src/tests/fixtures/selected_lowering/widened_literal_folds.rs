@@ -99,6 +99,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,

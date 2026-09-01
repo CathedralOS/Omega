@@ -56,6 +56,28 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     if !strictly_increasing(
         module
+            .dynamic_dispatch
+            .selections
+            .iter()
+            .map(|selection| (selection.owner, selection.ordinal)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "dynamic conformance selections by owner and ordinal",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .dynamic_dispatch
+            .direct_dispatches
+            .iter()
+            .map(|dispatch| (dispatch.owner, dispatch.operation)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "direct dynamic dispatches by owner and operation",
+        ));
+    }
+    if !strictly_increasing(
+        module
             .quotient_correspondences
             .iter()
             .map(|correspondence| correspondence.identity.0.as_slice()),
