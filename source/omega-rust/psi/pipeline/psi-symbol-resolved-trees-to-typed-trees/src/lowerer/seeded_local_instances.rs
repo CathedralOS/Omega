@@ -42,6 +42,7 @@ pub(super) fn template_application_is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     owner: SymbolHandle,
+    owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
     owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
     application: &psi_symbol_resolved_trees::types::GenericTypeReference,
 ) -> bool {
@@ -68,8 +69,12 @@ pub(super) fn template_application_is_supported(
         && !owner_type_parameters.is_empty()
         && source.data_type_parameters(owner_definition.type_parameters) == owner_type_parameters
         && application.base_name.as_str() == template.name.as_str()
-        && application.lifetime_arguments.is_empty()
-        && template.lifetime_parameters.is_empty()
+        && application.lifetime_arguments.len() == template.lifetime_parameters.len()
+        && application.lifetime_arguments.iter().all(|argument| {
+            owner_lifetimes
+                .iter()
+                .any(|parameter| parameter.as_str() == argument.as_str())
+        })
         && template.generic_instance.is_none()
         && exact_top_level_data_symbol(source, template)
         && !parameters.is_empty()

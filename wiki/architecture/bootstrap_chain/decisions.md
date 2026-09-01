@@ -485,9 +485,11 @@ parameters and their exact property bounds. Any number of closed instances,
 wrappers, and uses may compose finite acyclic nested instance graphs. Arguments
 may be builtins, exact nongeneric nominal data, or already validated local
 instances. Direct parameter substitution recursively traverses reference,
-slice, and literal-fixed-array shells in record fields and case payloads. A
-direct lifetime-bearing template/instance pair retains the exact erased binder
-roster, and each use supplies its complete owner-local lifetime application.
+slice, and literal-fixed-array shells in record fields and case payloads.
+Lifetime-bearing templates and instances may form finite acyclic field or
+case-payload dependency graphs through those same shells. Every synthesized
+definition retains the exact erased binder roster, while every internal and
+ordinary edge retains exact owner-local lifetime arity and ordering.
 The continuation rejoins exact
 template/argument/origin spelling, case order and identity, retired data/
 payload identities, declaration/parameter/field/case ownership, transitive
@@ -495,7 +497,8 @@ reachability from ordinary generated data, and common source ownership. Base-
 owned applications separately retain their exact structural generic nodes
 without local synthesis. The compiler normalizes a per-unit clone before
 seeded resolution but retains the raw parsed unit for fallback. Cross-unit
-synthesis, nested lifetime-instance graphs, const/constrained applications,
+synthesis, lifetime-bearing local instances used as Type arguments, const/
+constrained applications,
 parameter-bearing constrained/dynamic/other composite shells, facts,
 quotients, zero gates, attached generated methods, and non-data shapes remain
 on the raw full-rebuild path. General seeded typing and deletion of that fallback remain open. The source-
