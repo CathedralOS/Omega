@@ -604,6 +604,24 @@ mutation and resumption cannot replay it. Broader projected/aggregate stores,
 opaque-provider realization, and native address/width/store lowering remain
 gated; physical pointer-layout equivalence is not permission equivalence.
 
+Terminal format 61/vocabulary 64 adds the first source-produced projected
+scalar replacement needed by a closed named-dynamic call. The checked plan
+retains one exact literal assignment into the selected carrier immediately
+before binding and invocation. `StructuralScalarFieldStore` then carries the
+mutable or write-only destination parameter, the exact path to the carrier
+record, its relevant scalar field ID, and the already-defined typed value;
+authority remains on the complete parameter declaration. The selected
+realization observes an exact direct `i32` leaf through
+`IntegerStructuralField`, while the older Boolean observation remains a
+separate operation. Verification independently rejoins the unrestricted
+parameter row, readable or writable access, empty qualification/claim custody,
+record path, relevant field, scalar type, and dominating SSA definition.
+Canonical encoding, semantic observation, fixed fuel, and reference execution
+preserve the store across the projected call without asserting a native
+layout. Terminal-to-abstract lowering retains the complete rows. Optimizer and
+native projected-store/integer-read/call realization remain separate custody
+work; `WriteOnlyPrimitiveStore` remains the distinct whole-root operation.
+
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts
 only on written paths and preserves facts over an explicitly unchanged suffix.
