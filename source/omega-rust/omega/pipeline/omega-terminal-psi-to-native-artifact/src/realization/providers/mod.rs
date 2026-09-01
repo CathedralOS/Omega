@@ -18,6 +18,7 @@ use psi_diagnostics::Diagnostic;
 pub(crate) struct AdmittedNativeProviders<'execution> {
     pub(crate) settlements: Vec<AdmittedBoundarySettlement<'execution>>,
     pub(crate) executions: Vec<NativeProviderExecution>,
+    pub(crate) terminal_authority_policy_identity: omega_effects::TerminalAuthorityPolicyIdentity,
     pub(crate) installation: Option<AdmittedProviderInstallation>,
 }
 
@@ -39,6 +40,7 @@ pub(crate) fn admit_native_providers<'request>(
     Ok(AdmittedNativeProviders {
         settlements,
         executions,
+        terminal_authority_policy_identity: request.terminal_authority_policy.identity(),
         installation,
     })
 }

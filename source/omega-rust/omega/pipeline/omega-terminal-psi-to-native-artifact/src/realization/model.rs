@@ -99,6 +99,9 @@ pub struct NativeRealizationRequest<'request> {
     pub target: omega_target::NativeTarget,
     pub subsystem: u16,
     pub profile: &'request psi_proof_admission::AdmissionProfile,
+    /// Receiving target policy used to classify every demanded compiler
+    /// intrinsic before native settlement.
+    pub terminal_authority_policy: crate::realization::CompilerIntrinsicTerminalAuthorityPolicy,
     pub program_entry: NativeProgramEntrySettlement<'request>,
     pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
     pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,

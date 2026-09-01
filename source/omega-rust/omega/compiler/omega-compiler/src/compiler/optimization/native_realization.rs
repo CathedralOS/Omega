@@ -60,6 +60,8 @@ pub(super) fn realize(
             target: admission.target,
             subsystem: checked.subsystem(),
             profile,
+            terminal_authority_policy:
+                omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
             program_entry,
             optimization_selections,
             selected_provider_plans: checked.selected_provider_plans(),

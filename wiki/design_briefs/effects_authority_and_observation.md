@@ -511,6 +511,14 @@ empty rows. Unknown, duplicate, cyclic, string-only, or missing leaves fail
 closed. Names, filenames, aliases, package roles, reviewer judgments, and risk
 labels are never authority identity.
 
+The first production receiving-policy join covers the closed compiler-
+intrinsic family. Native realization explicitly receives the accepted policy,
+classifies each demanded compiler builtin before target settlement, and carries
+the policy version and strong commitment in the authority-free native artifact
+identity. Exact-policy replay rejects substitution. This records physical
+classification policy only; it does not prove service/schema containment or
+mint provider-execution admission evidence.
+
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle
 provenance, or another exact constraint proof whose identity enters the

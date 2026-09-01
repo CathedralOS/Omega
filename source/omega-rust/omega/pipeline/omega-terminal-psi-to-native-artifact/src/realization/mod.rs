@@ -78,6 +78,7 @@ fn realize_native_artifact_with_optional_checked_scope(
     let AdmittedNativeProviders {
         settlements,
         executions,
+        terminal_authority_policy_identity,
         installation,
     } = admit_native_providers(&input, semantic_bytes, proof_bytes, &request)?;
     let physical_evidence_scope = input.physical_evidence_scope(checked_scope);
@@ -86,6 +87,7 @@ fn realize_native_artifact_with_optional_checked_scope(
         artifact,
         &machine_code,
         executions,
+        terminal_authority_policy_identity,
         physical_evidence_scope,
         &request,
     )

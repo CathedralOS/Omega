@@ -847,6 +847,7 @@ dependencies = [
 name = "omega-native-artifact"
 version = "0.1.0"
 dependencies = [
+ "omega-effects",
  "omega-image-emission",
  "omega-installation-evidence",
  "omega-machine-code",
