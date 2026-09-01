@@ -32,6 +32,13 @@ pub(in crate::validation::catalog) const EXACT_INTEGER_MULTIPLY: TranslationFami
         exact_integer_multiply,
     );
 
+pub(in crate::validation::catalog) const EXACT_INTEGER_DIVIDE: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineExactIntegerDivideParameters,
+        straight_line_parameter::integer::arithmetic::exact_divide::is_candidate,
+        exact_integer_divide,
+    );
+
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
@@ -142,6 +149,20 @@ pub(in crate::validation::catalog::dispatch) fn exact_integer_multiply(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerMultiplyParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerMultiplyParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn exact_integer_divide(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::exact_divide::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerDivideParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerDivideParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(

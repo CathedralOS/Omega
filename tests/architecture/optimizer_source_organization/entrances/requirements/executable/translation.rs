@@ -103,6 +103,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
+        coordination_marker: "reconstruct_exact_divide,",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
         coordination_marker: "reconstruct_exact_multiply,",
     },
     RequiredCoordinationEntrance {
@@ -156,6 +160,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
         coordination_marker: "reconstruct_exact_add,",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
+        coordination_marker: "reconstruct_exact_divide,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",

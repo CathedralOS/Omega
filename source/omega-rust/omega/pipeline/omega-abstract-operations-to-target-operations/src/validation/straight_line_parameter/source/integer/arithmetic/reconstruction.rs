@@ -4,11 +4,13 @@ use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
 use super::super::super::super::model::{
-    ExactIntegerAddParametersSource, ExactIntegerMultiplyParametersSource,
-    ExactIntegerSubtractParametersSource, IntegerArithmeticParametersSource,
+    ExactIntegerAddParametersSource, ExactIntegerDivideParametersSource,
+    ExactIntegerMultiplyParametersSource, ExactIntegerSubtractParametersSource,
+    IntegerArithmeticParametersSource,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
@@ -66,6 +68,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_multiply
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::exact_multiply::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_divide(
+    function: &AbstractFunction,
+) -> Result<
+    ExactIntegerDivideParametersSource,
+    StraightLineExactIntegerDivideParametersTranslationError,
+> {
+    let Some(AbstractOperation::ExactIntegerDivide { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineExactIntegerDivideParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::exact_divide::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(

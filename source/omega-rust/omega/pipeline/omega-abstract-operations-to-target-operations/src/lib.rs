@@ -28,6 +28,8 @@ pub use validation::{
     StraightLineBooleanParameterTranslationError, StraightLineBooleanParameterTranslationReceipt,
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineExactIntegerAddParametersTranslationReceipt,
+    StraightLineExactIntegerDivideParametersTranslationError,
+    StraightLineExactIntegerDivideParametersTranslationReceipt,
     StraightLineExactIntegerMultiplyParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationReceipt,
     StraightLineExactIntegerSubtractParametersTranslationError,
