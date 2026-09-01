@@ -36,6 +36,8 @@
 mod observation_identity;
 mod optimization;
 mod replay_record;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 
 pub use observation_identity::BuildObservationIdentity;
 
