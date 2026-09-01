@@ -15,6 +15,7 @@ use super::super::{
     stage_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_active_resident_rematerialization,
     stage_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_selected_lowering,
     stage_optimized_x86_xor_zero_materialization,
+    stage_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization,
     stage_optimized_x86_xor_zero_materialization_after_selected_lowering,
     OptimizedPostAllocationMachineOptimizationError,
     StagedOptimizedPostAllocationMachineOptimization,
@@ -101,6 +102,12 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_active_
     OptimizedPostAllocationMachineOptimizationError,
 > {
     match entry.payload().kind() {
+        PostAllocationMachineRuleKind::X86XorZero => {
+            stage_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization(
+                source, machine,
+            )
+            .map(StagedOptimizedPostAllocationMachineOptimization::X86XorZero)
+        }
         PostAllocationMachineRuleKind::Aarch64Movn => {
             stage_optimized_aarch64_movn_materialization_after_active_resident_rematerialization(
                 source, machine,

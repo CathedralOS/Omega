@@ -41,7 +41,8 @@ the repository gate.
   x86-64 function-relative branch relaxation.
 - One allocation-recovery rule may run alone; active-resident immediate-U64
   multi-use rematerialization may also precede AArch64 MOVN materialization or
-  either exact x86 imm32 materialization rule on its matching target.
+  x86 XOR-zero or either exact x86 imm32 materialization rule on its matching
+  target.
 - One post-allocation machine rule may run at a time and cannot compose with
   function-relative layout.
 - Psi selections are orthogonal overlays and do not alter physical-route

@@ -512,9 +512,10 @@ The current policy is centralized at
 first validate each phase selection and target predicate; this entrance alone
 admits baseline, selected lowering, one allocation-recovery rule alone, one
 post-allocation rule with optional selected lowering, function-relative layout
-with optional selected lowering, and three exact cross-phase pairs:
+with optional selected lowering, and four exact cross-phase pairs:
 active-resident immediate-U64 multi-use rematerialization followed by AArch64
-MOVN, x86 MOV-r32-imm32, or x86 sign-extending MOV-r64-imm32 selection.
+MOVN, x86 XOR-zero, x86 MOV-r32-imm32, or x86 sign-extending MOV-r64-imm32
+selection.
 Multiple recovery or machine rules, every other recovery-machine pair, and
 machine plus layout reject before route execution.
 The canonical post-allocation catalog entry survives composition and its closed
@@ -538,14 +539,17 @@ Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
 The adjacent composition matrix covers all 120 unordered exact-name pairs on
-both x86-64 and AArch64. Its 240 cells contain 131 admitted routes, 58 typed
-composition rejections, and 51 target rejections. Every cell also checks the
+both x86-64 and AArch64. Its 240 cells contain 132 admitted routes, 56 typed
+composition rejections, and 52 target rejections. Every cell also checks the
 exact Psi pass projection and proves that overlaying the complete Psi suite
 does not change the physical disposition; focused triple cases pin the two
 selected-lowering rules with machine and layout routes.
 
 Current XOR-zero coverage proves both direct and selected-lowering routes
-through fragment, object, and callable publication. Target-register-environment
+and its active-resident zero-rematerialization composition through fragment,
+object, and callable publication. The composed route consumes recovery's
+recomputed liveness, so the rule's exact dead-RFLAGS predicate is checked after
+the selected graph changes. Target-register-environment
 coverage selects and corrupts the exact scalar-call ABI row for System V AMD64,
 Microsoft x64, AAPCS64, and Darwin AAPCS64 across Linux x64, Windows x64, UEFI
 x64, Linux Arm64, and macOS Arm64. It checks argument/result views, implicit

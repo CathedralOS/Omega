@@ -487,7 +487,12 @@ decision. Only true language-semantic questions belong in
   publication routes with corruption coverage. AArch64 MOVN materialization
   now also composes after active-resident rematerialization on a high-ones
   exact-add fixture, retaining independently decoded replacement bytes and
-  both phase roots through fragment, object, and callable publication.
+  both phase roots through fragment, object, and callable publication. The x86
+  XOR-zero rule now also composes after active-resident rematerialization of
+  an exact zero; its producer and independent replay consume the recovery
+  carrier's recomputed liveness so dead-RFLAGS eligibility is checked after
+  rewriting, and both phase roots plus canonical three-byte output survive
+  fragment, object, and callable publication.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
@@ -668,8 +673,8 @@ decision. Only true language-semantic questions belong in
   the pipeline contains no duplicate exact-name schedule.
 - [x] Admit the first allocation-recovery plus post-allocation-machine pairs:
   active-resident immediate-U64 multi-use rematerialization followed by
-  AArch64 MOVN, x86 MOV-r32-imm32, or x86 sign-extending MOV-r64-imm32
-  selection. One generic
+  AArch64 MOVN, x86 XOR-zero, x86 MOV-r32-imm32, or x86 sign-extending
+  MOV-r64-imm32 selection. One generic
   realization retains both phase roots, exact baseline/final bytes,
   whole-function exit custody, and final fragment/object/callable publication;
   every other recovery-machine pair remains a typed rejection.
