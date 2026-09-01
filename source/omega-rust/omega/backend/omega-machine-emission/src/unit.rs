@@ -742,8 +742,25 @@ pub(super) fn emit_unit_body(
                 provider_execution,
                 binding: foreign,
                 scalar_arguments,
+                result_home,
             } => {
                 operation_site = Some(*psi_operation);
+                let result_shape = result_home
+                    .map(|home| {
+                        let expected_type =
+                            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                .expect("signed i32 is a valid fixed integer type");
+                        let shape = unit_scalar_shape(home.source_value, home.scalar_type)?;
+                        if home.defining_operation != *psi_operation
+                            || home.scalar_type != expected_type
+                            || shape != ValueShape::integer(4, 4)
+                            || home.shape != shape
+                        {
+                            return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                        }
+                        Ok(shape)
+                    })
+                    .transpose()?;
                 let signature = omega_calling_conventions::CallSignature {
                     parameters: scalar_arguments
                         .iter()
@@ -754,7 +771,7 @@ pub(super) fn emit_unit_body(
                             )
                         })
                         .collect::<Result<Vec<_>, _>>()?,
-                    result: None,
+                    result: result_shape,
                 };
                 let validated = omega_calling_conventions::validate_boundary_entry_plan(
                     foreign.boundary_entry_plan.clone(),
@@ -826,6 +843,13 @@ pub(super) fn emit_unit_body(
                                 AssignedUnitOperation::ScalarCall { result_home, .. },
                                 AssignedUnitScalarArgumentSource::Home(source),
                             ) => *result_home == source,
+                            (
+                                AssignedUnitOperation::NormalizedForeignCall {
+                                    result_home: Some(result_home),
+                                    ..
+                                },
+                                AssignedUnitScalarArgumentSource::Home(source),
+                            ) => *result_home == source,
                             _ => false,
                         })
                         .count();
@@ -885,13 +909,27 @@ pub(super) fn emit_unit_body(
                         (relocation_offset, outbound)
                     }
                 };
+                let scalar_result = result_home
+                    .map(|home| {
+                        scalar_call::emit_unit_scalar_result(
+                            &mut bytes,
+                            target.architecture,
+                            *psi_operation,
+                            call_plan,
+                            home,
+                        )
+                        .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)
+                    })
+                    .transpose()?;
                 foreign_calls.push(ForeignCallRelocation {
                     owner: CallSiteOwner::Operation(*psi_operation),
+                    operation_ordinal,
                     offset: relocation_offset,
                     locator: foreign.locator.clone(),
                     provider_execution: (*provider_execution).into(),
                     call_plan: call_plan.clone(),
                     scalar_arguments: emitted_scalar_arguments,
+                    scalar_result,
                     unit_stack: UnitCallStackEvidence {
                         outbound: stack_adjustment_pair(outbound, allocation, release),
                     },
@@ -1550,6 +1588,11 @@ fn assigned_unit_scalar_homes(
             AssignedUnitOperation::ScalarCall {
                 psi_operation,
                 result_home,
+                ..
+            } => Some((*psi_operation, *result_home)),
+            AssignedUnitOperation::NormalizedForeignCall {
+                psi_operation,
+                result_home: Some(result_home),
                 ..
             } => Some((*psi_operation, *result_home)),
             _ => None,

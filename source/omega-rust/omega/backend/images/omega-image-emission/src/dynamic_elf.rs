@@ -473,6 +473,7 @@ mod tests {
                                         same_stack_contribution: same_stack_contribution.clone(),
                                     },
                                     scalar_arguments: Vec::new(),
+                                    result_home: None,
                                 }
                             })
                             .chain(std::iter::once(

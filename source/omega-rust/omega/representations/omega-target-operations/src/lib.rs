@@ -543,6 +543,10 @@ pub enum TargetUnitOperation {
         provider_execution: ProviderExecutionBinding,
         binding: NormalizedForeignCallBinding,
         scalar_arguments: Vec<NormalizedForeignScalarArgument>,
+        /// Optional fixed-integer result retained in the attached Unit frame.
+        /// The first production slice admits only an exact signed `i32`
+        /// register result; later calls may consume this durable home.
+        result_home: Option<TargetUnitScalarHomeRequirement>,
     },
     PortWrite {
         psi_operation: OperationId,
