@@ -3,8 +3,10 @@
 use super::*;
 
 mod binary;
+mod unary;
 
 pub(crate) use binary::*;
+pub(crate) use unary::*;
 
 pub(crate) fn policy_add_unit(saturating: bool) -> PsiOptimizationUnit {
     let mut unit = exact_add_unit();

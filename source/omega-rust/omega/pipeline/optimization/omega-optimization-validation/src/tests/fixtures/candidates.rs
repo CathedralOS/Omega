@@ -175,7 +175,9 @@ pub(crate) fn integer_candidate_with_facts_and_cost(
         node: 2,
     };
     let contract = OptimizationRuleContract::new(
-        OptimizationRuleIdentity::from_canonical_bytes(b"fold-exact-add"),
+        OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.exact-integer-add-constants.v1",
+        ),
         OptimizationPassIdentity::from_canonical_bytes(b"constant-evaluation"),
         1,
         AnalysisSet::new([AnalysisKind::ScalarConstants]),
