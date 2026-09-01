@@ -3,8 +3,7 @@ use super::cleanup::validate_bounded_nominal_cleanup_body;
 use super::shared::*;
 use super::structural::exact_fully_consumed_affine_pair_root;
 use super::structural_layout::{
-    checked_align_up_u32, expected_maximal_residual_subtrees, is_partial_cleanup_path,
-    resolve_structural_field_path, structural_shape,
+    expected_maximal_residual_subtrees, is_partial_cleanup_path, structural_shape,
 };
 
 mod boundary_call;
@@ -12,6 +11,7 @@ mod preflight;
 mod return_unit;
 mod scalar_call;
 mod scalar_definitions;
+mod structural_call;
 mod structural_scalar;
 
 use boundary_call::lower_boundary_call;
@@ -22,6 +22,7 @@ use scalar_definitions::{
     lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
     validate_unit_scalar_definitions,
 };
+use structural_call::lower_structural_unit_call;
 use structural_scalar::{lower_field_store, lower_structural_scalar_call};
 
 pub(super) fn lower_unit_function(
@@ -174,265 +175,18 @@ pub(super) fn lower_unit_function(
                 });
                 provenance.operations.push(*psi_operation);
             }
-            AbstractOperation::CallUnit {
-                psi_operation,
-                callee,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                let callee_function = functions
-                    .get(callee)
-                    .copied()
-                    .ok_or(LoweringError::UnknownCallTarget(*callee))?;
-                if callee_function.result != AbstractFunctionResult::Unit
-                    || !callee_function.parameters.is_empty()
-                {
-                    return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
-                }
-                if structural_arguments.len() != callee_function.structural_parameters.len() {
-                    return Err(LoweringError::StructuralCallArgumentCountMismatch {
-                        callee: *callee,
-                        expected: callee_function.structural_parameters.len(),
-                        actual: structural_arguments.len(),
-                    });
-                }
-                let callee_shapes = callee_function
-                    .structural_parameters
-                    .iter()
-                    .map(|parameter| {
-                        structural_shape(
-                            parameter.structural_type,
-                            structural_types,
-                            &mut shape_cache,
-                            &mut active,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let callee_plan = evaluate_call_plan(
-                    CallingPolicy::native_for_target(target),
-                    &CallSignature {
-                        parameters: callee_shapes.clone(),
-                        result: None,
-                    },
-                )
-                .map_err(LoweringError::AbiPlan)?;
-                let arguments = structural_arguments
-                    .iter()
-                    .zip(&callee_function.structural_parameters)
-                    .zip(callee_shapes)
-                    .zip(&callee_plan.parameters)
-                    .map(|(((argument, callee_parameter), shape), destination)| {
-                        let source = parameters_by_place.get(&argument.place).copied().ok_or(
-                            LoweringError::UnknownStructuralArgumentPlace {
-                                machine: function.machine,
-                                place: argument.place,
-                            },
-                        )?;
-                        let (
-                            projected_type,
-                            projected_shape,
-                            source_byte_offset,
-                            fixed_array_length,
-                            element_stride,
-                        ) = match argument.path.as_slice() {
-                            [] => (source.structural_type, source.shape, 0, None, None),
-                            [StructuralPathSegment::FixedIndex(index)] => {
-                                let declaration = structural_types
-                                    .get(&source.structural_type)
-                                    .copied()
-                                    .ok_or(LoweringError::UnknownStructuralType(
-                                        source.structural_type,
-                                    ))?;
-                                let StructuralTypeShape::FixedArray { element, length } =
-                                    declaration.shape
-                                else {
-                                    return Err(
-                                        LoweringError::StructuralCallArgumentTypeMismatch {
-                                            callee: *callee,
-                                            place: argument.place,
-                                        },
-                                    );
-                                };
-                                if *index >= length {
-                                    return Err(
-                                        LoweringError::StructuralCallArgumentTypeMismatch {
-                                            callee: *callee,
-                                            place: argument.place,
-                                        },
-                                    );
-                                }
-                                let element_shape = structural_shape(
-                                    element,
-                                    structural_types,
-                                    &mut shape_cache,
-                                    &mut active,
-                                )?;
-                                let stride = checked_align_up_u32(
-                                    u32::from(element_shape.byte_size),
-                                    u32::from(element_shape.alignment),
-                                )
-                                .ok_or(
-                                    LoweringError::StructuralTypeTooLarge(source.structural_type),
-                                )?;
-                                let offset = u64::from(stride)
-                                    .checked_mul(*index)
-                                    .and_then(|offset| u32::try_from(offset).ok())
-                                    .ok_or(LoweringError::StructuralTypeTooLarge(
-                                        source.structural_type,
-                                    ))?;
-                                (element, element_shape, offset, Some(length), Some(stride))
-                            }
-                            [
-                                StructuralPathSegment::FixedIndex(outer_index),
-                                StructuralPathSegment::FixedIndex(inner_index),
-                            ] => {
-                                let declaration = structural_types
-                                    .get(&source.structural_type)
-                                    .copied()
-                                    .ok_or(LoweringError::UnknownStructuralType(
-                                        source.structural_type,
-                                    ))?;
-                                let StructuralTypeShape::FixedArray {
-                                    element: inner_type,
-                                    length: 2,
-                                } = declaration.shape
-                                else {
-                                    return Err(
-                                        LoweringError::StructuralCallArgumentTypeMismatch {
-                                            callee: *callee,
-                                            place: argument.place,
-                                        },
-                                    );
-                                };
-                                let inner_declaration = structural_types
-                                    .get(&inner_type)
-                                    .copied()
-                                    .ok_or(LoweringError::UnknownStructuralType(inner_type))?;
-                                let StructuralTypeShape::FixedArray {
-                                    element: leaf_type,
-                                    length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8),
-                                } = inner_declaration.shape
-                                else {
-                                    return Err(
-                                        LoweringError::StructuralCallArgumentTypeMismatch {
-                                            callee: *callee,
-                                            place: argument.place,
-                                        },
-                                    );
-                                };
-                                if *outer_index >= 2 || *inner_index >= inner_length {
-                                    return Err(
-                                        LoweringError::StructuralCallArgumentTypeMismatch {
-                                            callee: *callee,
-                                            place: argument.place,
-                                        },
-                                    );
-                                }
-                                let inner_shape = structural_shape(
-                                    inner_type,
-                                    structural_types,
-                                    &mut shape_cache,
-                                    &mut active,
-                                )?;
-                                let leaf_shape = structural_shape(
-                                    leaf_type,
-                                    structural_types,
-                                    &mut shape_cache,
-                                    &mut active,
-                                )?;
-                                let outer_stride = checked_align_up_u32(
-                                    u32::from(inner_shape.byte_size),
-                                    u32::from(inner_shape.alignment),
-                                )
-                                .ok_or(
-                                    LoweringError::StructuralTypeTooLarge(source.structural_type),
-                                )?;
-                                let inner_stride = checked_align_up_u32(
-                                    u32::from(leaf_shape.byte_size),
-                                    u32::from(leaf_shape.alignment),
-                                )
-                                .ok_or(
-                                    LoweringError::StructuralTypeTooLarge(source.structural_type),
-                                )?;
-                                let offset = u64::from(outer_stride)
-                                    .checked_mul(*outer_index)
-                                    .and_then(|offset| {
-                                        u64::from(inner_stride)
-                                            .checked_mul(*inner_index)
-                                            .and_then(|inner| offset.checked_add(inner))
-                                    })
-                                    .and_then(|offset| u32::try_from(offset).ok())
-                                    .ok_or(LoweringError::StructuralTypeTooLarge(
-                                        source.structural_type,
-                                    ))?;
-                                (leaf_type, leaf_shape, offset, Some(2), Some(outer_stride))
-                            }
-                            path @ [StructuralPathSegment::Field(_), ..]
-                                if path.iter().all(|segment| {
-                                    matches!(segment, StructuralPathSegment::Field(_))
-                                }) =>
-                            {
-                                let (field_type, field_shape, offset) =
-                                    resolve_structural_field_path(
-                                        source.structural_type,
-                                        path,
-                                        structural_types,
-                                        &mut shape_cache,
-                                        &mut active,
-                                    )
-                                    .map_err(|_| {
-                                        LoweringError::StructuralCallArgumentTypeMismatch {
-                                            callee: *callee,
-                                            place: argument.place,
-                                        }
-                                    })?;
-                                (field_type, field_shape, offset, None, None)
-                            }
-                            _ => {
-                                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                    callee: *callee,
-                                    place: argument.place,
-                                });
-                            }
-                        };
-                        if projected_type != callee_parameter.structural_type
-                            || projected_shape != shape
-                            || u32::from(shape.byte_size)
-                                .checked_add(source_byte_offset)
-                                .is_none_or(|end| end > u32::from(source.shape.byte_size))
-                        {
-                            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                                callee: *callee,
-                                place: argument.place,
-                            });
-                        }
-                        Ok(TargetStructuralArgument {
-                            place: argument.place,
-                            access: argument.access,
-                            path: argument.path.clone(),
-                            root_structural_type: source.structural_type,
-                            structural_type: projected_type,
-                            shape,
-                            source_byte_offset,
-                            fixed_array_length,
-                            element_stride,
-                            source: source.placement.clone(),
-                            destination: destination.clone(),
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                operations.push(TargetUnitOperation::Call {
-                    psi_operation: *psi_operation,
-                    callee: *callee,
-                    arguments,
-                    claim_transfers: claim_transfers.clone(),
-                    requirement_obligations: requirement_obligations.clone(),
-                    crash_continuations: crash_continuations.clone(),
-                });
-                provenance.operations.push(*psi_operation);
-            }
+            AbstractOperation::CallUnit { .. } => lower_structural_unit_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::Call { .. } => {
                 if nonreturning_boundary {
                     return Err(LoweringError::UnsupportedOperationInUnitFunction(
@@ -598,7 +352,9 @@ pub(super) fn lower_unit_function(
             | AbstractOperation::Conditional { .. }
             | AbstractOperation::Return { .. }
             | AbstractOperation::ReturnStructural { .. } => {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(function.machine));
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
             }
         }
     }
