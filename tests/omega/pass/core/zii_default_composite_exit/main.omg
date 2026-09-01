@@ -8,7 +8,7 @@
 // regression would corrupt first. exits: 71 = ZII sum took a non-first
 // variant; 72 = ZII sum matched nothing; 73 = ZII payload nonzero;
 // 74 = ZII array element nonzero; 75 = ZII nested field nonzero.
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }

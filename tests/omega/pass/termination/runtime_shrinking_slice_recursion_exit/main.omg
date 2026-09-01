@@ -13,7 +13,7 @@
 // this canary pins resolved it as a plain place over the descriptor slot,
 // handing `take` the data pointer's low bytes (exit saw 152 = (4*ptr+24) & 0xff).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Entry {
     value: u32 in Wrapping;

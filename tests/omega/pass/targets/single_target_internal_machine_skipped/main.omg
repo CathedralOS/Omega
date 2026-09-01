@@ -6,7 +6,7 @@
 // targets implement (see fail/targets/target_machine_missing_rejected).
 // `demo_target` resolves to no real target, so the internal is inert on every
 // host and nothing portable may call it.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Helper { seed: i32; }
 

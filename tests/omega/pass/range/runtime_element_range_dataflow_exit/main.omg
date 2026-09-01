@@ -9,7 +9,7 @@
 //   into `next: i32 [0..=15]` with no guard -- the cells[rp]-style dataflow
 //   that kept grid samples partially Wrapping.
 // cells[1]=7 -> 7*2+1 = 15 -> exit 15.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

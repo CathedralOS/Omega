@@ -1,7 +1,7 @@
 // Signed -> unsigned narrowing must trap on every negative source value,
 // including conversions to a wider unsigned representation.
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -6,7 +6,7 @@
 // - the PROOF side refolds the binary operand-wise, the guard filling in the
 //   operand the declaration leaves unbounded -> [0..=9] fits y.
 // p=8, dir=1 -> exit 9.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

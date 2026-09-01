@@ -5,7 +5,7 @@
 // LEAF arms (identical guards from different statements used to compare
 // `false` at `(Integer(0), Integer(0))`), and validation joins ALL incoming
 // edge envs per-place (interval union). sp=7 -> exit 7.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

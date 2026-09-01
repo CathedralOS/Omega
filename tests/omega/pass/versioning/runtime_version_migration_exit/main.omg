@@ -1,8 +1,8 @@
 // End-to-end migration between ordinary immutable era data. The migrated
 // current value drives the exit: count becomes 7 and timestamp becomes 7.
 
-use omega::language::std::console;
-use omega::language::std::format_lineage;
+use omega_language_std::console;
+use omega_language_std::format_lineage;
 
 data CounterDisk {
 }

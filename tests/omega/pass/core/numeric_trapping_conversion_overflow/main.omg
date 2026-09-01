@@ -1,7 +1,7 @@
 // A trapping conversion is an explicit runtime event. An out-of-range source
 // must trap inside the named conversion before the caller reaches exit 7.
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

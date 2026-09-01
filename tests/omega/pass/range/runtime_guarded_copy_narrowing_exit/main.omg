@@ -4,7 +4,7 @@
 // `self.y = self.yv` -- the checker used to bail before consulting the guard
 // because the value had no declared range (guards could only REFINE an
 // existing range, never establish one). yv=7 -> exit 7.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

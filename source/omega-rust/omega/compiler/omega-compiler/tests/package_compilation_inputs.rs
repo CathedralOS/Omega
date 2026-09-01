@@ -420,6 +420,54 @@ machine inspect(observation: Observation, bytes: &[u8]) -> u64 {
 }
 
 #[test]
+fn package_measure_body_members_finalize_from_their_authored_source_scope() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use dep::noise;
+data Card { power: u64; }
+measure Card::PowerOrder(card: Card) -> u64 { card.power }
+data Main { }
+machine Main::weaken(&mut self, card: Card)
+terminates by card -> Card::PowerOrder;
+-> u64
+{
+    transition card.power > 0 {
+        true -> weaken(Card { power: card.power - 1 })
+        false -> card.power
+    }
+}
+"#,
+    );
+    TempTree::write(dependency.join("noise.omg"), "pub data Noise { }\n");
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("measure package graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("measure-body member custody should rejoin its exact package declaration");
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections(),
+    );
+}
+
+#[test]
 fn intrinsic_scalar_operators_remain_builtin_beside_unrelated_operators() {
     let tree = TempTree::new();
     let root = tree.package("root");
