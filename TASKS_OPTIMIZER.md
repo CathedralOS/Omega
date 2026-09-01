@@ -1705,7 +1705,7 @@ unchecked rewrite or opt into lossy floating-point semantics.
   compiler prerequisites under P5 rather than an owner language decision.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
 - [x] Publish exact-rule release notes and rollback procedures. The versioned
-  V1 inventory names all 17 canonical exact rules, phases, target
+  V1 inventory names all 18 canonical exact rules, phases, target
   applicability, experimental status, exact rollback spelling, supported
   compositions, and fail-closed carrier limits; its native-only runbook owns
   receipt capture, verification, and restoration.

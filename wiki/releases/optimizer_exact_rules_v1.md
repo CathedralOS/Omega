@@ -27,6 +27,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | Required |
 | `X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | Required |
 | `Aarch64ElideSameViewCopyI64BeforeReturnV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeReturnV1` | Required |
+| `Aarch64ElideSameViewCopyI64BeforeCompareZeroV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeCompareZeroV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s
