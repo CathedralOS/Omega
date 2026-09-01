@@ -29,8 +29,10 @@ blocking rows only through their exact candidate-bound root policy. The result
 remains review and policy state. `admission` owns the stronger consumer-side
 boundary: it rechecks live source custody and the complete reconstruction and
 policy replay before producing in-memory accepted ordinary evidence. That
-evidence still has no codec, `omega.lock` mutation route, `PackageInstance`, or
-transaction authority.
+evidence retains exact compiler-consumed semantic bindings scoped to their
+consuming package, while every resulting blocker still requires fresh root
+policy. It still has no codec, `omega.lock` mutation route, `PackageInstance`,
+or transaction authority.
 
 Install and update belong in `operations/` when their remaining acceptance and
 transaction gates are closed. The source and review crates remain subordinate

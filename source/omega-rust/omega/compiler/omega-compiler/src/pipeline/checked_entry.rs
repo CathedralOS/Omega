@@ -169,6 +169,18 @@ impl CheckedCompilation {
             .find(|binding| binding.role() == role)
     }
 
+    /// Exact consumer-policy semantic bindings that were resolved and
+    /// consumed by this checked package compilation. Unconsumed or stale input
+    /// bindings reject before a compilation can expose this set.
+    #[doc(hidden)]
+    pub fn resolved_semantic_bindings(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &omega_package_compilation::AcceptedSemanticBinding> {
+        self.resolved_semantic_bindings
+            .iter()
+            .map(omega_selected_dispatch::ResolvedAcceptedSemanticBinding::accepted)
+    }
+
     /// Compiler-validated exact source owners used only while projecting
     /// package-review structural type identity. Source IDs are private join
     /// coordinates and never enter canonical review bytes.

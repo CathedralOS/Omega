@@ -190,10 +190,15 @@ after the complete current-version lock payload exists.
   live resolver custody, reruns the complete reconstruction and root-policy
   replay, and binds each exact resolution, source-consumption commitment,
   ordinary ledger artifact, local result set, build derivation, and generated-
-  source bundle under accepted-evidence schema v1. Its types have no public
-  constructor and accept no decoded question, review capsule, fingerprint, or
-  preassembled acceptance as authority. The result remains in-memory and has no
-  codec or mutation route.
+  source bundle under accepted-evidence schema v2. It also retains every exact
+  consumer-scoped semantic binding that the compiler resolved and consumed.
+  Review compilation rejects absent consumers and duplicate consumer-role
+  inputs and gives each re-rooted package only its own bindings. Resulting
+  dangerous-authority and provider rows still require fresh root policy; a
+  binding is not an audit receipt or admission by itself. Its types have no
+  public constructor and accept no decoded question, review capsule,
+  fingerprint, or preassembled acceptance as authority. The result remains
+  in-memory and has no codec or mutation route.
   Add another result class only with a concrete compiler-owned obligation and
   certificate route or explicit open status. Do not persist this partial lane,
   cite the standalone `psi-proof` ledger as production enforcement, or invent
@@ -424,6 +429,15 @@ explicitly.
   self reach, not arbitrary package-owned nominal carrier types. Package review
   now also classifies the resolved exact declaration as Process authority;
   package spelling alone remains inert.
+
+  Manager review compilation now carries that binding only for its exact
+  consuming `PackageKey`, and accepted ordinary evidence retains the exact
+  compiler-resolved row after fresh policy accepts all resulting blockers.
+  Missing consumers, duplicate consumer roles, foreign provider packages,
+  stale schemas, stale plans, ambiguous matches, and unused bindings reject.
+  Remaining sequencing is to derive the candidate binding inside the
+  install/update review transaction and then remove the package-aware
+  Toolchain Console fallback and bundled std mount atomically.
 
   The remaining stale std-specific consumers are the legacy Toolchain Console
   lane and mount, UEFI physical-entry recognition, FilesystemHost dangerous-

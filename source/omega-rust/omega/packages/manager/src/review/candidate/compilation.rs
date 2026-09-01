@@ -11,10 +11,13 @@ use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
+use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::resolution::{package_compilation_inputs_for, reachable_package_keys};
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
-use omega_package_compilation::PackageCompilationInputError;
+use omega_package_compilation::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputError,
+};
 use omega_package_evidence::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
     ordinary_package_obligation_results_from_projection,
@@ -23,7 +26,33 @@ use omega_package_evidence::ledger::{
 use omega_package_evidence::project_checked_package_review;
 use psi_checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use psi_diagnostics::Diagnostic;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+
+/// One consumer-scoped semantic-binding policy input for candidate review.
+///
+/// The consumer is an exact package key in the resolver-owned closure. The
+/// binding is policy authority supplied to that consumer's compilation; this
+/// input is not proof of an audit, an audit receipt, or package admission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsumerScopedSemanticBindingReviewInput {
+    consumer: PackageKey,
+    binding: AcceptedSemanticBinding,
+}
+
+impl ConsumerScopedSemanticBindingReviewInput {
+    pub fn new(consumer: PackageKey, binding: AcceptedSemanticBinding) -> Self {
+        Self { consumer, binding }
+    }
+
+    pub fn consumer(&self) -> &PackageKey {
+        &self.consumer
+    }
+
+    pub fn binding(&self) -> &AcceptedSemanticBinding {
+        &self.binding
+    }
+}
 
 /// Compile every package in an exact resolver-owned closure and project its
 /// review material locally.
@@ -37,6 +66,23 @@ pub fn compile_resolved_package_reviews(
     target: &str,
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    compile_resolved_package_reviews_with_semantic_bindings(closure, target, build_root, &[])
+}
+
+/// Compile candidate reviews with explicit consumer-policy semantic bindings.
+///
+/// Inputs are scoped to one exact consumer. Each package receives only its own
+/// rows after it has been re-rooted over its transitive dependency closure.
+/// Provider membership and binding contents remain compiler-input invariants;
+/// these rows are not proof/audit receipts and do not admit a package.
+pub fn compile_resolved_package_reviews_with_semantic_bindings(
+    closure: &ResolvedPackageSourceClosure,
+    target: &str,
+    build_root: &Path,
+    semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
+) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    let semantic_bindings_by_consumer =
+        semantic_bindings_by_consumer(closure, semantic_binding_inputs)?;
     let build_session = ReviewBuildSession::create(build_root)?;
     let result = compile_resolved_package_reviews_in_session(
         closure,
@@ -44,8 +90,43 @@ pub fn compile_resolved_package_reviews(
         build_session.root(),
         build_session.filesystem_sponsor(),
         build_session.evaluation_sponsor(),
+        &semantic_bindings_by_consumer,
     );
     build_session.dispose(result)
+}
+
+fn semantic_bindings_by_consumer(
+    closure: &ResolvedPackageSourceClosure,
+    inputs: &[ConsumerScopedSemanticBindingReviewInput],
+) -> Result<BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>, CompileResolvedPackageReviewsError>
+{
+    let mut seen_roles = BTreeSet::<(PackageKey, AcceptedSemanticBindingRole)>::new();
+    let mut bindings_by_consumer = BTreeMap::<PackageKey, Vec<AcceptedSemanticBinding>>::new();
+    for input in inputs {
+        let consumer = input.consumer();
+        let role = input.binding().role();
+        if closure.custody(consumer).is_none() {
+            return Err(
+                CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent {
+                    consumer: consumer.clone(),
+                    role,
+                },
+            );
+        }
+        if !seen_roles.insert((consumer.clone(), role)) {
+            return Err(
+                CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole {
+                    consumer: consumer.clone(),
+                    role,
+                },
+            );
+        }
+        bindings_by_consumer
+            .entry(consumer.clone())
+            .or_default()
+            .push(input.binding().clone());
+    }
+    Ok(bindings_by_consumer)
 }
 
 fn compile_resolved_package_reviews_in_session(
@@ -54,6 +135,7 @@ fn compile_resolved_package_reviews_in_session(
     build_session_root: &Path,
     filesystem_sponsor: &FilesystemSponsor,
     evaluation_sponsor: &BuildEvaluationSponsor,
+    semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut retained_obligation_ledger_total = 0usize;
@@ -72,6 +154,19 @@ fn compile_resolved_package_reviews_in_session(
                 errors,
             }
         })?;
+        let inputs = inputs
+            .with_accepted_semantic_bindings(
+                semantic_bindings_by_consumer
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_default(),
+            )
+            .map_err(
+                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
+                    package: key.clone(),
+                    errors,
+                },
+            )?;
         let dependency_bundles = reachable_package_keys(closure, &key)
             .into_iter()
             .filter(|dependency| dependency != &key)
@@ -151,6 +246,7 @@ fn compile_resolved_package_reviews_in_session(
             })?;
         let build_observation_summary = checked.build_observation_summary().cloned();
         let build_evaluation_usage = checked.build_evaluation_usage();
+        let semantic_bindings = checked.resolved_semantic_bindings().cloned().collect();
         let generated_source_bundle =
             checked.package_generated_source_bundle().map_err(|error| {
                 CompileResolvedPackageReviewsError::Projection {
@@ -252,6 +348,7 @@ fn compile_resolved_package_reviews_in_session(
             source_consumption_commitment,
             build_evaluation_usage,
             build_observation_summary,
+            semantic_bindings,
             generated_source_bundle: generated_source_bundle.clone(),
             projection,
             canonical_review_bytes,

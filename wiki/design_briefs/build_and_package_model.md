@@ -2179,7 +2179,9 @@ policy. For every package it then binds the exact immutable resolution,
 compiler-consumed source commitment, current ordinary obligation ledger as the
 ordinary produced artifact, locally reconstructed result set, build evaluation
 and observation provenance, and generated-source bundle under accepted-
-evidence schema v1. Dependency obligations retain their package owner and no
+evidence schema v2. It also retains each exact consumer-scoped semantic binding
+that the compiler resolved and consumed while deriving those rows. Dependency
+obligations retain their package owner and no
 producer policy composes upward. A blocker-free closure carries no synthetic
 policy; missing, rejecting, stale, or foreign policy and post-review source
 drift reject. This value is deliberately in-memory: it has no codec, accepted-
@@ -2187,6 +2189,15 @@ lock mutation route, audit receipt, or `PackageInstance` constructor. Current
 result lanes remain explicitly open root admissions, so no empty generic
 certificate framework is invented before a concrete compiler-owned certificate
 route exists.
+
+Semantic-binding input to review is scoped by exact consuming `PackageKey`.
+Each dependency-first compilation receives only its own rows after re-rooting
+over its transitive closure; an absent consumer, duplicate consumer role,
+foreign provider package, stale schema or plan, ambiguous match, or unused
+binding rejects. The compiler-resolved row is retained in compiler review and
+accepted ordinary evidence. This is consumer policy input, not proof of an
+audit or admission: every dangerous-authority and provider conflict produced
+by the bound compilation still requires the complete fresh root policy.
 
 Accepted-lock implementation starts only after the supported authority-bearing
 evidence classes are complete and joined into `PackageInstance`. The present
