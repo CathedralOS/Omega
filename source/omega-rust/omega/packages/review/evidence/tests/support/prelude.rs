@@ -30,7 +30,7 @@ pub(crate) use omega_package_evidence::record::{
     PackageReviewDataMember, PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
     PackageReviewExternalBinding, PackageReviewExternalRequirement, PackageReviewFloatLiteral,
-    PackageReviewMachineParameterContract, PackageReviewNominalOwner,
+    PackageReviewForeignLocator, PackageReviewMachineParameterContract, PackageReviewNominalOwner,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence, PackageReviewProviderGrantSelectorKind,
     PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,

@@ -1233,6 +1233,7 @@ pub fn derive_satisfies_plans_with_evaluated_bindings(
     selected_target: Option<&str>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
 ) -> Result<Vec<DerivedProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
+    evaluated_bindings.validate_against_typed(typed)?;
     let retained_target = evaluated_bindings
         .target()
         .map(omega_target::TargetProfile::target_name);

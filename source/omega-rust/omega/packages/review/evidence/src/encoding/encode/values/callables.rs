@@ -6,9 +6,10 @@ use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableConformance, PackageReviewCallableRole,
-    PackageReviewCheckedServiceReach, PackageReviewExternalBinding,
+    PackageReviewCheckedServiceReach, PackageReviewEvaluatedImport, PackageReviewExternalBinding,
     PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
     PackageReviewExternalRequirement, PackageReviewExternalStaticParameter,
+    PackageReviewForeignLocator,
 };
 
 use super::contracts::encode_callable_contract;
@@ -165,6 +166,10 @@ pub(crate) fn encode_external_executable_supply(
             encoder.string(library)?;
             encoder.string(symbol)?;
         }
+        PackageReviewExternalBinding::NormalizedImport(import) => {
+            encoder.byte(6);
+            encode_review_evaluated_import(encoder, import)?;
+        }
         PackageReviewExternalBinding::Syscall { number } => {
             encoder.byte(1);
             encoder.i64(*number);
@@ -184,4 +189,64 @@ pub(crate) fn encode_external_executable_supply(
         }
     }
     Ok(())
+}
+
+fn encode_review_evaluated_import(
+    encoder: &mut Encoder,
+    import: &PackageReviewEvaluatedImport,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.string(&import.target)?;
+    match &import.locator {
+        PackageReviewForeignLocator::PeByName { library, export } => {
+            encoder.byte(0);
+            encoder.bytes(library)?;
+            encoder.bytes(export)?;
+        }
+        PackageReviewForeignLocator::PeByOrdinal { library, ordinal } => {
+            encoder.byte(1);
+            encoder.bytes(library)?;
+            encoder.u16(*ordinal);
+        }
+        PackageReviewForeignLocator::ElfVersioned {
+            object,
+            symbol,
+            version,
+        } => {
+            encoder.byte(2);
+            encoder.bytes(object)?;
+            encoder.bytes(symbol)?;
+            encoder.bytes(version)?;
+        }
+        PackageReviewForeignLocator::MachODylibSymbol {
+            install_name,
+            symbol,
+        } => {
+            encoder.byte(3);
+            encoder.bytes(install_name)?;
+            encoder.bytes(symbol)?;
+        }
+    }
+    encoder.fixed_bytes(&import.locator_identity_digest);
+    encode_nominal(encoder, &import.producer)?;
+    encoder.optional_package_identity(import.producer_package);
+    encoder.string(&import.producer_callable_identity)?;
+    encoder.fixed_bytes(&import.producer_closure_digest);
+    encoder.u32(import.evaluator_semantics_marker);
+    let usage = import.evaluation_usage;
+    encoder.u32(usage.usage_schema_version);
+    encoder.u32(usage.step_schedule_marker);
+    encoder.u64(usage.fuel_units);
+    encoder.u64(usage.fuel_ceiling);
+    encoder.u64(usage.build_log_bytes);
+    encoder.u64(usage.filesystem_operation_attempts);
+    encoder.u64(usage.peak_live_cells);
+    encoder.u64(usage.peak_live_text_bytes);
+    encoder.u64(usage.result_cells);
+    encoder.u64(usage.result_text_bytes);
+    encoder.fixed_bytes(&import.evaluation_digest);
+    encoder.u32(import.materializer_schema_version);
+    encoder.fixed_bytes(&import.materialization_digest);
+    encoder.fixed_bytes(&import.receipt_locator_identity_digest);
+    encoder.fixed_bytes(&import.receipt_identity_digest);
+    encoder.check()
 }

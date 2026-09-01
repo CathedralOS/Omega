@@ -98,6 +98,137 @@ impl EvaluatedViaBindingTable {
                 && row.requirement == requirement
         })
     }
+
+    /// Replay every arena-local join before a later trust boundary consumes
+    /// this table. Stable receipt data remains immutable; this catches a
+    /// substituted conformance, expression, producer entry, or producer
+    /// identity in a retained/mutated typed program.
+    pub fn validate_against_typed(&self, typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+        let expected = typed
+            .machines()
+            .iter()
+            .flat_map(|machine| {
+                typed
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .filter(|conformance| conformance.via_expression.is_valid())
+                    .map(move |conformance| (machine, conformance))
+            })
+            .collect::<Vec<_>>();
+        let mut diagnostics = Vec::new();
+        if expected.len() != self.rows.len() {
+            diagnostics.push(Diagnostic::error(format!(
+                "evaluated `via` binding table retains {} rows for {} exact typed expressions",
+                self.rows.len(),
+                expected.len(),
+            )));
+        }
+        for (machine, conformance) in expected {
+            let source_span = typed
+                .expression_table
+                .source_span(conformance.via_expression);
+            if conformance.external_binding.is_some() {
+                diagnostics.push(at(
+                    source_span,
+                    "ordinary external `via` replay found a legacy binding on the same conformance",
+                ));
+                continue;
+            }
+            if machine.body_is_present
+                || !matches!(
+                    machine.supply_mode,
+                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                        binding: None,
+                        mechanism: None,
+                    }
+                )
+                || conformance.external_binding_source_span.is_none()
+            {
+                diagnostics.push(at(
+                    source_span,
+                    "ordinary external `via` replay found a mixed, body-bearing, or source-uncustodied supply carrier",
+                ));
+                continue;
+            }
+            let matches = self
+                .rows
+                .iter()
+                .filter(|row| {
+                    row.realization_machine == machine.symbol
+                        && row.satisfied_owner == conformance.symbol
+                        && row.requirement == conformance.requirement_symbol
+                })
+                .collect::<Vec<_>>();
+            let [row] = matches.as_slice() else {
+                diagnostics.push(at(
+                    source_span,
+                    format!(
+                        "ordinary external `via` replay found {} evaluated rows for one exact conformance",
+                        matches.len(),
+                    ),
+                ));
+                continue;
+            };
+            let call = match typed
+                .expression_table
+                .expression(conformance.via_expression)
+            {
+                ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            };
+            let producers = call
+                .into_iter()
+                .flat_map(|call| {
+                    typed.machines().iter().filter_map(move |producer| {
+                        typed
+                            .machine_states(producer)
+                            .iter()
+                            .find(|state| state.symbol == call.target_symbol)
+                            .map(|state| (producer, state))
+                    })
+                })
+                .collect::<Vec<_>>();
+            let producer = match producers.as_slice() {
+                [(producer, entry)]
+                    if producer.symbol == row.producer_machine
+                        && entry.symbol == row.producer_entry_state
+                        && typed
+                            .machine_states(producer)
+                            .first()
+                            .is_some_and(|first| first.symbol == entry.symbol) =>
+                {
+                    Some(*producer)
+                }
+                _ => None,
+            };
+            let producer_matches_receipt = producer.is_some_and(|producer| {
+                typed
+                    .normalized_machine_overload_identity(producer)
+                    .is_some_and(|identity| {
+                        identity.identity() == row.evaluated.receipt().producer_callable_identity()
+                    })
+                    && typed.symbols.symbol_package_identity(producer.symbol)
+                        == row.evaluated.receipt().producer_package()
+            });
+            if row.via_expression != conformance.via_expression
+                || row.via_source_span != source_span
+                || !producer_matches_receipt
+                || self.target != Some(row.evaluated.locator().target())
+                || row.evaluated.receipt().locator_identity_digest()
+                    != row.evaluated.locator().identity_digest()
+            {
+                diagnostics.push(at(
+                    source_span,
+                    "ordinary external `via` replay disagrees with its retained expression, producer, target, or receipt",
+                ));
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(diagnostics)
+        }
+    }
 }
 
 struct BindingVocabulary {

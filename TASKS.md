@@ -10714,9 +10714,14 @@ boundary without its corresponding checked law.
   producer package/callable/source closure, evaluator semantics and complete
   usage, evaluated value, materializer schema, vocabulary source, target,
   widths, and normalized locator. The complete table remains on the checked
-  compilation so package review can cover unselected/private leaves; wiring
-  those rows into canonical package-review capture and replacing the current
-  top-level-only provider provenance replay remain open. `Syscall` and
+  compilation so package review can cover unselected/private leaves. Package
+  review now validates the complete retained-table/typed-expression bijection
+  and selected target before projection, then records every package-owned
+  ordinary leaf—including private and unselected leaves—as a structurally
+  distinct normalized import with its atomic raw locator, producer identity,
+  complete evaluation/materialization receipt, exact `via` custody, and
+  canonical schema-v118/row-v76 encoding. Replacing the current top-level-only
+  provider provenance replay remains open. `Syscall` and
   `VtableField` remain on their visibly segregated legacy carriers until their
   own ordinary typed value vocabularies exist.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
