@@ -82,6 +82,10 @@ normalized_id!(ComponentVersionPinId, "component version pin");
 normalized_id!(RootAdmissionId, "external-root admission");
 normalized_id!(RootRemovalReceiptId, "external-root removal receipt");
 normalized_id!(StackValidationReceiptId, "stack validation receipt");
+normalized_id!(
+    X86_64GateProfileValidationReceiptId,
+    "x86-64 installed gate/profile validation receipt"
+);
 normalized_id!(ProviderFuelSummaryId, "fixed-fuel provider summary");
 normalized_id!(FuelProvisionId, "logical-fuel provision");
 normalized_id!(

@@ -733,9 +733,9 @@ missing here. Exactly one further represented acyclic, non-generic, case-free
 record with a nonzero canonical fixed representation may occur on that spine;
 both enclosing field identities remain in every direct erased-leaf path, and
 the root plan decision still diagnoses represented siblings. Third through
-ninth represented record levels are now admitted under the same restrictions,
+tenth represented record levels are now admitted under the same restrictions,
 with every enclosing identity retained and bounded complete-descendant replay
-so unsupported deeper custody cannot disappear. A tenth represented record
+so unsupported deeper custody cannot disappear. An eleventh represented record
 level, zero-layout wrappers, arrays, generic, case-dependent, and planless
 agreement remain later work.
 
@@ -1479,6 +1479,17 @@ root's full nesting policy.
 Architectural arrival is derived by applying one sealed target rule to the
 exact validated installation facts, including entry mechanism, interrupted
 regime or privilege, and switch mode. The provider cannot choose a numeric row.
+For x86-64, the installation join now derives that switch mode directly from
+the installed gate's IST selection and exact TSS privilege/IST stack-class
+maps. It requires the public gate/TSS context details to exactly equal an
+opaque table/profile-validation roster bound to the complete context set,
+boundary plan, validation receipt, and exact `InstalledCodeContext`; the
+produced target carrier retains that occurrence through binding. It then joins
+the roster to the boundary plan's one stack/preemption policy and replays the
+descriptor's symbolic entry identity and offset. Omitted/padded contexts,
+compact-equal occurrence substitution, a missing or repeated TSS selection,
+ordinary-call boundary, entry substitution, or fixed-stack disagreement fails
+closed before architectural frame derivation.
 Compiler-generated adapter epochs derive from the installed stub bytes. Only
 opaque adapter behavior uses provider-authored byte/alignment evidence, and
 that evidence remains an admitted receipt bound to the complete target, entry,

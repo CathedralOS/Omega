@@ -219,6 +219,67 @@ pub enum X86_64HardwareStackSelection {
     InterruptStackTable { slot: u8, dedicated_class: u16 },
 }
 
+/// One installed x86-64 interrupt gate after the table owner has validated
+/// its descriptor fields. The entry identity and offset are joined separately
+/// to `InstalledCode`; this carrier deliberately contains no executable
+/// address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64InstalledGateRealization {
+    pub vector: u8,
+    pub gate: X86_64GateKind,
+    /// Compiler entry identity recovered from the installed descriptor's
+    /// sealed symbolic target. This is not a numeric code address.
+    pub entry_identity: u64,
+    pub entry_privilege: u8,
+    /// `None` is the architectural zero IST field. A present slot is resolved
+    /// through the exact installed TSS realization below.
+    pub interrupt_stack_table_slot: Option<u8>,
+}
+
+/// One privilege-transition stack installed in an x86-64 TSS. The physical
+/// stack remains private to the platform owner; external-root accounting sees
+/// only the provisioned stack class selected by hardware.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64InstalledPrivilegeStack {
+    pub entry_privilege: u8,
+    pub dedicated_class: u16,
+}
+
+/// One installed interrupt-stack-table slot and its provisioned stack class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64InstalledInterruptStack {
+    pub slot: u8,
+    pub dedicated_class: u16,
+}
+
+/// Exact stack-selection portion of one installed x86-64 TSS realization.
+/// Callers cannot provide derived arrival-frame sizes through this carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64InstalledTaskStateSegmentRealization {
+    pub privilege_stacks: Vec<X86_64InstalledPrivilegeStack>,
+    pub interrupt_stacks: Vec<X86_64InstalledInterruptStack>,
+}
+
+/// One admissible architectural arrival supplied by the installed target
+/// profile. Hardware stack selection and nesting are not caller-authored here:
+/// the former is reconstructed from the gate/TSS and the latter is taken from
+/// the exact boundary plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64InstalledGateArrival {
+    pub context: ArrivalContextId,
+    pub mechanism: X86_64ArrivalMechanism,
+    pub interrupted_privilege: u8,
+}
+
+/// Consumer-owned installed gate/TSS facts before they are joined to an exact
+/// compiler installation and normalized for the sealed x86-64 arrival rule.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64InstalledGateTssRealization {
+    pub gate: X86_64InstalledGateRealization,
+    pub tss: X86_64InstalledTaskStateSegmentRealization,
+    pub arrivals: Vec<X86_64InstalledGateArrival>,
+}
+
 /// One exact admissible arrival context from a validated x86-64 installation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct X86_64InstalledArrivalContext {

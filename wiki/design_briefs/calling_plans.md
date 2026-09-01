@@ -1458,6 +1458,21 @@ word count or an error-code Boolean. The bound realization records target
 arrival, adapter, and Terminal-body provenance independently, because those
 parts may have different authorities even when they compose into one epoch
 sequence.
+
+The production x86 installation join does not accept that hardware stack
+selection as an independent row. It reconstructs `Current`, privilege-change,
+or IST selection from the validated gate's IST field, the exact installed TSS
+slot/class maps, and each complete target-profile arrival context. The exact
+boundary plan supplies the single stack/preemption policy, while the installed
+code supplies the artifact, symbolic entry identity, and entry offset. The
+public gate/TSS context details must exactly equal an opaque roster established
+at the table/profile validation seam; its complete context set, exact boundary
+commitment, validation receipt, and `InstalledCodeContext` remain retained in
+the locally produced target carrier and are rechecked by the binder. Omitted or
+padded contexts, compact-equal installed occurrences, missing or repeated TSS
+selections, descriptor-entry drift, a non-interrupt boundary, and a derived
+stack that disagrees with a fixed public disposition all reject before the
+target rule can enter epoch composition.
 `ProviderSelected` must close in every admissible context to the interrupted
 domain or one exact provisioned domain before final composition. The selected
 stack may differ across contexts when a sealed target rule proves
