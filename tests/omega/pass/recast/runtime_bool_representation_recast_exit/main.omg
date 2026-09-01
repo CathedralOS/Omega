@@ -2,7 +2,7 @@
 // storage with the exact representation set {0, 1}: a shared view may forget
 // that fact, a typed {0,1} byte may establish it for a shared view, and mutable
 // aliases are legal only when both sides preserve the same set.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -1,7 +1,7 @@
 use omega::language::core::float_operations;
 
 // F4: Trapping conversion rejects NaN rather than inheriting an ISA sentinel.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; value: f64; out: i32; }
 machine Main::main(&mut self) {
     self.value = 0.0 / 0.0;

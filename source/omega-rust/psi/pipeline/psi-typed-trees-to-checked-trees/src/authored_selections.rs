@@ -2361,6 +2361,70 @@ pub(crate) fn typed_operator_has_no_authored_selection(
     operator_has_no_authored_spelling_candidate(program, node)
 }
 
+pub(crate) fn typed_operator_authored_selection_candidates(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Vec<SymbolHandle> {
+    use psi_language_core::OperatorSpelling;
+    use psi_typed_trees::expression::BinaryOperator;
+
+    let (spelling, operand_types) = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let spelling = match binary.operator {
+                BinaryOperator::Add => OperatorSpelling::Add,
+                BinaryOperator::Subtract => OperatorSpelling::Subtract,
+                BinaryOperator::Multiply => OperatorSpelling::Multiply,
+                BinaryOperator::Divide => OperatorSpelling::Divide,
+                BinaryOperator::Modulo => OperatorSpelling::Modulo,
+                BinaryOperator::Equal => OperatorSpelling::Equal,
+                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+                BinaryOperator::Less => OperatorSpelling::Less,
+                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+                BinaryOperator::Greater => OperatorSpelling::Greater,
+                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+                BinaryOperator::And
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor
+                | BinaryOperator::Or
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight => return Vec::new(),
+            };
+            (
+                spelling,
+                vec![
+                    authored_operand_type(program, binary.left),
+                    authored_operand_type(program, binary.right),
+                ],
+            )
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let collection = authored_operand_type(program, indexed.collection);
+            match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => (
+                    OperatorSpelling::Range,
+                    vec![
+                        collection,
+                        authored_operand_type(program, range.start),
+                        authored_operand_type(program, range.end),
+                    ],
+                ),
+                _ => (
+                    OperatorSpelling::Index,
+                    vec![collection, authored_operand_type(program, indexed.index)],
+                ),
+            }
+        }
+        ExpressionNode::Unary(_) => return Vec::new(),
+        _ => return Vec::new(),
+    };
+
+    psi_typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types)
+        .into_iter()
+        .map(|candidate| candidate.operator.symbol)
+        .collect()
+}
+
 fn type_reference_for_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,

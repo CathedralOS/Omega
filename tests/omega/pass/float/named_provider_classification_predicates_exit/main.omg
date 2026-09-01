@@ -3,7 +3,7 @@
 // transition guards while both formats cover every class boundary.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

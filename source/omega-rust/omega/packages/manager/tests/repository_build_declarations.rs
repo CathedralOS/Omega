@@ -452,6 +452,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("errors", 1),
         ("generics", 23),
         ("layouts", 19),
+        ("recast", 23),
         ("storage", 10),
         ("structs", 12),
     ] {
@@ -460,6 +461,19 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
             expected_count,
         );
     }
+}
+
+#[test]
+fn float_canaries_retain_only_the_known_compiler_compatibility_seams() {
+    assert_partial_canary_category_standard_library_migration(
+        &repository_root().join("tests/omega/pass/float"),
+        37,
+        &[
+            "build_runtime_semantics_twins_windows_x64",
+            "build_runtime_semantics_twins_x86_baseline",
+            "x86_fma_plan_association",
+        ],
+    );
 }
 
 #[test]

@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // representation implication when both views use the same IEEE carrier. A
 // shared view may also forget the numeric fact into an unconstrained
 // equal-width bit carrier; mutable cross-carrier aliasing remains forbidden.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

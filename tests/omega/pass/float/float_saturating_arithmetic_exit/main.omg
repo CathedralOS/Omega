@@ -2,7 +2,7 @@
 // f32::MAX * 2 becomes +/-f32::MAX in both write and nested operand position;
 // division by zero and 0/0 retain their IEEE infinity/NaN results.
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

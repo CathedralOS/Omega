@@ -12,7 +12,7 @@
 
 use omega::language::core::float_format;
 
-trait Order {
+pub trait Order {
     machine before(left: Self, right: Self) -> bool;
 }
 
@@ -32,7 +32,7 @@ machine f64_total_order_key(bits: &u64) -> u64 {
     raw ^ ((zero - (raw >> 63)) | sign)
 }
 
-machine F32::TotalOrder(left: f32, right: f32) -> bool
+pub machine F32::TotalOrder(left: f32, right: f32) -> bool
 satisfies Order::before
 {
     let left_bits: &u32 = &left as &u32;
@@ -42,7 +42,7 @@ satisfies Order::before
     left_key < right_key
 }
 
-machine F64::TotalOrder(left: f64, right: f64) -> bool
+pub machine F64::TotalOrder(left: f64, right: f64) -> bool
 satisfies Order::before
 {
     let left_bits: &u64 = &left as &u64;

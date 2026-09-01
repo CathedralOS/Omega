@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 // so both engines agree bit-for-bit. exit 78 = the old f64 route.
 // Unsuffixed literals keep the transitional f64-then-narrow read on BOTH
 // engines (consistent; retired by destination stamping, F2b).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: f32 = 8388609.499999999999999f32;

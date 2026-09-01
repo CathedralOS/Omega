@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // arguments, and return values are typed destinations too. An unsuffixed
 // double-rounding witness flowing directly into f32 must round once from its
 // decimal spelling on both engines.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

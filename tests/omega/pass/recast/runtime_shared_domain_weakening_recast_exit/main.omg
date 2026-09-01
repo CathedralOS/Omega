@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) + interpreter differential. A shared recast may expose
 // fewer facts: Narrow explicitly implies Wide, so the target view cannot admit
 // any representation that the established source value did not already admit.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain u32::Wide
 requires

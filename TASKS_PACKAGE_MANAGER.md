@@ -302,7 +302,11 @@ explicitly.
     current trait-fixture compatibility seams are the two synthesized
     trait-default roots whose copied call token still loses its original
     requirement identity and the two local named-`dyn` roots rejected by the
-    native LET-receiver realization fence;
+    native LET-receiver realization fence; the two build/runtime float twins
+    retain compatibility because early named-operator calls have no exact
+    operational callable identity, and the x86 FMA plan-association root does
+    so because targetless package dependency projection omits the exact-target
+    `Build.x86_deployment_features` field;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

@@ -7,4 +7,5 @@ target linux_arm64 {
 
 machine build(builder: &mut Build) {
     builder.application("runtime-total-order-satisfiers-exit");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
 }

@@ -10,7 +10,7 @@
 // follows from `off' + desc_size <= map_size`, `desc_size >= 16`, and
 // `map_size <= 64`. Weakening the loop guard to omit the extra stride must
 // refuse (fail/recast/symbolic_stride_footprint_rejected).
-use omega::language::std::console;
+use omega_language_std::console;
 data Desc { kind: u64; pages: u64; }
 data Main {
     console: Console;

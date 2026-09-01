@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 // compiler-side blocker family continues at rungs B/C (interior +
 // runtime-offset recasts).
 // exits: 71 = float pun read wrong; 72 = sign pun read wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     bits: i32;

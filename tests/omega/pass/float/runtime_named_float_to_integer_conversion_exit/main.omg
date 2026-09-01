@@ -2,7 +2,7 @@
 // source values locally and truncate toward zero. Result-domain context picks
 // the Trapping and Saturating overloads without changing the requirement path.
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; }
 

@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 
 // F4: Exact float-to-int accepts a declared finite range and a sole incoming
 // guard that proves non-NaN plus both range bounds.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     bounded: f64 [0.0..=100.0];

@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 // engine (the engines diverged here before F2c: interp 71 / native 70 — and
 // native was only coincidentally right via compare-time narrowing, which
 // double-rounds on other shapes).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; f: f32; }
 machine Main::main(&mut self) {
     self.f = 16777216.0;

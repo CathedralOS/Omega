@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // increase. The sibling arithmetic NaN canaries separately pin ordinary
 // float `<` as a partial order (false on NaN).
 use omega::language::core::float_order;
-use omega::language::std::console;
+use omega_language_std::console;
 
 machine selected_before<T, machine Before>(left: T, right: T) -> bool
 where machine Before(left: T, right: T) -> bool;

@@ -3,7 +3,7 @@
 // bit patterns. The second pair pins canonicalization: a signed range covering
 // its complete carrier is one contiguous bit set even though crossing signed
 // zero initially describes it as two adjacent intervals.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

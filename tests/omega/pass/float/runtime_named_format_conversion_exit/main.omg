@@ -2,7 +2,7 @@
 // even at 1.0f32; the value just above it rounds to the next binary32 number.
 // Widening back to binary64 is exact, and infinity remains ordinary and total.
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; }
 

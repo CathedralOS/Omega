@@ -17,7 +17,7 @@ use omega::language::core::float_operations;
 // arguments and sub-ulp accuracy are the recorded follow-on (Cody-Waite
 // double-double constants ride the same shape).
 
-machine sin(x: f64) -> f64 {
+pub machine sin(x: f64) -> f64 {
     transition { _ -> reduce(x, 16777216.0) }
 
     // Ladder: subtract 2pi * k, halving k, until x lands in [-pi, pi].
@@ -68,7 +68,7 @@ machine sin(x: f64) -> f64 {
     }
 }
 
-machine cos(x: f64) -> f64 {
+pub machine cos(x: f64) -> f64 {
     // cos(x) = sin(x + pi/2); the shared reduction absorbs the shift. The
     // let-bound spelling is what a terminal call desugars to anyway (the
     // always-arm hoist, pass/calls/runtime_value_call_terminal_exit);
@@ -77,7 +77,7 @@ machine cos(x: f64) -> f64 {
     transition { _ -> (s) }
 }
 
-machine is_finite(x: f64) -> bool {
+pub machine is_finite(x: f64) -> bool {
     // Portable finiteness: x - x is 0.0 exactly when x is finite (inf - inf
     // and NaN - NaN are both NaN, and NaN compares unequal to everything).
     // No IEEE bit-classification enters the grammar -- the arithmetic IS the

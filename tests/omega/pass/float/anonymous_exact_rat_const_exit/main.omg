@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 //   5. fixed-array element destinations request their element format,
 //   6. a wholly anonymous comparison evaluates in Rat, and
 //   7. exact division by zero produces the format's NaN special.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; exact: f64; values: [f64; 1]; }
 

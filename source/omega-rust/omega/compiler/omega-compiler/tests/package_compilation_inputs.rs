@@ -549,6 +549,37 @@ linux_x86_64 machine Cursor::record_fits(&self) -> bool {
 }
 
 #[test]
+fn package_build_time_float_operators_accept_toolchain_candidate_authority() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use omega::language::core::float_operations;
+
+machine array_length() -> u64 {
+    let left: f64 = 2.0;
+    let right: f64 = 3.0;
+    let product: f64 = left * right;
+    transition product == 6.0 { true -> 4 _ -> 5 }
+}
+
+data Main { bytes: [u8; array_length()]; }
+"#,
+    );
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("toolchain float candidates are already confined package authority");
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
 fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");
