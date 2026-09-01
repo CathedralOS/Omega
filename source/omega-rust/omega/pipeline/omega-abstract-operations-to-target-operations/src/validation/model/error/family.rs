@@ -14,6 +14,7 @@ use super::immediate::{
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
+    StraightLineWrappingIntegerAddImmediateTranslationError,
 };
 use super::parameter::{
     StraightLineBooleanEqualParametersTranslationError,
@@ -57,6 +58,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
     StraightLineIntegerBitwiseAndImmediate(StraightLineIntegerBitwiseAndImmediateTranslationError),
+    StraightLineWrappingIntegerAddImmediate(
+        StraightLineWrappingIntegerAddImmediateTranslationError,
+    ),
     StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
     StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),
     StraightLineIntegerLessThanImmediate(StraightLineIntegerLessThanImmediateTranslationError),

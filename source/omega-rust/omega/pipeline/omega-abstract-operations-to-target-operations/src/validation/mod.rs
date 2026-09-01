@@ -30,6 +30,7 @@ pub(crate) mod straight_line_scalar_crash;
 pub(crate) mod straight_line_trivial_affine_local_unit_return;
 pub(crate) mod straight_line_unit_call_return;
 pub(crate) mod straight_line_unit_return;
+pub(crate) mod straight_line_wrapping_integer_add_immediate;
 pub(crate) mod structural_call_return;
 mod whole_plan;
 

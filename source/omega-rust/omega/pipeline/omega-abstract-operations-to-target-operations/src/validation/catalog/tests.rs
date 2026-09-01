@@ -33,6 +33,7 @@ mod integer_exact_cast_immediate_operand;
 mod integer_ieee_float_literal_sequence;
 mod integer_less_or_equal_immediate;
 mod integer_widen_immediate;
+mod wrapping_integer_add_immediate;
 
 fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(51_001).unwrap();
