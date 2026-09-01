@@ -3,7 +3,7 @@
 // If the bug is positional (arm 3+), this should work.
 // If the bug is mixing payload + no-payload in any order, this will also fail.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data AlarmEvent {
     case Trigger;

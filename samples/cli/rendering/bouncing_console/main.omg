@@ -6,7 +6,7 @@
 // the just-added Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: O
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

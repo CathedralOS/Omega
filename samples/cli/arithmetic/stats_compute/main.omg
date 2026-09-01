@@ -19,7 +19,7 @@
 // Expected exit: 70.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Stats [copy] {
     // Running accumulator for sum and sum-of-squares.

@@ -43,7 +43,7 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data State [copy] {
     // Wrapping so the value-return arithmetic below (`n * multiplier`,

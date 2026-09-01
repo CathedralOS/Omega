@@ -56,7 +56,7 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // FULLY EXACT -- no overflow domain anywhere: range refinements make the final
 // `value + bonus + count * multiplier` verifiably bounded (<= 1000 + 1000 +

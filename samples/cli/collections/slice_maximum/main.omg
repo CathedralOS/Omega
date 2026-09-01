@@ -6,7 +6,7 @@
 // transition (a read in a separate state would not carry the `len > 0` fact).
 // Expected exit: 9.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Finder {
     values: [i32; 5];

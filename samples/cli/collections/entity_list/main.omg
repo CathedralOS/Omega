@@ -13,7 +13,7 @@
 // then their HP is summed: 20 + 2 + 15 + (-2) = 35. Exit: 35.
 // Expected exit: 35.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Monster {
     hp: i32 in Wrapping;

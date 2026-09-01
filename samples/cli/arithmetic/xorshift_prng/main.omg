@@ -12,7 +12,7 @@
 // constant 2463534242 (0x9E3779B9), one step yields 0x...63; the low byte is 99.
 // Expected exit: 99.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

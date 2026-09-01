@@ -13,7 +13,7 @@
 // the start of `€`), and exits with its class code 3.
 // Expected exit: 3.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

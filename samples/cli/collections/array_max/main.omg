@@ -9,7 +9,7 @@
 // Over [4, 15, 8, 42, 16, 23] the maximum (at index 3, not the last) is 42.
 // Expected exit: 42.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

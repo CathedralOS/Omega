@@ -7,7 +7,7 @@
 // directly.
 // Expected exit: 6.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // Wrapping DECLARED: nested-field reads (self.state.n) carry no range facts
 // yet, so the digit fold `sum + n % 10` cannot prove its bounds even though the

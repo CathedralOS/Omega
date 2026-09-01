@@ -11,7 +11,7 @@
 // Expected exit: 0.
 // Expected output contains: 150
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8

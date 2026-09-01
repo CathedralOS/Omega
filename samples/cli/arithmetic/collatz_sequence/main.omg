@@ -8,7 +8,7 @@
 // until the final exit.
 // Expected exit: 111.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Collatz [copy] {
     value: i32 in Wrapping; // Wrapping DECLARED: 3n+1 growth is the open Collatz conjecture -- no bound is provable.

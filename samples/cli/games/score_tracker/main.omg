@@ -16,7 +16,7 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // Events that change player scores.
 data Event {

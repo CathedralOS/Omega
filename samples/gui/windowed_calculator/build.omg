@@ -1,6 +1,9 @@
 // windowed_calculator is a real GUI subsystem app: no attached console box.
 machine build(builder: &mut Build) {
     builder.application("windowed-calculator");
+    builder.depend(Source::Path {
+        location: "../../../source/library/std"
+    });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.subsystem = Subsystem::Gui;

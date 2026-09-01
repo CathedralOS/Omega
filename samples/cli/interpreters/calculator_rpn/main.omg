@@ -22,7 +22,7 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Stack [copy] {
     slots: [i32 in Saturating; 4];

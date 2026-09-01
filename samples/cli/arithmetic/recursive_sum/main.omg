@@ -28,7 +28,7 @@
 // descriptor slot, forcing staging. Guarded by the RUN canary
 // slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Summer {}
 

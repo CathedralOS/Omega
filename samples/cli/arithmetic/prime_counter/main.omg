@@ -10,7 +10,7 @@
 // The program exits with the count it computed.
 // Expected exit: 8.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

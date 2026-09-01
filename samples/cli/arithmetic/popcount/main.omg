@@ -12,7 +12,7 @@
 // terminates (a signed/arithmetic `>>` on a high-bit value would spin forever).
 // Expected exit: 24.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

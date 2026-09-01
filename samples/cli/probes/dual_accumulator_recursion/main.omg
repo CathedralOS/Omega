@@ -33,7 +33,7 @@
 // Exit 75 = sum_sq_result wrong in check_sq_in_final (stale slot / misread)
 // Exit 73 = total != 70 in do_total (binary arith miscompile -- both guards passed but sum wrong)
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Recursor {}
 

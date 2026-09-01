@@ -8,7 +8,7 @@
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

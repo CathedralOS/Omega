@@ -8,7 +8,7 @@
 // `marked` relies on zero-init; `line` is explicitly spaced. Pure compute + stdout.
 // Expected exit: 0.
 // Expected output contains: 47
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8

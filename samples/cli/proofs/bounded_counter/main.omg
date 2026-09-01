@@ -6,7 +6,7 @@
 // vending_machine is the case-payload showcase.)
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Counter [copy] {
     value: i32 in Saturating;

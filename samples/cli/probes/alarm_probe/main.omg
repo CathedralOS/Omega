@@ -6,7 +6,7 @@
 // Expected: fire_count = 2 after two Trigger dispatches -> exit 70.
 // If Trigger arm is unreachable or silently dropped: exit 71.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);

@@ -15,8 +15,8 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
-use omega::language::std::time;
+use omega_language_std::console;
+use omega_language_std::time;
 
 // Text carriers are byte arrays in the Utf8 domain (declared per storage
 // type; encodings are library, not intrinsics).

@@ -15,7 +15,7 @@
 // seed 40 at (2,3) + (2+3) = 45.
 //
 // Expected exit: 45
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main {
     console: Console;

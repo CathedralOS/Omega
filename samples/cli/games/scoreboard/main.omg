@@ -9,7 +9,7 @@
 // sample uses constant indices.)
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Player {
     id: i32;

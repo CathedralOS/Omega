@@ -15,7 +15,7 @@
 // Verified on the host (windows_x86_64) by execution; the aarch64 LDADD/CASAL
 // paths are verified by cross-emission + disassembly (this box cannot run them).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 256]::Utf8
 requires

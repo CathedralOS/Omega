@@ -33,6 +33,9 @@ target local_unchecked {
 
 machine build(builder: &mut Build) {
     builder.application("atomics-cross");
+    builder.depend(Source::Path {
+        location: "../../../../source/library/std"
+    });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

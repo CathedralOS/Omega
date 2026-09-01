@@ -14,7 +14,7 @@
 //   "Mix." -> 3
 //   "a z." -> 3
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

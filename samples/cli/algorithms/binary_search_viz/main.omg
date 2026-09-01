@@ -6,7 +6,7 @@
 // the search itself reads arr[mid] for real. Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

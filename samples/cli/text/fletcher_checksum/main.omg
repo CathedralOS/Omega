@@ -13,7 +13,7 @@
 // NEW value, so `(sum1 + s[0]) % 255` appears in both tail arguments.
 // Expected exit: 56.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Adder {
     bytes: [i32 in Wrapping; 6];

@@ -27,7 +27,7 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Grid [copy] {
     board: [i32; 16];

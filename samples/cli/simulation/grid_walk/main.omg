@@ -8,7 +8,7 @@
 // Reports x * 10 + y = 32.
 // Expected exit: 32.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Dir {
     case N;

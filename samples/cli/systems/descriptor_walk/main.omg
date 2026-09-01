@@ -13,7 +13,7 @@
 // 20 + 30 = 50.
 //
 // Expected exit: 50
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Desc { kind: u32; pages: u64; }
 data Main {

@@ -21,6 +21,7 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
         .map(|count| count.get())
         .unwrap_or(4)
         .min(total.max(1));
+    let target_name = omega_target::TargetProfile::host().target_name().to_owned();
 
     let queue = std::sync::Mutex::new(mains);
     let failures = std::sync::Mutex::new(Vec::<String>::new());
@@ -36,14 +37,34 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
                         .parent()
                         .expect("main.omg has a sample directory")
                         .join("build");
+                    let prepared = match omega_package_manager::operations::prepare_local_project(
+                        &main_path,
+                        Some(&target_name),
+                    ) {
+                        Ok(Some(prepared)) => prepared,
+                        Ok(None) => {
+                            failures.lock().unwrap().push(format!(
+                                "{}: sample project has no sibling build.omg",
+                                main_path.display()
+                            ));
+                            continue;
+                        }
+                        Err(error) => {
+                            failures
+                                .lock()
+                                .unwrap()
+                                .push(format!("{}: {error}", main_path.display()));
+                            continue;
+                        }
+                    };
+                    let (prepared_entry, package_inputs) = prepared.into_parts();
                     let options = CompileOptions {
-                        root_path: main_path.clone(),
+                        root_path: prepared_entry,
                         build_dir: Some(build_dir.clone()),
-                        target_name: Some(
-                            omega_target::TargetProfile::host().target_name().to_owned(),
-                        ),
+                        target_name: Some(target_name.clone()),
                     };
                     let request = CompileRequest::new(options)
+                        .with_package_inputs(package_inputs)
                         .with_requested_product(RequestedCompileProduct::NativeArtifact)
                         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
                     let result = match compile(request) {

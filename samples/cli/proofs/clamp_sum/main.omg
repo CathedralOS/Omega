@@ -9,7 +9,7 @@
 // the running sum is provable (each clamped step is bounded, the count is not).
 // Expected exit: 200.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Clamper {
     values: [i32 in Wrapping; 5];

@@ -17,7 +17,7 @@
 // Expected exit: 70.
 // Exit 71 = probe A wrong; 72 = probe B wrong.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Entry {
     value: i32 in Wrapping;

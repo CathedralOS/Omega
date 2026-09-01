@@ -9,7 +9,7 @@
 // monster (25 hp, 5 atk) and wins. Exits 1 if the hero wins, 2 if the monster wins.
 // Expected exit: 1.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Fighter {
     hp: i32 [-100..=100];

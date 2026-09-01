@@ -11,7 +11,7 @@
 // its slot, so it is correct. The fold bug is filed separately; probe-verified STILL LIVE 2026-07-01.)
 // Expected exit: 12.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // Wrapping DECLARED: the gcd remainder chain divides by a live runtime value
 // (`a % b`), and a runtime divisor feeds no range fact yet -- the values are
