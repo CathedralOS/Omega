@@ -31,7 +31,9 @@ whose execution is governed solely by [`../alpha/SEMANTICS.md`](../alpha/SEMANTI
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` | Exact Beta-text-to-Alpha-tape relation. | Replace only with a versioned Beta encoding and synchronized assembler. |
-| `compiler/` | Direct assembler tape, readable reconstruction, and bounded gates. | Delete only when an equally direct Beta implementation replaces the owner. |
+| `compiler/` | Direct assembler tape and readable reconstruction source. | Delete only when an equally direct Beta implementation replaces the owner. |
 | `compiler/assembler.beta` | Readable self-host source for the Beta assembler. | Delete only if another exact reconstruction of the direct assembler tape replaces it. |
 | `compiler/beta_assembler_bytecode.tape` | Direct portable Alpha implementation of Beta assembly. | Replace atomically with its source, reconstruction, and checked relation. |
-| `compiler/examples/` | Small encoding and execution discriminators. | Delete only when generated checked vectors subsume them. |
+
+Assembler tests and examples live under `tests/beta/compiler/`; host
+materialization lives under `tools/bootstrap/beta/`.

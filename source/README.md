@@ -7,7 +7,7 @@ language.
 ```text
 alpha/          raw tape semantics, audited native VM seeds, and checker
 beta/           textual Alpha assembly and the direct assembler tape
-  compiler/     assembler.beta, beta_assembler_bytecode.tape, and gates
+  compiler/     assembler.beta and beta_assembler_bytecode.tape
 gamma/          Gamma language and Beta-written compiler
   compiler/     gamma_compiler.beta and gamma_compiler_bytecode.tape
 delta/          Delta language and Gamma-written compiler
@@ -43,9 +43,10 @@ internal boundary of the Omega product compiler, not a bootstrap language.
 `omega0` and `omega` name output tapes, not source owners.
 
 `source/omega-rust/` may build, compare, and accelerate development, but it
-supplies no trusted bootstrap premise. Lattice invocation lives under
-[`tools/lattice/`](../tools/lattice/), while Omega language cases live under
-[`tests/omega/`](../tests/omega/).
+supplies no trusted bootstrap premise. Bootstrap invocation lives under
+[`tools/bootstrap/`](../tools/bootstrap/). Bootstrap-language and checker tests
+live under their subject in [`tests/`](../tests/), alongside Omega language
+cases under [`tests/omega/`](../tests/omega/).
 
 There is deliberately no generic bootstrap, assurance, canary, or
 generation-owned source tree. Every retained component must reinforce one

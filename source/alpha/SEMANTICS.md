@@ -3,15 +3,16 @@
 > **The written meaning of the alpha seed.** A seed binary is *audited against
 > this document*: it is correct iff every opcode realizes the transition below.
 > The two committed seeds (x64 Windows PE, arm64 macOS Mach-O) are independent
-> implementations of exactly these rules; [`conformance.sh`](conformance.sh) is
+> implementations of exactly these rules;
+> [`tests/alpha/conformance.sh`](../../tests/alpha/conformance.sh) is
 > the executable companion (hand-built tapes that pin each rule, which any
 > faithful seed must pass).
 >
-> This fills the trust-root gap the lattice flagged: "you cannot audit the binary
+> This fills the trust-root gap the bootstrap-chain design flagged: "you cannot audit the binary
 > against a spec that does not exist." See
-> [bootstrap_lattice rungs/alpha.md](../../wiki/architecture/bootstrap_lattice/rungs/alpha.md).
+> [bootstrap_chain rungs/alpha.md](../../wiki/architecture/bootstrap_chain/rungs/alpha.md).
 
-Alpha is **role #1, an executor** (lattice overview, "Five roles"). It is not a
+Alpha is **role #1, an executor** (bootstrap-chain overview, "Five roles"). It is not a
 type system, checker, or proof kernel — only a deterministic register machine
 with byte I/O. Its job is to make "given these bytes and this memory, exactly
 these state transitions occur" precise.
@@ -148,12 +149,12 @@ rung doc; they are **not** yet specified behavior:
   Capacity is not part of Alpha's opcode semantics; the same admitted tape runs
   identically on both platform realizations.
 
-Everything in §5–§7 is pinned by `conformance.sh`; §8 is deliberately out of
+Everything in §5–§7 is pinned by `tests/alpha/conformance.sh`; §8 is deliberately out of
 scope until the hardening lands.
 
 ## 9. Conformance
 
-`conformance.sh` runs hand-built bytecode tapes — one per rule and per edge
+`tests/alpha/conformance.sh` runs hand-built bytecode tapes — one per rule and per edge
 (signed division/remainder, signed `jlt`, EOF, the three traps) — against the
 host's seed and checks exit code and stdout. A faithful seed on any ISA passes
 all of them; a divergence between two realizations on the same tape exposes a

@@ -1,6 +1,6 @@
 # `source/alpha/checker/` — rooted certificate-checker service
 
-This is a service beside the compiler lattice, not a language rung and not a
+This is a service beside the bootstrap chain, not a language rung and not a
 compiler edge. It answers one bounded question:
 
 ```text
@@ -182,27 +182,21 @@ discarded possibilities.
 
 | Retained child | Bounded role | Deletion condition |
 | --- | --- | --- |
-| `implementations/` | Authoritative Gamma checker, its bounded equality seam, and one independent diagnostic reference. | Delete a diagnostic implementation when no retained gate consumes it; replace the Gamma checker only atomically with the accepted checker tape. |
+| `implementations/` | Authoritative Gamma checker and its bounded equality seam. | Replace the Gamma checker only atomically with the accepted checker tape. |
 | `artifacts/` | One persisted platform-independent Alpha checker tape. | Delete when an equally low or lower accepted checker artifact replaces the service. |
-| `gates/` | Compact rule discriminators, adversarial rejects, one complete independent diamond, and one operational equality seam. | Delete a gate when subsumed by a stronger formal check or when its implementation/seam is retired. |
-| `corpus/` | The deterministic generator for the single independent checker diamond. | Delete with that diamond or replace atomically with its successor generator. |
 
-Root scripts are retained only for exact construction and loading:
-
-| File | Role | Deletion condition |
-| --- | --- | --- |
-| `artifact_env.sh` | Stamp the accepted tape into the selected audited Alpha seed. | Delete when the canonical Alpha executor accepts a tape without stamping. |
-| `construct-artifact.sh` | Construct the checker tape with the canonical Gamma compiler artifact. | Delete when the authoritative checker source or immediate construction edge changes. |
-| `reconstruct-artifact.sh` | Compare a fresh construction to the persisted tape and run accept/reject controls. | Delete when a stronger exact construction gate fully subsumes it. |
+Construction and loading live under `tools/bootstrap/proof-checker/`. Tests,
+the deterministic corpus, and the independent Python checker live under
+`tests/proof-checker/`.
 
 ## Principal checks
 
 ```sh
-sh source/alpha/checker/reconstruct-artifact.sh
-sh source/alpha/checker/gates/test.sh
-sh source/alpha/checker/gates/soundness.sh
-sh source/alpha/checker/gates/check-ref-diamond.sh
-sh source/alpha/checker/gates/semantics-diamond.sh
+sh tests/proof-checker/reconstruct-artifact.sh
+sh tests/proof-checker/gates/test.sh
+sh tests/proof-checker/gates/soundness.sh
+sh tests/proof-checker/gates/check-ref-diamond.sh
+sh tests/proof-checker/gates/semantics-diamond.sh
 ```
 
 - `test.sh` is a compact positive/negative discriminator per calculus boundary.

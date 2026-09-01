@@ -10,8 +10,8 @@ The pipeline-specific semantic rules live in
 
 How Omega reaches its hosted compiler—the trust architecture and the exact
 `Alpha → Beta → Gamma → Delta → Epsilon` language spine—is a build-graph property
-described by [The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md)
-and its [target repository structure](bootstrap_lattice/repository_structure.md).
+described by [The Bootstrap Chain](bootstrap_chain/bootstrap_chain.md)
+and its [target repository structure](bootstrap_chain/repository_structure.md).
 It is not a separate source ownership domain.
 
 ## Design Bias
@@ -47,13 +47,13 @@ the displayed Omega top-level directories are current and exhaustive.
 > `source/psi/` owns its target-neutral half and `source/omega/` consumes
 > Terminal Psi for target realization and product composition; the
 > live Psi lexical slice has landed while later phases remain open.
-> Lattice runners resolve cross-owner locations through the role manifest in
-> `tools/lattice/paths.sh`; lattice scripts may not hard-code sibling-relative
+> Bootstrap runners resolve cross-owner locations through the role manifest in
+> `tools/bootstrap/paths.sh`; bootstrap scripts may not hard-code sibling-relative
 > paths. Package dependencies are declared by their `build.omg` package graph.
 > The tree below documents the current Cargo/product structure;
 > the canonical compiler-sequence inventory is documented in the
-> [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
-> while active lattice work is tracked in
+> [bootstrap repository structure](bootstrap_chain/repository_structure.md),
+> while active bootstrap work is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
 >
 > Human-facing reports, HTML visualizations, interpreters, REPLs, and debug
@@ -162,18 +162,17 @@ Omega/
 |       |-- tooling/                                     # Auxiliary artifacts, profiles, visualizations, and host custody.
 |       |-- src/                                         # Tiny `omega` product command.
 |       `-- tests/                                       # Cargo integration tests for that product command.
-||-- source/
-|   |-- alpha/                                             # Alpha semantics, native VM seeds, and root checker.
-|   |   `-- checker/                                       # Universal derivation checker and checker tests.
+|-- source/
+|   |-- alpha/                                             # Alpha semantics, native VM seeds, and root checker artifact.
+|   |   `-- checker/                                       # Universal derivation checker source and tape.
 |   |-- beta/                                              # Beta textual assembly.
-|   |   `-- compiler/                                      # Direct assembler tape, self-host source, and gates.
+|   |   `-- compiler/                                      # Direct assembler tape and self-host source.
 |   |-- gamma/                                             # Gamma language and Beta-written compiler owner.
-|   |   `-- compiler/                                      # Gamma compiler source, Alpha tape, and validation.
-|   |-- delta/                                             # Delta language, compiler, tests, and artifacts.
-|   |   |-- compiler/                                     # Gamma-written compiler, Alpha tape, and validation.
-|   |   `-- tests/                                        # Delta language cases.
+|   |   `-- compiler/                                      # Gamma compiler source, Alpha tape, and closed tables.
+|   |-- delta/                                             # Delta language and compiler artifacts.
+|   |   `-- compiler/                                      # Gamma-written compiler and closed tables.
 |   |-- epsilon/                                           # Epsilon language and Delta-written compiler.
-|   |   `-- compiler/                                      # Epsilon compiler source, Alpha tape, and validation.
+|   |   `-- compiler/                                      # Epsilon compiler source and eventual Alpha tape.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
@@ -185,7 +184,7 @@ Omega/
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
-|-- tools/lattice/                                         # Lattice orchestration and path gates.
+|-- tools/bootstrap/                                      # Bootstrap invocation and path gates.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -193,6 +192,12 @@ Omega/
 |   `-- README.md                                       # Notes for sample expectations and local build output.
 |
 |-- tests/
+|   |-- alpha/                                         # Alpha conformance and reference differential.
+|   |-- beta/                                          # Beta assembler tests and fixtures.
+|   |-- gamma/                                         # Gamma compiler and reference tests.
+|   |-- delta/                                         # Delta compiler, interpreter, and reference tests.
+|   |-- proof-checker/                                 # Checker reconstruction, gates, and reference.
+|   |-- bootstrap/                                     # Tests whose subject spans multiple rungs.
 |   |-- omega/
 |   |   |-- pass/                                       # Focused Omega cases expected to check.
 |   |   `-- fail/                                       # Focused Omega cases expected to reject.
@@ -213,22 +218,23 @@ source/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root
-source/alpha/checker/                  root derivation checking
-source/beta/compiler/                  direct Beta assembler and its reconstruction
+source/alpha/checker/                  root derivation checker source and tape
+source/beta/compiler/                  direct Beta assembler source and tape
 source/omega-rust/                     current Rust product implementation and comparator
-tests/{omega,fixtures}/                language and package integration tests
-tools/lattice/                         lattice orchestration and path gates
+tests/{alpha,beta,gamma,delta,proof-checker,bootstrap,omega,fixtures}/
+                                      executable validation by subject
+tools/bootstrap/                       bootstrap invocation and artifact construction
 tools/                                 other repository maintenance scripts
 ```
 
-Each rung remains the semantic owner of its language and lattice-built
+Each rung remains the semantic owner of its language and chain-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
 concept, not a second semantic owner. The root proof checker belongs to Alpha.
-Validation belongs beside the artifact it admits. The Beta assembler's exact
-reconstruction lives under `source/beta/compiler/`; the replacement Epsilon
-validation will live under `source/epsilon/compiler/validation/` only after a Delta-written compiler and its
-Alpha tape exist. The removed Delta-to-Gamma/native-publication tree is not a
-validation precedent.
+Canonical compiler sources, tapes, and closed wire tables remain together under
+`source/`; executable validation is grouped by subject under `tests/` and names
+the canonical source/artifact explicitly. Host materialization and deliberate
+artifact replacement live under `tools/bootstrap/`. The removed
+Delta-to-Gamma/native-publication tree is not a validation precedent.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager task

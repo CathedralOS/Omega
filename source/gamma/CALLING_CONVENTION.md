@@ -112,18 +112,18 @@ before the call and reloaded after.
 Three hand-written examples exercise the convention end-to-end (assembled by
 the Beta assembler, then run on the Alpha seed):
 
-- [`factorial.beta`](../beta/compiler/examples/factorial.beta) — single recursion;
+- [`factorial.beta`](../../tests/beta/compiler/examples/factorial.beta) — single recursion;
   `factorial(5)` exits **120**. The frame holds one slot: `n`, saved across the
   recursive call.
-- [`fib.beta`](../beta/compiler/examples/fib.beta) — **tree** recursion (two recursive
+- [`fib.beta`](../../tests/beta/compiler/examples/fib.beta) — **tree** recursion (two recursive
   calls per frame); `fib(10)` exits **55**. The frame holds two slots and never
   relies on a register surviving a call.
-- [`gcd.beta`](../beta/compiler/examples/gcd.beta) — **two parameters** (`r0`, `r1`) and
+- [`gcd.beta`](../../tests/beta/compiler/examples/gcd.beta) — **two parameters** (`r0`, `r1`) and
   a **tail call that needs no frame**; `gcd(48, 36)` exits **12**. Shows the
   leaf/tail case where a procedure skips the frame entirely.
 
-Build one through `source/beta/compiler/build.sh`, for example with
-`source/beta/compiler/examples/factorial.beta`.
+Build one through `tools/bootstrap/beta/build.sh`, for example with
+`tests/beta/compiler/examples/factorial.beta`.
 
 ## Remaining limits
 

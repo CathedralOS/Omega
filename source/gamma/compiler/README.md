@@ -5,12 +5,11 @@ This directory owns the compiler artifact required by the Gamma rung:
 - `gamma_compiler.beta` is the canonical immediate-predecessor source;
 - `gamma_compiler_bytecode.tape` is the current platform-independent artifact;
 - `outcomes-v1.tsv` is the closed compiler-boundary code table consumed by the
-  focused gate;
-- `validation/` contains only machinery that targets the canonical source or
-  its emitted tape;
-- `rebuild-artifact.sh` performs exact direct construction;
-- `test.sh` owns the focused accepted/rejected language discriminators;
-- `artifact_env.sh` installs the admitted tape into the selected Alpha seed.
+  focused gate.
+
+Exact construction and materialization live under `tools/bootstrap/gamma/`.
+Focused language and artifact-structure tests live under
+`tests/gamma/compiler/`.
 
 Construction, testing, and evidence generation do not grant authority by
 themselves. One Beta source directly produces one exact Gamma compiler tape.
@@ -30,8 +29,9 @@ audited Alpha seed + direct Beta assembler tape
   -> gamma_compiler_bytecode.tape
 ```
 
-`rebuild-artifact.sh --check` reconstructs the tape and compares it
-byte-for-byte without changing the repository. `artifact_env.sh` stamps it into
+`tools/bootstrap/gamma/rebuild-artifact.sh --check` reconstructs the tape and
+compares it byte-for-byte without changing the repository. The adjacent
+artifact tool stamps it into
 the selected audited Alpha seed. No Gamma self-host, textual Beta output, or
 second assembler invocation participates.
 
@@ -103,7 +103,7 @@ its string-input helpers.
 runnable payload. Unknown versions, kinds, coordinate spaces, reason/resource
 codes, nonzero reserved bytes, noncanonical unused fields, or disagreement
 between frame and halt tag reject the boundary observation. `outcomes-v1.tsv`
-is the closed version-1 reason/resource table. `test.sh` consumes it directly;
+is the closed version-1 reason/resource table. `tests/gamma/compiler/test.sh` consumes it directly;
 the gate may decode the producer's fields but cannot define or repair them.
 
 Success is intentionally not self-describing. Its integrity rests jointly on
@@ -172,7 +172,7 @@ procedure reserves at least its caller-frame word, as specified in
 `../CALLING_CONVENTION.md`. Generated programs receive 134,217,728 zeroed bytes
 of source-visible raw memory biased at physical byte 4,194,304. Their data-stack
 and raw-memory containment failures are runtime statuses 250 and 251, not
-compiler `Incomplete` results. D30 preserves those meanings in the lattice-wide
+compiler `Incomplete` results. D30 preserves those meanings in the chain-wide
 generated-program block: 248 InternalFailure, 249 AuthoredTrap, 250
 StackExhausted, 251 MemoryContainmentViolation, 252 HeapExhausted, 253
 InputExtent, and 254 OutputExtent. A generated profile need not produce every
@@ -191,7 +191,7 @@ to a new aligned private region above the fixup table rather than repacking this
 dense low-memory block. Global-state maximum work receives an executed gate
 because the current name collector scans prior global rows; per-procedure state
 and edge limits separately own initialization/reachability fixed-point work.
-`test.sh` pins practical source limits at the exact accepted boundary and the
+The compiler test pins practical source limits at the exact accepted boundary and the
 adjacent fail-closed case. Single-site temporary compiler mutations lower each
 otherwise dominated invariant and positively exercise all six closed
 `InternalFailure` producers without adding production test hooks. The gate also
@@ -202,10 +202,11 @@ containment.
 
 | Retained child | Bounded role | Deletion condition |
 | --- | --- | --- |
-| `validation/` | Exact reachable-artifact structure for this compiler edge. | Delete it when the direct checked source/tape refinement proves the same facts. |
+| `gamma_compiler.beta` | Canonical Beta-written compiler source accepting Gamma. | Replace only atomically with its artifact and checked relation. |
+| `gamma_compiler_bytecode.tape` | Canonical platform-independent compiler artifact. | Replace only with a green exact reconstruction from the canonical source. |
+| `outcomes-v1.tsv` | Closed projection of compiler boundary codes. | Replace only with a versioned boundary contract and synchronized compiler. |
 
-Root files are the one compiler source, one Alpha-tape artifact, one boundary
-code table, one artifact loader, one exact reconstruction entry point, and one
-focused language gate.
+The retained files are exactly one compiler source, one Alpha-tape artifact,
+one boundary code table, and this owner document.
 No separate cold-start, self-host, generated-artifact, or publication owner is
 retained.

@@ -1,14 +1,14 @@
 # Alpha execution substrate
 
 > **Current design.** Alpha is the 21-opcode tape VM at the bottom of the
-> bootstrap lattice. It is not an Omega subset, a self-hosted source language,
+> bootstrap chain. It is not an Omega subset, a self-hosted source language,
 > or a compiler. The former “Alpha compiler written in Alpha” design has been
 > retired.
 
 Canonical architecture and executable details live in:
 
-- [Bootstrap lattice](../architecture/bootstrap_lattice/bootstrap_lattice.md)
-- [Alpha rung](../architecture/bootstrap_lattice/rungs/alpha.md)
+- [Bootstrap chain](../architecture/bootstrap_chain/bootstrap_chain.md)
+- [Alpha rung](../architecture/bootstrap_chain/rungs/alpha.md)
 - [`source/alpha/SEMANTICS.md`](../../source/alpha/SEMANTICS.md)
 
 ## Responsibility

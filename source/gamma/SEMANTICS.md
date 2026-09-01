@@ -1,7 +1,7 @@
 # Gamma — small-step operational semantics
 
 This document is the written meaning of the Gamma language used by the bootstrap
-lattice. [`LANGUAGE.md`](LANGUAGE.md) owns the source grammar and rung boundary;
+bootstrap chain. [`LANGUAGE.md`](LANGUAGE.md) owns the source grammar and rung boundary;
 this document fixes evaluation order, state transitions, memory, I/O, and
 terminal observations. It formalizes the existing compiler/interpreter contract
 and does not add language features.
@@ -257,12 +257,12 @@ fuel limit and ROOT execution remain tests, not divergence evidence.
 ## 9. Executable evidence
 
 - `reference/gamma_interp.py` exercises the rules over finite test runs;
-- `reference/gamma-correctness-fuzz.sh` compares interpreted and compiled runs;
+- `tests/gamma/reference/gamma-correctness-fuzz.sh` compares interpreted and compiled runs;
 - `reference/gamma-io-exhaust.sh` exhausts all 256 single-byte inputs for its
   admitted programs;
 - `compiler/test.sh` exercises arbitrary accepted/rejected source
   against the canonical Beta-written compiler; and
-- `compiler/validation/admission/gc-artifact-structure.sh` is a generic
+- `tests/gamma/compiler/validation/admission/gc-artifact-structure.sh` is a generic
   reachable-instruction and procedure-region checker for the canonical tape.
 
 These gates are regression evidence. Complete admission still requires exact
