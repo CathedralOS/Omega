@@ -20,6 +20,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::immediate::INTEGER,
     dispatch::immediate::INTEGER_WIDEN,
     dispatch::immediate::INTEGER_BITWISE_AND,
+    dispatch::immediate::WRAPPING_INTEGER_ADD,
     dispatch::immediate::INTEGER_BITWISE_NOT,
     dispatch::immediate::INTEGER_EXACT_CAST_OPERAND,
     dispatch::immediate::INTEGER_EQUAL,
@@ -95,6 +96,5 @@ pub(super) fn validate_function(
 }
 
 pub(super) use plan::validate as validate_plan;
-
 #[cfg(test)]
 mod tests;

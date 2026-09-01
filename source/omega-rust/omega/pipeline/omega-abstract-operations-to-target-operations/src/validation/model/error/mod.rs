@@ -18,6 +18,7 @@ pub use immediate::{
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
+    StraightLineWrappingIntegerAddImmediateTranslationError,
 };
 pub(in crate::validation) use parameter::StraightLineParameterReconstructionError;
 pub use parameter::{

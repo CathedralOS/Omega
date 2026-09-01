@@ -20,6 +20,7 @@ pub use immediate::{
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
+    StraightLineWrappingIntegerAddImmediateTranslationReceipt,
 };
 pub use parameter::{
     StraightLineBooleanEqualParametersTranslationReceipt,

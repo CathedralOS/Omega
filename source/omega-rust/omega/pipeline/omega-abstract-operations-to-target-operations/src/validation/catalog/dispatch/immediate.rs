@@ -7,12 +7,14 @@ mod integer_bitwise_and;
 mod integer_equal;
 mod integer_less_or_equal;
 mod integer_less_than;
+mod wrapping_integer_add;
 
 pub(in crate::validation::catalog) use boolean_equal::DESCRIPTOR as BOOLEAN_EQUAL;
 pub(in crate::validation::catalog) use integer_bitwise_and::DESCRIPTOR as INTEGER_BITWISE_AND;
 pub(in crate::validation::catalog) use integer_equal::DESCRIPTOR as INTEGER_EQUAL;
 pub(in crate::validation::catalog) use integer_less_or_equal::DESCRIPTOR as INTEGER_LESS_OR_EQUAL;
 pub(in crate::validation::catalog) use integer_less_than::DESCRIPTOR as INTEGER_LESS_THAN;
+pub(in crate::validation::catalog) use wrapping_integer_add::DESCRIPTOR as WRAPPING_INTEGER_ADD;
 
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,

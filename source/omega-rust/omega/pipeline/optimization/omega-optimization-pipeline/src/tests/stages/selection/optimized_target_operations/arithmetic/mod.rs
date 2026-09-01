@@ -8,6 +8,7 @@ mod saturating_divide;
 mod saturating_multiply;
 mod saturating_remainder;
 mod wrapping_add;
+mod wrapping_add_immediate;
 mod wrapping_divide;
 mod wrapping_multiply;
 mod wrapping_remainder;
