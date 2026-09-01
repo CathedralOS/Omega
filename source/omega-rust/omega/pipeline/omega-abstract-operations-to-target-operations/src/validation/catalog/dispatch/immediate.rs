@@ -4,7 +4,8 @@ use omega_target_operations::TargetFunction;
 
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
-    straight_line_boolean_immediate, straight_line_integer_bitwise_not_immediate,
+    straight_line_boolean_immediate, straight_line_boolean_not_immediate,
+    straight_line_integer_bitwise_not_immediate,
     straight_line_integer_exact_cast_immediate_operand, straight_line_integer_immediate,
     straight_line_integer_widen_immediate,
 };
@@ -23,6 +24,13 @@ pub(in crate::validation::catalog) const BOOLEAN: TranslationFamilyDescriptor =
         AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
         straight_line_boolean_immediate::is_candidate,
         straight_line_boolean_immediate,
+    );
+
+pub(in crate::validation::catalog) const BOOLEAN_NOT: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineBooleanNotImmediate,
+        straight_line_boolean_not_immediate::is_candidate,
+        straight_line_boolean_not_immediate,
     );
 
 pub(in crate::validation::catalog) const INTEGER_WIDEN: TranslationFamilyDescriptor =
@@ -64,6 +72,16 @@ pub(super) fn straight_line_boolean_immediate(
     straight_line_boolean_immediate::validate(source, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanImmediate)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineBooleanImmediate)
+}
+
+pub(super) fn straight_line_boolean_not_immediate(
+    source: &AbstractFunction,
+    _expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_boolean_not_immediate::validate(source, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanNotImmediate)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineBooleanNotImmediate)
 }
 
 pub(super) fn straight_line_integer_widen_immediate(

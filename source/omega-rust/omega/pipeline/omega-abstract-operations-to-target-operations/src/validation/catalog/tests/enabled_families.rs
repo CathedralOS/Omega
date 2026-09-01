@@ -18,6 +18,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerExactCastImmediateOperand,
             AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
+            AbstractToTargetTranslationFamily::StraightLineBooleanNotImmediate,
             AbstractToTargetTranslationFamily::StraightLineUnitReturn,
             AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,

@@ -528,6 +528,14 @@ decision. Only true language-semantic questions belong in
   boundaries and all five targets (90 direct cases); optimized custody adds 15
   public-route combinations and keeps this grammar disjoint from both plain
   immediate return and parameter bitwise-not.
+  The adjacent constant Boolean-not-to-immediate family admits only
+  `[BooleanConstant, BooleanNot, Return]`. Independent source grammar and
+  target replay retain both operation/result identities, the source and
+  complemented Boolean values, provenance, and return edge while requiring
+  `ReturnBooleanImmediate`. Both truth values cross all five native targets
+  (10 direct cases); optimized custody covers the same 10 combinations and
+  keeps this grammar disjoint from both plain Boolean-immediate return and
+  parameter Boolean-not.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -861,6 +869,11 @@ decision. Only true language-semantic questions belong in
     replay cover signed/unsigned 8/16/32/64 and address64 at both boundaries
     across all five targets, retain both source operations in provenance, and
     prove the target contains only the exact complemented immediate.
+  - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
+    target family. Its independently reconstructed three-operation grammar and
+    target replay cover both truth values across all five targets, retain both
+    source operations in provenance, and prove the target contains only the
+    complemented Boolean immediate.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
@@ -1021,8 +1034,15 @@ decision. Only true language-semantic questions belong in
   instruction, physical slot, address, memory effect, frame, trap, or
   publication authority. V1 deliberately refuses an original-value victim;
   a fixture where an original passes the new choice proof and the corresponding
-  typed action generalization remain engineering work. A fourteenth
-  independently replayed V1 artifact now integrates the validated epoch-two
+  typed action generalization remain engineering work. The intended public
+  prerequisite graph is exactly `r + ((r + (a + b)) + (b + r))`, but it cannot
+  yet reach allocation honestly: canonical Psi proof production does not
+  recursively assemble the exact-add fork/join conjunction needed to prove the
+  join's U64 upper bound, even though the proof kernel can check that evidence.
+  General recursive exact-add conjunction proof search, with independent
+  replay and corruption coverage, therefore precedes this fixture; no
+  original-victim allocation claim exists until that boundary passes. A
+  fourteenth independently replayed V1 artifact now integrates the validated epoch-two
   reload-victim obligations into one complete recursive logical insertion
   schedule. Its distinct stored-value type prevents a compiler-private reload
   action from masquerading as an original selected VReg. The public dual-target

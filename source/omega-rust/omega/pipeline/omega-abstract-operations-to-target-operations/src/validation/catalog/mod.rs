@@ -21,6 +21,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::immediate::INTEGER_BITWISE_NOT,
     dispatch::immediate::INTEGER_EXACT_CAST_OPERAND,
     dispatch::immediate::BOOLEAN,
+    dispatch::immediate::BOOLEAN_NOT,
     dispatch::terminal::UNIT_RETURN,
     dispatch::terminal::PORT_WRITE_UNIT_RETURN,
     dispatch::terminal::UNIT_CALL_RETURN,

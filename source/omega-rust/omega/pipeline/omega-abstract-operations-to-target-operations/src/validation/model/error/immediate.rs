@@ -16,6 +16,23 @@ pub enum StraightLineBooleanImmediateTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineBooleanNotImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceBooleanNotOperand,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineIntegerImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,
