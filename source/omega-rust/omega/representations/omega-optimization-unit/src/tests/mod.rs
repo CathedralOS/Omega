@@ -3,4 +3,5 @@
 mod attachments;
 mod canonical_identity;
 mod fixtures;
+mod structural_scalar_fields;
 mod structure_and_ranges;

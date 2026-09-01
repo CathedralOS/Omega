@@ -25,6 +25,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
                 .collect();
         }
         O::WriteOnlyPrimitiveStore { psi_operation, .. }
+        | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
@@ -39,6 +40,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
         | O::BooleanStructuralField { psi_operation, .. }
+        | O::IntegerStructuralField { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }
         | O::IntegerEqual { psi_operation, .. }

@@ -78,6 +78,18 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*source);
             bytes.id(*field);
         }
+        O::IntegerStructuralField {
+            psi_operation,
+            result,
+            source,
+            field,
+        } => {
+            bytes.u8(51);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            encode_structural_parameter(bytes, source);
+            bytes.id(*field);
+        }
         O::BooleanNot {
             psi_operation,
             result,

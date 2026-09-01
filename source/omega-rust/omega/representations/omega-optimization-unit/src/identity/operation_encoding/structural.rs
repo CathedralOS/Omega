@@ -15,6 +15,20 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_parameter(bytes, destination);
             encode_abstract_result(bytes, *value);
         }
+        O::StructuralScalarFieldStore {
+            psi_operation,
+            destination,
+            path,
+            field,
+            value,
+        } => {
+            bytes.u8(50);
+            bytes.id(*psi_operation);
+            encode_structural_parameter(bytes, destination);
+            bytes.slice(path, encode_structural_path_segment);
+            bytes.id(*field);
+            encode_abstract_result(bytes, *value);
+        }
         O::EstablishPayloadlessCase {
             psi_operation,
             result,
