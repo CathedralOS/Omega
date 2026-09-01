@@ -13,6 +13,7 @@ mod comparison;
 mod direct;
 mod immediate;
 mod locations;
+mod shift;
 mod terminal;
 mod unary;
 

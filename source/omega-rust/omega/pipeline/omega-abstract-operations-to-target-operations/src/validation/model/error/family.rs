@@ -1,6 +1,7 @@
 //! Closed tagged error carrier for one independently replayed function family.
 
 mod arithmetic;
+mod shift;
 
 use super::immediate::{
     StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
@@ -26,6 +27,7 @@ use arithmetic::{
     SaturatingSubtractError, WrappingAddError, WrappingDivideError, WrappingMultiplyError,
     WrappingRemainderError, WrappingSubtractError,
 };
+use shift::WrappingShiftLeftError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
@@ -51,6 +53,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationError,
     ),
+    StraightLineWrappingIntegerShiftLeftParameters(WrappingShiftLeftError),
     StraightLineExactIntegerAddParameters(ExactAddError),
     StraightLineExactIntegerSubtractParameters(ExactSubtractError),
     StraightLineExactIntegerMultiplyParameters(ExactMultiplyError),

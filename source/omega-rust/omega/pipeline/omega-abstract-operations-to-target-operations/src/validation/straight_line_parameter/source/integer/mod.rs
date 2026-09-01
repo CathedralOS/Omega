@@ -6,6 +6,7 @@
 pub(in crate::validation::straight_line_parameter) mod arithmetic;
 pub(in crate::validation::straight_line_parameter) mod bitwise;
 pub(in crate::validation::straight_line_parameter) mod comparison;
+pub(in crate::validation::straight_line_parameter) mod shift;
 pub(in crate::validation::straight_line_parameter) mod unary;
 
 use psi_core::{IntegerType, ScalarType, ValueId};

@@ -8,6 +8,7 @@ mod common;
 mod comparison;
 mod direct;
 mod immediate;
+mod shift;
 mod terminal;
 mod unary;
 
@@ -16,5 +17,6 @@ pub(crate) use bitwise::*;
 pub(crate) use comparison::*;
 pub(crate) use direct::*;
 pub(crate) use immediate::*;
+pub(crate) use shift::*;
 pub(crate) use terminal::*;
 pub(crate) use unary::*;

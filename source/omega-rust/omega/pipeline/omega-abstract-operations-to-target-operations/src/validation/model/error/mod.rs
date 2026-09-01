@@ -38,6 +38,7 @@ pub use parameter::{
     StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerRemainderParametersTranslationError,
+    StraightLineWrappingIntegerShiftLeftParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 pub use terminal::StraightLineScalarCrashTranslationError;
