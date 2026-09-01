@@ -52,7 +52,7 @@ operations fixed by its own contract.
 For each candidate:
 
 - cite the exact canonical compiler or `C` use;
-- compare a Epsilon-language facility with a private implementation technique;
+- compare an Epsilon-language facility with a private implementation technique;
 - state resource and rejection behavior;
 - retain lower-rung meaning and mutation controls;
 - remove the candidate when the motivating source disappears.

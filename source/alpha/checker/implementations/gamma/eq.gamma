@@ -1,4 +1,4 @@
-; eq.gamma - a definitional-equality checker, written in Beta.  (proof-kernel companion)
+; eq.gamma - a definitional-equality checker, written in Gamma.  (proof-kernel companion)
 ;
 ; check.gamma validates *logical* proofs (natural deduction). This validates
 ; *computational* claims: "do these two terms denote the same value?", decided by

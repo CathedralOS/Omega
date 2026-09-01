@@ -176,7 +176,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Enforce the envelope and exact rejection coordinates in the
     Beta-written Gamma compiler and temporary Python reference; replace the
     extent control with space padding, clean every retained Gamma implementation
-    source, and refresh the current 104,572-byte source / 27,087-byte tape observations.
+    source, and refresh the current 104,878-byte source / 27,087-byte tape observations.
   - [x] Enforce the envelope, explicit ASCII identifier classes, and CR/LF
     comments in both bounded Delta oracle surfaces and the temporary Python
     evaluator. The existing gates now retain matching positive and negative
@@ -388,7 +388,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
     spoof either constant, and the rebuilt 271,096-byte checker tape retains
-    777,476 bytes of AlphaBootstrapV2 payload headroom. The exact 104,572-byte compiler
+    777,476 bytes of AlphaBootstrapV2 payload headroom. The exact 104,878-byte compiler
     source plus 27,087-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
@@ -435,7 +435,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and a folded 3,240-leaf carrier in 0.465 seconds, but adding local parsing
       exhausts the same arena. Even a content-free structural visit of all
       78,109 bytes in the then-current subject failed inside one equality; the
-      present 104,572-byte source is no smaller. Sequential remainder folds
+      present 104,878-byte source is no smaller. Sequential remainder folds
       instead hit contained semantic-stack status 250. The checker reclaims
       conversion scratch only after a complete equality decision, so one
       compiler-scale reflexive equality retains every branch temporary.
@@ -484,7 +484,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       witnesses and named adjacency/ownership composition, canonical EOF
       finalization, and full-source resource measurement. The terminal
       `[104448,104704)` selector has 124 real leaves plus checker `EMPTY`
-      padding and must close the final `db "main"` at source byte 104,572 and
+      padding and must close the final `db "main"` at source extent 104,878 and
       PC 27,087.
       A later temporary frozen-map prototype measured the exact current census
       at 457 label definitions and 1,010 symbolic references. One balanced
@@ -506,7 +506,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       complete: exact D15/token/comment/`db` streaming states, fixed-width
       decimal/register/PC checks, every source subtree equality, balanced
       boundary and unique-label joins, the 457-record frozen map, and the
-      104,572-byte / 27,087-byte root. A temporary producer may choose paths,
+      104,878-byte / 27,087-byte root. A temporary producer may choose paths,
       boundary states, and compact label IDs, but none survives as a parser,
       ledger, receipt, or authority. Use a compact label-record dispatch rather
       than repeating the full map in every proposition. Do not retain a
@@ -538,7 +538,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Gamma-written Delta compiler
 
-- [ ] **BUILD-GAMMA-COMPILER.** Implement D16 and
+- [ ] **BUILD-DELTA-COMPILER.** Implement D16 and
   `source/delta/LANGUAGE.md` in
   `source/delta/compiler/delta_compiler.gamma` as a standalone compiler from
   Delta source to Alpha tape. Type-check before emission, use the private
@@ -602,7 +602,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     located coordinate, wrong-owner and extra-member handling, ordinary
     `unknown_type` precedence, unrelated nominal declarations, and exact
     retained identities.
-  - [x] **D30 — PHYSICAL GAMMA APPLICATION PROFILES.** Fix `DCREQ` V1,
+  - [x] **D30 — PHYSICAL DELTA APPLICATION PROFILES.** Fix `DCREQ` V1,
     profile IDs 1/2, both 4-MiB sealed-input maxima, the 4-MiB Conformance output
     maximum, AlphaBootstrapV2's 1,048,572-byte Epsilon output maximum, the shared
     generated-runtime block, and the exact `DCOUT`/`ECOUT` magics, coordinates,
@@ -667,7 +667,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     neither resource path commits `r254` or a partial descriptor. Exact and
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
-  - [ ] **IMPLEMENTATION — D58 MEASURED BETA COMPILER PROFILE.** Use a roomy
+  - [ ] **IMPLEMENTATION — D58 MEASURED GAMMA COMPILER PROFILE.** Use a roomy
     noncanonical Gamma compiler to complete the Delta entry, returned-`Bytes`
     preflight, both D19 adapters, failure framing, and publication as ordinary
     Gamma source. Measure procedures, global calls, global/per-procedure states
@@ -1011,7 +1011,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Boolean oracle does not publish a compiler frame; the direct compiler must
     absorb this metadata into its accepted-language rejection table and final
     `DCOUT` boundary under D19's selected profile.
-- [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
+- [x] **DELTA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
   owns complete static match-exhaustiveness rejection. Keep the
@@ -1044,10 +1044,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Delta-written Epsilon compiler
 
-- [x] **FREEZE-DELTA-V1.** D17 and `source/epsilon/LANGUAGE.md` fix one
+- [x] **FREEZE-EPSILON-V1.** D17 and `source/epsilon/LANGUAGE.md` fix one
   self-contained grammar, static semantics, execution model, boundary,
   rejection/trap taxonomy, closure presentation, and resource classification.
-- [ ] **BUILD-DELTA-COMPILER.** Implement
+- [ ] **BUILD-EPSILON-COMPILER.** Implement
   `source/epsilon/compiler/epsilon_compiler.delta` to consume arbitrary valid Epsilon
   and emit exact Alpha tape directly. No Gamma translator, Delta evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
@@ -1145,7 +1145,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     owner-escalation trigger, not permission for a hidden alternate backend.
     Its exact preflight, depth-20 target trie, oversize sentinel, and adjacent
     vectors now share the common V2 profile.
-  - [x] **IMPLEMENTATION — D24: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
+  - [x] **IMPLEMENTATION — D24: EPSILON-CENSUS-BINDERS-PRIORITY-V1.** Implement
     D22 and D24's exact Epsilon identity census before type formation. The
     source-shaped collector first builds complete owner and exact qualified-
     machine rows, then covers grammar-selected member, state, parameter, let,
@@ -1172,12 +1172,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
     type-checks through the full Delta frontend gate;
     behavioral canaries remain dependency-blocked on the real Delta compiler
     edge.
-  - [x] **D31 — DELTA-TYPE-FORMATION-V1.** Fix lengths `1..INT32_MAX`, empty
+  - [x] **D31 — EPSILON-TYPE-FORMATION-V1.** Fix lengths `1..INT32_MAX`, empty
     data as one zero-field record, mixed-data rejection, exact storage-only
     `u8` and `never`/view/`Console` placement, and disjoint structural anchors.
     Valid
     source that exceeds one selected application-static-storage profile returns
-    attributed or aggregate outer `Incomplete`; it is never a Epsilon rejection.
+    attributed or aggregate outer `Incomplete`; it is never an Epsilon rejection.
   - [x] **IMPLEMENTATION — D31 STRUCTURAL TYPE FORMATION.** Replace the
     unknown-name-only precursor with the complete profile-independent
     structural judgment. It classifies every empty declaration explicitly as
@@ -1216,7 +1216,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     array structurally by outermost then packed coordinate. Composition-only
     excess remains aggregate with no coordinate. Reserved frame bytes stay
     zero and no refusal publishes tape bytes.
-  - [ ] **IMPLEMENTATION — D56 DELTA ENTRY-SHAPE TOTALITY.** Add the final
+  - [ ] **IMPLEMENTATION — D56 EPSILON ENTRY-SHAPE TOTALITY.** Add the final
     whole-program subjudgment inside type formation. Gate supporting-component
     checks on an authored `Main::main` owner/name candidate; emit only
     `MissingEntry` at source extent when absent, otherwise emit `InvalidEntry`
@@ -1226,7 +1226,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `EpsilonTypeFormationCandidateAt`, derive same-reason equality centrally from
     the closed reason/code bijection without ordering by code, and author the
     first entry-bearing fixtures before publishing golden coordinates.
-  - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
+  - [ ] **IMPLEMENTATION — EPSILON BODY/CONTROL CHECKING.** Resolve every value,
     type owner, callable, constructor, field, state, and control target against
     the complete census and formed shape graph. Check ordered initialization,
     value/place/call classification, arity and type equality, terminal and
@@ -1234,7 +1234,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     all final-phase body/control candidates by packed coordinate after D56's
     independent type-formation entry gate succeeds; traversal and wire reason
     order must not select the diagnostic.
-  - [x] **IMPLEMENTATION — DELTA RESOLUTION-CATALOG FOUNDATION.** Build one
+  - [x] **IMPLEMENTATION — EPSILON RESOLUTION-CATALOG FOUNDATION.** Build one
     source-ordered row per already formed top-level declaration while retaining
     the original AST owner for boundary members, fields/cases, machine bodies,
     and states. Qualified machine rows resolve their data owner or retain the
@@ -1249,7 +1249,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and D37 fixes body/control premise-DAG composition.
     The foundation type-checks through the real Delta frontend;
     it claims no completed body judgment or behavioral execution.
-  - [x] **IMPLEMENTATION — DELTA ORDERED LOCAL RESOLUTION.** Retain the exact
+  - [x] **IMPLEMENTATION — EPSILON ORDERED LOCAL RESOLUTION.** Retain the exact
     machine parameter, state parameter, `let`, or transition-binder declaration
     behind every valid bare local-value reference. Each entry and state body
     precollects only its own pending lets, checks an initializer before moving
@@ -1264,7 +1264,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     candidate bucket collects all failures without promoting a rejection. The
     complete source type-checks through the Delta frontend. Exact behavioral
     vectors remain planned until the real Delta compiler edge can execute them.
-  - [x] **IMPLEMENTATION — DELTA SCALAR VALUE/PLACE FACT FOUNDATION.** Extend
+  - [x] **IMPLEMENTATION — EPSILON SCALAR VALUE/PLACE FACT FOUNDATION.** Extend
     the existing ordered expression walk instead of adding a duplicate
     recursive checker. Retain deterministic child-before-parent exact-AST facts
     carrying one of value-with-optional-place, resultless, or never. Materialize
@@ -1288,7 +1288,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       projection candidates, and leave `.as_slice` to D38 implementation.
       Exact field custody and result facts remain recoverable by constructor
       plus span.
-  - [x] **IMPLEMENTATION — DELTA TRANSITION SUBJECT/PATTERN FACTS.** Classify
+  - [x] **IMPLEMENTATION — EPSILON TRANSITION SUBJECT/PATTERN FACTS.** Classify
     every complete transition subject exactly once as scalar `i32` or one exact
     nominal sum owner, retaining resultless/`never` category failures and
     rejecting complete record/array/view/capability subjects at the subject
@@ -1304,7 +1304,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     missing-coverage order. D53 separately owns local block exits.
     The Delta gate establishes source formation only until the real compiler
     edge exists.
-  - [ ] **IMPLEMENTATION — D57 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.**
+  - [ ] **IMPLEMENTATION — D57 EPSILON TRANSITION-PATTERN/COVERAGE TOTALITY.**
     Restrict transition parsing to one or more nonwildcard arms with an optional
     final wildcard, or one wildcard arm; a following pattern is
     `UnexpectedToken`. Replace the broad `Resolved | Complete` progress with
@@ -1314,7 +1314,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `NonexhaustiveSum` at the complete sum subject only after every pattern
     premise completes. Total known non-case owner paths without adding a reason
     or using wire-code order.
-  - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Enforce D36 without
+  - [ ] **IMPLEMENTATION — D36 EPSILON CALLABLE SHAPE.** Enforce D36 without
     merging the retained constructor and machine catalog rows or choosing a
     callable by lookup order, arity, expected type, statement context, or
     control context. The completed sub-bullets below describe the current
@@ -1410,14 +1410,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
         exit effects. Transition subject/pattern/binder rules
         remain open. The Delta gate establishes source formation only until the
         real compiler edge exists.
-      - [ ] **IMPLEMENTATION — D50 DELTA BARE STATE TRANSFER.** For every known
+      - [ ] **IMPLEMENTATION — D50 EPSILON BARE STATE TRANSFER.** For every known
         bare state, independent of arity, add `InvalidControlTarget` at the
         continuation start without adding a state application or first-class
         state reference. Keep the existing bare-machine callable reference and
         the state/machine-collision judgment. Add distinct controls for a bare
         zero-parameter state, bare parameterized state, bare machine, and dual
         collision even though all publish the same reason and coordinate.
-      - [ ] **IMPLEMENTATION — D51 DELTA RECEIVER NORMALIZATION.** Require
+      - [ ] **IMPLEMENTATION — D51 EPSILON RECEIVER NORMALIZATION.** Require
         `&mut self` as the first input of every owner-qualified data machine and
         reject receiverless qualified declarations in the parser. Retire direct
         qualified static-machine application and the case/machine collision
@@ -1430,7 +1430,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
         existing `UnknownName` branch. Keep `NoEpsilonLocalBindingType` for
         unresolved transition binders. Add D51's syntax, namespace, state-scope,
         no-cascade, and earliest-coordinate controls.
-  - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
+  - [ ] **IMPLEMENTATION — D37 EPSILON PREMISE-DAG COMPOSITION.** Retain every
     independent child candidate, but derive a parent success or rejection only
     after every fact consumed by that rule resolves. Implement the callable/
     argument sibling join, context-before-arity gate, resultless and `never`
@@ -1504,7 +1504,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       publish the earlier outer failure when present. Add controls proving
       wrong arity, unknown/inadmissible outer callees, and grouped category
       cases never create a distinct-reason coordinate tie or `InternalFailure`.
-    - [ ] **IMPLEMENTATION — D53 LOCAL DELTA BLOCK EXITS.** Remove the
+    - [ ] **IMPLEMENTATION — D53 LOCAL EPSILON BLOCK EXITS.** Remove the
       call-statement/terminal grammar overlap and classify every entry and state
       block locally with exactly `Falloff`, `ReturnNone`, `ReturnValue`,
       `NoNormalReturn`, or `StateTransfer`; do not add a machine-tail variant or
@@ -1517,7 +1517,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       after `never`, keep checking its children, and suppress its block-exit
       parent relation. Add empty/nonempty, unused-state, cycle, all-five-effect,
       continuation-category, and delimiter/brace controls.
-  - [ ] **IMPLEMENTATION — D38 DELTA `.as_slice`.** Admit the field-like
+  - [ ] **IMPLEMENTATION — D38 EPSILON `.as_slice`.** Admit the field-like
     contextual postfix only on a place-valued fixed array. Evaluate the receiver
     once and retain a non-place immutable full-range view without allocation,
     copying, a bounds check, or a trap. Reject an array temporary as
@@ -1546,7 +1546,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reachable roots. Implement D34's bounded arithmetic, deterministic
     attributed/aggregate refusal, exact-versus-witness boundary, zero-factor
     path, adapter validation, and no-publication canaries. Do not trap, choose
-    undocumented saturation, impose a Epsilon validity limit, or report a
+    undocumented saturation, impose an Epsilon validity limit, or report a
     traversal prefix.
 - [x] Derive compact positive, negative, trap, and private-budget `Incomplete`
   conformance directly from settled portions of the Epsilon contract. Include

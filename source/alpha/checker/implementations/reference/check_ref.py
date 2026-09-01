@@ -3,7 +3,7 @@
 # natural-deduction rules, not ported from check.gamma. Reads "<goal> <proof>" on
 # stdin and prints the same accept/reject interface as the authoritative checker.
 #
-# The Beta checker is lattice-lineage and authoritative. This Python program is
+# The Gamma checker is lattice-lineage and authoritative. This Python program is
 # one untrusted, auditable differential reference for its complete retained core:
 # intuitionistic propositional logic
 # (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +

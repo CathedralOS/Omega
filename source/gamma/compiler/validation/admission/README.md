@@ -31,7 +31,7 @@ The first 1,024-byte comment subtree already checks the exact textual-ASCII and
 comment transitions in the authoritative checker in under one second. A
 complete retained pass-one checkpoint must include every source region,
 cross-cut token/`db` continuation, fixed-width PC accounting, balanced unique
-label-map construction, and the exact 104,572-byte / 27,087-byte joint. No
+label-map construction, and the exact 104,878-byte / 27,087-byte joint. No
 one-chunk demonstration is retained here.
 
 The latest temporary label-map measurement counted 457 definitions and 1,010

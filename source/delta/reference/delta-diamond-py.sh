@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# GAMMA MEANING DIAMOND — the independent reference evaluator (delta_ref.py) agrees with interp.gamma.
+# DELTA MEANING DIAMOND — the independent reference evaluator (delta_ref.py) agrees with interp.gamma.
 #
 # interp.gamma is the current executable definition of what Delta programs mean,
 # but its ADT / match / recursion evaluation needs an independent discriminator.
@@ -71,7 +71,7 @@ fixed_case comment-high "$T/comment-high.delta" 255 ''
 
 # Atom patterns beginning with lowercase are variable/catch-all patterns, not
 # nullary constructors.  Keep this fixed fence alongside the generated corpus:
-# the canonical Gamma interpreter has always implemented it.
+# the canonical Gamma-written Delta interpreter has always implemented it.
 printf '%s' '(match (Cons 1 Nil) (Nil 0) (other 42))' > "$T/catch-all.delta"
 set +e
 ro=$(python3 delta_ref.py < "$T/catch-all.delta" 2>/dev/null); rc=$?

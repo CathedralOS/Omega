@@ -11,10 +11,10 @@ Delta macro surface.
 
 ```text
 Delta-written Epsilon compiler source
-  └─ delta_compiler.tape ─▶ epsilon_compiler_bytecode.tape
+  └─ delta_compiler_bytecode.tape ─▶ epsilon_compiler_bytecode.tape
 
 Epsilon-written Omega compiler source D
-  └─ epsilon_compiler.tape ─▶ omega0_compiler_bytecode.tape
+  └─ epsilon_compiler_bytecode.tape ─▶ omega0_compiler_bytecode.tape
 ```
 
 The Epsilon compiler accepts Epsilon and emits Alpha tape. The Epsilon-written program
@@ -50,7 +50,7 @@ structural reason and coordinate, and traversal never chooses a diagnostic.
 Valid source that exceeds one selected application-static-storage profile
 produces deterministic attributed or aggregate outer `Incomplete`, using an
 exact demand while representable and `INT64_MAX` as the canonical larger-
-demand witness, never a Epsilon rejection.
+demand witness, never an Epsilon rejection.
 
 The canonical compiler source now implements complete parsing, that identity
 census, D31's profile-independent structural type formation, a source-backed

@@ -211,17 +211,17 @@ The embedded profile and outcome constants project exactly to:
 
 - `profiles-v1.tsv`;
 - `conformance-observations-v1.tsv`;
-- `gcout-v1.tsv`; and
-- `dcout-v1.tsv`.
+- `dcout-v1.tsv`; and
+- `ecout-v1.tsv`.
 
 The gate must compare every row rather than merely parse those files. They are
-not inputs read by the completed offline compiler. `gcout-v1.tsv` deliberately
+not inputs read by the completed offline compiler. `dcout-v1.tsv` deliberately
 publishes authored semantic rejection classes instead of the frontend's private
 parser states or its historical one-bit `INVALID_TYPE`. Its
 `profile_context` column uses `unselected` before a valid profile exists and
 otherwise enumerates the permitted profile IDs. The originating request and
 frame are checked together; a detached DCOUT frame cannot validate this column
-because it does not repeat the profile ID. `dcout-v1.tsv` retains D17 codes 1
+because it does not repeat the profile ID. `ecout-v1.tsv` retains D17 codes 1
 through 26 unchanged.
 
 The compiler's exact V1 resource limits are:

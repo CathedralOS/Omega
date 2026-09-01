@@ -18,7 +18,7 @@ types, effects, ownership, or proofs.
 
 Gamma's meaning is the written small-step
 [`SEMANTICS.md`](../../../../source/gamma/SEMANTICS.md). The canonical Gamma
-compiler is written in Alpha and emits Alpha tape. Its output is the standalone
+compiler is written in Beta and emits Alpha tape. Its output is the standalone
 compiler used to consume the Gamma-written Delta compiler source.
 
 Nested state braces are an authoring aid for substantial compiler CFGs, not a

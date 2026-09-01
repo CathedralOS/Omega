@@ -192,8 +192,8 @@ The ordered work is in
 - implement the Epsilon compiler in Delta;
 - author the first Omega compiler source closure `D` in Epsilon under Omega
   ownership, using historical prototypes only as Git-resident reference;
-- build `omega₀.tape` from `D`; and
-- compile `C` with `omega₀` into `omega.tape`.
+- build `omega0_compiler_bytecode.tape` from `D`; and
+- compile `C` with `omega0` into `omega_compiler_bytecode.tape`.
 
 The exact admitted and missing subjects are summarized in the
 [bootstrap chain manifest](chain_manifest.md).

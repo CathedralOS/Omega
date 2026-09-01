@@ -334,14 +334,14 @@ anchors at its declaration name. `EpsilonCompilerV1` uses
 member and with a source coordinate for a present malformed member or reason-
 code bijection. `ConformanceBytesV1` cannot emit that reason.
 
-The closed tables are `compiler/gcout-v1.tsv`,
-`compiler/dcout-v1.tsv`, `compiler/profiles-v1.tsv`, and
+The closed tables are `compiler/dcout-v1.tsv`,
+`compiler/ecout-v1.tsv`, `compiler/profiles-v1.tsv`, and
 `compiler/conformance-observations-v1.tsv`. They are checked projections of
 constants embedded in the compiler artifact, not files consulted by the
 completed offline runtime. Generated-program statuses 248 through 254 remain
 separate runtime observations, never compiler-boundary cases.
 
-`gcout-v1.tsv` also records the request-profile contexts in which each code is
+`dcout-v1.tsv` also records the request-profile contexts in which each code is
 canonical. `unselected` means no valid profile has yet been established. The
 request/outcome join checks this column because a detached DCOUT frame does not
 repeat the profile ID; a profile-impossible code is a noncanonical compiler

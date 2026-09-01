@@ -26,7 +26,7 @@ without an external Gamma compiler or host transformation.
 
 ```text
 Gamma-written Delta compiler source
-  └─ gamma_compiler.tape ─▶ delta_compiler_bytecode.tape
+  └─ gamma_compiler_bytecode.tape ─▶ delta_compiler_bytecode.tape
 
 Delta-written Epsilon compiler source
   └─ delta_compiler_bytecode.tape ─▶ epsilon_compiler_bytecode.tape

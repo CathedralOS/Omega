@@ -1,4 +1,4 @@
-; check.gamma - a minimal proof-kernel certificate checker, written in Beta.
+; check.gamma - a minimal proof-kernel certificate checker, written in Gamma.
 ;
 ; This is the first appearance of the lattice's whole point (proof_kernel.md): a
 ; SMALL, hand-auditable checker that validates evidence. An untrusted, arbitrarily

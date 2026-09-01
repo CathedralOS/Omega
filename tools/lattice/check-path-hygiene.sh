@@ -340,4 +340,39 @@ if [ -n "$retired_checker_violations" ]; then
   exit 1
 fi
 
+# D60 moved the textual assembler to Beta and shifted every later source rung.
+# Current documentation must use the canonical post-migration paths and tape
+# names. The append-only decision ledger is excluded because earlier decisions
+# retain the vocabulary in force when they were recorded.
+stale_lattice_doc_pattern='source/alpha/assembler|source/alpha/ASSEMBLY\.md|assembler\.alpha|beta_compiler\.alpha|beta_compiler_bytecode\.tape|source/beta/reference|implementations/beta|check\.beta|eq\.beta|omega_compiler\.delta|interp\.beta|gamma_compiler\.tape|delta_compiler\.tape|epsilon_compiler\.tape|omega₀\.tape|omega\.tape|compiler/gcout-v1\.tsv'
+if command -v rg >/dev/null 2>&1; then
+  stale_lattice_docs=$(rg -n --glob '*.md' \
+    --glob '!**/bootstrap_lattice/decisions.md' \
+    --glob '!**/omega-rust/**' \
+    "$stale_lattice_doc_pattern" \
+    "$OMEGA_REPO_ROOT/README.md" \
+    "$OMEGA_REPO_ROOT/TASKS.md" \
+    "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" \
+    "$OMEGA_REPO_ROOT/source" \
+    "$OMEGA_REPO_ROOT/wiki" || true)
+else
+  stale_lattice_docs=$(
+    grep -En "$stale_lattice_doc_pattern" \
+      "$OMEGA_REPO_ROOT/README.md" \
+      "$OMEGA_REPO_ROOT/TASKS.md" \
+      "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true
+    find "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/wiki" -type f \
+      -name '*.md' \
+      ! -path '*/omega-rust/*' \
+      ! -path '*/bootstrap_lattice/decisions.md' \
+      -exec grep -En "$stale_lattice_doc_pattern" {} + || true
+  )
+fi
+
+if [ -n "$stale_lattice_docs" ]; then
+  echo "lattice path hygiene FAIL — pre-D60 documentation identity remains:" >&2
+  printf '%s\n' "$stale_lattice_docs" >&2
+  exit 1
+fi
+
 echo "lattice topology and path hygiene OK"

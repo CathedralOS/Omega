@@ -33,13 +33,13 @@ requirement are fixed by [D15](decisions.md#d15--bootstrap-implementation-source
 
 ```text
 Delta-written Epsilon compiler source
-  └─ Delta compiler + sealed EpsilonCompilerV1 ─▶ epsilon_compiler.tape
+  └─ Delta compiler + sealed EpsilonCompilerV1 ─▶ epsilon_compiler_bytecode.tape
 
 Epsilon-written Omega source D
-  └─ epsilon_compiler.tape ──────────▶ omega₀.tape
+  └─ epsilon_compiler_bytecode.tape ─▶ omega0_compiler_bytecode.tape
 
 Omega-written Omega source C
-  └─ omega₀.tape ──────────────────▶ omega.tape
+  └─ omega0_compiler_bytecode.tape ─▶ omega_compiler_bytecode.tape
 ```
 
 Every output above is canonical Alpha tape. A host-specific VM seed may execute

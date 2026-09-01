@@ -820,7 +820,7 @@
 ; eventual pure compiler may hand an oversized candidate to Complete; the
 ; adapter's mandatory output-length preflight then reports outer Incomplete
 ; before validating or publishing it.  A compiler contradiction maps to
-; InternalFailure.  Neither private case becomes a Epsilon reject.
+; InternalFailure.  Neither private case becomes an Epsilon reject.
 (data EpsilonAlphaEncodeOutcome
   (EpsilonAlphaEncoded Bytes)
   (EpsilonAlphaOversizedCandidate Bytes Int)
