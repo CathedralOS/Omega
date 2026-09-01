@@ -4251,6 +4251,95 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
 }
 
 #[test]
+fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Cell<T> { values: [T; 2]; } data Outer<T> { inner: Cell<T>; direct: T; } data Generated { value: Outer<u32>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let cell_instance_index = index("Cell<u32>");
+    let outer_template_index = index("Outer");
+    let outer_instance_index = index("Outer<u32>");
+    let wrapper_index = index("Generated");
+
+    let mut wrong_nested_member = resolved.clone();
+    let outer_members = wrong_nested_member.data_definitions[outer_instance_index].members;
+    let psi_symbol_resolved_trees::data::DataMember::Field(inner) = wrong_nested_member
+        .tables
+        .declarations
+        .data_members
+        .get_mut(outer_members.start())
+    else {
+        unreachable!()
+    };
+    inner.type_reference = psi_symbol_resolved_trees::types::TypeReference::Unit;
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_nested_member, frontier),
+        "a nested synthesized field must replay the exact inner instance"
+    );
+
+    let mut wrong_template_application = resolved.clone();
+    let outer_template_members =
+        wrong_template_application.data_definitions[outer_template_index].members;
+    let psi_symbol_resolved_trees::data::DataMember::Field(inner) = wrong_template_application
+        .tables
+        .declarations
+        .data_members
+        .get_mut(outer_template_members.start())
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut inner.type_reference
+    else {
+        unreachable!()
+    };
+    application.base_name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_template_application, frontier),
+        "a local template application cannot drift from its exact base symbol"
+    );
+
+    let mut wrong_inner_origin = resolved.clone();
+    let Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) = wrong_inner_origin
+        .data_definitions[cell_instance_index]
+        .generic_instance
+        .as_mut()
+    else {
+        unreachable!()
+    };
+    origin.base_name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_inner_origin, frontier),
+        "a transitive dependency must retain its exact synthesis origin"
+    );
+
+    let mut unreachable_instances = resolved;
+    let wrapper_members = unreachable_instances.data_definitions[wrapper_index].members;
+    let psi_symbol_resolved_trees::data::DataMember::Field(value) = unreachable_instances
+        .tables
+        .declarations
+        .data_members
+        .get_mut(wrapper_members.start())
+    else {
+        unreachable!()
+    };
+    value.type_reference = psi_symbol_resolved_trees::types::TypeReference::Unit;
+    assert!(
+        !plain_data_extension_shape_is_supported(&unreachable_instances, frontier),
+        "an internally coherent but unreachable synthesized subgraph is not admitted"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -4289,6 +4378,18 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             "multiple_templates_instances_and_wrappers",
             "data Cell<T> { value: T; } data Pair<A, B> { first: A; second: B; } data Item { value: u8; } data First { one: Cell<u32>; pair: Pair<u16, u64>; indirect: [Cell<u32>; 2]; } data Second { nominal: Cell<Item>; repeated: Pair<u16, u64>; }",
         ),
+        (
+            "nested_instances",
+            "data Cell<T> { value: T; } data Outer<T> { value: T; } data Generated { value: Outer<Cell<u32>>; }",
+        ),
+        (
+            "indirect_template_parameter",
+            "data Cell<T> { values: [T; 2]; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "nested_fixpoint_and_indirect_substitution",
+            "data Cell<T> { values: [T; 2]; } data Outer<T> { inner: Cell<T>; direct: T; } data Generated { nested: Outer<u32>; repeated: Outer<u32>; }",
+        ),
     ] {
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
@@ -4303,8 +4404,8 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
 fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instances() {
     for (name, extension_source) in [
         (
-            "nested_instances",
-            "data Cell<T> { value: T; } data Outer<T> { value: T; } data Generated { value: Outer<Cell<u32>>; }",
+            "cyclic_instances",
+            "data Left<T> { right: Right<T>; } data Right<T> { left: Left<T>; } data Generated { value: Left<u32>; }",
         ),
         (
             "lifetime_instance",
@@ -4321,10 +4422,6 @@ fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instance
         (
             "nondefault_bound",
             "data Cell<T [copy]> { value: T; } data Generated { value: Cell<u32>; }",
-        ),
-        (
-            "indirect_template_parameter",
-            "data Cell<T> { values: [T; 2]; } data Generated { value: Cell<u32>; }",
         ),
         (
             "attached_method",

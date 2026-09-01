@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T> {{ value: T; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Item {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; }}\n"
+        "data Cell<T> {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T> {{ inner: Cell<T>; direct: T; }}\ndata Item {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -252,7 +252,7 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 3, "three deduplicated closed instances");
+    assert_eq!(instances.len(), 4, "four deduplicated closed instances");
     let instance = instances
         .iter()
         .copied()

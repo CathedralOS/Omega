@@ -1,8 +1,89 @@
 //! Validation of normalized, extension-local generic record instances.
 
-use super::{exact_field_symbol, exact_top_level_data_symbol};
+use super::exact_top_level_data_symbol;
 use psi_symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
 use psi_symbols::SymbolHandle;
+
+mod reachability;
+mod substitution;
+
+pub(super) fn template_application_is_supported(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+    owner: SymbolHandle,
+    owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
+    application: &psi_symbol_resolved_trees::types::GenericTypeReference,
+) -> bool {
+    let Some(owner_definition) = source
+        .data_definitions
+        .iter()
+        .skip(data_frontier)
+        .find(|definition| definition.symbol == owner)
+    else {
+        return false;
+    };
+    let Some(template) = source
+        .data_definitions
+        .iter()
+        .skip(data_frontier)
+        .find(|definition| definition.symbol == application.base_symbol)
+    else {
+        return false;
+    };
+    let parameters = source.data_type_parameters(template.type_parameters);
+    let arguments = source.child_type_references(application.arguments);
+    owner_definition.generic_instance.is_none()
+        && exact_top_level_data_symbol(source, owner_definition)
+        && !owner_type_parameters.is_empty()
+        && source.data_type_parameters(owner_definition.type_parameters) == owner_type_parameters
+        && application.base_name.as_str() == template.name.as_str()
+        && application.lifetime_arguments.is_empty()
+        && template.lifetime_parameters.is_empty()
+        && template.generic_instance.is_none()
+        && exact_top_level_data_symbol(source, template)
+        && !parameters.is_empty()
+        && parameters.len() == arguments.len()
+        && parameters.iter().all(|parameter| {
+            parameter.symbol.is_valid()
+                && source.symbols.get(parameter.symbol).kind
+                    == psi_symbols::SymbolKind::TypeParameter
+                && source.symbols.get(parameter.symbol).parent == template.symbol
+                && source.symbols.name(parameter.symbol) == parameter.name.as_str()
+                && matches!(
+                    parameter.kind,
+                    psi_symbol_resolved_trees::data::TypeParameterKind::Type
+                )
+                && parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
+        })
+        && arguments.iter().all(|argument| {
+            let TypeReference::Named { symbol, name } = argument else {
+                return false;
+            };
+            if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {
+                return false;
+            }
+            match source.symbols.get(*symbol).kind {
+                psi_symbols::SymbolKind::TypeParameter => {
+                    source.symbols.get(*symbol).parent == owner
+                        && owner_type_parameters
+                            .iter()
+                            .any(|parameter| parameter.symbol == *symbol)
+                }
+                psi_symbols::SymbolKind::BuiltinType => true,
+                psi_symbols::SymbolKind::Data => source
+                    .data_definitions
+                    .iter()
+                    .find(|definition| definition.symbol == *symbol)
+                    .is_some_and(|definition| {
+                        exact_top_level_data_symbol(source, definition)
+                            && definition.lifetime_parameters.is_empty()
+                            && definition.type_parameters.is_empty()
+                            && definition.generic_instance.is_none()
+                    }),
+                _ => false,
+            }
+        })
+}
 
 /// Reconstruct every simple local instance independently and return the exact
 /// instance symbols that ordinary generated-data validation may reference.
@@ -23,32 +104,21 @@ pub(super) fn validated_symbols(
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
     let mut symbols = Vec::with_capacity(instances.len());
-    for instance in &instances {
-        if !validate_instance(source, data_frontier, instance) || symbols.contains(&instance.symbol)
-        {
+    while symbols.len() < instances.len() {
+        let before = symbols.len();
+        for instance in &instances {
+            if symbols.contains(&instance.symbol) {
+                continue;
+            }
+            if validate_instance(source, data_frontier, instance, &symbols) {
+                symbols.push(instance.symbol);
+            }
+        }
+        if symbols.len() == before {
             return None;
         }
-        symbols.push(instance.symbol);
     }
-    if symbols.iter().all(|symbol| {
-        source
-            .data_definitions
-            .iter()
-            .skip(data_frontier)
-            .filter(|definition| definition.generic_instance.is_none())
-            .any(|definition| {
-                source
-                    .data_members(definition.members)
-                    .iter()
-                    .any(|member| {
-                        let psi_symbol_resolved_trees::data::DataMember::Field(field) = member
-                        else {
-                            return false;
-                        };
-                        type_references_symbol(source, &field.type_reference, *symbol)
-                    })
-            })
-    }) {
+    if reachability::all_instances_reachable_from_ordinary_data(source, data_frontier, &symbols) {
         Some(symbols)
     } else {
         None
@@ -59,6 +129,7 @@ fn validate_instance(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
     instance: &psi_symbol_resolved_trees::data::DataDefinition,
+    validated_instances: &[SymbolHandle],
 ) -> bool {
     let Some(TypeReference::Generic(origin)) = instance.generic_instance.as_ref() else {
         return false;
@@ -120,7 +191,12 @@ fn validate_instance(
                 psi_symbol_resolved_trees::data::TypeParameterKind::Type
             )
             || parameter.bounds != psi_symbol_resolved_trees::data::DataProperties::default()
-            || !supported_named_argument(source, *argument_symbol, argument_name.as_str())
+            || !supported_named_argument(
+                source,
+                validated_instances,
+                *argument_symbol,
+                argument_name.as_str(),
+            )
         {
             return false;
         }
@@ -138,11 +214,12 @@ fn validate_instance(
     template_members.len() == instance_members.len()
         && template_members.iter().zip(instance_members).all(
             |(template_member, instance_member)| {
-                substituted_field_matches(
+                substitution::field_matches(
                     source,
                     template.symbol,
                     instance.symbol,
                     &substitutions,
+                    validated_instances,
                     template_member,
                     instance_member,
                 )
@@ -152,6 +229,7 @@ fn validate_instance(
 
 fn supported_named_argument(
     source: &SymbolResolvedTrees,
+    validated_instances: &[SymbolHandle],
     symbol: SymbolHandle,
     name: &str,
 ) -> bool {
@@ -168,94 +246,9 @@ fn supported_named_argument(
                 exact_top_level_data_symbol(source, definition)
                     && definition.lifetime_parameters.is_empty()
                     && definition.type_parameters.is_empty()
-                    && definition.generic_instance.is_none()
+                    && (definition.generic_instance.is_none()
+                        || validated_instances.contains(&definition.symbol))
             }),
         _ => false,
-    }
-}
-
-fn substituted_field_matches(
-    source: &SymbolResolvedTrees,
-    template_owner: SymbolHandle,
-    instance_owner: SymbolHandle,
-    substitutions: &[(SymbolHandle, &TypeReference)],
-    template: &psi_symbol_resolved_trees::data::DataMember,
-    instance: &psi_symbol_resolved_trees::data::DataMember,
-) -> bool {
-    let (
-        psi_symbol_resolved_trees::data::DataMember::Field(template),
-        psi_symbol_resolved_trees::data::DataMember::Field(instance),
-    ) = (template, instance)
-    else {
-        return false;
-    };
-    template.identity == instance.identity
-        && template.name.as_str() == instance.name.as_str()
-        && template.relevance == instance.relevance
-        && template.symbol != instance.symbol
-        && exact_field_symbol(source, template_owner, template)
-        && exact_field_symbol(source, instance_owner, instance)
-        && match &template.type_reference {
-            TypeReference::Named { symbol, name }
-                if substitutions
-                    .iter()
-                    .any(|(parameter, _)| parameter == symbol) =>
-            {
-                name.as_str() == source.symbols.name(*symbol)
-                    && substitutions
-                        .iter()
-                        .find(|(parameter, _)| parameter == symbol)
-                        .is_some_and(|(_, argument)| **argument == instance.type_reference)
-            }
-            TypeReference::Named { symbol, name } => {
-                symbol.is_valid()
-                    && name.as_str() == source.symbols.name(*symbol)
-                    && template.type_reference == instance.type_reference
-            }
-            TypeReference::Unit => matches!(instance.type_reference, TypeReference::Unit),
-            _ => false,
-        }
-}
-
-fn type_references_symbol(
-    source: &SymbolResolvedTrees,
-    type_reference: &TypeReference,
-    symbol: SymbolHandle,
-) -> bool {
-    match type_reference {
-        TypeReference::Named {
-            symbol: candidate, ..
-        } => *candidate == symbol,
-        TypeReference::Reference(reference) => type_references_symbol(
-            source,
-            source.child_type_reference(reference.referee),
-            symbol,
-        ),
-        TypeReference::Slice(slice) => type_references_symbol(
-            source,
-            source.child_type_reference(slice.element_type),
-            symbol,
-        ),
-        TypeReference::FixedArray(array) => type_references_symbol(
-            source,
-            source.child_type_reference(array.element_type),
-            symbol,
-        ),
-        TypeReference::Generic(generic) => {
-            generic.base_symbol == symbol
-                || source
-                    .child_type_references(generic.arguments)
-                    .iter()
-                    .any(|argument| type_references_symbol(source, argument, symbol))
-        }
-        TypeReference::Constrained(constrained) => type_references_symbol(
-            source,
-            source.child_type_reference(constrained.base_type),
-            symbol,
-        ),
-        TypeReference::ConstExpression(_)
-        | TypeReference::DynamicTrait { .. }
-        | TypeReference::SelfType { .. }
-        | TypeReference::Unit => false,
     }
 }
