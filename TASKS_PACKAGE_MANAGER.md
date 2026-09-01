@@ -285,9 +285,7 @@ explicitly.
     requirement identity and the two local named-`dyn` roots rejected by the
     native LET-receiver realization fence; the two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
-    operational callable identity, and the x86 FMA plan-association root does
-    so because targetless package dependency projection omits the exact-target
-    `Build.x86_deployment_features` field; six nested/repeated wire roots retain
+    operational callable identity; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema
     type visibility under package-scoped compilation; exact visible requirement
     identity now survives normalized float-builtin settlement, but three

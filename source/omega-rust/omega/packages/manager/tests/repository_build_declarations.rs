@@ -588,7 +588,6 @@ fn float_canaries_retain_only_the_known_compiler_compatibility_seams() {
         &[
             "build_runtime_semantics_twins_windows_x64",
             "build_runtime_semantics_twins_x86_baseline",
-            "x86_fma_plan_association",
         ],
     );
 }
