@@ -2,9 +2,10 @@
 
 use crate::{
     GeneralizedSpillRecoveryActionError, GeneralizedSpillRecoveryActionPlan,
-    GeneralizedSpillRecoveryActionReceipt, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
-    ValidatedGeneralizedSpillRecoveryChoices, generalized_spill_recovery_action_identity,
+    GeneralizedSpillRecoveryActionPolicy, GeneralizedSpillRecoveryActionReceipt,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
+    ValidatedGeneralizedSpillRecoveryActions, ValidatedGeneralizedSpillRecoveryChoices,
+    ValidatedLiveRanges, ValidatedSelectedAnalysis, generalized_spill_recovery_action_identity,
 };
 
 pub fn validate_generalized_spill_recovery_actions(
@@ -19,6 +20,8 @@ pub fn validate_generalized_spill_recovery_actions(
     if plan.generalized_spill_insertion != inserted.identity()
         || plan.reload_value_homes != home.identity()
         || plan.choices != choice.identity()
+        || plan.selected.is_some()
+        || plan.ranges.is_some()
         || plan.register_environment != home.register_environment()
         || plan.allocator_availability != home.allocator_availability()
         || plan.optimization_unit != home.optimization_unit()
@@ -27,6 +30,46 @@ pub fn validate_generalized_spill_recovery_actions(
         return Err(GeneralizedSpillRecoveryActionError::RootMismatch);
     }
     let expected = super::replay::replay(insertion, homes, choices, plan.policy, plan.budget)?;
+    seal(plan, expected)
+}
+
+pub fn validate_generalized_original_spill_recovery_actions<S: ValidatedSelectedAnalysis>(
+    insertion: &ValidatedGeneralizedSpillInsertion,
+    homes: &ValidatedGeneralizedReloadValueHomes,
+    choices: &ValidatedGeneralizedSpillRecoveryChoices,
+    selected: &S,
+    ranges: &ValidatedLiveRanges,
+    plan: GeneralizedSpillRecoveryActionPlan,
+) -> Result<ValidatedGeneralizedSpillRecoveryActions, GeneralizedSpillRecoveryActionError> {
+    let inserted = insertion.receipt();
+    let home = homes.receipt();
+    let choice = choices.receipt();
+    if plan.generalized_spill_insertion != inserted.identity()
+        || plan.reload_value_homes != home.identity()
+        || plan.choices != choice.identity()
+        || plan.selected != Some(selected.selected_identity())
+        || plan.ranges != Some(ranges.receipt().identity())
+        || choice.selected() != selected.selected_identity()
+        || choice.ranges() != ranges.receipt().identity()
+        || ranges.receipt().selected() != selected.selected_identity()
+        || plan.register_environment != home.register_environment()
+        || plan.allocator_availability != home.allocator_availability()
+        || plan.optimization_unit != home.optimization_unit()
+        || plan.fuel_schedule != home.fuel_schedule()
+        || plan.policy
+            != GeneralizedSpillRecoveryActionPolicy::EpochTwoOriginalVictimLaterSelectedRewritesV1
+    {
+        return Err(GeneralizedSpillRecoveryActionError::RootMismatch);
+    }
+    let expected =
+        super::replay::replay_original(insertion, homes, choices, selected, ranges, plan.budget)?;
+    seal(plan, expected)
+}
+
+fn seal(
+    plan: GeneralizedSpillRecoveryActionPlan,
+    expected: GeneralizedSpillRecoveryActionPlan,
+) -> Result<ValidatedGeneralizedSpillRecoveryActions, GeneralizedSpillRecoveryActionError> {
     if plan.usage != expected.usage {
         return Err(GeneralizedSpillRecoveryActionError::UsageMismatch);
     }
@@ -49,6 +92,8 @@ pub fn validate_generalized_spill_recovery_actions(
         generalized_spill_insertion: plan.generalized_spill_insertion,
         reload_value_homes: plan.reload_value_homes,
         choices: plan.choices,
+        selected: plan.selected,
+        ranges: plan.ranges,
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         usage: plan.usage,

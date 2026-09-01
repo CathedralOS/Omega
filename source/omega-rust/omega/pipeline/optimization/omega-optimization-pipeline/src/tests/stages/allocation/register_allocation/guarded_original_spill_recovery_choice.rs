@@ -99,24 +99,6 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
 }
 
 #[test]
-fn logical_action_planning_still_refuses_the_original_victim() {
-    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let (sources, homes, worklist) = sources(target);
-        let choice = sources
-            .choose_generalized_victim_with_policy(&homes, &worklist, policy(), exact_budget())
-            .unwrap();
-        assert_eq!(
-            sources.plan_generalized_recovery_actions(&homes, &choice, selected_lowering_budget(),),
-            Err(
-                omega_regalloc::GeneralizedSpillRecoveryActionError::UnsupportedVictim {
-                    function: 0,
-                }
-            )
-        );
-    }
-}
-
-#[test]
 fn independent_replay_rejects_reload_original_and_root_forgery() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (sources, homes, worklist) = sources(target);

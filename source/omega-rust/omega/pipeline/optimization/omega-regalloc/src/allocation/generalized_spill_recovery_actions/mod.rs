@@ -12,7 +12,10 @@ mod validate;
 
 pub use identity::generalized_spill_recovery_action_identity;
 pub use model::*;
-pub use validate::validate_generalized_spill_recovery_actions;
+pub use validate::{
+    validate_generalized_original_spill_recovery_actions,
+    validate_generalized_spill_recovery_actions,
+};
 
 pub fn plan_generalized_spill_recovery_actions(
     insertion: &crate::ValidatedGeneralizedSpillInsertion,
@@ -23,4 +26,18 @@ pub fn plan_generalized_spill_recovery_actions(
 ) -> Result<ValidatedGeneralizedSpillRecoveryActions, GeneralizedSpillRecoveryActionError> {
     let plan = compute::compute(insertion, homes, choices, policy, budget)?;
     validate_generalized_spill_recovery_actions(insertion, homes, choices, plan)
+}
+
+pub fn plan_generalized_original_spill_recovery_actions<S: crate::ValidatedSelectedAnalysis>(
+    insertion: &crate::ValidatedGeneralizedSpillInsertion,
+    homes: &crate::ValidatedGeneralizedReloadValueHomes,
+    choices: &crate::ValidatedGeneralizedSpillRecoveryChoices,
+    selected: &S,
+    ranges: &crate::ValidatedLiveRanges,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedGeneralizedSpillRecoveryActions, GeneralizedSpillRecoveryActionError> {
+    let plan = compute::compute_original(insertion, homes, choices, selected, ranges, budget)?;
+    validate_generalized_original_spill_recovery_actions(
+        insertion, homes, choices, selected, ranges, plan,
+    )
 }

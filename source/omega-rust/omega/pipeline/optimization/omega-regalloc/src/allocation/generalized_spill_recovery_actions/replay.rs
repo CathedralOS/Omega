@@ -9,10 +9,13 @@ use crate::{
     GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionPolicy,
     GeneralizedSpillRecoveryLogicalAction, GeneralizedSpillRecoveryLogicalReload,
     GeneralizedSpillRecoveryLogicalStorage, GeneralizedSpillRecoveryLogicalStore,
-    GeneralizedSpillRecoveryLogicalUseRewrite, LogicalSpillStorageClass,
-    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
-    ValidatedGeneralizedSpillRecoveryChoices,
+    GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
+    LogicalSpillStorageClass, ValidatedGeneralizedReloadValueHomes,
+    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
+
+mod original;
 
 pub(super) fn replay(
     insertion: &ValidatedGeneralizedSpillInsertion,
@@ -201,7 +204,7 @@ pub(super) fn replay(
             block: choice.block,
             pressure_point: choice.point,
             source_pressure: choice.source_pressure,
-            victim,
+            victim: GeneralizedSpillRecoveryVictim::Reload(victim),
             victim_class,
             current_view: choice.selected_victim_view,
             reclaimed_view: choice.reclaimed_view,
@@ -212,7 +215,7 @@ pub(super) fn replay(
             store: GeneralizedSpillRecoveryLogicalStore {
                 before_pressure_reload: choice.source_pressure,
                 before_instruction: pressure_instruction,
-                source: victim,
+                source: GeneralizedSpillRecoveryVictim::Reload(victim),
                 source_view: choice.selected_victim_view,
                 storage: result,
             },
@@ -226,7 +229,7 @@ pub(super) fn replay(
         });
     }
     actions.sort_by_key(|action| (action.source_work_item, action.function));
-    let usage = work_usage(&actions)?;
+    let usage = work_usage(&actions, 0)?;
     if !usage.within(budget) {
         return Err(GeneralizedSpillRecoveryActionError::BudgetExceeded {
             required: usage,
@@ -237,6 +240,8 @@ pub(super) fn replay(
         generalized_spill_insertion: inserted.identity(),
         reload_value_homes: home.identity(),
         choices: choice_receipt.identity(),
+        selected: None,
+        ranges: None,
         register_environment: home.register_environment(),
         allocator_availability: home.allocator_availability(),
         optimization_unit: home.optimization_unit(),
@@ -248,8 +253,20 @@ pub(super) fn replay(
     })
 }
 
-fn work_usage(
+pub(super) fn replay_original<S: ValidatedSelectedAnalysis>(
+    insertion: &ValidatedGeneralizedSpillInsertion,
+    homes: &ValidatedGeneralizedReloadValueHomes,
+    choices: &ValidatedGeneralizedSpillRecoveryChoices,
+    selected: &S,
+    ranges: &ValidatedLiveRanges,
+    budget: OptimizationWorkBudget,
+) -> Result<GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionError> {
+    original::replay(insertion, homes, choices, selected, ranges, budget)
+}
+
+pub(super) fn work_usage(
     actions: &[GeneralizedSpillRecoveryLogicalAction],
+    additional_steps: u64,
 ) -> Result<OptimizationWorkUsage, GeneralizedSpillRecoveryActionError> {
     let count = u64::try_from(actions.len())
         .map_err(|_| GeneralizedSpillRecoveryActionError::WorkOverflow)?;
@@ -267,6 +284,7 @@ fn work_usage(
         validation_steps: count
             .checked_mul(6)
             .and_then(|fixed| fixed.checked_add(rewrites))
+            .and_then(|fixed| fixed.checked_add(additional_steps))
             .ok_or(GeneralizedSpillRecoveryActionError::WorkOverflow)?,
         commits: count,
         iterations: count,
