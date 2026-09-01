@@ -1703,13 +1703,21 @@ unchecked rewrite or opt into lossy floating-point semantics.
   because folded SCCP with retained dead source literals is not yet an admitted
   selected-lowering shape; the corpus does not claim that unsupported composed
   carrier.
-- [ ] Add supported target/OS allocator, encoding, unwind, object, and callable
+- [>] Add supported target/OS allocator, encoding, unwind, object, and callable
   matrices. The first applied selected-lowering publication matrix now covers
   exact incoming-u12 add and subtract on Linux x64, Windows x64, Linux Arm64,
   and macOS Arm64. Every row forces two literal-fold commits and runs twice
   while pinning target and phase selections, encoding, ELF/COFF/Mach-O object
   form and text bytes, callable ABI, frameless exit policy, codecs, manifests,
-  and deterministic container bytes. This does not claim unwind coverage:
+  and deterministic container bytes. An adjacent post-allocation matrix now
+  covers all seven exact machine rules
+  across all 14 applicable hosted rule/OS pairs: Linux and Windows x64, plus
+  Linux and macOS Arm64. Every row runs twice and pins honest zero/nonzero
+  action expectations, realization, encoding/layout manifests, fragment/text
+  bytes, ELF/COFF/Mach-O containers, object artifacts, callable ABI/exit
+  policy, and exact selection custody. A closed seven-rule refusal matrix
+  rejects each wrong architecture before execution. This still does not claim
+  allocator or unwind completion:
   physical spill insertion, final frame layout, and unwind authority remain
   compiler prerequisites under P5 rather than an owner language decision.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.

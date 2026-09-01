@@ -2,4 +2,5 @@
 
 mod allocation_recovery;
 mod manifest_mutation_matrix;
+mod post_allocation_machine;
 mod selected_lowering;
