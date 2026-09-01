@@ -2,7 +2,6 @@ use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use psi_diagnostics::Diagnostic;
 
-use crate::labels::symbol_name;
 use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
 
 pub(super) fn check_mutable_argument_writability(
@@ -14,12 +13,6 @@ pub(super) fn check_mutable_argument_writability(
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let writable_roots: Vec<_> = facts
-        .flow
-        .borrow_writable_root_constraints(entry_constraints)
-        .map(|root| symbol_name(program, facts.borrow.writable_roots.get(root).symbol))
-        .collect();
-
     let Some(call_site) = find_call_site(
         program,
         state_flow.machine_symbol,
@@ -47,7 +40,14 @@ pub(super) fn check_mutable_argument_writability(
             continue;
         };
 
-        if !writable_roots.contains(&root_name) {
+        let root_is_writable = facts
+            .flow
+            .borrow_writable_root_constraints(entry_constraints)
+            .any(|root| {
+                let root = facts.borrow.writable_roots.get(root);
+                program.symbols.name(root.symbol) == root_name.as_str()
+            });
+        if !root_is_writable {
             diagnostics.push(Diagnostic::error(format!(
                 "mutable argument `{root_name}` for state `{target_name}` is not writable in this state"
             )));
