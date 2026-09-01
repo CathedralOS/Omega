@@ -158,6 +158,7 @@ fn fixture() -> Fixture {
             }],
         }],
         structural_unit_functions: vec![],
+        projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
     let source_identity = PostAllocationMachineIdentity::from_bytes([4; 32]);

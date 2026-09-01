@@ -1,9 +1,9 @@
-//! Public optimized-target custody through the first legalization-only boundary.
+//! Public optimized-target custody through exact structural selection.
 
 use crate::tests::*;
 
 #[test]
-fn projected_structural_call_return_reaches_legalization_on_all_targets_only() {
+fn projected_structural_call_return_reaches_selection_on_all_targets_only() {
     let (semantic, proof) = projected_structural_call_return_artifact();
     for target_profile in [
         NativeTarget::linux_x64(),
@@ -38,5 +38,42 @@ fn projected_structural_call_return_reaches_legalization_on_all_targets_only() {
             .expect("legalization retains its own independent receipt");
         assert_eq!(receipt.projected_qualification_count(), 1);
         assert_eq!(legalized.plan().projected_structural_call_returns.len(), 1);
+        let selected = stage_optimized_instruction_selection(target)
+            .expect("exact projected structural closure reaches selection");
+        let plan = selected.selected().plan();
+        let [closure] = plan.projected_structural_call_returns.as_slice() else {
+            panic!("selection must retain one atomic caller/callee closure")
+        };
+        assert_eq!(closure.fragments.len(), 8);
+        assert_eq!(
+            selected
+                .selected()
+                .receipt()
+                .projected_structural_call_return_count(),
+            1
+        );
+        assert_eq!(selected.custody().function_count(), 2);
+        match target_profile.architecture {
+            omega_target::Architecture::X86_64 => assert!(matches!(
+                closure.callee_return_transfer,
+                omega_selected_instructions::SelectedStructuralTransfer::FixedViewCopy { .. }
+            )),
+            omega_target::Architecture::Aarch64 => assert!(matches!(
+                closure.callee_return_transfer,
+                omega_selected_instructions::SelectedStructuralTransfer::SameViewNoCopy { .. }
+            )),
+        }
+        assert!(matches!(
+            stage_optimized_machine_effects(&selected),
+            Err(OptimizedMachineEffectPipelineError::Analysis(
+                omega_machine_optimizer::MachineEffectError::ProjectedStructuralCallReturnUnsupported
+            ))
+        ));
+        assert!(matches!(
+            stage_optimized_liveness(selected),
+            Err(OptimizedLivenessCustodyError::Analysis(
+                omega_regalloc::LivenessError::ProjectedStructuralCallReturnUnsupported
+            ))
+        ));
     }
 }

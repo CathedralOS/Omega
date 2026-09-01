@@ -363,6 +363,23 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "projected structural call-return selection",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/projected_structural_call_return/mod.rs",
+            "source/omega-rust/omega/representations/omega-selected-instructions/src/projected_structural_call_return/model.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/projection.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/constraints.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/transfer.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/projected_structural_call_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/projected_structural_call_return/source.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/projected_structural_call_return/target.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/identity/projected_structural.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/selection/projected_structural_call_return.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/projected_structural_call_return.rs",
+        ],
+    },
+    SemanticLadder {
         family: "legalization source leaves",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/mod.rs",

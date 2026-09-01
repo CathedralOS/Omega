@@ -2,7 +2,9 @@ use omega_target::NativeTarget;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
-use crate::{SelectedFunction, SelectedStructuralUnitFunction};
+use crate::{
+    SelectedFunction, SelectedProjectedStructuralCallReturn, SelectedStructuralUnitFunction,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstructionPlan {
@@ -16,4 +18,7 @@ pub struct SelectedInstructionPlan {
     /// and cannot acquire a fabricated scalar operand merely to enter the
     /// ordinary instruction vocabulary.
     pub structural_unit_functions: Vec<SelectedStructuralUnitFunction>,
+    /// Atomic result-bearing structural selections retain their own semantic
+    /// and ABI roster. They intentionally create no scalar virtual register.
+    pub projected_structural_call_returns: Vec<SelectedProjectedStructuralCallReturn>,
 }

@@ -3,6 +3,7 @@
 //! This entrance owns the complete function-roster join. Scalar, plain Unit,
 //! and structural Unit mechanics descend into their named family entrances.
 
+mod projected_structural_call_return;
 mod scalar;
 mod structural_unit;
 mod unit;
@@ -17,9 +18,6 @@ pub(super) fn build_plan(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
-    if !target.projected_structural_call_returns.is_empty() {
-        return Err(SelectedInstructionError::ProjectedStructuralCallReturnNotYetSelectable);
-    }
     require_key_rows(constraints.keys, catalog)?;
     let mut functions = target
         .functions
@@ -44,6 +42,19 @@ pub(super) fn build_plan(
         })
         .collect::<Result<Vec<_>, _>>()?;
     structural_unit_functions.sort_by_key(|function| function.machine);
+    let projected_structural_call_returns = target
+        .projected_structural_call_returns
+        .iter()
+        .map(|source| {
+            projected_structural_call_return::select(
+                source,
+                legalized.receipt().identity(),
+                constraints,
+                physical,
+                catalog,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(SelectedInstructionPlan {
         psi: target.psi,
         fuel_schedule: target.fuel_schedule,
@@ -51,5 +62,6 @@ pub(super) fn build_plan(
         entry: target.entry,
         functions,
         structural_unit_functions,
+        projected_structural_call_returns,
     })
 }

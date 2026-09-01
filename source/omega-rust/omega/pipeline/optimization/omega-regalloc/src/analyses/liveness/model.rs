@@ -188,6 +188,7 @@ impl ValidatedLiveness {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LivenessError {
+    ProjectedStructuralCallReturnUnsupported,
     RootMismatch,
     DuplicateMachine {
         machine: u64,

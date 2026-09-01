@@ -27,6 +27,9 @@ pub fn validate_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
     plan: PreAllocationMachineEffectPlan,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectError> {
     let source = selected.selected_plan();
+    if !source.projected_structural_call_returns.is_empty() {
+        return Err(MachineEffectError::ProjectedStructuralCallReturnUnsupported);
+    }
     if target_register_environment_identity(
         source.target,
         physical,

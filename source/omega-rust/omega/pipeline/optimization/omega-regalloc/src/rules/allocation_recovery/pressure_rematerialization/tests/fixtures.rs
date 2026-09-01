@@ -132,6 +132,7 @@ pub(crate) fn fixture() -> (
             }],
         }],
         structural_unit_functions: Vec::new(),
+        projected_structural_call_returns: Vec::new(),
     };
     let ranges = LiveRangePlan {
         selected: SelectedInstructionPlanIdentity::from_bytes([2; 32]),

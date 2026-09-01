@@ -3,6 +3,7 @@
 mod blocks;
 mod functions;
 mod integrity;
+mod projected_structural_call_return;
 mod roots;
 mod structural_unit;
 mod virtual_registers;
@@ -61,6 +62,20 @@ pub fn validate_selected_instructions(
             selected,
             target,
             constraints.keys,
+            catalog,
+        )?;
+    }
+    for (source, selected) in target
+        .projected_structural_call_returns
+        .iter()
+        .zip(&plan.projected_structural_call_returns)
+    {
+        projected_structural_call_return::validate(
+            source,
+            legalized.receipt().identity(),
+            selected,
+            constraints,
+            physical,
             catalog,
         )?;
     }
