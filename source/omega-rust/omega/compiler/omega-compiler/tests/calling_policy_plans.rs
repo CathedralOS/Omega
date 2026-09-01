@@ -1103,8 +1103,16 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
                 use_.carrier() == selection.carrier()
                     && use_.application_report_fingerprint()
                         == selection.application().report_fingerprint
-                    && use_.application_commitment()
+                    && use_.conformance_application_commitment()
                         == selection.application().commitment.as_bytes()
+                    && use_.representation_schema_version() == selection.schema_version()
+                    && use_.origin() == selection.origin()
+                    && use_.lifecycle() == selection.lifecycle()
+                    && use_.copy_disposition() == selection.copy_disposition()
+                    && use_.selected_application_commitment()
+                        == selection.selected_application_commitment()
+                    && use_.rederived_selected_application_commitment()
+                        == use_.selected_application_commitment()
             })
             && realization.replayed_validated_application().is_ok_and(
                 |(_, report_fingerprint, commitment)| {

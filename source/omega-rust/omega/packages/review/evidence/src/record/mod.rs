@@ -75,7 +75,12 @@ pub use package::{
     PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
 };
 pub use quotients::NonExecutableQuotientPackageReview;
-pub use representation::{PackageReviewRepresentationTcb, PackageReviewRepresentationTcbKind};
+pub use representation::{
+    PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackageReviewOpaqueRepresentationCopyDisposition,
+    PackageReviewOpaqueRepresentationLifecycleDisposition, PackageReviewRepresentationTcb,
+    PackageReviewRepresentationTcbKind,
+};
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,

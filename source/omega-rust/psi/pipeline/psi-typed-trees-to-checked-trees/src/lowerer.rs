@@ -6,28 +6,44 @@ use psi_checked_trees::CheckedTrees;
 pub(crate) fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[psi_validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, true, false, selected_generic_operator_providers)
+    lower_typed_trees_with_policy(
+        program,
+        true,
+        false,
+        selected_generic_operator_providers,
+        opaque_property_receipts,
+        false,
+    )
 }
 
 pub(crate) fn lower_preliminary_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, true, true, &[])
+    lower_typed_trees_with_policy(program, true, true, &[], &[], true)
 }
 
 pub(crate) fn lower_package_typed_trees(
     program: psi_typed_trees::TypedTrees,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[psi_validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, true, true, selected_generic_operator_providers)
+    lower_typed_trees_with_policy(
+        program,
+        true,
+        true,
+        selected_generic_operator_providers,
+        opaque_property_receipts,
+        false,
+    )
 }
 
 #[cfg(test)]
 pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_policy(program, false, false, &[])
+    lower_typed_trees_with_policy(program, false, false, &[], &[], false)
 }
 
 fn lower_typed_trees_with_policy(
@@ -35,6 +51,8 @@ fn lower_typed_trees_with_policy(
     enforce_crash_admission: bool,
     allow_unresolved_toolchain_selections: bool,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[psi_validation::OpaqueDataPropertyReceipt],
+    allow_pending_opaque_copy: bool,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
     // Stage-1 machine monomorphization MUST precede validation: a generic
     // machine whose value calls agree on one instantiation is substituted to a
@@ -75,7 +93,11 @@ fn lower_typed_trees_with_policy(
     // normalization and destination typing, before validation/backend facts
     // consume the call identity.
     psi_validation::resolve_named_result_overloads(&mut program)?;
-    let validated = validate_typed_program(&program)?;
+    let validated = validate_typed_program(
+        &program,
+        opaque_property_receipts,
+        allow_pending_opaque_copy,
+    )?;
     let mut facts = build_check_facts(
         &program,
         &validated.proof_plan,

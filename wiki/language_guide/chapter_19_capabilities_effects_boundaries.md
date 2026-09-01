@@ -130,6 +130,9 @@ they do not copy the value. A checked copy of a copyable opaque may create a new
 occurrence only when its carrier is itself structurally copyable and inert.
 Resource-owning carriers require a separate, versioned lifecycle relationship;
 ordinary carrier `drop` is never silently imported through the empty trait.
+The compiler enforces this with an exact selected-application receipt derived
+from the final build selection and complete carrier graph. An ordinary Psi
+entrance cannot assert or synthesize the receipt.
 
 Representation, minting, and authority remain independent. A representation
 application states how bits carry a value. A minting route states who may create
@@ -159,10 +162,14 @@ Checked carrier derivation is recheckable evidence rather than an admission.
 Selection is compilation-activation policy. At most one application may be
 selected for an opaque declaration in one activation, even when the selection
 is never used. An unused selection emits no demand row because it creates no
-ABI dependency; its authored occurrence remains in build-source custody and it
-still excludes a second selection. `Unbound` remains a complete producer
-report state where no runtime by-value use demands a shape, and becomes an
-error only when an active use requires closure.
+ABI dependency; a copyable selection still emits its target-independent,
+audit-recommended selected copy receipt owned by the selecting package, even
+when the opaque declaration belongs to a dependency. Its authored occurrence
+remains in build-source custody and it still excludes a second selection. The
+receipt binds the schema, named conformance application, `Inert` lifecycle, and
+copy disposition, but does not claim target movement. `Unbound` remains a complete
+producer report state where no runtime by-value use demands a shape, and
+becomes an error only when an active use requires closure.
 
 Dependency build selections are not inherited by a consumer. Dependency
 compilation supplies its compiler-issued generated-source bundle, while the

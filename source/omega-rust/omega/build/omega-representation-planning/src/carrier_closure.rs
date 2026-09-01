@@ -7,20 +7,31 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::{DataDefinition, DataMember};
 use psi_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
+use omega_representation_selections::OpaqueRepresentationCopyDisposition;
+
 pub(super) fn validate_inert_carrier(
     program: &TypedTrees,
+    opaque: &DataDefinition,
     carrier: &DataDefinition,
-) -> Result<(), Diagnostic> {
+) -> Result<OpaqueRepresentationCopyDisposition, Diagnostic> {
+    let copy_disposition = if opaque.properties.multiplicity == Multiplicity::Unrestricted {
+        OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+    } else {
+        OpaqueRepresentationCopyDisposition::PlacementOnly
+    };
     CarrierClosure {
         program,
+        copy_disposition,
         visiting: Vec::new(),
         validated: Vec::new(),
     }
-    .validate_definition(carrier, carrier.name.as_str())
+    .validate_definition(carrier, carrier.name.as_str())?;
+    Ok(copy_disposition)
 }
 
 struct CarrierClosure<'program> {
     program: &'program TypedTrees,
+    copy_disposition: OpaqueRepresentationCopyDisposition,
     visiting: Vec<SymbolHandle>,
     validated: Vec<SymbolHandle>,
 }
@@ -50,6 +61,14 @@ impl CarrierClosure<'_> {
         }
         if definition.properties.multiplicity == Multiplicity::Linear {
             return Err(self.reject(path, "contains live linear ownership debt"));
+        }
+        if self.copy_disposition == OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+            && definition.properties.multiplicity != Multiplicity::Unrestricted
+        {
+            return Err(self.reject(
+                path,
+                "is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`",
+            ));
         }
         if self.program.machines().iter().any(|machine| {
             machine.attached_data_symbol == definition.symbol

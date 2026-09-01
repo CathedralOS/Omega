@@ -577,6 +577,22 @@ impl BoundaryCallingPlanRealization {
         ),
         omega_calling_conventions::PlanDiagnostic,
     > {
+        if self
+            .materialized_signature
+            .opaque_representations
+            .iter()
+            .any(|use_| {
+                use_.representation_schema_version
+                    != omega_representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
+                    || use_.selected_application_commitment
+                        != use_.rederived_selected_application_commitment()
+            })
+        {
+            return Err(omega_calling_conventions::PlanDiagnostic(
+                "boundary calling plan retained stale opaque-representation application custody"
+                    .to_owned(),
+            ));
+        }
         let validated = self.replayed_validated_plan()?;
         let (report_fingerprint, commitment) =
             boundary_plan_application_identity(&self.materialized_signature, &validated);
@@ -2222,7 +2238,12 @@ fn opaque_representation_value_shape(
         opaque,
         carrier: selection.carrier(),
         application_report_fingerprint: application.report_fingerprint,
-        application_commitment: application.commitment.as_bytes(),
+        conformance_application_commitment: application.commitment.as_bytes(),
+        representation_schema_version: selection.schema_version(),
+        origin: selection.origin(),
+        lifecycle: selection.lifecycle(),
+        copy_disposition: selection.copy_disposition(),
+        selected_application_commitment: selection.selected_application_commitment(),
     };
     if !uses.contains(&use_identity) {
         uses.push(use_identity);
@@ -3142,7 +3163,19 @@ fn boundary_plan_application_identity(
     strong.update((signature.opaque_representations.len() as u64).to_le_bytes());
     for representation in &signature.opaque_representations {
         strong.update(representation.application_report_fingerprint.to_le_bytes());
-        strong.update(representation.application_commitment);
+        strong.update(representation.conformance_application_commitment);
+        strong.update(representation.representation_schema_version.to_le_bytes());
+        strong.update([match representation.origin {
+            omega_representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance => 1,
+        }]);
+        strong.update([match representation.lifecycle {
+            omega_representation_planning::OpaqueRepresentationLifecycleDisposition::Inert => 1,
+        }]);
+        strong.update([match representation.copy_disposition {
+            omega_representation_planning::OpaqueRepresentationCopyDisposition::PlacementOnly => 1,
+            omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
+        }]);
+        strong.update(representation.selected_application_commitment);
     }
     strong.update((signature.shapes.len() as u64).to_le_bytes());
     for shape in &signature.shapes {
@@ -4449,9 +4482,7 @@ mod tests {
             &validated,
         );
         let legacy_commitment =
-            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
-                legacy_digest,
-            );
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(legacy_digest);
         realizations[0].report_fingerprint = legacy_report;
         realizations[0].commitment = legacy_commitment;
         let placement = checked.facts.nominal_machine_uses.uses[0]

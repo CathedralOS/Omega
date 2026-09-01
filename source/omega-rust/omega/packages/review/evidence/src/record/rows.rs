@@ -116,6 +116,8 @@ pub enum PackageReviewSourceLocationRole {
     /// The typed quotient-call node is compiler-synthesized and therefore is
     /// not claimed as authored source custody.
     QuotientOperationDeclaration,
+    /// Exact build-machine occurrence selecting an opaque representation.
+    RepresentationSelection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

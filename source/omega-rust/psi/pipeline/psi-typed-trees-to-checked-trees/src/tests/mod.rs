@@ -42,6 +42,7 @@ mod domain_identity;
 mod flow;
 mod generics;
 mod multiplicity;
+mod opaque_properties;
 mod operators;
 mod relevance;
 mod semantic_dependencies;

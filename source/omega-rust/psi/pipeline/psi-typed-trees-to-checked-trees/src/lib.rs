@@ -55,7 +55,7 @@ pub fn resolve_checked_builtin_float_operator_requirement(
 pub fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lowerer::lower_typed_trees(program, &[])
+    lowerer::lower_typed_trees(program, &[], &[])
 }
 
 /// Lower a pre-settlement package checkpoint. Unresolved selections are
@@ -82,8 +82,9 @@ pub struct SelectedGenericOperatorProviderSpecialization {
 pub fn lower_typed_trees_with_selected_generic_operator_providers(
     program: psi_typed_trees::TypedTrees,
     selected: &[SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[psi_validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lowerer::lower_typed_trees(program, selected)
+    lowerer::lower_typed_trees(program, selected, opaque_property_receipts)
 }
 
 /// Final package-aware lowering keeps ordinary package selections strict while
@@ -93,8 +94,9 @@ pub fn lower_typed_trees_with_selected_generic_operator_providers(
 pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
     program: psi_typed_trees::TypedTrees,
     selected: &[SelectedGenericOperatorProviderSpecialization],
+    opaque_property_receipts: &[psi_validation::OpaqueDataPropertyReceipt],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lowerer::lower_package_typed_trees(program, selected)
+    lowerer::lower_package_typed_trees(program, selected, opaque_property_receipts)
 }
 
 /// Exact compiler-owned join from one authored operator use to the checked

@@ -34,13 +34,16 @@ pub(crate) use omega_package_evidence::record::{
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
     PackageReviewExternalBinding, PackageReviewExternalRequirement, PackageReviewFloatLiteral,
     PackageReviewForeignLocator, PackageReviewMachineParameterContract, PackageReviewNominalOwner,
-    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
-    PackageReviewPropositionEvidence, PackageReviewProviderGrantSelectorKind,
-    PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,
-    PackageReviewRepresentationTcbKind, PackageReviewSemanticDependencyExposure,
-    PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
-    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
-    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind,
+    PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackageReviewOpaqueRepresentationCopyDisposition,
+    PackageReviewOpaqueRepresentationLifecycleDisposition, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewProviderGrantSelectorKind, PackageReviewPublicPropositionBody,
+    PackageReviewReferenceAccess, PackageReviewRepresentationTcbKind,
+    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
+    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
+    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
+    PackageReviewTypeParameterKind,
 };
 pub(crate) use psi_core::PackageKeyIdentity;
 pub(crate) use std::fs;

@@ -1337,6 +1337,7 @@ dependencies = [
  "psi-source",
  "psi-symbols",
  "psi-typed-trees",
+ "sha2",
 ]
 
 [[package]]

@@ -12,3 +12,4 @@ path = "src/lib.rs"
 psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+sha2 = "0.10.9"

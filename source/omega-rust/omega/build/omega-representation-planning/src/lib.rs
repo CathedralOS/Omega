@@ -11,7 +11,9 @@
 use std::path::Path;
 
 pub use omega_representation_selections::{
-    OpaqueRepresentationLifecycleDisposition, OpaqueRepresentationSelection, selection_for_opaque,
+    OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
+    OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
+    OpaqueRepresentationSelection, selected_application_commitment, selection_for_opaque,
 };
 use psi_diagnostics::Diagnostic;
 use psi_source::{SourceOrigin, SourceSpan};
@@ -189,16 +191,67 @@ fn close_selection(
             carrier_definition.name,
         )));
     }
-    carrier_closure::validate_inert_carrier(typed, carrier_definition)?;
+    let copy_disposition =
+        carrier_closure::validate_inert_carrier(typed, opaque_definition, carrier_definition)?;
 
     Ok(OpaqueRepresentationSelection::from_validated_application(
         opaque,
         carrier,
         application,
         OpaqueRepresentationLifecycleDisposition::Inert,
+        copy_disposition,
+        OpaqueRepresentationApplicationOrigin::NamedConformance,
         selecting_machine,
         source_span,
     ))
+}
+
+/// Rerun selection harvest and carrier-property closure against the final
+/// typed graph. The pre-build selection is compiler custody, not a substitute
+/// for this final equality check after generated-source continuation.
+pub fn rederive_opaque_representation_selections(
+    typed: &TypedTrees,
+    selected_build_machine: Option<SymbolHandle>,
+    retained: &[OpaqueRepresentationSelection],
+) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
+    let Some(selecting_machine) = selected_build_machine else {
+        return if retained.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Err(vec![Diagnostic::error(
+                "opaque representation selections exist without an authoritative build machine",
+            )])
+        };
+    };
+    if retained.iter().any(|selection| {
+        selection.selecting_machine() != selecting_machine
+            || selection.selected_application_commitment()
+                != selection.rederived_selected_application_commitment()
+    }) {
+        return Err(vec![Diagnostic::error(
+            "opaque representation selection has stale build-machine or application custody",
+        )]);
+    }
+    let machines = typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol == selecting_machine)
+        .collect::<Vec<_>>();
+    let [machine] = machines.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "opaque representation selections map to {} final build-machine declarations; expected one",
+            machines.len(),
+        ))]);
+    };
+    let derived = harvest_opaque_representation_selections(typed, machine)?;
+    if derived != retained {
+        return Err(vec![Diagnostic::error(format!(
+            "final opaque-representation selection rederivation disagrees with retained build custody (retained {} rows, derived {} rows)",
+            retained.len(),
+            derived.len(),
+        ))]);
+    }
+    Ok(derived)
 }
 
 /// Whether `symbol` is the exact compiler-owned, capability-free
