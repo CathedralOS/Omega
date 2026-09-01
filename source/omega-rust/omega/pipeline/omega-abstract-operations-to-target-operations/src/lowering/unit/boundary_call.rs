@@ -23,7 +23,7 @@ pub(super) fn lower_boundary_call(
         (OperationId, StructuralTypeDeclaration, Vec<u8>),
     >,
     integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
-    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
+    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
     nonreturning_boundary: &mut bool,
@@ -213,15 +213,6 @@ pub(super) fn lower_boundary_call(
                 provenance.operations.push(*psi_operation);
                 return Ok(());
             }
-            if result.is_some() {
-                return Err(
-                    LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
-                        machine: function.machine,
-                        operation: *psi_operation,
-                        boundary: *boundary,
-                    },
-                );
-            }
             let binding = settlements
                 .get(boundary)
                 .cloned()
@@ -234,19 +225,27 @@ pub(super) fn lower_boundary_call(
                 foreign,
             ) = &binding.realization
             {
-                let scalar_arguments = lower_normalized_foreign_scalar_arguments(
+                let result_home = lower_normalized_foreign_scalar_result(
+                    *boundary,
+                    declaration,
+                    *psi_operation,
+                    *result,
+                    &foreign.boundary_entry_plan,
+                )?;
+                let scalar_arguments = lower_normalized_foreign_scalar_arguments_with_result(
                     *boundary,
                     declaration,
                     arguments,
                     &foreign.boundary_entry_plan,
                     scalar_values,
+                    result_home.map(|home| home.shape),
                 )?;
                 if arguments.len() != declaration.scalar_parameters.len()
                     || !structural_arguments.is_empty()
                     || !completion_claim_sources.is_empty()
                     || !completion_receipts.is_empty()
                     || !declaration.structural_parameters.is_empty()
-                    || declaration.result.is_some()
+                    || (result_home.is_some() && function.attachment.is_none())
                     || !matches!(
                         (target.object_format, foreign.locator.locator()),
                         (
@@ -271,15 +270,32 @@ pub(super) fn lower_boundary_call(
                 else {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 };
+                if let Some(home) = result_home {
+                    insert_known_unit_integer(
+                        scalar_values,
+                        home.source_value,
+                        KnownUnitInteger::Home(home),
+                    )?;
+                }
                 operations.push(TargetUnitOperation::NormalizedForeignCall {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
                     provider_execution,
                     binding: foreign.clone(),
                     scalar_arguments,
+                    result_home,
                 });
                 provenance.operations.push(*psi_operation);
                 return Ok(());
+            }
+            if result.is_some() {
+                return Err(
+                    LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                        machine: function.machine,
+                        operation: *psi_operation,
+                        boundary: *boundary,
+                    },
+                );
             }
             let omega_target_operations::BoundarySettlementRealization::Builtin(realization) =
                 binding.realization
@@ -438,12 +454,13 @@ pub(super) fn lower_boundary_call(
     Ok(())
 }
 
-fn lower_normalized_foreign_scalar_arguments(
+fn lower_normalized_foreign_scalar_arguments_with_result(
     boundary: BoundaryMachineId,
     declaration: &psi_terminal::BoundaryMachineDeclaration,
     arguments: &[ValueId],
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
+    result_shape: Option<ValueShape>,
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     let scalar_parameter_shapes = declaration
         .scalar_parameters
@@ -463,7 +480,7 @@ fn lower_normalized_foreign_scalar_arguments(
         .collect::<Result<Vec<_>, _>>()?;
     let signature = CallSignature {
         parameters: scalar_parameter_shapes.clone(),
-        result: None,
+        result: result_shape,
     };
     let validated = omega_calling_conventions::validate_boundary_entry_plan(
         boundary_entry_plan.clone(),
@@ -523,6 +540,75 @@ fn lower_normalized_foreign_scalar_arguments(
             },
         )
         .collect()
+}
+
+#[cfg(test)]
+fn lower_normalized_foreign_scalar_arguments(
+    boundary: BoundaryMachineId,
+    declaration: &psi_terminal::BoundaryMachineDeclaration,
+    arguments: &[ValueId],
+    boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
+    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
+) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
+    lower_normalized_foreign_scalar_arguments_with_result(
+        boundary,
+        declaration,
+        arguments,
+        boundary_entry_plan,
+        scalar_values,
+        None,
+    )
+}
+
+fn lower_normalized_foreign_scalar_result(
+    boundary: BoundaryMachineId,
+    declaration: &psi_terminal::BoundaryMachineDeclaration,
+    defining_operation: OperationId,
+    result: Option<omega_abstract_operations::AbstractResult>,
+    boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
+) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
+    let (declaration_result, result) = match (declaration.result, result) {
+        (None, None) => {
+            if boundary_entry_plan.call.result.is_some() {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            }
+            return Ok(None);
+        }
+        (Some(ScalarType::Integer(declaration_result)), Some(result)) => {
+            let ScalarType::Integer(result_type) = result.scalar_type else {
+                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+            };
+            (declaration_result, (result.value, result_type))
+        }
+        _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
+    };
+    let (source_value, result_type) = result;
+    let expected_type = IntegerType::new(IntegerSign::Signed, 32)
+        .expect("signed i32 is a valid fixed integer type");
+    let shape = ValueShape::integer(4, 4);
+    let Some(placement) = boundary_entry_plan.call.result.as_ref() else {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    };
+    if declaration_result != expected_type
+        || result_type != expected_type
+        || placement.shape != shape
+        || !matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size: 4,
+                ..
+            }]
+        )
+    {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    }
+    Ok(Some(TargetUnitScalarHomeRequirement {
+        defining_operation,
+        source_value,
+        scalar_type: result_type,
+        shape,
+    }))
 }
 
 #[cfg(test)]

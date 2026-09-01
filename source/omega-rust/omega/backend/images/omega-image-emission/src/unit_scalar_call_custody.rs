@@ -32,7 +32,12 @@ pub(super) fn validate_internal_unit_scalar_calls(
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
     validate_constants(function)?;
 
-    if function.internal_unit_scalar_calls.is_empty() {
+    let foreign_result_count = function
+        .foreign_calls
+        .iter()
+        .filter(|call| call.scalar_result.is_some())
+        .count();
+    if function.internal_unit_scalar_calls.is_empty() && foreign_result_count == 0 {
         if !function.unit_scalar_homes.is_empty() {
             return Err(invalid());
         }
@@ -103,7 +108,20 @@ fn validate_home_roster(
     stack: &ObjectUnitStack,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
-    if function.unit_scalar_homes.len() != function.internal_unit_scalar_calls.len() {
+    let mut producers = function
+        .internal_unit_scalar_calls
+        .iter()
+        .map(|call| (call.operation_ordinal, call.owner, &call.result))
+        .chain(function.foreign_calls.iter().filter_map(|call| {
+            call.scalar_result
+                .as_ref()
+                .map(|result| (call.operation_ordinal, call.owner, result))
+        }))
+        .collect::<Vec<_>>();
+    producers.sort_by_key(|(ordinal, _, _)| *ordinal);
+    if function.unit_scalar_homes.len() != producers.len()
+        || producers.windows(2).any(|pair| pair[0].0 >= pair[1].0)
+    {
         return Err(invalid());
     }
     let mut cursor = 0_u32;
@@ -143,15 +161,11 @@ fn validate_home_roster(
             .iter()
             .map(|constant| constant.source_value),
     );
-    for (home, call) in function
-        .unit_scalar_homes
-        .iter()
-        .zip(&function.internal_unit_scalar_calls)
-    {
+    for (home, (_, owner, result)) in function.unit_scalar_homes.iter().zip(producers) {
         cursor = align(cursor, 8).ok_or_else(invalid)?;
         if home.byte_offset != cursor
-            || call.result.home != *home
-            || call.owner != CallSiteOwner::Operation(home.defining_operation)
+            || result.home != *home
+            || owner != CallSiteOwner::Operation(home.defining_operation)
             || integer_shape(home.scalar_type) != Some(home.shape)
             || !operations.insert(home.defining_operation)
             || !values.insert(home.source_value)
@@ -300,7 +314,8 @@ fn validate_call(
     if call.result.code_offset != cursor {
         return Err(invalid());
     }
-    let expected_result = expected_result_bytes(target, &call.result).ok_or_else(invalid)?;
+    let expected_result =
+        expected_unit_scalar_result_bytes(target, &call.result).ok_or_else(invalid)?;
     let result_end = cursor
         .checked_add(expected_result.len())
         .ok_or_else(invalid)?;
@@ -350,24 +365,57 @@ fn validate_source(
             }
         }
         InternalUnitScalarArgumentSourceRecord::Home(home) => {
-            let matches = function
-                .internal_unit_scalar_calls
-                .iter()
-                .filter(|producer| {
-                    producer.result.home == home
-                        && producer.operation_ordinal < call.operation_ordinal
-                        && producer
-                            .code_offset
-                            .checked_add(producer.byte_count)
-                            .is_some_and(|end| end <= call.code_offset)
-                })
-                .count();
+            let matches = exact_preceding_unit_scalar_home_producer_count(
+                function,
+                home,
+                call.operation_ordinal,
+                call.code_offset,
+            );
             if matches != 1 || !function.unit_scalar_homes.contains(&home) {
                 return Err(invalid());
             }
         }
     }
     Ok(())
+}
+
+/// Count exact durable-home producers that are complete before one consumer.
+/// Internal and normalized foreign scalar results share this query so neither
+/// object validator can admit a weaker or mechanism-specific provenance path.
+pub(super) fn exact_preceding_unit_scalar_home_producer_count(
+    function: &MachineCodeFunction,
+    home: omega_machine_code::UnitScalarHomeRecord,
+    consumer_operation_ordinal: usize,
+    consumer_code_offset: usize,
+) -> usize {
+    let internal = function
+        .internal_unit_scalar_calls
+        .iter()
+        .filter(|producer| {
+            producer.result.home == home
+                && producer.operation_ordinal < consumer_operation_ordinal
+                && producer
+                    .result
+                    .code_offset
+                    .checked_add(producer.result.byte_count)
+                    .is_some_and(|end| end <= consumer_code_offset)
+        })
+        .count();
+    let foreign = function
+        .foreign_calls
+        .iter()
+        .filter(|producer| {
+            producer.operation_ordinal < consumer_operation_ordinal
+                && producer.scalar_result.as_ref().is_some_and(|result| {
+                    result.home == home
+                        && result
+                            .code_offset
+                            .checked_add(result.byte_count)
+                            .is_some_and(|end| end <= consumer_code_offset)
+                })
+        })
+        .count();
+    internal + foreign
 }
 
 fn expected_argument_bytes(
@@ -434,7 +482,7 @@ fn expected_argument_bytes(
     }
 }
 
-fn expected_result_bytes(
+pub(super) fn expected_unit_scalar_result_bytes(
     target: NativeTarget,
     result: &omega_machine_code::InternalUnitScalarCallResultRecord,
 ) -> Option<Vec<u8>> {

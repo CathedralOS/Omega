@@ -12,6 +12,7 @@ mod exact_evidence;
 mod fixtures;
 mod literal_arguments;
 mod runtime_scalar_home_plan;
+mod scalar_result;
 mod zero_argument_import;
 
 use fixtures::*;

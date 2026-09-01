@@ -1,18 +1,32 @@
 use crate::assignment::shared::*;
+use psi_core::IntegerSign;
 
-pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
+pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     target: NativeTarget,
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
+    result_home: Option<&omega_target_operations::TargetUnitScalarHomeRequirement>,
+    psi_operation: OperationId,
     preceding_operations: &[TargetUnitOperation],
     assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
 ) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
+    let result_shape = result_home
+        .map(|result| {
+            let expected_type = IntegerType::new(IntegerSign::Signed, 32)
+                .expect("signed i32 is a valid fixed integer type");
+            let expected_shape = ValueShape::integer(4, 4);
+            if result.scalar_type != expected_type || result.shape != expected_shape {
+                return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+            }
+            Ok(expected_shape)
+        })
+        .transpose()?;
     let signature = CallSignature {
         parameters: scalar_arguments
             .iter()
             .map(|argument| argument.placement.shape)
             .collect(),
-        result: None,
+        result: result_shape,
     };
     let validated = omega_calling_conventions::validate_boundary_entry_plan(
         boundary_entry_plan.clone(),
@@ -26,8 +40,23 @@ pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
     .map_err(|_| AssignmentError::ExpressionStackFrameNotEncodable)?;
     if validated.plan() != boundary_entry_plan
         || canonical.plan() != boundary_entry_plan
-        || boundary_entry_plan.call.result.is_some()
         || boundary_entry_plan.call.parameters.len() != scalar_arguments.len()
+        || match (result_home, boundary_entry_plan.call.result.as_ref()) {
+            (None, None) => false,
+            (Some(result), Some(placement)) => {
+                result.defining_operation != psi_operation
+                    || placement.shape != result.shape
+                    || !matches!(
+                        placement.locations.as_slice(),
+                        [ValueLocation::Register {
+                            value_byte_offset: 0,
+                            byte_size: 4,
+                            ..
+                        }]
+                    )
+            }
+            _ => true,
+        }
     {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
@@ -83,4 +112,23 @@ pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
         });
     }
     Ok(assigned)
+}
+
+#[cfg(test)]
+pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
+    boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
+    target: NativeTarget,
+    scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
+    preceding_operations: &[TargetUnitOperation],
+    assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
+    assign_normalized_foreign_scalar_call_for_plan(
+        boundary_entry_plan,
+        target,
+        scalar_arguments,
+        None,
+        OperationId::new(1).expect("one is a valid operation identity"),
+        preceding_operations,
+        assigned_homes,
+    )
 }

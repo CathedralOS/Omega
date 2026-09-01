@@ -369,6 +369,9 @@ pub struct ObjectForeignCall {
     pub owner: CallSiteOwner,
     pub locator: omega_target::NormalizedForeignLocator,
     pub provider_execution: omega_machine_code::ProviderExecutionRecord,
+    /// Result custody retained from machine emission. Its code offset is
+    /// rebased to absolute object `.text`, like `text_offset` below.
+    pub scalar_result: Option<omega_machine_code::ForeignCallScalarResultRecord>,
     /// Absolute offset of the mutable relocation field in object `.text`.
     pub text_offset: usize,
 }
@@ -1482,11 +1485,22 @@ fn build_object_artifact_with_x86_feature_profile(
             });
         }
         for call in &function.foreign_calls {
+            let scalar_result = call
+                .scalar_result
+                .clone()
+                .map(|mut result| {
+                    result.code_offset = text_offset
+                        .checked_add(result.code_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    Ok(result)
+                })
+                .transpose()?;
             foreign_calls.push(ObjectForeignCall {
                 machine: function.machine,
                 owner: call.owner,
                 locator: call.locator.clone(),
                 provider_execution: call.provider_execution,
+                scalar_result,
                 text_offset: text_offset
                     .checked_add(call.offset)
                     .ok_or(ObjectError::TextSizeOverflow)?,
@@ -1742,20 +1756,10 @@ fn validate_foreign_scalar_arguments(
     call: &omega_machine_code::ForeignCallRelocation,
 ) -> Result<(), ObjectError> {
     let caller = function.machine;
-    if call.scalar_arguments.is_empty() {
-        return (call.call_plan.parameters.is_empty()
-            && call.call_plan.result.is_none()
-            && call.call_plan.callback_materializations.is_empty()
-            && call.call_plan.policy
-                == omega_calling_conventions::CallingPolicy::native_for_target(target)
-            && call.call_plan.entry_control
-                == omega_calling_conventions::EntryControl::CallReturn)
-            .then_some(())
-            .ok_or(ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner: call.owner,
-            });
-    }
+    let invalid = || ObjectError::InvalidForeignCallArgument {
+        caller,
+        owner: call.owner,
+    };
     let shapes = call
         .scalar_arguments
         .iter()
@@ -1772,10 +1776,7 @@ fn validate_foreign_scalar_arguments(
                     } if !scalar_type.admits(value)
                 )
             {
-                return Err(ObjectError::InvalidForeignCallArgument {
-                    caller,
-                    owner: call.owner,
-                });
+                return Err(invalid());
             }
             let byte_size = bits / 8;
             Ok(omega_calling_conventions::ValueShape::integer(
@@ -1783,62 +1784,118 @@ fn validate_foreign_scalar_arguments(
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let result_shape = call
+        .scalar_result
+        .as_ref()
+        .map(|result| {
+            let expected_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                .expect("signed i32 is a valid fixed integer type");
+            let expected_shape = omega_calling_conventions::ValueShape::integer(4, 4);
+            if result.home.defining_operation
+                != match call.owner {
+                    CallSiteOwner::Operation(operation) => operation,
+                    CallSiteOwner::CleanupAction { .. } => return Err(invalid()),
+                }
+                || result.home.scalar_type != expected_type
+                || result.home.shape != expected_shape
+                || !function.unit_scalar_homes.contains(&result.home)
+            {
+                return Err(invalid());
+            }
+            Ok(expected_shape)
+        })
+        .transpose()?;
     let signature = omega_calling_conventions::CallSignature {
         parameters: shapes.clone(),
-        result: None,
+        result: result_shape,
     };
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &signature,
     )
-    .map_err(|_| ObjectError::InvalidForeignCallArgument {
-        caller,
-        owner: call.owner,
-    })?;
-    if call.call_plan != expected_plan {
-        return Err(ObjectError::InvalidForeignCallArgument {
-            caller,
-            owner: call.owner,
-        });
+    .map_err(|_| invalid())?;
+    if call.call_plan != expected_plan
+        || !call.call_plan.callback_materializations.is_empty()
+        || call.call_plan.policy
+            != omega_calling_conventions::CallingPolicy::native_for_target(target)
+        || call.call_plan.entry_control != omega_calling_conventions::EntryControl::CallReturn
+    {
+        return Err(invalid());
     }
     let call_start = match target.architecture {
         Architecture::X86_64 => call.offset.saturating_sub(1),
         Architecture::Aarch64 => call.offset,
     };
-    let next_interval = call
+    let argument_end_boundary = call
         .unit_stack
         .outbound
         .map_or(call_start, |outbound| outbound.allocation_offset);
     let CallSiteOwner::Operation(operation) = call.owner else {
-        return Err(ObjectError::InvalidForeignCallArgument {
-            caller,
-            owner: call.owner,
-        });
+        return Err(invalid());
     };
-    let call_end = call
-        .offset
-        .checked_add(4)
-        .ok_or(ObjectError::InvalidForeignCallArgument {
-            caller,
-            owner: call.owner,
-        })?;
+    let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
+    let operation_start = call
+        .scalar_arguments
+        .first()
+        .map_or(argument_end_boundary, |argument| argument.code_offset);
+    let post_call = if let Some(outbound) = call.unit_stack.outbound {
+        if outbound.release_offset != call_end {
+            return Err(invalid());
+        }
+        outbound
+            .release_offset
+            .checked_add(outbound.release_byte_count)
+            .ok_or_else(invalid)?
+    } else {
+        call_end
+    };
+    let operation_end = if let Some(result) = &call.scalar_result {
+        if result.code_offset != post_call
+            || call.call_plan.result.as_ref() != Some(&result.source)
+            || !matches!(
+                result.source.locations.as_slice(),
+                [omega_calling_conventions::ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size: 4,
+                    ..
+                }]
+            )
+        {
+            return Err(invalid());
+        }
+        let expected = unit_scalar_call_custody::expected_unit_scalar_result_bytes(target, result)
+            .ok_or_else(invalid)?;
+        let result_end = result
+            .code_offset
+            .checked_add(result.byte_count)
+            .ok_or_else(invalid)?;
+        if result.byte_count != expected.len()
+            || function.bytes.get(result.code_offset..result_end) != Some(expected.as_slice())
+        {
+            return Err(invalid());
+        }
+        result_end
+    } else {
+        if call.call_plan.result.is_some() {
+            return Err(invalid());
+        }
+        post_call
+    };
     let attributions = function
         .semantic_code_attribution
         .iter()
         .filter(|row| row.site == SemanticCodeSite::Operation(operation))
+        .filter(|row| row.operation_ordinal == call.operation_ordinal)
         .filter(|row| {
-            row.code_offset <= call.scalar_arguments[0].code_offset
+            row.code_offset == operation_start
                 && row
                     .code_offset
                     .checked_add(row.byte_count)
-                    .is_some_and(|end| end >= call_end)
+                    .is_some_and(|end| end == operation_end)
         })
         .collect::<Vec<_>>();
     let [attribution] = attributions.as_slice() else {
-        return Err(ObjectError::InvalidForeignCallArgument {
-            caller,
-            owner: call.owner,
-        });
+        return Err(invalid());
     };
 
     for (parameter_index, ((argument, shape), expected_placement)) in call
@@ -1856,48 +1913,32 @@ fn validate_foreign_scalar_arguments(
             },
         ] = argument.placement.locations.as_slice()
         else {
-            return Err(ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner: call.owner,
-            });
+            return Err(invalid());
         };
         if argument.parameter_index != parameter_index as u32
             || argument.placement != *expected_placement
             || argument.placement.shape != *shape
             || *placed_bytes != shape.byte_size
         {
-            return Err(ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner: call.owner,
-            });
+            return Err(invalid());
         }
         validate_foreign_scalar_source(function, attribution, argument)?;
-        let expected_bytes = expected_foreign_scalar_argument_bytes(target, argument).ok_or(
-            ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner: call.owner,
-            },
-        )?;
+        let expected_bytes =
+            expected_foreign_scalar_argument_bytes(target, argument).ok_or_else(invalid)?;
         let argument_end = argument
             .code_offset
             .checked_add(argument.byte_count)
-            .ok_or(ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner: call.owner,
-            })?;
+            .ok_or_else(invalid)?;
         let next_interval = call
             .scalar_arguments
             .get(parameter_index + 1)
-            .map_or(next_interval, |next| next.code_offset);
+            .map_or(argument_end_boundary, |next| next.code_offset);
         if argument.byte_count != expected_bytes.len()
             || function.bytes.get(argument.code_offset..argument_end)
                 != Some(expected_bytes.as_slice())
             || argument_end != next_interval
         {
-            return Err(ObjectError::InvalidForeignCallArgument {
-                caller,
-                owner: call.owner,
-            });
+            return Err(invalid());
         }
     }
     Ok(())
@@ -1936,18 +1977,12 @@ fn validate_foreign_scalar_source(
             if !function.unit_scalar_homes.contains(&home) {
                 return Err(invalid());
             }
-            function
-                .internal_unit_scalar_calls
-                .iter()
-                .filter(|producer| {
-                    producer.result.home == home
-                        && producer.operation_ordinal < attribution.operation_ordinal
-                        && producer
-                            .code_offset
-                            .checked_add(producer.byte_count)
-                            .is_some_and(|end| end <= argument.code_offset)
-                })
-                .count()
+            unit_scalar_call_custody::exact_preceding_unit_scalar_home_producer_count(
+                function,
+                home,
+                attribution.operation_ordinal,
+                argument.code_offset,
+            )
         }
     };
     (exact_sources == 1).then_some(()).ok_or_else(invalid)

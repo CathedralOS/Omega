@@ -131,6 +131,8 @@ pub struct MachineCodeFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForeignCallRelocation {
     pub owner: CallSiteOwner,
+    /// Ordinal of the exact attached-Unit operation that owns this call.
+    pub operation_ordinal: usize,
     pub offset: usize,
     pub locator: omega_target::NormalizedForeignLocator,
     pub provider_execution: ProviderExecutionRecord,
@@ -142,10 +144,26 @@ pub struct ForeignCallRelocation {
     /// bounded native carrier admits the target's complete register-resident
     /// fixed-integer argument bank.
     pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
+    /// Optional fixed-integer result normalized from its evaluated ABI
+    /// placement and stored in a durable attached-Unit scalar home.
+    pub scalar_result: Option<ForeignCallScalarResultRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.
     pub unit_stack: UnitCallStackEvidence,
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+}
+
+/// Exact source-free custody for one normalized foreign scalar result.
+///
+/// The byte interval begins after the native call and any outbound-stack
+/// release. It covers only canonical result normalization and the durable-home
+/// store, never the mutable import relocation field.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForeignCallScalarResultRecord {
+    pub home: UnitScalarHomeRecord,
+    pub source: ValuePlacement,
+    pub code_offset: usize,
+    pub byte_count: usize,
 }
 
 /// Exact occurrence-specific source and ABI custody for one evaluated foreign-
@@ -571,13 +589,9 @@ pub struct InternalUnitScalarCallArgumentRecord {
     pub byte_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InternalUnitScalarCallResultRecord {
-    pub home: UnitScalarHomeRecord,
-    pub source: ValuePlacement,
-    pub code_offset: usize,
-    pub byte_count: usize,
-}
+/// Compatibility name for the shared scalar-result custody record. Internal
+/// and normalized foreign calls deliberately use one result/home vocabulary.
+pub type InternalUnitScalarCallResultRecord = ForeignCallScalarResultRecord;
 
 /// Real emitted fixed-width integer call in an attached Unit body.
 ///

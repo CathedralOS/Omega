@@ -113,19 +113,27 @@ pub(super) fn assign(
             provider_execution,
             binding,
             scalar_arguments,
-        } => AssignedUnitOperation::NormalizedForeignCall {
-            psi_operation: *psi_operation,
-            boundary: *boundary,
-            provider_execution: *provider_execution,
-            binding: binding.clone(),
-            scalar_arguments: foreign_call::assign(
+            result_home,
+        } => {
+            let (scalar_arguments, result_home) = foreign_call::assign(
+                *psi_operation,
                 binding,
                 target,
                 scalar_arguments,
+                *result_home,
                 preceding_operations,
                 assigned_scalar_homes,
-            )?,
-        },
+                next_scalar_home,
+            )?;
+            AssignedUnitOperation::NormalizedForeignCall {
+                psi_operation: *psi_operation,
+                boundary: *boundary,
+                provider_execution: *provider_execution,
+                binding: binding.clone(),
+                scalar_arguments,
+                result_home,
+            }
+        }
         TargetUnitOperation::PortWrite {
             psi_operation,
             service,

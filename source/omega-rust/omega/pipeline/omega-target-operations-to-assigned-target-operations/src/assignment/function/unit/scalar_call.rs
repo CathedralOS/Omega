@@ -107,6 +107,33 @@ pub(super) fn assign(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let result_home = allocate_unit_scalar_home(
+        result,
+        assigned_homes,
+        next_home,
+        AssignmentError::UnitScalarCallSourceMismatch(result.source_value),
+    )?;
+
+    Ok(AssignedUnitOperation::ScalarCall {
+        psi_operation,
+        callee,
+        call_plan: call_plan.clone(),
+        result_home,
+        arguments: assigned_arguments,
+        requirement_obligations: requirement_obligations.to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
+    })
+}
+
+/// Allocate one exact durable result home from the shared attached-Unit frame
+/// cursor. Internal and normalized foreign result producers use this single
+/// allocator so their homes cannot overlap or acquire separate ordering rules.
+pub(super) fn allocate_unit_scalar_home(
+    result: omega_target_operations::TargetUnitScalarHomeRequirement,
+    assigned_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
+    next_home: &mut u32,
+    duplicate_error: AssignmentError,
+) -> Result<AssignedUnitScalarHome, AssignmentError> {
     *next_home = align_unit_scalar_offset(*next_home, 8)?;
     let result_home = AssignedUnitScalarHome {
         defining_operation: result.defining_operation,
@@ -124,20 +151,9 @@ pub(super) fn assign(
         .insert(result.source_value, result_home)
         .is_some()
     {
-        return Err(AssignmentError::UnitScalarCallSourceMismatch(
-            result.source_value,
-        ));
+        return Err(duplicate_error);
     }
-
-    Ok(AssignedUnitOperation::ScalarCall {
-        psi_operation,
-        callee,
-        call_plan: call_plan.clone(),
-        result_home,
-        arguments: assigned_arguments,
-        requirement_obligations: requirement_obligations.to_vec(),
-        crash_continuations: crash_continuations.to_vec(),
-    })
+    Ok(result_home)
 }
 
 /// Resolve one exact Unit scalar source against the ordered target stream and
@@ -189,6 +205,12 @@ pub(super) fn assign_known_unit_scalar_source(
                         operation,
                         TargetUnitOperation::ScalarCall { result_home, .. }
                             if *result_home == home
+                    ) || matches!(
+                        operation,
+                        TargetUnitOperation::NormalizedForeignCall {
+                            result_home: Some(result_home),
+                            ..
+                        } if *result_home == home
                     )
                 })
                 .count();

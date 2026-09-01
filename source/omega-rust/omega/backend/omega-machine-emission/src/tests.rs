@@ -127,6 +127,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
                                 same_stack_contribution: admitted_foreign_stack(),
                             },
                             scalar_arguments: Vec::new(),
+                            result_home: None,
                         },
                         TargetUnitOperation::Return {
                             psi_edge: return_edge,
@@ -281,6 +282,7 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
                                 },
                                 placement: placement.clone(),
                             }],
+                            result_home: None,
                         },
                         TargetUnitOperation::Return {
                             psi_edge: return_edge,

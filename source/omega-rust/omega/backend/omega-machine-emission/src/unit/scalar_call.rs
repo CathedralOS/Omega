@@ -163,15 +163,13 @@ fn emit_x86_64_unit_scalar_call(
         emit_x86_64_adjust_sp(bytes, call_stack_bytes, true);
         release = Some((offset, bytes.len() - offset));
     }
-    let result_offset = bytes.len();
-    let result_register = scalar_result_register(
-        psi_operation,
-        call_plan.result.as_ref(),
+    let result_record = emit_unit_scalar_result(
+        bytes,
         Architecture::X86_64,
+        psi_operation,
+        call_plan,
+        result_home,
     )?;
-    let result_register = x86_unit_register(result_register)?;
-    emit_x86_64_unit_scalar_normalize(bytes, result_register, result_home.scalar_type);
-    emit_x86_64_stack_store_width(bytes, result_register, result_home.byte_offset, 8)?;
     internal_calls.push(InternalCallRelocation {
         owner: CallSiteOwner::Operation(psi_operation),
         target: callee,
@@ -181,15 +179,7 @@ fn emit_x86_64_unit_scalar_call(
         scalar_stack: None,
         offset: relocation_offset,
     });
-    Ok((
-        argument_records,
-        InternalUnitScalarCallResultRecord {
-            home: unit_scalar_home_record(result_home),
-            source: call_plan.result.clone().expect("validated scalar result"),
-            code_offset: result_offset,
-            byte_count: bytes.len() - result_offset,
-        },
-    ))
+    Ok((argument_records, result_record))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -252,27 +242,13 @@ fn emit_aarch64_unit_scalar_call(
         emit_aarch64_adjust_sp(&mut instructions, call_stack_bytes, true)?;
         append_aarch64_instructions(bytes, instructions);
     }
-    let result_offset = bytes.len();
-    let result_register = scalar_result_register(
-        psi_operation,
-        call_plan.result.as_ref(),
+    let result_record = emit_unit_scalar_result(
+        bytes,
         Architecture::Aarch64,
+        psi_operation,
+        call_plan,
+        result_home,
     )?;
-    let result_register = aarch64_unit_register(result_register)?;
-    let mut result_instructions = Vec::new();
-    emit_aarch64_unit_scalar_normalize(
-        &mut result_instructions,
-        result_register,
-        result_home.scalar_type,
-    );
-    append_aarch64_instructions(bytes, result_instructions);
-    let instruction = aarch64_unit_stack_access(
-        aarch64_store_base(8)?,
-        result_register,
-        result_home.byte_offset,
-        8,
-    )?;
-    bytes.extend_from_slice(&instruction.to_le_bytes());
     internal_calls.push(InternalCallRelocation {
         owner: CallSiteOwner::Operation(psi_operation),
         target: callee,
@@ -282,15 +258,7 @@ fn emit_aarch64_unit_scalar_call(
         scalar_stack: None,
         offset: relocation_offset,
     });
-    Ok((
-        argument_records,
-        InternalUnitScalarCallResultRecord {
-            home: unit_scalar_home_record(result_home),
-            source: call_plan.result.clone().expect("validated scalar result"),
-            code_offset: result_offset,
-            byte_count: bytes.len() - result_offset,
-        },
-    ))
+    Ok((argument_records, result_record))
 }
 
 fn validate_unit_scalar_argument(
@@ -337,6 +305,13 @@ fn validate_unit_scalar_argument(
             }
             (
                 AssignedUnitOperation::ScalarCall { result_home, .. },
+                AssignedUnitScalarArgumentSource::Home(source),
+            ) => *result_home == source,
+            (
+                AssignedUnitOperation::NormalizedForeignCall {
+                    result_home: Some(result_home),
+                    ..
+                },
                 AssignedUnitScalarArgumentSource::Home(source),
             ) => *result_home == source,
             _ => false,
@@ -425,6 +400,50 @@ fn scalar_result_register(
         return Err(EmissionError::InvalidUnitScalarCallCustody(operation));
     }
     Ok(*register)
+}
+
+/// Normalize one fixed-integer ABI result into the shared 64-bit durable-home
+/// representation and retain the exact emitted interval. Internal and
+/// normalized foreign calls use this single physical result path.
+pub(super) fn emit_unit_scalar_result(
+    bytes: &mut Vec<u8>,
+    architecture: Architecture,
+    operation: psi_core::OperationId,
+    call_plan: &omega_calling_conventions::CallPlan,
+    result_home: AssignedUnitScalarHome,
+) -> Result<InternalUnitScalarCallResultRecord, EmissionError> {
+    let code_offset = bytes.len();
+    let register = scalar_result_register(operation, call_plan.result.as_ref(), architecture)?;
+    match architecture {
+        Architecture::X86_64 => {
+            let register = x86_unit_register(register)?;
+            emit_x86_64_unit_scalar_normalize(bytes, register, result_home.scalar_type);
+            emit_x86_64_stack_store_width(bytes, register, result_home.byte_offset, 8)?;
+        }
+        Architecture::Aarch64 => {
+            let register = aarch64_unit_register(register)?;
+            let mut instructions = Vec::new();
+            emit_aarch64_unit_scalar_normalize(
+                &mut instructions,
+                register,
+                result_home.scalar_type,
+            );
+            append_aarch64_instructions(bytes, instructions);
+            let instruction = aarch64_unit_stack_access(
+                aarch64_store_base(8)?,
+                register,
+                result_home.byte_offset,
+                8,
+            )?;
+            bytes.extend_from_slice(&instruction.to_le_bytes());
+        }
+    }
+    Ok(InternalUnitScalarCallResultRecord {
+        home: unit_scalar_home_record(result_home),
+        source: call_plan.result.clone().expect("validated scalar result"),
+        code_offset,
+        byte_count: bytes.len() - code_offset,
+    })
 }
 
 fn emit_x86_64_unit_scalar_argument(

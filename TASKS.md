@@ -11143,17 +11143,25 @@ boundary without its corresponding checked law.
   exact source value and assigned durable home plus their load interval. With
   multiple arguments through the target-specific ceiling, those rows and byte
   intervals remain in parameter order, and every interval ends exactly where
-  the next begins. Machine emission independently rejoins each custody row to
-  its preceding constant or exact preceding scalar-call producer and emits
+  the next begins. The first result-bearing lane is also closed: an exact
+  signed `i32` result from a normalized foreign call in an attached `Unit`
+  body is normalized according to the evaluated result placement, stored in a
+  durable scalar home, and may feed a later normalized foreign call. The home
+  roster, producer ordinal, result-store interval, and later argument-load
+  interval survive through ordinary object construction and both Linux dynamic
+  ELF drivers. Machine emission independently rejoins each custody row to its
+  preceding constant, exact preceding scalar-call producer, or exact preceding
+  normalized-foreign result producer and emits
   compact x86-64 or AArch64 register materialization. Object construction
   repeats that semantic rejoin—including the previously absent literal
-  source-value check—and replays the complete ordered plan, placements, bytes,
-  semantic call ownership, and physical stack custody before consuming the
-  rows. Both Linux profiles advance from the exact native rejoin through
+  source-value check—and replays the complete ordered plan, result
+  normalization/store bytes, placements, bytes, semantic call ownership, and
+  physical stack custody before consuming the rows. Both Linux profiles
+  advance from the exact native rejoin through
   target, assignment, machine, ordinary object, and the complete dynamic-ELF
   driver; stripped, reordered, or drifted source/type/value/home/index/register/
   byte/plan/stack custody rejects. General runtime expressions, the first stack-
-  resident argument and beyond, result-bearing signatures, complete task-stack-
+  resident argument and beyond, other result shapes, complete task-stack-
   budget composition, optional `.gnu.hash`, and general admission-owner
   integration remain engineering work. A first externally admitted, zero-
   argument Mach-O source-evaluated lane is complete below.
@@ -11184,9 +11192,9 @@ boundary without its corresponding checked law.
   relocation offset. The local test evidence is an input assumption, not a
   deployment admission claim. Remaining work is the real external admission
   owner and automatic native-request integration, complete task-stack-budget
-  composition, runtime and stack-resident arguments, result-bearing
-  signatures, callback-native replay, specialized adapter migration, and any
-  optional dynamic-ELF extensions.
+  composition, general runtime expressions, stack-resident arguments, other
+  result signatures, callback-native replay, specialized adapter migration,
+  and any optional dynamic-ELF extensions.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

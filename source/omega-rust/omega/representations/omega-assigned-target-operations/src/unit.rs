@@ -159,6 +159,7 @@ pub enum AssignedUnitOperation {
         provider_execution: ProviderExecutionBinding,
         binding: omega_target_operations::NormalizedForeignCallBinding,
         scalar_arguments: Vec<AssignedNormalizedForeignScalarArgument>,
+        result_home: Option<AssignedUnitScalarHome>,
     },
     PortWrite {
         psi_operation: OperationId,
