@@ -58,6 +58,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_return/tests/operational.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_return/tests/corruption.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_return/tests/codec.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy.rs",
         ],
     },
     SemanticLadder {

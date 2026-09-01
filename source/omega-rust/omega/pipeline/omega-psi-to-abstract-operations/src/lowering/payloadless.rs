@@ -9,6 +9,7 @@ pub(super) fn exact_payloadless_case_return_exits(machine: &TerminalMachine) -> 
         return false;
     };
     if !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
         || result.multiplicity != StructuralMultiplicity::Unrestricted
         || machine
             .blocks
@@ -72,6 +73,7 @@ pub(super) fn exact_payloadless_case_return_exits(machine: &TerminalMachine) -> 
             || operation_result.multiplicity != StructuralMultiplicity::Unrestricted
             || !operation_result.claims.is_empty()
             || !operation_result.qualifications.is_empty()
+            || !operation_result.projected_qualifications.is_empty()
         {
             return false;
         }
@@ -237,6 +239,8 @@ pub(super) fn exact_payloadless_structural_call(
         && result.multiplicity == callee_result.multiplicity
         && result.qualifications.is_empty()
         && result.qualifications == callee_result.qualifications
+        && result.projected_qualifications.is_empty()
+        && result.projected_qualifications == callee_result.projected_qualifications
         && result.claims.is_empty()
         && callee.contract.outcome_specific_ensures.iter().all(|row| {
             proposition_structural_roots(&row.proposition)
@@ -256,6 +260,7 @@ pub(super) fn exact_unrestricted_payloadless_result(
     };
     result.multiplicity == StructuralMultiplicity::Unrestricted
         && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
         && machine
             .blocks
             .iter()
@@ -297,6 +302,7 @@ pub(super) fn exact_unrestricted_payloadless_result(
                                         && operation_result.multiplicity
                                             == StructuralMultiplicity::Unrestricted
                                         && operation_result.qualifications.is_empty()
+                                        && operation_result.projected_qualifications.is_empty()
                                         && operation_result.claims.is_empty()
                                 })
                     })

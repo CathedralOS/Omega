@@ -87,6 +87,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "recursive spill-recovery logical actions",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_actions/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_actions/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_actions/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_actions/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_actions/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_actions/validate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "recursive spill-recovery worklist",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_worklist/mod.rs",
@@ -195,6 +206,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/register_homes.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/reload_value_homes.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/spill_recovery_choice.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/spill_recovery_actions.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/spill_recovery_worklist.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/selected_input.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/stack_slot_coloring.rs",

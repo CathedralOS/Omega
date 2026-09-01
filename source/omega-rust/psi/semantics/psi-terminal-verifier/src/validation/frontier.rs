@@ -748,36 +748,16 @@ pub(super) fn validate_structural_frontier(
                     .result
                     .structural()
                     .expect("control validation requires a structural result");
-                let source_signature = machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == *source)
-                    .map(|parameter| {
-                        (
-                            parameter.structural_type,
-                            parameter.multiplicity,
-                            parameter.qualifications.as_slice(),
-                        )
-                    })
-                    .or_else(|| {
-                        machine
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.operations)
-                            .find_map(|operation| {
-                                operation.result.structural().and_then(|source_result| {
-                                    (source_result.place == *source).then_some((
-                                        source_result.structural_type,
-                                        source_result.multiplicity,
-                                        source_result.qualifications.as_slice(),
-                                    ))
-                                })
-                            })
-                    })
+                let source_signature = super::structural_result_contracts::source_signature(
+                    machine, *source,
+                )
                     .expect("control validation requires a structural source declaration");
-                let exact_unrestricted_parameter_return = source_signature.1
+                let exact_unrestricted_parameter_return = source_signature.multiplicity
                     == StructuralMultiplicity::Unrestricted
-                    && source_signature.2.is_empty()
+                    && super::structural_result_contracts::has_empty_qualification_rosters(
+                        source_signature.qualifications,
+                        source_signature.projected_qualifications,
+                    )
                     && matches!(machine.structural_parameters.as_slice(), [parameter]
                         if parameter.place == *source
                             && parameter.position == 0
@@ -792,18 +772,21 @@ pub(super) fn validate_structural_frontier(
                         place: *source,
                     });
                 }
-                if source_signature.0 != result.structural_type
-                    || source_signature.1 != result.multiplicity
-                    || source_signature.2 != result.qualifications
-                {
+                if !super::structural_result_contracts::matches_function_result(
+                    source_signature,
+                    result,
+                ) {
                     return Err(ModuleError::StructuralReturnSignatureMismatch {
                         machine: machine.id,
                         block: block.id,
                     });
                 }
                 let exact_payloadless_claim_free_return = returned_claims.is_empty()
-                    && source_signature.1 == StructuralMultiplicity::Unrestricted
-                    && source_signature.2.is_empty()
+                    && source_signature.multiplicity == StructuralMultiplicity::Unrestricted
+                    && super::structural_result_contracts::has_empty_qualification_rosters(
+                        source_signature.qualifications,
+                        source_signature.projected_qualifications,
+                    )
                     && machine
                         .structural_places
                         .iter()
@@ -826,6 +809,7 @@ pub(super) fn validate_structural_frontier(
                                 result.place == *source
                                     && result.multiplicity == StructuralMultiplicity::Unrestricted
                                     && result.qualifications.is_empty()
+                                    && result.projected_qualifications.is_empty()
                                     && result.claims.is_empty()
                             })
                         })

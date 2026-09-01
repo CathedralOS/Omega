@@ -26,6 +26,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `X86SelectXorZeroI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectXorZeroI64MaterializationV1` | Required |
 | `X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | Required |
 | `X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | Required |
+| `Aarch64ElideSameViewCopyI64BeforeReturnV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64ElideSameViewCopyI64BeforeReturnV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s
@@ -45,6 +46,9 @@ the repository gate.
   target.
 - One post-allocation machine rule may run at a time and cannot compose with
   function-relative layout.
+- Same-view copy elision does not compose with fixed-view allocation recovery;
+  the currently produced fixed-view copy has a different shared-entry shape and
+  is rejected explicitly.
 - Psi selections are orthogonal overlays and do not alter physical-route
   admission.
 

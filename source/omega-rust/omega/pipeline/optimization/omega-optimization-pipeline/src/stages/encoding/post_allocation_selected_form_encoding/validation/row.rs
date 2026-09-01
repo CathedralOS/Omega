@@ -1,8 +1,6 @@
 use omega_isa_aarch64::validate_aarch64_selected_form_encoding;
 use omega_isa_x86_64::validate_x86_64_selected_form_encoding;
-use omega_machine_optimizer::{
-    Aarch64CbnzInstructionDisposition, PostAllocationMachineInstruction,
-};
+use omega_machine_optimizer::PostAllocationMachineInstruction;
 use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use omega_selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction, SelectedInstructionId,
@@ -11,9 +9,9 @@ use omega_selected_instructions::{
 use omega_target::Architecture;
 
 use super::super::{
-    materialization::MaterializationDisposition, DeferredControlEncodingReason,
-    OptimizedSelectedFormEncodingError, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
-    SelectedFormEncodingState,
+    DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
+    SelectedFormDecodedFootprint, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition, materialization::MaterializationDisposition,
 };
 
 mod aarch64_movn;
@@ -26,7 +24,7 @@ pub(super) fn validate(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    machine_disposition: &Aarch64CbnzInstructionDisposition,
+    machine_disposition: &SelectedFormMachineDisposition,
     materialization: Option<MaterializationDisposition<'_>>,
     row: &SelectedFormEncodingRow,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
@@ -177,16 +175,16 @@ fn validate_machine_disposition(
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
-    disposition: &Aarch64CbnzInstructionDisposition,
+    disposition: &SelectedFormMachineDisposition,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
     let valid = match disposition {
-        Aarch64CbnzInstructionDisposition::RetainedV1 => true,
-        Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
+        SelectedFormMachineDisposition::RetainedV1 => true,
+        SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer } => {
             architecture == Architecture::Aarch64
                 && matches!(selected.kind, SelectedInstructionKind::CompareI64Zero)
                 && *consumer != selected.id
         }
-        Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+        SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
             compare,
             source_read,
         } => {
@@ -207,6 +205,11 @@ fn validate_machine_disposition(
                 && view.is_some_and(|view| {
                     view.class == source_read.class && view.units == source_read.units
                 })
+        }
+        SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer } => {
+            architecture == Architecture::Aarch64
+                && matches!(selected.kind, SelectedInstructionKind::CopyI64)
+                && *consumer != selected.id
         }
     };
     if !valid {

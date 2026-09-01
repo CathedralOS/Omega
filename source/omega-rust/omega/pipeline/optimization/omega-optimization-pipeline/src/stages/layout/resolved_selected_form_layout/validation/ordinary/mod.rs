@@ -9,8 +9,8 @@ use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
     SelectedFormEncodingRow, StagedOptimizedAarch64CbnzFusion,
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedFormEncoding,
+    StagedOptimizedAarch64SameViewCopyElision, StagedOptimizedPostAllocationMachineOptimization,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedSelectedFormEncoding,
 };
 
 use super::super::{
@@ -40,6 +40,12 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         _ => None,
     });
     let mut pre_rows = pre_layout.rows().iter();
+    let copy_elision = optimization.and_then(|optimization| match optimization {
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
+            Some(elision)
+        }
+        _ => None,
+    });
     for ((selected_function, machine_function), candidate) in selected_plan
         .functions
         .iter()
@@ -52,6 +58,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             machine_function,
             physical,
             fusion,
+            copy_elision,
             &mut pre_rows,
             candidate,
         )?;
@@ -64,3 +71,4 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
 
 pub(super) type PreLayoutRows<'a> = std::slice::Iter<'a, SelectedFormEncodingRow>;
 pub(super) type Fusion<'a> = Option<&'a StagedOptimizedAarch64CbnzFusion>;
+pub(super) type CopyElision<'a> = Option<&'a StagedOptimizedAarch64SameViewCopyElision>;

@@ -14,6 +14,8 @@ mod content_wire;
 mod contract_wire;
 mod debug_map;
 mod integer_math_term_wire;
+#[cfg(test)]
+mod legacy_result_path_wire_tests;
 mod machine_wire;
 mod module_wire;
 mod obligation_ledger;
@@ -27,6 +29,7 @@ mod quotient_correspondence_wire;
 mod scalar_term_wire;
 mod scalar_wire;
 mod structural_field_wire;
+mod structural_result_wire;
 mod structural_signature_wire;
 mod structural_type_wire;
 mod terminal_trace_v1_profile;
@@ -77,7 +80,6 @@ pub use trust_graph::{
     render_terminal_trust_graph, validate_terminal_trust_graph,
 };
 
-use block_wire::{decode_block, encode_block};
 use canonical_order::{
     crash_routes_are_canonical, validate_canonical_order, validate_crash_route_predicates,
 };
@@ -103,7 +105,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 56;
+const FORMAT_MARKER: u16 = 57;
+const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
+const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -123,17 +127,22 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         return Err(CodecError::InvalidMagic);
     }
     let format_marker = reader.u16()?;
-    if format_marker != FORMAT_MARKER {
+    if !matches!(format_marker, FORMAT_MARKER | LEGACY_RESULT_PATH_FORMAT_MARKER) {
         return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
-    let module = decode_module_body(&mut reader)?;
+    let module = decode_module_body(&mut reader, format_marker)?;
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
     validate_module_representation(&module).map_err(CodecError::InvalidModule)?;
-    if encode_raw(&module)? != bytes {
+    let canonical = if format_marker == FORMAT_MARKER {
+        encode_raw(&module)?
+    } else {
+        module_wire::encode_legacy_result_path_raw(&module)?
+    };
+    if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
     }
     Ok(module)

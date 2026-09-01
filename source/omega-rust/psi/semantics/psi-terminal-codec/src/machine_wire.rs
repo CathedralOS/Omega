@@ -6,9 +6,9 @@
 //! the parent codec.
 
 use psi_terminal::{
-    EntryClaim, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalRankedGuard, TerminalRankedScc,
-    TerminalRankedSccEdge, TerminalRankedSuccessorArgument, ValueDeclaration,
+    EntryClaim, StructuralPlaceDeclaration, TerminalMachine, TerminalMachineResult,
+    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge,
+    TerminalRankedSuccessorArgument, ValueDeclaration,
 };
 
 use super::content_wire::{
@@ -21,19 +21,23 @@ use super::scalar_wire::{
     decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
     encode_integer_value, encode_scalar_type,
 };
+use super::structural_result_wire::{
+    ResultPathWireFormat, decode_function_result, encode_function_result,
+};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_service_ceiling, encode_structural_parameters,
 };
 use super::wire::{Reader, Writer};
 use super::{
-    CodecError, decode_block, decode_counted, decode_ids, decode_optional_id,
-    decode_structural_path, decode_structural_place_kind, encode_block, encode_optional_id,
-    encode_structural_path, encode_structural_place_kind,
+    CodecError, decode_counted, decode_ids, decode_optional_id, decode_structural_path,
+    decode_structural_place_kind, encode_optional_id, encode_structural_path,
+    encode_structural_place_kind,
 };
 
-pub(super) fn encode_machine(
+pub(super) fn encode_machine_for_result_paths(
     writer: &mut Writer,
     machine: &TerminalMachine,
+    result_path_format: ResultPathWireFormat,
 ) -> Result<(), CodecError> {
     writer.id(machine.id);
     encode_optional_id(writer, machine.attachment);
@@ -48,7 +52,7 @@ pub(super) fn encode_machine(
         }
         TerminalMachineResult::Structural(result) => {
             writer.u8(2);
-            encode_structural_result(writer, result)?;
+            encode_function_result(writer, result, result_path_format)?;
         }
     }
     writer.len("structural places", machine.structural_places.len())?;
@@ -84,7 +88,7 @@ pub(super) fn encode_machine(
     writer.id(machine.entry);
     writer.len("blocks", machine.blocks.len())?;
     for block in &machine.blocks {
-        encode_block(writer, block)?;
+        super::block_wire::encode_block_for_result_paths(writer, block, result_path_format)?;
     }
     encode_contract(writer, &machine.contract)
 }
@@ -106,7 +110,10 @@ pub(super) fn encode_declaration(writer: &mut Writer, declaration: ValueDeclarat
     encode_scalar_type(writer, declaration.scalar_type);
 }
 
-pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
+pub(super) fn decode_machine_for_result_paths(
+    reader: &mut Reader<'_>,
+    result_path_format: ResultPathWireFormat,
+) -> Result<TerminalMachine, CodecError> {
     let id = reader.id("MachineId")?;
     let attachment = decode_optional_id(reader, "StructuralTypeId")?;
     let parameters = decode_declarations(reader)?;
@@ -115,7 +122,10 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
-        2 => TerminalMachineResult::Structural(decode_structural_result(reader)?),
+        2 => TerminalMachineResult::Structural(decode_function_result(
+            reader,
+            result_path_format,
+        )?),
         tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
     };
     let count = reader.count()?;
@@ -153,7 +163,10 @@ pub(super) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine,
     let block_count = reader.count()?;
     let mut blocks = Vec::new();
     for _ in 0..block_count {
-        blocks.push(decode_block(reader)?);
+        blocks.push(super::block_wire::decode_block_for_result_paths(
+            reader,
+            result_path_format,
+        )?);
     }
     let contract = decode_contract(reader)?;
     Ok(TerminalMachine {
@@ -284,43 +297,6 @@ fn decode_ranked_scc(reader: &mut Reader<'_>) -> Result<Option<TerminalRankedScc
         }
         tag => Err(CodecError::InvalidTag("TerminalRankedScc", tag)),
     }
-}
-
-pub(super) fn encode_structural_result(
-    writer: &mut Writer,
-    result: &StructuralResultDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(result.place);
-    writer.id(result.structural_type);
-    writer.u8(match result.multiplicity {
-        StructuralMultiplicity::Unrestricted => 1,
-        StructuralMultiplicity::Affine => 2,
-        StructuralMultiplicity::Linear => 3,
-    });
-    writer.len(
-        "structural result qualifications",
-        result.qualifications.len(),
-    )?;
-    for qualification in &result.qualifications {
-        writer.id(*qualification);
-    }
-    Ok(())
-}
-
-pub(super) fn decode_structural_result(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralResultDeclaration, CodecError> {
-    Ok(StructuralResultDeclaration {
-        place: reader.id("PlaceId")?,
-        structural_type: reader.id("StructuralTypeId")?,
-        multiplicity: match reader.u8()? {
-            1 => StructuralMultiplicity::Unrestricted,
-            2 => StructuralMultiplicity::Affine,
-            3 => StructuralMultiplicity::Linear,
-            tag => return Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        },
-        qualifications: decode_ids(reader, "StructuralDomainId")?,
-    })
 }
 
 pub(super) fn decode_declarations(

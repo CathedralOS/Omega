@@ -1526,7 +1526,7 @@ ranking-relation identity, one shared well-foundedness obligation, and one
 decrease obligation per exact call row, invokes the generic proof-admission
 checker, and retains the resulting component acceptance separately from flat
 contract evidence. Missing, surplus, reordered, or substituted component or
-edge evidence rejects. Terminal format 56 / vocabulary 59 and proof format 22
+edge evidence rejects. Terminal format 57 / vocabulary 60 and proof format 22
 bind these rows; the ordinary verified synopsis reports the component, shared
 well-foundedness route, members, and every exact decrease route. The checked-
 to-Terminal producer walks the selected root's contract and body proof-call

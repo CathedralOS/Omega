@@ -8,7 +8,7 @@ use super::{
     spill_recovery_worklist::{pressure_sources, seed},
 };
 
-fn choose(
+pub(super) fn choose(
     sources: &ReloadSources,
     budget: OptimizationWorkBudget,
 ) -> Result<omega_regalloc::ValidatedSpillRecoveryChoices, omega_regalloc::SpillRecoveryChoiceError>

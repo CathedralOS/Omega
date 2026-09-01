@@ -2,8 +2,8 @@
 
 use omega_isa_x86_64::validate_x86_64_mov_r32_imm32_i64_materialization;
 use omega_machine_optimizer::{
-    PostAllocationMachineInstruction, X86MovR32Imm32InstructionDisposition,
-    X86_MOV_R32_IMM32_BASELINE_BYTE_COUNT,
+    PostAllocationMachineInstruction, X86_MOV_R32_IMM32_BASELINE_BYTE_COUNT,
+    X86MovR32Imm32InstructionDisposition,
 };
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedInstructionKind};

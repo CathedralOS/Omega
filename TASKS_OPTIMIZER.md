@@ -515,13 +515,13 @@ decision. Only true language-semantic questions belong in
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
-  Terminal projection, optimization-unit V17 identity, target and temporary
+  Terminal projection, current optimization-unit V18 identity, target and temporary
   assigned carriers, legalized V10 and selected V12 identity, allocation
   recovery, and fixed-view-copy V6 persistence. Ordinary, Unit, and
   structural-scalar nonempty projection/lowering tests plus identity,
   independent replay, corruption, and V5 compatibility tests pin custody.
 - [>] Apply **Boundary domain requirements consume carried qualifications**.
-  Current Terminal format 56 and vocabulary 59 retain the earlier removal of
+  Terminal format 57 and vocabulary 60 retain the earlier removal of
   the boundary `requirement_obligations` field and wire payload rather than
   preserving an always-empty slot. Remaining work is to add
   optimizer/publication controls
@@ -549,12 +549,17 @@ decision. Only true language-semantic questions belong in
   Missing, sibling, duplicate, unsorted, wrong-domain, detached, widened, and
   root-path substitutions fail closed. Target lowering rejects the retained
   projected roster explicitly until downstream carriers support it rather than
-  inferring authority from root shape or carrier equality. The next audited
-  slice is paired function-result and operation-result path custody: a call
-  result may copy only the callee result's exact roster, and return replay must
-  retain it. Join intersection remains later work because current joins and GVN
-  have no structural result carrier or executable consumer. Neither item is an
-  open language-semantic question.
+  inferring authority from root shape or carrier equality. The paired function-
+  result and operation-result slice is now complete. Terminal declarations and
+  structural operation results carry separate exact projected rosters; calls
+  copy only the callee result roster; and return replay rejoins the declared
+  source contract. Format-56/vocabulary-59 compatibility reconstructs absent
+  rows as empty. Optimization-unit V18 identity, independent replay, abstract
+  projection, prephysical custody, and image signature codecs retain them.
+  Target lowering rejects either nonempty result roster until downstream
+  carriers support it. Join intersection remains later work because current
+  joins and GVN have no structural result carrier or executable consumer. That
+  remaining item is not an open language-semantic question.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
   versioned structural selected subtree; public encoding now emits v6 with
   exact structural-call requirement and crash-continuation rows plus
@@ -573,7 +578,11 @@ decision. Only true language-semantic questions belong in
   and the resulting linked function is called on both paths and compared with
   the interpreter result. Float, trap, atomic, placed-memory, cleanup, and
   transition lanes remain open.
-- [ ] Add end-to-end mutation tests for every manifest and custody field.
+- [>] Add end-to-end mutation tests for every manifest and custody field. The
+  ordinary-callable entry slice now reauthenticates and rejects every mutable
+  manifest field, rejects every closed singleton wire tag and unavailable-data
+  position, and mutates each receipt custody root independently. Other artifact
+  and manifest families remain open.
 
 ## P3 — Psi optimizer
 
@@ -756,8 +765,17 @@ decision. Only true language-semantic questions belong in
   x86-64/AArch64 fixture selects `v3 [9,15)` over `v4 [11,13)` at reload point
   12 with exact usage `{5, 2, 10, 1, 1}`. It grants no eviction, logical spill,
   rewrite, storage, selected identity, memory, frame, trap, unwind, encoding,
-  emission, or publication authority. Remaining work generalizes the logical
-  second-spill action, insertion, and reanalysis.
+  emission, or publication authority. An eighth independently replayed V1
+  artifact now consumes that choice and emits epoch-one target-neutral logical
+  storage, store-before-source-reload, reload-before-first-later-flexible-use,
+  and the complete later-use rewrite suffix. Its public x86-64/AArch64 fixture
+  retains victim `v3`, store anchor 6, reload/rewrite anchor 7 at point 14,
+  `{epoch: 1, ordinal: 0}` namespaces, current/reclaimed views, and exact usage
+  `{1, 1, 5, 1, 1}`. It creates no real virtual register, instruction,
+  slot/offset, memory effect, frame, trap, unwind, encoding, emission, or
+  publication authority. Remaining work generalizes insertion and slot
+  scheduling across both logical actions, then reanalyzes both synthetic
+  reloads.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
@@ -797,20 +815,27 @@ decision. Only true language-semantic questions belong in
     covering selected kinds, alternatives, operands, named physical units,
     register views, encoded effects, liveness continuity, and dead flags. Keep
     the existing independent validator as a separate replay implementation.
-  - [x] Prove the next descriptor vocabulary with a core-only AArch64
+  - [x] Prove the next descriptor vocabulary with an exact AArch64
     same-view `CopyI64; ReturnI64` elision. The shared matcher now admits exact
     per-operand read/write contracts and named cross-instruction relations for
     equal virtual registers and equal physical view/storage, while the rule's
     independent replay, canonical codec, attempt history, and disposition
-    roster remain rule-local. It has no machine catalog row, build selection,
-    encoding, layout, realization, or publication authority yet.
+    roster remain rule-local. The exact rule now has a build selection and sole
+    machine-catalog row; a rule-neutral carrier retains its disposition through
+    encoding, zero-byte layout, exit custody, realization, fragment/object, and
+    callable publication. No ordinary lowering emits terminal
+    `CopyI64; ReturnI64`; fixed-view recovery emits a different shared-entry
+    shape and composition is a typed refusal. Applied positive coverage remains
+    at the machine-rule boundary, while compiler-facing coverage proves honest
+    deterministic zero-action selection and publication.
   - [ ] Generalize beyond the body-tail/terminator pair only when a second
     exact rule proves a non-terminal-pair topology; the copy-elision rule
     deliberately retains the existing bounded topology.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling where independently verifiable. The
-  core-only same-view return-copy case is evidence for the first family, not
-  completion of general copy removal or compiler enablement.
+  admitted same-view return-copy case is evidence for the first family, not
+  completion of general copy removal or a claim that current lowering produces
+  its exact candidate.
 - [x] Add target cost models as non-authoritative identities. The V1 entrance
   binds exact native-target identity to retained exact-or-bounded size
   knowledge while keeping latency explicitly unavailable. Machine-rule
@@ -1024,7 +1049,7 @@ unchecked rewrite or opt into lossy floating-point semantics.
   compiler prerequisites under P5 rather than an owner language decision.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
 - [x] Publish exact-rule release notes and rollback procedures. The versioned
-  V1 inventory names all 16 canonical exact rules, phases, target
+  V1 inventory names all 17 canonical exact rules, phases, target
   applicability, experimental status, exact rollback spelling, supported
   compositions, and fail-closed carrier limits; its native-only runbook owns
   receipt capture, verification, and restoration.

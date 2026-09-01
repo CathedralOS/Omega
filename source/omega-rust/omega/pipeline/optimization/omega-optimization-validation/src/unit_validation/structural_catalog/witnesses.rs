@@ -180,6 +180,8 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                 || result.multiplicity != psi_terminal::StructuralMultiplicity::Linear
                 || returned_parameter.structural_type != result.structural_type
                 || returned_parameter.qualifications != result.qualifications
+                || returned_parameter.projected_qualifications
+                    != result.projected_qualifications
                 || returned_parameter.place == result.place
                 || function
                     .structural_parameters
@@ -190,6 +192,7 @@ pub(crate) fn validate_trivial_affine_local_witnesses(
                             || parameter.multiplicity
                                 != psi_terminal::StructuralMultiplicity::Affine
                             || !parameter.qualifications.is_empty()
+                            || !parameter.projected_qualifications.is_empty()
                     })
             {
                 return Err(

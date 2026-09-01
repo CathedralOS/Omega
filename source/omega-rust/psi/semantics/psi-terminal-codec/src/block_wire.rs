@@ -8,8 +8,7 @@ use psi_terminal::{
     Block, ClaimTransfer, CompletionReceipt, CrashCause, NominalAffineCleanup, Operation,
     OperationKind, OperationResult, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificGuard, StructuralAffineDiscard, StructuralOperationResult,
-    StructuralResultClaimBinding, StructuralResultClaimTransfer, Terminator,
+    OutcomeSpecificGuard, StructuralAffineDiscard, StructuralResultClaimTransfer, Terminator,
 };
 
 use super::contract_wire::{
@@ -18,6 +17,9 @@ use super::contract_wire::{
 };
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
+};
+use super::structural_result_wire::{
+    ResultPathWireFormat, decode_operation_result, encode_operation_result,
 };
 use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
 use super::scalar_wire::{
@@ -30,7 +32,16 @@ use super::{
     encode_obligation_ids, encode_optional_id, encode_structural_arguments, encode_structural_path,
 };
 
+#[cfg(test)]
 pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
+    encode_block_for_result_paths(writer, block, ResultPathWireFormat::Current)
+}
+
+pub(super) fn encode_block_for_result_paths(
+    writer: &mut Writer,
+    block: &Block,
+    result_path_format: ResultPathWireFormat,
+) -> Result<(), CodecError> {
     writer.id(block.id);
     encode_declarations(writer, "block parameters", &block.parameters)?;
     writer.len("operations", block.operations.len())?;
@@ -44,29 +55,7 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             }
             OperationResult::Structural(result) => {
                 writer.u8(2);
-                writer.id(result.place);
-                writer.id(result.structural_type);
-                writer.u8(match result.multiplicity {
-                    psi_terminal::StructuralMultiplicity::Unrestricted => 1,
-                    psi_terminal::StructuralMultiplicity::Affine => 2,
-                    psi_terminal::StructuralMultiplicity::Linear => 3,
-                });
-                writer.len(
-                    "structural operation result qualifications",
-                    result.qualifications.len(),
-                )?;
-                for qualification in &result.qualifications {
-                    writer.id(*qualification);
-                }
-                writer.len("structural operation result claims", result.claims.len())?;
-                for claim in &result.claims {
-                    writer.id(claim.claim);
-                    encode_structural_path(
-                        writer,
-                        "structural operation result claim path",
-                        &claim.path,
-                    )?;
-                }
+                encode_operation_result(writer, result, result_path_format)?;
             }
         }
         match operation.kind.clone() {
@@ -630,7 +619,15 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
+    decode_block_for_result_paths(reader, ResultPathWireFormat::Current)
+}
+
+pub(super) fn decode_block_for_result_paths(
+    reader: &mut Reader<'_>,
+    result_path_format: ResultPathWireFormat,
+) -> Result<Block, CodecError> {
     let id = reader.id("BlockId")?;
     let parameters = decode_declarations(reader)?;
     let operation_count = reader.count()?;
@@ -640,25 +637,10 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
         let result = match reader.u8()? {
             0 => OperationResult::Unit,
             1 => OperationResult::Scalar(decode_declaration(reader)?),
-            2 => OperationResult::Structural(StructuralOperationResult {
-                place: reader.id("PlaceId")?,
-                structural_type: reader.id("StructuralTypeId")?,
-                multiplicity: match reader.u8()? {
-                    1 => psi_terminal::StructuralMultiplicity::Unrestricted,
-                    2 => psi_terminal::StructuralMultiplicity::Affine,
-                    3 => psi_terminal::StructuralMultiplicity::Linear,
-                    tag => {
-                        return Err(CodecError::InvalidTag("StructuralMultiplicity", tag));
-                    }
-                },
-                qualifications: decode_ids(reader, "StructuralDomainId")?,
-                claims: decode_counted(reader, |reader| {
-                    Ok(StructuralResultClaimBinding {
-                        claim: reader.id("ClaimId")?,
-                        path: decode_structural_path(reader)?,
-                    })
-                })?,
-            }),
+            2 => OperationResult::Structural(decode_operation_result(
+                reader,
+                result_path_format,
+            )?),
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
@@ -1091,6 +1073,7 @@ mod tests {
                     structural_type: id::<StructuralTypeId>(3),
                     multiplicity: StructuralMultiplicity::Linear,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     claims: vec![StructuralResultClaimBinding {
                         claim: id::<ClaimId>(4),
                         path: Vec::new(),
@@ -1172,7 +1155,7 @@ mod tests {
         assert_eq!(bytes[24], 2, "structural OperationResult wire tag");
         // The fixture has no qualifications and one whole-root claim, so the
         // operation-kind tag follows its fixed-width result metadata here.
-        assert_eq!(bytes[62], 41, "CallStructural wire tag");
+        assert_eq!(bytes[66], 41, "CallStructural wire tag");
 
         let mut reader = Reader::new(&bytes);
         assert_eq!(decode_block(&mut reader), Ok(block));
@@ -1186,7 +1169,7 @@ mod tests {
         );
 
         let mut invalid_call = bytes;
-        invalid_call[62] = 255;
+        invalid_call[66] = 255;
         assert_eq!(
             decode_block(&mut Reader::new(&invalid_call)),
             Err(CodecError::InvalidTag("OperationKind", 255))

@@ -2,9 +2,9 @@
 
 use crate::tests::*;
 use omega_machine_optimizer::{
+    Aarch64CbnzFusionAction, Aarch64CbnzFusionError, Aarch64CbnzFusionWorkAxis,
     aarch64_cbnz_fusion_identity, optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz,
-    validate_aarch64_cbnz_fusion, Aarch64CbnzFusionAction, Aarch64CbnzFusionError,
-    Aarch64CbnzFusionWorkAxis,
+    validate_aarch64_cbnz_fusion,
 };
 
 fn run(

@@ -15,6 +15,7 @@ pub(super) const DECLARATIONS: &str = r#"pub data Optimization {
     case X86SelectXorZeroI64MaterializationV1;
     case X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1;
     case X86SelectMovR64Imm32SignExtendedI64MaterializationV1;
+    case Aarch64ElideSameViewCopyI64BeforeReturnV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -34,6 +35,7 @@ pub data Optimizations {
     x86_select_xor_zero_i64_materialization_v1: u8 in Trapping;
     x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1: u8 in Trapping;
     x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1: u8 in Trapping;
+    aarch64_elide_same_view_copy_i64_before_return_v1: u8 in Trapping;
 }
 "#;
 
@@ -55,6 +57,7 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
         Optimization::X86SelectXorZeroI64MaterializationV1 -> x86_select_xor_zero_i64_materialization_v1()
         Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 -> x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1()
         Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1 -> x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1()
+        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1 -> aarch64_elide_same_view_copy_i64_before_return_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -119,6 +122,10 @@ pub(super) const ENABLE_MACHINE: &str = r#"pub machine Optimizations::enable(&mu
 
     state x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1(&mut self) {
         self.x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1 = self.x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1 + 1;
+    }
+
+    state aarch64_elide_same_view_copy_i64_before_return_v1(&mut self) {
+        self.aarch64_elide_same_view_copy_i64_before_return_v1 = self.aarch64_elide_same_view_copy_i64_before_return_v1 + 1;
     }
 }
 "#;

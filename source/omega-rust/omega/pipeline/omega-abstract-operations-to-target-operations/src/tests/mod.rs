@@ -41,6 +41,7 @@ mod fixed_integer_scalar_abi;
 mod native_boundaries;
 mod native_callback_arguments;
 mod parameter_translation_fixture;
+mod projected_result_qualifications;
 mod ranked_countdown;
 mod scalar;
 mod structural_and_cleanup;

@@ -200,6 +200,7 @@ pub(super) fn lower_structural_call_return_machine(
             structural_type: result_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: domain_ids.clone(),
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -242,6 +243,7 @@ pub(super) fn lower_structural_call_return_machine(
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Linear,
                         qualifications: domain_ids,
+                        projected_qualifications: Vec::new(),
                         claims: vec![psi_terminal::StructuralResultClaimBinding {
                             claim,
                             path: Vec::new(),

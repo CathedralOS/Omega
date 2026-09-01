@@ -62,6 +62,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                         structural_type,
                         multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     },
                 ),
                 entry_claims: vec![entry_claim(caller_input)],
@@ -79,6 +80,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                             structural_type,
                             multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                             qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
                             claims: vec![psi_terminal::StructuralResultClaimBinding {
                                 claim,
                                 path: Vec::new(),
@@ -125,6 +127,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                         structural_type,
                         multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     },
                 ),
                 entry_claims: vec![entry_claim(callee_input)],

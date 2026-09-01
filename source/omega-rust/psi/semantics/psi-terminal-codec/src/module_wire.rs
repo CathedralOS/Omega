@@ -26,7 +26,6 @@ use psi_terminal::{
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
-use super::machine_wire::{decode_machine, encode_machine};
 use super::proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
     encode_evidence_interface, encode_proposition_application, encode_proposition_declaration,
@@ -35,6 +34,7 @@ use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_
 use super::quotient_correspondence_wire::{
     decode_quotient_correspondence, encode_quotient_correspondence,
 };
+use super::structural_result_wire::ResultPathWireFormat;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
@@ -42,7 +42,10 @@ use super::structural_signature_wire::{
 };
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
-use super::{CodecError, FORMAT_MARKER, MAGIC, decode_counted, decode_ids};
+use super::{
+    CodecError, FORMAT_MARKER, LEGACY_RESULT_PATH_FORMAT_MARKER,
+    LEGACY_RESULT_PATH_VOCABULARY_MARKER, MAGIC, decode_counted, decode_ids,
+};
 
 fn encode_borrow_boundary(
     writer: &mut Writer,
@@ -519,10 +522,29 @@ fn decode_reborrow_restored_call_use(
 }
 
 pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    encode_raw_for_result_paths(module, ResultPathWireFormat::Current)
+}
+
+pub(super) fn encode_legacy_result_path_raw(
+    module: &TerminalModule,
+) -> Result<Vec<u8>, CodecError> {
+    encode_raw_for_result_paths(module, ResultPathWireFormat::LegacyWithoutResultPaths)
+}
+
+fn encode_raw_for_result_paths(
+    module: &TerminalModule,
+    result_path_format: ResultPathWireFormat,
+) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
-    writer.u16(FORMAT_MARKER);
-    writer.u16(module.vocabulary_marker.get());
+    writer.u16(match result_path_format {
+        ResultPathWireFormat::LegacyWithoutResultPaths => LEGACY_RESULT_PATH_FORMAT_MARKER,
+        ResultPathWireFormat::Current => FORMAT_MARKER,
+    });
+    writer.u16(match result_path_format {
+        ResultPathWireFormat::LegacyWithoutResultPaths => LEGACY_RESULT_PATH_VOCABULARY_MARKER,
+        ResultPathWireFormat::Current => module.vocabulary_marker.get(),
+    });
     writer.id(module.entry);
     writer.len("structural types", module.structural_types.len())?;
     for declaration in &module.structural_types {
@@ -891,16 +913,30 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     }
     writer.len("machines", module.machines.len())?;
     for machine in &module.machines {
-        encode_machine(&mut writer, machine)?;
+        super::machine_wire::encode_machine_for_result_paths(
+            &mut writer,
+            machine,
+            result_path_format,
+        )?;
     }
     Ok(writer.finish())
 }
 
-pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {
+pub(super) fn decode_module_body(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<TerminalModule, CodecError> {
     let vocabulary_marker_raw = reader.u16()?;
-    let vocabulary_marker = VocabularyMarker::new(vocabulary_marker_raw).ok_or(
-        CodecError::UnsupportedVocabularyMarker(vocabulary_marker_raw),
-    )?;
+    let result_path_format = match (format_marker, vocabulary_marker_raw) {
+        (FORMAT_MARKER, raw) if raw == VocabularyMarker::CURRENT.get() => {
+            ResultPathWireFormat::Current
+        }
+        (LEGACY_RESULT_PATH_FORMAT_MARKER, LEGACY_RESULT_PATH_VOCABULARY_MARKER) => {
+            ResultPathWireFormat::LegacyWithoutResultPaths
+        }
+        _ => return Err(CodecError::UnsupportedVocabularyMarker(vocabulary_marker_raw)),
+    };
+    let vocabulary_marker = VocabularyMarker::CURRENT;
     let entry = reader.id("MachineId")?;
     let structural_types = decode_counted(reader, decode_structural_type)?;
     let structural_domains = decode_counted(reader, |reader| {
@@ -1198,7 +1234,10 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
     for _ in 0..machine_count {
-        machines.push(decode_machine(reader)?);
+        machines.push(super::machine_wire::decode_machine_for_result_paths(
+            reader,
+            result_path_format,
+        )?);
     }
     Ok(TerminalModule {
         vocabulary_marker,

@@ -1,6 +1,6 @@
 use omega_machine_optimizer::{
-    PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleCatalogError,
-    POST_ALLOCATION_MACHINE_RULE_CATALOG,
+    POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogEntry,
+    PostAllocationMachineRuleCatalogError,
 };
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use omega_psi_optimizer::built_in_psi_registries;
@@ -264,10 +264,10 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
         }
     }
 
-    assert_eq!(cells, 240);
-    assert_eq!(accepted, 132);
-    assert_eq!(unsupported, 56);
-    assert_eq!(wrong_target, 52);
+    assert_eq!(cells, 272);
+    assert_eq!(accepted, 140);
+    assert_eq!(unsupported, 72);
+    assert_eq!(wrong_target, 60);
 }
 
 #[test]

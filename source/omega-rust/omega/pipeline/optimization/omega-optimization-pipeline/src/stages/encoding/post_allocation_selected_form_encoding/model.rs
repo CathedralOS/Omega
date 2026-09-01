@@ -2,8 +2,7 @@ use omega_isa_x86_64::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
 };
 use omega_machine_optimizer::{
-    Aarch64CbnzFusionIdentity, Aarch64CbnzInstructionDisposition,
-    Aarch64MovnMaterializationIdentity, PostAllocationMachineIdentity,
+    Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity, PostAllocationMachineIdentity,
 };
 use omega_optimization_core::{Optimization, OptimizationSelectionIdentity};
 use omega_register_model::{RegisterUnitId, RegisterViewId};
@@ -52,11 +51,29 @@ pub enum SelectedFormEncodingState {
     },
 }
 
+/// Closed rule-neutral disposition consumed by generic encoding and layout.
+/// Rule-local plans remain the authority; this value is only their exact row
+/// projection under authenticated optimization custody.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectedFormMachineDisposition {
+    RetainedV1,
+    Aarch64ElidedCompareI64ZeroV1 {
+        consumer: SelectedInstructionId,
+    },
+    Aarch64FusedBranchNonZeroToCbnzV1 {
+        compare: SelectedInstructionId,
+        source_read: omega_machine_optimizer::QualifiedPhysicalRead,
+    },
+    Aarch64ElidedSameViewCopyI64V1 {
+        consumer: SelectedInstructionId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFormEncodingRow {
     pub instruction: SelectedInstructionId,
     pub alternative: MachineAlternativeKey,
-    pub machine_disposition: Aarch64CbnzInstructionDisposition,
+    pub machine_disposition: SelectedFormMachineDisposition,
     pub state: SelectedFormEncodingState,
 }
 

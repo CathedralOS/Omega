@@ -3,8 +3,8 @@ use omega_isa_x86_64::{
     encode_x86_64_selected_structural_unit_call_template,
 };
 use omega_machine_optimizer::{
-    Aarch64CbnzInstructionDisposition, PostAllocationStructuralUnitFunction,
-    StructuralUnitCallMachineEffects, StructuralUnitFunctionMachineEffects,
+    PostAllocationStructuralUnitFunction, StructuralUnitCallMachineEffects,
+    StructuralUnitFunctionMachineEffects,
 };
 use omega_register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 use omega_selected_instructions::{
@@ -13,7 +13,7 @@ use omega_selected_instructions::{
 use omega_target::NativeTarget;
 
 use super::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncodingState,
+    OptimizedSelectedFormEncodingError, SelectedFormEncodingState, SelectedFormMachineDisposition,
     SelectedStructuralUnitCallEncodingRow, SelectedStructuralUnitFunctionEncoding,
     row_encoding::encode_row,
 };
@@ -87,7 +87,7 @@ pub(super) fn encode_structural_function(
         selected_return,
         &machine.return_instruction,
         physical,
-        Aarch64CbnzInstructionDisposition::RetainedV1,
+        SelectedFormMachineDisposition::RetainedV1,
         None,
     )?;
     if !matches!(

@@ -97,6 +97,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places = vec![
         StructuralPlaceDeclaration {
@@ -118,6 +119,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         kind: OperationKind::EstablishPayloadlessCase { result_case },
@@ -164,6 +166,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }),
             structural_places: vec![
                 StructuralPlaceDeclaration {
@@ -192,6 +195,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                         structural_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                         claims: Vec::new(),
                     }),
                     kind: OperationKind::CallStructural {
@@ -865,6 +869,7 @@ fn structural_return_is_one_normal_edge_unit() {
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places = vec![
         StructuralPlaceDeclaration {
@@ -953,6 +958,7 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places = vec![
         StructuralPlaceDeclaration {

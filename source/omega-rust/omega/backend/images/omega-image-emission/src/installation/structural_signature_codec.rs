@@ -82,5 +82,6 @@ pub(super) fn decode_structural_result(
         structural_type,
         multiplicity,
         qualifications: decode_domains(reader)?,
+        projected_qualifications: Vec::new(),
     })
 }

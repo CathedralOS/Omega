@@ -71,6 +71,7 @@ pub(super) fn lower_structural_machine(
             || operation_result.structural_type != result.structural_type
             || operation_result.multiplicity != result.multiplicity
             || operation_result.qualifications != result.qualifications
+            || operation_result.projected_qualifications != result.projected_qualifications
             || argument.place != parameter.place
             || argument.access != psi_terminal::StructuralAccess::Owned
             || !argument.path.is_empty()

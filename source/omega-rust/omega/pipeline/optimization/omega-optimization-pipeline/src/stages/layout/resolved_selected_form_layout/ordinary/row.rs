@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use omega_machine_optimizer::{
-    Aarch64CbnzFusionAction, Aarch64CbnzInstructionDisposition, PostAllocationMachineInstruction,
+    Aarch64CbnzFusionAction, Aarch64SameViewCopyElisionAction, PostAllocationMachineInstruction,
 };
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{
@@ -13,7 +13,8 @@ use psi_core::MachineId;
 
 use crate::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
-    StagedOptimizedAarch64CbnzFusion,
+    SelectedFormMachineDisposition, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64SameViewCopyElision,
 };
 
 use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence};
@@ -31,17 +32,18 @@ pub(super) fn resolve(
     pre: &SelectedFormEncodingRow,
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+    copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
 ) -> Result<
     (Vec<u8>, Option<Box<ResolvedConditionalBranchEvidence>>),
     OptimizedResolvedSelectedFormLayoutError,
 > {
     match (&pre.machine_disposition, &pre.state) {
         (
-            Aarch64CbnzInstructionDisposition::RetainedV1,
+            SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
         ) => Ok((bytes.clone(), None)),
         (
-            Aarch64CbnzInstructionDisposition::RetainedV1,
+            SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::DeferredControl {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             },
@@ -56,7 +58,7 @@ pub(super) fn resolve(
             None,
         ),
         (
-            Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer },
+            SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer },
             SelectedFormEncodingState::Encoded { .. },
         ) => {
             let action = fusion_action(fusion, function, block.id, instruction.id, *consumer)?;
@@ -70,7 +72,7 @@ pub(super) fn resolve(
             Ok((Vec::new(), None))
         }
         (
-            Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+            SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
                 compare,
                 source_read,
             },
@@ -93,8 +95,41 @@ pub(super) fn resolve(
                 Some((source_read, action)),
             )
         }
+        (
+            SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer },
+            SelectedFormEncodingState::Encoded { .. },
+        ) => {
+            let action = copy_action(copy_elision, function, block.id, instruction.id, *consumer)?;
+            if architecture != Architecture::Aarch64
+                || !matches!(instruction.kind, SelectedInstructionKind::CopyI64)
+                || action.copy != instruction.id
+                || action.return_instruction != *consumer
+            {
+                return unexpected(instruction.id);
+            }
+            Ok((Vec::new(), None))
+        }
         _ => unexpected(instruction.id),
     }
+}
+
+fn copy_action<'a>(
+    elision: Option<&'a StagedOptimizedAarch64SameViewCopyElision>,
+    machine: MachineId,
+    block: SelectedBlockId,
+    copy: SelectedInstructionId,
+    returned: SelectedInstructionId,
+) -> Result<&'a Aarch64SameViewCopyElisionAction, OptimizedResolvedSelectedFormLayoutError> {
+    elision
+        .and_then(|elision| {
+            elision.elision().plan().actions.iter().find(|action| {
+                action.machine == machine
+                    && action.block == block
+                    && action.copy == copy
+                    && action.return_instruction == returned
+            })
+        })
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(copy))
 }
 
 fn fusion_action<'a>(

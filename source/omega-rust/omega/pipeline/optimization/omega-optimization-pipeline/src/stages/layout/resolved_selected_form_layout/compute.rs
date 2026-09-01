@@ -4,10 +4,9 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    stage_optimized_layout_independent_selected_form_encoding,
-    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
     StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedFormEncoding,
+    StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
 };
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
@@ -36,9 +35,16 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     let fusion = optimization.and_then(|optimization| match optimization {
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(_)
+        | StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(_)
         | StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(_)
         | StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(_)
         | StagedOptimizedPostAllocationMachineOptimization::X86XorZero(_) => None,
+    });
+    let copy_elision = optimization.and_then(|optimization| match optimization {
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
+            Some(elision)
+        }
+        _ => None,
     });
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
@@ -108,6 +114,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             &machine_rows,
             physical,
             fusion,
+            copy_elision,
         )?);
     }
     if pre_rows.next().is_some() {

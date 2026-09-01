@@ -1,17 +1,17 @@
 use omega_machine_optimizer::{
-    optimize_x86_materialize_i64_with_mov_r32_imm32, require_post_allocation_machine_rule,
-    validate_x86_mov_r32_imm32_materialization, ValidatedX86MovR32Imm32Materialization,
+    ValidatedX86MovR32Imm32Materialization, optimize_x86_materialize_i64_with_mov_r32_imm32,
+    require_post_allocation_machine_rule, validate_x86_mov_r32_imm32_materialization,
 };
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
+    StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
     validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
-    StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
 use super::super::OptimizedPostAllocationMachineOptimizationError;

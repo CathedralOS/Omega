@@ -2,7 +2,7 @@ use omega_calling_conventions::MachineRegister;
 use omega_isa_x86_64::{
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitInternalControlFixup,
 };
-use omega_machine_optimizer::{Aarch64CbnzInstructionDisposition, PostAllocationMachineIdentity};
+use omega_machine_optimizer::PostAllocationMachineIdentity;
 use omega_register_model::{RegisterUnitId, RegisterViewId};
 use omega_selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
@@ -13,10 +13,11 @@ use crate::PostAllocationMachineOptimizationCustody;
 
 use super::{
     DeferredControlEncodingReason, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedStructuralUnitFunctionEncoding,
+    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+    SelectedStructuralUnitFunctionEncoding,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v7";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v8";
 
 pub(super) fn encoding_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
@@ -166,17 +167,14 @@ fn encode_counts(hasher: &mut Sha256, counts: SelectedFormEncodingCounts) {
     }
 }
 
-fn encode_machine_disposition(
-    hasher: &mut Sha256,
-    disposition: &Aarch64CbnzInstructionDisposition,
-) {
+fn encode_machine_disposition(hasher: &mut Sha256, disposition: &SelectedFormMachineDisposition) {
     match disposition {
-        Aarch64CbnzInstructionDisposition::RetainedV1 => hasher.update([0]),
-        Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
+        SelectedFormMachineDisposition::RetainedV1 => hasher.update([0]),
+        SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer } => {
             hasher.update([1]);
             hasher.update(consumer.0.to_le_bytes());
         }
-        Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+        SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
             compare,
             source_read,
         } => {
@@ -188,6 +186,10 @@ fn encode_machine_disposition(
             hasher.update(source_read.class.0.to_le_bytes());
             hasher.update(source_read.view.0.to_le_bytes());
             encode_units(hasher, &source_read.units);
+        }
+        SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer } => {
+            hasher.update([3]);
+            hasher.update(consumer.0.to_le_bytes());
         }
     }
 }

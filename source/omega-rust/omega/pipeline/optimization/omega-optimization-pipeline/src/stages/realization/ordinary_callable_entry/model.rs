@@ -288,6 +288,17 @@ impl StagedValidatedOptimizedOrdinaryCallableEntry {
         self.custody.manifest =
             OptimizedOrdinaryCallableEntryManifestIdentity::from_canonical_bytes(b"bad");
     }
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_source_artifact_for_test(&mut self) {
+        self.custody.source_artifact =
+            OptimizedObjectArtifactIdentity::from_canonical_bytes(b"bad source artifact");
+    }
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_entry_for_test(&mut self) {
+        self.custody.entry = OptimizedTerminalOrdinaryCallableEntryIdentity::from_canonical_bytes(
+            b"bad callable entry",
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

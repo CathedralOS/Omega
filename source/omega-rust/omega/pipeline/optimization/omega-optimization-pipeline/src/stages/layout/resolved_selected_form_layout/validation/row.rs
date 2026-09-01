@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use omega_machine_optimizer::{
-    Aarch64CbnzFusionAction, Aarch64CbnzInstructionDisposition, PostAllocationMachineInstruction,
+    Aarch64CbnzFusionAction, Aarch64SameViewCopyElisionAction, PostAllocationMachineInstruction,
 };
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{
@@ -12,7 +12,8 @@ use psi_core::MachineId;
 
 use crate::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
-    StagedOptimizedAarch64CbnzFusion,
+    SelectedFormMachineDisposition, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64SameViewCopyElision,
 };
 
 use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFormRow};
@@ -28,6 +29,7 @@ pub(super) fn validate(
     pre: &SelectedFormEncodingRow,
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+    copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
     expected_offset: u64,
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
     candidate: &ResolvedSelectedFormRow,
@@ -41,7 +43,7 @@ pub(super) fn validate(
     }
     match (&pre.machine_disposition, &pre.state) {
         (
-            Aarch64CbnzInstructionDisposition::RetainedV1,
+            SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
         ) => {
             if candidate.bytes != *bytes || candidate.branch.is_some() {
@@ -50,7 +52,7 @@ pub(super) fn validate(
             Ok(())
         }
         (
-            Aarch64CbnzInstructionDisposition::RetainedV1,
+            SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::DeferredControl {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             },
@@ -66,7 +68,7 @@ pub(super) fn validate(
             candidate,
         ),
         (
-            Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer },
+            SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer },
             SelectedFormEncodingState::Encoded { .. },
         ) => {
             let action = fusion_action(fusion, function, block.id, instruction.id, *consumer)?;
@@ -85,7 +87,7 @@ pub(super) fn validate(
             Ok(())
         }
         (
-            Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+            SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
                 compare,
                 source_read,
             },
@@ -109,8 +111,46 @@ pub(super) fn validate(
                 candidate,
             )
         }
+        (
+            SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer },
+            SelectedFormEncodingState::Encoded { .. },
+        ) => {
+            let action = copy_action(copy_elision, function, block.id, instruction.id, *consumer)?;
+            if architecture != Architecture::Aarch64
+                || !matches!(
+                    instruction.kind,
+                    omega_selected_instructions::SelectedInstructionKind::CopyI64
+                )
+                || action.copy != instruction.id
+                || action.return_instruction != *consumer
+                || !candidate.bytes.is_empty()
+                || candidate.branch.is_some()
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
         _ => Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch),
     }
+}
+
+fn copy_action<'a>(
+    elision: Option<&'a StagedOptimizedAarch64SameViewCopyElision>,
+    machine: MachineId,
+    block: SelectedBlockId,
+    copy: SelectedInstructionId,
+    returned: SelectedInstructionId,
+) -> Result<&'a Aarch64SameViewCopyElisionAction, OptimizedResolvedSelectedFormLayoutError> {
+    elision
+        .and_then(|elision| {
+            elision.elision().plan().actions.iter().find(|action| {
+                action.machine == machine
+                    && action.block == block
+                    && action.copy == copy
+                    && action.return_instruction == returned
+            })
+        })
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
 }
 
 fn fusion_action<'a>(
