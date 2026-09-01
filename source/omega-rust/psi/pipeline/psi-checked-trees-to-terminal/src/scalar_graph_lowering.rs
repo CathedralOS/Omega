@@ -142,7 +142,7 @@ pub(super) fn lower_scalar_graph_machine(
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let prepared = prepare_scalar_graph_machine(checked, machine, graph)?;
+    let prepared = prepare_standalone_scalar_graph_machine(checked, machine, graph)?;
     let machine_ids = [(machine, machine_id(1))];
     let requirement_counts = [(machine, usize::from(prepared.contract_value.is_some()))];
     let mut lowered = build_scalar_graph_module(
@@ -193,7 +193,25 @@ pub(super) fn prepare_scalar_graph_machine(
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
-    prepare_scalar_graph_machine_with_contract_mode(checked, machine, graph, true)
+    prepare_scalar_graph_machine_with_contract_mode(
+        checked,
+        machine,
+        graph,
+        ScalarContractMode::ClosedRuntimeValue,
+    )
+}
+
+fn prepare_standalone_scalar_graph_machine(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    graph: &CheckedScalarMachineGraph,
+) -> Result<PreparedScalarMachine, LoweringError> {
+    prepare_scalar_graph_machine_with_contract_mode(
+        checked,
+        machine,
+        graph,
+        ScalarContractMode::StandaloneProofOnlyFloatResult,
+    )
 }
 
 /// Prepare an exact selected-adapter body for inclusion beneath an attached
@@ -205,14 +223,26 @@ pub(super) fn prepare_selected_scalar_graph_machine(
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
-    prepare_scalar_graph_machine_with_contract_mode(checked, machine, graph, false)
+    prepare_scalar_graph_machine_with_contract_mode(
+        checked,
+        machine,
+        graph,
+        ScalarContractMode::SelectedByEnclosingAdmission,
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScalarContractMode {
+    ClosedRuntimeValue,
+    StandaloneProofOnlyFloatResult,
+    SelectedByEnclosingAdmission,
 }
 
 fn prepare_scalar_graph_machine_with_contract_mode(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
-    require_closed_value_contract: bool,
+    contract_mode: ScalarContractMode,
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
@@ -399,17 +429,28 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         )
     });
     let expected_value = evaluate_known_scalar_graph(&lowered_states);
-    let contract_value = if !require_closed_value_contract {
+    let contract_value = if contract_mode == ScalarContractMode::SelectedByEnclosingAdmission {
         closed_scalar_contract_plan(checked, machine)?;
         None
     } else if has_return {
-        Some(validate_closed_scalar_contract(
-            checked,
-            machine,
-            result_type,
-            expected_value,
-            has_crash,
-        )?)
+        if contract_mode == ScalarContractMode::StandaloneProofOnlyFloatResult
+            && exact_direct_result_float_meaning_reflexivity_contract(
+                checked,
+                machine,
+                result_type,
+                has_crash,
+            )
+        {
+            None
+        } else {
+            Some(validate_closed_scalar_contract(
+                checked,
+                machine,
+                result_type,
+                expected_value,
+                has_crash,
+            )?)
+        }
     } else {
         let contract = closed_scalar_contract_plan(checked, machine)?;
         if contract.has_outcome_specific_clauses()
@@ -1240,6 +1281,89 @@ fn closed_scalar_contract_plan(
         .ok_or(LoweringError::Unsupported(
             "machine has no source-independent checked contract plan",
         ))
+}
+
+/// Recognize the one D40 contract shape whose entire value is proof-only.
+/// Runtime scalar-contract lowering must not manufacture an IEEE comparison
+/// or a `FloatMeaning` runtime value for this clause, so every checked source
+/// coordinate is replayed before the clause is erased from `MachineContract`.
+fn exact_direct_result_float_meaning_reflexivity_contract(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    result_type: ScalarType,
+    allow_crash_contracts: bool,
+) -> bool {
+    let Some(contract_plan) = checked
+        .facts
+        .contract_plans
+        .for_machine(machine)
+        .map(|plan| &plan.closed_scalar_values)
+    else {
+        return false;
+    };
+    if !contract_plan.requires().is_empty()
+        || contract_plan.ensures() != [None]
+        || contract_plan.has_outcome_specific_clauses()
+        || (!allow_crash_contracts && contract_plan.has_crash_clauses())
+    {
+        return false;
+    }
+    let Some(source_machine) = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+    else {
+        return false;
+    };
+    let mut ensures_contracts =
+        checked
+            .machine_contracts(source_machine)
+            .iter()
+            .filter(|contract| {
+                contract.binding.is_none()
+                    && contract.kind == psi_checked_trees::signature::SignatureContractKind::Ensures
+            });
+    let Some(ensures) = ensures_contracts.next() else {
+        return false;
+    };
+    if ensures_contracts.next().is_some() {
+        return false;
+    }
+    let [psi_checked_trees::domain::ProofFact::Expression(source_expression)] =
+        checked.proof_facts.span_or_empty(ensures.facts)
+    else {
+        return false;
+    };
+    let Some(projection) = checked
+        .facts
+        .proof
+        .direct_result_float_meaning_reflexivity(machine, *source_expression)
+    else {
+        return false;
+    };
+    if projection.validate().is_err() {
+        return false;
+    }
+    let psi_checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result) =
+        projection.source
+    else {
+        return false;
+    };
+    if result.owner_machine != machine {
+        return false;
+    }
+    matches!(
+        (result_type, result.fallback.primitive, projection.operation),
+        (
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            PrimitiveType::F32,
+            psi_numerics::float_projection::FloatProjectionOperation::Meaning32,
+        ) | (
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            PrimitiveType::F64,
+            psi_numerics::float_projection::FloatProjectionOperation::Meaning64,
+        )
+    )
 }
 
 fn validate_closed_scalar_contract(

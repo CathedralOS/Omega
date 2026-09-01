@@ -38,6 +38,39 @@ pub struct ProofFacts {
 }
 
 impl ProofFacts {
+    /// Rejoin one exact authored equality to the unique checked direct-result
+    /// FloatMeaning projection it reflexively names. Consumers still own their
+    /// stage-specific result-shape and contract-lane checks.
+    pub fn direct_result_float_meaning_reflexivity(
+        &self,
+        owner_machine: psi_symbols::SymbolHandle,
+        source_expression: psi_typed_trees::expression::ExpressionHandle,
+    ) -> Option<&crate::CheckedFloatMeaningProjection> {
+        let mut equalities = self
+            .float_meaning_equalities
+            .iter()
+            .filter(|equality| equality.source_expression == source_expression);
+        let equality = equalities.next()?;
+        if equalities.next().is_some() || equality.left != equality.right {
+            return None;
+        }
+        let mut projections = self
+            .float_meaning_projections
+            .iter()
+            .filter(|projection| projection.result.id == equality.left);
+        let projection = projections.next()?;
+        if projections.next().is_some()
+            || !matches!(
+                projection.source,
+                crate::CheckedFloatProjectionSource::DirectMachineResult(result)
+                    if result.owner_machine == owner_machine
+            )
+        {
+            return None;
+        }
+        Some(projection)
+    }
+
     pub fn with_roots(
         obligations: Arena<ProofObligationFact>,
         contract_facts: Arena<ContractProofFact>,

@@ -12,33 +12,10 @@ fn direct_result_float_meaning_reflexivity_proves_exit(
     let psi_facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
         return false;
     };
-    let mut equalities = facts
+    facts
         .proof
-        .float_meaning_equalities
-        .iter()
-        .filter(|equality| equality.source_expression == expression);
-    let Some(equality) = equalities.next() else {
-        return false;
-    };
-    if equalities.next().is_some() || equality.left != equality.right {
-        return false;
-    }
-    let mut projections = facts
-        .proof
-        .float_meaning_projections
-        .iter()
-        .filter(|projection| projection.result.id == equality.left);
-    let Some(projection) = projections.next() else {
-        return false;
-    };
-    if projections.next().is_some() {
-        return false;
-    }
-    matches!(
-        projection.source,
-        psi_checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result)
-            if result.owner_machine == machine_symbol
-    )
+        .direct_result_float_meaning_reflexivity(machine_symbol, expression)
+        .is_some()
 }
 
 pub(super) fn check_exit_ensures(
