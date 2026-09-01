@@ -3,6 +3,7 @@
 mod calling;
 mod canonical;
 mod plan;
+mod projected_structural_call_return;
 mod scalar;
 mod shared;
 mod structural;
@@ -13,7 +14,7 @@ use shared::*;
 pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
-    canonical::identity(plan, b"omega.terminal-legalized-operations.v10\0", true)
+    canonical::identity(plan, b"omega.terminal-legalized-operations.v11\0", true)
 }
 
 #[doc(hidden)]

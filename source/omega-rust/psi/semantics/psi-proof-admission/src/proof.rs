@@ -13,7 +13,7 @@ use crate::{
     check_integer_cast_bound_conversion, check_integer_cast_chain_witness,
     check_integer_correlated_forbidden_root_conversion,
     check_integer_correlated_forbidden_root_witness, decide_primitive, integer_affine_truth_bounds,
-    integer_cast_truth_bounds,
+    integer_cast_truth_bounds, map_integer_affine_bound,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +68,13 @@ pub enum ProofRule {
         root_bound: Box<ProofNode>,
         witness: IntegerAffineWitness,
     },
+    /// Map two independently proved scalar endpoints through one cited prior
+    /// exact-add definition. This is distinct from an affine literal sibling.
+    IntegerExactAddDefinitionBound {
+        left_bound: Box<ProofNode>,
+        right_bound: Box<ProofNode>,
+        definition_axiom: usize,
+    },
     /// Map one independently proved root bound through one checked ordered
     /// word of partial fixed-integer exact casts and strict widening identities.
     IntegerCastBound {
@@ -97,6 +104,7 @@ pub enum AcceptedProofRule {
     IntegerLessOrEqualTransitivity,
     IntegerLessOrEqualSubstitution,
     IntegerAffineBound,
+    IntegerExactAddDefinitionBound,
     IntegerCastBound,
     IntegerCorrelatedForbiddenRoots,
 }
@@ -722,6 +730,116 @@ fn check_node(
                     .ok_or(ProofError::UnknownSemanticAxiom(definition_index))?;
                 acceptance.record_semantic_axiom(definition_index, proposition);
             }
+            Ok(())
+        }
+        ProofRule::IntegerExactAddDefinitionBound {
+            left_bound,
+            right_bound,
+            definition_axiom,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerExactAddDefinitionBound);
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                machine_parameter_values,
+                left_bound,
+                acceptance,
+            )?;
+            check_node(
+                context,
+                assumptions,
+                semantic_axioms,
+                machine_parameter_values,
+                right_bound,
+                acceptance,
+            )?;
+            let definition = semantic_axioms
+                .get(*definition_axiom)
+                .ok_or(ProofError::UnknownSemanticAxiom(*definition_axiom))?;
+            context
+                .validate(definition)
+                .map_err(ProofError::MalformedProposition)?;
+            let Proposition::Equal(first, second) = definition else {
+                return Err(ProofError::RulePremiseMismatch(
+                    "integer exact-add definition",
+                ));
+            };
+            let (output, expression) = match (first, second) {
+                (ScalarTerm::Value { .. }, ScalarTerm::ExactIntegerAdd { .. }) => (first, second),
+                (ScalarTerm::ExactIntegerAdd { .. }, ScalarTerm::Value { .. }) => (second, first),
+                _ => {
+                    return Err(ProofError::RulePremiseMismatch(
+                        "integer exact-add definition",
+                    ));
+                }
+            };
+            let ScalarTerm::ExactIntegerAdd {
+                scalar_type, left, ..
+            } = expression
+            else {
+                unreachable!("matched exact-add definition")
+            };
+            if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
+                || output.scalar_type() != psi_core::ScalarType::Integer(*scalar_type)
+            {
+                return Err(ProofError::RulePremiseMismatch(
+                    "integer exact-add definition type",
+                ));
+            }
+            let witness = IntegerAffineWitness {
+                root: left.as_ref().clone(),
+                target: expression.clone(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            };
+            let form = check_integer_affine_witness(context, semantic_axioms, &witness)
+                .map_err(ProofError::IntegerAffineWitness)?;
+            let evidence = Proposition::Conjunction(vec![
+                left_bound.conclusion.clone(),
+                right_bound.conclusion.clone(),
+            ]);
+            let mapped = map_integer_affine_bound(&form, &evidence)
+                .map_err(ProofError::IntegerAffineBoundConversion)?;
+            let Proposition::IntegerMathLessOrEqual(mapped_left, mapped_right) = mapped else {
+                return Err(ProofError::RulePremiseMismatch(
+                    "integer exact-add mapped bound",
+                ));
+            };
+            let (literal, lower) = match (&mapped_left, &mapped_right) {
+                (IntegerMathTerm::IntegerLiteral(literal), IntegerMathTerm::Add(_, _)) => {
+                    (literal, true)
+                }
+                (IntegerMathTerm::Add(_, _), IntegerMathTerm::IntegerLiteral(literal)) => {
+                    (literal, false)
+                }
+                _ => {
+                    return Err(ProofError::RulePremiseMismatch(
+                        "integer exact-add mapped bound",
+                    ));
+                }
+            };
+            let value =
+                literal
+                    .as_integer_value(*scalar_type)
+                    .ok_or(ProofError::RulePremiseMismatch(
+                        "integer exact-add mapped literal",
+                    ))?;
+            let literal = ScalarTerm::integer(*scalar_type, value)
+                .map_err(|_| ProofError::RulePremiseMismatch("integer exact-add mapped literal"))?;
+            let expected = if lower {
+                Proposition::LessOrEqual(literal, output.clone())
+            } else {
+                Proposition::LessOrEqual(output.clone(), literal)
+            };
+            if proof.conclusion != expected {
+                return Err(ProofError::IntegerAffineBoundConversion(
+                    IntegerAffineBoundConversionError::ConclusionMismatch,
+                ));
+            }
+            acceptance.record_semantic_axiom(*definition_axiom, definition);
             Ok(())
         }
         ProofRule::IntegerCastBound {

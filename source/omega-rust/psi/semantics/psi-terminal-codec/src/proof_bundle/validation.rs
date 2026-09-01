@@ -118,6 +118,11 @@ fn validate_proof_node(node: &ProofNode, depth: usize) -> Result<(), ProofCodecE
             relation: left_equals_middle,
             equality: middle_equals_right,
             ..
+        }
+        | ProofRule::IntegerExactAddDefinitionBound {
+            left_bound: left_equals_middle,
+            right_bound: middle_equals_right,
+            ..
         } => {
             validate_proof_node(left_equals_middle, depth + 1)?;
             validate_proof_node(middle_equals_right, depth + 1)

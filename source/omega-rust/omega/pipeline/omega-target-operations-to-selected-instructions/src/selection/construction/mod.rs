@@ -17,6 +17,9 @@ pub(super) fn build_plan(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
+    if !target.projected_structural_call_returns.is_empty() {
+        return Err(SelectedInstructionError::ProjectedStructuralCallReturnNotYetSelectable);
+    }
     require_key_rows(constraints.keys, catalog)?;
     let mut functions = target
         .functions

@@ -4,6 +4,7 @@ mod arithmetic;
 mod shift;
 
 use super::immediate::{
+    StraightLineBooleanEqualImmediateTranslationReceipt,
     StraightLineBooleanImmediateTranslationReceipt,
     StraightLineBooleanNotImmediateTranslationReceipt,
     StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
@@ -38,6 +39,9 @@ use super::terminal::{
     StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,
     StraightLineUnitCallReturnTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
 };
+use crate::validation::{
+    StructuralCallReturnCallerTranslationReceipt, StructuralParameterReturnCalleeTranslationReceipt,
+};
 use arithmetic::{
     ExactAddReceipt, ExactDivideReceipt, ExactMultiplyReceipt, ExactRemainderReceipt,
     ExactSubtractReceipt, SaturatingAddReceipt, SaturatingDivideReceipt, SaturatingMultiplyReceipt,
@@ -48,10 +52,6 @@ use arithmetic::{
 use shift::{
     ExactShiftLeftReceipt, ExactShiftRightReceipt, WrappingShiftLeftReceipt,
     WrappingShiftRightReceipt,
-};
-use crate::validation::{
-    StructuralCallReturnCallerTranslationReceipt,
-    StructuralParameterReturnCalleeTranslationReceipt,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +66,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationReceipt),
     StraightLineBooleanNotImmediate(StraightLineBooleanNotImmediateTranslationReceipt),
+    StraightLineBooleanEqualImmediate(StraightLineBooleanEqualImmediateTranslationReceipt),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationReceipt),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationReceipt),
     StraightLineUnitCallReturn(StraightLineUnitCallReturnTranslationReceipt),

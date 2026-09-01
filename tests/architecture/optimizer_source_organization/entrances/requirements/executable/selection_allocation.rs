@@ -94,6 +94,14 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn replay_leaf",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/mod.rs",
+        coordination_marker: "pub(in crate::legalization) fn derive",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/replay/mod.rs",
+        coordination_marker: "pub(in crate::legalization) fn replay",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/mod.rs",
         coordination_marker: "pub fn select_instructions",
     },

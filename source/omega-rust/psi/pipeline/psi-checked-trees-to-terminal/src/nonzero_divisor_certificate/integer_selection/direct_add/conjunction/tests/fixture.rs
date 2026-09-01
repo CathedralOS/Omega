@@ -83,6 +83,49 @@ pub(super) fn shared_join(sign: IntegerSign, bits: u16, lower: bool) -> Fixture 
     graph(integer_type, values, lower, false, true)
 }
 
+pub(super) fn outer_fork_join(
+    sign: IntegerSign,
+    bits: u16,
+    lower: bool,
+    commute_outer: bool,
+) -> Fixture {
+    let mut fixture = fork_join(sign, bits, lower, false);
+    let join = value(7, fixture.integer_type);
+    fixture.axioms.push(Proposition::Equal(
+        join.clone(),
+        ScalarTerm::exact_integer_add(
+            fixture.integer_type,
+            fixture.left.clone(),
+            fixture.right.clone(),
+        )
+        .expect("computed join"),
+    ));
+    let root = value(1, fixture.integer_type);
+    if commute_outer {
+        set_top(&mut fixture, join, root);
+    } else {
+        set_top(&mut fixture, root, join);
+    }
+    fixture
+}
+
+pub(super) fn two_computed_joins(sign: IntegerSign, bits: u16, lower: bool) -> Fixture {
+    let mut fixture = outer_fork_join(sign, bits, lower, false);
+    let second_join = value(8, fixture.integer_type);
+    fixture.axioms.push(Proposition::Equal(
+        second_join.clone(),
+        ScalarTerm::exact_integer_add(
+            fixture.integer_type,
+            value(7, fixture.integer_type),
+            value(5, fixture.integer_type),
+        )
+        .expect("second computed join"),
+    ));
+    let root = value(1, fixture.integer_type);
+    set_top(&mut fixture, root, second_join);
+    fixture
+}
+
 fn graph(
     integer_type: IntegerType,
     leaves: [IntegerValue; 3],
@@ -90,10 +133,10 @@ fn graph(
     commute_join: bool,
     shared: bool,
 ) -> Fixture {
-    let values = (1..=6)
+    let values = (1..=8)
         .map(|id| value(id, integer_type))
         .collect::<Vec<_>>();
-    let context = PropositionContext::from_value_types((1..=6).map(|id| {
+    let context = PropositionContext::from_value_types((1..=8).map(|id| {
         (
             ValueId::new(id).expect("value id"),
             ScalarType::Integer(integer_type),
@@ -146,6 +189,28 @@ fn graph(
         axioms,
         lower,
     }
+}
+
+fn set_top(fixture: &mut Fixture, left: ScalarTerm, right: ScalarTerm) {
+    fixture.target =
+        ScalarTerm::exact_integer_add(fixture.integer_type, left.clone(), right.clone())
+            .expect("top exact add");
+    let sum = IntegerMathTerm::Add(
+        Box::new(math_value(&left, fixture.integer_type)),
+        Box::new(math_value(&right, fixture.integer_type)),
+    );
+    let carrier = IntegerMathTerm::literal(if fixture.lower {
+        fixture.integer_type.minimum_value()
+    } else {
+        fixture.integer_type.maximum_value()
+    });
+    fixture.goal = if fixture.lower {
+        Proposition::IntegerMathLessOrEqual(carrier, sum)
+    } else {
+        Proposition::IntegerMathLessOrEqual(sum, carrier)
+    };
+    fixture.left = left;
+    fixture.right = right;
 }
 
 pub(super) fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {

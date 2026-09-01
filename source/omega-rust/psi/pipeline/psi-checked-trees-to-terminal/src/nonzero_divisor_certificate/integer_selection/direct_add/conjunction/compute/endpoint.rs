@@ -138,7 +138,58 @@ fn derive_uncached(
         )?;
         return Some(EndpointProof { value, proof });
     }
-    None
+    definitions::exact_add(
+        definition.left,
+        integer_type,
+        semantic_axioms,
+        definition_index,
+        definition.index,
+    )?;
+    definitions::exact_add(
+        definition.right,
+        integer_type,
+        semantic_axioms,
+        definition_index,
+        definition.index,
+    )?;
+    if !state.visit_computed_join() {
+        return None;
+    }
+    let left = derive(
+        context,
+        integer_type,
+        definition.left,
+        lower,
+        assumptions,
+        semantic_axioms,
+        definition_index,
+        definition.index,
+        depth + 1,
+        state,
+    )?;
+    let right = derive(
+        context,
+        integer_type,
+        definition.right,
+        lower,
+        assumptions,
+        semantic_axioms,
+        definition_index,
+        definition.index,
+        depth + 1,
+        state,
+    )?;
+    combine::computed_definition_bound(
+        context,
+        definition.expression,
+        operand,
+        definition.index,
+        integer_type,
+        left,
+        right,
+        lower,
+        semantic_axioms,
+    )
 }
 
 fn orient_exact(

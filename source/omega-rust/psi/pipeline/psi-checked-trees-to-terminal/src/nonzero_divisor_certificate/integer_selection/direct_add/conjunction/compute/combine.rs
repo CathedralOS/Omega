@@ -87,6 +87,46 @@ pub(super) fn mapped_definition_bound(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn computed_definition_bound(
+    context: &PropositionContext,
+    expression: &ScalarTerm,
+    output: &ScalarTerm,
+    definition_axiom: usize,
+    integer_type: IntegerType,
+    left: EndpointProof,
+    right: EndpointProof,
+    lower: bool,
+    semantic_axioms: &[Proposition],
+) -> Option<EndpointProof> {
+    let value = add(integer_type, left.value, right.value)?;
+    expression_bound(
+        context,
+        integer_type,
+        expression,
+        lower,
+        left.clone(),
+        right.clone(),
+        semantic_axioms,
+    )?;
+    let literal = ScalarTerm::integer(integer_type, value).ok()?;
+    Some(EndpointProof {
+        value,
+        proof: ProofNode {
+            conclusion: if lower {
+                Proposition::LessOrEqual(literal, output.clone())
+            } else {
+                Proposition::LessOrEqual(output.clone(), literal)
+            },
+            rule: ProofRule::IntegerExactAddDefinitionBound {
+                left_bound: Box::new(left.proof),
+                right_bound: Box::new(right.proof),
+                definition_axiom,
+            },
+        },
+    })
+}
+
 pub(super) fn add(
     integer_type: IntegerType,
     left: IntegerValue,

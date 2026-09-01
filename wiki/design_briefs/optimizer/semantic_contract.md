@@ -65,9 +65,13 @@ linear structural call/return closure retains one identical canonical nonempty
 roster across caller parameter, call result, both declared results, callee
 parameter, and callee source. Independent plan and local-function replay
 reconstruct native ABI placement and every roster location. Boundary/provider,
-unrelated, and all other projected-roster shapes still reject, and legalization
-has no authority to consume this carrier. No stage may infer a field
-qualification from root shape or carrier equality.
+unrelated, and all other projected-roster shapes still reject. Legalization has
+one bounded identity-custody route for that exact atomic caller/callee closure:
+it retains the target functions and optimizer node evidence and independently
+replays the complete source, target, ABI, and roster contract. It cannot select
+instructions or alter a qualification; selection and later stages remain
+unsupported. No stage may infer a field qualification from root shape or
+carrier equality.
 
 At control-flow joins, an output may retain only qualifications carried by
 every incoming occurrence through valid establishment lineage. CSE and GVN

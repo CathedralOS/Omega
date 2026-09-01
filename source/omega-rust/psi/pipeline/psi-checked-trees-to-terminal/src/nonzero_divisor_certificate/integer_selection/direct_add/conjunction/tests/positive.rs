@@ -1,7 +1,7 @@
 use psi_core::IntegerSign;
 
 use super::super::model::SearchBudget;
-use super::fixture::{fork_join, shared_join};
+use super::fixture::{fork_join, outer_fork_join, shared_join};
 
 #[test]
 fn fork_join_is_produced_and_independently_admitted_for_fixed_integer_families() {
@@ -16,6 +16,24 @@ fn fork_join_is_produced_and_independently_admitted_for_fixed_integer_families()
         assert!(!outcome.exhausted);
         assert_eq!(outcome.usage.definition_visits, 3);
         assert_eq!(outcome.usage.peak_depth, 2);
+        fixture.admit(&outcome);
+    }
+}
+
+#[test]
+fn one_internal_computed_join_is_kernel_admitted_in_both_outer_orders() {
+    for (sign, bits, lower, commute) in [
+        (IntegerSign::Unsigned, 8, false, false),
+        (IntegerSign::Unsigned, 64, true, true),
+        (IntegerSign::Signed, 8, true, false),
+        (IntegerSign::Signed, 64, false, true),
+    ] {
+        let fixture = outer_fork_join(sign, bits, lower, commute);
+        let outcome = fixture.prove(SearchBudget::default());
+        assert!(!outcome.exhausted);
+        assert_eq!(outcome.usage.definition_visits, 4);
+        assert_eq!(outcome.usage.peak_depth, 3);
+        assert_eq!(outcome.usage.computed_joins, 1);
         fixture.admit(&outcome);
     }
 }

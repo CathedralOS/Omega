@@ -108,6 +108,86 @@ impl StraightLineBooleanNotImmediateTranslationReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineBooleanEqualImmediateTranslationReceipt {
+    machine: MachineId,
+    left_constant_operation: OperationId,
+    right_constant_operation: OperationId,
+    equal_operation: OperationId,
+    return_edge: EdgeId,
+    left_constant_result: ValueId,
+    right_constant_result: ValueId,
+    equal_result: ValueId,
+    left_value: bool,
+    right_value: bool,
+    materialized_value: bool,
+}
+
+impl StraightLineBooleanEqualImmediateTranslationReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        left_constant_operation: OperationId,
+        right_constant_operation: OperationId,
+        equal_operation: OperationId,
+        return_edge: EdgeId,
+        left_constant_result: ValueId,
+        right_constant_result: ValueId,
+        equal_result: ValueId,
+        left_value: bool,
+        right_value: bool,
+        materialized_value: bool,
+    ) -> Self {
+        Self {
+            machine,
+            left_constant_operation,
+            right_constant_operation,
+            equal_operation,
+            return_edge,
+            left_constant_result,
+            right_constant_result,
+            equal_result,
+            left_value,
+            right_value,
+            materialized_value,
+        }
+    }
+
+    pub const fn machine(self) -> MachineId {
+        self.machine
+    }
+    pub const fn left_constant_operation(self) -> OperationId {
+        self.left_constant_operation
+    }
+    pub const fn right_constant_operation(self) -> OperationId {
+        self.right_constant_operation
+    }
+    pub const fn equal_operation(self) -> OperationId {
+        self.equal_operation
+    }
+    pub const fn return_edge(self) -> EdgeId {
+        self.return_edge
+    }
+    pub const fn left_constant_result(self) -> ValueId {
+        self.left_constant_result
+    }
+    pub const fn right_constant_result(self) -> ValueId {
+        self.right_constant_result
+    }
+    pub const fn equal_result(self) -> ValueId {
+        self.equal_result
+    }
+    pub const fn left_value(self) -> bool {
+        self.left_value
+    }
+    pub const fn right_value(self) -> bool {
+        self.right_value
+    }
+    pub const fn materialized_value(self) -> bool {
+        self.materialized_value
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StraightLineIntegerImmediateTranslationReceipt {
     machine: MachineId,
     constant_operation: OperationId,

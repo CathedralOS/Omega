@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-eight abstract-to-target families are covered,
+  machine-rule family. Fifty-three abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -536,6 +536,15 @@ decision. Only true language-semantic questions belong in
   (10 direct cases); optimized custody covers the same 10 combinations and
   keeps this grammar disjoint from both plain Boolean-immediate return and
   parameter Boolean-not.
+  The adjacent constant Boolean-equality-to-immediate family admits only
+  `[BooleanConstant, BooleanConstant, BooleanEqual, Return]`. Independent
+  source grammar and target replay retain both constant definitions, their
+  ordered equality operands, the comparison result, all four ordered truth
+  pairs, exact Boolean result, provenance, and return edge while requiring
+  `ReturnBooleanImmediate`. All four pairs cross both direct translation and
+  public optimized-target custody on all five native targets (20 cases at each
+  boundary); the family remains disjoint from plain Boolean-immediate,
+  constant Boolean-not, and parameter Boolean-equality shapes.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -648,8 +657,16 @@ decision. Only true language-semantic questions belong in
   Missing, wrong-path, wrong-domain, duplicate, unsorted, machine, placement,
   coordinate, and authored-access corruption fail closed; boundary/provider,
   unrelated-function, and unrelated-result rosters remain explicitly fenced.
-  Public no-rewrite optimizer custody reaches this receipt, but legalization
-  and every later physical stage remain unsupported. The paired function-
+  Public no-rewrite optimizer custody reaches this receipt, and the same exact
+  closure now crosses legalization into a distinct atomic result-bearing
+  structural carrier. Separate source and replay taxonomies reconstruct the
+  complete caller/callee grammar, target and ABI shape, both block entries,
+  projected rosters, and every optimizer-node fuel/effect/ownership row; the
+  legalized identity and typed receipt bind that custody on all five targets.
+  Roster, machine, ABI, node, unrelated-shape, and producer/replay-boundary
+  corruption fail closed. Instruction selection returns a typed unsupported
+  result, so selection and every later physical stage remain unsupported. The
+  paired function-
   result and operation-result source slice is also complete. Terminal
   declarations and structural operation results carry separate exact projected
   rosters; calls copy only the callee result roster; and return replay rejoins
@@ -887,6 +904,11 @@ decision. Only true language-semantic questions belong in
     target replay cover both truth values across all five targets, retain both
     source operations in provenance, and prove the target contains only the
     complemented Boolean immediate.
+  - [x] Add constant Boolean-equality-to-immediate as its own exact abstract-
+    to-target family. Its independently reconstructed four-operation grammar
+    and target replay cover all four ordered truth pairs across all five
+    targets, retain both constants and the equality operation in provenance,
+    and prove the target contains only the exact Boolean result.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
@@ -1056,12 +1078,16 @@ decision. Only true language-semantic questions belong in
   budget. Existing kernel rules re-admit every completed proof; deterministic
   memoization, ambiguity, cycle, type/address/overflow, exact-budget, and proof-
   corruption tests fail closed, and a source-to-Terminal-to-codec-to-independent-
-  verifier canary pins custody. Internal computed-plus-computed definitions and
-  arbitrary exact-add DAG authority remain explicitly refused. In particular,
-  the proposed graph's extra outer `r +` still places a computed-plus-computed
-  definition below the canonical top conjunction and therefore remains outside
-  this slice. The allocator original-victim fixture still does not exist. No
-  original-victim allocation claim exists yet. A
+  verifier canary pins custody. That producer now also admits exactly one
+  internal computed-plus-computed definition per shared search query: two
+  recursively proven fixed-integer endpoints are mapped through one exact
+  cited prior definition by a separately kernel-checked rule. The exact
+  proposed graph `r + ((r + (a + b)) + (b + r))` now crosses source,
+  Terminal, proof-bundle format 23, and independent verifier replay. The same
+  shared deterministic definition/depth/memo/cycle state owns a distinct
+  one-join budget; a second computed join and arbitrary exact-add DAG authority
+  remain explicitly refused. The allocator original-victim fixture still does
+  not exist. No original-victim allocation claim exists yet. A
   fourteenth independently replayed V1 artifact now integrates the validated epoch-two
   reload-victim obligations into one complete recursive logical insertion
   schedule. Its distinct stored-value type prevents a compiler-private reload

@@ -9,7 +9,9 @@ mod legalization;
 mod selection;
 
 pub use legalization::{
-    LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations,
+    LegalizationError, LegalizationValidationReceipt,
+    ProjectedStructuralCallReturnLegalizationError,
+    ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity, legalize_target_operations, validate_legalized_operations,
 };
 pub use selection::{

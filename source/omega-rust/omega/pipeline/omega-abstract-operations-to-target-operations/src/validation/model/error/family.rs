@@ -4,6 +4,7 @@ mod arithmetic;
 mod shift;
 
 use super::immediate::{
+    StraightLineBooleanEqualImmediateTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
@@ -36,6 +37,7 @@ use super::terminal::{
     StraightLineTrivialAffineLocalUnitReturnTranslationError,
     StraightLineUnitCallReturnTranslationError, StraightLineUnitReturnTranslationError,
 };
+use crate::validation::StructuralCallReturnProjectedQualificationValidationError;
 use arithmetic::{
     ExactAddError, ExactDivideError, ExactMultiplyError, ExactRemainderError, ExactSubtractError,
     SaturatingAddError, SaturatingDivideError, SaturatingMultiplyError, SaturatingRemainderError,
@@ -45,7 +47,6 @@ use arithmetic::{
 use shift::{
     ExactShiftLeftError, ExactShiftRightError, WrappingShiftLeftError, WrappingShiftRightError,
 };
-use crate::validation::StructuralCallReturnProjectedQualificationValidationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
@@ -57,6 +58,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
     StraightLineBooleanNotImmediate(StraightLineBooleanNotImmediateTranslationError),
+    StraightLineBooleanEqualImmediate(StraightLineBooleanEqualImmediateTranslationError),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationError),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationError),
     StraightLineUnitCallReturn(StraightLineUnitCallReturnTranslationError),

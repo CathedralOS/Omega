@@ -3,5 +3,6 @@
 mod active_resident_bridge_chain;
 mod assignment;
 mod immediate_conditional;
+mod projected_structural_call_return;
 mod widened_exact_add;
 mod widened_exact_subtract;

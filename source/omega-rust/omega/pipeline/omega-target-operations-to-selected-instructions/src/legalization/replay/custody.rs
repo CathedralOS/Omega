@@ -25,6 +25,7 @@ pub(super) fn validate_replay_custody(
         || proposed.functions.len()
             + proposed.unit_functions.len()
             + proposed.structural_unit_functions.len()
+            + proposed.projected_structural_call_returns.len() * 2
             != target.functions.len()
     {
         return Err(Error::NonCanonicalLegalizedPlan);

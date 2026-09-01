@@ -2,6 +2,29 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "projected structural call-return legalization custody",
+        paths: &[
+            "source/omega-rust/omega/representations/omega-legalized-operations/src/model/plan.rs",
+            "source/omega-rust/omega/representations/omega-legalized-operations/src/identity/projected_structural_call_return.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/candidate.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/source/custody.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/replay/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/replay/candidate.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/replay/contract.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/projected_structural_call_return/replay/custody.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/fixtures/projected_structural_call_return.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/legalization/projected_structural_call_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/legalization/projected_structural_call_return/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/legalization/projected_structural_call_return/corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/tests/legalization/projected_structural_call_return/fence.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/projected_structural_call_return.rs",
+        ],
+    },
+    SemanticLadder {
         family: "projected structural call-return target custody",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
@@ -90,6 +113,23 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean_not_immediate/target_corruption.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/immediate.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/immediate.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "constant Boolean-equality immediate translation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_boolean_equal_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_boolean_equal_immediate/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_boolean_equal_immediate/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate/boolean_equal.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/tests/boolean_equal_immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean_equal_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean_equal_immediate/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean_equal_immediate/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean_equal_immediate/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_boolean_equal_immediate/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/boolean_equal_immediate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/boolean_equal_immediate.rs",
         ],
     },
     SemanticLadder {

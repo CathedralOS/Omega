@@ -8,6 +8,9 @@ pub(super) fn validate_initial_roots(
     catalog: &ValidatedRegisterConstraintCatalog,
     plan: &SelectedInstructionPlan,
 ) -> Result<(), SelectedInstructionError> {
+    if !target.projected_structural_call_returns.is_empty() {
+        return Err(SelectedInstructionError::ProjectedStructuralCallReturnNotYetSelectable);
+    }
     if target.psi != plan.psi
         || target.target != plan.target
         || target.entry != plan.entry

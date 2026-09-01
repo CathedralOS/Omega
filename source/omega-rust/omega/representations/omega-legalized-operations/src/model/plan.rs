@@ -74,6 +74,35 @@ pub enum StructuralUnitLegalizationRecipe {
     ClaimCompletionSettlementsThenReturnUnitV1,
 }
 
+/// Closed identity legalization for the first result-bearing structural ABI
+/// family. This recipe retains authority; it does not select instructions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProjectedStructuralCallReturnLegalizationRecipe {
+    OwnedLinearDirectV1,
+}
+
+/// Exact target and optimizer custody for one two-function projected-roster
+/// closure. Keeping the pair atomic prevents either local function from
+/// acquiring qualification authority without its matching peer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedProjectedStructuralCallReturn {
+    pub recipe: ProjectedStructuralCallReturnLegalizationRecipe,
+    pub caller: omega_target_operations::TargetFunction,
+    pub callee: omega_target_operations::TargetFunction,
+    pub caller_entry_block: BlockId,
+    pub callee_entry_block: BlockId,
+    pub caller_nodes: Vec<LegalizedStructuralNodeCustody>,
+    pub callee_nodes: Vec<LegalizedStructuralNodeCustody>,
+}
+
+/// Optimizer metadata retained beside an identity-legalized structural node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedStructuralNodeCustody {
+    pub fuel: Vec<FuelSettlement>,
+    pub effect: EffectLink,
+    pub ownership: Vec<OwnershipEvent>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedOperationPlan {
     pub psi: TerminalPsiIdentity,
@@ -90,6 +119,9 @@ pub struct LegalizedOperationPlan {
     /// distinct from `unit_functions`: accepting a structural signature in
     /// the value-less baseline would erase its ABI and ownership transfer.
     pub structural_unit_functions: Vec<LegalizedStructuralUnitFunction>,
+    /// Atomic result-bearing structural call/return closures. Instruction
+    /// selection intentionally has no consumer for this roster yet.
+    pub projected_structural_call_returns: Vec<LegalizedProjectedStructuralCallReturn>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
