@@ -351,6 +351,15 @@ limits, canonical response matching, and explicit fallback settlement; named
 leaves own each concern. The module is absent from ordinary builds and has no
 production capability constructor until a real platform sandbox exists.
 
+Offline policy data enters separately through the 41-line
+`omega-optimization-policy-offline/src/corpus/mod.rs` coordinator. It joins
+canonical V2-log capture to independent corpus validation, then descends
+through named `model`, `identity`, `split`, and `codec` leaves. Mirrored
+admission, codec, and splitting tests sit below `corpus/tests/`; the architecture
+inventory registers the complete ladder and forbids compiler, build, pipeline,
+Psi-optimizer, and process-tooling dependencies. This is corpus custody, not a
+second policy catalog or compiler activation path.
+
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create

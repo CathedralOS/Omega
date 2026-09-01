@@ -353,6 +353,7 @@ route:
 | Which exact Psi passes and local rules are enabled? | `omega-psi-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `passes/<exact-pass>/mod.rs` |
 | Which selected-lowering or allocation-recovery rule is enabled? | `omega-regalloc/src/rules/<phase>/mod.rs` -> adjacent `catalog.rs` |
 | Which post-allocation machine rule is enabled for the ISA? | `omega-machine-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
+| How are recorded policy decisions admitted for offline work? | `omega-optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
 
 ```text
 source/omega-rust/omega/
@@ -387,6 +388,8 @@ source/omega-rust/omega/
       omega-regalloc/                 # physical analyses, allocation, recovery rules
       omega-machine-optimizer/        # symbolic-machine analyses, plans, rules
       omega-optimization-pipeline/    # cross-stage custody and compiler routes
+  tooling/
+    omega-optimization-policy-offline/ # non-authoritative corpus admission and source-group splits
 ```
 
 Within `omega-optimization-unit`, `rewrite/model/mod.rs` is the non-executable

@@ -180,3 +180,12 @@ making ordinary compiler builds execute external policy.
 
 Search and ML never invent unchecked rewrites, mutate semantic contracts,
 grant publication authority, or make the baseline compiler depend on a model.
+
+The offline policy-corpus library is the first non-authoritative tooling
+boundary. It admits canonical V2 decision logs, derives an action-independent
+identity over each complete legal decision surface, retains the recorded action
+only as an identity-bound label, and partitions whole source identities into
+deterministic training, evaluation, and regression groups. Its validated
+corpus and receipt grant no optimizer replay, compiler activation, process
+execution, or publication authority. Training and evaluation must consume this
+boundary rather than inventing a second feature schema.
