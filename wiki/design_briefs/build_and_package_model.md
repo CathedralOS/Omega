@@ -3892,9 +3892,11 @@ user-package identity. Omitting the dependency edge rejects the import rather
 than consulting bundled std. This establishes the package and compiler-handoff
 model independently of remote workspace-member selection and final application
 role-evidence plumbing. It does not complete the production migration: legacy
-`omega::language::std` import routing, build-filesystem seeding, macOS GUI
-injection, and core/std toolchain-source classification remain explicit seams
-to remove. Only `omega::language::core` keeps its magic toolchain mount.
+`omega::language::std` import routing, target/provider semantic bindings,
+dangerous-authority designations, macOS GUI injection, and core/std toolchain-
+source classification remain explicit seams to remove. Only
+`omega::language::core` keeps its magic toolchain mount after those consumers
+migrate atomically.
 
 ## Current engineering delta
 

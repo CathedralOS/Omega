@@ -767,7 +767,7 @@ fn exact_build_output_receiver(
         return false;
     }
     crate::flow::expression_type_symbol(program, receiver)
-        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "BuildOutput"))
+        .is_some_and(|type_symbol| exact_build_prelude_data(program, type_symbol, "BuildOutput"))
 }
 
 fn exact_build_log_receiver(
@@ -779,7 +779,7 @@ fn exact_build_log_receiver(
         return false;
     }
     crate::flow::expression_type_symbol(program, receiver)
-        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "BuildLog"))
+        .is_some_and(|type_symbol| exact_build_prelude_data(program, type_symbol, "BuildLog"))
 }
 
 fn exact_build_optimization_receiver(
@@ -791,7 +791,7 @@ fn exact_build_optimization_receiver(
         return false;
     }
     crate::flow::expression_type_symbol(program, receiver)
-        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "Optimizations"))
+        .is_some_and(|type_symbol| exact_build_prelude_data(program, type_symbol, "Optimizations"))
 }
 
 fn exact_build_optimization_report_receiver(
@@ -803,7 +803,7 @@ fn exact_build_optimization_report_receiver(
         return false;
     }
     crate::flow::expression_type_symbol(program, receiver)
-        .is_some_and(|type_symbol| exact_toolchain_data(program, type_symbol, "Optimizations"))
+        .is_some_and(|type_symbol| exact_build_prelude_data(program, type_symbol, "Optimizations"))
 }
 
 fn exact_statement_build_output_receiver(
@@ -861,7 +861,7 @@ fn exact_statement_build_member_receiver(
     let mut type_symbol = program
         .type_reference_table
         .type_symbol(parameter.type_reference);
-    if !exact_toolchain_data(program, type_symbol, "Build") {
+    if !exact_build_prelude_data(program, type_symbol, "Build") {
         return false;
     }
     for member in members {
@@ -877,11 +877,18 @@ fn exact_statement_build_member_receiver(
         };
         type_symbol = selected_type;
     }
-    exact_toolchain_data(program, type_symbol, expected_receiver)
+    exact_build_prelude_data(program, type_symbol, expected_receiver)
 }
 
-fn exact_toolchain_data(program: &TypedTrees, type_symbol: SymbolHandle, name: &str) -> bool {
-    program.symbols.symbol_source_origin(type_symbol) == Some(psi_source::SourceOrigin::Toolchain)
+fn exact_build_prelude_data(program: &TypedTrees, type_symbol: SymbolHandle, name: &str) -> bool {
+    program
+        .symbols
+        .symbol_source_span(type_symbol)
+        .and_then(|span| program.symbols.source_file(span))
+        .is_some_and(|source| {
+            source.origin == psi_source::SourceOrigin::Toolchain
+                && source.path == std::path::Path::new("<build-prelude>")
+        })
         && program
             .data_definitions()
             .iter()

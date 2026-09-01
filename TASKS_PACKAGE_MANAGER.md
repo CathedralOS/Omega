@@ -377,6 +377,28 @@ explicitly.
   its whole package. Candidate review designations remain non-authoritative;
   accepted bindings come only from consumer policy.
 
+  The live ordinary-std canary proves an explicit `omega_language_std`
+  dependency retains std's exact package identity and an undeclared alias does
+  not consult the compiler bundle. Build intrinsic recognition now also
+  requires the exact injected `<build-prelude>` source, not merely a
+  toolchain-origin declaration with a Build-facet spelling.
+
+  The Toolchain-origin audit is complete. Generic provenance consumers already
+  follow the frontend classification, and exact core vocabulary checks remain
+  legitimate. The remaining stale std-specific consumers are Linux Console
+  intrinsic selection, UEFI physical-entry recognition, FilesystemHost/Console
+  dangerous-authority classification, checked-interpreter FilesystemHost
+  dispatch, whole-library source-frontier admission, and standalone std/alloc
+  source classification. Migrate those only after the accepted-closure binding
+  carries the consumer-approved exact nominal declaration and normalized schema
+  fingerprint. A package name, source path, alias, repository, or bare
+  `PackageKeyIdentity` is not a substitute and must not be introduced as an
+  interim recognition rule. The legacy package-aware `omega::language::std`
+  mount remains only because the current Linux physical-evidence lane still
+  consumes its Console selection; remove both atomically after that selection
+  uses an accepted binding. This is engineering sequencing, not an owner
+  question.
+
 - [ ] Complete the remaining generic exact-application work for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic
   demands during final composition; specialize nested named calls; add explicit
