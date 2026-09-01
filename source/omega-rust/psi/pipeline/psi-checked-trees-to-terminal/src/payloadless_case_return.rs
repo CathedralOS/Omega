@@ -56,6 +56,7 @@ pub(super) fn lower_payloadless_case_return_machine(
             structural_type: result_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -87,6 +88,7 @@ pub(super) fn lower_payloadless_case_return_machine(
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                         claims: Vec::new(),
                     },
                 ),

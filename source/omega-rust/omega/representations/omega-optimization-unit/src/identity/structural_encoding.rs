@@ -353,11 +353,22 @@ pub(super) fn encode_structural_operation_result(
     bytes.id(result.structural_type);
     encode_multiplicity(bytes, result.multiplicity);
     encode_ids(bytes, &result.qualifications);
+    encode_projected_qualification_roster(bytes, &result.projected_qualifications);
     bytes.len(result.claims.len());
     for claim in &result.claims {
         bytes.id(claim.claim);
         bytes.slice(&claim.path, encode_structural_path_segment);
     }
+}
+
+pub(super) fn encode_projected_qualification_roster(
+    bytes: &mut CanonicalBytes,
+    qualifications: &[psi_terminal::StructuralPathQualification],
+) {
+    bytes.slice(qualifications, |bytes, qualification| {
+        bytes.slice(&qualification.path, encode_structural_path_segment);
+        bytes.id(qualification.domain);
+    });
 }
 
 pub(super) fn encode_completion_claim_source(

@@ -113,6 +113,7 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
                 structural_type,
                 multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }),
             entry_claims: vec![psi_terminal::EntryClaim {
                 claim,

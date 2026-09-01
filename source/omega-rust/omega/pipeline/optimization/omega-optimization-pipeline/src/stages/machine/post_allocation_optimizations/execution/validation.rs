@@ -1,9 +1,13 @@
 use super::super::{
+    OptimizedPostAllocationMachineOptimizationError,
+    StagedOptimizedPostAllocationMachineOptimization,
     validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
     validate_optimized_aarch64_cbnz_fusion_custody,
     validate_optimized_aarch64_movn_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_aarch64_movn_materialization_after_selected_lowering_custody,
     validate_optimized_aarch64_movn_materialization_custody,
+    validate_optimized_aarch64_same_view_copy_elision_after_selected_lowering_custody,
+    validate_optimized_aarch64_same_view_copy_elision_custody,
     validate_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering_custody,
     validate_optimized_x86_mov_r32_imm32_materialization_custody,
@@ -13,8 +17,6 @@ use super::super::{
     validate_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_x86_xor_zero_materialization_after_selected_lowering_custody,
     validate_optimized_x86_xor_zero_materialization_custody,
-    OptimizedPostAllocationMachineOptimizationError,
-    StagedOptimizedPostAllocationMachineOptimization,
 };
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
@@ -32,6 +34,10 @@ pub fn validate_optimized_post_allocation_machine_optimization_custody(
         }
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(staged) => {
             validate_optimized_aarch64_movn_materialization_custody(source, machine, staged)
+                .map(drop)
+        }
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(staged) => {
+            validate_optimized_aarch64_same_view_copy_elision_custody(source, machine, staged)
                 .map(drop)
         }
         StagedOptimizedPostAllocationMachineOptimization::X86XorZero(staged) => {
@@ -65,6 +71,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_after_selected_lo
         }
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(staged) => {
             validate_optimized_aarch64_movn_materialization_after_selected_lowering_custody(
+                source, machine, staged,
+            )
+            .map(drop)
+        }
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(staged) => {
+            validate_optimized_aarch64_same_view_copy_elision_after_selected_lowering_custody(
                 source, machine, staged,
             )
             .map(drop)

@@ -24,6 +24,7 @@ pub(crate) fn payloadless_establishment_matches(
             )
     }) && result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
         && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && types.get(&result.structural_type).is_some_and(|declaration| {
             matches!(
@@ -42,6 +43,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
         return false;
     };
     if !signature.qualifications.is_empty()
+        || !signature.projected_qualifications.is_empty()
         || signature.multiplicity != psi_terminal::StructuralMultiplicity::Unrestricted
         || callee
             .blocks
@@ -160,6 +162,8 @@ pub(crate) fn exact_payloadless_structural_call(
         && result.multiplicity == callee_result.multiplicity
         && result.qualifications.is_empty()
         && result.qualifications == callee_result.qualifications
+        && result.projected_qualifications.is_empty()
+        && result.projected_qualifications == callee_result.projected_qualifications
         && result.claims.is_empty()
         && contract.outcome_specific_ensures.iter().all(|row| {
             proposition_structural_roots(&row.proposition)
@@ -202,6 +206,7 @@ pub(crate) fn validate_structural_call_result(
     if result.structural_type != signature.structural_type
         || result.multiplicity != signature.multiplicity
         || result.qualifications != signature.qualifications
+        || result.projected_qualifications != signature.projected_qualifications
         || result
             .qualifications
             .windows(2)

@@ -209,6 +209,7 @@ pub(super) fn lower_structural_return_machine(
             structural_type: lookup_type_id(&type_ids, &plan.result.type_identity)?,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: result_qualifications,
+            projected_qualifications: Vec::new(),
         }),
         structural_places: expected_places
             .into_iter()

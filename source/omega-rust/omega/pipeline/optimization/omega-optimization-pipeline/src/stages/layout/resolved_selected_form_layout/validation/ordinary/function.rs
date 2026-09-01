@@ -6,7 +6,7 @@ use omega_selected_instructions::SelectedFunction;
 use omega_target::Architecture;
 
 use super::super::row;
-use super::{Fusion, PreLayoutRows, order, plan, roster};
+use super::{CopyElision, Fusion, PreLayoutRows, order, plan, roster};
 
 use super::super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedFunctionLayout,
@@ -18,6 +18,7 @@ pub(super) fn validate(
     machine: &PostAllocationMachineFunction,
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Fusion<'_>,
+    copy_elision: CopyElision<'_>,
     pre_rows: &mut PreLayoutRows<'_>,
     candidate: &ResolvedSelectedFunctionLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
@@ -78,6 +79,7 @@ pub(super) fn validate(
                 pre,
                 physical,
                 fusion,
+                copy_elision,
                 instruction_offset,
                 &layout.block_offsets,
                 candidate_row,

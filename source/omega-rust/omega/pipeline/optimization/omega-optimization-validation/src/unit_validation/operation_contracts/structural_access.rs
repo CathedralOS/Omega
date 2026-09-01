@@ -193,7 +193,7 @@ fn structural_operation_result_contract(
                 multiplicity: result.multiplicity,
                 access: psi_terminal::StructuralAccess::Owned,
                 qualifications: &result.qualifications,
-                projected_qualifications: &[],
+                projected_qualifications: &result.projected_qualifications,
             })
         })
 }

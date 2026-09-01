@@ -1,6 +1,6 @@
 use crate::tests::*;
 
-fn staged_callable_object_artifact(
+pub(super) fn staged_callable_object_artifact(
     target: NativeTarget,
     selected_lowering: bool,
 ) -> StagedValidatedOptimizedObjectArtifact {

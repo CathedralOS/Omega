@@ -304,8 +304,8 @@ producer self-attestation.
 Its public artifact is V6. V4 remains decode-only and byte-pinned without a
 structural roster; V5 retains the structural roster but decodes call proof and
 crash rows as empty. V6 encodes those rows canonically through the shared
-Terminal crash-route codec and also retains parameter-rooted projected
-qualification rows. Those rows are bound by the selected and fixed-view
+Terminal crash-route codec and also retains projected qualification rows. Those
+rows are bound by the selected and fixed-view
 semantic identities and authenticated by the outer envelope; legacy decoders
 reconstruct fields absent from their payload versions as empty.
 
@@ -406,9 +406,20 @@ a point-indexed event timeline. The bounded policy selects the resident with
 the farthest live end, then the highest virtual-register identity. It records a
 choice only: no eviction, logical spill, assigned view, selected identity,
 rewrite, storage, memory, frame, trap, unwind, encoding, emission, or
-publication authority follows from it. The next consumer must generalize the
-logical second-spill action, insertion, and reanalysis under a new bounded
-contract.
+publication authority follows from it.
+
+The next 39-line executable entrance is
+`allocation/spill_recovery_actions/mod.rs`. Its V1 artifact consumes the
+validated work item and second-victim choice, then independently reconstructs
+epoch-one logical storage, a store ordered before the source logical reload, a
+reload before the victim's first strictly later flexible use, and the complete
+later-use rewrite suffix. The namespace, source roots, victim type/origin/range,
+current and reclaimed views, anchors, rewrites, and five-axis work usage are
+identity-bound. These are target-neutral obligations only: the artifact creates
+no virtual register, instruction, slot or offset, memory effect, frame, trap,
+unwind, encoding, emission, or publication authority. Generalized insertion
+and slot scheduling across both spills, followed by both-reload reanalysis, is
+the next boundary.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
@@ -457,14 +468,18 @@ its separate replay logic. Other materialization rules remain rule-local
 selection until a genuinely shared pattern vocabulary is demonstrated.
 
 The shared matcher now has a second, still-bounded descriptor consumer. The
-core-only AArch64 same-view-copy owner matches an exact terminal
+AArch64 same-view-copy owner matches an exact terminal
 `CopyI64; ReturnI64` pair, including cross-instruction virtual-register and
 physical-view/storage relations, then joins its proposal to an independently
-replayed symbolic disposition and canonical codec. It is deliberately absent
-from the machine catalog and complete compiler route: the artifact grants no
-encoding, layout, realization, build-selection, or publication authority.
-Consequently this proves relation vocabulary and one exact copy-elision case,
-not arbitrary peephole topology or general copy removal.
+replayed symbolic disposition and canonical codec. Its exact opt-in and sole
+machine-catalog row now route a rule-neutral disposition through encoding,
+zero-byte layout, whole-function exit custody, realization, fragment/object,
+and callable publication. No ordinary lowering currently emits that terminal
+pair; fixed-view recovery emits a different shared-entry shape and composition
+fails with a typed refusal. Consequently applied positive coverage remains at
+the machine-rule boundary. Compiler coverage proves honest zero-action routing,
+not arbitrary peephole topology, general copy removal, or a compiler-generated
+applied deletion.
 
 The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
 binds the complete native target and model version into a stable identity, and
@@ -476,10 +491,10 @@ organization audit enforces that dependency boundary.
 
 Direct homes and homes after selected lowering enter one
 `StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN,
-XOR-zero, MOV-r32-imm32, and MOV-r64-imm32 therefore share the same encoding,
-layout, exit, realization, and fragment source route. The former named CBNZ/MOVN
-complete-route carriers have been removed; rule-specific values remain typed
-leaves borrowed from the shared result.
+same-view-copy elision, XOR-zero, MOV-r32-imm32, and MOV-r64-imm32 therefore
+share the same encoding, layout, exit, realization, and fragment source route.
+The former named CBNZ/MOVN complete-route carriers have been removed; rule-
+specific values remain typed leaves borrowed from the shared result.
 
 Selected-lowering realization likewise enters fragment admission through one
 `SelectedLowering` carrier whether or not a function-relative layout rule also
@@ -638,14 +653,14 @@ transformation and custody.
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
 
-The catalog matrix covers all 16 current exact names across all five native
-target constructors: 66 admitted cells and 14 typed architecture rejections.
+The catalog matrix covers all 17 current exact names across all five native
+target constructors: 68 admitted cells and 17 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
-The adjacent composition matrix covers all 120 unordered exact-name pairs on
-both x86-64 and AArch64. Its 240 cells contain 132 admitted routes, 56 typed
-composition rejections, and 52 target rejections. Every cell also checks the
+The adjacent composition matrix covers all 136 unordered exact-name pairs on
+both x86-64 and AArch64. Its 272 cells contain 140 admitted routes, 72 typed
+composition rejections, and 60 target rejections. Every cell also checks the
 exact Psi pass projection and proves that overlaying the complete Psi suite
 does not change the physical disposition; focused triple cases pin the two
 selected-lowering rules with machine and layout routes.

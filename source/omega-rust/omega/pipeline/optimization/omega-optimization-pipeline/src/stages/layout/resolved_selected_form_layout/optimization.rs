@@ -57,6 +57,20 @@ pub(super) fn validate_optimization_custody(
                 && receipt.baseline_words().checked_mul(4) == Some(normalized.baseline_bytes())
                 && receipt.selected_words().checked_mul(4) == Some(normalized.selected_bytes())
         }
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(staged) => {
+            let receipt = staged.custody();
+            let actions = u64::try_from(receipt.action_count()).ok();
+            normalized.optimization() == Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1
+                && normalized.artifact_identity() == receipt.elision().bytes()
+                && normalized.selections() == receipt.selections()
+                && normalized.post_allocation_machine_selections()
+                    == receipt.post_allocation_machine_selections()
+                && normalized.source() == receipt.source()
+                && normalized.action_count() == receipt.action_count()
+                && actions.and_then(|count| count.checked_mul(4))
+                    == Some(normalized.baseline_bytes())
+                && normalized.selected_bytes() == 0
+        }
         StagedOptimizedPostAllocationMachineOptimization::X86XorZero(staged) => {
             let receipt = staged.custody();
             normalized.optimization() == Optimization::X86SelectXorZeroI64MaterializationV1

@@ -225,6 +225,16 @@ This proves reachability of the recursive-recovery boundary. The bounded
 worklist grants only the epoch-one scheduling identity described above; spill
 choice, spill-pseudo, memory, frame, and publication authority remain absent.
 
+The adjacent spill-recovery choice retains the complete epoch-one contender
+rosters and deterministically chooses the second victim. A following 39-line
+`spill_recovery_actions` entrance turns that validated choice into target-
+neutral logical storage, store, later reload, and complete rewrite obligations.
+Its producer and independent replay bind the namespace, anchors, victim
+contract, roots, and exact work usage separately. It grants no real virtual
+register, instruction, slot/offset, memory, frame, trap, unwind, encoding,
+emission, or publication authority; generalized insertion and both-reload
+reanalysis remain next.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and
@@ -350,12 +360,16 @@ src/
 The physical pipeline mirrors compiler custody, not individual optimization
 names. Rule-specific mechanics must not leak upward into complete-route files.
 
-The first dormant core-only consumer below that taxonomy is AArch64
-same-view-copy elision. Its sub-40-line entrance joins a declarative
+The second cataloged consumer below that taxonomy is AArch64 same-view-copy
+elision. Its sub-40-line rule entrance joins a declarative
 `CopyI64; ReturnI64` proposal to independent replay; named codec, computation,
 identity, model, pattern, validation, and test rungs sit immediately below it.
-No catalog row or compiler route references the rule, so exporting the typed
-core operation does not silently enable it for a build or another consumer.
+Its exact build selection and sole machine-catalog row feed a rule-neutral
+pipeline leaf, which retains the validated disposition through physical
+publication. No current ordinary lowering emits the exact terminal pair, so
+applied deletion remains proven only at the rule boundary and compiler routing
+is a deterministic zero-action path. Fixed-view recovery's different shape is
+an explicit typed composition refusal rather than an inferred match.
 
 ## Deeper briefs
 

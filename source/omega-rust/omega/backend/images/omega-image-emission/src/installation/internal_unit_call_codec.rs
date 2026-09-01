@@ -455,6 +455,7 @@ fn decode_structural_result(
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications,
+            projected_qualifications: Vec::new(),
             claims: vec![StructuralResultClaimBinding {
                 claim,
                 path: Vec::new(),
@@ -465,6 +466,7 @@ fn decode_structural_result(
             structural_type: function_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: function_qualifications,
+            projected_qualifications: Vec::new(),
         },
         returned_claim_transfers: vec![StructuralResultClaimTransfer {
             callee_claim,

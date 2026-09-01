@@ -17,6 +17,7 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
             Optimization::X86SelectXorZeroI64MaterializationV1,
             Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
             Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
+            Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
         ]
     );
     let declared = Optimization::ALL
@@ -32,6 +33,7 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
         PostAllocationMachineRuleKind::X86XorZero,
         PostAllocationMachineRuleKind::X86MovR32Imm32,
         PostAllocationMachineRuleKind::X86MovR64Imm32SignExtended,
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyElision,
     ];
     for (descriptor, expected_kind) in POST_ALLOCATION_MACHINE_RULE_CATALOG
         .into_iter()

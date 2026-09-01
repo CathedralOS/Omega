@@ -113,13 +113,11 @@ fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
         assert_eq!(homes.custody().structural_unit_function_count(), 0);
         assert_eq!(homes.custody().assignment_count(), 0);
         assert!(homes.homes().plan().functions[0].assignments.is_empty());
-        assert!(
-            homes
-                .post_allocation_manifest()
-                .record()
-                .selected_transformations
-                .is_empty()
-        );
+        assert!(homes
+            .post_allocation_manifest()
+            .record()
+            .selected_transformations
+            .is_empty());
         let legality_stage = homes.legality_stage();
         let range_stage = legality_stage.live_range_stage();
         let environment = range_stage

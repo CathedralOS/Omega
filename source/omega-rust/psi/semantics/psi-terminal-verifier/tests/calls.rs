@@ -1096,6 +1096,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                     structural_type: result_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 }),
                 structural_places: vec![
                     StructuralPlaceDeclaration {
@@ -1124,6 +1125,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                             structural_type: result_type,
                             multiplicity: StructuralMultiplicity::Unrestricted,
                             qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
                             claims: Vec::new(),
                         }),
                         kind: OperationKind::CallStructural {
@@ -1167,6 +1169,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                     structural_type: result_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 }),
                 structural_places: vec![
                     StructuralPlaceDeclaration {
@@ -1195,6 +1198,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
                             structural_type: result_type,
                             multiplicity: StructuralMultiplicity::Unrestricted,
                             qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
                             claims: Vec::new(),
                         }),
                         kind: OperationKind::EstablishPayloadlessCase {

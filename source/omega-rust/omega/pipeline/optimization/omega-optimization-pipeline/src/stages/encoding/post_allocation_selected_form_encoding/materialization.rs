@@ -75,7 +75,10 @@ impl<'a> MaterializationPlan<'a> {
             StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) => {
                 Some(Self::X86XorZero(materialization.materialization().plan()))
             }
-            StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(_) => None,
+            StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(_)
+            | StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(_) => {
+                None
+            }
         }
     }
 

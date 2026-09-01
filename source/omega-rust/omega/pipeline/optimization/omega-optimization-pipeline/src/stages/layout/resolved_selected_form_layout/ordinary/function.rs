@@ -5,7 +5,10 @@ use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedFunction, SelectedInstructionId};
 use omega_target::Architecture;
 
-use crate::{SelectedFormEncodingRow, StagedOptimizedAarch64CbnzFusion};
+use crate::{
+    SelectedFormEncodingRow, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64SameViewCopyElision,
+};
 
 use super::super::{
     OptimizedResolvedSelectedFormLayoutError, ResolvedSelectedBlockLayout, ResolvedSelectedFormRow,
@@ -20,6 +23,7 @@ pub(in super::super) fn layout(
     machine_rows: &BTreeMap<SelectedInstructionId, &PostAllocationMachineInstruction>,
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+    copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
 ) -> Result<ResolvedSelectedFunctionLayout, OptimizedResolvedSelectedFormLayoutError> {
     let ordered = order::derive(function, fusion)?;
     let layout = plan::derive(architecture, &ordered, pre_rows)?;
@@ -51,6 +55,7 @@ pub(in super::super) fn layout(
                 pre,
                 physical,
                 fusion,
+                copy_elision,
             )?;
             let byte_count = u64::try_from(bytes.len())
                 .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;

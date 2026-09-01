@@ -165,11 +165,37 @@ pub(crate) fn validate_function_structural_catalog(
                 &result.qualifications,
                 domains,
             )
+            || !structural_projected_qualifications_match(
+                result.structural_type,
+                &result.projected_qualifications,
+                types,
+                domains,
+            )
         {
             return Err(mismatch());
         }
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+        let structural_result = match &node.operation {
+            O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
+                Some(result)
+            }
+            _ => None,
+        };
+        if let Some(result) = structural_result
+            && (!structural_qualifications_match(
+                result.structural_type,
+                &result.qualifications,
+                domains,
+            ) || !structural_projected_qualifications_match(
+                result.structural_type,
+                &result.projected_qualifications,
+                types,
+                domains,
+            ))
+        {
+            return Err(mismatch());
+        }
         let expected = match &node.operation {
             O::EstablishByteSequenceLiteral { place, .. } => Some((place.id, place.kind)),
             // Trivial affine locals have two faithful representations: an

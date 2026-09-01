@@ -3,11 +3,14 @@ use omega_machine_optimizer::{
 };
 
 use super::super::{
-    stage_optimized_aarch64_cbnz_fusion,
+    OptimizedPostAllocationMachineOptimizationError,
+    StagedOptimizedPostAllocationMachineOptimization, stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
     stage_optimized_aarch64_movn_materialization,
     stage_optimized_aarch64_movn_materialization_after_active_resident_rematerialization,
     stage_optimized_aarch64_movn_materialization_after_selected_lowering,
+    stage_optimized_aarch64_same_view_copy_elision,
+    stage_optimized_aarch64_same_view_copy_elision_after_selected_lowering,
     stage_optimized_x86_mov_r32_imm32_materialization,
     stage_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization,
     stage_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering,
@@ -17,8 +20,6 @@ use super::super::{
     stage_optimized_x86_xor_zero_materialization,
     stage_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization,
     stage_optimized_x86_xor_zero_materialization_after_selected_lowering,
-    OptimizedPostAllocationMachineOptimizationError,
-    StagedOptimizedPostAllocationMachineOptimization,
 };
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
@@ -41,6 +42,10 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_for_catalog_e
         PostAllocationMachineRuleKind::Aarch64Movn => {
             stage_optimized_aarch64_movn_materialization(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn)
+        }
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyElision => {
+            stage_optimized_aarch64_same_view_copy_elision(source, machine)
+                .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision)
         }
         PostAllocationMachineRuleKind::X86XorZero => {
             stage_optimized_x86_xor_zero_materialization(source, machine)
@@ -73,6 +78,10 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_selecte
         PostAllocationMachineRuleKind::Aarch64Movn => {
             stage_optimized_aarch64_movn_materialization_after_selected_lowering(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn)
+        }
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyElision => {
+            stage_optimized_aarch64_same_view_copy_elision_after_selected_lowering(source, machine)
+                .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision)
         }
         PostAllocationMachineRuleKind::X86XorZero => {
             stage_optimized_x86_xor_zero_materialization_after_selected_lowering(source, machine)

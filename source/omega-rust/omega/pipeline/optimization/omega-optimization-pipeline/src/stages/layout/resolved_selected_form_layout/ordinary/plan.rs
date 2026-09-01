@@ -1,13 +1,15 @@
 use std::collections::BTreeMap;
 
-use omega_machine_optimizer::Aarch64CbnzInstructionDisposition;
 use omega_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind, SelectedTerminator,
 };
 use omega_target::Architecture;
 
-use crate::{DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState};
+use crate::{
+    DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition,
+};
 
 use super::super::OptimizedResolvedSelectedFormLayoutError;
 
@@ -62,7 +64,7 @@ fn instruction_size(
     row: &SelectedFormEncodingRow,
 ) -> Result<u64, OptimizedResolvedSelectedFormLayoutError> {
     match &row.machine_disposition {
-        Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { .. } => {
+        SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. } => {
             if architecture == Architecture::Aarch64
                 && matches!(instruction.kind, SelectedInstructionKind::CompareI64Zero)
                 && matches!(row.state, SelectedFormEncodingState::Encoded { .. })
@@ -71,7 +73,7 @@ fn instruction_size(
             }
             return unexpected(instruction);
         }
-        Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 { .. } => {
+        SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { .. } => {
             if architecture == Architecture::Aarch64
                 && matches!(row.state, SelectedFormEncodingState::DeferredControl { .. })
             {
@@ -79,7 +81,16 @@ fn instruction_size(
             }
             return unexpected(instruction);
         }
-        Aarch64CbnzInstructionDisposition::RetainedV1 => {}
+        SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { .. } => {
+            if architecture == Architecture::Aarch64
+                && matches!(instruction.kind, SelectedInstructionKind::CopyI64)
+                && matches!(row.state, SelectedFormEncodingState::Encoded { .. })
+            {
+                return Ok(0);
+            }
+            return unexpected(instruction);
+        }
+        SelectedFormMachineDisposition::RetainedV1 => {}
     }
     match &row.state {
         SelectedFormEncodingState::Encoded { bytes, .. } => u64::try_from(bytes.len())

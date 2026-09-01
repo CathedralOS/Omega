@@ -219,6 +219,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
         structural_type: id(708, StructuralTypeId::new),
         multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
         claims: Vec::new(),
     };
     let calls = [
@@ -526,6 +527,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
                 structural_type: id(728, StructuralTypeId::new),
                 multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             },
             callee,

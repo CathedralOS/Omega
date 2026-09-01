@@ -1,8 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_machine_optimizer::{
-    Aarch64CbnzInstructionDisposition, PhysicalOperandFootprint, PostAllocationMachineInstruction,
-};
+use omega_machine_optimizer::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId, RegisterViewId};
 use omega_selected_instructions::{
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
@@ -13,8 +11,8 @@ use omega_target::{Architecture, NativeTarget};
 use psi_core::EdgeId;
 
 use crate::{
-    SelectedFormEncodingState, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding,
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
 };
 
 use super::super::{
@@ -154,11 +152,12 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_non_retu
     let effects = match &encoding.state {
         SelectedFormEncodingState::Encoded { footprint, bytes } => {
             let disposition_matches = match encoding.machine_disposition {
-                Aarch64CbnzInstructionDisposition::RetainedV1 => bytes == &layout.bytes,
-                Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { .. } => {
+                SelectedFormMachineDisposition::RetainedV1 => bytes == &layout.bytes,
+                SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. }
+                | SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { .. } => {
                     layout.bytes.is_empty()
                 }
-                Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 { .. } => false,
+                SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { .. } => false,
             };
             if conditional_terminator || !disposition_matches || layout.branch.is_some() {
                 return Err(WholeFunctionExitContractError::InstructionRosterMismatch(

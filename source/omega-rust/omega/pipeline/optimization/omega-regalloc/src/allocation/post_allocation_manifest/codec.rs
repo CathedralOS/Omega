@@ -46,7 +46,11 @@ impl PostAllocationOptimizationManifest {
         let identity = PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let stage = match cursor.byte()? {
             1 => PostAllocationManifestStage::ValidatedRegisterHomes,
-            tag => return Err(PostAllocationOptimizationManifestDecodeError::UnknownStage(tag)),
+            tag => {
+                return Err(PostAllocationOptimizationManifestDecodeError::UnknownStage(
+                    tag,
+                ));
+            }
         };
         let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;

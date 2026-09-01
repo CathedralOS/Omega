@@ -276,3 +276,81 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
         ),
     );
 }
+
+#[test]
+fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_custody() {
+    let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+    let optimized = project_optimization_run(run(
+        projected_structural_result_verified(),
+        selections,
+    ))
+    .expect("projected structural results cross a no-rewrite optimizer run");
+    let expected = [psi_terminal::StructuralPathQualification {
+        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
+        domain: psi_core::StructuralDomainId::new(1_946).unwrap(),
+    }];
+    let unit = optimized.unit();
+    let function_result = unit.functions[0]
+        .result
+        .structural()
+        .expect("caller returns a structural result");
+    assert_eq!(function_result.projected_qualifications, expected);
+    let AbstractOperation::CallStructural { result, .. } =
+        &unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("caller retains one structural call")
+    };
+    assert_eq!(result.projected_qualifications, expected);
+    assert_eq!(
+        optimized.plan().functions[0]
+            .result
+            .structural()
+            .unwrap()
+            .projected_qualifications,
+        expected,
+    );
+    let AbstractOperation::CallStructural { result, .. } =
+        &optimized.plan().functions[0].operations[0]
+    else {
+        unreachable!()
+    };
+    assert_eq!(result.projected_qualifications, expected);
+    assert_eq!(optimized.validation().final_unit(), unit.identity);
+    assert_eq!(
+        optimized.pre_physical_manifest().record().final_unit,
+        unit.identity,
+    );
+
+    let mut detached = optimized.plan().clone();
+    let AbstractOperation::CallStructural { result, .. } =
+        &mut detached.functions[0].operations[0]
+    else {
+        unreachable!()
+    };
+    result.projected_qualifications.clear();
+    assert_eq!(
+        validate_optimized_abstract_plan_projection(
+            optimized.verified_input(),
+            unit,
+            &detached,
+            optimized.selections(),
+            optimized.psi_selections(),
+            optimized.identity_bundle().rule_set(),
+            omega_psi_optimizer::baseline_psi_cost_model_identity(),
+            optimized.decisions(),
+            optimized.pass_manifests(),
+            optimized.transformation_ledger(),
+            optimized.identity_bundle(),
+        ),
+        Err(OptimizedAbstractPlanProjectionError::ReconstructibleProjectionMismatch),
+    );
+    assert_eq!(
+        omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            optimized.plan(),
+            omega_target::NativeTarget::linux_x64(),
+        ),
+        Err(
+            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications,
+        ),
+    );
+}

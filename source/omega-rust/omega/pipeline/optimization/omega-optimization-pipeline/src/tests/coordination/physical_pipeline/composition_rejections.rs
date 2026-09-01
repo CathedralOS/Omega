@@ -1,12 +1,12 @@
 //! Fail-closed rejection of unsupported physical-phase compositions.
 
 use crate::tests::{
+    AdmissionProfile, ExplicitOptimizationRequest, IntegerValue, NativeTarget, Optimization,
+    OptimizationSelections, OptimizedVerifiedPhysicalPipelineError,
     conditional_active_resident_exact_add_chain_artifact,
     conditional_active_resident_exact_add_chain_artifact_with_false_literal,
     optimize_artifact_sections, selected_lowering_budget,
-    stage_optimized_verified_physical_pipeline_with_provider_executions, AdmissionProfile,
-    ExplicitOptimizationRequest, IntegerValue, NativeTarget, Optimization, OptimizationSelections,
-    OptimizedVerifiedPhysicalPipelineError,
+    stage_optimized_verified_physical_pipeline_with_provider_executions,
 };
 
 #[test]
@@ -63,26 +63,37 @@ fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_polic
 #[test]
 fn unadmitted_fixed_view_copy_machine_pair_rejects_without_fallback() {
     let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
-    let selections = OptimizationSelections::new([
-        Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
-        Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-    ])
-    .unwrap();
-    let optimized = optimize_artifact_sections(
-        &semantic,
-        &proof,
-        &AdmissionProfile::default(),
-        ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
-    )
-    .unwrap();
-    assert!(matches!(
-        stage_optimized_verified_physical_pipeline_with_provider_executions(
-            optimized,
+    for (machine_optimization, target) in [
+        (
+            Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
             NativeTarget::linux_x64(),
-            &[],
         ),
-        Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
-    ));
+        (
+            Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+            NativeTarget::linux_arm64(),
+        ),
+    ] {
+        let selections = OptimizationSelections::new([
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            machine_optimization,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                target,
+                &[],
+            ),
+            Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+        ));
+    }
 }
 
 #[test]

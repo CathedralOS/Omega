@@ -35,11 +35,9 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
     );
     assert!(exit.structural_unit_functions[0].call.is_none());
     assert_eq!(exit.structural_unit_functions[0].body_stack_delta, 0);
-    assert!(
-        exit.structural_unit_functions[0]
-            .modified_callee_saved_units
-            .is_empty()
-    );
+    assert!(exit.structural_unit_functions[0]
+        .modified_callee_saved_units
+        .is_empty());
     assert_eq!(
         exit.structural_unit_functions[0].returned.value,
         WholeFunctionReturnValueEvidence::UnitV1
@@ -96,11 +94,10 @@ fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
         .expect("the call-free structural leaf must place without fixup resolution");
     assert_eq!(text.text_section().bytes, [0xc3]);
     assert_eq!(text.text_section().functions.len(), 1);
-    assert!(
-        text.text_section()
-            .resolved_internal_machine_calls
-            .is_empty()
-    );
+    assert!(text
+        .text_section()
+        .resolved_internal_machine_calls
+        .is_empty());
     let text_manifest = text.manifest().record();
     assert_eq!(
         text_manifest.source_kind,

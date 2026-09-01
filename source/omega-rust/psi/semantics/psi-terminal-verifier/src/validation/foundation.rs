@@ -1,4 +1,5 @@
 use super::*;
+use super::structural_qualification_rosters::validate_projected_qualification_roster;
 
 fn validate_structural_fields(
     module: &TerminalModule,
@@ -653,6 +654,13 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             if result.place != place.id || result.structural_type != structural_type {
                 return Err(ModuleError::StructuralCallResultPlaceMismatch(producer));
             }
+            validate_projected_qualification_roster(
+                result.place,
+                result.structural_type,
+                &result.projected_qualifications,
+                &types,
+                &domains,
+            )?;
         }
         match &machine.result {
             TerminalMachineResult::Unit => {
@@ -682,7 +690,10 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             TerminalMachineResult::Structural(result) => {
                 let exact_unrestricted_payloadless_result =
                     result.multiplicity == StructuralMultiplicity::Unrestricted
-                        && result.qualifications.is_empty()
+                        && super::structural_result_contracts::has_empty_qualification_rosters(
+                            &result.qualifications,
+                            &result.projected_qualifications,
+                        )
                         && !machine.blocks.is_empty()
                         && machine.blocks.iter().all(|block| {
                             let Terminator::ReturnStructural {
@@ -752,7 +763,10 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                                     == result.structural_type
                                                 && operation_result.multiplicity
                                                     == StructuralMultiplicity::Unrestricted
-                                                && operation_result.qualifications.is_empty()
+                                                && super::structural_result_contracts::has_empty_qualification_rosters(
+                                                    &operation_result.qualifications,
+                                                    &operation_result.projected_qualifications,
+                                                )
                                                 && operation_result.claims.is_empty()
                                         },
                                     )
@@ -815,6 +829,13 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                         result.place,
                     ));
                 }
+                validate_projected_qualification_roster(
+                    result.place,
+                    result.structural_type,
+                    &result.projected_qualifications,
+                    &types,
+                    &domains,
+                )?;
                 if !machine.structural_places.iter().any(|place| {
                     place.id == result.place && place.kind == StructuralPlaceKind::Result
                 }) {
@@ -1390,46 +1411,13 @@ fn validate_structural_signature(
                 parameter.place,
             ));
         }
-        if parameter
-            .projected_qualifications
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
-            return Err(ModuleError::NonCanonicalProjectedStructuralQualifications(
-                parameter.place,
-            ));
-        }
-        for qualification in &parameter.projected_qualifications {
-            let Some(projected_type) = (!qualification.path.is_empty())
-                .then(|| {
-                    resolve_structural_path_in_types(
-                        types,
-                        parameter.structural_type,
-                        &qualification.path,
-                    )
-                })
-                .flatten()
-            else {
-                return Err(ModuleError::InvalidProjectedStructuralQualificationPath {
-                    place: parameter.place,
-                    path: qualification.path.clone(),
-                });
-            };
-            let Some(domain) = domains.get(&qualification.domain) else {
-                return Err(ModuleError::UnknownStructuralDomain(qualification.domain));
-            };
-            if domain.carrier != projected_type {
-                return Err(
-                    ModuleError::ProjectedStructuralQualificationCarrierMismatch {
-                        place: parameter.place,
-                        path: qualification.path.clone(),
-                        domain: domain.id,
-                        expected: projected_type,
-                        actual: domain.carrier,
-                    },
-                );
-            }
-        }
+        validate_projected_qualification_roster(
+            parameter.place,
+            parameter.structural_type,
+            &parameter.projected_qualifications,
+            types,
+            domains,
+        )?;
     }
     Ok(())
 }
@@ -1470,7 +1458,7 @@ fn validate_service_ceiling(
     Ok(())
 }
 
-fn resolve_structural_path_in_types(
+pub(super) fn resolve_structural_path_in_types(
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],

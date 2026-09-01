@@ -2,8 +2,8 @@
 
 use omega_isa_x86_64::encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization;
 use omega_machine_optimizer::{
-    PostAllocationMachineInstruction, X86MovR64Imm32SignExtendedInstructionDisposition,
-    X86_MOV_R64_IMM32_SIGN_EXTENDED_BASELINE_BYTE_COUNT,
+    PostAllocationMachineInstruction, X86_MOV_R64_IMM32_SIGN_EXTENDED_BASELINE_BYTE_COUNT,
+    X86MovR64Imm32SignExtendedInstructionDisposition,
 };
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedInstructionKind};

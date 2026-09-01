@@ -11,11 +11,10 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
     assert!(exit.functions.is_empty());
     assert_eq!(exit.structural_unit_functions.len(), 2);
     assert_eq!(exit.structural_unit_functions[0].body_stack_delta, 0);
-    assert!(
-        exit.structural_unit_functions
-            .iter()
-            .all(|function| function.returned.value == WholeFunctionReturnValueEvidence::UnitV1)
-    );
+    assert!(exit
+        .structural_unit_functions
+        .iter()
+        .all(|function| function.returned.value == WholeFunctionReturnValueEvidence::UnitV1));
     let exit_call = exit.structural_unit_functions[0]
         .call
         .as_ref()

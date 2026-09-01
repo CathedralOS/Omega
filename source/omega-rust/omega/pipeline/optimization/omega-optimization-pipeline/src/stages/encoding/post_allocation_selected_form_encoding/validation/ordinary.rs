@@ -1,4 +1,6 @@
-use omega_machine_optimizer::Aarch64CbnzInstructionDisposition;
+use omega_machine_optimizer::{
+    Aarch64CbnzInstructionDisposition, Aarch64SameViewCopyInstructionDisposition,
+};
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedTerminator};
@@ -10,7 +12,7 @@ use crate::{
 use super::{
     super::{
         OptimizedSelectedFormEncodingError, SelectedFormEncodingRow,
-        materialization::MaterializationPlan,
+        SelectedFormMachineDisposition, materialization::MaterializationPlan,
     },
     row,
 };
@@ -34,6 +36,12 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         _ => None,
     });
     let materialization = MaterializationPlan::from_optimization(optimization);
+    let copy_elision = optimization.and_then(|optimization| match optimization {
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
+            Some(elision)
+        }
+        _ => None,
+    });
     let mut candidate_rows = rows.iter();
 
     for (function_index, (selected_function, machine_function)) in selected_plan
@@ -52,11 +60,16 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         let materialization_function = materialization
             .map(|materialization| materialization.function(function_index))
             .transpose()?;
+        let copy_elision_function =
+            copy_elision.map(|elision| &elision.elision().plan().functions[function_index]);
         if fusion_function.is_some_and(|row| {
             row.machine != selected_function.machine
                 || row.blocks.len() != selected_function.blocks.len()
         }) || materialization_function.is_some_and(|row| {
             !row.matches(selected_function.machine, selected_function.blocks.len())
+        }) || copy_elision_function.is_some_and(|row| {
+            row.machine != selected_function.machine
+                || row.blocks.len() != selected_function.blocks.len()
         }) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
@@ -76,11 +89,16 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             let materialization_block = materialization_function
                 .map(|function| function.block(block_index))
                 .transpose()?;
+            let copy_elision_block =
+                copy_elision_function.map(|function| &function.blocks[block_index]);
             if fusion_block.is_some_and(|row| {
                 row.block != selected_block.id
                     || row.instructions.len() != machine_block.instructions.len()
             }) || materialization_block.is_some_and(|row| {
                 !row.matches(selected_block.id, machine_block.instructions.len())
+            }) || copy_elision_block.is_some_and(|row| {
+                row.block != selected_block.id
+                    || row.instructions.len() != machine_block.instructions.len()
             }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
@@ -98,21 +116,56 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                 let materialization_disposition = materialization_block
                     .map(|block| block.disposition(index, selected_instruction.id))
                     .transpose()?;
+                let copy_elision_disposition =
+                    copy_elision_block.map(|block| &block.instructions[index]);
                 if fusion_disposition.is_some_and(|row| row.instruction != selected_instruction.id)
+                    || copy_elision_disposition
+                        .is_some_and(|row| row.instruction != selected_instruction.id)
                 {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
                 let candidate = candidate_rows
                     .next()
                     .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)?;
+                let machine_disposition = match (fusion_disposition, copy_elision_disposition) {
+                    (Some(row), None) => match &row.disposition {
+                        Aarch64CbnzInstructionDisposition::RetainedV1 => {
+                            SelectedFormMachineDisposition::RetainedV1
+                        }
+                        Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
+                            SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 {
+                                consumer: *consumer,
+                            }
+                        }
+                        Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+                            compare,
+                            source_read,
+                        } => SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
+                            compare: *compare,
+                            source_read: source_read.clone(),
+                        },
+                    },
+                    (None, Some(row)) => match &row.disposition {
+                        Aarch64SameViewCopyInstructionDisposition::RetainedV1 => {
+                            SelectedFormMachineDisposition::RetainedV1
+                        }
+                        Aarch64SameViewCopyInstructionDisposition::ElidedSameViewCopyI64V1 {
+                            consumer,
+                        } => SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
+                            consumer: *consumer,
+                        },
+                    },
+                    (None, None) => SelectedFormMachineDisposition::RetainedV1,
+                    (Some(_), Some(_)) => {
+                        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                    }
+                };
                 row::validate(
                     selected_plan.target.architecture,
                     selected_instruction,
                     machine_instruction,
                     physical,
-                    fusion_disposition
-                        .map(|row| &row.disposition)
-                        .unwrap_or(&Aarch64CbnzInstructionDisposition::RetainedV1),
+                    &machine_disposition,
                     materialization_disposition,
                     candidate,
                 )?;
@@ -133,6 +186,9 @@ fn validate_optimization_function_count(
         Some(StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion)) => {
             fusion.fusion().plan().functions.len()
         }
+        Some(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(
+            elision,
+        )) => elision.elision().plan().functions.len(),
         Some(optimization) => MaterializationPlan::from_optimization(Some(optimization))
             .map(MaterializationPlan::function_count)
             .unwrap_or(expected),

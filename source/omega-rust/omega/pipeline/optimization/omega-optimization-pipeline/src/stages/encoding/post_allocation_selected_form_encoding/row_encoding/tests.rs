@@ -1,7 +1,7 @@
 use omega_isa_x86_64::x86_64_physical_register_model;
 use omega_machine_optimizer::{
-    Aarch64CbnzInstructionDisposition, PhysicalOperandFootprint, PostAllocationMachineInstruction,
-    X86XorZeroInstructionDisposition, X86XorZeroPhysicalWrite,
+    PhysicalOperandFootprint, PostAllocationMachineInstruction, X86XorZeroInstructionDisposition,
+    X86XorZeroPhysicalWrite,
 };
 use omega_register_model::{
     RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
@@ -17,6 +17,7 @@ use omega_target::Architecture;
 use psi_core::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
+use crate::SelectedFormMachineDisposition;
 use crate::stages::encoding::post_allocation_selected_form_encoding::materialization::MaterializationDisposition;
 
 fn fixture() -> (
@@ -109,7 +110,7 @@ fn xor_zero_admission_reconstructs_canonical_bytes_and_transformed_flags() {
         &selected,
         &machine,
         &physical,
-        Aarch64CbnzInstructionDisposition::RetainedV1,
+        SelectedFormMachineDisposition::RetainedV1,
         Some(MaterializationDisposition::X86XorZero(&disposition)),
     )
     .unwrap();
@@ -170,7 +171,7 @@ fn xor_zero_admission_rejects_baseline_destination_count_and_flag_corruption() {
                 &selected,
                 &machine,
                 &physical,
-                Aarch64CbnzInstructionDisposition::RetainedV1,
+                SelectedFormMachineDisposition::RetainedV1,
                 Some(MaterializationDisposition::X86XorZero(&disposition)),
             )
             .is_err()

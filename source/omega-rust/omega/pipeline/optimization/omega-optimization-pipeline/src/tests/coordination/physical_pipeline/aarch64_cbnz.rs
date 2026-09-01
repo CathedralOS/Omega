@@ -1,5 +1,6 @@
 //! AArch64 CBNZ realization through direct and selected-lowering sources.
 
+use crate::SelectedFormMachineDisposition;
 use crate::tests::{
     AdmissionProfile, ExplicitOptimizationRequest, FunctionRelativeOptimizationRealizationError,
     FunctionRelativeOptimizationRealizationManifest, NativeTarget, Optimization,
@@ -241,7 +242,7 @@ fn compiler_facing_physical_pipeline_routes_aarch64_cbnz_through_the_generic_pos
         .find(|row| row.instruction == action.branch)
         .unwrap()
         .machine_disposition;
-    let omega_machine_optimizer::Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+    let SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
         source_read,
         ..
     } = branch_disposition

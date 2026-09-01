@@ -207,6 +207,16 @@ own the closed namespace artifact. The pipeline mirror is
 all three spill-related executable entrances explicitly instead of treating
 meaningful joins as generic stage groups.
 
+Epoch-one logical recovery actions continue at
+`omega-regalloc/src/allocation/spill_recovery_actions/mod.rs`. Its 39-line
+executable entrance joins selected/range/legality, first insertion, worklist,
+and second-victim custody, then routes production through `compute.rs` and
+independent reconstruction through `replay.rs` and `validate.rs`. `model.rs`
+and `identity.rs` own the closed logical storage/store/reload/rewrite
+vocabulary. The mirrored pipeline leaf is
+`register_allocation/spill_recovery_actions.rs`; no selectable optimization
+name or real memory/frame authority is introduced.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport

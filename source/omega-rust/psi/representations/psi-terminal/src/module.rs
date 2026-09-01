@@ -11,8 +11,9 @@ use sha2::{Digest, Sha256};
 
 /// Marker for the single unstable terminal-Psi semantic vocabulary.
 ///
-/// Omega and Psi are pre-release. The compiler accepts only the vocabulary it
-/// was built with; historical terminal artifacts are not compatibility inputs.
+/// The in-memory representation accepts only the vocabulary it was built with.
+/// The terminal codec may migrate an explicitly supported prior wire vocabulary
+/// before constructing this marker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VocabularyMarker;
 
@@ -28,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        59
+        60
     }
 }
 
@@ -783,6 +784,9 @@ pub struct StructuralResultDeclaration {
     pub multiplicity: StructuralMultiplicity,
     /// Strictly ordered qualifications transferred with the value.
     pub qualifications: Vec<StructuralDomainId>,
+    /// Strictly ordered exact qualifications transferred with nonempty paths
+    /// beneath the result root.
+    pub projected_qualifications: Vec<StructuralPathQualification>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1574,6 +1578,9 @@ pub struct StructuralOperationResult {
     pub structural_type: StructuralTypeId,
     pub multiplicity: StructuralMultiplicity,
     pub qualifications: Vec<StructuralDomainId>,
+    /// Strictly ordered exact qualifications rooted beneath `place`. Calls
+    /// copy this roster exactly from the callee result declaration.
+    pub projected_qualifications: Vec<StructuralPathQualification>,
     /// Strictly ordered caller-local claim occurrences rooted beneath `place`.
     pub claims: Vec<StructuralResultClaimBinding>,
 }

@@ -6,7 +6,109 @@ use crate::tests::{
 };
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use omega_abstract_operations::AbstractOperation;
-use psi_core::{BoundaryMachineId, OperationId, PlaceId, StructuralDomainId};
+use psi_core::{
+    BoundaryMachineId, OperationId, PlaceId, StructuralDomainId, StructuralFieldId,
+    StructuralTypeId,
+};
+
+#[test]
+fn structural_call_and_return_retain_the_exact_projected_result_roster() {
+    let mut unit = operation_result_cfg_unit(OperationResultCfgShape::DominatingNonTopological);
+    let root = unit.structural_types[0].id;
+    let leaf = id(4_690, StructuralTypeId::new);
+    let domain = id(4_691, StructuralDomainId::new);
+    let row = psi_terminal::StructuralPathQualification {
+        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
+        domain,
+    };
+    unit.structural_types = vec![
+        psi_terminal::StructuralTypeDeclaration {
+            id: root,
+            identity: "validation::projected-result-root".into(),
+            shape: psi_terminal::StructuralTypeShape::Record {
+                fields: vec![psi_terminal::StructuralFieldDeclaration {
+                    id: id(4_692, StructuralFieldId::new),
+                    identity: "payload".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: psi_terminal::StructuralFieldType::Structural(leaf),
+                }],
+            },
+        },
+        psi_terminal::StructuralTypeDeclaration {
+            id: leaf,
+            identity: "validation::projected-result-leaf".into(),
+            shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ];
+    unit.structural_domains = vec![psi_terminal::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: id(4_693, psi_core::DomainSemanticId::new),
+        identity: "validation::projected-result-domain".into(),
+        carrier: leaf,
+        content_projection: None,
+    }]
+    .into();
+    for function in &mut unit.functions {
+        function.structural_parameters[0].projected_qualifications = vec![row.clone()];
+        let omega_abstract_operations::AbstractFunctionResult::Structural(result) =
+            &mut function.result
+        else {
+            panic!("fixture functions return structural values")
+        };
+        result.projected_qualifications = vec![row.clone()];
+    }
+    let call_result = unit.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::CallStructural { result, .. } => Some(result),
+            _ => None,
+        })
+        .expect("fixture has one structural call");
+    call_result.projected_qualifications = vec![row.clone()];
+    refresh_function_derivatives(&mut unit, 0);
+    refresh_function_derivatives(&mut unit, 1);
+    validate_psi_optimization_unit(&unit)
+        .expect("callee result, call result, and return source retain one exact path roster");
+
+    let mut missing_call_row = unit.clone();
+    let call_result = missing_call_row.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::CallStructural { result, .. } => Some(result),
+            _ => None,
+        })
+        .expect("fixture has one structural call");
+    call_result.projected_qualifications.clear();
+    let omega_abstract_operations::AbstractFunctionResult::Structural(caller_result) =
+        &mut missing_call_row.functions[0].result
+    else {
+        unreachable!()
+    };
+    caller_result.projected_qualifications.clear();
+    refresh_function_derivatives(&mut missing_call_row, 0);
+    let error = validate_psi_optimization_unit(&missing_call_row).unwrap_err();
+    assert!(matches!(
+        error,
+        OptimizationUnitValidationError::StructuralCallContractMismatch { .. }
+    ), "{error:?}");
+
+    let mut missing_return_row = unit;
+    let omega_abstract_operations::AbstractFunctionResult::Structural(result) =
+        &mut missing_return_row.functions[0].result
+    else {
+        panic!("fixture caller returns a structural value")
+    };
+    result.projected_qualifications.clear();
+    refresh_function_derivatives(&mut missing_return_row, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&missing_return_row),
+        Err(OptimizationUnitValidationError::StructuralReturnSourceContractMismatch { .. })
+    ));
+}
 
 #[test]
 fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {

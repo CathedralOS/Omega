@@ -289,6 +289,7 @@ pub(crate) fn validate_structural_root_operations(
                                 parameter.structural_type,
                                 parameter.multiplicity,
                                 parameter.qualifications.as_slice(),
+                                parameter.projected_qualifications.as_slice(),
                             )
                         })
                         .or_else(|| {
@@ -321,16 +322,18 @@ pub(crate) fn validate_structural_root_operations(
                                             result.structural_type,
                                             result.multiplicity,
                                             result.qualifications.as_slice(),
+                                            result.projected_qualifications.as_slice(),
                                         ))
                                     }
                                     _ => None,
                                 })
                         });
                     if source_contract.is_none_or(
-                        |(structural_type, multiplicity, qualifications)| {
+                        |(structural_type, multiplicity, qualifications, projected)| {
                             structural_type != signature.structural_type
                                 || multiplicity != signature.multiplicity
                                 || qualifications != signature.qualifications.as_slice()
+                                || projected != signature.projected_qualifications.as_slice()
                         },
                     ) {
                         return Err(

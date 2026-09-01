@@ -126,11 +126,13 @@ fn stack_slot_coloring_preserves_an_empty_pressure_plan_without_allocating_a_slo
         selected_lowering_budget(),
     )
     .unwrap();
-    assert!(colored
-        .plan()
-        .functions
-        .iter()
-        .all(|function| function.assignments.is_empty() && function.spill_area_bytes == 0));
+    assert!(
+        colored
+            .plan()
+            .functions
+            .iter()
+            .all(|function| function.assignments.is_empty() && function.spill_area_bytes == 0)
+    );
     assert_eq!(colored.receipt().assignment_count(), 0);
     assert_eq!(colored.receipt().distinct_slot_count(), 0);
     assert_eq!(colored.receipt().max_function_spill_area_bytes(), 0);

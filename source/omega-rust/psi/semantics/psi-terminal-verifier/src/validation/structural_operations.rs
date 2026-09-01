@@ -10,7 +10,10 @@ pub(crate) fn exact_payloadless_case_return_exits(
     machine: &TerminalMachine,
 ) -> Option<BTreeMap<BlockId, psi_terminal::OutcomeSpecificGuard>> {
     let result = machine.result.structural()?;
-    if !result.qualifications.is_empty()
+    if !super::structural_result_contracts::has_empty_qualification_rosters(
+        &result.qualifications,
+        &result.projected_qualifications,
+    )
         || result.multiplicity != StructuralMultiplicity::Unrestricted
         || machine
             .blocks
@@ -66,7 +69,10 @@ pub(crate) fn exact_payloadless_case_return_exits(
             || operation_result.structural_type != result.structural_type
             || operation_result.multiplicity != StructuralMultiplicity::Unrestricted
             || !operation_result.claims.is_empty()
-            || !operation_result.qualifications.is_empty()
+            || !super::structural_result_contracts::has_empty_qualification_rosters(
+                &operation_result.qualifications,
+                &operation_result.projected_qualifications,
+            )
         {
             return None;
         }
@@ -126,8 +132,11 @@ fn is_exact_payloadless_structural_call(
         && result.structural_type == callee_result.structural_type
         && result.multiplicity == StructuralMultiplicity::Unrestricted
         && result.multiplicity == callee_result.multiplicity
-        && result.qualifications.is_empty()
-        && result.qualifications == callee_result.qualifications
+        && super::structural_result_contracts::has_empty_qualification_rosters(
+            &result.qualifications,
+            &result.projected_qualifications,
+        )
+        && super::structural_result_contracts::call_result_matches(result, callee_result)
         && result.claims.is_empty()
         && callee.contract.outcome_specific_ensures.iter().all(|row| {
             propositions::proposition_boolean_field_roots(&row.proposition)
@@ -220,7 +229,10 @@ pub(super) fn validate_unit_operation_static(
                 StructuralPlaceKind::OperationResult { producer, structural_type }
                     if producer == operation.id && structural_type == result.structural_type
             ) || result.multiplicity != StructuralMultiplicity::Unrestricted
-                || !result.qualifications.is_empty()
+                || !super::structural_result_contracts::has_empty_qualification_rosters(
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                )
                 || !result.claims.is_empty()
             {
                 return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
@@ -537,7 +549,10 @@ pub(super) fn validate_unit_operation_static(
                 || callee.structural_parameters.len() != 1
                 || result.structural_type != callee_result.structural_type
                 || result.multiplicity != callee_result.multiplicity
-                || result.qualifications != callee_result.qualifications
+                || !super::structural_result_contracts::call_result_matches(
+                    result,
+                    callee_result,
+                )
                 || result.multiplicity != StructuralMultiplicity::Linear
             {
                 return Err(ModuleError::StructuralCallTargetMismatch {

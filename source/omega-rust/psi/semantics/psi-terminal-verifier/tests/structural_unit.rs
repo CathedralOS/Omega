@@ -1920,6 +1920,7 @@ fn projected_linear_move_cannot_return_its_partial_ancestor() {
         structural_type: structural_type_id(3),
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     module.machines[0]
         .structural_places

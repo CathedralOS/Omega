@@ -2,7 +2,6 @@ use omega_isa_x86_64::{
     validate_x86_64_register_constraint_catalog,
     validate_x86_64_selected_structural_unit_call_template, x86_64_register_constraint_catalog,
 };
-use omega_machine_optimizer::Aarch64CbnzInstructionDisposition;
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_target::Architecture;
@@ -12,7 +11,7 @@ use crate::StagedOptimizedPostAllocationMachinePlan;
 use super::{
     super::{
         OptimizedSelectedFormEncodingError, SelectedFormEncodingState,
-        SelectedStructuralUnitFunctionEncoding,
+        SelectedFormMachineDisposition, SelectedStructuralUnitFunctionEncoding,
     },
     row,
 };
@@ -167,7 +166,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
             selected_return,
             &machine_function.return_instruction,
             physical,
-            &Aarch64CbnzInstructionDisposition::RetainedV1,
+            &SelectedFormMachineDisposition::RetainedV1,
             None,
             &candidate.return_instruction,
         )?;

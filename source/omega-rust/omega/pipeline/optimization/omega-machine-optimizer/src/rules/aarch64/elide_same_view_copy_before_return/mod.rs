@@ -1,8 +1,9 @@
-//! Optimizer module role: executable entrance. Core-only exact same-view CopyI64 elision.
+//! Optimizer module role: executable entrance. Exact same-view CopyI64 elision.
 //!
 //! This owner proposes one terminal `CopyI64; ReturnI64` disposition through
 //! the bounded declarative matcher, then joins it to an independent replay.
-//! No build selection, encoding, layout, or publication route admits it yet.
+//! The machine catalog owns compiler admission; downstream pipeline custody
+//! carries this independently validated disposition into realization.
 
 mod codec;
 mod compute;

@@ -113,8 +113,8 @@ pub struct Aarch64SameViewCopyElisionFunction {
     pub blocks: Vec<Aarch64SameViewCopyElisionBlock>,
 }
 
-/// Core-only symbolic plan. It owns no encoding, layout, emission, build, or
-/// publication authority.
+/// Symbolic plan. It owns no encoding, layout, emission, or publication
+/// authority; downstream stages must replay and bind this receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Aarch64SameViewCopyElisionPlan {
     pub identity: Aarch64SameViewCopyElisionIdentity,

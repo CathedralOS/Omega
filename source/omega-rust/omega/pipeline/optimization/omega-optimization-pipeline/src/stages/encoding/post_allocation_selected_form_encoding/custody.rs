@@ -43,6 +43,17 @@ pub(super) fn validate_optimization_roots<S: ValidatedSelectedAnalysis>(
                 && plan.target == selected.selected_plan().target
                 && plan.physical_register_model == physical.identity()
         }
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
+            let receipt = elision.elision().receipt();
+            let plan = elision.elision().plan();
+            selected.selected_plan().target.architecture == Architecture::Aarch64
+                && receipt.selected() == selected.selected_identity()
+                && receipt.source() == machine.machine().receipt().identity()
+                && receipt.identity() == elision.custody().elision()
+                && receipt.action_count() == elision.custody().action_count()
+                && plan.target == selected.selected_plan().target
+                && plan.physical_register_model == physical.identity()
+        }
         StagedOptimizedPostAllocationMachineOptimization::X86XorZero(materialization) => {
             let receipt = materialization.materialization().receipt();
             let plan = materialization.materialization().plan();

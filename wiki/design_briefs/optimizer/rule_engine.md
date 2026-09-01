@@ -62,11 +62,15 @@ followed by its terminator. It does not speculate an arbitrary pattern AST,
 rewrite language, cost policy, or ML interface.
 
 The second descriptor proves cross-operand vocabulary without widening that
-topology. A core-only AArch64 owner recognizes an exact same-physical-view
+topology. An AArch64 owner recognizes an exact same-physical-view
 `CopyI64` whose destination virtual register is consumed by `ReturnI64`, then
-records only a symbolic elision disposition. It intentionally has no machine
-catalog row, build selection, encoding, layout, realization, or publication
-route until an honest compiler producer can reach it.
+records only a symbolic elision disposition. Its exact build selection and
+machine-catalog row now admit that independently replayed result to the generic
+physical carrier. Encoding, zero-byte layout, exit, realization, object, and
+callable custody preserve the disposition without duplicating the rule-name
+schedule. No current lowering emits the exact terminal pair, so compiler tests
+exercise deterministic no-candidate routing and publication; the applied
+positive remains rule-local, and fixed-view composition refuses explicitly.
 
 The matcher only proposes. CBNZ and same-view-copy acceptance each reconstruct
 their preconditions in an independent rule-local validator without calling the

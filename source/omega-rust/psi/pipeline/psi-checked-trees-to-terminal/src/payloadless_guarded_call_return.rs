@@ -83,6 +83,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
             structural_type: result_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -112,6 +113,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
                         structural_type: result_type,
                         multiplicity: StructuralMultiplicity::Unrestricted,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                         claims: Vec::new(),
                     },
                 ),
@@ -167,6 +169,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
                 structural_type: result_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }),
             structural_places: vec![
                 StructuralPlaceDeclaration {

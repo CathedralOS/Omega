@@ -1,7 +1,9 @@
 use omega_isa_x86_64::{
     validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
 };
-use omega_machine_optimizer::Aarch64CbnzInstructionDisposition;
+use omega_machine_optimizer::{
+    Aarch64CbnzInstructionDisposition, Aarch64SameViewCopyInstructionDisposition,
+};
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{SelectedInstruction, SelectedTerminator};
@@ -13,9 +15,10 @@ use crate::{
 
 use super::{
     OptimizedSelectedFormEncodingError, SelectedFormEncodingCounts, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedStructuralUnitFunctionEncoding,
-    StagedOptimizedSelectedFormEncoding, custody::validate_optimization_roots,
-    identity::encoding_identity, materialization::MaterializationPlan, row_encoding::encode_row,
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    SelectedStructuralUnitFunctionEncoding, StagedOptimizedSelectedFormEncoding,
+    custody::validate_optimization_roots, identity::encoding_identity,
+    materialization::MaterializationPlan, row_encoding::encode_row,
     structural_encoding::encode_structural_function,
 };
 
@@ -37,6 +40,12 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         .transpose()?;
     let fusion = optimization.and_then(|optimization| match optimization {
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
+        _ => None,
+    });
+    let copy_elision = optimization.and_then(|optimization| match optimization {
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(elision) => {
+            Some(elision)
+        }
         _ => None,
     });
     let materialization = MaterializationPlan::from_optimization(optimization);
@@ -69,12 +78,25 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         let materialization_function = materialization
             .map(|materialization| materialization.function(function_index))
             .transpose()?;
+        let copy_elision_function = copy_elision
+            .map(|elision| {
+                elision
+                    .elision()
+                    .plan()
+                    .functions
+                    .get(function_index)
+                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
+            })
+            .transpose()?;
         if fusion_function.is_some_and(|row| row.machine != selected_function.machine) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
         if materialization_function.is_some_and(|row| {
             !row.matches(selected_function.machine, selected_function.blocks.len())
         }) {
+            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
+        }
+        if copy_elision_function.is_some_and(|row| row.machine != selected_function.machine) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
         for (block_index, (selected_block, machine_block)) in selected_function
@@ -99,6 +121,14 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             let materialization_block = materialization_function
                 .map(|function| function.block(block_index))
                 .transpose()?;
+            let copy_elision_block = copy_elision_function
+                .map(|function| {
+                    function
+                        .blocks
+                        .get(block_index)
+                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
+                })
+                .transpose()?;
             if fusion_block.is_some_and(|row| {
                 row.block != selected_block.id
                     || row.instructions.len() != machine_block.instructions.len()
@@ -107,6 +137,12 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             }
             if materialization_block.is_some_and(|row| {
                 !row.matches(selected_block.id, machine_block.instructions.len())
+            }) {
+                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
+            }
+            if copy_elision_block.is_some_and(|row| {
+                row.block != selected_block.id
+                    || row.instructions.len() != machine_block.instructions.len()
             }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
@@ -133,14 +169,54 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                 let materialization_disposition = materialization_block
                     .map(|block| block.disposition(index, selected_instruction.id))
                     .transpose()?;
+                let copy_elision_disposition = copy_elision_block
+                    .map(|block| {
+                        block
+                            .instructions
+                            .get(index)
+                            .filter(|row| row.instruction == selected_instruction.id)
+                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
+                    })
+                    .transpose()?;
+                let machine_disposition = match (disposition, copy_elision_disposition) {
+                    (Some(row), None) => match &row.disposition {
+                        Aarch64CbnzInstructionDisposition::RetainedV1 => {
+                            SelectedFormMachineDisposition::RetainedV1
+                        }
+                        Aarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
+                            SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 {
+                                consumer: *consumer,
+                            }
+                        }
+                        Aarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+                            compare,
+                            source_read,
+                        } => SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
+                            compare: *compare,
+                            source_read: source_read.clone(),
+                        },
+                    },
+                    (None, Some(row)) => match &row.disposition {
+                        Aarch64SameViewCopyInstructionDisposition::RetainedV1 => {
+                            SelectedFormMachineDisposition::RetainedV1
+                        }
+                        Aarch64SameViewCopyInstructionDisposition::ElidedSameViewCopyI64V1 {
+                            consumer,
+                        } => SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 {
+                            consumer: *consumer,
+                        },
+                    },
+                    (None, None) => SelectedFormMachineDisposition::RetainedV1,
+                    (Some(_), Some(_)) => {
+                        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                    }
+                };
                 rows.push(encode_row(
                     selected_plan.target.architecture,
                     selected_instruction,
                     machine_instruction,
                     physical,
-                    disposition
-                        .map(|row| row.disposition.clone())
-                        .unwrap_or(Aarch64CbnzInstructionDisposition::RetainedV1),
+                    machine_disposition,
                     materialization_disposition,
                 )?);
             }

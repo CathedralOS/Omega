@@ -81,6 +81,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
                 qualifications: vec![structural_domain],
+                projected_qualifications: Vec::new(),
             }),
             structural_places: vec![
                 StructuralPlaceDeclaration {
@@ -145,6 +146,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: vec![structural_domain],
+            projected_qualifications: Vec::new(),
         })
     );
     assert_eq!(

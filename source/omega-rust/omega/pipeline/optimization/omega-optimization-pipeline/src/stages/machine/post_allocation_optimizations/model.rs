@@ -2,7 +2,7 @@ use omega_optimization_core::{Optimization, OptimizationSelectionIdentity};
 
 use super::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnMaterialization,
-    StagedOptimizedX86MovR32Imm32Materialization,
+    StagedOptimizedAarch64SameViewCopyElision, StagedOptimizedX86MovR32Imm32Materialization,
     StagedOptimizedX86MovR64Imm32SignExtendedMaterialization,
     StagedOptimizedX86XorZeroMaterialization,
 };
@@ -91,6 +91,7 @@ impl PostAllocationMachineOptimizationCustody {
 pub enum StagedOptimizedPostAllocationMachineOptimization {
     Aarch64Cbnz(StagedOptimizedAarch64CbnzFusion),
     Aarch64Movn(StagedOptimizedAarch64MovnMaterialization),
+    Aarch64SameViewCopyElision(StagedOptimizedAarch64SameViewCopyElision),
     X86MovR32Imm32(StagedOptimizedX86MovR32Imm32Materialization),
     X86MovR64Imm32SignExtended(StagedOptimizedX86MovR64Imm32SignExtendedMaterialization),
     X86XorZero(StagedOptimizedX86XorZeroMaterialization),
@@ -130,6 +131,19 @@ impl StagedOptimizedPostAllocationMachineOptimization {
                     receipt.action_count(),
                     receipt.baseline_words().checked_mul(4)?,
                     receipt.selected_words().checked_mul(4)?,
+                )
+            }
+            Self::Aarch64SameViewCopyElision(staged) => {
+                let receipt = staged.custody();
+                let actions = u64::try_from(receipt.action_count()).ok()?;
+                (
+                    receipt.elision().bytes(),
+                    receipt.selections(),
+                    receipt.post_allocation_machine_selections(),
+                    receipt.source(),
+                    receipt.action_count(),
+                    actions.checked_mul(4)?,
+                    0,
                 )
             }
             Self::X86XorZero(staged) => {
@@ -187,6 +201,9 @@ impl StagedOptimizedPostAllocationMachineOptimization {
             Self::Aarch64Movn(_) => {
                 Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
             }
+            Self::Aarch64SameViewCopyElision(_) => {
+                Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1
+            }
             Self::X86XorZero(_) => Optimization::X86SelectXorZeroI64MaterializationV1,
             Self::X86MovR32Imm32(_) => {
                 Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
@@ -201,6 +218,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
         match self {
             Self::Aarch64Cbnz(staged) => staged.custody().selections(),
             Self::Aarch64Movn(staged) => staged.custody().selections(),
+            Self::Aarch64SameViewCopyElision(staged) => staged.custody().selections(),
             Self::X86XorZero(staged) => staged.custody().selections(),
             Self::X86MovR32Imm32(staged) => staged.custody().selections(),
             Self::X86MovR64Imm32SignExtended(staged) => staged.custody().selections(),
@@ -211,6 +229,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
         match self {
             Self::Aarch64Cbnz(staged) => staged.custody().source(),
             Self::Aarch64Movn(staged) => staged.custody().source(),
+            Self::Aarch64SameViewCopyElision(staged) => staged.custody().source(),
             Self::X86XorZero(staged) => staged.custody().source(),
             Self::X86MovR32Imm32(staged) => staged.custody().source(),
             Self::X86MovR64Imm32SignExtended(staged) => staged.custody().source(),
@@ -221,6 +240,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
         match self {
             Self::Aarch64Cbnz(staged) => staged.custody().action_count(),
             Self::Aarch64Movn(staged) => staged.custody().action_count(),
+            Self::Aarch64SameViewCopyElision(staged) => staged.custody().action_count(),
             Self::X86XorZero(staged) => staged.custody().action_count(),
             Self::X86MovR32Imm32(staged) => staged.custody().action_count(),
             Self::X86MovR64Imm32SignExtended(staged) => staged.custody().action_count(),

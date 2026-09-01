@@ -1,12 +1,13 @@
+use crate::{
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
+    SelectedStructuralUnitFunctionEncoding,
+};
 use omega_isa_x86_64::{
     X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
     X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
     X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT, X86_64StructuralUnitInternalControlFixupKind,
     X86_64StructuralUnitInternalControlFixupState,
 };
-use omega_machine_optimizer::Aarch64CbnzInstructionDisposition;
-
-use crate::{SelectedFormEncodingState, SelectedStructuralUnitFunctionEncoding};
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
 use super::model::{
@@ -33,7 +34,7 @@ pub(super) fn layout_structural_unit_function(
             ),
         );
     };
-    if pre.return_instruction.machine_disposition != Aarch64CbnzInstructionDisposition::RetainedV1
+    if pre.return_instruction.machine_disposition != SelectedFormMachineDisposition::RetainedV1
         || pre.return_instruction.alternative.family
             != omega_selected_instructions::MachineAlternativeFamily::ReturnUnit
         || bytes.as_slice() != [0xc3]
@@ -131,7 +132,6 @@ mod tests {
         X86_64StructuralUnitInternalControlFixup, X86_64StructuralUnitInternalControlFixupKind,
         X86_64StructuralUnitInternalControlFixupState,
     };
-    use omega_machine_optimizer::Aarch64CbnzInstructionDisposition;
     use omega_selected_instructions::{
         MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
         MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
@@ -141,7 +141,8 @@ mod tests {
 
     use crate::{SelectedFormDecodedFootprint, SelectedStructuralUnitCallEncodingRow};
     use crate::{
-        SelectedFormEncodingRow, SelectedFormEncodingState, SelectedStructuralUnitFunctionEncoding,
+        SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+        SelectedStructuralUnitFunctionEncoding,
     };
     use omega_isa_x86_64::{
         X86_64StructuralUnitArgumentPointerWrite, X86_64StructuralUnitCallerCopyWrite,
@@ -248,7 +249,7 @@ mod tests {
                     family: MachineAlternativeFamily::ReturnUnit,
                     variant: 0,
                 },
-                machine_disposition: Aarch64CbnzInstructionDisposition::RetainedV1,
+                machine_disposition: SelectedFormMachineDisposition::RetainedV1,
                 state: SelectedFormEncodingState::Encoded {
                     bytes: vec![0xc3],
                     footprint: Box::new(SelectedFormDecodedFootprint {

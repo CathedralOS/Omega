@@ -358,6 +358,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: place,
@@ -377,6 +378,7 @@ fn payloadless_case_establishment_validates_exact_member_and_surface() {
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         kind: OperationKind::EstablishPayloadlessCase {
@@ -3240,6 +3242,77 @@ fn structural_call_rebinds_one_exact_whole_root_claim_and_rejects_tampering() {
 }
 
 #[test]
+fn structural_call_and_return_copy_one_exact_projected_result_roster() {
+    let mut module = structural_call_module();
+    let root = module.structural_types[0].id;
+    let leaf = StructuralTypeId::new(90).unwrap();
+    let domain = psi_core::StructuralDomainId::new(90).unwrap();
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            id: psi_core::StructuralFieldId::new(90).unwrap(),
+            identity: "payload".into(),
+            relevance: psi_terminal::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(leaf),
+        }],
+    };
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: leaf,
+        identity: "ReceiptPayload".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    module.structural_domains.push(StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: psi_core::DomainSemanticId::new(90).unwrap(),
+        identity: "ReceiptPayload::Ready".into(),
+        carrier: leaf,
+        content_projection: None,
+    });
+    let row = psi_terminal::StructuralPathQualification {
+        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
+        domain,
+    };
+    for machine in &mut module.machines {
+        machine.structural_parameters[0].projected_qualifications = vec![row.clone()];
+        let TerminalMachineResult::Structural(result) = &mut machine.result else {
+            panic!("fixture machines return structural values")
+        };
+        assert_eq!(result.structural_type, root);
+        result.projected_qualifications = vec![row.clone()];
+    }
+    let OperationResult::Structural(call_result) =
+        &mut module.machines[0].blocks[0].operations[0].result
+    else {
+        panic!("fixture call returns a structural value")
+    };
+    call_result.projected_qualifications = vec![row];
+    validate_module(&module)
+        .expect("callee result, call result, and both return edges retain the exact roster");
+
+    let mut missing_call_row = module.clone();
+    let OperationResult::Structural(call_result) =
+        &mut missing_call_row.machines[0].blocks[0].operations[0].result
+    else {
+        unreachable!()
+    };
+    call_result.projected_qualifications.clear();
+    assert!(matches!(
+        validate_module(&missing_call_row),
+        Err(ModuleError::StructuralCallTargetMismatch { .. })
+    ));
+
+    let mut missing_return_row = module;
+    let TerminalMachineResult::Structural(result) = &mut missing_return_row.machines[0].result
+    else {
+        unreachable!()
+    };
+    result.projected_qualifications.clear();
+    assert!(matches!(
+        validate_module(&missing_return_row),
+        Err(ModuleError::StructuralReturnSignatureMismatch { .. })
+    ));
+}
+
+#[test]
 fn structural_call_rebinds_an_exact_multi_claim_whole_root_map() {
     let module = multi_claim_structural_call_module();
     validate_module(&module).expect("two exact projected claims cross a whole-root call");
@@ -4548,6 +4621,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -4652,12 +4726,14 @@ fn structural_call_module() -> TerminalModule {
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let callee_result_declaration = StructuralResultDeclaration {
         place: callee_result,
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let parameter = |place, position| StructuralParameterDeclaration {
         place,
@@ -4716,6 +4792,7 @@ fn structural_call_module() -> TerminalModule {
                     structural_type,
                     multiplicity: StructuralMultiplicity::Linear,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     claims: vec![StructuralResultClaimBinding {
                         claim,
                         path: Vec::new(),
@@ -6524,6 +6601,7 @@ fn payloadless_guard_module() -> (TerminalModule, StructuralCaseId, StructuralCa
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places = vec![
         StructuralPlaceDeclaration {
@@ -6545,6 +6623,7 @@ fn payloadless_guard_module() -> (TerminalModule, StructuralCaseId, StructuralCa
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         kind: OperationKind::EstablishPayloadlessCase {
@@ -6620,6 +6699,7 @@ fn multi_exit_payloadless_guard_module() -> (
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places = vec![
         StructuralPlaceDeclaration {
@@ -6658,6 +6738,7 @@ fn multi_exit_payloadless_guard_module() -> (
                 structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),
             kind: OperationKind::EstablishPayloadlessCase { result_case },

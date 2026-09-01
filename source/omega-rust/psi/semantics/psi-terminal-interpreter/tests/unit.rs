@@ -479,6 +479,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
                 qualifications: vec![domain],
+                projected_qualifications: Vec::new(),
             }),
             structural_places: vec![
                 StructuralPlaceDeclaration {
@@ -2641,6 +2642,7 @@ fn payloadless_case_module() -> TerminalModule {
         structural_type,
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     });
     machine.structural_places = vec![
         StructuralPlaceDeclaration {
@@ -2662,6 +2664,7 @@ fn payloadless_case_module() -> TerminalModule {
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         kind: OperationKind::EstablishPayloadlessCase { result_case },
@@ -2701,6 +2704,7 @@ fn payloadless_call_module() -> TerminalModule {
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -2729,6 +2733,7 @@ fn payloadless_call_module() -> TerminalModule {
                     structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                     claims: Vec::new(),
                 }),
                 kind: OperationKind::CallStructural {
@@ -4008,6 +4013,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: vec![domain],
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {
@@ -4049,6 +4055,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
                     structural_type,
                     multiplicity: StructuralMultiplicity::Linear,
                     qualifications: vec![domain],
+                    projected_qualifications: Vec::new(),
                     claims: vec![StructuralResultClaimBinding {
                         claim,
                         path: Vec::new(),
@@ -4113,6 +4120,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: vec![domain],
+            projected_qualifications: Vec::new(),
         }),
         structural_places: vec![
             StructuralPlaceDeclaration {

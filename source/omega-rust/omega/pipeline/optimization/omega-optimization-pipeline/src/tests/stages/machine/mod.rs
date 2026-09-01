@@ -1,8 +1,9 @@
 //! Optimizer module role: stage group. Selected-lowering and active-resident machine-stage tests.
 
-mod active_resident;
 mod aarch64_cbnz;
 mod aarch64_movn;
+mod aarch64_same_view_copy;
+mod active_resident;
 mod post_allocation_custody_corruption;
 mod selected_lowering;
 mod x86_mov_r32_imm32;

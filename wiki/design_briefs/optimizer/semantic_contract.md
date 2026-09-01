@@ -54,13 +54,15 @@ the candidate and validation receipt. It must not erase them before the last
 dependent transformation or diagnostic boundary.
 
 Structural qualification rosters are non-recomputable authority. Terminal now
-supports exact canonical path-indexed rows rooted at parameters in addition to
-whole-root rosters; verification binds each nonempty path to its leaf carrier,
-and optimizer identity, independent replay, and prephysical custody retain the
-row exactly. A later stage that lacks the path carrier rejects it explicitly
-rather than inferring a field qualification from root shape or carrier
-equality. Operation-result paths and downstream target carriers remain future
-bounded extensions of the same rule.
+supports exact canonical path-indexed rows rooted at parameters, function
+results, and structural operation results in addition to whole-root rosters.
+Verification binds each nonempty path to its leaf carrier, calls copy only the
+callee result's exact roster, and returns rejoin the source and declared result
+contracts. Optimizer identity, independent replay, abstract projection, and
+prephysical custody retain every row exactly. A later stage that lacks the path
+carrier rejects it explicitly rather than inferring a field qualification from
+root shape or carrier equality. Downstream target carriers remain a future
+bounded extension of the same rule.
 
 At control-flow joins, an output may retain only qualifications carried by
 every incoming occurrence through valid establishment lineage. CSE and GVN

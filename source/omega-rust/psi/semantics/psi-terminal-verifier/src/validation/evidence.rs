@@ -573,6 +573,7 @@ pub(super) fn validate_evidence_contract_lanes(
                             && target_result.structural_type == parameter.structural_type
                             && target_result.multiplicity == parameter.multiplicity
                             && target_result.qualifications.is_empty()
+                            && target_result.projected_qualifications.is_empty()
                             && target.parameters.is_empty()
                             && target.contract.crash_routes.is_empty()
                             && target.contract.ensures.is_empty()
