@@ -169,6 +169,14 @@ enablement nor rewriting, and validators do not import it. This keeps the path
 catalog row -> exact rule entrance -> exact pattern -> named matcher mechanics
 visible without creating a proxy rule schedule.
 
+Descriptive machine costs are a sibling rung, not a rule catalog.
+`omega-machine-optimizer/src/costs/mod.rs` selects the current model and binds
+it to the exact `NativeTarget`; `model.rs` exposes exact-or-bounded size and
+explicitly unavailable latency, while `identity.rs` owns the domain-separated
+target/model identity. The model neither selects nor validates rules. An
+architecture dependency guard rejects imports from this rung in production
+machine-rule validators, so estimates cannot become semantic admission.
+
 Psi has one additional local rung. `rules/catalog.rs` orders the selected
 passes, while `passes/<exact-pass>/mod.rs` visibly orders that pass's local
 rules. A family folder below a pass is a group, not another enablement table.

@@ -260,6 +260,38 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
+    let machine_rule_root =
+        "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/";
+    for path in source_lines.keys().filter(|path| {
+        path.starts_with(machine_rule_root)
+            && !is_test_source(path)
+            && (path.ends_with("/validate.rs") || path.contains("/validate/"))
+    }) {
+        match fs::read_to_string(repository.join(path)) {
+            Ok(contents)
+                if [
+                    "crate::costs",
+                    "omega_machine_optimizer::costs",
+                    "target_cost_model",
+                    "TargetCostModel",
+                    "NonAuthoritativeMachineCost",
+                    "NonAuthoritativeMachineSizeCost",
+                    "NonAuthoritativeLatencyCost",
+                ]
+                .into_iter()
+                .any(|marker| contents.contains(marker)) =>
+            {
+                violations.insert(format!(
+                    "machine-rule semantic validator imports non-authoritative target costs: {path}"
+                ));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                violations.insert(format!("cannot read {path}: {error}"));
+            }
+        }
+    }
+
     let obsolete_external_policy_schema = "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema.rs";
     if repository.join(obsolete_external_policy_schema).exists() {
         violations.insert(format!(

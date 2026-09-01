@@ -273,6 +273,14 @@ coordination entrance. The rule's independent validator deliberately retains
 its separate replay logic. Other materialization rules remain rule-local
 selection until a genuinely shared pattern vocabulary is demonstrated.
 
+The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
+binds the complete native target and model version into a stable identity, and
+projects existing `MachineSizeKnowledge` without converting encoder-resolved
+bounds into exact facts. Latency remains explicitly unavailable. The result is
+safe input for future ranking and reports only: exact-rule eligibility,
+independent replay, and semantic validation cannot consult it, and the source
+organization audit enforces that dependency boundary.
+
 Direct homes and homes after selected lowering enter one
 `StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN,
 XOR-zero, and MOV-r32-imm32 therefore share the same encoding, layout, exit,

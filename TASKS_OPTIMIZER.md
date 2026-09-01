@@ -583,8 +583,10 @@ decision. Only true language-semantic questions belong in
     exact copy, extension, address, or compare rule proves the next vocabulary.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling where independently verifiable.
-- [ ] Add target cost models as non-authoritative identities. Semantic
-  validation must not depend on estimates.
+- [x] Add target cost models as non-authoritative identities. The V1 entrance
+  binds exact native-target identity to retained exact-or-bounded size
+  knowledge while keeping latency explicitly unavailable. Machine-rule
+  semantic validators are architecture-guarded from importing the model.
 
 ## P7 — Proof-, ownership-, and state-aware optimization
 

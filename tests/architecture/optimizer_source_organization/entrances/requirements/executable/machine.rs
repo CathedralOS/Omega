@@ -2,6 +2,10 @@ use super::super::RequiredCoordinationEntrance;
 
 pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/costs/mod.rs",
+        coordination_marker: "pub fn target_cost_model",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/mod.rs",
         coordination_marker: "pub fn analyze_pre_allocation_machine_effects",
     },
