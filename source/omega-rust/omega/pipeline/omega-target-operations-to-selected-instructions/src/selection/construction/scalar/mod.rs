@@ -4,6 +4,7 @@
 //! virtual-register roster and blocks together so those projections cannot
 //! drift through separate source-shape matches.
 
+mod active_resident_exact_add_bridge_chain;
 mod active_resident_exact_add_chain;
 mod blocks;
 mod catalog;

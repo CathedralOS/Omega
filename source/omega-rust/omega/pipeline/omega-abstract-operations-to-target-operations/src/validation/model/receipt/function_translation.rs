@@ -23,7 +23,7 @@ use super::parameter::{
 };
 use super::terminal::{
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
-    StraightLineUnitReturnTranslationReceipt,
+    StraightLineUnitCallReturnTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
 };
 use arithmetic::{
     ExactAddReceipt, ExactDivideReceipt, ExactMultiplyReceipt, ExactRemainderReceipt,
@@ -43,6 +43,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationReceipt),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationReceipt),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationReceipt),
+    StraightLineUnitCallReturn(StraightLineUnitCallReturnTranslationReceipt),
     StraightLineScalarCrash(StraightLineScalarCrashTranslationReceipt),
     StraightLineIntegerParameter(StraightLineIntegerParameterTranslationReceipt),
     StraightLineBooleanParameter(StraightLineBooleanParameterTranslationReceipt),

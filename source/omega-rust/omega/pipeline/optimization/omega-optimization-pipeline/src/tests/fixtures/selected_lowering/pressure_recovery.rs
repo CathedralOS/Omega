@@ -284,6 +284,26 @@ pub(crate) fn staged_active_resident_exact_add_chain(
     )
 }
 
+pub(crate) fn staged_active_resident_exact_add_bridge_chain(
+    target: NativeTarget,
+) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = conditional_active_resident_exact_add_bridge_chain_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        request(
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
+}
+
 pub(crate) fn staged_active_resident_exact_add_chain_with_selections(
     target: NativeTarget,
     selections: OptimizationSelections,
@@ -310,6 +330,17 @@ pub(crate) fn staged_active_resident_two_view_legality(
         ])
         .unwrap(),
     )
+}
+
+pub(crate) fn staged_active_resident_bridge_chain_two_view_legality(
+    target: NativeTarget,
+) -> StagedOptimizedAllocationLegality {
+    let ranges = stage_optimized_live_ranges(
+        stage_optimized_liveness(staged_active_resident_exact_add_bridge_chain(target)).unwrap(),
+    )
+    .unwrap();
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+        .unwrap()
 }
 
 pub(crate) fn staged_active_resident_two_view_legality_with_selections(

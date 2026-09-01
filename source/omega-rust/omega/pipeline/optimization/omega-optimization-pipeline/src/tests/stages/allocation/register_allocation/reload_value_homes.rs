@@ -153,6 +153,42 @@ fn budget_is_exact_and_empty_pressure_has_no_reload_assignment() {
     assert_eq!(assigned.receipt().coexisting_home_count(), 0);
 }
 
+#[test]
+fn bridge_chain_reaches_exact_reload_pressure_through_public_validation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let sources = ReloadSources::from_legality(
+            staged_active_resident_bridge_chain_two_view_legality(target),
+        );
+        let action = sources.insertion.plan().functions[0]
+            .action
+            .as_ref()
+            .expect("the public two-view chain must retain one spill action");
+        assert_eq!(action.pressure_point, LiveRangePoint(9));
+        assert_eq!(action.incoming, VirtualRegisterId(3));
+        assert_eq!(action.victim, VirtualRegisterId(1));
+        assert_eq!(action.store.before_instruction, SelectedInstructionId(4));
+        assert_eq!(action.reload.before_instruction, SelectedInstructionId(6));
+        assert_eq!(
+            action
+                .rewrites
+                .iter()
+                .map(|rewrite| (rewrite.point, rewrite.instruction, rewrite.operand))
+                .collect::<Vec<_>>(),
+            vec![
+                (LiveRangePoint(12), SelectedInstructionId(6), 0),
+                (LiveRangePoint(16), SelectedInstructionId(8), 0),
+            ]
+        );
+        assert_eq!(
+            sources.assign(selected_lowering_budget()),
+            Err(omega_regalloc::ReloadValueHomeError::ReloadPressure {
+                function: 0,
+                result: 0,
+            })
+        );
+    }
+}
+
 pub(super) struct ReloadSources {
     legality: StagedOptimizedAllocationLegality,
     logical: omega_regalloc::ValidatedLogicalSpillOperations,

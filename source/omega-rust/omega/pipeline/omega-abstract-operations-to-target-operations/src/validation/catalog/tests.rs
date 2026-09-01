@@ -3,8 +3,11 @@ use std::collections::BTreeSet;
 use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
+use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_target::NativeTarget;
-use omega_target_operations::{TargetFunction, TargetOperation, TerminalPsiProvenance};
+use omega_target_operations::{
+    TargetFunction, TargetOperation, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
+};
 use psi_core::{BlockId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
 
 use super::*;
@@ -70,6 +73,77 @@ fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
     )
 }
 
+fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
+    let machine = MachineId::new(52_001).unwrap();
+    let entry = BlockId::new(52_002).unwrap();
+    let callee = MachineId::new(52_003).unwrap();
+    let call_operation = OperationId::new(52_004).unwrap();
+    let return_edge = EdgeId::new(52_005).unwrap();
+    (
+        AbstractFunction {
+            machine,
+            attachment: None,
+            entry,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: entry,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::CallUnit {
+                    psi_operation: call_operation,
+                    callee,
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: return_edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        },
+        TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![call_operation],
+                edges: vec![return_edge],
+            },
+            operation: TargetOperation::UnitBody(TargetUnitBody {
+                structural_types: Vec::new(),
+                call_plan: evaluate_call_plan(
+                    CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+                    &CallSignature::default(),
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                operations: vec![
+                    TargetUnitOperation::Call {
+                        psi_operation: call_operation,
+                        callee,
+                        arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                    TargetUnitOperation::Return {
+                        psi_edge: return_edge,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }),
+        },
+    )
+}
+
 #[test]
 fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
     let ordered = ENABLED_TRANSLATION_FAMILIES
@@ -83,6 +157,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
             AbstractToTargetTranslationFamily::StraightLineUnitReturn,
             AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
+            AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
             AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
             AbstractToTargetTranslationFamily::StraightLineBooleanParameter,
@@ -174,6 +249,38 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
                 first: AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
                 second: AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+                ..
+            }
+        )
+    ));
+}
+
+#[test]
+fn unit_call_catalog_omission_and_duplicate_fail_closed() {
+    let (source, target) = unit_call_pair();
+    assert_eq!(
+        selection::validate(&source, NativeTarget::linux_x64(), &target, &[]).unwrap(),
+        AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
+
+    let unit_call = ENABLED_TRANSLATION_FAMILIES
+        .iter()
+        .find(|descriptor| {
+            descriptor.family == AbstractToTargetTranslationFamily::StraightLineUnitCallReturn
+        })
+        .copied()
+        .unwrap();
+    assert!(matches!(
+        selection::validate(
+            &source,
+            NativeTarget::linux_x64(),
+            &target,
+            &[unit_call, unit_call]
+        ),
+        Err(
+            AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
+                first: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+                second: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
                 ..
             }
         )

@@ -1,5 +1,6 @@
 //! Optimizer module role: executable entrance. Three-block projection replay from entry control through return routes.
 
+mod active_resident_exact_add_bridge_chain_return;
 mod active_resident_exact_add_chain_return;
 mod entry_control;
 mod exact_binary_return;

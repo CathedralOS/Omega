@@ -56,3 +56,62 @@ fn bridge_chain_legalization_is_independently_validated_on_both_architectures() 
         );
     }
 }
+
+#[test]
+fn bridge_chain_selection_is_independently_replayed_on_both_architectures() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let staged = staged_active_resident_exact_add_bridge_chain(target);
+        let function = &staged.selected().plan().functions[0];
+        assert_eq!(function.virtual_registers.len(), 9);
+        assert_eq!(staged.selected().receipt().instruction_count(), 12);
+        assert_eq!(function.blocks[1].instructions.len(), 7);
+        assert_eq!(
+            function.blocks[1].instructions[5]
+                .operands
+                .iter()
+                .map(|operand| operand.virtual_register)
+                .collect::<Vec<_>>(),
+            vec![
+                VirtualRegisterId(3),
+                VirtualRegisterId(5),
+                VirtualRegisterId(6),
+            ]
+        );
+        assert_eq!(
+            function.blocks[1].instructions[6]
+                .operands
+                .iter()
+                .map(|operand| operand.virtual_register)
+                .collect::<Vec<_>>(),
+            vec![
+                VirtualRegisterId(1),
+                VirtualRegisterId(6),
+                VirtualRegisterId(7),
+            ]
+        );
+
+        let mut corrupted = staged.selected().plan().clone();
+        corrupted.functions[0].blocks[1].instructions[5].operands[0].virtual_register =
+            VirtualRegisterId(1);
+        assert_eq!(
+            validate_raw_selection(&staged, corrupted),
+            Err(SelectedInstructionError::InstructionProjectionMismatch {
+                function: 0,
+                instruction: 7,
+            })
+        );
+
+        let mut corrupted = staged.selected().plan().clone();
+        corrupted.functions[0].virtual_registers[6].origin =
+            corrupted.functions[0].virtual_registers[5].origin;
+        assert_eq!(
+            validate_raw_selection(&staged, corrupted),
+            Err(
+                SelectedInstructionError::VirtualRegisterProjectionMismatch {
+                    function: 0,
+                    register: 6,
+                }
+            )
+        );
+    }
+}

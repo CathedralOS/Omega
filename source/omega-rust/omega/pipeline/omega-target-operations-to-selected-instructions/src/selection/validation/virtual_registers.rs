@@ -90,6 +90,54 @@ pub(super) fn validate_virtual_registers(
             }
         }
         (
+            SourceLeafValue::ActiveResidentExactAddBridgeChain(chain),
+            SourceLeafValue::Immediate {
+                definition_site: false_site,
+                ..
+            },
+        ) => {
+            let binary = row(catalog, constraints.keys.add_i64)?;
+            let materialize = row(catalog, constraints.keys.materialize_i64)?;
+            if binary.operands.len() != 3
+                || materialize.operands.len() != 1
+                || binary
+                    .operands
+                    .iter()
+                    .any(|operand| operand.class != binary.operands[2].class)
+                || materialize.operands[0].class != binary.operands[2].class
+            {
+                return Err(SelectedInstructionError::ConstraintOperandMismatch {
+                    function: function_index,
+                    instruction: 5,
+                });
+            }
+            for (instruction, source_value, definition_site) in [
+                (
+                    2,
+                    chain.resident.source_value,
+                    chain.resident.definition_site,
+                ),
+                (3, chain.left.source_value, chain.left.definition_site),
+                (4, chain.right.source_value, chain.right.definition_site),
+                (5, chain.inner.source_value, chain.inner.definition_site),
+                (6, chain.middle.source_value, chain.middle.definition_site),
+                (7, chain.bridge.source_value, chain.bridge.definition_site),
+                (8, chain.result.source_value, chain.result.definition_site),
+                (10, source.when_false.source_value, *false_site),
+            ] {
+                expected.push((
+                    u64_type,
+                    binary.operands[2].class,
+                    VirtualRegisterOrigin::InstructionResult {
+                        instruction: SelectedInstructionId(instruction),
+                        source_value,
+                    },
+                    definition_site,
+                    None,
+                ));
+            }
+        }
+        (
             SourceLeafValue::Immediate {
                 definition_site: true_site,
                 ..
