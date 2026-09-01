@@ -1747,9 +1747,13 @@ Native production remains fenced after the first consuming target/assignment
 rung. That rung carries exactly one direct native-only callback application,
 keyed by stable Terminal `OperationId`, through target lowering and physical
 assignment while retaining the selected thunk identity separately from source
-scalar values. The next slice starts with thunk/private-symbol synthesis,
-address-load selection, exact registrar-call emission, and downstream artifact
-replay. The removed custom/unknown host-operation prototype is not reusable
+scalar values. The checked callback body is now retained as an isolated
+canonical Terminal artifact and independently compiled into a disjoint private
+machine-code function. Object and final-image replay bind that function to the
+exact placement-derived symbol and text span without merging its artifact-local
+`MachineId` into the semantic namespace. The next slice starts with
+address-load selection, exact registrar-call emission and relocation, and
+end-to-end native-artifact replay. The removed custom/unknown host-operation prototype is not reusable
 evidence of completion. Those integrations remain engineering work under the
 settled v3 application model, not open language-design questions. The authored-
 hidden-parameter and stale-v1/v2 negative matrix is complete at source

@@ -84,13 +84,14 @@ use unit_stack::{
 };
 
 use omega_machine_code::{
-    BoundarySettlementRecord, MachineCodePlan, PortEffectRecord, ScalarControlAffineCleanupRecord,
+    BoundarySettlementRecord, CompilerPrivateMachineCodeFunction, MachineCodePlan,
+    MachineCodePlanWithPrivateFunctions, PortEffectRecord, ScalarControlAffineCleanupRecord,
     SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord,
 };
 use omega_object_file::{
-    NormalizedImportPlan, ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin,
-    RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan,
-    SymbolSection, entry_symbol_name, normalized_foreign_import_symbol_name,
+    FunctionSymbolPlan, NormalizedImportPlan, ObjectPlan, ObjectSymbolHandle, RelocationKind,
+    RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind, SectionPlan, SymbolKind,
+    SymbolPlan, SymbolSection, entry_symbol_name, normalized_foreign_import_symbol_name,
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{BoundaryRealization, CallSiteOwner, TerminalPsiProvenance};
@@ -113,6 +114,7 @@ pub struct ObjectArtifact {
     relocations: RelocationPlan,
     text_bytes: Vec<u8>,
     functions: Vec<ObjectFunction>,
+    private_functions: Vec<ObjectCompilerPrivateFunction>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -156,6 +158,10 @@ impl ObjectArtifact {
 
     pub fn functions(&self) -> &[ObjectFunction] {
         &self.functions
+    }
+
+    pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
+        &self.private_functions
     }
 
     pub fn entry_function(&self) -> &ObjectFunction {
@@ -247,6 +253,22 @@ pub struct ObjectFunction {
 impl ObjectFunction {
     pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
         &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
+    }
+}
+
+/// One independently validated compiler-private callback function in the
+/// object's text section. Its artifact-local `MachineId` remains nested under
+/// this carrier and never joins the semantic program-function namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectCompilerPrivateFunction {
+    pub identity: omega_function_identity::MachineFunctionIdentity,
+    pub source_psi: TerminalPsiIdentity,
+    pub function: ObjectFunction,
+}
+
+impl ObjectCompilerPrivateFunction {
+    pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
+        self.function.bytes(artifact)
     }
 }
 
@@ -473,7 +495,15 @@ pub(crate) const SCALAR_CALL_REFERENCE_FINGERPRINT: [u8; 32] = [
 /// normalizing it. Each function gets exactly one symbol and one retained Psi
 /// provenance row.
 pub fn build_object_artifact(plan: &MachineCodePlan) -> Result<ObjectArtifact, ObjectError> {
-    build_object_artifact_with_x86_feature_profile(plan, None, None)
+    build_object_artifact_with_x86_feature_profile(plan, &[], None, None)
+}
+
+/// Construct an object that owns semantic program functions and a disjoint,
+/// placement-identified compiler-private callback-function roster.
+pub fn build_object_artifact_with_private_functions(
+    plan: &MachineCodePlanWithPrivateFunctions,
+) -> Result<ObjectArtifact, ObjectError> {
+    build_object_artifact_with_x86_feature_profile(&plan.plan, &plan.private_functions, None, None)
 }
 
 /// Construct the bounded source-free object seam for feature-requiring scalar
@@ -490,7 +520,7 @@ pub fn build_feature_required_x86_fma_object_artifact(
     {
         return Err(ObjectError::MissingX86ScalarFmaFragment);
     }
-    build_object_artifact_with_x86_feature_profile(plan, Some(profile), None)
+    build_object_artifact_with_x86_feature_profile(plan, &[], Some(profile), None)
 }
 
 /// Consume exact deployment-feature and differential authority while building
@@ -530,17 +560,24 @@ pub fn build_admitted_x86_fma_object_artifact(
     {
         return Err(ObjectError::MissingX86ScalarFmaFragment);
     }
-    build_object_artifact_with_x86_feature_profile(plan, Some(provider.profile()), Some(provider))
+    build_object_artifact_with_x86_feature_profile(
+        plan,
+        &[],
+        Some(provider.profile()),
+        Some(provider),
+    )
 }
 
 fn build_object_artifact_with_x86_feature_profile(
     plan: &MachineCodePlan,
+    private_functions: &[CompilerPrivateMachineCodeFunction],
     x86_feature_profile: Option<omega_target::TargetProfile>,
     x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
 ) -> Result<ObjectArtifact, ObjectError> {
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
+    let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
     ranked_u32_countdown::replay_ranked_u32_countdown(plan)?;
     let mut previous = None;
     let mut saw_entry = false;
@@ -1516,17 +1553,27 @@ fn build_object_artifact_with_x86_feature_profile(
     if !saw_entry {
         return Err(ObjectError::EntryFunctionMissing(plan.entry));
     }
+    for private in &validated_private_functions {
+        text_size = text_size
+            .checked_add(private.machine.function.bytes.len())
+            .ok_or(ObjectError::TextSizeOverflow)?;
+    }
 
     let foreign_call_count = plan
         .functions
         .iter()
         .map(|function| function.foreign_calls.len())
         .sum::<usize>();
-    let mut object = ObjectPlan::with_capacity(
-        plan.target,
-        1,
-        plan.functions.len().saturating_add(foreign_call_count),
-    );
+    let symbol_capacity = plan
+        .functions
+        .len()
+        .saturating_add(private_functions.len())
+        .saturating_add(foreign_call_count);
+    let mut object = if private_functions.is_empty() {
+        ObjectPlan::with_capacity(plan.target, 1, symbol_capacity)
+    } else {
+        ObjectPlan::with_capacities(plan.target, 1, symbol_capacity, private_functions.len())
+    };
     object.layout.sections.insert(SectionPlan {
         kind: SectionKind::Text,
         size: text_size,
@@ -1535,6 +1582,7 @@ fn build_object_artifact_with_x86_feature_profile(
 
     let mut text_bytes = Vec::with_capacity(text_size);
     let mut functions = Vec::with_capacity(plan.functions.len());
+    let mut object_private_functions = Vec::with_capacity(private_functions.len());
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
@@ -1687,6 +1735,39 @@ fn build_object_artifact_with_x86_feature_profile(
         });
     }
 
+    for private in validated_private_functions {
+        let text_offset = text_bytes.len();
+        text_bytes.extend_from_slice(&private.machine.function.bytes);
+        if object
+            .layout
+            .symbols
+            .iter()
+            .any(|(_, symbol)| symbol.name == private.machine.private_symbol.as_ref())
+        {
+            return Err(ObjectError::PrivateFunctionSymbolCollision);
+        }
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: private.machine.private_symbol.to_string(),
+            section: SymbolSection::Section(SectionKind::Text),
+            offset: text_offset,
+            size: private.machine.function.bytes.len(),
+            kind: SymbolKind::Function,
+            import_library: String::new(),
+        });
+        object.layout.function_symbols.insert(FunctionSymbolPlan {
+            identity: private.machine.identity,
+            symbol,
+        });
+        let mut function = private.function;
+        function.symbol = symbol;
+        function.text_offset = text_offset;
+        object_private_functions.push(ObjectCompilerPrivateFunction {
+            identity: private.machine.identity,
+            source_psi: private.machine.source_psi,
+            function,
+        });
+    }
+
     let mut import_symbols =
         Vec::<(omega_target::NormalizedForeignLocator, ObjectSymbolHandle)>::new();
     for function in &plan.functions {
@@ -1817,11 +1898,77 @@ fn build_object_artifact_with_x86_feature_profile(
         relocations,
         text_bytes,
         functions,
+        private_functions: object_private_functions,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
         foreign_calls,
     })
+}
+
+struct ValidatedPrivateFunction<'plan> {
+    machine: &'plan CompilerPrivateMachineCodeFunction,
+    function: ObjectFunction,
+}
+
+fn validate_private_functions<'plan>(
+    target: NativeTarget,
+    private_functions: &'plan [CompilerPrivateMachineCodeFunction],
+) -> Result<Vec<ValidatedPrivateFunction<'plan>>, ObjectError> {
+    if private_functions.len() > 1 {
+        return Err(ObjectError::TooManyPrivateFunctions);
+    }
+    let mut validated = Vec::with_capacity(private_functions.len());
+    for private in private_functions {
+        let Some(_placement_index) = private.identity.callback_thunk_placement_index() else {
+            return Err(ObjectError::InvalidPrivateFunctionIdentity);
+        };
+        if !private.identity.is_valid() {
+            return Err(ObjectError::InvalidPrivateFunctionIdentity);
+        }
+        if private.private_symbol.is_empty() {
+            return Err(ObjectError::EmptyPrivateFunctionSymbol);
+        }
+        if private.function.fixed_integer_scalar_abi.is_none() {
+            return Err(ObjectError::InvalidPrivateFunctionAbi);
+        }
+        if !private.function.internal_calls.is_empty()
+            || !private.function.foreign_calls.is_empty()
+            || !private.function.internal_unit_calls.is_empty()
+            || !private.function.internal_unit_scalar_calls.is_empty()
+            || !private.function.x86_scalar_fma.is_empty()
+            || !private.function.x86_scalar_fma_occurrences.is_empty()
+            || private.function.x86_floating_control.is_some()
+            || !private.function.port_effects.is_empty()
+            || !private.function.boundary_settlements.is_empty()
+            || private.function.ranked_u32_countdown.is_some()
+            || private.function.structural_return.is_some()
+        {
+            return Err(ObjectError::UnsupportedPrivateFunctionBody);
+        }
+        let standalone = MachineCodePlan {
+            psi: private.source_psi,
+            target,
+            entry: private.function.machine,
+            functions: vec![private.function.clone()],
+        };
+        let replayed = build_object_artifact_with_x86_feature_profile(&standalone, &[], None, None)
+            .map_err(|_| ObjectError::InvalidPrivateFunctionBody)?;
+        let [function] = replayed.functions.as_slice() else {
+            return Err(ObjectError::InvalidPrivateFunctionBody);
+        };
+        if !replayed.object.layout.normalized_imports.is_empty()
+            || replayed.relocations.record_count() != 0
+            || replayed.text_bytes != private.function.bytes
+        {
+            return Err(ObjectError::InvalidPrivateFunctionBody);
+        }
+        validated.push(ValidatedPrivateFunction {
+            machine: private,
+            function: function.clone(),
+        });
+    }
+    Ok(validated)
 }
 
 fn validate_internal_call_site(
@@ -2477,6 +2624,13 @@ pub enum ObjectError {
         current: MachineId,
     },
     EmptyFunction(MachineId),
+    TooManyPrivateFunctions,
+    InvalidPrivateFunctionIdentity,
+    EmptyPrivateFunctionSymbol,
+    PrivateFunctionSymbolCollision,
+    InvalidPrivateFunctionAbi,
+    InvalidPrivateFunctionBody,
+    UnsupportedPrivateFunctionBody,
     MissingX86ScalarFmaFragment,
     InvalidX86ScalarFmaProviderAdmission,
     MissingX86ScalarFmaProfile(MachineId),

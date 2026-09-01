@@ -24,6 +24,7 @@ omega-object-file = { path = "../../object/omega-object-file" }
 omega-target = { path = "../../../representations/omega-target" }
 omega-x86-encoding = { path = "../../instruction_set_architectures/omega-x86-encoding" }
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
+omega-function-identity = { path = "../../../representations/omega-function-identity" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
 omega-task-plans = { path = "../../../representations/omega-task-plans" }

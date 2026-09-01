@@ -13,8 +13,8 @@ use psi_terminal::TerminalPsiIdentity;
 use super::final_image_validation::validate_terminal_image;
 use super::{
     LINUX_X86_SCALAR_EXIT_SHIM_BYTES, LinuxX86ScalarExitShim, ObjectArtifact,
-    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectFunction, ObjectPortEffect,
-    SCALAR_CALL_REFERENCE_FINGERPRINT,
+    ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction, ObjectFunction,
+    ObjectPortEffect, SCALAR_CALL_REFERENCE_FINGERPRINT,
 };
 
 fn validate_x86_scalar_fma_provider(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
@@ -156,6 +156,7 @@ pub fn emit_executable_image(
         x86_scalar_fma_provider: artifact.x86_scalar_fma_provider,
         subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
         functions: artifact.functions.clone(),
+        private_functions: artifact.private_functions.clone(),
         semantic_code_attribution: artifact.semantic_code_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
@@ -180,6 +181,7 @@ pub fn validate_executable_image(
         || artifact.target() != image.target()
         || artifact.x86_scalar_fma_provider() != image.x86_scalar_fma_provider()
         || artifact.functions() != image.functions()
+        || artifact.private_functions() != image.private_functions()
         || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
         || artifact.boundary_settlements() != image.boundary_settlements()
@@ -334,6 +336,7 @@ pub struct ExecutableImage {
     x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
     subsystem: Option<u16>,
     functions: Vec<ObjectFunction>,
+    private_functions: Vec<ObjectCompilerPrivateFunction>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -377,6 +380,10 @@ impl ExecutableImage {
 
     pub fn functions(&self) -> &[ObjectFunction] {
         &self.functions
+    }
+
+    pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
+        &self.private_functions
     }
 
     pub fn port_effects(&self) -> &[ObjectPortEffect] {
