@@ -5,6 +5,7 @@
 //! dispatch-and-composition leaf owns behavior spanning pass-manager boundaries.
 
 mod algebraic_rewrites;
+mod dead_scalar_elimination;
 mod dispatch_and_composition;
 mod proof_check_elision;
 mod structural_rewrites;

@@ -648,8 +648,15 @@ unchecked rewrite or opt into lossy floating-point semantics.
   manifest/fact and ledger/commit custody, repeated-run determinism,
   deterministic budget exhaustion, and idempotence for every row; direct
   missing-evidence and corruption refusals now cover the previously weaker
-  proof-certified and compatible-policy dominating rows. The remaining
-  operational axes and other rule families are not yet complete.
+  proof-certified and compatible-policy dominating rows. The three
+  dead-scalar semantic families now bind exact complete contracts, `-1` cost,
+  and distinct validator identities across the dead-pure-scalar and
+  proof-check suites. Their six directed relabellings plus unknown identities,
+  analysis/invalidation supersets and subsets, wrong safety, and wrong cost
+  fail closed; a three-fixture pass matrix pins default-disabled execution,
+  repeated-run determinism, deterministic budget exhaustion, manifest/ledger
+  custody, and output idempotence. The remaining operational axes and other
+  rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.
