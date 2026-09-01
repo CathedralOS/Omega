@@ -574,6 +574,13 @@ decision. Only true language-semantic questions belong in
   the pipeline contains no duplicate exact-name schedule.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
+  - [x] Establish the first bounded terminal-pair matcher and move the AArch64
+    compare-zero/branch-nonzero producer onto an exact declarative descriptor
+    covering selected kinds, alternatives, operands, named physical units,
+    register views, encoded effects, liveness continuity, and dead flags. Keep
+    the existing independent validator as a separate replay implementation.
+  - [ ] Generalize beyond the body-tail/terminator pair only when a second
+    exact copy, extension, address, or compare rule proves the next vocabulary.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling where independently verifiable.
 - [ ] Add target cost models as non-authoritative identities. Semantic

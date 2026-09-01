@@ -8,6 +8,7 @@ pub mod aarch64;
 pub mod x86_64;
 
 mod catalog;
+mod peephole_matching;
 
 #[cfg(test)]
 mod tests;

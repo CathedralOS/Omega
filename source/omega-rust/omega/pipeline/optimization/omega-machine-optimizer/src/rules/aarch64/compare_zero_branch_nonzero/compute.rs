@@ -1,15 +1,7 @@
-use std::collections::BTreeSet;
-
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::{
-    BlockLiveness, InstructionLiveness, ValidatedLiveness, ValidatedSelectedAnalysis,
-};
-use omega_register_model::{RegisterOperandAccess, RegisterUnitId, ValidatedPhysicalRegisterModel};
-use omega_selected_instructions::{
-    MachineAlternativeFamily, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstruction,
-    SelectedInstructionKind, SelectedTerminator,
-};
+use omega_regalloc::{ValidatedLiveness, ValidatedSelectedAnalysis};
+use omega_register_model::{RegisterUnitId, ValidatedPhysicalRegisterModel};
+use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use omega_target::Architecture;
 
 use crate::{
@@ -17,9 +9,10 @@ use crate::{
     Aarch64CbnzFusionBlock, Aarch64CbnzFusionError, Aarch64CbnzFusionFunction,
     Aarch64CbnzFusionIdentity, Aarch64CbnzFusionInstruction, Aarch64CbnzFusionPlan,
     Aarch64CbnzFusionPolicy, Aarch64CbnzFusionWorkAxis, Aarch64CbnzInstructionDisposition,
-    PhysicalOperandFootprint, PostAllocationMachineInstruction, QualifiedPhysicalRead,
-    ValidatedPostAllocationMachinePlan, aarch64_cbnz_fusion_identity,
+    QualifiedPhysicalRead, ValidatedPostAllocationMachinePlan, aarch64_cbnz_fusion_identity,
 };
+
+use crate::rules::peephole_matching::{TerminalPairMatchError, match_terminal_pair};
 
 pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -111,17 +104,29 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
                     .instructions
                     .get(block.instructions.len())
                     .ok_or(Aarch64CbnzFusionError::LivenessRosterMismatch(branch.id))?;
-                validate_pair(
+                let matched = match_terminal_pair(
+                    &super::pattern::AARCH64_CBNZ_TERMINAL_PAIR_V1,
                     compare,
                     branch,
                     machine_compare,
                     machine_branch,
                     live_compare,
                     live_branch,
+                    live_block,
                     physical,
-                    &nzcv,
-                    &pc,
-                )?;
+                )
+                .map_err(map_match_error)?;
+                let read = matched
+                    .first_read(0)
+                    .ok_or(Aarch64CbnzFusionError::InvalidCompareFootprint(compare.id))?;
+                let source_read = QualifiedPhysicalRead {
+                    source_instruction: read.source_instruction,
+                    operand: read.operand,
+                    virtual_register: read.virtual_register,
+                    class: read.class,
+                    view: read.view,
+                    units: read.units.clone(),
+                };
                 let already_fused = actions.iter().any(|action: &Aarch64CbnzFusionAction| {
                     action.machine == selected_function.machine
                         && action.block == block.id
@@ -132,7 +137,7 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
                     Aarch64CbnzFusionAttemptOutcome::AlreadyFused
                 } else if !compare.provenance.fuel.is_empty() {
                     Aarch64CbnzFusionAttemptOutcome::CompareCarriesFuel
-                } else if flags_live_out(live_block, live_branch, &nzcv) {
+                } else if matched.dead_sets_live_out() {
                     Aarch64CbnzFusionAttemptOutcome::NzcvLiveOut
                 } else {
                     Aarch64CbnzFusionAttemptOutcome::SelectedForFusion
@@ -164,7 +169,7 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
                         block,
                         compare,
                         branch,
-                        machine_compare,
+                        source_read,
                         when_nonzero,
                         when_zero,
                     ));
@@ -179,7 +184,7 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
             block,
             compare,
             branch,
-            machine_compare,
+            source_read,
             when_nonzero,
             when_zero,
         )) = selected_candidate
@@ -191,7 +196,6 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
             budget.commits(),
             Aarch64CbnzFusionWorkAxis::Commits,
         )?;
-        let source_read = qualified_read(compare, machine_compare)?;
         apply_dispositions(
             &mut functions[function_index].blocks[block_index],
             compare.id,
@@ -307,175 +311,29 @@ fn baseline_roster(source: &ValidatedPostAllocationMachinePlan) -> Vec<Aarch64Cb
         .collect()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn validate_pair(
-    compare: &SelectedInstruction,
-    branch: &SelectedInstruction,
-    machine_compare: &PostAllocationMachineInstruction,
-    machine_branch: &PostAllocationMachineInstruction,
-    live_compare: &InstructionLiveness,
-    live_branch: &InstructionLiveness,
-    physical: &ValidatedPhysicalRegisterModel,
-    nzcv: &[RegisterUnitId],
-    pc: &[RegisterUnitId],
-) -> Result<(), Aarch64CbnzFusionError> {
-    if machine_compare.instruction != compare.id
-        || live_compare.instruction != compare.id
-        || !matches!(compare.kind, SelectedInstructionKind::CompareI64Zero)
-        || compare.operands.len() != 1
-    {
-        return Err(Aarch64CbnzFusionError::InstructionRosterMismatch(
-            compare.id,
-        ));
+fn map_match_error(error: TerminalPairMatchError) -> Aarch64CbnzFusionError {
+    match error {
+        TerminalPairMatchError::MissingArchitecturalView(name) => {
+            Aarch64CbnzFusionError::MissingArchitecturalView(name)
+        }
+        TerminalPairMatchError::FirstRoster(instruction)
+        | TerminalPairMatchError::SecondRoster(instruction) => {
+            Aarch64CbnzFusionError::InstructionRosterMismatch(instruction)
+        }
+        TerminalPairMatchError::FirstFootprint(instruction) => {
+            Aarch64CbnzFusionError::InvalidCompareFootprint(instruction)
+        }
+        TerminalPairMatchError::SecondFootprint(instruction) => {
+            Aarch64CbnzFusionError::InvalidBranchFootprint(instruction)
+        }
+        TerminalPairMatchError::FirstPhysicalSource(instruction)
+        | TerminalPairMatchError::SecondPhysicalSource(instruction) => {
+            Aarch64CbnzFusionError::InvalidPhysicalSource(instruction)
+        }
+        TerminalPairMatchError::Liveness(instruction) => {
+            Aarch64CbnzFusionError::LivenessRosterMismatch(instruction)
+        }
     }
-    if machine_branch.instruction != branch.id
-        || live_branch.instruction != branch.id
-        || !matches!(
-            branch.kind,
-            SelectedInstructionKind::ConditionalBranchNonZero
-        )
-        || !branch.operands.is_empty()
-    {
-        return Err(Aarch64CbnzFusionError::InstructionRosterMismatch(branch.id));
-    }
-    validate_compare(compare, machine_compare, physical, nzcv)?;
-    validate_branch(branch, machine_branch, nzcv, pc)?;
-    if live_compare.unit_live_out != live_branch.unit_live_in
-        || !nzcv
-            .iter()
-            .all(|unit| live_compare.unit_live_out.contains(unit))
-        || !nzcv.iter().all(|unit| live_branch.unit_uses.contains(unit))
-    {
-        return Err(Aarch64CbnzFusionError::LivenessRosterMismatch(branch.id));
-    }
-    Ok(())
-}
-
-fn validate_compare(
-    selected: &SelectedInstruction,
-    machine: &PostAllocationMachineInstruction,
-    physical: &ValidatedPhysicalRegisterModel,
-    nzcv: &[RegisterUnitId],
-) -> Result<(), Aarch64CbnzFusionError> {
-    let encoded = &machine.alternative.encoded;
-    if machine.alternative.key.family != MachineAlternativeFamily::CompareI64Zero
-        || machine.alternative.key.variant != 0
-        || encoded.external_operand_reads != [0]
-        || !encoded.external_operand_writes.is_empty()
-        || !encoded.implicit_unit_uses.is_empty()
-        || encoded.implicit_unit_defs != nzcv
-        || !encoded.implicit_unit_clobbers.is_empty()
-        || encoded.memory != MachineEncodedMemoryEffect::NoneV1
-        || encoded.stack != MachineEncodedStackEffect::UnchangedV1
-        || encoded.trap != MachineEncodedTrapBehavior::NeverV1
-        || encoded.control != MachineEncodedControlEffect::FallThroughV1
-        || machine.operands.len() != 1
-    {
-        return Err(Aarch64CbnzFusionError::InvalidCompareFootprint(selected.id));
-    }
-    let selected_operand = &selected.operands[0];
-    let operand = &machine.operands[0];
-    if selected_operand.operand != 0
-        || selected_operand.access != RegisterOperandAccess::Use
-        || operand.operand != 0
-        || operand.virtual_register != selected_operand.virtual_register
-        || operand.class != selected_operand.class
-        || operand.access != RegisterOperandAccess::Use
-        || operand.read_units != operand.storage_units
-        || !operand.write_units.is_empty()
-        || operand.write_semantics.is_some()
-        || machine.implicit_unit_defs != nzcv
-    {
-        return Err(Aarch64CbnzFusionError::InvalidCompareFootprint(selected.id));
-    }
-    validate_x_view(operand, physical, selected.id)
-}
-
-fn validate_branch(
-    selected: &SelectedInstruction,
-    machine: &PostAllocationMachineInstruction,
-    nzcv: &[RegisterUnitId],
-    pc: &[RegisterUnitId],
-) -> Result<(), Aarch64CbnzFusionError> {
-    let encoded = &machine.alternative.encoded;
-    let expected_uses = union(nzcv, pc);
-    if machine.alternative.key.family != MachineAlternativeFamily::ConditionalBranchNonZero
-        || machine.alternative.key.variant != 0
-        || !machine.operands.is_empty()
-        || !encoded.external_operand_reads.is_empty()
-        || !encoded.external_operand_writes.is_empty()
-        || encoded.implicit_unit_uses != expected_uses
-        || encoded.implicit_unit_defs != pc
-        || !encoded.implicit_unit_clobbers.is_empty()
-        || encoded.memory != MachineEncodedMemoryEffect::NoneV1
-        || encoded.stack != MachineEncodedStackEffect::UnchangedV1
-        || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-        || encoded.control != MachineEncodedControlEffect::ConditionalRelativeBranchV1
-        || machine.implicit_unit_uses != expected_uses
-        || machine.implicit_unit_defs != pc
-    {
-        return Err(Aarch64CbnzFusionError::InvalidBranchFootprint(selected.id));
-    }
-    Ok(())
-}
-
-fn validate_x_view(
-    operand: &PhysicalOperandFootprint,
-    physical: &ValidatedPhysicalRegisterModel,
-    instruction: omega_selected_instructions::SelectedInstructionId,
-) -> Result<(), Aarch64CbnzFusionError> {
-    let view = physical
-        .model()
-        .views
-        .iter()
-        .find(|view| view.id == operand.view)
-        .ok_or(Aarch64CbnzFusionError::InvalidPhysicalSource(instruction))?;
-    let valid_index = view
-        .name
-        .strip_prefix('x')
-        .and_then(|name| name.parse::<u8>().ok())
-        .is_some_and(|index| index <= 30);
-    if !valid_index
-        || view.bits != 64
-        || !view.allocatable
-        || view.class != operand.class
-        || view.units != operand.storage_units
-    {
-        return Err(Aarch64CbnzFusionError::InvalidPhysicalSource(instruction));
-    }
-    Ok(())
-}
-
-fn flags_live_out(
-    block: &BlockLiveness,
-    branch: &InstructionLiveness,
-    nzcv: &[RegisterUnitId],
-) -> bool {
-    branch.unit_live_out.iter().any(|unit| nzcv.contains(unit))
-        || block.unit_live_out.iter().any(|unit| nzcv.contains(unit))
-        || block
-            .successors
-            .iter()
-            .flat_map(|successor| &successor.unit_live)
-            .any(|unit| nzcv.contains(unit))
-}
-
-fn qualified_read(
-    selected: &SelectedInstruction,
-    machine: &PostAllocationMachineInstruction,
-) -> Result<QualifiedPhysicalRead, Aarch64CbnzFusionError> {
-    let operand = machine
-        .operands
-        .first()
-        .ok_or(Aarch64CbnzFusionError::InvalidCompareFootprint(selected.id))?;
-    Ok(QualifiedPhysicalRead {
-        source_instruction: selected.id,
-        operand: operand.operand,
-        virtual_register: operand.virtual_register,
-        class: operand.class,
-        view: operand.view,
-        units: operand.read_units.clone(),
-    })
 }
 
 fn apply_dispositions(
@@ -512,15 +370,6 @@ fn named_units(
         .view_named(name)
         .map(|view| view.units.clone())
         .ok_or(Aarch64CbnzFusionError::MissingArchitecturalView(name))
-}
-
-fn union(left: &[RegisterUnitId], right: &[RegisterUnitId]) -> Vec<RegisterUnitId> {
-    left.iter()
-        .chain(right)
-        .copied()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
 }
 
 fn charge(

@@ -227,6 +227,39 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
+    let cbnz_root = "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero";
+    let cbnz_compute = format!("{cbnz_root}/compute.rs");
+    let cbnz_validate = format!("{cbnz_root}/validate.rs");
+    match fs::read_to_string(repository.join(&cbnz_compute)) {
+        Ok(contents)
+            if !contents.contains("match_terminal_pair")
+                || !contents.contains("AARCH64_CBNZ_TERMINAL_PAIR_V1") =>
+        {
+            violations.insert(format!(
+                "CBNZ producer no longer enters through its declarative terminal-pair contract: {cbnz_compute}"
+            ));
+        }
+        Ok(_) => {}
+        Err(error) => {
+            violations.insert(format!("cannot read {cbnz_compute}: {error}"));
+        }
+    }
+    match fs::read_to_string(repository.join(&cbnz_validate)) {
+        Ok(contents)
+            if contents.contains("match_terminal_pair")
+                || contents.contains("peephole_matching")
+                || contents.contains("compute::") =>
+        {
+            violations.insert(format!(
+                "independent CBNZ validation imports producer matcher mechanics: {cbnz_validate}"
+            ));
+        }
+        Ok(_) => {}
+        Err(error) => {
+            violations.insert(format!("cannot read {cbnz_validate}: {error}"));
+        }
+    }
+
     let obsolete_external_policy_schema = "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema.rs";
     if repository.join(obsolete_external_policy_schema).exists() {
         violations.insert(format!(

@@ -280,6 +280,7 @@ src/
   rules/
     mod.rs               # target/family catalog entrance
     catalog.rs           # the only built-in order
+    peephole_matching/   # bounded descriptor matcher; no enable/order policy
     <target>/<rule>/     # model, compute, identity, validation, codec, tests
   planning/
     <plan>/              # immutable plan construction and replay

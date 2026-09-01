@@ -10,6 +10,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn analyze_post_allocation_machine_plan",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/mod.rs",
+        coordination_marker: "pub(crate) fn match_terminal_pair",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/mod.rs",
         coordination_marker: "pub fn optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz",
     },
