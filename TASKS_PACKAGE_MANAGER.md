@@ -347,13 +347,12 @@ explicitly.
   and `BuildOutput`; exact reachable facet calls activate the existing sponsor,
   and the live `generated-table -> generated-consumer` canary proves Source
   open/read/close, Output create/write/close, explicit handoff, and dependency
-  injection without rerunning the producer. Finish the migration by deleting
-  the explicit-`FilesystemHost` compatibility prelude, migrating its remaining
-  compiler tests and any concrete build customers, and removing the std-owned
-  `Path`/`Build.filesystem` route entirely. Do not duplicate the raw std
-  filesystem matrix on the Build facets without a package-build customer.
-  Build evaluation must admit no ordinary runtime boundary service merely
-  because it is filesystem- or console-shaped.
+  injection without rerunning the producer. The explicit-`FilesystemHost`
+  compatibility prelude, std-owned `Path`/`Build.filesystem` route, and its
+  compiler-level raw-filesystem test matrix are now removed. Build evaluation
+  admits no ordinary runtime boundary service merely because it is filesystem-
+  or console-shaped. Do not expand the Build facets without a concrete
+  package-build customer.
   `FilesystemSponsor` remains the enforcement boundary for source/output
   roots, symlinks, limits, descriptors, and staging custody.
 

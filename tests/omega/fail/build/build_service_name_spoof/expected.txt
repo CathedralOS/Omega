@@ -1,1 +1,1 @@
-build.omg may reach only the pinned staging services
+build.omg may not reach runtime boundary services

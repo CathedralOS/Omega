@@ -3361,21 +3361,16 @@ fn package_selection_admission_precedes_build_machine_side_effects() {
     );
     TempTree::write(
         root.join("build.omg"),
-        r#"use omega::language::std::filesystem_host;
-
-target windows_x86_64 { }
+        r#"target windows_x86_64 { }
 target linux_x86_64 { }
 target linux_arm64 { }
 target macos_arm64 { }
 
-machine build(builder: &mut Build)
-reaches FilesystemHost
-invokes FilesystemHost;
-{
+machine build(builder: &mut Build) {
     builder.package("root");
-    let marker: &[u8] in Path = builder.output.resolve("build-ran.marker");
-    let descriptor: i32 = builder.filesystem.create(marker, 438);
-    let closed: i32 = builder.filesystem.close(descriptor);
+    let marker: BuildPath = builder.output.resolve("build-ran.marker");
+    let descriptor: i32 = builder.output.create(marker, 438);
+    let closed: i32 = builder.output.close(descriptor);
     let transitive: u32 = leaf_value();
 }
 "#,

@@ -1,5 +1,5 @@
-// FAIL CANARY -- a package-authored service cannot acquire the build gate's
-// staging authority by copying a standard service's human-readable name.
+// FAIL CANARY -- a package-authored service cannot acquire build authority by
+// copying any runtime service's human-readable name.
 boundary trait FilesystemHost {
     machine write(bytes: &[u8]);
 }

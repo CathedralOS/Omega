@@ -628,9 +628,9 @@ demands and observations compose through helpers into the free build root, and
 the filesystem sponsor enforces physical roots, limits, and custody. An ordinary
 boundary service reached from a build remains an ordinary runtime service and
 is not admitted because it is named `FilesystemHost`, `Console`, or anything
-similar. The older pinned std-service gate is implementation debt owned by
-`OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS`; unknown service
-identifiers continue to resolve normally, with no global name table.
+similar. Unknown service identifiers continue to resolve normally, with no
+global name table; build admission rejects every runtime boundary service and
+recognizes only exact compiler-owned Build-facet calls.
 
 ## Acceptance register
 

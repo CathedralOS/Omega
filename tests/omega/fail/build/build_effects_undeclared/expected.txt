@@ -1,1 +1,1 @@
-reaches boundary service `FilesystemHost` without declaring it
+build.omg may not reach runtime boundary services
