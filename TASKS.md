@@ -11138,11 +11138,13 @@ boundary without its corresponding checked law.
   calls to one locator share one import symbol while retaining distinct call
   sites. The first preceding production path is now closed for a
   `Unit`-returning normalized import leaf with no scalar arguments or one
-  through the target's complete fixed-width 8/16/32/64-bit integer register
-  bank: six SysV x86-64 arguments through `R9`, or eight AAPCS64 arguments
-  through `X7`. Every evaluated placement must be register-resident. An
-  argument may be an exact literal or the runtime result in an exact preceding
-  attached-`Unit` scalar call's durable home.
+  through the target's complete fixed-width 8/16/32/64-bit integer argument
+  plan: six SysV x86-64 register arguments through `R9` and then canonical
+  8-byte outgoing stack slots, or eight AAPCS64 register arguments through
+  `X7` and then canonical 8-byte outgoing stack slots. Every evaluated
+  placement must be one exact complete register or stack fragment from the
+  selected plan. An argument may be an exact literal or the runtime result in
+  an exact preceding attached-`Unit` scalar call's durable home.
   Checked compilation
   retains the extracted external-binding rows before consuming typed trees;
   native settlement rejoins one unique retained row to the complete selected
@@ -11154,12 +11156,15 @@ boundary without its corresponding checked law.
   execution, evaluated call plan, admitted contribution, and exact physical
   `Unit` stack evidence in `MachineCodeFunction::foreign_calls`. In the
   literal-bearing cases, each occurrence-specific row retains its source value,
-  integer type and immediate, parameter index, evaluated register placement,
-  and exact materialization byte interval. Runtime-home rows instead retain the
-  exact source value and assigned durable home plus their load interval. With
-  multiple arguments through the target-specific ceiling, those rows and byte
-  intervals remain in parameter order, and every interval ends exactly where
-  the next begins. The complete register-resident fixed-integer result family
+  integer type and immediate, parameter index, evaluated register-or-stack
+  placement, and exact materialization/store byte interval. Runtime-home rows
+  instead retain the exact source value and assigned durable home plus their
+  load/store interval. Machine emission derives the exact outgoing extent from
+  the canonical plan, allocates it before materializing any arguments, rebases
+  every durable-home load across that adjustment, and releases it immediately
+  after the call. With multiple arguments, those rows and byte intervals remain
+  in parameter order between the allocation and call, and every interval ends
+  exactly where the next begins. The complete register-resident fixed-integer result family
   is also closed: exact signed and unsigned 8/16/32/64-bit results from
   normalized foreign calls in attached `Unit` bodies are normalized according
   to their evaluated result placements, stored in durable 64-bit scalar homes,
@@ -11177,8 +11182,8 @@ boundary without its corresponding checked law.
   advance from the exact native rejoin through
   target, assignment, machine, ordinary object, and the complete dynamic-ELF
   driver; stripped, reordered, or drifted source/type/value/home/index/register/
-  byte/plan/stack custody rejects. General runtime expressions, the first stack-
-  resident argument and beyond, non-fixed-integer, float, aggregate, and
+  byte/plan/stack custody rejects. General runtime expressions, non-fixed-
+  integer, float, aggregate, and
   indirect result shapes, complete task-stack-
   budget composition, optional `.gnu.hash`, and general admission-owner
   integration remain engineering work. A first externally admitted, zero-
@@ -11210,8 +11215,8 @@ boundary without its corresponding checked law.
   relocation offset. The local test evidence is an input assumption, not a
   deployment admission claim. Remaining work is the real external admission
   owner and automatic native-request integration, complete task-stack-budget
-  composition, general runtime expressions, stack-resident arguments, non-
-  fixed-integer/float/aggregate/indirect result signatures, callback-native
+  composition, general runtime expressions, non-fixed-integer/float/aggregate/
+  indirect result signatures, callback-native
   replay, specialized adapter migration, and any optional dynamic-ELF
   extensions.
 

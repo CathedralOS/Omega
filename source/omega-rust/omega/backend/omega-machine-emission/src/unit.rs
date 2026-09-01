@@ -372,26 +372,39 @@ fn emit_foreign_integer_argument(
     bytes: &mut Vec<u8>,
     target: NativeTarget,
     argument: &AssignedNormalizedForeignScalarArgument,
+    call_stack_bytes: u32,
 ) -> Result<(), EmissionError> {
     let source_value = argument.source.source_value();
     let scalar_type = argument.source.scalar_type();
     let shape = foreign_integer_shape(source_value, scalar_type)?;
-    let [
-        ValueLocation::Register {
-            register,
-            value_byte_offset: 0,
-            byte_size,
-        },
-    ] = argument.placement.locations.as_slice()
-    else {
+    let (destination_register, destination_stack, placed_byte_size) =
+        match argument.placement.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size,
+                },
+            ] => (Some(*register), None, *byte_size),
+            [
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => (None, Some(*stack_byte_offset), *byte_size),
+            _ => return Err(EmissionError::InvalidNormalizedForeignCallCustody),
+        };
+    if argument.placement.shape != shape || placed_byte_size != shape.byte_size {
         return Err(EmissionError::InvalidNormalizedForeignCallCustody);
     };
-    if argument.placement.shape != shape || *byte_size != shape.byte_size {
-        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
-    }
     match target.architecture {
         Architecture::X86_64 => {
-            let register = x86_unit_register(*register)?;
+            let register = destination_register
+                .map(x86_unit_register)
+                .transpose()?
+                .unwrap_or(11);
             match argument.source {
                 AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. } => {
                     let bits = super::integer_bits(source_value, scalar_type, value)?;
@@ -408,12 +421,21 @@ fn emit_foreign_integer_argument(
                     }
                 }
                 AssignedUnitScalarArgumentSource::Home(home) => {
-                    emit_x86_64_stack_load_width(bytes, register, home.byte_offset, 8)?;
+                    let source_offset = call_stack_bytes
+                        .checked_add(home.byte_offset)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+                    emit_x86_64_stack_load_width(bytes, register, source_offset, 8)?;
                 }
+            }
+            if let Some(destination) = destination_stack {
+                emit_x86_64_stack_store_width(bytes, register, destination, 8)?;
             }
         }
         Architecture::Aarch64 => {
-            let register = aarch64_unit_register(*register)?;
+            let register = destination_register
+                .map(aarch64_unit_register)
+                .transpose()?
+                .unwrap_or(9);
             match argument.source {
                 AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. } => {
                     let bits = super::integer_bits(source_value, scalar_type, value)?;
@@ -430,18 +452,53 @@ fn emit_foreign_integer_argument(
                     }
                 }
                 AssignedUnitScalarArgumentSource::Home(home) => {
+                    let source_offset = call_stack_bytes
+                        .checked_add(home.byte_offset)
+                        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
                     let instruction = aarch64_unit_stack_access(
                         aarch64_load_base(8)?,
                         register,
-                        home.byte_offset,
+                        source_offset,
                         8,
                     )?;
                     bytes.extend_from_slice(&instruction.to_le_bytes());
                 }
             }
+            if let Some(destination) = destination_stack {
+                let instruction =
+                    aarch64_unit_stack_access(aarch64_store_base(8)?, register, destination, 8)?;
+                bytes.extend_from_slice(&instruction.to_le_bytes());
+            }
         }
     }
     Ok(())
+}
+
+fn normalized_foreign_call_stack_bytes(
+    call_plan: &omega_calling_conventions::CallPlan,
+    architecture: Architecture,
+) -> Result<u32, EmissionError> {
+    let shadow_bytes = u32::from(call_plan.shadow_bytes);
+    let outgoing_bytes =
+        call_plan
+            .parameters
+            .iter()
+            .try_fold(shadow_bytes, |extent, placement| {
+                let candidate = match architecture {
+                    Architecture::X86_64 => outgoing_placement_extent(placement),
+                    Architecture::Aarch64 => aarch64_outgoing_placement_extent(placement),
+                }?;
+                Ok::<_, EmissionError>(extent.max(candidate))
+            })?;
+    match architecture {
+        Architecture::X86_64 => {
+            let padding = (8 + 16 - (outgoing_bytes % 16)) % 16;
+            outgoing_bytes
+                .checked_add(padding)
+                .ok_or(EmissionError::UnitCallStackAreaNotEncodable)
+        }
+        Architecture::Aarch64 => align_u32(outgoing_bytes, 16),
+    }
 }
 
 fn foreign_scalar_source_record(
@@ -798,6 +855,23 @@ pub(super) fn emit_unit_body(
                 {
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                 }
+                let outbound = normalized_foreign_call_stack_bytes(call_plan, target.architecture)?;
+                let mut allocation = None;
+                if outbound != 0 {
+                    match target.architecture {
+                        Architecture::X86_64 => {
+                            let adjustment_offset = bytes.len();
+                            emit_x86_64_adjust_sp(&mut bytes, outbound, false);
+                            allocation = Some((adjustment_offset, bytes.len() - adjustment_offset));
+                        }
+                        Architecture::Aarch64 => {
+                            allocation = Some((bytes.len(), 4));
+                            let mut instructions = Vec::new();
+                            emit_aarch64_adjust_sp(&mut instructions, outbound, false)?;
+                            append_aarch64_instructions(&mut bytes, instructions);
+                        }
+                    }
+                }
                 let mut emitted_scalar_arguments = Vec::new();
                 for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
                     let parameter_index = u32::try_from(parameter_index)
@@ -850,7 +924,7 @@ pub(super) fn emit_unit_body(
                         return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                     }
                     let code_offset = bytes.len();
-                    emit_foreign_integer_argument(&mut bytes, target, argument)?;
+                    emit_foreign_integer_argument(&mut bytes, target, argument, outbound)?;
                     emitted_scalar_arguments.push(ForeignCallScalarArgumentRecord {
                         parameter_index,
                         source: foreign_scalar_source_record(argument.source),
@@ -859,20 +933,9 @@ pub(super) fn emit_unit_body(
                         byte_count: bytes.len() - code_offset,
                     });
                 }
-                let shadow_bytes = u32::from(call_plan.shadow_bytes);
-                let mut allocation = None;
                 let mut release = None;
-                let (relocation_offset, outbound) = match target.architecture {
+                let relocation_offset = match target.architecture {
                     Architecture::X86_64 => {
-                        let padding = (8 + 16 - (shadow_bytes % 16)) % 16;
-                        let outbound = shadow_bytes
-                            .checked_add(padding)
-                            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-                        if outbound != 0 {
-                            let adjustment_offset = bytes.len();
-                            emit_x86_64_adjust_sp(&mut bytes, outbound, false);
-                            allocation = Some((adjustment_offset, bytes.len() - adjustment_offset));
-                        }
                         bytes.push(0xe8);
                         let relocation_offset = bytes.len();
                         bytes.extend_from_slice(&0_i32.to_le_bytes());
@@ -881,16 +944,9 @@ pub(super) fn emit_unit_body(
                             emit_x86_64_adjust_sp(&mut bytes, outbound, true);
                             release = Some((adjustment_offset, bytes.len() - adjustment_offset));
                         }
-                        (relocation_offset, outbound)
+                        relocation_offset
                     }
                     Architecture::Aarch64 => {
-                        let outbound = align_u32(shadow_bytes, 16)?;
-                        if outbound != 0 {
-                            allocation = Some((bytes.len(), 4));
-                            let mut instructions = Vec::new();
-                            emit_aarch64_adjust_sp(&mut instructions, outbound, false)?;
-                            append_aarch64_instructions(&mut bytes, instructions);
-                        }
                         let relocation_offset = bytes.len();
                         bytes.extend_from_slice(&0x9400_0000_u32.to_le_bytes());
                         if outbound != 0 {
@@ -899,7 +955,7 @@ pub(super) fn emit_unit_body(
                             emit_aarch64_adjust_sp(&mut instructions, outbound, true)?;
                             append_aarch64_instructions(&mut bytes, instructions);
                         }
-                        (relocation_offset, outbound)
+                        relocation_offset
                     }
                 };
                 let scalar_result = result_home

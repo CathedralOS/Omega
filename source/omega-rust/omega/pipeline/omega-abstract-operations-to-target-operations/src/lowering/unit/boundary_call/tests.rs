@@ -171,10 +171,10 @@ fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
             }
         ));
 
-        let mut stack_plan = plan;
-        stack_plan.call.parameters[1].locations = vec![ValueLocation::Stack {
+        let mut malformed_stack_plan = plan;
+        malformed_stack_plan.call.parameters[1].locations = vec![ValueLocation::Stack {
             stack_byte_offset: 0,
-            value_byte_offset: 0,
+            value_byte_offset: 1,
             byte_size: 8,
             alignment: 8,
         }];
@@ -183,7 +183,7 @@ fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
                 boundary,
                 &declaration,
                 &[first, second],
-                &stack_plan,
+                &malformed_stack_plan,
                 &constants,
             )
             .is_err()
@@ -259,9 +259,32 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
         byte_size: 4,
         alignment: 4,
     }];
+    assert!(
+        lower_normalized_foreign_scalar_arguments(
+            boundary,
+            &one_parameter_declaration,
+            &[source],
+            &stack_plan,
+            &constants,
+        )
+        .is_ok(),
+        "lowering retains an exact stack placement from the selected plan",
+    );
+    let mut malformed_stack_plan = stack_plan;
+    let [
+        ValueLocation::Stack {
+            value_byte_offset, ..
+        },
+    ] = malformed_stack_plan.call.parameters[0]
+        .locations
+        .as_mut_slice()
+    else {
+        unreachable!("fixture uses one stack placement")
+    };
+    *value_byte_offset = 1;
     let mut result_plan = plan.clone();
     result_plan.call.result = Some(plan.call.parameters[0].clone());
-    for invalid in [stack_plan, result_plan] {
+    for invalid in [malformed_stack_plan, result_plan] {
         assert!(
             lower_normalized_foreign_scalar_arguments(
                 boundary,
@@ -304,32 +327,53 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
             [ValueLocation::Register { register, .. }] if *register == expected_last_register
         ));
 
-        let first_stack_count = register_count + 1;
-        let first_stack_declaration = declaration(
+        let stack_argument_count = register_count + 2;
+        let stack_argument_declaration = declaration(
             boundary,
-            vec![ScalarType::Integer(i32_type); first_stack_count],
+            vec![ScalarType::Integer(i32_type); stack_argument_count],
         );
-        let first_stack_plan = entry_plan(target, &vec![i32_type; first_stack_count]);
+        let stack_argument_plan = entry_plan(target, &vec![i32_type; stack_argument_count]);
         assert!(matches!(
-            first_stack_plan
+            stack_argument_plan
+                .call
+                .parameters
+                .get(register_count)
+                .unwrap()
+                .locations
+                .as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 0,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            stack_argument_plan
                 .call
                 .parameters
                 .last()
                 .unwrap()
                 .locations
                 .as_slice(),
-            [ValueLocation::Stack { .. }]
+            [ValueLocation::Stack {
+                stack_byte_offset: 8,
+                ..
+            }]
         ));
-        assert!(
-            lower_normalized_foreign_scalar_arguments(
-                boundary,
-                &first_stack_declaration,
-                &vec![source; first_stack_count],
-                &first_stack_plan,
-                &constants,
-            )
-            .is_err(),
-            "the first stack-resident literal remains fenced on {target:?}",
+        let stack_arguments = lower_normalized_foreign_scalar_arguments(
+            boundary,
+            &stack_argument_declaration,
+            &vec![source; stack_argument_count],
+            &stack_argument_plan,
+            &constants,
+        )
+        .expect("canonical stack-resident fixed-integer arguments");
+        assert_eq!(
+            stack_arguments
+                .iter()
+                .map(|argument| argument.placement.clone())
+                .collect::<Vec<_>>(),
+            stack_argument_plan.call.parameters,
+            "lowering retains the complete canonical register-and-stack plan on {target:?}",
         );
     }
 }

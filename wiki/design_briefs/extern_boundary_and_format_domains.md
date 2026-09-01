@@ -456,11 +456,13 @@ locator side table, and distinct call-site relocations. The dynamic-ELF driver
 tests now begin at this ordinary object builder rather than constructing its
 private result. The first preceding production path is now closed for one
 `Unit`-returning normalized import leaf with no scalar arguments or one through
-the target's complete fixed-width 8/16/32/64-bit integer register bank: six
-SysV x86-64 arguments through `R9`, or eight AAPCS64 arguments through `X7`.
-Every evaluated placement must be register-resident. An argument may be an
-exact literal or the runtime result in an exact preceding attached-`Unit`
-scalar call's durable home. Checked compilation
+the target's complete fixed-width 8/16/32/64-bit integer argument plan: six
+SysV x86-64 registers through `R9` followed by canonical 8-byte outgoing stack
+slots, or eight AAPCS64 registers through `X7` followed by canonical 8-byte
+outgoing stack slots. Every evaluated placement must be one exact complete
+register or stack fragment from the selected plan. An argument may be an exact
+literal or the runtime result in an exact preceding attached-`Unit` scalar
+call's durable home. Checked compilation
 retains extracted external-binding rows before consuming typed trees. Native
 settlement rejoins one unique retained row only through the complete selected
 `ProviderPlan`, its exact selected-plan evidence, and the admitted same-stack
@@ -471,11 +473,14 @@ unresolved `CALL rel32` or `BL` field and retains the complete normalized
 locator, provider execution, evaluated call plan, admitted contribution, and
 physical `Unit` stack evidence in the foreign-call row. Every literal-bearing
 row additionally binds its occurrence-specific source value, integer type and
-immediate, parameter index, evaluated register placement, and exact
-materialization byte interval. Runtime-home rows instead bind the exact source
-value and assigned durable home plus their load interval. With multiple
-arguments through the target-specific ceiling, the rows and intervals stay in
-parameter order and every interval ends exactly where the next begins. The
+immediate, parameter index, evaluated register-or-stack placement, and exact
+materialization/store byte interval. Runtime-home rows instead bind the exact
+source value and assigned durable home plus their load/store interval. Machine
+emission derives the exact outbound extent from the canonical plan, allocates
+it before every argument, rebases durable-home loads across the adjustment,
+and releases it immediately after the call. With multiple arguments, the rows
+and intervals stay in parameter order between allocation and call and every
+interval ends exactly where the next begins. The
 complete register-resident fixed-integer result family is also closed: exact
 signed and unsigned 8/16/32/64-bit results from normalized foreign calls in
 attached `Unit` bodies are normalized from their evaluated result registers
@@ -493,7 +498,7 @@ stack custody before consuming the rows. Both Linux profiles advance from the
 exact native rejoin through target, assignment, machine, ordinary object
 construction, and the complete dynamic-ELF driver. Stripped, reordered, or drifted source/type/value/
 home/index/register/byte/plan/stack custody rejects. General runtime
-expressions, the first stack-resident argument and beyond, non-fixed-integer,
+expressions, non-fixed-integer,
 float, aggregate, and indirect result shapes, complete task-stack-budget
 composition, optional `.gnu.hash`, and
 general external-admission ownership remain open engineering work. An owned direct

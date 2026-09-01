@@ -9,6 +9,18 @@ struct LiteralCase {
     type_identity: &'static str,
 }
 
+#[derive(Clone, Copy)]
+enum ExpectedTailPlacement {
+    Register {
+        register: omega_calling_conventions::MachineRegister,
+        x86_prefix: Option<[u8; 2]>,
+    },
+    Stack {
+        byte_offset: u32,
+        outbound_bytes: u32,
+    },
+}
+
 #[test]
 fn exact_rejoined_all_register_literal_imports_reach_dynamic_elf() {
     let unsigned_32 = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap();
@@ -43,36 +55,65 @@ fn exact_rejoined_all_register_literal_imports_reach_dynamic_elf() {
         ),
     ] {
         let cases = literal_cases(count, tail_type, tail_immediate, tail_identity);
-        assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
+        assert_exact_rejoined_literal_import_reaches_dynamic_elf(
             profile,
             &cases,
-            expected_register,
-            x86_prefix,
+            ExpectedTailPlacement::Register {
+                register: expected_register,
+                x86_prefix,
+            },
+        );
+    }
+}
+
+#[test]
+fn exact_rejoined_stack_literal_imports_reach_dynamic_elf() {
+    let unsigned_64 = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap();
+    for (profile, count, outbound_bytes) in [
+        (omega_target::TargetProfile::LinuxX64, 8, 24),
+        (omega_target::TargetProfile::LinuxArm64, 10, 16),
+    ] {
+        let cases = literal_cases(
+            count,
+            unsigned_64,
+            psi_core::IntegerValue::Unsigned(0x7654_3210_fedc_ba98),
+            "u64",
+        );
+        assert_exact_rejoined_literal_import_reaches_dynamic_elf(
+            profile,
+            &cases,
+            ExpectedTailPlacement::Stack {
+                byte_offset: 8,
+                outbound_bytes,
+            },
         );
     }
 }
 
 #[test]
 fn exact_runtime_scalar_home_import_reaches_dynamic_elf() {
-    for profile in [
-        omega_target::TargetProfile::LinuxX64,
-        omega_target::TargetProfile::LinuxArm64,
+    for (profile, argument_count) in [
+        (omega_target::TargetProfile::LinuxX64, 1),
+        (omega_target::TargetProfile::LinuxArm64, 1),
+        (omega_target::TargetProfile::LinuxX64, 8),
+        (omega_target::TargetProfile::LinuxArm64, 10),
     ] {
-        assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(profile);
+        assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(profile, argument_count);
     }
 }
 
 fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
     profile: omega_target::TargetProfile,
+    argument_count: usize,
 ) {
     let requirement = "omega::test::Foreign::leaf()";
     let boundary = psi_core::BoundaryMachineId::new(822).unwrap();
     let target = profile.native_target();
     let scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
-    let abstract_plan = runtime_argument_abstract_plan(scalar_type);
+    let abstract_plan = runtime_argument_abstract_plan(scalar_type, argument_count);
     let mut selected_plan = import_plan(b"selected_runtime_leaf", profile);
-    selected_plan.schema.methods[0].parameter_count = 1;
-    selected_plan.schema.methods[0].parameter_type_identities = vec!["i32".into()];
+    selected_plan.schema.methods[0].parameter_count = argument_count;
+    selected_plan.schema.methods[0].parameter_type_identities = vec!["i32".into(); argument_count];
     let report_identity = selected_plan.report_fingerprint();
     let locator = match &selected_plan.rows[0].binding {
         ProviderBinding::Import { evaluated } => evaluated.locator().clone(),
@@ -81,7 +122,7 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
     let boundary_entry_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &omega_calling_conventions::CallSignature {
-            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4); argument_count],
             result: None,
         },
     )
@@ -160,15 +201,17 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
     else {
         panic!("runtime import remains a normalized foreign call")
     };
-    assert_eq!(scalar_arguments.len(), 1);
-    assert_eq!(
-        scalar_arguments[0].source,
-        omega_target_operations::TargetUnitScalarArgumentSource::Home(*result_home)
-    );
-    assert_eq!(
-        scalar_arguments[0].placement,
-        boundary_entry_plan.call.parameters[0]
-    );
+    assert_eq!(scalar_arguments.len(), argument_count);
+    for (index, argument) in scalar_arguments.iter().enumerate() {
+        assert_eq!(
+            argument.source,
+            omega_target_operations::TargetUnitScalarArgumentSource::Home(*result_home)
+        );
+        assert_eq!(
+            argument.placement,
+            boundary_entry_plan.call.parameters[index]
+        );
+    }
 
     let assigned =
         omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
@@ -192,19 +235,20 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
     else {
         unreachable!()
     };
-    assert_eq!(
-        scalar_arguments[0].source,
-        omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Home(*assigned_home)
-    );
+    assert_eq!(scalar_arguments.len(), argument_count);
+    assert!(scalar_arguments.iter().all(|argument| argument.source
+        == omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Home(
+            *assigned_home
+        )));
 
     let machine_code = omega_machine_emission::emit_machine_code(&assigned).unwrap();
     let function = &machine_code.functions[0];
     let [call] = function.foreign_calls.as_slice() else {
         panic!("one runtime foreign call")
     };
-    let [argument] = call.scalar_arguments.as_slice() else {
-        panic!("one runtime foreign argument")
-    };
+    assert_eq!(call.scalar_arguments.len(), argument_count);
+    let argument = &call.scalar_arguments[0];
+    let last_argument = call.scalar_arguments.last().unwrap();
     let expected_home = omega_machine_code::UnitScalarHomeRecord {
         defining_operation: assigned_home.defining_operation,
         source_value: assigned_home.source_value,
@@ -212,24 +256,59 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
         shape: assigned_home.shape,
         byte_offset: assigned_home.byte_offset,
     };
+    assert!(call.scalar_arguments.iter().all(|argument| argument.source
+        == omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(expected_home)));
+    let expected_outbound = match (target.architecture, argument_count) {
+        (omega_target::Architecture::X86_64, 1) => 8,
+        (omega_target::Architecture::X86_64, 8) => 24,
+        (omega_target::Architecture::Aarch64, 1) => 0,
+        (omega_target::Architecture::Aarch64, 10) => 16,
+        _ => unreachable!(),
+    };
     assert_eq!(
-        argument.source,
-        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(expected_home)
+        call.unit_stack.outbound.map_or(0, |pair| pair.byte_size),
+        expected_outbound,
     );
     let argument_bytes =
         &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count];
-    match target.architecture {
-        omega_target::Architecture::X86_64 => {
-            assert_eq!(argument_bytes, &[0x48, 0x8b, 0x7c, 0x24, 0x00]);
+    match (target.architecture, argument_count) {
+        (omega_target::Architecture::X86_64, 1) => {
+            assert_eq!(argument_bytes, &[0x48, 0x8b, 0x7c, 0x24, 0x08]);
         }
-        omega_target::Architecture::Aarch64 => {
+        (omega_target::Architecture::Aarch64, 1) => {
             assert_eq!(argument_bytes, &0xf940_03e0_u32.to_le_bytes());
         }
+        (omega_target::Architecture::X86_64, 8) => {
+            assert_eq!(argument_bytes, &[0x48, 0x8b, 0x7c, 0x24, 0x18]);
+            let last_bytes = &function.bytes
+                [last_argument.code_offset..last_argument.code_offset + last_argument.byte_count];
+            assert_eq!(
+                last_bytes,
+                &[0x4c, 0x8b, 0x5c, 0x24, 0x18, 0x4c, 0x89, 0x5c, 0x24, 0x08],
+            );
+        }
+        (omega_target::Architecture::Aarch64, 10) => {
+            assert_eq!(argument_bytes, &0xf940_0be0_u32.to_le_bytes());
+            let last_bytes = &function.bytes
+                [last_argument.code_offset..last_argument.code_offset + last_argument.byte_count];
+            assert_eq!(
+                last_bytes,
+                [0xf940_0be9_u32, 0xf900_07e9_u32]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect::<Vec<_>>(),
+            );
+        }
+        _ => unreachable!(),
     }
 
     let mut changed_home = machine_code.clone();
     let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
-        &mut changed_home.functions[0].foreign_calls[0].scalar_arguments[0].source
+        &mut changed_home.functions[0].foreign_calls[0]
+            .scalar_arguments
+            .last_mut()
+            .unwrap()
+            .source
     else {
         unreachable!()
     };
@@ -237,14 +316,18 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
     assert!(omega_image_emission::build_object_artifact(&changed_home).is_err());
     let mut changed_source = machine_code.clone();
     let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
-        &mut changed_source.functions[0].foreign_calls[0].scalar_arguments[0].source
+        &mut changed_source.functions[0].foreign_calls[0]
+            .scalar_arguments
+            .last_mut()
+            .unwrap()
+            .source
     else {
         unreachable!()
     };
     home.source_value = psi_core::ValueId::new(829).unwrap();
     assert!(omega_image_emission::build_object_artifact(&changed_source).is_err());
     let mut changed_bytes = machine_code.clone();
-    changed_bytes.functions[0].bytes[argument.code_offset] ^= 1;
+    changed_bytes.functions[0].bytes[last_argument.code_offset] ^= 1;
     assert!(omega_image_emission::build_object_artifact(&changed_bytes).is_err());
 
     let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
@@ -277,6 +360,8 @@ fn literal_cases(
         psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
         psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 16).unwrap(),
         psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+        psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 8).unwrap(),
+        psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
     ];
     let mut immediates = vec![
         psi_core::IntegerValue::Unsigned(513),
@@ -287,9 +372,13 @@ fn literal_cases(
         psi_core::IntegerValue::Unsigned(0x0123_4567_89ab_cdef),
         psi_core::IntegerValue::Unsigned(0x4321),
         psi_core::IntegerValue::Unsigned(0x0123_4567_89ab_cdef),
+        psi_core::IntegerValue::Signed(-7),
+        psi_core::IntegerValue::Unsigned(0xfedc_ba98_7654_3210),
     ];
-    let mut type_identities = vec!["u16", "i64", "u32", "u8", "u32", "u64", "u16", "u64"];
-    assert!(matches!(count, 6 | 8));
+    let mut type_identities = vec![
+        "u16", "i64", "u32", "u8", "u32", "u64", "u16", "u64", "i8", "u64",
+    ];
+    assert!(matches!(count, 6 | 8 | 10));
     types[count - 1] = tail_type;
     immediates[count - 1] = tail_immediate;
     type_identities[count - 1] = tail_identity;
@@ -316,7 +405,7 @@ fn abstract_plan(cases: &[LiteralCase]) -> omega_abstract_operations::AbstractOp
     let machine = psi_core::MachineId::new(810).unwrap();
     let block = psi_core::BlockId::new(810).unwrap();
     let boundary = psi_core::BoundaryMachineId::new(810).unwrap();
-    let call_operation = psi_core::OperationId::new(818).unwrap();
+    let call_operation = psi_core::OperationId::new(830).unwrap();
     let return_edge = psi_core::EdgeId::new(810).unwrap();
     let mut operations = cases
         .iter()
@@ -384,11 +473,10 @@ fn abstract_plan(cases: &[LiteralCase]) -> omega_abstract_operations::AbstractOp
     }
 }
 
-fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
+fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
     profile: omega_target::TargetProfile,
     cases: &[LiteralCase],
-    expected_last_register: omega_calling_conventions::MachineRegister,
-    expected_x86_prefix: Option<[u8; 2]>,
+    expected_tail: ExpectedTailPlacement,
 ) {
     let requirement = "omega::test::Foreign::leaf()";
     let boundary = psi_core::BoundaryMachineId::new(810).unwrap();
@@ -506,11 +594,20 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
             boundary_entry_plan.call.parameters[parameter_index]
         );
     }
-    assert!(matches!(
-        target_arguments.last().unwrap().placement.locations.as_slice(),
-        [omega_calling_conventions::ValueLocation::Register { register, .. }]
-            if *register == expected_last_register
-    ));
+    match expected_tail {
+        ExpectedTailPlacement::Register { register, .. } => assert!(matches!(
+            target_arguments.last().unwrap().placement.locations.as_slice(),
+            [omega_calling_conventions::ValueLocation::Register { register: actual, .. }]
+                if *actual == register
+        )),
+        ExpectedTailPlacement::Stack { byte_offset, .. } => assert!(matches!(
+            target_arguments.last().unwrap().placement.locations.as_slice(),
+            [omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset,
+                ..
+            }] if *stack_byte_offset == byte_offset
+        )),
+    }
     if profile == omega_target::TargetProfile::LinuxArm64 {
         for (parameter_index, expected_register) in [
             (5, omega_calling_conventions::MachineRegister::Aarch64X(5)),
@@ -639,21 +736,133 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
             pair[1].code_offset
         );
     }
+    let call_start = match target.architecture {
+        omega_target::Architecture::X86_64 => call.offset - 1,
+        omega_target::Architecture::Aarch64 => call.offset,
+    };
+    let last_index = cases.len() - 1;
     let last_argument = call.scalar_arguments.last().unwrap();
-    let last_bytes = &machine_code.functions[0].bytes
-        [last_argument.code_offset..last_argument.code_offset + last_argument.byte_count];
-    if let Some(prefix) = expected_x86_prefix {
-        assert_eq!(&last_bytes[..2], &prefix);
-    } else {
-        for instruction in last_bytes.chunks_exact(4) {
+    let outbound = call.unit_stack.outbound;
+    match expected_tail {
+        ExpectedTailPlacement::Register { .. } => {
+            let expected_outbound = match target.architecture {
+                omega_target::Architecture::X86_64 => 8,
+                omega_target::Architecture::Aarch64 => 0,
+            };
+            assert_eq!(outbound.map_or(0, |pair| pair.byte_size), expected_outbound);
+        }
+        ExpectedTailPlacement::Stack { outbound_bytes, .. } => {
+            let outbound = outbound.expect("stack arguments own an outbound area");
+            assert_eq!(outbound.byte_size, outbound_bytes);
             assert_eq!(
-                u32::from_le_bytes(instruction.try_into().unwrap()) & 0x1f,
-                7
+                outbound.allocation_offset + outbound.allocation_byte_count,
+                call.scalar_arguments[0].code_offset,
             );
+            assert_eq!(outbound.release_offset, call.offset + 4);
         }
     }
+    assert_eq!(
+        last_argument.code_offset + last_argument.byte_count,
+        call_start,
+    );
+    let last_bytes = &machine_code.functions[0].bytes
+        [last_argument.code_offset..last_argument.code_offset + last_argument.byte_count];
+    match expected_tail {
+        ExpectedTailPlacement::Register {
+            x86_prefix: Some(prefix),
+            ..
+        } => assert_eq!(&last_bytes[..2], &prefix),
+        ExpectedTailPlacement::Register {
+            x86_prefix: None, ..
+        } => {
+            for instruction in last_bytes.chunks_exact(4) {
+                assert_eq!(
+                    u32::from_le_bytes(instruction.try_into().unwrap()) & 0x1f,
+                    7
+                );
+            }
+        }
+        ExpectedTailPlacement::Stack { byte_offset, .. } => match target.architecture {
+            omega_target::Architecture::X86_64 => {
+                assert_eq!(&last_bytes[..2], &[0x49, 0xbb]);
+                assert_eq!(
+                    &last_bytes[last_bytes.len() - 5..],
+                    &[0x4c, 0x89, 0x5c, 0x24, u8::try_from(byte_offset).unwrap()],
+                );
+            }
+            omega_target::Architecture::Aarch64 => {
+                assert_eq!(
+                    &last_bytes[last_bytes.len() - 4..],
+                    &(0xf900_03e9_u32 | ((byte_offset / 8) << 10)).to_le_bytes(),
+                );
+            }
+        },
+    }
 
-    let last_index = cases.len() - 1;
+    if matches!(expected_tail, ExpectedTailPlacement::Stack { .. }) {
+        let mut stripped_outbound = machine_code.clone();
+        stripped_outbound.functions[0].foreign_calls[0]
+            .unit_stack
+            .outbound = None;
+        assert!(omega_image_emission::build_object_artifact(&stripped_outbound).is_err());
+        let mut resized_outbound = machine_code.clone();
+        resized_outbound.functions[0].foreign_calls[0]
+            .unit_stack
+            .outbound
+            .as_mut()
+            .unwrap()
+            .byte_size += 16;
+        assert!(omega_image_emission::build_object_artifact(&resized_outbound).is_err());
+        let mut moved_allocation = machine_code.clone();
+        moved_allocation.functions[0].foreign_calls[0]
+            .unit_stack
+            .outbound
+            .as_mut()
+            .unwrap()
+            .allocation_offset += 1;
+        assert!(omega_image_emission::build_object_artifact(&moved_allocation).is_err());
+        let mut changed_store = machine_code.clone();
+        let store_byte = last_argument.code_offset + last_argument.byte_count - 1;
+        changed_store.functions[0].bytes[store_byte] ^= 1;
+        assert!(omega_image_emission::build_object_artifact(&changed_store).is_err());
+        let mut changed_stack_offset = machine_code.clone();
+        let [
+            omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset, ..
+            },
+        ] = changed_stack_offset.functions[0].foreign_calls[0].scalar_arguments[last_index]
+            .placement
+            .locations
+            .as_mut_slice()
+        else {
+            unreachable!()
+        };
+        *stack_byte_offset = 0;
+        assert!(omega_image_emission::build_object_artifact(&changed_stack_offset).is_err());
+        let mut changed_stack_shape = machine_code.clone();
+        let [
+            omega_calling_conventions::ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                alignment,
+                ..
+            },
+        ] = changed_stack_shape.functions[0].foreign_calls[0].scalar_arguments[last_index]
+            .placement
+            .locations
+            .as_mut_slice()
+        else {
+            unreachable!()
+        };
+        *value_byte_offset = 1;
+        *byte_size = 4;
+        *alignment = 4;
+        assert!(omega_image_emission::build_object_artifact(&changed_stack_shape).is_err());
+        let mut overlapped_argument = machine_code.clone();
+        overlapped_argument.functions[0].foreign_calls[0].scalar_arguments[0].code_offset -= 1;
+        assert!(omega_image_emission::build_object_artifact(&overlapped_argument).is_err());
+    }
+
     let mut changed_value = machine_code.clone();
     if let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
         value,

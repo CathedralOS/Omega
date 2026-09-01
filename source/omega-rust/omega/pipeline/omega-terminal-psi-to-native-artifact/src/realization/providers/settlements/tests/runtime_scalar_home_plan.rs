@@ -2,6 +2,7 @@
 
 pub(super) fn runtime_argument_abstract_plan(
     integer_type: psi_core::IntegerType,
+    argument_count: usize,
 ) -> omega_abstract_operations::AbstractOperationPlan {
     let machine = psi_core::MachineId::new(820).unwrap();
     let scalar_machine = psi_core::MachineId::new(821).unwrap();
@@ -22,7 +23,7 @@ pub(super) fn runtime_argument_abstract_plan(
             id: boundary,
             identity: "omega::test::Foreign::leaf()".into(),
             attachment: None,
-            scalar_parameters: vec![scalar_type],
+            scalar_parameters: vec![scalar_type; argument_count],
             structural_parameters: Vec::new(),
             result: None,
             requires: Vec::new(),
@@ -66,7 +67,7 @@ pub(super) fn runtime_argument_abstract_plan(
                         psi_operation: psi_core::OperationId::new(822).unwrap(),
                         result: None,
                         boundary,
-                        arguments: vec![runtime],
+                        arguments: vec![runtime; argument_count],
                         structural_arguments: Vec::new(),
                         completion_claim_sources: Vec::new(),
                         completion_receipts: Vec::new(),
