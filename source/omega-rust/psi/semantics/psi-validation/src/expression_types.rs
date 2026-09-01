@@ -171,7 +171,8 @@ pub fn argument_matches_type_reference_handle(
                 | ExpressionNode::Name(_)
         ),
         TypeReferenceNode::Named {
-            name: type_name, ..
+            symbol,
+            name: type_name,
         } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
                 return matches!(argument_node, ExpressionNode::Boolean(_))
@@ -199,6 +200,18 @@ pub fn argument_matches_type_reference_handle(
                             | ExpressionNode::Name(_)
                             | ExpressionNode::StructLiteral(_)
                     );
+            }
+
+            // A named type parameter is an open slot, not a nominal data
+            // declaration. Exact generic-call/operator application checking
+            // separately closes that slot from the operand tuple and rejects
+            // disagreement. A width-landed integer is therefore a valid
+            // inference source even while this declaration still spells `T`.
+            if symbol.is_valid()
+                && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::TypeParameter
+                && matches!(argument_node, ExpressionNode::Integer(_))
+            {
+                return true;
             }
 
             matches!(

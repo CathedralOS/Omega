@@ -424,6 +424,9 @@ fn selected_operator_application_at_expression(
         .iter()
         .map(|operand| {
             psi_validation::declared_place_type_raw(program, machine, Some(state), *operand)
+                .or_else(|| {
+                    psi_validation::landed_integer_literal_type_reference(program, *operand)
+                })
         })
         .collect::<Vec<_>>();
 

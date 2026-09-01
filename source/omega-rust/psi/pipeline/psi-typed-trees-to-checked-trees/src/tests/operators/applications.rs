@@ -353,6 +353,58 @@ fn checked_named_generic_boundary_use_replays_inferred_type_application() {
 }
 
 #[test]
+fn checked_named_generic_boundary_use_closes_from_landed_literals() {
+    let checked = checked_program_from_source(
+        r#"
+        data Math {}
+
+        boundary operator Math::same<Element>(left: Element, right: Element) -> bool;
+        machine compare() -> bool { Math::same(1i32, 2i32) }
+        "#,
+    );
+
+    let [application] = checked.facts.operators.boundary_applications.as_slice() else {
+        panic!("one landed-literal boundary application")
+    };
+    let [
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            type_reference, ..
+        },
+    ] = application.arguments.as_slice()
+    else {
+        panic!("one exact landed-literal type argument")
+    };
+    assert_eq!(
+        checked.typed.primitive_type_reference(*type_reference),
+        Some(psi_typed_trees::types::PrimitiveType::I32)
+    );
+}
+
+#[test]
+fn named_generic_boundary_rejects_conflicting_landed_literal_application() {
+    let tokens = Lexer::new(
+        r#"
+        data Math {}
+
+        boundary operator Math::same<Element>(left: Element, right: Element) -> bool;
+        machine compare() -> bool { Math::same<i32>(1i32, 2u64) }
+        "#,
+    )
+    .tokenize()
+    .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics =
+        lower_typed_trees(typed).expect_err("conflicting landed literal types must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "cannot validate explicit static arguments because its operand application remains open or unresolved",
+        )
+    }));
+}
+
+#[test]
 fn checked_named_generic_boundary_use_replays_explicit_type_application() {
     let checked = checked_program_from_source(
         r#"
