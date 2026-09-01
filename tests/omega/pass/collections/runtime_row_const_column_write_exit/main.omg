@@ -3,7 +3,7 @@
 // within the runtime-selected row. (The runtime-COLUMN case `grid[r][c]` is the rejected side; see
 // fail/collections/nested_runtime_indexed_write_rejected.) Fill both columns of both rows by runtime
 // row index, read back: sum 10+15+20+25 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

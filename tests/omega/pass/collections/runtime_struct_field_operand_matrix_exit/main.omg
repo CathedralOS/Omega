@@ -11,7 +11,7 @@
 //         [0..=100] -- guard refinement narrows an INDEXED place)
 // b5: guard subject (cells[i].x == 42)
 // b6: indexed target from indexed operand (cells[i].y = cells[i].x + 1)
-use omega::language::std::console;
+use omega_language_std::console;
 data Cell {
     x: i32 [0..=100];
     y: i32 [0..=100];

@@ -7,7 +7,7 @@
 // m1: read rows[i].data[j]          m2: write rows[i].data[j] = v
 // m3: suffix read boards[i][j].x    m4: suffix write boards[i][j].y = v
 // Neighbor/other-row validation throughout.
-use omega::language::std::console;
+use omega_language_std::console;
 data Row {
     tag: i32;
     data: [i32; 2];

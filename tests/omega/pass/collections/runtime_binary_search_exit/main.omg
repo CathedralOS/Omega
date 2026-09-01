@@ -4,7 +4,7 @@
 // `(lo+hi)/2` (into a field, then a plain-index read), the indexed read into a field (a
 // direct `arr[mid]==target` guard is the separate indexed-guard gap), and both pointer
 // updates (`lo=mid+1`, `hi=mid-1`). Exits 70 only when 50 is found at exactly index 4.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

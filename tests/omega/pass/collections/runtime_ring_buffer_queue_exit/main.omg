@@ -6,7 +6,7 @@
 // (fills, tail wraps to 0), dequeue 2, enqueue 5,6 (tail wraps again), dequeue the rest.
 // Each dequeue is checked against a running `expect` counter, so the canary fails loudly
 // (exits the wrong value) if FIFO order is ever violated. All 1..6 in order -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

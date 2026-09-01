@@ -4,7 +4,7 @@
 // reloc @10), the guard-position frame-index read, and the WHOLE-MACHINE
 // param scope in the index prover (k's declared range reaches the sub-state).
 // arr[2]: 4 -> 5 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32 [0..=10]; 4];

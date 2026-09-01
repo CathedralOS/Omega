@@ -5,7 +5,7 @@
 // `(90 >> window) & 1`, plain-index array reads/writes, and the field-temp double buffer --
 // across native AND the interpreter oracle. The visual version is samples/cellular_automaton.
 // Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

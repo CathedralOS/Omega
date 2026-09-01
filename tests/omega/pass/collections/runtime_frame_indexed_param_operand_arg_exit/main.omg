@@ -2,7 +2,7 @@
 // hoist funnel) AND as a transition ARGUMENT (`self.report(vals[k])`), with
 // ELEMENT RANGES on the param type (`[i32 [0..=30]; 3]`) discharging the
 // exact-arithmetic obligation. vals=[10,20,30], k=2 -> 130 -> report(30) -> 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     vals: [i32; 3];

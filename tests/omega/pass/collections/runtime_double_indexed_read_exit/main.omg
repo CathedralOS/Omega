@@ -7,7 +7,7 @@
 // Values seeded distinctly per face; wrong-element reads exit 2.
 // Still fenced (clean errors): writes, `rows[i].data[j]` (member between the
 // indices), 3+ runtime levels, local/param 2D arrays.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     grid: [[i32; 4]; 3];

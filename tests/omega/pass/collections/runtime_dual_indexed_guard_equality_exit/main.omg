@@ -5,7 +5,7 @@
 // separately. arr = [10, 20, 30, 10]. With i = 0 (10), j = 3 (10) the values are
 // EQUAL -> true. Then with j = 1 (20) they are UNEQUAL -> false. Both correct ->
 // exit 70; a compare that read the wrong element -> exit 71.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

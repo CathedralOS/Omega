@@ -4,7 +4,7 @@
 // pattern (`transition v > self.mx`, NOT `transition self.arr[self.i] > self.mx` -- a runtime-
 // indexed read as a guard subject silently miscompiles; binding to a local first is the sound
 // idiom). arr = [30,50,70,20,60,10] -> max 70, sum 240; both self-checked. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32 in Wrapping; 6]; i: i32 in Wrapping; mx: i32 in Wrapping; total: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.arr[0] = 30; self.arr[1] = 50; self.arr[2] = 70; self.arr[3] = 20; self.arr[4] = 60; self.arr[5] = 10;

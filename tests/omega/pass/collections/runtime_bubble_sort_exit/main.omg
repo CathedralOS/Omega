@@ -5,7 +5,7 @@
 // the read values back. The inner bound `5 - i` (a computed value, fine -- only a computed
 // INDEX is refused) shrinks each outer pass. Sorts [5,2,8,1,9,3] -> [1,2,3,5,8,9] and
 // self-checks four cells -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

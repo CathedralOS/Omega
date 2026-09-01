@@ -6,7 +6,7 @@
 // synthetic `let __hoist = self.arr[self.i];` (the same operand-hoist used for assignment values),
 // so the guard compares a plain local with a correct offset. arr = [3,8,1,9,4,6]; 8, 9, 6 exceed 5
 // -> count 3, self-checked. Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32 in Wrapping; 6]; i: i32 in Wrapping; count: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.arr[0] = 3; self.arr[1] = 8; self.arr[2] = 1; self.arr[3] = 9; self.arr[4] = 4; self.arr[5] = 6;

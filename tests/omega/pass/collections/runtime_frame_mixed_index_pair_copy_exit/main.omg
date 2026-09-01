@@ -1,7 +1,7 @@
 // Frame-inline aggregate pair copies with mixed index regions in both
 // directions. The local arrays are frame-rooted, `self.index` is machine-held,
 // and `j`/`k` are frame-held state parameters.
-use omega::language::std::console;
+use omega_language_std::console;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;

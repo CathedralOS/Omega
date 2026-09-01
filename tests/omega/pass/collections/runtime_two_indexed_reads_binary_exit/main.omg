@@ -4,7 +4,7 @@
 // the base or the first index. With nums = [30, 99, 40], i = 0, j = 2: 30 + 40 = 70; the 99 at the
 // unused index 1 is a decoy that a dropped index would surface. (Distinct from dot_product, which
 // uses the SAME index in a loop.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

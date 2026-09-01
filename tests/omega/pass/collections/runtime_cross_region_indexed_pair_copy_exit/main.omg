@@ -1,7 +1,7 @@
 // Whole-aggregate indexed copies between a machine-rooted array and a
 // frame-rooted local array in both directions. Each walk deliberately uses an
 // index stored in the opposite region from its collection.
-use omega::language::std::console;
+use omega_language_std::console;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;

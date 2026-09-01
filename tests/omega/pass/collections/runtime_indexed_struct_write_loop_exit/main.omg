@@ -8,7 +8,7 @@
 // A struct-literal value is a fixed payload, so it lowers fine.)
 //
 // Fill all three elements with Pt{10,15}, then sum arr[0].x + arr[1].y + arr[2].x = 10+15+10 = 35.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pt {
     x: i32 in Wrapping;

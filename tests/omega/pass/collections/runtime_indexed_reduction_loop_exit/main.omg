@@ -2,7 +2,7 @@
 // an indexed read as an accumulation operand (a value operand, enabled by gap #2's machine-indexed
 // operand support). The fundamental sum/reduce primitive. Sums [5,10,15,20,8,12] = 70. The index
 // bound is proven by the loop guard. Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32 in Wrapping; 6]; i: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.arr[0] = 5; self.arr[1] = 10; self.arr[2] = 15; self.arr[3] = 20; self.arr[4] = 8; self.arr[5] = 12;

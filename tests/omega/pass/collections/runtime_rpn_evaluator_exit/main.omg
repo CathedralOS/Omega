@@ -3,7 +3,7 @@
 // a number to PUSH; 1000 = add, 1001 = multiply pop two operands and PUSH the result. The
 // stack is a plain array with a `top` index (push: stk[top]=v, top++; pop: top--, read
 // stk[top]). Evaluating `3 4 + 5 *` -> (3+4)*5 = 35 leaves 35 on the stack. Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

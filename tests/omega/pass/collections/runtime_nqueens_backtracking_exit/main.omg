@@ -10,7 +10,7 @@
 // The board index r is re-guarded against the capacity at each access (the bound is lost
 // over the long branch chain), and a new column value is computed into a field before the
 // array write (a computed value can't be the inline write source). Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -1,7 +1,7 @@
 // MACHINE-owned array WRITE of a runtime value at a FRAME-resident index
 // (`self.arr[k] = self.b`): machine source + frame index (two relocations).
 // b=7, k=2 -> arr[2]==7 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

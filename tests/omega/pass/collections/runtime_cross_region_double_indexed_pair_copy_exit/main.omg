@@ -1,7 +1,7 @@
 // Whole-aggregate double-indexed copies between machine- and frame-rooted 2D
 // arrays in both directions. Each walk mixes one machine-held and one
 // frame-held runtime index.
-use omega::language::std::console;
+use omega_language_std::console;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;

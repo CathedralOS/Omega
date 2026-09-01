@@ -2,7 +2,7 @@
 // payload extraction. `b` is never written: its all-zero home representation
 // must dispatch as None.
 use omega::language::core::option;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

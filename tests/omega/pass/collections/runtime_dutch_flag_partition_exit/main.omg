@@ -18,7 +18,7 @@
 // arms).
 // Expected exit: 70 (71/72/73 = wrong final element at 0/1/2; 96/97/98 =
 // invariant check tripped, 95 = increment re-guard tripped).
-use omega::language::std::console;
+use omega_language_std::console;
 data Color {
     case Red;
     case White;

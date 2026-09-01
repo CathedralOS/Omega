@@ -15,7 +15,7 @@
 // BEFORE the facts fold. Three-and-deeper stays loudly fenced:
 // fail/collections/nested_three_level_index_rejected.
 // exits: 71 = static read wrong; 72 = write flavor wrong; 73 = param leg wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     pixels: [u8; 12];

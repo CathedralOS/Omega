@@ -8,7 +8,7 @@
 // recognizes a Member-off-a-runtime-index initializer). DISCRIMINATING: ps[1].x =
 // 20, so t + 22 = 42 (a folded/dropped operand would read 0 -> 22 -> mismatch);
 // also sums a second indexed-field local. Native must match the interpreter.
-use omega::language::std::console;
+use omega_language_std::console;
 data Point { x: i32; y: i32; }
 data Main {
     console: Console;

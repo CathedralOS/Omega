@@ -8,7 +8,7 @@
 // (load rax off the frame base, re-load r15 with the machine base, index +
 // store; second relocation at +17). nums[2] must land the CAPTURED 99, not the
 // overwritten 0 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     nums: [i32; 4];

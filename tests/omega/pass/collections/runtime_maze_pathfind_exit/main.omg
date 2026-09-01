@@ -8,7 +8,7 @@
 // being guard subjects (the documented computed-index / indexed-read workarounds). The
 // shortest distance from cell 0 to cell 24 is exactly 16 (verified against a reference
 // BFS). Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
