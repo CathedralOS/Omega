@@ -6,14 +6,14 @@ use omega_selected_instructions::VirtualRegisterId;
 
 use super::generalized_reload_value_homes::Sources;
 
-struct Bundle {
-    sources: Sources,
-    prior: omega_regalloc::ValidatedGeneralizedReloadValueHomes,
-    actions: omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
-    recursive: omega_regalloc::ValidatedRecursiveSpillInsertion,
+pub(super) struct Bundle {
+    pub(super) sources: Sources,
+    pub(super) prior: omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+    pub(super) actions: omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+    pub(super) recursive: omega_regalloc::ValidatedRecursiveSpillInsertion,
 }
 
-fn reload_bundle(target: NativeTarget) -> Bundle {
+pub(super) fn reload_bundle(target: NativeTarget) -> Bundle {
     let (sources, actions) = super::recursive_spill_insertion::sources(target);
     let prior = sources.assign(selected_lowering_budget()).unwrap();
     let recursive = sources
@@ -27,7 +27,7 @@ fn reload_bundle(target: NativeTarget) -> Bundle {
     }
 }
 
-fn original_bundle(target: NativeTarget) -> Bundle {
+pub(super) fn original_bundle(target: NativeTarget) -> Bundle {
     let sources = Sources::from_legality(
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );

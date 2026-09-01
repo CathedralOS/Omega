@@ -9,6 +9,7 @@ mod generalized_spill_insertion;
 mod generalized_spill_recovery_actions;
 mod generalized_spill_recovery_choice;
 mod generalized_spill_recovery_worklist;
+mod homed_spill_pseudo_instructions;
 mod guarded_original_spill_recovery_choice;
 mod live_ranges;
 mod liveness;
