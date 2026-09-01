@@ -512,11 +512,11 @@ The current policy is centralized at
 first validate each phase selection and target predicate; this entrance alone
 admits baseline, selected lowering, one allocation-recovery rule alone, one
 post-allocation rule with optional selected lowering, function-relative layout
-with optional selected lowering, and one exact cross-phase pair:
-active-resident immediate-U64 multi-use rematerialization followed by x86
-MOV-r32-imm32 or sign-extending MOV-r64-imm32 selection. Multiple recovery or
-machine rules, every other recovery-machine pair, and machine plus layout
-reject before route execution.
+with optional selected lowering, and three exact cross-phase pairs:
+active-resident immediate-U64 multi-use rematerialization followed by AArch64
+MOVN, x86 MOV-r32-imm32, or x86 sign-extending MOV-r64-imm32 selection.
+Multiple recovery or machine rules, every other recovery-machine pair, and
+machine plus layout reject before route execution.
 The canonical post-allocation catalog entry survives composition and its closed
 execution kind selects the named leaf; lower leaves independently validate
 transformation and custody.
@@ -532,14 +532,14 @@ transformation and custody.
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
 
-The catalog matrix covers all 15 current exact names across all five native
-target constructors: 63 admitted cells and 12 typed architecture rejections.
+The catalog matrix covers all 16 current exact names across all five native
+target constructors: 66 admitted cells and 14 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
-The adjacent composition matrix covers all 105 unordered exact-name pairs on
-both x86-64 and AArch64. Its 210 cells contain 121 admitted routes, 48 typed
-composition rejections, and 41 target rejections. Every cell also checks the
+The adjacent composition matrix covers all 120 unordered exact-name pairs on
+both x86-64 and AArch64. Its 240 cells contain 131 admitted routes, 58 typed
+composition rejections, and 51 target rejections. Every cell also checks the
 exact Psi pass projection and proves that overlaying the complete Psi suite
 does not change the physical disposition; focused triple cases pin the two
 selected-lowering rules with machine and layout routes.
@@ -571,10 +571,10 @@ identity, while the carrier owns the common machine plan, selected-form
 encoding, resolved layout, whole-function exit contract, and realization
 manifest. Recovery alone returns the physical pipeline's `AllocationRecovery`
 variant, and fragment admission consumes one `AllocationRecoveryV1` source
-kind. The admitted active-resident-plus-MOV pair instead moves the same source
-taxonomy into the generic post-allocation realization's
+kind. The admitted active-resident-plus-materialization pairs instead move the
+same source taxonomy into the generic post-allocation realization's
 `AfterAllocationRecovery` leaf. That join independently replays recovery,
-machine-plan, MOV, encoding, layout, and exit custody and publishes the generic
-post-allocation source kind. Neither recovery rule owns a parallel publication
-vertical. Fragment and fragment-text manifests use schema v9 because the
-source-kind tag denotes these generic carriers.
+machine plan, exact materialization, encoding, layout, and exit custody and
+publishes the generic post-allocation source kind. Neither recovery rule owns a
+parallel publication vertical. Fragment and fragment-text manifests use schema
+v9 because the source-kind tag denotes these generic carriers.

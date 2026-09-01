@@ -168,12 +168,13 @@ recovery rule therefore adds a source leaf and catalog disposition, not a new
 publication vertical.
 
 The admitted recovery-machine compositions preserve that taxonomy:
-active-resident immediate-U64 multi-use rematerialization can feed either exact
-x86 imm32 materialization leaf through the generic post-allocation
-realization's `AfterAllocationRecovery` source leaf. The composition entrance
-names those two pairs explicitly; all other recovery-machine pairs still
-reject. The join retains both phase-selection roots and independently replays
-source, machine, encoding, layout, and exit custody before publication.
+active-resident immediate-U64 multi-use rematerialization can feed the exact
+AArch64 MOVN leaf or either exact x86 imm32 materialization leaf through the
+generic post-allocation realization's `AfterAllocationRecovery` source leaf.
+The composition entrance names those three pairs explicitly; all other
+recovery-machine pairs still reject. The join retains both phase-selection
+roots and independently replays source, machine, encoding, layout, and exit
+custody before publication.
 
 Logical spilling and stack-slot coloring are compiler-private allocation
 decisions rather than user-selected optimization rules. The coloring entrance

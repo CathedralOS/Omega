@@ -3,6 +3,14 @@
 use super::baseline::request;
 use crate::stage_optimized_active_resident_rematerialization_function_relative_realization;
 use crate::tests::{
+    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
+    selected_lowering_budget, stage_allocation_recovery_function_relative_realization,
+    stage_optimized_active_resident_rematerialization,
+    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
+    stage_optimized_active_resident_rematerialization_selected_form_encoding,
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
+    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
     MachineContract, MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, PressureRematerializationPolicy,
@@ -14,23 +22,35 @@ use crate::tests::{
     StagedOptimizedAllocationLegality, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
-    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
-    selected_lowering_budget, stage_allocation_recovery_function_relative_realization,
-    stage_optimized_active_resident_rematerialization,
-    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
-    stage_optimized_active_resident_rematerialization_selected_form_encoding,
-    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
-    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
 };
 
 pub(crate) fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) {
-    conditional_active_resident_exact_add_chain_artifact_with_false_literal(IntegerValue::Unsigned(
-        11,
-    ))
+    conditional_active_resident_exact_add_chain_artifact_with_literals(
+        IntegerValue::Unsigned(3),
+        IntegerValue::Unsigned(11),
+    )
 }
 
 pub(crate) fn conditional_active_resident_exact_add_chain_artifact_with_false_literal(
+    false_literal: IntegerValue,
+) -> (Vec<u8>, Vec<u8>) {
+    conditional_active_resident_exact_add_chain_artifact_with_literals(
+        IntegerValue::Unsigned(3),
+        false_literal,
+    )
+}
+
+pub(crate) fn conditional_active_resident_exact_add_chain_artifact_with_resident_literal(
+    resident_literal: IntegerValue,
+) -> (Vec<u8>, Vec<u8>) {
+    conditional_active_resident_exact_add_chain_artifact_with_literals(
+        resident_literal,
+        IntegerValue::Unsigned(11),
+    )
+}
+
+fn conditional_active_resident_exact_add_chain_artifact_with_literals(
+    resident_literal: IntegerValue,
     false_literal: IntegerValue,
 ) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(5_201).unwrap();
@@ -127,7 +147,7 @@ pub(crate) fn conditional_active_resident_exact_add_chain_artifact_with_false_li
                             resident_operation,
                             resident,
                             OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(3),
+                                value: resident_literal,
                             },
                         ),
                         operation(
