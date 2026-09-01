@@ -110,7 +110,7 @@ struct ExactProofCallEdge {
 /// provenance must include calls in assembly facts and all value/terminal
 /// expression positions: an admitted theorem does not become checked merely
 /// because its citation is nested inside another expression.
-pub(crate) fn machine_call_dependency_symbols(
+pub fn machine_call_dependency_symbols(
     program: &TypedTrees,
     machine: &Machine,
 ) -> Vec<SymbolHandle> {

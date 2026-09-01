@@ -1495,8 +1495,16 @@ checker, and retains the resulting component acceptance separately from flat
 contract evidence. Missing, surplus, reordered, or substituted component or
 edge evidence rejects. Terminal format 55 / vocabulary 58 and proof format 22
 bind these rows; the ordinary verified synopsis reports the component, shared
-well-foundedness route, members, and every exact decrease route. Source
-production and reachable-proof-closure selection remain separate compiler work.
+well-foundedness route, members, and every exact decrease route. The checked-
+to-Terminal producer walks the selected root's contract and body proof-call
+closure, resolves machine and entry-state targets to the owning machine, and
+retains only complete reachable components. It independently rejoins every
+member and edge to the checked rank parameters and common rank type before
+erasing frontend handles, then replaces every surviving declaration with a
+managed-package or toolchain hermetic identity. It derives the grouped proof
+routes only after the verifier has reconstructed the exact component
+obligations; the producer never supplies the semantic component, relation, or
+obligation identities.
 
 Accepting this certificate establishes only the stated Terminal semantics. An
 untrusted or modified producer may emit a different safe cyclic module, just as

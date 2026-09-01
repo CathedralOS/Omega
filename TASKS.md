@@ -3877,8 +3877,7 @@ Remaining:
   names the closed verifier-reconstructed countdown rule and does not claim a
   general recursive-component certificate. Codec round-trip, structural
   mutation, and missing-proof canaries reject before reporting. General proof
-  SCC production, well-foundedness propositions, and normalization-law trust
-  remain open.
+  SCC well-foundedness propositions and normalization-law trust remain open.
 
   General proof-SCC plumbing now retains canonical multi-member proof-only
   components from validation into checked termination facts and through the
@@ -3894,8 +3893,17 @@ Remaining:
   certificate with the generic kernel admission path. Missing, extra,
   reordered, or stale component/edge evidence rejects, while the ordinary
   verified synopsis publishes the grouped acceptance. Source-to-Terminal
-  production, reachable proof-closure selection, one-member self-recursive
-  components, and normalization-law trust remain open.
+  production now walks the selected machine's exact contract/body proof-call
+  closure, resolves both machine and entry-state call symbols to their owning
+  declarations, retains only reachable checked components, revalidates every
+  member/edge rank-parameter join, and converts all surviving symbols to
+  managed-package or toolchain hermetic identities. Managed-source canaries
+  retain two members and four distinct same-pair call rows through module and
+  proof codec round trips, generic verifier admission, canonical artifact
+  construction, and the one-WF/four-decrease synopsis; unreachable components,
+  stale call coordinates or rank parameters, collapsed sites, and missing
+  grouped evidence reject. One-member self-recursive components and
+  normalization-law trust remain open.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one

@@ -29,6 +29,7 @@ mod composed_unit_nested_control;
 mod composed_unit_prefixed_control;
 mod composed_unit_transitive_internal_calls;
 mod content_conservation;
+mod proof_recursion;
 mod quotient_correspondence;
 mod scalar_graph;
 mod service_reach_contracts;

@@ -49,7 +49,7 @@ mod write_only_borrows;
 pub use crate::call_cycles::{
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
-    ValidatedProofRecursiveTransitionLane,
+    ValidatedProofRecursiveTransitionLane, machine_call_dependency_symbols,
 };
 pub use crate::calls::{CallFrameResolver, frame_paths_overlap};
 use crate::calls::{
