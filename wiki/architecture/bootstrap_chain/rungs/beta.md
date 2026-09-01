@@ -1,24 +1,18 @@
-# Beta rung
+# Rung: Beta
 
-Beta is the first textual language above the audited Alpha VM. It is a compact,
-NASM-like spelling of Beta instructions with labels, decimal operands,
-comments, and exact byte data.
+[Chain overview](../bootstrap_chain.md) | Prev: [Alpha](alpha.md) | Next: [Gamma](gamma.md)
 
-```text
-assembler.beta --(beta_assembler_bytecode.tape on Alpha)--> Alpha tape
-```
+Beta is a strict first-order functional S-expression calculus. One directly
+audited Alpha evaluator tape executes Beta source; the evaluator is part of the
+root rather than the product of another language rung.
 
-The direct implementation is the platform-independent
-`source/beta/compiler/beta_assembler_bytecode.tape`. The readable
-`assembler.beta` reconstructs that tape byte-for-byte. Callers materialize the
-raw tape in the selected Alpha VM for one invocation; no separate native
-assembler binary is retained per platform.
+Beta keeps checked `Int`, immutable `Bytes`, closed constructors, exhaustive
+pattern matching, `if`, single-binding `let`, first-order calls, mutual
+recursion, proper tail calls, bounded allocation profiles, sealed input, and
+returned values. It excludes mutation, raw memory, closures, higher-order
+values, macros, polymorphism, general GC, continuations, exceptions, packages,
+interactive evaluation, and ambient effects.
 
-Beta has no runtime meaning beyond Alpha. Successful assembly produces raw
-Alpha tape, and `source/alpha/SEMANTICS.md` alone defines execution of that
-tape. Beta's contract is the deterministic text-to-tape relation in
-`source/beta/LANGUAGE.md`.
-
-The canonical customer is the Beta-written Gamma compiler. Other small
-trust-floor tools may also be authored in Beta when doing so is simpler than
-constructing raw tape bytes by hand.
+Its exact contract is [`source/beta/LANGUAGE.md`](../../../../source/beta/LANGUAGE.md).
+Its customers are the Gamma compiler and explicitly justified small bootstrap
+tools. The evaluator tape and Gamma compiler source are currently absent.

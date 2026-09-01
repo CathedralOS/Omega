@@ -3905,7 +3905,7 @@ Remaining:
   excess proof depth rejects. Canonical proof-bundle v13 assigns rule tag 9.
   The registered proof-calculus root now binds the exact proposition,
   proof-rule, primitive/evidence, and proof-codec definitions, while the Rust
-  kernel remains an explicit trusted implementation. Independent Beta/Gamma
+  kernel remains an explicit trusted implementation. Focused product
   `inl`/`inr` gates agree. This adds certificate capability only: all eight
   sufficient reducers and all unproved semantic rows retain `TrustedJudgment`,
   and terminal codec v18 / installation record v24 remain unchanged.
@@ -5301,12 +5301,12 @@ Remaining:
   39, vocabulary 42, proof-system marker 1, semantic-operation schemas, and
   installation encoding are unchanged. Other partial exact rows remain outside
   this slice, so the accepted trust closure remains `fully-derived false`.
-  The historical bounded Gamma feasibility spike established that exact
+  The historical bounded imperative-Gamma feasibility spike established that exact
   canonical-byte decoding and ordered semantic-ledger reconstruction fit the
   low rung without making the Rust verifier authoritative. Its final measured
-  checkpoint assembled to 4,982 typed Gamma lines / 198,971 bytes / 423
+  checkpoint assembled to 4,982 typed former-Gamma lines / 198,971 bytes / 423
   functions with maximum source nesting 25. Closed row tables eliminated
-  per-operation builder branches; Gamma's monomorphic decoder-result types
+  per-operation builder branches; former Gamma's monomorphic decoder-result types
   caused most remaining repetition. The format-bound implementation was retired
   after its format-18/vocabulary-20 decoder fell behind the live artifact;
   commit `a5cfd83cc` and its follow-ups retain the executable provenance. Its
@@ -6187,13 +6187,13 @@ Remaining:
   an ordinary row addition. Schema and artifact identities pin the exact state
   model, mathematical definitions, operational clauses, and semantics version.
 
-  Before committing the full low implementation, build a Gamma spike that
+  Before committing the full low implementation, build a Beta spike that
   canonical-decodes bytes and covers Exact and Wrapping arithmetic, signed
   divide/remainder with toward-zero behavior and `MIN / -1`, one conditional
   result equation, one branch-local premise, an asymmetric join that rejects,
   the positive all-predecessor merge dual, exact call-requirement enumeration
   and substitution, justification ranking, dominance, and invalidation. Measure
-  Gamma/specification size, audit complexity, Beta-reference runtime and memory,
+  Beta/specification size, audit complexity, Alpha-evaluator runtime and memory,
   ledger size, and prospective reconstruction-certificate size. Difficulty does
   not weaken the endpoint; an inability to express the total definition cleanly
   triggers a rung-design correction.
@@ -10794,18 +10794,11 @@ Remaining N6/N8 work:
   controls for NaN reflexivity, signed-zero distinction, IEEE-relation
   separation, lookalike declarations, cross-format/catalog substitution,
   arbitrary producer IDs, false coalescing, and proof erasure from runtime.
-  The rooted-checker milestone is complete: the canonical Gamma
-  checker and its independent diagnostic comparator now parse, validate,
-  substitute, and compare one closed source/format/projection/exact-core-
-  declaration/catalog tuple through carrier-specific `FloatMeaningEqual` and
-  `fmrefl`. Equal independently encoded tuples share structural identity;
-  distinct source coordinates and exact bits require an explicit theorem.
-  Retained gates cover Binary32/Binary64 NaN reflexivity, signed-zero
-  distinction, source-coordinate mutation, explicit distinct-term premises,
-  lookalike declarations, cross-format/catalog substitution, generic-equality
-  and relation separation, canonical Terminal coordinates, and quantifier
-  substitution. The authoritative tape was rebuilt through the Beta-to-Gamma
-  route and the complete independent diamond agrees. The bounded checked-plan
+  D62 retired the former rooted checker, its imperative-Gamma source, tape, and
+  diagnostic comparator. The product-side proposition, checked, Terminal, and
+  Rust-kernel carriers below remain live, but bootstrap discharge is reopened
+  under **BETA-DERIVATION-CHECKER** in `TASKS_BOOTSTRAP.md`; no current artifact
+  may claim rooted-checker acceptance. The bounded checked-plan
   deduplication rung is also live. Exact-bit literals now retain their raw
   `u32`/`u64` bits as semantic source identity through checked lowering,
   Terminal, canonical codec, and independent verifier reconstruction, with no

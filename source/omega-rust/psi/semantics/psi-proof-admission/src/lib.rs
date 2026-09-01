@@ -4,8 +4,8 @@
 //! checks explicit proof nodes, or validates an admission against an obligation
 //! site and installation-profile decision. Executable terminal-Psi lowering
 //! reconstructs obligations; a proof bundle cannot choose their class. This
-//! crate is distinct from the generic derivation kernel under
-//! `source/alpha/checker/`.
+//! crate is distinct from the planned bootstrap derivation checker written in
+//! Beta.
 
 #![forbid(unsafe_code)]
 

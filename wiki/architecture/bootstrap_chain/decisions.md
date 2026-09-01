@@ -2846,3 +2846,46 @@ A directly audited tape is a legitimate root subject. Lower-language pedigree
 may help reconstruct it but is not required merely to manufacture authority.
 The tape instead owes an instruction-level audit against Alpha semantics and
 the exact small evaluator/compiler claim made for it.
+
+## D62 — The functional evaluator lattice replaces the baseline
+
+D62 exercises D61 and supersedes D6 and D60 for live topology. The selected
+chain is:
+
+```text
+audited Alpha VM + directly audited Beta evaluator tape
+  -> Beta-written Gamma compiler
+  -> Gamma-written Delta compiler
+  -> Delta-written Omega compiler D
+  -> Omega-written Omega compiler C
+```
+
+Alpha semantics and native seeds remain unchanged. The former Beta textual
+assembler is renamed Alpha Tape Assembly and retained only as off-chain tooling
+under `tools/alpha/tape-assembly/`. It may reconstruct tapes but supplies no
+language edge or authority premise. The former imperative Gamma language and
+its compiler are deleted. The former Delta language is renamed Gamma; the
+former Epsilon language is renamed Delta; Epsilon is no longer a live owner.
+
+Beta is a strict first-order functional S-expression calculus with checked
+integers, immutable bytes, immutable tagged constructors, exhaustive matching,
+conditionals, immutable local binding, first-order calls, mutual recursion,
+proper tail calls, bounded implementation profiles, sealed input, and returned
+values. It has no closures, higher-order values, mutation, raw memory, macros,
+polymorphism, general garbage collector, continuations, exceptions, modules,
+packages, interactive evaluator, or ambient effects.
+
+Each intermediate language exists only to deliver the compiler immediately
+above it and a named small tool such as the derivation checker. Intermediate
+self-hosting is not a goal or evidence requirement. Only Omega closes a useful
+self-host edge when `omega0` compiles the production Omega-written closure `C`.
+
+The Beta evaluator is directly admitted root material and owes instruction-
+level audit against Beta semantics. Readable Alpha Tape Assembly source may aid
+construction and review, but exact reconstruction does not prove the evaluator.
+The derivation checker moves to an ordinary Beta program and receives only the
+calculus required by selected compiler-edge certificates.
+
+No stable migration, compatibility adapter, alternate compiler, or retained
+old artifact is required. Missing new edges remain explicit until implemented;
+Git is the archive for the removed chain.

@@ -1,185 +1,55 @@
-# Compiler chain repository structure
+# Bootstrap repository structure
 
-[Chain overview](bootstrap_chain.md) | [Standing decisions](decisions.md) |
-[Product repository layout](../repository_layout.md)
-
-The baseline repository groups source by the language a compiler accepts. The
-source suffix records the language in which that compiler is implemented.
-Bootstrap is a build-graph property, not a generic folder or source owner. The
-layout changes atomically if the chain experiment removes a rung; empty owners
-and compatibility directories do not survive topology selection.
-
-## Baseline layout
+[Chain overview](bootstrap_chain.md) | [Standing decisions](decisions.md)
 
 ```text
 source/
   alpha/                         Alpha semantics and audited native VM seeds
-    checker/                     universal derivation checker
-
-  beta/                          Beta assembly language
+  beta/                          strict first-order functional calculus
+  gamma/                         typed pure functional language
+  delta/                         fixed-storage compiler-host language
     compiler/
-      assembler.beta             readable self-host source
-      beta_assembler_bytecode.tape direct Alpha implementation
+      delta_compiler.gamma       incomplete Gamma-written Delta compiler
+  psi/                           target-neutral Omega product phases
+  omega/
+    omega_compiler.delta         incomplete Delta-written Omega compiler D
+    build.omg, main.omg          Omega-written compiler C roots
+  library/                       Omega libraries
+  omega-rust/                    maintained comparator, never bootstrap authority
 
-  gamma/                          Gamma language
-    compiler/
-      gamma_compiler.beta        canonical compiler implementation
-      gamma_compiler_bytecode.tape
-      outcomes-v1.tsv            current boundary sidecar; retirement queued
+tools/
+  alpha/tape-assembly/           off-chain readable Alpha tape tooling
+  bootstrap/alpha/               seed selection and tape stamping
+  bootstrap/paths.sh             replaceable path registry
+  bootstrap/check-chain-hygiene.sh
 
-  delta/                         Delta language
-    compiler/
-      delta_compiler.gamma        canonical compiler/reference implementation
-      delta_compiler_bytecode.tape
-
-  epsilon/                         Epsilon language
-    compiler/
-      epsilon_compiler.delta       canonical compiler implementation
-      epsilon_compiler_bytecode.tape
-
-  psi/                           target-neutral product compiler packages
-  omega/                         Omega language and both Omega implementations
-    omega_compiler.epsilon         Epsilon-written source closure D
-    main.omg / build.omg         Omega-written source closure C
-    omega0_compiler_bytecode.tape
-    omega_compiler_bytecode.tape
-    validation/                  D→omega₀ and C→omega refinement
-
-  library/                       core, allocation, and standard-library source
-  omega-rust/                    maintained Rust product/comparator
-
-tests/{alpha,beta,gamma,delta}/   tests and references by accepted language
-tests/proof-checker/              checker reconstruction, gates, and reference
-tests/bootstrap/                  checks whose subject spans multiple rungs
-tests/omega/                      Omega acceptance/rejection cases
-tools/bootstrap/                 replaceable invocation and artifact construction
+tests/
+  alpha/                         Alpha conformance/reference and tape-tool tests
+  bootstrap/                     cross-owner seed checks
+  omega/                         Omega product language cases
 ```
 
-Names identify accepted language and implementation format without inventing
-`bootstrap/`, `on-ramp/`, `assurance/`, `canaries/`, or generation-owned source
-trees. `omega₀` and `omega` are artifacts, not directories or languages.
+The future Beta evaluator belongs under `source/beta/evaluator/` because it is
+the direct implementation of Beta meaning. The future Gamma compiler belongs
+under `source/gamma/compiler/`. Empty directories are not retained merely to
+reserve those paths.
 
-## Current gaps
+## Naming
 
-The committed tree still has two important gaps:
+`.alphaasm` identifies off-chain Alpha Tape Assembly. `.beta`, `.gamma`,
+`.delta`, and `.omg` identify the selected source languages. `.tape` identifies
+canonical Alpha bytecode.
 
-- `source/delta/compiler/delta_compiler.gamma` now owns a real strict frontend,
-  direct Alpha emitter substrate, resolved expression lowering, and
-  profile-neutral whole-function emission. Both D19 source schemas are
-  validated, D30 fixes the physical application profiles, and D33 fixes
-  bounded request/schema failure selection; the generated adapters, canonical
-  tape, and refinement are still missing.
-- the former Gamma-written Epsilon-to-Delta and Darwin-native publication trees
-  were deleted because they implemented a superseded cross-rung route. The
-  Delta-written replacement now owns complete syntax, D22/D24 identity census,
-  D36's receiver parser and now-superseded case/machine collision census, D31
-  structural type formation, a source-backed resolution catalog, ordered local
-  resolution, scalar/aggregate value-place facts, one generalized callable
-  ledger with direct-qualified, settled grouped/unqualified, named-data
-  receiver, and sealed-boundary receiver results plus postfix-statement
-  category admission, separate resolved/complete explicit-state custody and
-  state/machine collision rejection, transition subject/resolved-case/complete-
-  binder custody and retained sum coverage, the superseded special
-  receiver-scoped `self` carrier,
-  settled field/index/slice projection failures, D37 scalar and
-  argument-`never` category joins, let/assignment/assert and explicit-return
-  relations, first-following-statement terminal flow, D38's source fact
-  relation, and symbolic Alpha encoding.
-  D50 fixes state-transfer spelling, D51 fixes receiver normalization,
-  static-qualified removal, and disjoint case/method namespaces, D52 fixes
-  resultless-argument anchoring, and D53 fixes local block exits without
-  reachability analysis; D56 fixes entry diagnostics and D57 fixes transition-
-  pattern/coverage diagnostics. Their branches, D37 remaining terminal closure,
-  D38 lowering/executable controls, body/control
-  checking, D34 physical storage refusal, lowering, tape publication, and
-  refinement are still open.
-  The restricted Epsilon-written native compiler prototype was also deleted: it
-  was neither that compiler nor the full Omega closure `D` and had no
-  economical unit-level adaptation into either owner.
+A compiler owner is named by the language it accepts; its source suffix names
+the language implementing it:
 
-These gaps are implementation work, not alternate accepted architectures. A
-legacy file stays only when this document or `TASKS_BOOTSTRAP.md` names its
-direct adaptation into a canonical edge, canonical owner, and deletion
-condition. Otherwise it has negative value: it enlarges the audit surface,
-creates false architectural choices, and consumes maintenance and test time.
-Delete it; Git history is the archive.
-
-The same rule applies to Python and other host-language references. They may
-temporarily diagnose an incomplete direct edge, but they are not eligible for
-permanent membership in the self-contained chain and are deleted when their
-named differential role is subsumed.
-
-## Artifact rule
-
-Every required compiler artifact is a descriptive `.tape` file governed by
-Alpha semantics. Target containers are disposable realizations:
-
-```text
-canonical compiler identity = exact Alpha tape
-host execution              = selected Alpha VM seed + exact tape
-optional acceleration       = checked general Alpha-to-native realization
-```
-
-Mach-O, ELF, PE, code signatures, installation inventories, and elapsed-time
-records do not become rung-specific compiler identities. Product Omega may emit
-native artifacts for users; that target work remains inside the product
-compiler rather than Gamma, Delta, or Epsilon.
-
-## Ownership rules
-
-- `source/<language>/compiler/` owns the compiler accepting that language, even
-  though its source is written in the immediate predecessor language.
-- The source suffix must match the implementation language: `.beta` for the
-  Gamma compiler, `.gamma` for Delta, `.delta` for Epsilon, `.epsilon` for `omega₀`,
-  and `.omg` for self-hosted `omega`.
-- A lower rung must not parse a language beyond its immediate successor.
-- A compiler artifact must consume its own language and emit the next runnable
-  Alpha tape without invoking an older compiler or semantic host script.
-- Canonical compiler source and artifact stay together under `source/`.
-  Existing compiler-boundary TSVs are manually duplicated sidecars under the
-  minimization/retirement task, not a placement precedent for new tables.
-  Executable tests and references live under
-  `tests/<subject>/` and bind the canonical subject by explicit path; there is
-  no generic evidence archive.
-- Optional comparators, fuzzers, and corpora must name the exact edge property
-  and failure class they exercise. They are deleted when they duplicate a
-  cheaper gate or cease to exercise the canonical subject. “Diagnostic” is not
-  a permanent ownership category.
-- `source/alpha/checker/` owns the universal derivation checker. It is beside
-  compiler edges, not another rung.
-- `source/psi/` owns target-neutral processing inside the Omega product
-  compiler. Psi is not a bootstrap language rung.
-- `source/omega-rust/` remains a comparator and migration aid without canonical
-  bootstrap authority.
-- `tools/bootstrap/` may invoke compilers and stamp tapes. It may not discover a
-  source closure, parse, lower, manufacture evidence, or decide trust.
-
-## File naming
-
-`.beta`, `.gamma`, `.delta`, `.epsilon`, `.omg`, and `.psi` identify source
-languages. `.proof` identifies proof-source input to untrusted elaboration.
-`.tape` identifies canonical Alpha VM bytecode. Artifact base names describe
-their role, such as `epsilon_compiler_bytecode.tape`; opaque rung abbreviations
-are not canonical names.
-
-## Canonical ownership map
-
-| Responsibility | Canonical owner |
+| Owner | Future/current source |
 | --- | --- |
-| Alpha execution and tape semantics | `source/alpha/` |
-| universal proof checking | `source/alpha/checker/` |
-| Beta assembly and direct assembler | `source/beta/` |
-| Gamma compiler source/artifact | `source/gamma/compiler/` |
-| Delta compiler source/artifact | `source/delta/compiler/` |
-| Epsilon compiler source/artifact | `source/epsilon/compiler/` |
-| bootstrap-language tests | `tests/<language>/` |
-| cross-rung tests | `tests/bootstrap/` |
-| proof-checker tests | `tests/proof-checker/` |
-| first and self-hosted Omega compilers | `source/omega/` |
-| product target-neutral phases | `source/psi/` |
-| language libraries | `source/library/` |
-| optional Rust implementation | `source/omega-rust/` |
-| non-authoritative invocation | `tools/bootstrap/` |
+| Gamma compiler | `source/gamma/compiler/gamma_compiler.beta` |
+| Delta compiler | `source/delta/compiler/delta_compiler.gamma` |
+| Omega `D` | `source/omega/omega_compiler.delta` |
+| Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
-Cross-owner paths are checked by
-[`tools/bootstrap/check-chain-hygiene.sh`](../../../tools/bootstrap/check-chain-hygiene.sh).
+There is no retired Epsilon source owner, intermediate self-host owner, generic bootstrap
+source bucket, or compatibility compiler. Cross-owner paths are checked by
+`tools/bootstrap/check-chain-hygiene.sh`.

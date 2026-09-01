@@ -1,116 +1,18 @@
-# Rung: Delta — safe definitional computation
+# Rung: Delta
 
-[Chain overview](../bootstrap_chain.md) | Prev: [Gamma](gamma.md) | Next:
-[Epsilon](epsilon.md)
+[Chain overview](../bootstrap_chain.md) | Prev: [Gamma](gamma.md) | Next: [Omega](../omega_toolchain.md)
 
-Delta is the first safe definitional rung: enough algebraic data, pattern
-matching, typing, and recursion to implement the Epsilon compiler without making
-Gamma understand Epsilon.
+Delta is the closed fixed-storage compiler-host language formerly named
+Epsilon. It has finite nominal data, arrays and bounded views, checked scalar
+operations, deterministic state-machine control, and sealed byte I/O. It has no
+packages, heap, proof language, dependent types, or implicit host services.
 
-## Adds
+The normative contract is
+[`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The
+Gamma-written compiler source at `source/delta/compiler/delta_compiler.gamma`
+is incomplete and has no canonical tape. Delta's sole language-chain customer
+is the first full Omega compiler closure `D` at
+`source/omega/omega_compiler.delta`.
 
-- algebraic data types and pattern matching;
-- checked signed integers and compact immutable bytes;
-- pure functions, recursion, and proper tail calls;
-- a small monomorphic static type system; and
-- explicit, bounded evaluation resources.
-
-Delta has one typed executable contract: `data* def*`, exhaustive matches,
-nominal immutable data, and no trailing untyped expression. The required
-compiler artifact is written in Gamma and emits Alpha tape for arbitrary source
-accepted by that contract. An interpreter may remain a bounded oracle, but the
-canonical edge yields a standalone tape for the Delta-written Epsilon compiler
-without an external Gamma compiler or host transformation.
-
-## Direct responsibility
-
-```text
-Gamma-written Delta compiler source
-  └─ gamma_compiler_bytecode.tape ─▶ delta_compiler_bytecode.tape
-
-Delta-written Epsilon compiler source
-  └─ delta_compiler_bytecode.tape ─▶ epsilon_compiler_bytecode.tape
-```
-
-Delta implements the Epsilon compiler. It does not merely provide an evaluator
-for a Gamma-written translator that already parsed Epsilon.
-
-D19 makes the generated application adapter a sealed compilation input rather
-than Delta syntax. `ConformanceBytesV1` selects pure
-`main : Bytes -> Bytes`; `EpsilonCompilerV1` selects the source-owned pure
-`main : Bytes -> EpsilonCompileOutcome`. The latter sum contains success, a
-structured Epsilon rejection, and D31/D34's attributed/aggregate bounded-witness
-application-static-storage refusals. Its profile-owned reason-code table is
-checked as a complete bijection over the exact resolved constructors before
-emission. A generated
-Alpha adapter owns sealed byte I/O, validates the sole source-authored
-Incomplete resource, and owns every private exhaustion, internal failure, and
-selected external observation. Delta source receives no general I/O primitive
-and matching names do not select `ECOUT`.
-
-D20 fixes the resolver beneath those profiles. Types, constructors, functions,
-and local values occupy four grammar-selected namespaces. Globals are unique
-within their own namespace; local bindings cannot shadow an active binding but
-may reuse names in disjoint scopes. Collection precedes mutually visible type
-resolution, and duplicates reject at the exact later declaration or binder.
-
-D21 requires every valid `Bytes` logical length to fit nonnegative `Int`.
-Concatenation checks the operands' stored logical lengths before allocation and
-traps on an exact sum above `INT64_MAX`; physical storage exhaustion remains
-`Incomplete`. D19 profiles validate their sealed-input maxima against the same
-bound before adapter emission.
-
-## Current migration
-
-`source/delta/compiler/delta_compiler.gamma` now owns the moved strict frontend,
-direct Alpha payload/fixup substrate, executed heap/stack and checked-`Int`
-helpers, resolved expression lowering, and profile-neutral whole-function
-label/body emission. It also validates both exact D19 source schemas and the
-26-code Epsilon rejection bijection without declaration-order authority. D30
-fixes the physical `DCREQ`, profile limits, generated-runtime observations, and
-`DCOUT`/`ECOUT` tables. D33 fixes bounded length admission before body exact-end
-work, total schema-category priority, absence coordinates, and request-profile
-code availability. The adapters remain incomplete and there is no published
-tape. Its
-251,142-byte historical fixed gate exhausted the former V1 Alpha ceiling before
-those later slices and the D19 adapters. D23 therefore selects the coherent
-`AlphaBootstrapV2` profile—a one-MiB stamped hole and 1,048,572-byte raw-tape
-maximum across seeds, compilers, checker, and exact gates—rather than another
-Delta-specific density gate or private execution path.
-`tests/delta/interpreter/interp.gamma` remains a bounded semantic oracle; it does not define
-an alternate Delta language or a serialized-AST runtime. Their
-now-hardened historical omission of match exhaustiveness remains the warning
-that differential agreement cannot establish a rule both sides omit. The former
-Gamma-written Epsilon-to-Delta route was outside Delta ownership and is deleted
-rather than retained as the Epsilon edge or a compatibility layer.
-
-D58 settles how the complete Delta compiler revises the Gamma compiler's private
-resource profile. The current incomplete source's 965 calls, 739 states, and 586
-edges are a baseline, not a final projection. A roomy noncanonical Gamma compiler
-stages the complete source; final procedures, calls, states, edges, derived
-initialization storage, fixups, tape, and maximum work are then measured
-conjunctively. Each independently provisioned authored-structure count receives
-the least power-of-two provision with at most 75 percent occupancy; derived
-guards remain bound to their owners and tape capacity remains D23-owned. Changed
-tables move above the fixup table in the same atomic publication as the rebuilt
-Gamma tape and admission subject.
-
-## Must not contain
-
-No mutable host memory, hardware boundary, package manager, product optimizer,
-or Epsilon parser hidden in Gamma. Proof checking is not a Delta language feature;
-the universal checker remains Alpha-owned and outside the language rung.
-
-## Implementation frontiers
-
-- retain D23's coherent `AlphaBootstrapV2` profile and the consolidated adjacent
-  conformance gate until D58 atomically publishes its measured private-table
-  revision;
-- implement D30's exact physical profiles, complete the two D19-selected
-  adapters and remaining lowering in the exact Delta compiler source, then
-  publish its artifact closure;
-- reuse the interpreter only as a specification or isolated algorithm source
-  without turning runtime interpretation into a permanent dependency;
-- emit exact Alpha tapes and checked source-to-tape certificates; and
-- escalate on terrible compiler performance, Alpha verbosity, or proof
-  explosion rather than adding special Delta accelerators.
+Delta does not need to compile itself. Its feature ledger admits a facility only
+for `D` or a measured reduction in the complete chain.

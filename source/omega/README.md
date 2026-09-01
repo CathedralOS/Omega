@@ -6,11 +6,11 @@ checking, and Terminal Psi; this package owns optimization, target realization,
 artifact emission, and the product entrypoint.
 
 The product compiler has two exact source implementations. `D` is written in
-Epsilon; `C` is written in Omega using a deliberately conservative,
+Delta; `C` is written in Omega using a deliberately conservative,
 compositional subset of ordinary Omega.
 
 ```text
-epsilon compiler + Epsilon source D → omega₀
+delta compiler + Delta source D → omega₀
 omega₀ + Omega source C          → omega
 ```
 
@@ -27,10 +27,10 @@ does not turn any compiler rung into a native bootstrap artifact.
 
 - [`../psi/`](../psi/) — target-neutral source, proof, and terminal semantics;
 - this root — target realization, optimization, artifact emission, the
-  Epsilon-written source closure `D`, and Omega-written source closure `C`;
+  Delta-written source closure `D`, and Omega-written source closure `C`;
 - [`../omega-rust/`](../omega-rust/) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
-- [`../epsilon/`](../epsilon/) — final lower-rung compiler and direct first-build
+- [`../delta/`](../delta/) — final lower-rung compiler and direct first-build
   producer.
 
 That source choice does not define a dialect or restrict programs the resulting
@@ -45,14 +45,14 @@ closure is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `build.omg`, `main.omg` | Current roots of Omega-written compiler closure `C`; the closure is incomplete but is extended in place. | Delete or replace only when an exact package-root ruling changes `C`; do not preserve alternate hosted roots. |
-| `omega_compiler.epsilon` | Incomplete Epsilon-written compiler closure `D`; currently owns the settled outer `OCREQ` envelope, strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented inner request or application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Epsilon implementation. |
+| `omega_compiler.delta` | Incomplete Delta-written compiler closure `D`; currently owns the settled outer `OCREQ` envelope, strict source-view UTF-8 framing, the complete source-neutral lexical scanner, invocation-local source-shaped parser slices, the final exact Alpha tape encoder, bind-once label/fixup ownership, structural replay before sealing, and no invented inner request or application boundary. | Extend in place as `D`; replace a completed component only atomically with an equally complete final Delta implementation. |
 
 The four empty target declarations in `build.omg` are temporary compatibility
 scaffolding, not product architecture. Delete them as soon as immutable target
 activation/reach closure lands, and normalize `windows_x64` to
 `windows_x86_64` in that same migration.
 
-`omega_compiler.epsilon` (`D`) now exists but is intentionally incomplete, and
+`omega_compiler.delta` (`D`) now exists but is intentionally incomplete, and
 both descriptive compiler tapes remain absent. D18 fixes their logical sealed
 Omega request as a resolved package subject plus a bound invocation, complete
 deterministic build-visible snapshots, and the `OCOUT` compiler boundary. D25
@@ -76,7 +76,7 @@ Its retained Alpha encoder targets `AlphaBootstrapV2` directly: at most
 nine-byte-dominated fixups. These are outer compiler-resource bounds, not Omega
 language limits, and move only with the common seed/checker profile.
 
-Epsilon cannot safely express a reusable validate-once source cursor: machines
+Delta cannot safely express a reusable validate-once source cursor: machines
 and fields are public, while immutable views cannot be stored in data. `D`'s
 parser therefore validates once and streams the same source through private
 states of one canonical invocation. Its retained slices sequence empty,

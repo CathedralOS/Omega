@@ -6,7 +6,7 @@ semantics, compiler source, proof, canonical artifact, or test corpus.
 
 ```sh
 sh tools/bootstrap/check-chain-hygiene.sh
-sh tests/bootstrap/alpha-beta-edge.sh --edge
+sh tests/bootstrap/alpha-seed.sh --edge
 ```
 
 The second command is the presently closed bootstrap floor: audited Alpha seed
@@ -21,9 +21,9 @@ retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
 owners and native compiler identities above Alpha, and prevents a lower
 compiler owner from reaching beyond its immediate successor.
 
-`paths.sh` exports only paths consumed by present gates. Missing future
-Gamma/Delta/Omega compiler sources and tapes are not represented by placeholder
-variables; the files enter the positive inventory when they actually exist.
+`paths.sh` exports canonical selected-owner paths. Future Beta evaluator and
+Gamma compiler paths may be named while absent; the topology gate does not
+pretend their artifacts exist.
 Shell and Python remain replaceable invocation plumbing and may not parse an
 accepted language, lower code, manufacture proof premises, or decide
 admission.
@@ -36,9 +36,9 @@ remain under `source/<language>/compiler/`.
 
 | Child/files | Present consumer | Deletion condition |
 | --- | --- | --- |
-| `paths.sh` | Alpha, Beta, Gamma, and topology gates that share exact owner paths | Absorb the remaining locators into a single cheaper canonical invocation mechanism, then delete this file and update every consumer atomically. |
+| `paths.sh` | Alpha, tape-tool, Beta, Gamma, Delta, Omega, and topology gates that share exact owner paths | Absorb the remaining locators into a single cheaper canonical invocation mechanism, then delete this file and update every consumer atomically. |
 | `check-chain-hygiene.sh` | Repository checks for direct-chain ownership, source purity, and retention | Replace it only with one canonical gate enforcing the same positive inventory and immediate-successor boundary more economically. |
-| `alpha/`, `beta/`, `gamma/`, `proof-checker/` | Tape materialization and exact artifact construction used by current tests and rebuilds | Delete a child only when every caller has an equally direct canonical invocation. |
+| `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no
