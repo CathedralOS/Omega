@@ -21,6 +21,7 @@ pub struct CheckedCompilation {
     source_file_count: usize,
     subsystem: u16,
     package_subject: Option<omega_package_compilation::PackageCompilationSubject>,
+    resolved_semantic_bindings: Vec<omega_selected_dispatch::ResolvedAcceptedSemanticBinding>,
     base_source_consumption_commitment: Option<super::PackageSourceConsumptionCommitment>,
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
@@ -66,6 +67,7 @@ impl PartialEq for CheckedCompilation {
             && self.source_file_count == other.source_file_count
             && self.subsystem == other.subsystem
             && self.package_subject == other.package_subject
+            && self.resolved_semantic_bindings == other.resolved_semantic_bindings
             && self.base_source_consumption_commitment == other.base_source_consumption_commitment
             && self.exact_toolchain_sources == other.exact_toolchain_sources
             && self.generated_source_custody == other.generated_source_custody
@@ -155,6 +157,16 @@ impl CheckedCompilation {
         &self,
     ) -> Option<&omega_package_compilation::PackageCompilationSubject> {
         self.package_subject.as_ref()
+    }
+
+    #[doc(hidden)]
+    pub fn resolved_semantic_binding(
+        &self,
+        role: omega_package_compilation::AcceptedSemanticBindingRole,
+    ) -> Option<&omega_selected_dispatch::ResolvedAcceptedSemanticBinding> {
+        self.resolved_semantic_bindings
+            .iter()
+            .find(|binding| binding.role() == role)
     }
 
     /// Compiler-validated exact source owners used only while projecting
@@ -1185,6 +1197,11 @@ fn compile_to_checked_inner_with_replay(
             selected_target_profile,
             selected_provider_provenance,
             opaque_representation_selections: &opaque_representation_selections,
+            accepted_linux_console_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                )
+            }),
         },
     )?;
 
@@ -1217,6 +1234,7 @@ fn compile_to_checked_inner_with_replay(
         source_file_count,
         subsystem,
         package_subject,
+        resolved_semantic_bindings: selected_execution_settlement.resolved_semantic_bindings,
         base_source_consumption_commitment: package_authority_verdict
             .as_ref()
             .map(|verdict| verdict.base_source_consumption_commitment()),

@@ -23,7 +23,27 @@ use sha2::{Digest, Sha256};
 pub struct ProviderPlanDigest([u8; 32]);
 
 impl ProviderPlanDigest {
-    const fn from_digest(digest: [u8; 32]) -> Self {
+    #[doc(hidden)]
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// Collision-resistant identity of one exact normalized service schema.
+///
+/// This excludes provider realization rows while retaining the declaration
+/// owner, every requirement signature, authority flow, and selected calling-
+/// plan application carried by [`ServiceSchema`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ServiceSchemaDigest([u8; 32]);
+
+impl ServiceSchemaDigest {
+    #[doc(hidden)]
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
         Self(digest)
     }
 
@@ -113,6 +133,26 @@ pub struct ServiceMethod {
     /// Domain-separated commitment to that exact calling-plan application.
     /// This is present exactly when the report coordinate is present.
     pub calling_plan_commitment: Option<BoundaryCallingPlanCommitment>,
+}
+
+impl ServiceSchema {
+    /// Domain-separated SHA-256 commitment to the complete normalized schema.
+    pub fn identity_digest(&self) -> ServiceSchemaDigest {
+        let mut encoder = ProviderPlanDigestEncoder::for_service_schema();
+        encoder.string(&self.trait_name);
+        encoder.package_identity(self.trait_package_identity);
+        let mut methods = self.methods.iter().collect::<Vec<_>>();
+        methods.sort_by(|left, right| {
+            left.name
+                .cmp(&right.name)
+                .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        });
+        encoder.len(methods.len());
+        for method in methods {
+            encoder.service_method(method);
+        }
+        ServiceSchemaDigest::from_digest(encoder.finish())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1277,7 +1317,7 @@ impl ProviderPlan {
     /// normalized foreign-locator coordinates and is suitable for retained
     /// evidence identity.
     pub fn identity_digest(&self) -> ProviderPlanDigest {
-        let mut encoder = ProviderPlanDigestEncoder::new();
+        let mut encoder = ProviderPlanDigestEncoder::for_provider_plan();
         encoder.string(&self.name);
         encoder.string(&self.provider_type);
         encoder.package_identity(self.provider_type_package_identity);
@@ -1317,7 +1357,7 @@ impl ProviderPlan {
             encoder.provider_binding(&row.binding);
         }
         encoder.package_identity(self.origin_package_identity);
-        encoder.finish()
+        ProviderPlanDigest::from_digest(encoder.finish())
     }
 
     /// Historical FNV-1a report fingerprint over the canonical rendering
@@ -1988,14 +2028,20 @@ impl ProviderPlan {
 struct ProviderPlanDigestEncoder(Sha256);
 
 impl ProviderPlanDigestEncoder {
-    fn new() -> Self {
+    fn for_provider_plan() -> Self {
         let mut digest = Sha256::new();
         digest.update(b"omega.provider-plan.sha256.v1\0");
         Self(digest)
     }
 
-    fn finish(self) -> ProviderPlanDigest {
-        ProviderPlanDigest::from_digest(self.0.finalize().into())
+    fn for_service_schema() -> Self {
+        let mut digest = Sha256::new();
+        digest.update(b"omega.service-schema.sha256.v1\0");
+        Self(digest)
+    }
+
+    fn finish(self) -> [u8; 32] {
+        self.0.finalize().into()
     }
 
     fn byte(&mut self, value: u8) {
@@ -2433,6 +2479,28 @@ mod tests {
             Some(psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest([2; 32]));
         assert_eq!(first.report_fingerprint(), refactored.report_fingerprint());
         assert_ne!(first.identity_digest(), refactored.identity_digest());
+    }
+
+    #[test]
+    fn service_schema_digest_excludes_realization_rows_and_binds_schema_drift() {
+        let original = windows_console_plan();
+        let schema_identity = original.schema.identity_digest();
+
+        let mut different_realization = original.clone();
+        different_realization.rows[0].method = "different-row".to_owned();
+        assert_eq!(
+            different_realization.schema.identity_digest(),
+            schema_identity,
+            "provider realization rows are outside service-schema identity",
+        );
+        assert_ne!(
+            different_realization.identity_digest(),
+            original.identity_digest(),
+        );
+
+        let mut changed_schema = original;
+        changed_schema.schema.methods[0].may_block = true;
+        assert_ne!(changed_schema.schema.identity_digest(), schema_identity);
     }
 
     #[test]

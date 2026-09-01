@@ -3,9 +3,10 @@ use omega_compiler::{
     compile_to_checked_with_packages, compile_to_checked_with_packages_in_build_dir,
 };
 use omega_package_compilation::{
-    BuildDeclarationKind, ConsumedSourceUnitKind, PackageCompilationInputs,
-    PackageDependencyBinding, PackageGeneratedSourceBundle, PackageSourceBinding,
-    PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
+    ConsumedSourceUnitKind, PackageCompilationInputs, PackageDependencyBinding,
+    PackageGeneratedSourceBundle, PackageSourceBinding, PackageSourceConsumptionCommitment,
+    derive_source_consumption_commitment,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -3807,6 +3808,182 @@ fn native_package_product_retains_one_canonical_production_manifest() {
             .require_package_native_physical_evidence()
             .expect_err("standalone production cannot issue package final evidence"),
         omega_compiler::FinalRealizationEvidenceError::PackageProductionManifestRequired,
+    );
+}
+
+#[test]
+fn accepted_package_console_binding_closes_linux_intrinsic_without_toolchain_origin() {
+    let tree = TempTree::new();
+    let root = tree.package("accepted-console-application");
+    let console = tree.package("accepted-console-package");
+    let root_package = identity(48);
+    let console_package = identity(49);
+    TempTree::write(
+        console.join("console.omg"),
+        r#"pub boundary trait Console {
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use accepted_console::console;
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(70);
+}
+"#,
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"target linux_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("accepted-console-application");
+    builder.depend_as("accepted_console", Source::Path { location: "../accepted-console-package" });
+    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    let base_inputs = || {
+        PackageCompilationInputs::new(
+            root_package,
+            BuildDeclarationKind::Application,
+            vec![
+                PackageSourceBinding::new(
+                    root_package,
+                    "accepted-console-application",
+                    root.clone(),
+                ),
+                PackageSourceBinding::new(
+                    console_package,
+                    "accepted-console-package",
+                    console.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_package,
+                "accepted_console",
+                console_package,
+            )],
+        )
+        .expect("ordinary application and Console dependency graph")
+    };
+
+    let candidate = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+        base_inputs(),
+    )
+    .expect("candidate Console package should check before consumer acceptance");
+    let (plan, retained) = candidate
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(candidate.selected_provider_provenance())
+        .find(|(plan, _)| plan.schema.trait_name == "Console")
+        .expect("candidate retains its exact Console provider plan");
+    let exit = plan
+        .rows
+        .iter()
+        .position(|row| row.method == "exit_process")
+        .expect("candidate Console plan retains exit_process");
+    assert_eq!(
+        retained.row_compiler_intrinsic_executions[exit], None,
+        "ordinary package provenance alone cannot select a compiler intrinsic",
+    );
+    let declaration_path = candidate
+        .typed
+        .symbols
+        .display_path(retained.provider.schema.symbol(), "::");
+    let schema_digest = plan.schema.identity_digest();
+    let provider_plan_digest = plan.identity_digest();
+    for (label, stale) in [
+        (
+            "nominal declaration",
+            AcceptedSemanticBinding::new(
+                AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                console_package,
+                "OtherConsole",
+                schema_digest,
+                provider_plan_digest,
+            )
+            .unwrap(),
+        ),
+        (
+            "service schema",
+            AcceptedSemanticBinding::new(
+                AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                console_package,
+                declaration_path.clone(),
+                omega_effects::provider_plan::ServiceSchemaDigest::from_digest([91; 32]),
+                provider_plan_digest,
+            )
+            .unwrap(),
+        ),
+        (
+            "provider plan",
+            AcceptedSemanticBinding::new(
+                AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                console_package,
+                declaration_path.clone(),
+                schema_digest,
+                omega_effects::provider_plan::ProviderPlanDigest::from_digest([92; 32]),
+            )
+            .unwrap(),
+        ),
+    ] {
+        let stale_inputs = base_inputs()
+            .with_accepted_semantic_bindings(vec![stale])
+            .expect("stale binding remains graph-scoped input authority");
+        let diagnostics = compile_to_checked_with_packages(
+            &root.join("main.omg"),
+            Some("linux_x86_64"),
+            stale_inputs,
+        )
+        .expect_err("stale accepted semantic authority must not survive settlement");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("was not consumed by one exact selected provider plan")),
+            "unexpected {label} diagnostics: {diagnostics:#?}",
+        );
+    }
+    let accepted = AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        console_package,
+        declaration_path,
+        schema_digest,
+        provider_plan_digest,
+    )
+    .expect("candidate-derived accepted Console binding");
+    let accepted_inputs = base_inputs()
+        .with_accepted_semantic_bindings(vec![accepted])
+        .expect("accepted binding names the exact package closure");
+    let output = tree.0.join("accepted-console-output");
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(output),
+            target_name: Some("linux_x86_64".to_owned()),
+        })
+        .with_package_inputs(accepted_inputs)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .expect("exact accepted Console binding should close Linux native realization");
+    assert_eq!(
+        report
+            .require_package_native_physical_evidence()
+            .expect("accepted package Console carries exact physical evidence")
+            .children()
+            .len(),
+        1,
     );
 }
 

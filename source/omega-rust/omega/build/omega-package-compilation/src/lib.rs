@@ -2,6 +2,7 @@
 
 //! Reconciled package compilation inputs and exact source-consumption custody.
 
+mod semantic_bindings;
 mod source_consumption;
 
 pub use omega_build_declarations::BuildDeclarationKind;
@@ -13,6 +14,7 @@ use psi_checked_interpreter::{
 };
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
+pub use semantic_bindings::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use sha2::{Digest, Sha256};
 pub use source_consumption::{
     ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
@@ -274,6 +276,7 @@ pub struct PackageCompilationInputs {
     canonical_source_metadata: BTreeMap<PackageKeyIdentity, CanonicalFilesystemMetadataIndex>,
     dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
     dependency_generated_sources: BTreeMap<PackageKeyIdentity, PackageGeneratedSourceBundle>,
+    accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
 }
 
 impl PackageCompilationInputs {
@@ -434,6 +437,7 @@ impl PackageCompilationInputs {
                 canonical_source_metadata,
                 dependencies: canonical_dependencies,
                 dependency_generated_sources: BTreeMap::new(),
+                accepted_semantic_bindings: BTreeMap::new(),
             })
         } else {
             Err(errors)
@@ -487,6 +491,49 @@ impl PackageCompilationInputs {
                 .iter()
                 .map(|(alias, target)| (*requester, alias.as_str(), *target))
         })
+    }
+
+    /// Attach the complete consumer-policy semantic bindings admitted for this
+    /// compile request. These rows neither enter nor widen the dependency
+    /// graph; every bound package must already be in the exact closure.
+    pub fn with_accepted_semantic_bindings(
+        mut self,
+        bindings: Vec<AcceptedSemanticBinding>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let mut errors = Vec::new();
+        let mut accepted = BTreeMap::new();
+        for binding in bindings {
+            let role = binding.role();
+            let package = binding.package();
+            if !self.packages.contains_key(&package) {
+                errors.push(
+                    PackageCompilationInputError::ForeignSemanticBindingPackage { role, package },
+                );
+                continue;
+            }
+            if accepted.insert(role, binding).is_some() {
+                errors.push(PackageCompilationInputError::DuplicateSemanticBindingRole { role });
+            }
+        }
+        if errors.is_empty() {
+            self.accepted_semantic_bindings = accepted;
+            Ok(self)
+        } else {
+            Err(errors)
+        }
+    }
+
+    #[doc(hidden)]
+    pub fn accepted_semantic_binding(
+        &self,
+        role: AcceptedSemanticBindingRole,
+    ) -> Option<&AcceptedSemanticBinding> {
+        self.accepted_semantic_bindings.get(&role)
+    }
+
+    #[doc(hidden)]
+    pub fn accepted_semantic_bindings(&self) -> impl Iterator<Item = &AcceptedSemanticBinding> {
+        self.accepted_semantic_bindings.values()
     }
 
     /// Project the exact validated graph without source paths, package display
@@ -1213,6 +1260,13 @@ pub enum PackageCompilationInputError {
         bundle_target: omega_target::TargetProfile,
         selected_target: Option<omega_target::TargetProfile>,
     },
+    ForeignSemanticBindingPackage {
+        role: AcceptedSemanticBindingRole,
+        package: PackageKeyIdentity,
+    },
+    DuplicateSemanticBindingRole {
+        role: AcceptedSemanticBindingRole,
+    },
 }
 
 impl fmt::Display for PackageCompilationInputError {
@@ -1350,6 +1404,15 @@ impl fmt::Display for PackageCompilationInputError {
                 selected_target
                     .map(omega_target::TargetProfile::target_name)
                     .unwrap_or("<none>"),
+            ),
+            Self::ForeignSemanticBindingPackage { role, package } => write!(
+                formatter,
+                "accepted semantic binding {role:?} names package {} outside the compilation closure",
+                display_identity(*package),
+            ),
+            Self::DuplicateSemanticBindingRole { role } => write!(
+                formatter,
+                "accepted semantic binding role {role:?} appears more than once",
             ),
         }
     }

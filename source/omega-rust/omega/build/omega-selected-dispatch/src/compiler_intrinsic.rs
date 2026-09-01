@@ -18,9 +18,11 @@ use psi_typed_trees::types::TypeReferenceNode;
 /// symbols and the independently selected canonical target.
 ///
 /// Boundary-operator rows preserve the established float catalog. The first
-/// boundary-trait catalog entry is deliberately singular: the toolchain-owned
-/// Linux `Console::exit_process(i32) -> Unit` requirement and its exact
-/// `ConsoleNativeProvider::exit_process(i32) -> Unit` realization.
+/// boundary-trait catalog entry is deliberately singular: the exact Linux
+/// `Console::exit_process(i32) -> Unit` requirement and
+/// `ConsoleNativeProvider::exit_process(i32) -> Unit` realization. Legacy
+/// toolchain custody or one settled ordinary-package consumer binding must
+/// additionally own that row.
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
@@ -29,6 +31,75 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
+) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
+    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding(
+        checked,
+        plan,
+        schema,
+        row,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        None,
+    )
+}
+
+pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    schema: ProviderSchemaDeclaration,
+    row: &ProviderPlanRow,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
+    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
+        checked,
+        plan,
+        schema,
+        row,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        None,
+    )
+}
+
+pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    schema: ProviderSchemaDeclaration,
+    row: &ProviderPlanRow,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&crate::ResolvedAcceptedSemanticBinding>,
+) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
+    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
+        checked,
+        plan,
+        schema,
+        row,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding.map(crate::ResolvedAcceptedSemanticBinding::accepted),
+        accepted_binding.map(crate::ResolvedAcceptedSemanticBinding::declaration_symbol),
+    )
+}
+
+fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    schema: ProviderSchemaDeclaration,
+    row: &ProviderPlanRow,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
         return Ok(None);
@@ -53,6 +124,8 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
         requirement_symbol,
         realization_symbol,
         selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
     )? {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
@@ -71,6 +144,8 @@ fn linux_console_exit_row(
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
 ) -> Result<bool, Diagnostic> {
     let Some(selected_target @ ("linux_x86_64" | "linux_arm64")) = selected_target else {
         return Ok(false);
@@ -79,12 +154,22 @@ fn linux_console_exit_row(
         return Ok(false);
     }
     let typed = &checked.typed;
-    if [trait_symbol, requirement_symbol, realization_symbol]
+    let legacy_toolchain_binding = [trait_symbol, requirement_symbol, realization_symbol]
         .into_iter()
-        .any(|symbol| {
-            typed.symbols.symbol_source_origin(symbol) != Some(psi_source::SourceOrigin::Toolchain)
-        })
-    {
+        .all(|symbol| {
+            typed.symbols.symbol_source_origin(symbol) == Some(psi_source::SourceOrigin::Toolchain)
+        });
+    let accepted_package_binding = accepted_binding.is_some_and(|binding| {
+        accepted_binding_matches_selected_row_identity(
+            checked,
+            plan,
+            trait_symbol,
+            requirement_symbol,
+            realization_symbol,
+            binding,
+        ) && accepted_declaration_symbol.is_none_or(|symbol| symbol == trait_symbol)
+    });
+    if !legacy_toolchain_binding && !accepted_package_binding {
         return Ok(false);
     }
 
@@ -209,6 +294,28 @@ fn linux_console_exit_row(
         })
         .count();
     Ok(conformances == 1)
+}
+
+pub(crate) fn accepted_binding_matches_selected_row_identity(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    binding: &omega_package_compilation::AcceptedSemanticBinding,
+) -> bool {
+    let typed = &checked.typed;
+    binding.role()
+        == omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32
+        && [trait_symbol, requirement_symbol, realization_symbol]
+            .into_iter()
+            .all(|symbol| typed.symbols.symbol_package_identity(symbol) == Some(binding.package()))
+        && plan.schema.trait_package_identity == Some(binding.package())
+        && plan.provider_type_package_identity == Some(binding.package())
+        && plan.origin_package_identity == Some(binding.package())
+        && typed.symbols.display_path(trait_symbol, "::") == binding.declaration_path()
+        && plan.schema.identity_digest() == binding.normalized_schema_digest()
+        && plan.identity_digest() == binding.selected_provider_plan_digest()
 }
 
 fn exact_i32_to_unit_signature(
