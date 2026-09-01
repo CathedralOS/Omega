@@ -1935,6 +1935,7 @@ dependencies = [
  "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-semantics",
+ "sha2",
 ]
 
 [[package]]

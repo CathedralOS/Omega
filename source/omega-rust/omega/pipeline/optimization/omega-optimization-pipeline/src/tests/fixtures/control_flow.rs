@@ -30,6 +30,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -102,6 +103,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -139,6 +141,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -215,6 +218,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -247,6 +251,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -307,6 +312,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -346,6 +352,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -400,6 +407,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -439,6 +447,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -517,6 +526,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -552,6 +562,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -646,6 +657,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };

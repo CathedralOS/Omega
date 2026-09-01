@@ -22,8 +22,8 @@ pub use identity::{
     AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId,
     DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId, FuelScheduleIdentity, MachineId,
     ObligationId, OperationId, PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId,
-    PsiSemanticId, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, ValueId,
+    PsiSemanticId, RankingRelationId, RecursiveComponentId, ServiceId, StructuralCaseId,
+    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 pub use proposition::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, IeeeFloatComparisonKind,

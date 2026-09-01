@@ -13,6 +13,7 @@ fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {
     let module = conditional_immediate_module(machine_fixture.id, vec![machine_fixture]);
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
     let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     })

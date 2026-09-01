@@ -402,6 +402,13 @@ pub enum ModuleError {
     },
     DuplicateBlock(BlockId),
     DuplicateContract(ContractId),
+    NonCanonicalProofRecursiveComponents,
+    InvalidProofRecursiveComponent,
+    InvalidProofRecursiveMember(ContractId),
+    InvalidProofRecursiveEdge {
+        caller: ContractId,
+        callee: ContractId,
+    },
     DuplicateOperation(OperationId),
     ScalarOperationHasUnitResult(OperationId),
     UnitOperationHasScalarResult(OperationId),

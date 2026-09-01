@@ -221,6 +221,7 @@ fn terminal_fixture() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -313,6 +314,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -537,6 +539,7 @@ fn ranked_terminal_proof(module: &TerminalModule) -> ProofBundle {
                 },
             }),
         }],
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
     }
 }

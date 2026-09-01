@@ -15,8 +15,22 @@ pub(super) fn validate_bundle(bundle: &ProofBundle) -> Result<(), ProofCodecErro
             return Err(ProofCodecError::NonCanonicalEvidenceOrder);
         }
         previous = Some(evidence.obligation);
-        if let EvidenceRoute::CertificateDerived(certificate) = &evidence.route {
-            validate_proof_node(&certificate.proof, 0)?;
+        validate_evidence_route(&evidence.route)?;
+    }
+    let mut previous_component = None;
+    for component in &bundle.recursive_components {
+        if previous_component.is_some_and(|previous| previous >= component.component) {
+            return Err(ProofCodecError::NonCanonicalRecursiveComponentEvidence);
+        }
+        previous_component = Some(component.component);
+        validate_evidence_route(&component.certificate.well_foundedness)?;
+        let mut previous_edge = None;
+        for edge in &component.certificate.edges {
+            if previous_edge.is_some_and(|previous| previous >= edge.obligation) {
+                return Err(ProofCodecError::NonCanonicalRecursiveComponentEvidence);
+            }
+            previous_edge = Some(edge.obligation);
+            validate_evidence_route(&edge.evidence)?;
         }
     }
     let mut previous_term = None;
@@ -52,6 +66,13 @@ pub(super) fn validate_bundle(bundle: &ProofBundle) -> Result<(), ProofCodecErro
             }
             previous_row = Some(row);
         }
+    }
+    Ok(())
+}
+
+fn validate_evidence_route(route: &EvidenceRoute) -> Result<(), ProofCodecError> {
+    if let EvidenceRoute::CertificateDerived(certificate) = route {
+        validate_proof_node(&certificate.proof, 0)?;
     }
     Ok(())
 }

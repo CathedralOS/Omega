@@ -65,6 +65,7 @@ fn scalar_call_reconstructs_requirements_and_imports_verified_guarantees() {
     assert_eq!(callee_guarantee.requirements.len(), 1);
 
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![
             semantic_axiom_evidence(
@@ -145,6 +146,7 @@ fn payloadless_structural_call_imports_guarded_rows_only_as_case_implications() 
     verify_module(
         &module,
         &ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![
                 ObligationEvidence {
@@ -365,6 +367,7 @@ fn payloadless_structural_call_selects_one_exact_guarded_term_without_inventing_
             obligation: obligation_id(2),
             route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
         }],
+        recursive_components: Vec::new(),
         evidence_producers: vec![EvidenceProducerProvenance {
             id: EvidenceIdentity::new(1).unwrap(),
             term: callee_term,
@@ -788,6 +791,7 @@ fn boundary_call_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -935,6 +939,7 @@ fn call_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![
@@ -1074,6 +1079,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![

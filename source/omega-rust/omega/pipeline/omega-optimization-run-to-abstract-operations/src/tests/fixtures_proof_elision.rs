@@ -156,6 +156,7 @@ pub(super) fn live_exact_add_zero_verified() -> VerifiedPsiOptimizationUnit {
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -211,6 +212,7 @@ pub(super) fn live_exact_divide_by_one_verified() -> VerifiedPsiOptimizationUnit
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -270,6 +272,7 @@ pub(super) fn live_exact_multiply_by_zero_verified() -> VerifiedPsiOptimizationU
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -331,6 +334,7 @@ pub(super) fn live_exact_zero_dividend_verified() -> VerifiedPsiOptimizationUnit
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -402,6 +406,7 @@ pub(super) fn live_exact_zero_value_shift_verified() -> VerifiedPsiOptimizationU
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -469,6 +474,7 @@ pub(super) fn live_exact_signed_negative_one_shift_right_verified() -> VerifiedP
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -568,6 +574,7 @@ pub(super) fn live_exact_self_division_or_remainder_verified(
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -668,6 +675,7 @@ pub(super) fn live_exact_remainder_by_unit_verified(
     verified(
         module,
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -745,6 +753,7 @@ pub(super) fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsi
             }],
         ),
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,

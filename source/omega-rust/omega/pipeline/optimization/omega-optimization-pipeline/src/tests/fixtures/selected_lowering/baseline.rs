@@ -56,6 +56,7 @@ pub(crate) fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),

@@ -285,6 +285,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -411,6 +412,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
         ],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

@@ -406,6 +406,7 @@ mod tests {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {

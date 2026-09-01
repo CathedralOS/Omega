@@ -45,6 +45,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),

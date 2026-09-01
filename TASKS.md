@@ -3880,16 +3880,22 @@ Remaining:
   SCC production, well-foundedness propositions, and normalization-law trust
   remain open.
 
-  The first general proof-SCC plumbing milestone now retains canonical
-  multi-member proof-only components from validation into checked termination
-  facts. One component owns one normalized rank type and structural-subterm
-  relation; every exact internal statement, expression, or transition call
-  site owns its own caller/callee rank parameters and resolved nonempty member
-  path. Multiple calls between the same machine pair do not collapse. This is
-  checked frontend evidence only: Terminal component rows, a shared
-  well-foundedness citation, proof-bundle production, codec/verifier
-  reconstruction, synopsis publication, and one-member self-recursive
-  components remain open before this can be called a certificate.
+  General proof-SCC plumbing now retains canonical multi-member proof-only
+  components from validation into checked termination facts and through the
+  Terminal proof boundary. One component owns one normalized rank type and
+  structural-subterm relation; every exact internal statement, expression, or
+  transition call site owns its own caller/callee rank parameters and resolved
+  nonempty member path. Multiple calls between the same machine pair do not
+  collapse. Terminal format 55 / vocabulary 58 retains a closed finite-
+  inductive proof-type graph and exact source-free component rows. The verifier
+  resolves every strict path in that graph, reconstructs semantic component and
+  ranking-relation identities plus one shared well-foundedness and one exact
+  decrease obligation per call, and checks proof format 22's grouped
+  certificate with the generic kernel admission path. Missing, extra,
+  reordered, or stale component/edge evidence rejects, while the ordinary
+  verified synopsis publishes the grouped acceptance. Source-to-Terminal
+  production, reachable proof-closure selection, one-member self-recursive
+  components, and normalization-law trust remain open.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one

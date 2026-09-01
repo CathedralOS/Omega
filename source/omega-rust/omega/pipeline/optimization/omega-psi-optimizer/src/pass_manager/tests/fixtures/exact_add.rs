@@ -54,6 +54,7 @@ pub(super) fn verified_exact_add_unit_with_right(
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -115,6 +116,7 @@ pub(super) fn verified_exact_add_unit_with_right(
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

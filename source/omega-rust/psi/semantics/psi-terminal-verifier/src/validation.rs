@@ -5,9 +5,9 @@ use psi_core::{
     ContentConservation, ContentDomainId, ContentProjectionExpression, ContentProjectionIdentity,
     ContentProjectionScalar, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
     EvidenceTermId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, ServiceId,
-    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
-    content_conservation_report_fingerprint,
+    PlaceId, Proposition, PropositionContext, PropositionId, RecursiveComponentId, ScalarTerm,
+    ScalarType, ServiceId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId, ValueId, content_conservation_report_fingerprint,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentPartitionComposition,
@@ -38,6 +38,7 @@ mod foundation;
 mod frontier;
 mod machine;
 mod operations;
+mod proof_recursion;
 mod propositions;
 mod quotient_correspondence;
 mod ranked_scc;
@@ -58,6 +59,7 @@ pub use frontier::{
     VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
     VerifiedTerminalStructuralFrontiers,
 };
+use proof_recursion::validate_proof_recursive_components;
 pub(crate) use structural_operations::{
     exact_payloadless_case_return_exits, structural_argument_canonical_prefix,
 };
@@ -648,6 +650,7 @@ fn validate_module_with_policy(
             ModuleError::DuplicateContract,
         )?;
     }
+    validate_proof_recursive_components(module, &mut registry)?;
     let machines = module
         .machines
         .iter()
@@ -795,6 +798,7 @@ struct IdRegistry {
     operations: BTreeSet<OperationId>,
     edges: BTreeSet<EdgeId>,
     obligations: BTreeSet<ObligationId>,
+    recursive_components: BTreeSet<RecursiveComponentId>,
     values: BTreeSet<ValueId>,
     places: BTreeSet<PlaceId>,
     owner_content_projections:

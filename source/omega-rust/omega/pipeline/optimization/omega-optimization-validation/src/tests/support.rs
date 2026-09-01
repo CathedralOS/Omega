@@ -63,6 +63,7 @@ pub(crate) fn verified_unit() -> omega_psi_to_abstract_operations::VerifiedPsiOp
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -108,6 +109,7 @@ pub(crate) fn verified_unit() -> omega_psi_to_abstract_operations::VerifiedPsiOp
         }],
     };
     let proof = psi_terminal_verifier::ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: [105, 106]
             .into_iter()

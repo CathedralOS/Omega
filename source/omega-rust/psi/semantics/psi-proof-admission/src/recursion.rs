@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{ContractId, EvidenceIdentity, ObligationId, Proposition, PropositionContext};
+use psi_core::{
+    ContractId, EvidenceIdentity, ObligationId, Proposition, PropositionContext, RankingRelationId,
+};
 
 use crate::{
     AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation, verify_obligation,
@@ -31,7 +33,7 @@ pub struct RecursiveEdgeObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecursiveComponentObligation {
     pub members: Vec<ContractId>,
-    pub ranking_relation: Option<EvidenceIdentity>,
+    pub ranking_relation: Option<RankingRelationId>,
     pub well_foundedness: CertificateObligation,
     pub edges: Vec<RecursiveEdgeObligation>,
 }
@@ -48,7 +50,7 @@ pub struct RecursiveEdgeCertificate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecursiveComponentCertificate {
     pub identity: EvidenceIdentity,
-    pub ranking_relation: EvidenceIdentity,
+    pub ranking_relation: RankingRelationId,
     pub well_foundedness: EvidenceRoute,
     pub edges: Vec<RecursiveEdgeCertificate>,
 }
@@ -56,7 +58,7 @@ pub struct RecursiveComponentCertificate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecursiveComponentAcceptance {
     pub certificate: EvidenceIdentity,
-    pub ranking_relation: EvidenceIdentity,
+    pub ranking_relation: RankingRelationId,
     pub members: Vec<ContractId>,
     pub well_foundedness: AcceptedFact,
     pub decreases: Vec<AcceptedFact>,

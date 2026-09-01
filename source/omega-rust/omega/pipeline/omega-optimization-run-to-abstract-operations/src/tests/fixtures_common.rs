@@ -128,6 +128,7 @@ fn replace_truth_placeholders_with_checked_operation_certificates(
 pub(super) fn checked_operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
     let obligations = psi_terminal_verifier::reconstruct_operation_obligations(module).unwrap();
     let mut proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .iter()
@@ -165,6 +166,7 @@ pub(super) fn module_with_blocks(
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),

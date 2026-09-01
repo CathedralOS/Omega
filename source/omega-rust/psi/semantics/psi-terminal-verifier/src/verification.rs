@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
 use psi_proof_admission::{
-    AcceptedFact, AdmissionProfile, EvidenceError, verify_obligation_with_machine_parameters,
+    AcceptedFact, AdmissionProfile, EvidenceError, RecursiveComponentAcceptance,
+    RecursiveComponentError, verify_obligation_with_machine_parameters, verify_recursive_component,
 };
 use psi_terminal::TerminalModule;
 
@@ -72,6 +73,7 @@ struct VerifiedTerminalModuleState<'module> {
     proof_bundle: ProofBundle,
     reconstructed_obligations: ReconstructedTerminalObligationSet,
     accepted_facts: Vec<AcceptedFact>,
+    accepted_recursive_components: Vec<RecursiveComponentAcceptance>,
     structural_frontiers: VerifiedTerminalStructuralFrontiers,
 }
 
@@ -82,6 +84,10 @@ impl<'module> VerifiedTerminalModule<'module> {
 
     pub fn accepted_facts(&self) -> &[AcceptedFact] {
         &self.state.accepted_facts
+    }
+
+    pub fn accepted_recursive_components(&self) -> &[RecursiveComponentAcceptance] {
+        &self.state.accepted_recursive_components
     }
 
     /// Exact artifact evidence accepted for this module. Retaining the bundle
@@ -123,6 +129,10 @@ impl<'module> VerifiedNativeRankedTerminalModule<'module> {
 
     pub fn accepted_facts(&self) -> &[AcceptedFact] {
         &self.state.accepted_facts
+    }
+
+    pub fn accepted_recursive_components(&self) -> &[RecursiveComponentAcceptance] {
+        &self.state.accepted_recursive_components
     }
 
     pub const fn proof_bundle(&self) -> &ProofBundle {
@@ -207,6 +217,8 @@ fn verify_validated_module<'module>(
         .map_err(VerificationError::Module)?;
     let reconstructed_obligations =
         reconstruct_validated_terminal_obligations(module).map_err(VerificationError::Module)?;
+    let reconstructed_recursive_components =
+        crate::proof_recursion::reconstruct_validated_proof_recursive_component_obligations(module);
     validate_evidence_producer_provenance(module, proof_bundle)?;
     let contexts = module
         .machines
@@ -263,11 +275,56 @@ fn verify_validated_module<'module>(
     if let Some(obligation) = evidence.keys().next().copied() {
         return Err(VerificationError::UnknownEvidence(obligation));
     }
+
+    let mut recursive_evidence = BTreeMap::new();
+    let mut previous_component = None;
+    for entry in &proof_bundle.recursive_components {
+        if previous_component.is_some_and(|previous| previous >= entry.component) {
+            return Err(VerificationError::NonCanonicalRecursiveComponentEvidence);
+        }
+        previous_component = Some(entry.component);
+        if recursive_evidence
+            .insert(entry.component, entry.certificate.clone())
+            .is_some()
+        {
+            return Err(VerificationError::DuplicateRecursiveComponentEvidence(
+                entry.component,
+            ));
+        }
+    }
+    let mut accepted_recursive_components = Vec::new();
+    for (component, obligation) in module
+        .proof_recursive_components
+        .iter()
+        .zip(reconstructed_recursive_components.iter())
+    {
+        let identity = crate::proof_recursive_component_identity(component);
+        let certificate = recursive_evidence.remove(&identity).ok_or(
+            VerificationError::MissingRecursiveComponentEvidence(identity),
+        )?;
+        let acceptance = verify_recursive_component(
+            &psi_core::PropositionContext::default(),
+            obligation,
+            certificate,
+            profile,
+        )
+        .map_err(|error| VerificationError::RejectedRecursiveComponent {
+            component: identity,
+            error,
+        })?;
+        accepted_recursive_components.push(acceptance);
+    }
+    if let Some(component) = recursive_evidence.keys().next().copied() {
+        return Err(VerificationError::UnknownRecursiveComponentEvidence(
+            component,
+        ));
+    }
     Ok(VerifiedTerminalModuleState {
         validated,
         proof_bundle: proof_bundle.clone(),
         reconstructed_obligations,
         accepted_facts,
+        accepted_recursive_components,
         structural_frontiers,
     })
 }
@@ -290,6 +347,14 @@ pub enum VerificationError {
     DuplicateEvidence(ObligationId),
     MissingEvidence(ObligationId),
     UnknownEvidence(ObligationId),
+    NonCanonicalRecursiveComponentEvidence,
+    DuplicateRecursiveComponentEvidence(psi_core::RecursiveComponentId),
+    MissingRecursiveComponentEvidence(psi_core::RecursiveComponentId),
+    UnknownRecursiveComponentEvidence(psi_core::RecursiveComponentId),
+    RejectedRecursiveComponent {
+        component: psi_core::RecursiveComponentId,
+        error: RecursiveComponentError,
+    },
     RejectedEvidence {
         obligation: ObligationId,
         error: EvidenceError,

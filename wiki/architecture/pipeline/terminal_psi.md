@@ -1477,6 +1477,27 @@ Optimizer rewrites that change component membership, carried state, or decrease
 edges invalidate the old certificate and must pass ordinary Terminal
 verification again.
 
+Proof-only call recursion uses the same one-certificate-per-component rule but
+is not an executable control-flow SCC. `TerminalModule` retains one canonical
+row per reachable proof component: a semantic component key is reconstructed
+from its rank relation, closed finite-inductive proof-type graph, exact member
+contracts and rank parameters, and every exact statement, expression, or
+transition call coordinate. A strict structural-subterm path is accepted only
+when the verifier resolves every field in that proof-type graph and the
+nonempty path returns to the component rank type. These proof types grant no
+runtime layout or projection authority.
+
+The proof bundle carries a separately grouped certificate keyed by the
+reconstructed component identity. The verifier reconstructs one semantic
+ranking-relation identity, one shared well-foundedness obligation, and one
+decrease obligation per exact call row, invokes the generic proof-admission
+checker, and retains the resulting component acceptance separately from flat
+contract evidence. Missing, surplus, reordered, or substituted component or
+edge evidence rejects. Terminal format 55 / vocabulary 58 and proof format 22
+bind these rows; the ordinary verified synopsis reports the component, shared
+well-foundedness route, members, and every exact decrease route. Source
+production and reachable-proof-closure selection remain separate compiler work.
+
 Accepting this certificate establishes only the stated Terminal semantics. An
 untrusted or modified producer may emit a different safe cyclic module, just as
 it may emit different acyclic code. Binding the module to owner-approved Omega

@@ -6,11 +6,13 @@
 //! edges, then requires evidence for every bodyful contract clause. Proof
 //! bundles cannot choose which obligations exist.
 
+mod proof_recursion;
 mod quotient_correspondence;
 mod terminal_trace_v1;
 mod validation;
 mod verification;
 
+pub use proof_recursion::*;
 pub use quotient_correspondence::*;
 pub use terminal_trace_v1::*;
 pub use validation::*;
