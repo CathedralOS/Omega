@@ -9,9 +9,9 @@
 // fenced. Exercises checked_add carry, checked_subtract borrow,
 // saturating_subtract clamp, ordering, and the underflow arm -- exact
 // values, both engines.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

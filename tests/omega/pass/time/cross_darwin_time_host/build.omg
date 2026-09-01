@@ -9,4 +9,7 @@ target windows_x86_64 {
 
 machine build(builder: &mut Build) {
     builder.application("cross-darwin-time-host");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/std"
+    });
 }

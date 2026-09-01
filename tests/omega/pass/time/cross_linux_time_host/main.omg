@@ -2,8 +2,8 @@
 // platform-owned clock_gettime timespec-result adapter; sleep lowers through
 // the nanosleep timespec-argument adapter. Calibration values are target
 // constants. Native execution remains gated on a real Linux host.
-use omega::language::std::time_host;
-use omega::language::std::console;
+use omega_language_std::time_host;
+use omega_language_std::console;
 
 data Main {
     host: TimeHost;

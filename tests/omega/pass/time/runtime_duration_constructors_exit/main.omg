@@ -6,9 +6,9 @@
 // BINARY field expression in the struct literal still mis-sizes the write to
 // the whole struct and hits the loud 16-byte fence (TASKS).
 // Expected exit: 70.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

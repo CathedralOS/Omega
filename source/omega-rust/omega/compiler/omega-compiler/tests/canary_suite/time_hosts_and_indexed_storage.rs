@@ -32,7 +32,7 @@ fn runtime_time_host_virtual_interpreter_oracle() {
     // calibration 1000/1000/0, wall = 2026-01-01 + elapsed. Interp-only
     // until rung 5 binds the ops natively.
     let canary = pass_canary("time/runtime_time_host_virtual_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("time host virtual canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -55,7 +55,7 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
     // The caller mixes now() and elapsed_since in ONE state -- the shape
     // that #DE-crashed while the two callees shared the let name `frequency`.
     let canary = pass_canary("time/runtime_time_elapsed_since_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("elapsed-since canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -425,7 +425,7 @@ fn runtime_checked_time_arith_exit_canary_runs() {
     // u64::MAX / i64::MAX / i64::MIN overflow pins, and a duration-seconds-
     // above-i64::MAX leg pinning the biased-space detection.
     let canary = pass_canary("time/runtime_checked_time_arith_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("checked time arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -460,7 +460,7 @@ fn runtime_sleep_for_exit_canary_runs() {
     // host sleep, returning the clamped request). Returned ms == 30 exactly
     // on both engines; elapsed >= 30ms.
     let canary = pass_canary("time/runtime_sleep_for_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("sleep_for canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "sleep_for should interpret cleanly");
@@ -495,7 +495,7 @@ fn runtime_system_time_after_2026_exit_canary_runs() {
     // seconds>0-or-subsecond>=30ms splits; the Backwards PAYLOAD must carry
     // the real gap (ZII Backwards(ZERO) fails leg 4).
     let canary = pass_canary("time/runtime_system_time_after_2026_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("system-time canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -531,7 +531,7 @@ fn runtime_instant_elapsed_exit_canary_runs() {
     // >= 30ms and backwards=Overflow assertions hold on the interpreter's
     // virtual clock (exactly 30_000_000 ns) AND the native QPC clock.
     let canary = pass_canary("time/runtime_instant_elapsed_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("instant elapsed canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -621,7 +621,7 @@ fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
     // native darwin run (fresh file vs real clock) exit 70. macos-gated:
     // the decode reads darwin stat offsets (windows waits on fs #2).
     let canary = pass_canary("time/runtime_fs_mtime_system_time_interop_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("fs-time interop canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "interop should interpret cleanly");
@@ -658,7 +658,7 @@ fn runtime_fs_mtime_interop_windows_exit_canary_runs() {
     // windows run (fresh file vs real clock) exit 70. windows-gated: the
     // decode reads the `_stat64` offset.
     let canary = pass_canary("time/runtime_fs_mtime_interop_windows_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("windows fs-time interop canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "interop should interpret cleanly");
@@ -688,7 +688,7 @@ fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
     let canary = pass_canary("time/runtime_duration_totals_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("duration totals canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "totals should interpret cleanly");
@@ -719,7 +719,7 @@ fn runtime_duration_constructors_interpreter_oracle() {
     // value calls). Interp-only: the native route hits the loud 16-byte
     // value-store MVP fence; promote when that lands (see the canary header).
     let canary = pass_canary("time/runtime_duration_constructors_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("duration constructors canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "constructors should interpret cleanly");
@@ -740,7 +740,7 @@ fn runtime_duration_core_exit_canary_runs() {
     // field values cascade-safe (bare `param % literal`) -- both documented
     // in tests/omega/pending/time/value_machine_receiver_field_postentry.
     let canary = pass_canary("time/runtime_duration_core_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_repository_fixture_to_checked(&canary.join("main.omg"), None)
         .expect("duration core canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

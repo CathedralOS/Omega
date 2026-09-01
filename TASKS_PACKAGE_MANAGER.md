@@ -386,12 +386,15 @@ explicitly.
   Remaining work:
 
   - migrate remaining package-aware fixtures to explicit std dependency edges;
-    the compiler product, parser package, and all 140 std-consuming sample
-    packages already declare ordinary `omega-language-std` edges and import
-    through its derived alias; the package-aware sample sweep introduces no
-    failures beyond the seven independently reproduced on the prior standalone
-    baseline; the freestanding UEFI package remains dependency-free, while two
-    proof-only source fixtures remain standalone;
+    the compiler product, parser package, all 140 std-consuming sample
+    packages, and all 14 packaged time canaries already declare ordinary
+    `omega-language-std` edges and import through its derived alias; the
+    package-aware sample sweep introduces no failures beyond the seven
+    independently reproduced on the prior standalone baseline, and the time
+    cohort reaches checked semantics through package compilation; the
+    freestanding UEFI package remains dependency-free, the two proof-only
+    sample sources remain standalone, and other standalone source fixtures stay
+    on the compatibility path until they acquire real package roots;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

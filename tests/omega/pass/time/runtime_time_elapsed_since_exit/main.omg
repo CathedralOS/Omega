@@ -1,9 +1,9 @@
 // PROBE: Time::elapsed_since -- now() nested at depth 2 (host calls inside)
 // + duration_since on a LOCAL receiver in terminal position. sleep(30) then
 // elapsed >= 30ms. exits: 70 ok; 1 = under 30ms / zeroed.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {

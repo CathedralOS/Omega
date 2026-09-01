@@ -1,7 +1,12 @@
+use omega_build_declarations::{BuildDeclaration, extract_build_declaration};
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions as CompilerOptions, CompileReport,
-    CompileRequest, RequestedCompileProduct, compile_to_checked,
+    CompileRequest, RequestedCompileProduct, compile_to_checked, compile_to_checked_with_packages,
 };
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
+use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,9 +45,12 @@ fn production_compile(
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
         CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
     };
-    let report = omega_compiler::compile(
-        CompileRequest::new(options).with_requested_product(requested_product),
-    )?;
+    let package_inputs = repository_fixture_package_inputs(&options.root_path);
+    let mut request = CompileRequest::new(options).with_requested_product(requested_product);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report = omega_compiler::compile(request)?;
     match product {
         CanaryCompileProduct::Check => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
@@ -61,11 +69,14 @@ fn compile_with_artifact_policy(
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
         CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
     };
-    let report = omega_compiler::compile(
-        CompileRequest::new(options)
-            .with_requested_product(requested_product)
-            .with_artifact_policy(artifact_policy),
-    )?;
+    let package_inputs = repository_fixture_package_inputs(&options.root_path);
+    let mut request = CompileRequest::new(options)
+        .with_requested_product(requested_product)
+        .with_artifact_policy(artifact_policy);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report = omega_compiler::compile(request)?;
     match product {
         CanaryCompileProduct::Check => Ok(report),
         CanaryCompileProduct::NativeArtifactAndPublish => report
@@ -1403,15 +1414,19 @@ fn compile_rooted_backend_canary_without_output_for_target(
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let result = omega_compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: canary_dir.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(target.into()),
-        })
-        .with_requested_product(RequestedCompileProduct::NativeArtifact)
-        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-    );
+    let root_path = canary_dir.join("main.omg");
+    let package_inputs = repository_fixture_package_inputs(&root_path);
+    let mut request = CompileRequest::new(CompilerOptions {
+        root_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(target.into()),
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let result = omega_compiler::compile(request);
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -2572,6 +2587,76 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn fixture_declares_ordinary_std(project_root: &Path) -> bool {
+    fs::read_to_string(project_root.join("build.omg")).is_ok_and(|build| {
+        build.contains("builder.depend(Source::Path") && build.contains("source/library/std")
+    })
+}
+
+fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32])
+        .expect("repository fixture package identity is nonzero")
+}
+
+fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilationInputs> {
+    let project_root = root_path
+        .parent()
+        .expect("fixture source has a project root");
+    if !fixture_declares_ordinary_std(project_root) {
+        return None;
+    }
+
+    let declaration = extract_build_declaration(project_root)
+        .unwrap_or_else(|error| panic!("fixture {}: {error}", project_root.display()));
+    let root_role = declaration.kind();
+    let root_name = match declaration {
+        BuildDeclaration::Application(application) => application.name,
+        BuildDeclaration::Package(package) => package.name,
+        BuildDeclaration::Workspace(_) => {
+            panic!(
+                "fixture {} cannot be a workspace root",
+                project_root.display()
+            )
+        }
+    };
+    let root_identity = fixture_package_identity(1);
+    let standard_library_identity = fixture_package_identity(2);
+    let packages = vec![
+        PackageSourceBinding::new(
+            root_identity,
+            root_name.into_string(),
+            project_root.to_path_buf(),
+        ),
+        PackageSourceBinding::new(
+            standard_library_identity,
+            "omega-language-std",
+            repo_root().join("source/library/std"),
+        ),
+    ];
+    let dependencies = vec![PackageDependencyBinding::new(
+        root_identity,
+        "omega_language_std",
+        standard_library_identity,
+    )];
+
+    Some(
+        PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
+            .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display())),
+    )
+}
+
+fn compile_repository_fixture_to_checked(
+    root_path: &Path,
+    target_name: Option<&str>,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    match repository_fixture_package_inputs(root_path) {
+        Some(package_inputs) => {
+            compile_to_checked_with_packages(root_path, target_name, package_inputs)
+        }
+        None => compile_to_checked(root_path, target_name),
+    }
+}
+
 fn sample_project(path: &str) -> PathBuf {
     repo_root().join("samples").join(path)
 }
@@ -2588,6 +2673,17 @@ fn hosted_main_program_entry_build(target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
         "target {target} {{\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+    )
+}
+
+fn hosted_main_program_entry_build_with_std(target: &str) -> String {
+    let root_owner = hosted_program_entry_owner(target);
+    let standard_library = repo_root()
+        .join("source/library/std")
+        .to_string_lossy()
+        .replace('\\', "/");
+    format!(
+        "target {target} {{\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.depend(Source::Path {{\n        location: \"{standard_library}\"\n    }});\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
     )
 }
 
@@ -2611,11 +2707,12 @@ fn compile_single_file_hosted_main(
     fs::create_dir_all(&source).expect("create exact-entry hosted source directory");
     fs::copy(canary.join("main.omg"), source.join("main.omg"))
         .expect("copy single-file hosted canary");
-    fs::write(
-        source.join("build.omg"),
-        hosted_main_program_entry_build(target),
-    )
-    .expect("write exact hosted ProgramEntry binding");
+    let build = if fixture_declares_ordinary_std(canary) {
+        hosted_main_program_entry_build_with_std(target)
+    } else {
+        hosted_main_program_entry_build(target)
+    };
+    fs::write(source.join("build.omg"), build).expect("write exact hosted ProgramEntry binding");
     production_compile(CanaryCompileSpec {
         root_path: source.join("main.omg"),
         build_dir: Some(scratch.join("out")),

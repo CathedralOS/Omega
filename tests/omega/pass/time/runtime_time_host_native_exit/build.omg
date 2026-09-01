@@ -3,5 +3,8 @@ target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.application("runtime-time-host-native-exit");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/std"
+    });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

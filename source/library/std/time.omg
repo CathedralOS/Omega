@@ -59,8 +59,9 @@ pub data TotalResult [copy] {
 
 const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0 };
 // u64::MAX seconds: spellable since D14 fire D blessed u64-classed
-// struct-literal fields for u64-magnitude literals.
-const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
+// struct-literal fields for u64-magnitude literals. MAX is public because it
+// is the exact saturation and checked-total boundary exposed by Duration.
+pub const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
 
 // Unit constructors (receiverless type-scoped machines).
 pub machine Duration::from_seconds(seconds: u64) -> Duration {

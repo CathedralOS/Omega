@@ -15,9 +15,9 @@
 // 2026-01-01 (1_767_225_600) and ~2076 (3_350_000_000) -- a zeroed result
 // fails low, an undivided nanosecond raw (~10^18) fails high.
 // Expected exit: 70.
-use omega::language::std::time_host;
+use omega_language_std::time_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
