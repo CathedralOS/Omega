@@ -4768,6 +4768,138 @@ fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
 }
 
 #[test]
+fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Cell<T> { value: T; } data Generated { value: Cell<u32 in Wrapping>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let instance = resolved
+        .data_definitions
+        .iter()
+        .skip(frontier)
+        .find(|definition| definition.name.as_str() == "Cell<u32 in Wrapping>")
+        .expect("closed constrained Cell instance");
+    let origin_arguments = match instance.generic_instance.as_ref() {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        _ => unreachable!(),
+    };
+    let instance_members = instance.members;
+
+    let mut changed_origin_domain = resolved.clone();
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+        &mut changed_origin_domain
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    let [constraint] = changed_origin_domain
+        .tables
+        .types
+        .constraints
+        .span_mut_or_empty(argument.constraints)
+    else {
+        unreachable!()
+    };
+    *constraint = psi_symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(
+        psi_numerics::arithmetic::ArithmeticDomain::Saturating,
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(&changed_origin_domain, frontier),
+        "the arithmetic-domain argument participates in canonical instance identity"
+    );
+
+    let mut changed_field_domain = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut changed_field_domain
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
+        &field.type_reference
+    else {
+        unreachable!()
+    };
+    let field_constraints = field_type.constraints;
+    let [constraint] = changed_field_domain
+        .tables
+        .types
+        .constraints
+        .span_mut_or_empty(field_constraints)
+    else {
+        unreachable!()
+    };
+    *constraint = psi_symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(
+        psi_numerics::arithmetic::ArithmeticDomain::Saturating,
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(&changed_field_domain, frontier),
+        "the substituted field must retain the origin's exact arithmetic domain"
+    );
+
+    let mut changed_base_identity = resolved.clone();
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+        &changed_base_identity
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    let base_type = argument.base_type;
+    let psi_symbol_resolved_trees::types::TypeReference::Named { name, .. } = changed_base_identity
+        .tables
+        .declarations
+        .child_type_references
+        .get_mut(base_type)
+    else {
+        unreachable!()
+    };
+    *name = psi_symbol_resolved_trees::name::DiagnosticName::generated("u64");
+    assert!(
+        !plain_data_extension_shape_is_supported(&changed_base_identity, frontier),
+        "a constrained argument cannot spoof its exact carrier identity"
+    );
+
+    let mut changed_constraint_kind = resolved;
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+        &changed_constraint_kind
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    let constraints = argument.constraints;
+    let [constraint] = changed_constraint_kind
+        .tables
+        .types
+        .constraints
+        .span_mut_or_empty(constraints)
+    else {
+        unreachable!()
+    };
+    *constraint = psi_symbol_resolved_trees::types::TypeConstraint::Named(
+        psi_symbol_resolved_trees::name::DiagnosticName::generated("Wrapping"),
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(&changed_constraint_kind, frontier),
+        "a spelling-identical named constraint cannot replace the arithmetic-domain tag"
+    );
+}
+
+#[test]
 fn seeded_integer_const_instance_gate_rejects_carrier_origin_and_shape_mutations() {
     let (base, extension) = seeded_normalized_plain_data_inputs(
         "data Authored { value: u16; }",
@@ -5256,6 +5388,10 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             "structured_sum_const_instance_as_type_argument",
             "data Mode { case Left(value: u8); case Right; } data Modes {} const Modes::LEFT: Mode = Mode::Left { value: 7 }; data Indexed<const M: Mode> { marker: u8; } data Box<T> { value: T; } data Generated { value: Box<Indexed<Modes::LEFT> >; }",
         ),
+        (
+            "arithmetic_domain_constrained_argument",
+            "data Cell<T> { value: T; } data Generated { value: Cell<u32 in Wrapping>; }",
+        ),
     ] {
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
@@ -5278,10 +5414,6 @@ fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instance
         (
             "cyclic_instances",
             "data Left<T> { right: Right<T>; } data Right<T> { left: Left<T>; } data Generated { value: Left<u32>; }",
-        ),
-        (
-            "constrained_argument",
-            "data Cell<T> { value: T; } data Generated { value: Cell<u32 in Wrapping>; }",
         ),
         (
             "attached_method",

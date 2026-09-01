@@ -2298,6 +2298,83 @@ fn lifetime_bearing_local_instances_become_positional_type_arguments() {
 }
 
 #[test]
+fn arithmetic_domain_type_arguments_have_distinct_canonical_instances() {
+    let source = r#"
+        data Cell<T> {
+            value: T;
+        }
+
+        data Generated {
+            wrapping: Cell<u32 in Wrapping>;
+            saturating: Cell<u32 in Saturating>;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+    desugar_generic_data_instances(&mut syntax)
+        .expect("normalize exact arithmetic-domain Type arguments");
+
+    let find = |name: &str| {
+        syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(definition) if definition.name.as_str() == name => Some(definition),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let wrapping = find("Cell<u32 in Wrapping>");
+    let saturating = find("Cell<u32 in Saturating>");
+    assert_ne!(wrapping.name, saturating.name);
+
+    let assert_exact_domain =
+        |type_reference, expected: psi_numerics::arithmetic::ArithmeticDomain| {
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = syntax.type_references.type_reference(type_reference)
+            else {
+                panic!("instance retains the constrained Type argument")
+            };
+            assert!(matches!(
+                syntax.type_references.type_reference(*base_type),
+                TypeReferenceNode::Named(name) if name.as_str() == "u32"
+            ));
+            assert_eq!(
+                syntax.type_references.constraints(*constraints),
+                [psi_syntax_trees::types::TypeConstraintNode::ArithmeticDomain(expected)]
+            );
+        };
+    for (instance, domain) in [
+        (
+            wrapping,
+            psi_numerics::arithmetic::ArithmeticDomain::Wrapping,
+        ),
+        (
+            saturating,
+            psi_numerics::arithmetic::ArithmeticDomain::Saturating,
+        ),
+    ] {
+        let [DataMember::Field(value)] = syntax.items.data_members(instance.members) else {
+            panic!("{} retains one field", instance.name.as_str())
+        };
+        assert_exact_domain(value.type_reference, domain);
+
+        let TypeReferenceNode::Generic { arguments, .. } = syntax
+            .type_references
+            .type_reference(instance.generic_instance.expect("retained instance origin"))
+        else {
+            panic!("instance origin remains structural")
+        };
+        let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
+            panic!("instance origin retains one Type argument")
+        };
+        assert_exact_domain(*argument, domain);
+    }
+}
+
+#[test]
 fn concrete_conformance_arguments_follow_generic_result_rewrites() {
     let source = r#"
         data Unit {}

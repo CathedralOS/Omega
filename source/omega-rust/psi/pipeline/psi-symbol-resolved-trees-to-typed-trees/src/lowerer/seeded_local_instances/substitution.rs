@@ -121,7 +121,9 @@ fn type_matches(
                 && substitutions
                     .iter()
                     .find(|(parameter, _)| parameter == symbol)
-                    .is_some_and(|(_, argument)| **argument == *instance)
+                    .is_some_and(|(_, argument)| {
+                        exact_substituted_argument_matches(source, argument, instance)
+                    })
         }
         TypeReference::Named { symbol, name } => {
             symbol.is_valid()
@@ -232,5 +234,31 @@ fn type_matches(
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
         | TypeReference::SelfType { .. } => false,
+    }
+}
+
+fn exact_substituted_argument_matches(
+    source: &SymbolResolvedTrees,
+    expected: &TypeReference,
+    actual: &TypeReference,
+) -> bool {
+    match (expected, actual) {
+        (TypeReference::Constrained(expected), TypeReference::Constrained(actual)) => {
+            exact_substituted_argument_matches(
+                source,
+                source.child_type_reference(expected.base_type),
+                source.child_type_reference(actual.base_type),
+            ) && source
+                .tables
+                .types
+                .constraints
+                .span_or_empty(expected.constraints)
+                == source
+                    .tables
+                    .types
+                    .constraints
+                    .span_or_empty(actual.constraints)
+        }
+        _ => expected == actual,
     }
 }

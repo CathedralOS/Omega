@@ -211,7 +211,7 @@ fn validate_instance(
     let mut substitutions = Vec::with_capacity(parameters.len());
     let mut argument_names = Vec::with_capacity(arguments.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let Some(argument_name) = instance_argument_name(parameter, argument) else {
+        let Some(argument_name) = instance_argument_name(source, parameter, argument) else {
             return false;
         };
         if !parameter_is_supported(source, template.symbol, parameter)
@@ -252,10 +252,11 @@ fn validate_instance(
         )
 }
 
-fn instance_argument_name<'argument>(
+fn instance_argument_name(
+    source: &SymbolResolvedTrees,
     parameter: &psi_symbol_resolved_trees::data::TypeParameter,
-    argument: &'argument TypeReference,
-) -> Option<&'argument str> {
+    argument: &TypeReference,
+) -> Option<String> {
     match (&parameter.kind, argument) {
         (
             psi_symbol_resolved_trees::data::TypeParameterKind::Type,
@@ -264,11 +265,18 @@ fn instance_argument_name<'argument>(
         | (
             psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. },
             TypeReference::Named { name, .. },
-        ) => Some(name.as_str()),
+        ) => Some(name.as_str().to_owned()),
         (
             psi_symbol_resolved_trees::data::TypeParameterKind::Type,
             TypeReference::Generic(application),
-        ) if !application.lifetime_arguments.is_empty() => Some(application.base_name.as_str()),
+        ) if !application.lifetime_arguments.is_empty() => {
+            Some(application.base_name.as_str().to_owned())
+        }
+        (
+            psi_symbol_resolved_trees::data::TypeParameterKind::Type,
+            TypeReference::Constrained(constrained),
+        ) => arithmetic_constrained_argument(source, constrained)
+            .map(|(name, domain)| format!("{} in {}", name.as_str(), domain.name())),
         _ => None,
     }
 }
@@ -345,6 +353,16 @@ fn instance_argument_is_supported(
                 owner_lifetimes,
                 application,
             ),
+            TypeReference::Constrained(constrained) => {
+                arithmetic_constrained_argument(source, constrained).is_some_and(|(name, _)| {
+                    let TypeReference::Named { symbol, .. } =
+                        source.child_type_reference(constrained.base_type)
+                    else {
+                        return false;
+                    };
+                    supported_named_argument(source, validated_instances, *symbol, name.as_str())
+                })
+            }
             _ => false,
         },
         psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
@@ -353,6 +371,31 @@ fn instance_argument_is_supported(
         psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
         | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
     }
+}
+
+fn arithmetic_constrained_argument<'source>(
+    source: &'source SymbolResolvedTrees,
+    constrained: &psi_symbol_resolved_trees::types::ConstrainedTypeReference,
+) -> Option<(
+    &'source psi_symbol_resolved_trees::name::DiagnosticName,
+    psi_numerics::arithmetic::ArithmeticDomain,
+)> {
+    let TypeReference::Named { symbol, name } = source.child_type_reference(constrained.base_type)
+    else {
+        return None;
+    };
+    if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {
+        return None;
+    }
+    let [psi_symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(domain)] = source
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints)
+    else {
+        return None;
+    };
+    Some((name, *domain))
 }
 
 fn lifetime_instance_type_argument_is_supported(
