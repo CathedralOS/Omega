@@ -103,3 +103,51 @@ fn optimized_target_lowering_retains_exact_boolean_translation_custody() {
         }
     }
 }
+
+#[test]
+fn optimized_target_lowering_retains_constant_widen_immediate_custody() {
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+    let target_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = integer_widen_immediate_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerWidenImmediate(row),
+        ) = target.translation_validation().function_roster()[0].translation()
+        else {
+            panic!("optimized constant widening must retain its exact immediate family")
+        };
+        assert_eq!(row.constant_operation(), OperationId::new(65_003).unwrap());
+        assert_eq!(row.widen_operation(), OperationId::new(65_005).unwrap());
+        assert_eq!(row.constant_result(), ValueId::new(65_004).unwrap());
+        assert_eq!(row.widened_result(), ValueId::new(65_006).unwrap());
+        assert_eq!(row.source_type(), source_type);
+        assert_eq!(row.target_type(), target_type);
+        assert_eq!(row.source_value(), IntegerValue::Unsigned(65_535));
+        assert_eq!(row.materialized_value(), IntegerValue::Signed(65_535));
+        assert!(matches!(
+            target.target_operations().functions[0].operation,
+            TargetOperation::ReturnIntegerImmediate {
+                source_value,
+                scalar_type,
+                value,
+                ..
+            } if source_value == ValueId::new(65_006).unwrap()
+                && scalar_type == target_type
+                && value == IntegerValue::Signed(65_535)
+        ));
+    }
+}

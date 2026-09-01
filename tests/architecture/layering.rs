@@ -3265,6 +3265,52 @@ fn recursive_spill_insertion_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn spill_pseudo_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions",
+    );
+    let entrance =
+        std::fs::read_to_string(stage.join("mod.rs")).expect("read spill-pseudo entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_spill_pseudo_instructions("),
+        "the spill-pseudo entrance must visibly join direct production to independent replay",
+    );
+
+    let producer =
+        std::fs::read_to_string(stage.join("compute.rs")).expect("read spill-pseudo producer");
+    let mut replay =
+        std::fs::read_to_string(stage.join("replay.rs")).expect("read spill-pseudo replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs")).expect("read spill-pseudo validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::work_usage"] {
+        assert!(
+            !replay.contains(forbidden),
+            "spill-pseudo replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "BTreeMap",
+        "BTreeSet",
+        "reload_by_action",
+        "fn replay_function",
+    ] {
+        assert!(
+            replay.contains(required),
+            "spill-pseudo replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["BTreeMap", "BTreeSet", "reload_by_action"] {
+        assert!(
+            !producer.contains(forbidden),
+            "spill-pseudo producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
@@ -3293,6 +3339,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_boolean_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
+        "straight_line_integer_widen_immediate::is_candidate",
+        "straight_line_integer_widen_immediate::validate",
         "straight_line_integer_literal_unit_return::is_candidate",
         "straight_line_integer_literal_unit_return::validate",
         "straight_line_ieee_float_literal_unit_return::is_candidate",

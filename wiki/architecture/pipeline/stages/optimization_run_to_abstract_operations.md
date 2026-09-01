@@ -37,6 +37,11 @@ inseparable from its validation receipt.
   axes. The former mixed `projection.rs` catchall is retired.
 - `omega-optimization-validation` owns independent candidate and projection
   validation.
+- `src/tests/manifests/mod.rs` is the pre-physical V6 custody-test entrance.
+  Its named leaves separate the reusable optimized/donor fixture, positive and
+  multipass behavior, all 35 mutable logical-field mutations, dynamic wire-
+  offset reconstruction, and 16 exact wire rejection axes. Singleton Rust
+  enums are corrupted only through their closed wire tags.
 - `omega-optimization-pipeline/src/stages/selection/optimized_target_operations.rs` owns the
   later orchestration join to target operations; it is intentionally not part
   of this stage.

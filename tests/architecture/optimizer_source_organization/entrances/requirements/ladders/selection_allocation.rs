@@ -174,6 +174,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "target-neutral spill-pseudo instructions",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/validate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "recursive spill-recovery worklist",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_worklist/mod.rs",
@@ -282,6 +293,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_recovery_choice.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_recovery_actions.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/recursive_spill_insertion.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/spill_pseudo_instructions.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/live_ranges.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/liveness.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/logical_spill_operations.rs",

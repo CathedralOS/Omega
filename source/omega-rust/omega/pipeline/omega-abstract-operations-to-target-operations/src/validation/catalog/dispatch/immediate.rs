@@ -5,6 +5,7 @@ use omega_target_operations::TargetFunction;
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_boolean_immediate, straight_line_integer_immediate,
+    straight_line_integer_widen_immediate,
 };
 use super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -21,6 +22,13 @@ pub(in crate::validation::catalog) const BOOLEAN: TranslationFamilyDescriptor =
         AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
         straight_line_boolean_immediate::is_candidate,
         straight_line_boolean_immediate,
+    );
+
+pub(in crate::validation::catalog) const INTEGER_WIDEN: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate,
+        straight_line_integer_widen_immediate::is_candidate,
+        straight_line_integer_widen_immediate,
     );
 
 pub(super) fn straight_line_integer_immediate(
@@ -41,4 +49,14 @@ pub(super) fn straight_line_boolean_immediate(
     straight_line_boolean_immediate::validate(source, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanImmediate)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineBooleanImmediate)
+}
+
+pub(super) fn straight_line_integer_widen_immediate(
+    source: &AbstractFunction,
+    _expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_integer_widen_immediate::validate(source, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerWidenImmediate)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerWidenImmediate)
 }

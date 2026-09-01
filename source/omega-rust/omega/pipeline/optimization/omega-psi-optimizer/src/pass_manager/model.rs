@@ -14,7 +14,7 @@ use omega_optimization_unit::{
 };
 use omega_optimization_validation::{
     OptimizationUnitValidationError, ValidatedOptimizerCycleComponents,
-    validate_verified_psi_cycle_components,
+    ValidatedOptimizerRankingCertificates, validate_verified_psi_cycle_components,
 };
 use omega_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit};
 
@@ -51,6 +51,12 @@ impl VerifiedPsiOptimizationSession {
     /// Canonical SCC topology authorized for optimizer analysis only.
     pub const fn cycle_components(&self) -> &ValidatedOptimizerCycleComponents {
         &self.cycle_components
+    }
+
+    /// Exact ranking evidence available to loop analyses, without execution
+    /// or cyclic-rewrite authority.
+    pub const fn ranking_certificates(&self) -> &ValidatedOptimizerRankingCertificates {
+        self.cycle_components.ranking_certificates()
     }
 
     pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {
