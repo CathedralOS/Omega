@@ -1,6 +1,5 @@
-//! Optimizer module role: executable entrance. Native-realization entrance: validate source custody, choose the exact
-//! ordinary or selected path, admit providers, emit machine code, and replay
-//! the authority-free artifact.
+//! Optimizer module role: executable entrance. Native realization validates
+//! custody, chooses the exact path, admits providers, emits, and replays.
 
 mod boundary_applications;
 mod callback_custody;
@@ -37,20 +36,17 @@ use output::assemble_native_artifact;
 use providers::{AdmittedNativeProviders, admit_native_providers};
 use psi_diagnostics::Diagnostic;
 
-/// Realize one canonical Terminal-Psi artifact into an authority-free target
-/// object and executable image while retaining its captured source-entry
-/// settlement. Ordinary native compilation and component packaging share this
-/// exact operation.
+/// Realize one canonical Terminal-Psi artifact into an authority-free object
+/// and image while retaining source-entry settlement. Ordinary compilation and
+/// component packaging share this operation.
 pub fn realize_native_artifact(
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
     realize_native_artifact_with_optional_checked_scope(artifact, None, request)
 }
-
 /// Realize an artifact while retaining the exact checked D29 scope emitted by
-/// the same canonical Terminal production. Generic artifact callers cannot
-/// replace this receipt with a count or Boolean assertion.
+/// the same Terminal production; callers cannot substitute a count or flag.
 pub fn realize_native_artifact_with_checked_boundary_operator_scope(
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     checked_scope: &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
@@ -61,7 +57,6 @@ pub fn realize_native_artifact_with_checked_boundary_operator_scope(
         .map_err(|error| realization_error("checked boundary-operator scope", error))?;
     realize_native_artifact_with_optional_checked_scope(artifact, Some(checked_scope), request)
 }
-
 fn realize_native_artifact_with_optional_checked_scope(
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
@@ -100,6 +95,5 @@ fn realize_native_artifact_with_optional_checked_scope(
         &request,
     )
 }
-
 #[cfg(test)]
 pub(crate) use providers::project_selected_provider_adapters_for_requirements;
