@@ -136,11 +136,17 @@ pub struct CheckedScalarSuccessor {
 
 /// Source-handle-free no-code cleanup evidence for ordinary structural
 /// control edges. This is intentionally narrower than the language's complete
-/// `EdgeCleanupPlan`: it names only whole, claim-free affine parameters whose
-/// checked state-exit events can be realized as terminal-Psi trivial discards.
+/// `EdgeCleanupPlan`: executable rows name only whole, claim-free affine
+/// parameters whose checked state-exit events can be realized as terminal-Psi
+/// trivial discards. The separate projected row remains checked-only.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralControlCleanupPlans {
     pub states: Vec<CheckedStructuralControlStateCleanupPlan>,
+    /// Checked-only cleanup rows for the first direct-record projected jump
+    /// cohort. These are deliberately kept out of `states`: every existing
+    /// Terminal consumer uses `for_edge`, so a path-sensitive row cannot be
+    /// mistaken for the older whole-root executable vocabulary.
+    pub projected_edges: Vec<CheckedStructuralControlProjectedEdgeCleanupPlan>,
 }
 
 impl CheckedStructuralControlCleanupPlans {
@@ -160,10 +166,29 @@ impl CheckedStructuralControlCleanupPlans {
         state: SymbolHandle,
         statement_ordinal: u32,
     ) -> Option<&CheckedStructuralControlEdgeCleanupPlan> {
+        if self
+            .for_projected_edge(machine, state, statement_ordinal)
+            .is_some()
+        {
+            return None;
+        }
         self.for_state(machine, state)?
             .edges
             .iter()
             .find(|edge| edge.statement_ordinal == statement_ordinal)
+    }
+
+    pub fn for_projected_edge(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+    ) -> Option<&CheckedStructuralControlProjectedEdgeCleanupPlan> {
+        self.projected_edges.iter().find(|edge| {
+            edge.machine == machine
+                && edge.state == state
+                && edge.statement_ordinal == statement_ordinal
+        })
     }
 }
 
@@ -184,6 +209,30 @@ pub struct CheckedStructuralControlEdgeCleanupPlan {
     /// terminal producer resolves these positions against its independently
     /// checked structural signature before assigning terminal `PlaceId`s.
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
+}
+
+/// One checked-only path-sensitive cleanup row for an ordinary state jump.
+/// The first cohort has exactly one source root, one whole direct-field move,
+/// and one maximal sibling residual; Terminal control has no corresponding
+/// path vocabulary yet and must continue to reject it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralControlProjectedEdgeCleanupPlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub target_state: SymbolHandle,
+    pub transfer: CheckedStructuralControlProjectedTransferPlan,
+    pub residual_affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralControlProjectedTransferPlan {
+    /// Authored source-state parameter position. The bounded first cohort
+    /// admits exactly position zero, but retains the coordinate explicitly.
+    pub source_parameter_position: u32,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub type_identity: String,
+    pub target_parameter_position: u32,
 }
 
 /// Complete checked input for the first terminal structural-control producer.

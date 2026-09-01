@@ -455,8 +455,16 @@ fallbacks.
 Checked facts retain the first per-edge cleanup subset for ordinary named
 transitions: each exact source-state/statement/target row names the whole,
 claim-free affine parameter positions discarded on that arm after subtracting
-checked transfers. Other locals, projections, nominal cleanup, and any
-otherwise incomplete shape publish no partial row. A first terminal
+checked transfers. A separate checked-only row now covers one attached,
+two-state, Unit-returning unconditional jump with exactly one non-self affine
+root: an unqualified two-field structural record may move one whole direct
+field to the sole exact-same-type successor parameter and retain the sibling as
+the one maximal no-code residual. It is disjoint from whole-root rows, and all
+existing Terminal consumers reject that edge coordinate because Terminal has
+no path-segment successor vocabulary. Wider/nested records, multiple roots,
+claims, contracts, nominal cleanup, and executable replay remain fenced.
+Other locals, projection shapes, nominal cleanup, and any otherwise incomplete
+shape publish no row. A first terminal
 consumer composes those rows with exact source-handle-free state signatures and
 whole-parameter transfer maps for attached, multi-state Unit machines. It
 accepts only unconditional, acyclic, single-predecessor custody lineages and

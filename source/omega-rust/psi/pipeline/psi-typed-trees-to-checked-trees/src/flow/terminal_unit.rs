@@ -69,6 +69,94 @@ use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 use types::*;
 
+pub(super) fn cleanup_type_is_unit(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    is_unit(program, type_reference)
+}
+
+/// Reconstruct the exact direct-record shape admitted by the first checked
+/// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
+/// makes the result use the same normalized field/type identities as the
+/// established partial-return residual walker.
+pub(super) fn exact_two_field_record_projection(
+    program: &TypedTrees,
+    root_type: TypeReferenceHandle,
+    moved_field: SymbolHandle,
+    target_type: TypeReferenceHandle,
+) -> Option<(String, String, String, String)> {
+    let TypeReferenceNode::Named {
+        symbol: root_symbol,
+        ..
+    } = program.type_reference_table.type_reference(root_type)
+    else {
+        return None;
+    };
+    let root = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *root_symbol)?;
+    if root.properties.multiplicity != Multiplicity::Affine
+        || root.properties.carry.is_some()
+        || !root.lifetime_parameters.is_empty()
+        || !program.data_type_parameters(root).is_empty()
+        || type_graph_requires_nominal_drop(program, root_type)
+    {
+        return None;
+    }
+    let members = program.data_members(root);
+    let [DataMember::Field(left), DataMember::Field(right)] = members else {
+        return None;
+    };
+    let source_fields = [left, right];
+    if source_fields.iter().any(|field| {
+        field.relevance.is_erased()
+            || crate::checks::type_multiplicity(program, field.type_reference)
+                != Multiplicity::Affine
+            || type_graph_requires_nominal_drop(program, field.type_reference)
+    }) {
+        return None;
+    }
+
+    let mut shapes = ShapeCollector::new(program);
+    let root_identity = shapes.add_type(root_type, &[], &[])?;
+    let target_identity = shapes.add_type(target_type, &[], &[])?;
+    let root_plan = shapes.types.get(&root_identity)?;
+    let CheckedUnitStructuralTypeShape::Record { fields } = &root_plan.shape else {
+        return None;
+    };
+    let [left_plan, right_plan] = fields.as_slice() else {
+        return None;
+    };
+    let plans = [left_plan, right_plan];
+    let moved_index = source_fields
+        .iter()
+        .position(|field| field.symbol == moved_field)?;
+    let residual_index = 1_usize.checked_sub(moved_index)?;
+    let CheckedUnitStructuralFieldType::Structural {
+        type_identity: moved_type_identity,
+    } = &plans[moved_index].field_type
+    else {
+        return None;
+    };
+    let CheckedUnitStructuralFieldType::Structural {
+        type_identity: residual_type_identity,
+    } = &plans[residual_index].field_type
+    else {
+        return None;
+    };
+    if moved_type_identity != &target_identity {
+        return None;
+    }
+    Some((
+        plans[moved_index].identity.clone(),
+        moved_type_identity.clone(),
+        plans[residual_index].identity.clone(),
+        residual_type_identity.clone(),
+    ))
+}
+
 /// Build the first general structural/Unit terminal plan after ownership and
 /// carry checking have recorded their authoritative facts. Unsupported shapes
 /// are omitted as a closed unit; callers therefore cannot accidentally lower a

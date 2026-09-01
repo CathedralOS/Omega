@@ -117,6 +117,16 @@ pub(crate) use terminal_unit::shared_convergence::shifts::exact_shift_cast_shift
 #[cfg(test)]
 pub(crate) use terminal_unit::shared_convergence::shifts::exact_shift_left_chain_runtime_parameter_positions_for_test;
 pub(crate) use terminal_unit::types::byte_sequence_carrier;
+
+#[cfg(test)]
+pub(crate) fn exact_two_field_record_projection_for_test(
+    program: &psi_typed_trees::TypedTrees,
+    root_type: psi_typed_trees::types::TypeReferenceHandle,
+    moved_field: psi_symbols::SymbolHandle,
+    target_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<(String, String, String, String)> {
+    terminal_unit::exact_two_field_record_projection(program, root_type, moved_field, target_type)
+}
 mod transfers;
 
 use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
