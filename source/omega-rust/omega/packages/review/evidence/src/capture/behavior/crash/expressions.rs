@@ -135,6 +135,9 @@ fn project_scalar_expression(
                     }),
             })
         }
+        CheckedScalarExpression::IeeeFloatLiteral { .. } => {
+            unreachable!("checked crash integer expression cannot contain an IEEE float literal")
+        }
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,
