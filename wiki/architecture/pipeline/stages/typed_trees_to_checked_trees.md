@@ -621,9 +621,9 @@ Current ownership is:
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
   relational handling. A direct primitive scalar assignment value may wrap
-  complete caller-isolated call producers in up to twenty-two unary, binary,
+  complete caller-isolated call producers in up to twenty-three unary, binary,
   primitive-cast, member-projection, or indexing shells under the same call
-  budget; a twenty-third shell and generic/reference/unknown call results remain
+  budget; a twenty-fourth shell and generic/reference/unknown call results remain
   conservative. Aggregate fields and projected concrete record, selected-case,
   or fixed-array literals retain their separate two-shell computation budget.
   One top-level concrete primitive-only record or
