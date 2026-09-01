@@ -15,9 +15,9 @@
 // 74 append open; 75 append write; 76 read_all count; 77 head byte;
 // 78 tail byte; 82 remove file.
 
-use omega::language::std::filesystem;
+use omega_language_std::filesystem;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

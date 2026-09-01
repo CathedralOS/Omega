@@ -268,21 +268,20 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     }
 }
 
-#[test]
-fn time_canaries_declare_ordinary_standard_library_edges() {
-    let time_cases = repository_root().join("tests/omega/pass/time");
+fn assert_canaries_declare_ordinary_standard_library_edges(cases: &Path, expected_count: usize) {
     let mut roots = Vec::new();
-    collect_build_roots(&time_cases, &mut roots);
+    collect_build_roots(cases, &mut roots);
     assert_eq!(
         roots.len(),
-        14,
-        "unexpected packaged time-canary population"
+        expected_count,
+        "unexpected packaged canary population in {}",
+        cases.display()
     );
 
     for root in roots {
         let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
             panic!(
-                "time-canary role/dependency projection failed for {}: {error}",
+                "canary role/dependency projection failed for {}: {error}",
                 root.display()
             )
         });
@@ -297,8 +296,8 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
         );
 
         for source in fs::read_dir(&root)
-            .unwrap_or_else(|error| panic!("read time canary {}: {error}", root.display()))
-            .map(|entry| entry.expect("read time-canary source entry").path())
+            .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
+            .map(|entry| entry.expect("read canary source entry").path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
             .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
         {
@@ -306,16 +305,32 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
                 .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
             assert!(
                 !contents.contains("omega::language::std"),
-                "packaged time canary {} retains a bundled std import",
+                "packaged canary {} retains a bundled std import",
                 source.display()
             );
             assert!(
                 contents.contains("omega_language_std"),
-                "packaged time canary {} does not use its dependency alias",
+                "packaged canary {} does not use its dependency alias",
                 source.display()
             );
         }
     }
+}
+
+#[test]
+fn time_canaries_declare_ordinary_standard_library_edges() {
+    assert_canaries_declare_ordinary_standard_library_edges(
+        &repository_root().join("tests/omega/pass/time"),
+        14,
+    );
+}
+
+#[test]
+fn filesystem_canaries_declare_ordinary_standard_library_edges() {
+    assert_canaries_declare_ordinary_standard_library_edges(
+        &repository_root().join("tests/omega/pass/filesystem"),
+        24,
+    );
 }
 
 #[test]

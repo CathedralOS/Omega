@@ -198,7 +198,12 @@ windows_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path
 // indexed; dots skipped by NAME so n counts real children). The scan core
 // captures the n-th non-dot record's name (NUL-truncated copy into
 // entry_name) and kind while the drain runs; no capture => End.
-windows_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
+pub windows_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.w_scan_count = 0;
     self.w_scan_dirs = 0;
     self.w_scan_files = 0;
@@ -782,7 +787,12 @@ windows_x86_64 machine Filesystem::w_scan_step(&mut self, step: u64) {
 // composition is not atomic against concurrent access to the same fd --
 // single-threaded programs (all of Omega today) never observe the
 // difference.
-windows_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+pub windows_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     // SEEK_CUR (1) at 0 = report the cursor; SEEK_SET (0) = position.
     let saved: i64 = self.host.seek(self.file_fd, 0, 1);
@@ -822,7 +832,12 @@ windows_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [
 // A too-small buffer returns the REQUIRED size (>= 1024 fails the fit
 // check). Both failure legs capture and classify GetLastError before close.
 // FILE_FLAG_BACKUP_SEMANTICS makes files and directories equally valid inputs.
-windows_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+pub windows_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     let handle: i64 = self.host.open_path_handle(path, 0, 7, 0, 3, 33554432, 0);
     // Capture the OPEN leg's GetLastError IMMEDIATELY: any trailing Win32
     // call may overwrite the thread-local value.
@@ -878,7 +893,12 @@ windows_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, 
 // (original, link), with the security-attributes arg the API requires as
 // NULL (0). BOOL result: non-zero success. GetLastError is captured before
 // branching, so common failure kinds remain portable.
-windows_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+pub windows_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     let rc: i32 = self.host.create_hard_link(link, original, 0);
     let code: i32 = self.host.get_last_error();
     self.win32_error_kind = match code {
@@ -904,7 +924,12 @@ windows_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path,
 // Arithmetic is explicitly wrapping because the public carrier is the full
 // i64 Unix-seconds domain;
 // SetFileTime remains the authority on whether a resulting timestamp is valid.
-windows_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+pub windows_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     let accessed_epoch: u64 in Wrapping =
         (narrow_i64_to_u64_wrapping(accessed) as u64 in Wrapping) + 11644473600;
     let accessed_ticks: u64 in Wrapping = accessed_epoch * 10000000;
@@ -951,7 +976,12 @@ windows_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i6
     }
 }
 
-windows_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+pub windows_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let saved: i64 = self.host.seek(self.file_fd, 0, 1);
     let moved: i64 = self.host.seek(self.file_fd, offset, 0);
@@ -978,7 +1008,12 @@ windows_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8],
 // offset 0 in the zeroed OVERLAPPED and length 2^64-1. `_open` creates
 // synchronous handles, so blocking acquisitions complete before the call
 // returns; providers with overlapped handles owe their own wait composition.
-windows_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+pub windows_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 2, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -999,7 +1034,12 @@ windows_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+pub windows_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -1020,7 +1060,12 @@ windows_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitRes
     state err(&mut self) -> UnitResult { UnitResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+pub windows_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -1043,7 +1088,12 @@ windows_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockRes
     state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+pub windows_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let rc: i32 = self.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
@@ -1066,7 +1116,12 @@ windows_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> Try
     state failed(&mut self) -> TryLockResult { TryLockResult::Error { kind: self.win32_error_kind } }
 }
 
-windows_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+pub windows_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let handle: i64 = self.host.get_osfhandle(self.file_fd);
     let first: i32 = self.host.unlock_file(handle, 0, 0, 4294967295, 4294967295);

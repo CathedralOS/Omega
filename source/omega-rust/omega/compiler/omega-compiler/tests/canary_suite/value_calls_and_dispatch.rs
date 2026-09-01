@@ -24,7 +24,7 @@ fn assert_native_exit_code(
 #[test]
 fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_indexed_copy_aggregate_handoff_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("runtime-indexed copy-aggregate handoff should reach checked trees");
     let stdin = [5, 27, 33, 44, b'\n'];
     let interpreted = interpret(&checked, &stdin);
@@ -72,7 +72,7 @@ fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
 #[test]
 fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mutable_call_before_transition_args_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("mutable-call statement-order canary should reach checked trees");
     let stdin = [5, 27, 33, 44, b'\n'];
     let interpreted = interpret(&checked, &stdin);
@@ -120,7 +120,7 @@ fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
 #[test]
 fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_referenced_local_outlives_sibling_guard_call_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("referenced-local sibling-guard canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None, "should interpret cleanly");
@@ -703,7 +703,7 @@ fn borrow_carrying_data_field_exit_canary_runs() {
     let canary = pass_canary("expressions/borrow_carrying_data_field_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("borrow-carrying data canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1437,7 +1437,7 @@ fn runtime_alias_indexed_read_through_transition_exit_canary_runs() {
 fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_dispatch_binary_call_argument_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("binary-local call-argument canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -1512,7 +1512,7 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
 fn runtime_trailing_state_mut_param_phase_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_trailing_state_mut_param_phase_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("threaded mutable receiver phase canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -1606,7 +1606,7 @@ fn runtime_dispatch_float_terminal_exit_canary_runs() {
 #[test]
 fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
     let canary = pass_canary("time/runtime_value_machine_receiver_field_postentry_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("receiver-field postentry canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.error, None, "should interpret cleanly");
@@ -3098,7 +3098,7 @@ fn runtime_slice_indexed_binary_rmw_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_slice_indexed_binary_rmw_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("slice indexed binary RMW canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3150,7 +3150,7 @@ fn runtime_mut_ref_forward_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_mut_ref_forward_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("mut-ref forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3198,7 +3198,7 @@ fn runtime_local_slice_forward_exit_canary_runs() {
     let canary = pass_canary("storage/runtime_local_slice_forward_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("local-slice forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3245,7 +3245,7 @@ fn f32_guard_const_arith_landed_exit_canary_runs() {
     let canary = pass_canary("float/f32_guard_const_arith_landed_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 guard const-arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3289,7 +3289,7 @@ fn f32_arg_const_arith_landed_exit_canary_runs() {
     let canary = pass_canary("float/f32_arg_const_arith_landed_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 arg const-arith canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

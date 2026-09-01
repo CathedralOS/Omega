@@ -372,7 +372,7 @@ fn sum_field_storage_roundtrip_canary_runs() {
     let canary = pass_canary("control_flow/sum_field_storage_roundtrip");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("sum field-storage canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -412,7 +412,7 @@ fn sum_mixed_width_payload_layout_canary_runs() {
     let canary = pass_canary("control_flow/sum_mixed_width_payload_layout");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("sum mixed-width payload canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2617,7 +2617,7 @@ fn runtime_whole_struct_mutation_copy_canary_runs() {
     let canary = pass_canary("data/runtime_whole_struct_mutation_copy_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("whole-struct mutation copy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2992,7 +2992,7 @@ fn saturating_multiply_overflow_both_signs_canary_runs() {
     let canary = pass_canary("arithmetic/saturating_multiply_overflow_both_signs");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("saturating multiply canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3030,7 +3030,7 @@ fn saturating_signed_divide_min_by_neg_one_canary_runs() {
     let canary = pass_canary("arithmetic/saturating_signed_divide_min_by_neg_one");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("saturating INT_MIN/-1 canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3069,7 +3069,7 @@ fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
     let canary = pass_canary("arithmetic/wrapping_signed_divide_min_by_neg_one");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("wrapping INT_MIN/-1 canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3138,7 +3138,7 @@ fn runtime_shift_right_signedness_canary_runs() {
     let main_path = canary.join("main.omg");
 
     // Interpreter oracle first: it must agree the exit is 70.
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("shift-right signedness canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3182,7 +3182,7 @@ fn const_fold_saturating_narrow_canary_runs() {
     let canary = pass_canary("arithmetic/const_fold_saturating_narrow_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("saturating narrow const-fold canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3225,7 +3225,7 @@ fn const_fold_wrapping_narrow_canary_runs() {
     let canary = pass_canary("arithmetic/const_fold_wrapping_narrow_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("wrapping narrow const-fold canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

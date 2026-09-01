@@ -13,9 +13,9 @@
 //
 // exit 70 = discarded call executed with the right path (errno == ENOENT);
 //      71 = wrong errno; 72 = unreachable guard shape.
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

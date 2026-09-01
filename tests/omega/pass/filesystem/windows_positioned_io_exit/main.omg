@@ -13,9 +13,9 @@
 // the cursor MOVED (a positioned op leaked its seek -- the restore leg
 // regressed).
 
-use omega::language::std::filesystem;
+use omega_language_std::filesystem;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

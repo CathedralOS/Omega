@@ -6,9 +6,9 @@
 // visible to a subsequent stat). NATIVE + interp differential.
 // exits: 70 ok; 71 create failed; 72 set_len not Ok; 73 close nonzero; 74 metadata
 // not Ok; 75 wrong len.
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 data Main { console: Console; fs: Filesystem; open_result: OpenResult; unit_result: UnitResult; meta_result: MetadataResult; rc: i32; }
 machine Main::main(&mut self) {
     self.open_result = self.fs.create("omega_setlen_probe.txt");

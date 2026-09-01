@@ -8,10 +8,10 @@
 // 73 metadata failed; 74 modification time wrong; 75 cleanup failed. The
 // current hermetic/real SetFileTime models deliberately expose only mtime.
 
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

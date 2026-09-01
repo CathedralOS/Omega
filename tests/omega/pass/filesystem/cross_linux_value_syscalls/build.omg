@@ -6,4 +6,7 @@ target linux_arm64 {
 
 machine build(builder: &mut Build) {
     builder.application("cross-linux-value-syscalls");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/std"
+    });
 }

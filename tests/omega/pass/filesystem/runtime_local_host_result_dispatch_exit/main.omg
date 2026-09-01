@@ -10,8 +10,8 @@
 // definitely-absent path returns -1 on both the native seam and the
 // interpreter's virtual fs, so `fd < 0` is deterministic -- a missed result
 // slot would read ZII 0 and take the wrong arm (exit 71).
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 data Main { console: Console; host: FilesystemHost; }
 machine Main::main(&mut self) {
     let fd: i32 = self.host.open("omega_definitely_absent_9x7.dat", 0);

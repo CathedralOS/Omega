@@ -124,7 +124,7 @@ fn runtime_string_concat_two_fields_exit_canary_runs() {
     let canary = pass_canary("text/runtime_string_concat_two_fields_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("two-carrier text concat canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
@@ -1495,7 +1495,7 @@ fn runtime_param_domain_forward_exit_canary_runs() {
     let canary = pass_canary("text/runtime_param_domain_forward_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("param domain forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1538,7 +1538,7 @@ fn runtime_case_payload_domain_forward_exit_canary_runs() {
     let canary = pass_canary("text/runtime_case_payload_domain_forward_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("case payload domain forward canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2677,7 +2677,7 @@ fn runtime_tick_count_monotonic_exit_canary_runs() {
 #[test]
 fn runtime_gui_memory_dc_blit_canary_is_targetless_and_interprets() {
     let canary = pass_canary("host/runtime_gui_memory_dc_blit_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("memory-DC blit canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -3385,7 +3385,7 @@ fn float_to_int_saturating_exit_canary_runs() {
         output.status.code(),
     );
     // The interpreter leg mirrors the same clamp arm.
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("saturating float->int canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 70, "interp Saturating cast should clamp");
@@ -3411,7 +3411,7 @@ fn float_to_int_unsigned_narrow_saturating_exit_canary_runs() {
         "expected all unsigned/narrow cast shapes to clamp (exit 70), got {:?}",
         output.status.code(),
     );
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("unsigned/narrow Saturating canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3442,7 +3442,7 @@ fn float_saturating_overflow_exit_canary_runs() {
         "expected the Saturating clamp semantics (exit 70), got {:?}",
         output.status.code(),
     );
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("saturating float overflow canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -3481,7 +3481,7 @@ fn float_trapping_overflow_traps_aborts() {
         !output.status.success(),
         "expected the overflow trap to terminate abnormally"
     );
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping float overflow canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
@@ -3513,7 +3513,7 @@ fn assert_float_trapping_policy_canary_aborts(name: &str, reason_fragment: &str)
         !output.status.success(),
         "expected `{name}` to terminate abnormally"
     );
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("Trapping float policy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
@@ -3581,7 +3581,7 @@ fn trapping_float_to_int_cast_traps_aborts() {
     );
 
     // The interpreter leg: same trap, spelled as an eval error.
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping float->int cast canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
@@ -3623,7 +3623,7 @@ fn trapping_float_to_narrow_int_cast_traps_aborts() {
         "in-range u8 conversion was wrong"
     );
     assert!(!output.status.success(), "u8 out-of-range cast must trap");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("narrow Trapping canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
@@ -3678,7 +3678,7 @@ fn trapping_shift_count_traps_aborts() {
     );
 
     // The interpreter leg: same trap, spelled as an eval error.
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("trapping shift-count canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     let reason = outcome
