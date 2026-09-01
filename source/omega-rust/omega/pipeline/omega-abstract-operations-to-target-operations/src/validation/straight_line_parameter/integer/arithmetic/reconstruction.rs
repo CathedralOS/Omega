@@ -10,6 +10,7 @@ use super::super::super::model::{
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
@@ -65,6 +66,11 @@ reconstruct_arithmetic!(
     reconstruct_saturating_subtract,
     reconstruct_saturating_subtract,
     StraightLineSaturatingIntegerSubtractParametersTranslationError
+);
+reconstruct_arithmetic!(
+    reconstruct_saturating_multiply,
+    reconstruct_saturating_multiply,
+    StraightLineSaturatingIntegerMultiplyParametersTranslationError
 );
 reconstruct_arithmetic!(
     reconstruct_wrapping_add,

@@ -465,10 +465,11 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty-two abstract-to-target families, including
-  proof-bearing exact addition and saturating parameterized integer addition
-  and subtraction, selected incoming u12 folds, current machine substitutions,
-  structural-Unit encoding, resolved layout, and ranked-u32 publication routes
+  machine-rule family. Twenty-three abstract-to-target families, including
+  proof-bearing exact addition and saturating parameterized integer addition,
+  subtraction, and multiplication, selected incoming u12 folds, current
+  machine substitutions, structural-Unit encoding, resolved layout, and
+  ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
   fragment emission, relocation-free text/object custody, validated object
   publication, and callable-entry replay with exact source-kind, manifest, byte,
@@ -545,6 +546,11 @@ decision. Only true language-semantic questions belong in
   operands, whole-roster ABI placement, provenance, and its matching target
   expression; wrapping and proof-bearing exact policy substitution fails
   closed.
+- [x] Add independent saturating-multiply parameter translation. Its exact
+  catalog row, typed source/target replay, receipt, and optimized-target custody
+  retain ordered operands across every integer width, address-U64, all five
+  native target profiles, and register/stack placement; wrapping, proof-bearing
+  exact, add, and subtract policy substitution fails closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

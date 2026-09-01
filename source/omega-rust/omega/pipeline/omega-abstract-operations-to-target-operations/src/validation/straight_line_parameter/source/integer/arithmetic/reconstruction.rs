@@ -9,6 +9,7 @@ use super::super::super::super::model::{
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
@@ -62,6 +63,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_sub
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::saturating_subtract::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_multiply(
+    function: &AbstractFunction,
+) -> Result<
+    IntegerArithmeticParametersSource,
+    StraightLineSaturatingIntegerMultiplyParametersTranslationError,
+> {
+    let Some(AbstractOperation::SaturatingIntegerMultiply { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineSaturatingIntegerMultiplyParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::saturating_multiply::reconstruct(function, &envelope)
 }
 
 macro_rules! reconstruct_wrapping {

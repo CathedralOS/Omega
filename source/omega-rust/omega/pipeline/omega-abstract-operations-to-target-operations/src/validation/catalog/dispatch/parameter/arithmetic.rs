@@ -53,6 +53,13 @@ pub(in crate::validation::catalog) const WRAPPING_INTEGER_MULTIPLY: TranslationF
         wrapping_integer_multiply,
     );
 
+pub(in crate::validation::catalog) const SATURATING_INTEGER_MULTIPLY: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyParameters,
+        straight_line_parameter::integer::arithmetic::saturating_multiply::is_candidate,
+        saturating_integer_multiply,
+    );
+
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_add(
     source: &AbstractFunction,
     expected_target: NativeTarget,
@@ -139,4 +146,22 @@ pub(in crate::validation::catalog::dispatch) fn wrapping_integer_multiply(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineWrappingIntegerMultiplyParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineWrappingIntegerMultiplyParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn saturating_integer_multiply(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::saturating_multiply::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(
+        AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerMultiplyParameters,
+    )
+    .map_err(
+        AbstractToTargetTranslationFamilyError::StraightLineSaturatingIntegerMultiplyParameters,
+    )
 }

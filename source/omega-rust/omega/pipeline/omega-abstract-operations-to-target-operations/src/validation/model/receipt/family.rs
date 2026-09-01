@@ -72,6 +72,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineWrappingIntegerMultiplyParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters
             }
+            Self::StraightLineSaturatingIntegerMultiplyParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyParameters
+            }
         }
     }
 }
