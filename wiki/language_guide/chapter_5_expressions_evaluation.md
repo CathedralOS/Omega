@@ -816,9 +816,14 @@ raw-bit fused-versus-unfused cancellation receipts through final image replay.
 An exact-target build can now select the closed `AvxFma3` deployment value and
 retain that admitted carrier on the checked compilation; targetless, non-x86,
 and cross-profile substitution reject. This selection is not native execution
-evidence and does not change generic target selection. Source ProviderPlan
-selection and compiler/native lowering that consume the carrier remain
-pending. AArch64 also
+evidence and does not change generic target selection. For the bounded
+attached-Unit lane, source `ProviderPlan` selection and ordinary native
+lowering now consume the carrier through exact Terminal FMA occurrences,
+assignment-owned XMM homes, canonical MXCSR custody, and final artifact replay.
+Independent literal FMA locals may be followed by ordinary receiver-attached zero-result internal
+Unit calls; each retained call interval remains inside the function-level
+MXCSR envelope. Wider expressions, other operations, and returning foreign
+source calls remain pending. AArch64 also
 selects exact F32/F64 FMA-toward-zero/positive/negative satisfiers. Each
 directed ternary operation changes FPCR only around one scalar `FMADD`, while
 the interpreter consumes the corresponding directed `FloatSemantics` identity;

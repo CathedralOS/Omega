@@ -11331,12 +11331,13 @@ Remaining F7 work:
 
 - extend the checked source lane beyond its current nonempty source-ordered
   sequence of immutable attached-Unit locals, each initialized by an
-  independent F32/F64 FMA over three landed literals; earlier-local operands,
-  result chaining/use, scalar parameters, and unrelated operations require
-  corresponding value-home and liveness custody rather than alias folding;
-- extend the checked source producer beyond the bounded attached-Unit shape so
-  source FMA can coexist with ordinary operations and calls; the x86 backend
-  now has explicit internal-call and returning-foreign control-state rules,
+  independent F32/F64 FMA over three landed literals and optionally followed
+  by ordinary receiver-attached zero-result internal Unit calls; earlier-local operands, result
+  chaining/use, scalar parameters, and other operations require corresponding
+  value-home and liveness custody rather than alias folding;
+- extend the checked source producer beyond the now-live internal-Unit-call
+  coexistence rung to returning foreign calls and other ordinary operations;
+  the x86 backend already has explicit returning-foreign control-state rules,
   while callback-entry custody remains open;
 - add a checked binary32/binary64 software realization or corresponding
   non-x86 target realizations, and collect native differential-execution
@@ -11396,7 +11397,10 @@ restores its caller's state. The corresponding AArch64 lane saves complete
 FPCR through a target-owned `MRS`/`STR` sequence and restores it with
 `LDR`/`MSR`; it retains the exact reusable eight-byte slot and per-call
 intervals through the same machine/object/native replay. The checked source
-producer remains deliberately bounded, and callback entry, wider source
+producer now admits ordinary receiver-attached zero-result internal Unit calls after the
+independent literal FMA locals. Object replay requires each such call's
+complete interval to remain inside the function-level MXCSR envelope. Other
+operations, returning foreign source calls, callback entry, wider source
 shapes, non-x86/software realization, and native differential-execution
 receipts remain engineering work. Generic Linux/Windows x86-64 semantics
 remain SSE2 baseline unless that explicit deployment input is selected.
@@ -11408,7 +11412,8 @@ verifier, fuel, and reference-interpreter paths preserve and execute that
 meaning without integer laundering. The bounded source producer recognizes a
 nonempty source-ordered sequence of immutable attached-Unit locals, each
 initialized directly by an independent selected F32/F64 FMA over three landed
-literals. It retains each exact checked requirement, complete ProviderPlan
+literals, followed by zero or more ordinary receiver-attached zero-result internal Unit calls.
+It retains each exact checked requirement, complete ProviderPlan
 commitment, source coordinate, Terminal operation identity, and format as an
 ephemeral occurrence row. Terminal-product construction consumes those rows
 into source-free proposals joined to the exact selected plans and, on x86,

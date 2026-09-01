@@ -297,6 +297,19 @@ fn validate_floating_control(
     let frame = function.unit_stack.and_then(|stack| stack.frame).ok_or(
         ObjectError::InvalidX86ScalarFmaFloatingControl(function.machine),
     )?;
+    let body_start = control
+        .install_offset
+        .checked_add(control.install_byte_count)
+        .ok_or(ObjectError::InvalidX86ScalarFmaFloatingControl(
+            function.machine,
+        ))?;
+    let internal_calls_stay_inside_control = function.internal_unit_calls.iter().all(|call| {
+        call.code_offset >= body_start
+            && call
+                .code_offset
+                .checked_add(call.byte_count)
+                .is_some_and(|end| end <= control.restore_offset)
+    });
     if control.target != target
         || control.canonical_mxcsr != omega_isa_x86_64::OMEGA_CANONICAL_MXCSR
         || control.saved_slot_byte_offset == control.canonical_slot_byte_offset
@@ -305,7 +318,8 @@ fn validate_floating_control(
         || control.canonical_store_offset != control.save_offset + control.save_byte_count
         || control.install_offset
             != control.canonical_store_offset + control.canonical_store_byte_count
-        || control.restore_offset <= control.install_offset + control.install_byte_count
+        || control.restore_offset <= body_start
+        || !internal_calls_stay_inside_control
         || !exact(control.save_offset, control.save_byte_count, &expected_save)
         || !exact(
             control.canonical_store_offset,

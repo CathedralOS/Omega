@@ -527,6 +527,79 @@ machine Main::main(&mut self) {
 }
 
 #[test]
+fn source_fma_then_attached_unit_call_stays_inside_one_canonical_mxcsr_envelope() {
+    let project = TempProject::with_main(
+        r#"use omega::language::core::float_operations;
+
+data Main { }
+
+machine Main::after_fma(&mut self) { }
+
+machine Main::main(&mut self) {
+    let fused: f32 = F32::fused_multiply_add(
+        1.00000011920928955078125f32,
+        0.99999988079071044921875f32,
+        -1.0f32,
+    );
+    self.after_fma();
+}
+"#,
+        &exact_profile_build(
+            "linux_x86_64",
+            r#"    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;"#,
+        ),
+    );
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("FMA followed by an internal Unit call should lower: {diagnostics:#?}")
+    });
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("Terminal report retains native proposal");
+    assert_eq!(
+        retained
+            .native_realization_proposal()
+            .unwrap()
+            .ieee_float_fma_occurrences()
+            .len(),
+        1
+    );
+    let native = realize_retained_terminal_artifact_with_source_evaluated_imports(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        &[],
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("FMA plus internal Unit call should realize natively: {diagnostics:#?}")
+    });
+    native.validate().expect("native artifact replays");
+    let function = native
+        .object()
+        .functions()
+        .iter()
+        .find(|function| !function.x86_scalar_fma_occurrences.is_empty())
+        .expect("source FMA function survives object construction");
+    let control = function
+        .x86_floating_control
+        .expect("FMA function has one canonical MXCSR envelope");
+    let [call] = function.internal_unit_calls.as_slice() else {
+        panic!("source function retains one internal Unit call")
+    };
+    assert!(control.install_offset + control.install_byte_count <= call.code_offset);
+    assert!(call.code_offset + call.byte_count <= control.restore_offset);
+}
+
+#[test]
 fn aarch64_fma_demand_is_not_an_x86_feature_association() {
     let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
     let checked = compile_to_checked(&main, Some("linux_arm64"))
