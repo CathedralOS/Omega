@@ -2,6 +2,16 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "offline optimization-policy capture command",
+        paths: &[
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/main.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/arguments.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/capture.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/publication.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/error.rs",
+        ],
+    },
+    SemanticLadder {
         family: "offline optimization-policy corpus custody",
         paths: &[
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/corpus/mod.rs",
