@@ -9,6 +9,7 @@ use super::immediate::{
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerLessThanImmediateTranslationError,
+    StraightLineIntegerLessOrEqualImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
@@ -57,6 +58,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
     StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),
     StraightLineIntegerLessThanImmediate(StraightLineIntegerLessThanImmediateTranslationError),
+    StraightLineIntegerLessOrEqualImmediate(
+        StraightLineIntegerLessOrEqualImmediateTranslationError,
+    ),
     StraightLineIntegerExactCastImmediateOperand(
         StraightLineIntegerExactCastImmediateOperandTranslationError,
     ),

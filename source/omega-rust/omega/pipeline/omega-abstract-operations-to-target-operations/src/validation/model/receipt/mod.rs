@@ -15,6 +15,7 @@ pub use immediate::{
     StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
     StraightLineIntegerEqualImmediateTranslationReceipt,
     StraightLineIntegerLessThanImmediateTranslationReceipt,
+    StraightLineIntegerLessOrEqualImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,

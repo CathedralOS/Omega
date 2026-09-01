@@ -4,10 +4,12 @@ use omega_target_operations::TargetFunction;
 
 mod boolean_equal;
 mod integer_equal;
+mod integer_less_or_equal;
 mod integer_less_than;
 
 pub(in crate::validation::catalog) use boolean_equal::DESCRIPTOR as BOOLEAN_EQUAL;
 pub(in crate::validation::catalog) use integer_equal::DESCRIPTOR as INTEGER_EQUAL;
+pub(in crate::validation::catalog) use integer_less_or_equal::DESCRIPTOR as INTEGER_LESS_OR_EQUAL;
 pub(in crate::validation::catalog) use integer_less_than::DESCRIPTOR as INTEGER_LESS_THAN;
 
 use super::super::super::{

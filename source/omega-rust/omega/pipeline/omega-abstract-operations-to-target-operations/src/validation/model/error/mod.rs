@@ -13,6 +13,7 @@ pub use immediate::{
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerLessThanImmediateTranslationError,
+    StraightLineIntegerLessOrEqualImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
