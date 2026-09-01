@@ -20,6 +20,12 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::IntegerStructuralField { source, .. } => {
             places.insert(source.place);
         }
+        O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => {
+            places.insert(dynamic_dispatch.initial.source.place);
+            places.insert(dynamic_dispatch.rebound.source.place);
+        }
         _ => {}
     }
 }

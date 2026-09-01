@@ -25,6 +25,9 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructural { callee, .. }
                 | O::Call { callee, .. } => callees.push(*callee),
+                O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                } => callees.push(dynamic_dispatch.dispatch.realization),
                 _ => {}
             }
         }

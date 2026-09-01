@@ -62,6 +62,7 @@ fn lower_decoded_module(
                 machine,
                 &machines,
                 &module.structural_types,
+                &module.dynamic_dispatch,
                 retain_payloadless_for_optimization,
             )
         })

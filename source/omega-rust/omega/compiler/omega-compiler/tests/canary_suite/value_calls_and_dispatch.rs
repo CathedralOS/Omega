@@ -1107,16 +1107,51 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_local_named_dyn_rebound_stops_at_the_explicit_terminal_backend_boundary() {
+fn runtime_local_named_dyn_rebound_stops_at_the_explicit_multiblock_target_boundary() {
     let canary = pass_canary("traits/runtime_local_named_dyn_rebound_direct_exit");
     for target in ["linux_x86_64", "linux_arm64"] {
-        let diagnostics = compile_rooted_backend_canary_without_output_for_target(&canary, target)
-            .expect_err("rebound dynamic native lowering remains explicitly unsupported");
+        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
+            .expect("rebound fixture should reach checked provider custody");
+        let permission_policy =
+            omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+                checked
+                    .selected_provider_plans()
+                    .plans()
+                    .iter()
+                    .flat_map(|plan| {
+                        plan.rows.iter().filter_map(move |row| {
+                            matches!(
+                                row.binding,
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                                    ..
+                                }
+                            )
+                            .then(|| {
+                                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                                    plan.schema.identity_digest(),
+                                    row.requirement_identity.clone(),
+                                    omega_effects::TerminalAuthorityDisposition::from_classes([
+                                        omega_effects::TerminalAuthorityClass::ProcessTermination,
+                                    ]),
+                                )
+                            })
+                        })
+                    })
+                    .collect(),
+            )
+            .expect("exact Console exit permission policy");
+        let diagnostics =
+            compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+                &canary,
+                target,
+                permission_policy,
+            )
+            .expect_err("rebound dynamic continuation lowering remains explicitly pending");
         assert!(
             diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.message.contains("UnsupportedDynamicScalarCall")),
-            "{target} must stop at the exact dynamic Terminal-to-abstract boundary:\n{}",
+                .any(|diagnostic| diagnostic.message.contains("UnitFunctionNotStraightLine")),
+            "{target} must stop at the exact multi-block target-lowering boundary:\n{}",
             diagnostics
                 .iter()
                 .map(|diagnostic| diagnostic.message.as_str())

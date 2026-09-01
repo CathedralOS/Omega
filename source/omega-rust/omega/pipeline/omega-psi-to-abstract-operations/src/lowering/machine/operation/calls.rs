@@ -1,11 +1,14 @@
-use omega_abstract_operations::{AbstractOperation, AbstractResult, CompletionClaimSource};
-use psi_terminal::{Operation, OperationKind, TerminalMachine};
+use omega_abstract_operations::{
+    AbstractOperation, AbstractReboundDynamicScalarDispatch, AbstractResult, CompletionClaimSource,
+};
+use psi_terminal::{Operation, OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
 
 use crate::lowering::LoweringError;
 
 pub(super) fn lower(
     operation: &Operation,
     machine: &TerminalMachine,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::CallUnit {
@@ -39,6 +42,65 @@ pub(super) fn lower(
                 callee,
                 structural_arguments,
                 claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            }
+        }
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let descriptors = dynamic_dispatch
+                .rebound_descriptors
+                .iter()
+                .filter(|descriptor| {
+                    descriptor.owner == machine.id && descriptor.ordinal == descriptor_ordinal
+                })
+                .collect::<Vec<_>>();
+            let [descriptor] = descriptors.as_slice() else {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            };
+            let selections = |ordinal| {
+                dynamic_dispatch
+                    .selections
+                    .iter()
+                    .filter(|selection| {
+                        selection.owner == machine.id && selection.ordinal == ordinal
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let initial = selections(descriptor.initial_selection_ordinal);
+            let rebound = selections(descriptor.rebound_selection_ordinal);
+            let dispatches = dynamic_dispatch
+                .indirect_dispatches
+                .iter()
+                .filter(|dispatch| {
+                    dispatch.owner == machine.id
+                        && dispatch.operation == operation.id
+                        && dispatch.descriptor_ordinal == descriptor_ordinal
+                })
+                .collect::<Vec<_>>();
+            let ([initial], [rebound], [dispatch]) = (
+                initial.as_slice(),
+                rebound.as_slice(),
+                dispatches.as_slice(),
+            ) else {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            };
+            let result = operation.result.expect_scalar();
+            AbstractOperation::CallDynamicScalar {
+                psi_operation: operation.id,
+                result: AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                dynamic_dispatch: AbstractReboundDynamicScalarDispatch {
+                    initial: (*initial).clone(),
+                    rebound: (*rebound).clone(),
+                    descriptor: (*descriptor).clone(),
+                    dispatch: (*dispatch).clone(),
+                },
                 requirement_obligations,
                 crash_continuations,
             }
@@ -231,6 +293,7 @@ mod tests {
                     kind,
                 },
                 &machine,
+                &psi_terminal::TerminalDynamicDispatchCatalog::default(),
             )
             .unwrap();
             let (requirements, crashes) = match lowered {
@@ -240,6 +303,11 @@ mod tests {
                     ..
                 }
                 | AbstractOperation::CallStructuralScalar {
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                }
+                | AbstractOperation::CallDynamicScalar {
                     requirement_obligations,
                     crash_continuations,
                     ..

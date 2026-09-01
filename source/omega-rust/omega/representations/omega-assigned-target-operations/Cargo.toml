@@ -9,6 +9,7 @@ name = "omega_assigned_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-runtime-abi = { path = "../../backend/runtime/omega-runtime-abi" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-target = { path = "../omega-target" }
 omega-target-operations = { path = "../omega-target-operations" }

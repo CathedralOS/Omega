@@ -18,7 +18,9 @@ use psi_terminal::{
     StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, TerminalModule, TerminalPsiIdentity, TerminalRankedScc,
+    TerminalAffineCleanupAction, TerminalDynamicConformanceSelection,
+    TerminalIndirectDynamicDispatch, TerminalModule, TerminalPsiIdentity, TerminalRankedScc,
+    TerminalReboundDynamicDescriptor,
 };
 
 /// Exact caller claim source needed to replay boundary-completion custody after
@@ -253,6 +255,20 @@ pub struct AbstractResult {
     pub scalar_type: ScalarType,
 }
 
+/// Exact target-neutral custody for one rebound dynamic scalar invocation.
+///
+/// The two selections retain the initializer and latest runtime source. The
+/// descriptor retains their version relation, while `dispatch` identifies the
+/// sole private-table row permitted at the call site. The realization machine
+/// in that row is table content, not a statically addressed call target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractReboundDynamicScalarDispatch {
+    pub initial: TerminalDynamicConformanceSelection,
+    pub rebound: TerminalDynamicConformanceSelection,
+    pub descriptor: TerminalReboundDynamicDescriptor,
+    pub dispatch: TerminalIndirectDynamicDispatch,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractFunctionResult {
     Unit,
@@ -337,6 +353,17 @@ pub enum AbstractOperation {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one scalar-result requirement through an exact rebound dynamic
+    /// descriptor. Target realization must materialize the two-word
+    /// `{instance, table}` carrier and call through the selected private table;
+    /// it may not replace this operation with a direct call to `realization`.
+    CallDynamicScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

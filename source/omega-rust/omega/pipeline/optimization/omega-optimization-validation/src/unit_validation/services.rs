@@ -188,6 +188,9 @@ pub(crate) fn derive_root_service_reach(
                 | O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructural { callee, .. } => pending.push(*callee),
+                O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                } => pending.push(dynamic_dispatch.dispatch.realization),
                 O::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         OptimizationUnitValidationError::OperationServiceContractMismatch {

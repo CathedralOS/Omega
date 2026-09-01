@@ -156,6 +156,18 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
+                O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                } => {
+                    let callee = dynamic_dispatch.dispatch.realization;
+                    summary.callees.insert(callee);
+                    if !machines.contains(&callee) {
+                        summary.observable = EffectKnowledge::May;
+                        summary.structural_state = EffectKnowledge::May;
+                        summary.crash = EffectKnowledge::May;
+                        summary.suspension = EffectKnowledge::May;
+                    }
+                }
                 O::PortWrite { service, .. } => {
                     summary.services.insert(*service);
                     join_operation_effect(&mut summary, &node.operation, join);
@@ -305,6 +317,7 @@ fn operation_effect(
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallDynamicScalar { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),

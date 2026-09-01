@@ -19,9 +19,9 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
-        O::CallStructuralScalar { result, .. } | O::IntegerStructuralField { result, .. } => {
-            Some((result.value, result.scalar_type))
-        }
+        O::CallStructuralScalar { result, .. }
+        | O::CallDynamicScalar { result, .. }
+        | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: Some(result),
             ..

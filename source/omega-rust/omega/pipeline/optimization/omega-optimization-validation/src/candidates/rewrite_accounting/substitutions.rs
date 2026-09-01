@@ -82,6 +82,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallDynamicScalar { .. }
         | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }

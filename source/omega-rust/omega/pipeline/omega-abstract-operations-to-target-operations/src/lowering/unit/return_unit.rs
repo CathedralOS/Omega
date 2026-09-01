@@ -54,6 +54,7 @@ pub(super) fn lower_unit_return(
                         .rev()
                         .filter(|parameter| {
                             parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                                && parameter.access == psi_terminal::StructuralAccess::Owned
                                 && Some(parameter.place) != fully_consumed_affine_pair
                         })
                         .map(|parameter| parameter.place),

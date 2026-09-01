@@ -5,6 +5,7 @@ use super::*;
 pub(super) fn lower_ordinary_machine(
     machine: &TerminalMachine,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    dynamic_dispatch: &psi_terminal::TerminalDynamicDispatchCatalog,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractFunction, LoweringError> {
     let result = machine.result.scalar();
@@ -78,6 +79,7 @@ pub(super) fn lower_ordinary_machine(
                 block,
                 machine,
                 structural_types,
+                dynamic_dispatch,
                 retain_payloadless_for_optimization,
                 &value_types,
                 &byte_sequence_literals,

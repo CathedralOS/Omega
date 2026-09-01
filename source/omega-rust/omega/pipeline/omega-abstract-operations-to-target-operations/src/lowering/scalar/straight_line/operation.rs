@@ -63,6 +63,7 @@ pub(super) fn lower_operation(
             });
         }
         AbstractOperation::CallStructuralScalar { .. }
+        | AbstractOperation::CallDynamicScalar { .. }
         | AbstractOperation::CallStructural { .. } => {
             return Err(LoweringError::UnsupportedOperationInScalarFunction(
                 function.machine,

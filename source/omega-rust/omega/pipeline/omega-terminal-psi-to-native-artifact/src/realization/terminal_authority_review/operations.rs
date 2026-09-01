@@ -18,6 +18,9 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::CallStructuralScalar { callee, .. }
         | AbstractOperation::CallStructural { callee, .. }
         | AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
+        AbstractOperation::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { .. } => AuthorityEdge::UnsupportedCheckedPhysical,
         AbstractOperation::WriteOnlyPrimitiveStore { .. }

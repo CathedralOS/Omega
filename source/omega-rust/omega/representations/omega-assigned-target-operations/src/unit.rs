@@ -1,8 +1,8 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
-    AbstractResult, BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
-    CompletionClaimSource, MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
-    TargetStructuralParameter,
+    AbstractReboundDynamicScalarDispatch, AbstractResult, BoundaryByteSequenceArgument,
+    BoundaryRealization, BoundaryScalarArgument, CompletionClaimSource, MachineRegister,
+    ProviderExecutionBinding, RankedU32CountdownCustody, TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -195,6 +195,19 @@ pub enum AssignedUnitOperation {
         call_plan: CallPlan,
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    DynamicScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+        call_plan: CallPlan,
+        result_home: AssignedUnitScalarHome,
+        descriptor_abi: omega_runtime_abi::DynamicTraitDescriptorAbi,
+        descriptor_home_byte_offset: u32,
+        initial_copy: AssignedAggregateCopy,
+        rebound_copy: AssignedAggregateCopy,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

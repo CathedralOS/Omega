@@ -94,6 +94,12 @@ pub(crate) fn validate_operation_places(
             require(*source, known)?;
         }
         O::IntegerStructuralField { source, .. } => require(source.place, known)?,
+        O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => {
+            require(dynamic_dispatch.initial.source.place, known)?;
+            require(dynamic_dispatch.rebound.source.place, known)?;
+        }
         O::Return {
             cleanup_actions, ..
         }

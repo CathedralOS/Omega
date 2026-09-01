@@ -1129,6 +1129,11 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
+            AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
+                return Err(EmissionError::DynamicScalarTableMaterializationPending(
+                    *psi_operation,
+                ));
+            }
             AssignedUnitOperation::PortWrite {
                 psi_operation,
                 service,

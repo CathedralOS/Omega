@@ -138,6 +138,11 @@ pub(crate) fn validator_machine_references(
             | O::Call { callee, .. } => {
                 references.insert(*callee);
             }
+            O::CallDynamicScalar {
+                dynamic_dispatch, ..
+            } => {
+                references.insert(dynamic_dispatch.dispatch.realization);
+            }
             O::Return {
                 cleanup_actions, ..
             }
