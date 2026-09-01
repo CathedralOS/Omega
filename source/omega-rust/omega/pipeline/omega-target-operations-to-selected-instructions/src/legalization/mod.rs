@@ -3,6 +3,7 @@
 //! Start with `catalog` for every admitted form, descend into `source` for
 //! producer projection, and into `replay` for independent acceptance.
 
+mod admission;
 mod catalog;
 #[cfg(test)]
 mod catalog_tests;
@@ -21,8 +22,9 @@ pub use model::{
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
 use omega_optimization_unit::PsiOptimizationUnit;
-use omega_target_operations::{TargetOperation, TargetOperationPlan, TargetUnitOperation};
+use omega_target_operations::TargetOperationPlan;
 
+use admission::{reject_attached_unit_structural_scalar, reject_ranked_countdown};
 use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;
 
@@ -75,46 +77,4 @@ pub fn validate_legalized_operations(
         projected_structural_call_return,
     };
     Ok(ValidatedLegalizedOperations { plan, receipt })
-}
-
-fn reject_ranked_countdown(target: &TargetOperationPlan) -> Result<(), LegalizationError> {
-    if let Some(function) = target
-        .functions
-        .iter()
-        .find(|function| matches!(function.operation, TargetOperation::RankedU32Countdown(_)))
-    {
-        return Err(LegalizationError::RankedCountdownNotYetSelectable {
-            machine: function.machine,
-        });
-    }
-    Ok(())
-}
-
-fn reject_attached_unit_structural_scalar(
-    target: &TargetOperationPlan,
-) -> Result<(), LegalizationError> {
-    for function in &target.functions {
-        let TargetOperation::UnitBody(body) = &function.operation else {
-            continue;
-        };
-        if let Some(operation) = body
-            .operations
-            .iter()
-            .find_map(|operation| match operation {
-                TargetUnitOperation::StructuralScalarFieldStore { psi_operation, .. }
-                | TargetUnitOperation::StructuralScalarCall { psi_operation, .. } => {
-                    Some(*psi_operation)
-                }
-                _ => None,
-            })
-        {
-            return Err(
-                LegalizationError::AttachedUnitStructuralScalarNotYetSelectable {
-                    machine: function.machine,
-                    operation,
-                },
-            );
-        }
-    }
-    Ok(())
 }
