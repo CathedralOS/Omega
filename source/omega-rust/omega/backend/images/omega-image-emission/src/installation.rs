@@ -76,7 +76,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 47;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 48;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -292,6 +292,10 @@ pub struct InstalledFunction {
     pub scalar_stack: Option<crate::ObjectScalarStack>,
     pub unit_call_stacks: Vec<crate::ObjectUnitCallStack>,
     pub scalar_call_stacks: Vec<crate::ObjectScalarCallStack>,
+    /// Non-authoritative projection of exact emitted same-stack foreign leaves.
+    /// Canonical installation validation rejoins every row to the retained
+    /// executable image before stack composition may consume it.
+    pub foreign_call_stacks: Vec<InstalledForeignCallStack>,
     pub unit_body: bool,
     /// The exact function remains governed by the independently replayed
     /// ranked-`u32` object/image carrier. This closed body tag prevents
@@ -310,6 +314,18 @@ pub struct InstalledFunction {
     pub scalar_control_affine_cleanups: Vec<omega_machine_code::UnitAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledForeignCallStack {
+    pub owner: CallSiteOwner,
+    pub text_offset: usize,
+    pub caller_live_bytes: u32,
+    pub provider_plan_report_identity: u64,
+    pub contribution_report_identity: omega_task_plans::AdmittedStackContributionReportId,
+    pub contribution_commitment: omega_task_plans::SameStackContributionCommitment,
+    pub contribution_bytes: u64,
+    pub contribution_alignment: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -460,6 +476,16 @@ where
                 execution.boundary_contract_report_fingerprint,
             ))
         })
+        .chain(image.foreign_calls().iter().map(|call| {
+            let execution = call.provider_execution;
+            (
+                execution.provider_plan_report_identity,
+                execution.provider_execution_report_identity,
+                execution.provider_execution_report_fingerprint,
+                execution.normalized_root_report_identity,
+                execution.boundary_contract_report_fingerprint,
+            )
+        }))
         .collect::<std::collections::BTreeSet<_>>();
     if reported_executions != required_executions {
         return Err(InstallationError::ProviderExecutionClosureMismatch);
@@ -495,6 +521,7 @@ where
                 scalar_stack: function.scalar_stack,
                 unit_call_stacks: function.unit_call_stacks.clone(),
                 scalar_call_stacks: function.scalar_call_stacks.clone(),
+                foreign_call_stacks: installed_foreign_call_stacks(image, function.machine),
                 unit_body: function.unit_affine_cleanup.is_some(),
                 ranked_u32_countdown: function.ranked_u32_countdown.is_some(),
                 unit_parameters: function.unit_parameters.clone(),
@@ -587,12 +614,16 @@ pub fn derive_installation_stack_demand(
     let mut active = std::collections::BTreeSet::new();
     let mut memoized = std::collections::BTreeMap::new();
     let mut contributing_machines = std::collections::BTreeSet::new();
+    let mut admitted_contribution_report_identities = std::collections::BTreeSet::new();
+    let mut admitted_contribution_commitments = std::collections::BTreeSet::new();
     let ceiling_bytes = derive_installed_stack_peak(
         entry,
         &functions,
         &mut active,
         &mut memoized,
         &mut contributing_machines,
+        &mut admitted_contribution_report_identities,
+        &mut admitted_contribution_commitments,
     )?;
     Ok(crate::StackDemand {
         psi: record.psi,
@@ -601,6 +632,8 @@ pub fn derive_installation_stack_demand(
         ceiling_bytes,
         stack_alignment: 16,
         contributing_machines,
+        admitted_contribution_report_identities,
+        admitted_contribution_commitments,
     })
 }
 
@@ -636,6 +669,12 @@ fn derive_installed_stack_peak(
     active: &mut std::collections::BTreeSet<MachineId>,
     memoized: &mut std::collections::BTreeMap<MachineId, u64>,
     contributing_machines: &mut std::collections::BTreeSet<MachineId>,
+    admitted_contribution_report_identities: &mut std::collections::BTreeSet<
+        omega_task_plans::AdmittedStackContributionReportId,
+    >,
+    admitted_contribution_commitments: &mut std::collections::BTreeSet<
+        omega_task_plans::SameStackContributionCommitment,
+    >,
 ) -> Result<u64, crate::ObjectError> {
     if let Some(peak) = memoized.get(&machine) {
         contributing_machines.insert(machine);
@@ -682,6 +721,8 @@ fn derive_installed_stack_peak(
             active,
             memoized,
             contributing_machines,
+            admitted_contribution_report_identities,
+            admitted_contribution_commitments,
         )?;
         let composed = u64::from(caller_live_bytes)
             .checked_add(callee_peak)
@@ -690,6 +731,17 @@ fn derive_installed_stack_peak(
                 owner,
             })?;
         peak = peak.max(composed);
+    }
+    for call in &function.foreign_call_stacks {
+        let composed = u64::from(call.caller_live_bytes)
+            .checked_add(call.contribution_bytes)
+            .ok_or(crate::ObjectError::TerminalStackCompositionOverflow {
+                caller: machine,
+                owner: call.owner,
+            })?;
+        peak = peak.max(composed);
+        admitted_contribution_report_identities.insert(call.contribution_report_identity);
+        admitted_contribution_commitments.insert(call.contribution_commitment);
     }
     active.remove(&machine);
     memoized.insert(machine, peak);
@@ -879,6 +931,8 @@ pub fn validate_installation_record(
                     || installed.scalar_stack != emitted.scalar_stack
                     || installed.unit_call_stacks != emitted.unit_call_stacks
                     || installed.scalar_call_stacks != emitted.scalar_call_stacks
+                    || installed.foreign_call_stacks
+                        != installed_foreign_call_stacks(image, emitted.machine)
                     || installed.unit_body != emitted.unit_affine_cleanup.is_some()
                     || installed.ranked_u32_countdown != emitted.ranked_u32_countdown.is_some()
                     || installed.unit_parameters != emitted.unit_parameters
@@ -911,6 +965,29 @@ fn installed_scalar_control_cleanups_match_object(
             .iter()
             .zip(emitted)
             .all(|(installed, emitted)| installed == &emitted.cleanup)
+}
+
+fn installed_foreign_call_stacks(
+    image: &ExecutableImage,
+    machine: MachineId,
+) -> Vec<InstalledForeignCallStack> {
+    image
+        .foreign_calls()
+        .iter()
+        .filter(|call| call.machine == machine)
+        .map(|call| InstalledForeignCallStack {
+            owner: call.owner,
+            text_offset: call.text_offset,
+            caller_live_bytes: call.caller_live_bytes,
+            provider_plan_report_identity: call
+                .same_stack_contribution
+                .provider_plan_report_identity(),
+            contribution_report_identity: call.same_stack_contribution.report_identity(),
+            contribution_commitment: call.same_stack_contribution.commitment(),
+            contribution_bytes: call.same_stack_contribution.bytes(),
+            contribution_alignment: call.same_stack_contribution.alignment(),
+        })
+        .collect()
 }
 
 pub fn installation_fingerprint(
@@ -962,6 +1039,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             };
             Some(execution.provider_plan_report_identity)
         })
+        .chain(
+            record
+                .functions
+                .iter()
+                .flat_map(|function| &function.foreign_call_stacks)
+                .map(|call| call.provider_plan_report_identity),
+        )
         .collect::<std::collections::BTreeSet<_>>();
     if !required.is_subset(&selected) {
         return Err(InstallationError::ProviderSettlementClosureMismatch);
@@ -1020,6 +1104,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.scalar_stack.is_none()
                 && function.unit_call_stacks.is_empty()
                 && function.scalar_call_stacks.is_empty()
+                && function.foreign_call_stacks.is_empty()
                 && !function.unit_body
                 && function.unit_parameters.is_empty()
                 && function.unit_parameter_homes.is_empty()
@@ -2323,6 +2408,7 @@ fn installed_stack_facts_are_canonical(
             .is_some_and(|stack| !valid_alignment(stack.stack_alignment))
         || (!function.unit_call_stacks.is_empty() && function.unit_stack.is_none())
         || (!function.scalar_call_stacks.is_empty() && function.scalar_stack.is_none())
+        || (!function.foreign_call_stacks.is_empty() && function.unit_stack.is_none())
     {
         return false;
     }
@@ -2342,6 +2428,20 @@ fn installed_stack_facts_are_canonical(
         .scalar_call_stacks
         .iter()
         .all(|call| call_in_function(call.target, call.text_offset));
+    let foreign_calls_valid = function.foreign_call_stacks.iter().all(|call| {
+        call.text_offset >= function.text_offset
+            && call.text_offset < function.text_offset.saturating_add(function.byte_count)
+            && call.caller_live_bytes != 0
+            && call.provider_plan_report_identity != 0
+            && call.contribution_report_identity.normalized_identity() != 0
+            && !call.contribution_commitment.is_zero()
+            && call.contribution_bytes != 0
+            && call.contribution_alignment != 0
+            && call.contribution_alignment.is_power_of_two()
+            && function.unit_stack.is_some_and(|stack| {
+                call.contribution_alignment <= u64::from(stack.stack_alignment)
+            })
+    });
     let unit_ordered = function.unit_call_stacks.windows(2).all(|pair| {
         (pair[0].text_offset, pair[0].owner, pair[0].target)
             < (pair[1].text_offset, pair[1].owner, pair[1].target)
@@ -2350,7 +2450,16 @@ fn installed_stack_facts_are_canonical(
         (pair[0].text_offset, pair[0].owner, pair[0].target)
             < (pair[1].text_offset, pair[1].owner, pair[1].target)
     });
-    unit_calls_valid && scalar_calls_valid && unit_ordered && scalar_ordered
+    let foreign_ordered = function
+        .foreign_call_stacks
+        .windows(2)
+        .all(|pair| (pair[0].text_offset, pair[0].owner) < (pair[1].text_offset, pair[1].owner));
+    unit_calls_valid
+        && scalar_calls_valid
+        && foreign_calls_valid
+        && unit_ordered
+        && scalar_ordered
+        && foreign_ordered
 }
 
 fn validate_scalar_affine_cleanup_shape(
@@ -2653,6 +2762,7 @@ pub enum InstallationError {
     TooManyProviderPlans,
     TooManyInstalledFunctions,
     TooManyStackCallFacts,
+    InvalidForeignStackContribution,
     TooManyStructuralReturns,
     TooManyInternalUnitCalls,
     TooManyInternalUnitScalarCalls,
@@ -2834,6 +2944,19 @@ mod resource_tests {
                 caller_live_bytes: 16,
             }],
             scalar_call_stacks: Vec::new(),
+            foreign_call_stacks: vec![InstalledForeignCallStack {
+                owner: CallSiteOwner::Operation(OperationId::new(2).expect("foreign operation")),
+                text_offset: 32,
+                caller_live_bytes: 16,
+                provider_plan_report_identity: 7,
+                contribution_report_identity:
+                    omega_task_plans::AdmittedStackContributionReportId::from_normalized_identity(8)
+                        .expect("contribution report"),
+                contribution_commitment:
+                    omega_task_plans::SameStackContributionCommitment::from_digest([9; 32]),
+                contribution_bytes: 64,
+                contribution_alignment: 16,
+            }],
             unit_body: false,
             ranked_u32_countdown: false,
             unit_parameters: Vec::new(),
@@ -3008,12 +3131,13 @@ mod resource_tests {
         let mut bytes = Vec::new();
         encode_function_stack_facts(&mut bytes, &function).expect("encode stack facts");
         let mut reader = Reader::new(&bytes);
-        let (unit, scalar, unit_calls, scalar_calls) =
+        let (unit, scalar, unit_calls, scalar_calls, foreign_calls) =
             decode_function_stack_facts(&mut reader).expect("decode stack facts");
         assert_eq!(unit, function.unit_stack);
         assert_eq!(scalar, function.scalar_stack);
         assert_eq!(unit_calls, function.unit_call_stacks);
         assert_eq!(scalar_calls, function.scalar_call_stacks);
+        assert_eq!(foreign_calls, function.foreign_call_stacks);
         assert_eq!(reader.remaining(), 0);
     }
 
@@ -3040,6 +3164,28 @@ mod resource_tests {
         forged_live_bytes.unit_call_stacks[0].caller_live_bytes += 1;
         assert!(!installed_stack_facts_are_canonical(
             &forged_live_bytes,
+            &functions
+        ));
+
+        let mut zero_provider_plan = valid.clone();
+        zero_provider_plan.foreign_call_stacks[0].provider_plan_report_identity = 0;
+        assert!(!installed_stack_facts_are_canonical(
+            &zero_provider_plan,
+            &functions
+        ));
+
+        let mut unsupported_foreign_alignment = valid.clone();
+        unsupported_foreign_alignment.foreign_call_stacks[0].contribution_alignment = 32;
+        assert!(!installed_stack_facts_are_canonical(
+            &unsupported_foreign_alignment,
+            &functions
+        ));
+
+        let mut zero_foreign_commitment = valid.clone();
+        zero_foreign_commitment.foreign_call_stacks[0].contribution_commitment =
+            omega_task_plans::SameStackContributionCommitment::from_digest([0; 32]);
+        assert!(!installed_stack_facts_are_canonical(
+            &zero_foreign_commitment,
             &functions
         ));
 

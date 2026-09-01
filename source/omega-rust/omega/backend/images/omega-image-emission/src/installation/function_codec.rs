@@ -1,4 +1,4 @@
-//! Canonical format-36 codec for installed function rows.
+//! Canonical installation codec for installed function rows.
 //!
 //! The installation parent retains upfront count conversion, cross-function
 //! ordering, canonicality, and admission validation. This child composes rows.
@@ -124,7 +124,7 @@ pub(super) fn decode_functions(
             .map_err(|_| InstallationError::FunctionOffsetNotRepresentable)?;
         let byte_count = usize::try_from(reader.u64()?)
             .map_err(|_| InstallationError::FunctionOffsetNotRepresentable)?;
-        let (unit_stack, scalar_stack, unit_call_stacks, scalar_call_stacks) =
+        let (unit_stack, scalar_stack, unit_call_stacks, scalar_call_stacks, foreign_call_stacks) =
             decode_function_stack_facts(reader)?;
         let unit_body = decode_boolean(reader.u8()?)?;
         let ranked_u32_countdown = decode_boolean(reader.u8()?)?;
@@ -146,6 +146,7 @@ pub(super) fn decode_functions(
             scalar_stack,
             unit_call_stacks,
             scalar_call_stacks,
+            foreign_call_stacks,
             unit_body,
             ranked_u32_countdown,
             unit_parameters,

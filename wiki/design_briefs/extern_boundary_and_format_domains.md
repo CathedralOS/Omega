@@ -496,14 +496,14 @@ value check—and independently replays the complete ordered call plan, result
 normalization/store bytes, placements, semantic call ownership, and physical
 stack custody before consuming the rows. Both Linux profiles advance from the
 exact native rejoin through target, assignment, machine, ordinary object
-construction, and the complete dynamic-ELF driver. Stripped, reordered, or drifted source/type/value/
-home/index/register/byte/plan/stack custody rejects. General runtime
-expressions, non-fixed-integer,
-float, aggregate, and indirect result shapes, complete task-stack-budget
-composition, optional `.gnu.hash`, and
-general external-admission ownership remain open engineering work. An owned direct
-`[u8; N]` destination now contextually
-copies a quoted literal into an ordinary raw-byte array only when `N` is a
+construction, and the complete dynamic-ELF driver. Stripped, reordered, or
+drifted source/type/value/home/index/register/byte/plan/stack custody rejects.
+General runtime expressions, non-fixed-integer, float, aggregate, and indirect
+result shapes, the external-root
+`StackPlan`/lease/entry-epoch join, stronger foreign-call alignment, optional
+`.gnu.hash`, and general external-admission ownership remain open engineering
+work. An owned direct `[u8; N]` destination now contextually copies a quoted
+literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the
 array value. Producer closure, evaluator receipt, and ordinary source `via`
@@ -826,6 +826,16 @@ binding needs admitted foreign demand, or an enforced guarded capacity whose
 overflow remains an abnormal-exit route rather than proof of successful
 completion. Trust composes by the weakest input and reports the exact foreign
 premise.
+
+For the implemented direct same-stack lane, object construction retains the
+exact caller-live bytes and admitted foreign contribution at every physical
+call site. Stack closure adds those two quantities and takes the maximum across
+sequential calls. Native-artifact validation rejoins the contribution to the
+semantic requirement, provider execution, and strong selected-plan digest;
+canonical installation stores only a replayable projection and rejoins it to
+the exact image before reuse. The lane currently accepts at most the proved
+16-byte physical alignment. Greater admitted alignment fails closed until the
+emitter has real padding evidence.
 
 A hosted blocking executor is an ordinary package assembled from activations,
 bounded queues, moved custody, linear completion claims, suspension, and

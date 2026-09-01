@@ -9986,6 +9986,22 @@ reach or trust, and private proof improvements do not change public identity.
   cancellation, transfer, park/resume, Terminal suspension-call retention,
   and suspension-safe-loan work above.
 
+  The first production same-stack foreign-leaf rung is now closed from
+  admitted native settlement through object/image custody and canonical
+  installation replay. Each emitted foreign call retains the exact
+  caller-live frontier and admitted contribution; closure composition uses
+  `caller_live + contribution.bytes()` and takes the maximum across sequential
+  calls rather than summing them. The resulting demand retains both compact
+  admission reports and strong contribution commitments. Native-artifact
+  replay rejoins the semantic requirement, provider execution, selected-plan
+  report, and exact selected-plan digest. Installation format 48 retains a
+  non-authoritative projection and may consume it only after exact-image
+  rejoin. The current physical lane proves 16-byte call-entry alignment, so it
+  rejects stronger admitted alignment instead of numerically inventing
+  padding. Remaining WCSU work includes physical support for stronger
+  alignment and the separate external-root join into `StackPlan`, lease, and
+  entry-epoch custody.
+
   The task-plan foundation now projects a sealed fixed-stack shape only from
   `ComposedTaskStackDemand`, retaining the exact composition/root, byte count,
   alignment, frame validations, admitted same-stack contributions, and selected
@@ -11230,8 +11246,9 @@ boundary without its corresponding checked law.
   retain the exact semantic call owner, locator, provider-execution record, and
   relocation offset. The local test evidence is an input assumption, not a
   deployment admission claim. Remaining work is the real external admission
-  owner and automatic native-request integration, complete task-stack-budget
-  composition, general runtime expressions, non-fixed-integer/float/aggregate/
+  owner and automatic native-request integration, the external-root
+  `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment support,
+  general runtime expressions, non-fixed-integer/float/aggregate/
   indirect result signatures, callback-native
   replay, specialized adapter migration, and any optional dynamic-ELF
   extensions.

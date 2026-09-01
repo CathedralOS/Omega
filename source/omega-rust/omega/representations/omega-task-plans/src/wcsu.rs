@@ -59,8 +59,18 @@ impl SameStackProviderPlanCommitment {
 pub struct SameStackContributionCommitment([u8; 32]);
 
 impl SameStackContributionCommitment {
+    /// Reconstruct a retained non-authoritative commitment projection.
+    /// Admission authority remains with [`AdmittedSameStackContribution`].
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
     pub const fn as_bytes(self) -> [u8; 32] {
         self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == [0; 32]
     }
 }
 

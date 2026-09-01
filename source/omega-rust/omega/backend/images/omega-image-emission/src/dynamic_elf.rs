@@ -567,6 +567,84 @@ mod tests {
     }
 
     #[test]
+    fn admitted_foreign_stack_leaves_compose_by_max_with_strong_provenance() {
+        for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let artifact = artifact(target);
+            assert_eq!(artifact.foreign_calls().len(), 3);
+            let contribution = artifact.foreign_calls()[0].same_stack_contribution.clone();
+            assert!(
+                artifact
+                    .foreign_calls()
+                    .iter()
+                    .all(|call| call.same_stack_contribution == contribution)
+            );
+            let local_peak = u64::from(
+                artifact.functions()[0]
+                    .unit_stack
+                    .expect("foreign Unit body retains its local stack")
+                    .local_peak_bytes,
+            );
+            let foreign_peak = artifact
+                .foreign_calls()
+                .iter()
+                .map(|call| {
+                    u64::from(call.caller_live_bytes)
+                        .checked_add(call.same_stack_contribution.bytes())
+                        .unwrap()
+                })
+                .max()
+                .unwrap();
+            let demand = crate::derive_stack_demand(&artifact, artifact.entry()).unwrap();
+            assert_eq!(demand.ceiling_bytes(), local_peak.max(foreign_peak));
+            assert!(
+                demand.ceiling_bytes()
+                    < artifact
+                        .foreign_calls()
+                        .iter()
+                        .map(|call| call.same_stack_contribution.bytes())
+                        .sum::<u64>(),
+                "sequential foreign leaves share one maximum stack extent",
+            );
+            assert_eq!(
+                demand.admitted_contribution_report_identities(),
+                &std::collections::BTreeSet::from([contribution.report_identity()]),
+            );
+            assert_eq!(
+                demand.admitted_contribution_commitments(),
+                &std::collections::BTreeSet::from([contribution.commitment()]),
+            );
+        }
+    }
+
+    #[test]
+    fn foreign_stack_composition_overflow_rejects() {
+        let mut plan = machine_code_plan(TargetProfile::LinuxX64);
+        let provider_plan_commitment =
+            omega_task_plans::SameStackProviderPlanCommitment::from_digest([0x5a; 32]);
+        plan.functions[0].foreign_calls[0].same_stack_contribution =
+            omega_task_plans::admit_same_stack_contribution(
+                omega_task_plans::SameStackContributionAdmissionCandidate {
+                    provider_plan_report_identity: 1,
+                    provider_plan_commitment,
+                    requirement_identity: "production-emitter-import".into(),
+                    receipt: omega_task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(2)
+                        .unwrap(),
+                    bytes: u64::MAX,
+                    alignment: 16,
+                },
+                1,
+                provider_plan_commitment,
+                "production-emitter-import",
+            )
+            .unwrap();
+        let artifact = build_object_artifact(&plan).unwrap();
+        assert!(matches!(
+            crate::derive_stack_demand(&artifact, artifact.entry()),
+            Err(crate::ObjectError::TerminalStackCompositionOverflow { .. })
+        ));
+    }
+
+    #[test]
     fn object_builder_rejects_foreign_placeholder_and_target_drift() {
         let mut malformed = machine_code_plan(TargetProfile::LinuxX64);
         let opcode = malformed.functions[0].foreign_calls[0].offset - 1;

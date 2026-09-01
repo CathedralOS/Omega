@@ -461,6 +461,17 @@ have no child edge in the current stack domain. It composes the maximum live
 chain rather than summing sequential callees and retains the exact validated
 frame and admission identities behind the sealed result.
 
+The production native precursor now carries that rule through object/image
+custody and canonical installation replay. A direct foreign leaf contributes
+the exact live caller frontier plus its admitted bytes; sequential leaves share
+capacity and therefore compose by maximum. The demand retains both the compact
+admission report and the strong contribution commitment. Native replay also
+rejoins the semantic requirement and exact selected-provider-plan digest.
+Because the current emitted call lane proves only 16-byte alignment, stronger
+admitted alignment rejects until lowering emits and validates the necessary
+padding. This precursor still excludes the external-root entry epochs, stack
+lease, and final `StackPlan` join.
+
 The bounded shared-cleanup native rung applies the same maximum rule to one
 finite nested Boolean tree with immediate-value leaves and a uniform affine
 frontier. Exact source return edges remain ordered in physical DFS leaf order

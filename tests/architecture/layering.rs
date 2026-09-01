@@ -2209,8 +2209,10 @@ fn retained_native_product_enters_only_terminal_realization() {
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
     assert!(
-        driver.contains("return compile_native_with_checked_receipt(request)")
-            && driver.contains("native_report(request, &checked)?")
+        driver.contains(
+            "let (checked, trust_settlement) = compile_checked_with_observations(&request)?;"
+        ) && driver.contains("RequestedCompileProduct::NativeArtifact =>")
+            && driver.contains("super::optimization::native_report(request, &checked)?")
             && driver.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
     );
