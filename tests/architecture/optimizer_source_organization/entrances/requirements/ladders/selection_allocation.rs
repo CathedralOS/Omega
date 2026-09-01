@@ -223,6 +223,20 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "target-neutral abstract spill memory effects",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/compute/storage.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/compute/work.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/replay/work.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects/validate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "post-allocation manifest mutation custody tests",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/mod.rs",
@@ -340,6 +354,12 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_reload_value_homes.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_recovery_worklist.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/homed_spill_pseudo_instructions.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/abstract_spill_memory_effects/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/abstract_spill_memory_effects/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/abstract_spill_memory_effects/positive.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/abstract_spill_memory_effects/positive/effect.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/abstract_spill_memory_effects/corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/abstract_spill_memory_effects/budget.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_recovery_choice.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_recovery_actions.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/recursive_spill_insertion.rs",
