@@ -70,10 +70,18 @@ The build/compiler hooks and two top-level optimizer-pipeline routes are:
 | Native compiler realization | `omega-compiler/src/compiler/optimization/mod.rs` | `admission.rs`, `rollback/`, `native_realization.rs` |
 | Verified Psi optimization | `omega-optimization-pipeline/src/coordination/psi_optimization/mod.rs` | `request.rs`, exact Psi catalog, independent abstract projection |
 | Native physical continuation | `omega-optimization-pipeline/src/coordination/physical_pipeline/mod.rs` | `routes/composition/`, then one named route |
+| Attached Unit abstract-to-target lowering | `omega-abstract-operations-to-target-operations/src/lowering/unit.rs` | `unit/setup.rs`, `unit/body.rs`, then named call, return, scalar, and structural leaves |
 
 The ordinary empty-selection compiler path does not enter the explicit Psi
 optimizer. Physical routing consumes the exact selected phase set and one
 typed optimized target value; it does not invent optimization profiles.
+
+Attached Unit lowering follows the same readable descent even though it is a
+mandatory lowering lane rather than a selectable optimization stage. Its
+68-line entrance owns preflight, ABI/parameter preparation, body lowering, and
+final target assembly. Stateful operation dispatch lives one rung below it;
+boundary, scalar, structural-call, structural-store, and return mechanics stay
+in their named sibling leaves instead of inheriting a large entrance namespace.
 
 The guard governs those focused hook subtrees, not entire build/compiler
 crates. General source assembly, frontend/trust coordination, subsystem
@@ -179,8 +187,15 @@ from optimizer placement analyses or a rewrite entrance.
 validation and rebinds the session to the new component/ranking custody before
 counted-loop, invariant, and placement analyses are reconstructed. Layering
 forbids those analysis leaves from importing the ranking resolver or freeze
-normalizer. Atomic relocation proposal/application and ledger taxonomy remain
-absent.
+normalizer. Ranked rewrites enter through the `ranked_rewrites/mod.rs` stage
+group. Its exact `countdown_invariant_constant_relocation/mod.rs` child is the
+70-line executable proposal -> independent validation -> atomic application
+join over separate `model`, `propose`, `validate`, `apply`, and `apply/realize`
+leaves. The application leaf owns transformed-session rebinding and the single
+canonical ledger record; the stage group owns no execution and there is no
+generic LICM registry. The mirrored cyclic-Psi leaf pins atomic pair motion,
+deterministic budget failure, stale revision rejection, partial normalization,
+exact provenance/fuel rows, custody reconstruction, and fixed-point behavior.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -398,6 +413,16 @@ descends through fixture, positive/effect, corruption, and budget leaves.
 Architecture guards register the full ladder and enforce the absence of real
 memory/frame/fault/encoding authority.
 
+Abstract spill-access constraint planning enters through the adjacent 24-line
+`abstract_spill_access_constraints/mod.rs` coordination file. `model.rs`,
+`identity.rs`, and `validate.rs` own the closed V1 carrier and receipt;
+production descends through `compute/{accesses,dependencies,work}` while keyed
+replay independently answers the same questions through
+`replay/{accesses,dependencies,work}`. Every leaf remains below 200 lines. The
+mirrored pipeline test owns both victim lineages, targets, corruption, and all
+five budget axes; architecture guards register the complete ladder and prohibit
+executable memory, frame, fault, alias, encoding, or publication claims.
+
 Function-relative V9 mutation coverage enters through the five-line
 `function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
 into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,
@@ -582,6 +607,13 @@ replay. Dedicated fixture, positive, source-corruption, target-corruption,
 catalog, and optimized-custody leaves cover signed/unsigned fixed 8/16/32/64
 and address64 across all five native targets. The catalog row remains visibly
 disjoint from plain immediate, bitwise-not, bitwise-OR/XOR, and parameter AND.
+Constant integer bitwise-OR immediate translation owns the parallel
+`straight_line_integer_bitwise_or_immediate/` taxonomy. Its 27-line entrance
+joins the exact ordered four-operation grammar to independent
+`ReturnIntegerImmediate` replay using `IntegerType::bitwise_or`. Dedicated
+fixture, corruption, catalog, and optimized-custody leaves cover 180 direct and
+180 optimized fixed/address cases across all five targets while remaining
+disjoint from plain immediate, bitwise-not, AND/XOR, and parameter OR.
 Constant wrapping integer-add immediate translation is its exact arithmetic
 sibling under `straight_line_wrapping_integer_add_immediate/`. Its 27-line
 entrance joins the ordered two-constant grammar to independent

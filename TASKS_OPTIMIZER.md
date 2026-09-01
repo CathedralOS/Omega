@@ -441,6 +441,11 @@ decision. Only true language-semantic questions belong in
   model, typed evaluation, and proposal assembly. The 39-row pass roster and
   canonical identities are unchanged; mirrored tests separate Boolean and
   integer results and pin Boolean-rule catalog positions 25-29.
+- [x] Replace attached Unit lowering's 379-line quasi-entrance with a 68-line
+  preflight -> prepare -> lower -> assemble coordinator. ABI/parameter setup
+  and stateful body dispatch now form the next named rung, while boundary,
+  scalar, structural, and return mechanics retain their focused leaves and no
+  longer depend on a wildcard namespace supplied by the entrance.
 
 ## P1 — Opt-in, catalogs, and compatibility firewall
 
@@ -466,7 +471,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Sixty abstract-to-target families are covered,
+  machine-rule family. Sixty-one abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -867,21 +872,33 @@ decision. Only true language-semantic questions belong in
   canonical preheader suffix, and rebuild counted-loop, invariant, and
   placement snapshots at the new revision. Zero-, one-, and two-constant
   relocation shapes all reauthenticate; corrupted invariant or placement
-  snapshots fail closed. This completes downstream custody reconstruction, not
-  atomic relocation proposal, application, or ledger authority.
+  snapshots fail closed. The dedicated ranked-rewrite boundary now consumes
+  that custody and proposes one immutable, revision-bound atomic candidate per
+  exact countdown component. Independent validation reconstructs placement and
+  the transformed unit without calling proposal; application consumes the
+  verified session, reruns full transformed validation, rebuilds counted-loop,
+  invariant, and placement custody, and emits one canonical transformation
+  record with exact source provenance and fuel at each new node. Candidate
+  exhaustion publishes nothing, stale revisions reject, partial authenticated
+  relocations normalize without duplicate ledger rows, and the canonical pair
+  is a fixed point. The parent `ranked_rewrites` module is a stage group; its
+  70-line countdown child is the executable propose -> validate -> apply
+  entrance over separate model, realization, and replay mechanics. This grants
+  only the exact certificate zero/one relocation, not generic LICM authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
   failures.
 - [>] Retarget LICM and other loop consumers to validated Terminal SCCs. The
   exact countdown-induction, countdown-invariant-constant, and constant-
-  placement analyses are the first non-transforming consumers of authenticated
-  component, ranking, and ordinary `LoopForest` custody. Canonical relocated
-  constants can now rebuild all four analysis rungs in a transformed verified
-  session; general consumers and the atomic rewrite/ledger boundary remain
-  open.
-- [ ] Implement LICM only after transforms can invalidate and reconstruct
-  component, loop-carried custody, and ranking evidence.
+  placement analyses are the first consumers of authenticated component,
+  ranking, and ordinary `LoopForest` custody. The exact countdown zero/one
+  relocation now closes one atomic transformation/ledger boundary and rebuilds
+  all four analysis rungs in a transformed verified session. General invariant
+  discovery, profitability, motion, and other loop consumers remain open.
+- [ ] Implement general LICM only through transformations that invalidate and
+  reconstruct component, loop-carried custody, ranking, provenance, and fuel
+  evidence; the dedicated countdown zero/one relocation is not that authority.
 
 ## P4 — Lowering and instruction selection
 
@@ -982,6 +999,14 @@ decision. Only true language-semantic questions belong in
     unsigned fixed 8/16/32/64 and address64. Direct and optimized custody each
     cover 180 type/pair/target cases, while catalog ambiguity, corruption, and
     bitwise-not/OR/XOR/plain/parameter-family substitution fail closed.
+  - [x] Add constant integer-bitwise-OR-to-immediate as its own exact abstract-
+    to-target family. Its independently reconstructed four-operation grammar
+    retains both ordered constants, all three definitions, return edge, and
+    provenance; independent replay uses `IntegerType::bitwise_or` and requires
+    the exact `ReturnIntegerImmediate`. Direct and optimized custody each cover
+    180 signed/unsigned fixed-or-address type/pair/target cases, while catalog
+    ambiguity, corruption, and plain/not/AND/XOR/parameter-OR substitution fail
+    closed.
   - [x] Add constant wrapping-integer-add-to-immediate as its own exact
     abstract-to-target family. Its four-operation grammar and independent
     replay retain both ordered constants, all definitions, return/provenance,
@@ -1298,6 +1323,20 @@ decision. Only true language-semantic questions belong in
   cross-target custody fail closed. The carrier has no fault field, executable
   address/base, frame coordinate, opcode, encoding, emission, or publication
   type, so Q1 remains isolated to real memory realization and frame/probing.
+  A nineteenth independently replayed V1 artifact now turns those abstract
+  effects into block-local spill-access placements plus explicit dependency
+  rows. Its closed policy retains the pseudo, point, instruction anchor,
+  relative slice, and dense within-block ordinal, then records `StoredValue`,
+  `DeclaredBeforeReload`, and `OverlappingAbstractSlice` reasons without
+  asserting any cross-block execution order or program-memory alias fact. The
+  dual-victim x86-64/AArch64 fixtures contain six placements, three data edges,
+  two declared barriers, seven overlap edges, and exact usage
+  `{7, 15, 33, 18, 22}`. Direct production and independent keyed replay bind
+  every root, row, identity, order, budget axis, and cross-target refusal. This
+  remains realization-constraint custody: it creates no executable operation,
+  address/base, frame coordinate, fault/trap behavior, opcode, encoding,
+  emission, or publication authority, so neither spill-fault semantics nor
+  program-memory non-aliasing is inferred.
   ISA lowering, executable spill accesses, final frame offsets, unwind/probing,
   and downstream realization remain engineering work. Real memory
   insertion is owner-blocked only on the spill-access fault semantics recorded

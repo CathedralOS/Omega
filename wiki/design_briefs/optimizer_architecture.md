@@ -232,8 +232,16 @@ function and accept only its original role block or the sole role-ordered
 canonical preheader suffix; placement replay independently reconstructs the
 same restriction. Counted-loop, invariant, and placement snapshots can
 therefore be regenerated against the new unit revision after canonical
-relocation. This is the downstream reconstruction prerequisite for a future
-atomic proposal/application/ledger boundary, not that boundary itself.
+relocation. The dedicated countdown relocation boundary now consumes that
+custody through an immutable revision-bound proposal, independently reconstructs
+the transformed unit during validation, and atomically consumes the verified
+session during application. It reruns full transformed validation, rebuilds
+counted-loop/invariant/placement custody, and emits one canonical transformation
+record whose moved-node rows preserve exact provenance and fuel. Budget failure
+publishes nothing, stale revisions reject, partially relocated authenticated
+inputs normalize, and the canonical pair is a fixed point. This is exact
+certificate-zero/one motion only; it creates no general LICM registry,
+profitability policy, or cyclic execution authority.
 
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
@@ -400,6 +408,16 @@ frame coordinate, opcode, encoding, emission, or publication type. Direct
 production and independently keyed replay must agree before admission. This
 boundary is permitted by Q1's explicit scope; only conversion into real memory
 operations and frame/probing remains owner-blocked.
+
+The adjacent `abstract_spill_access_constraints` V1 entrance orders only those
+compiler-private abstract accesses within each selected block. It retains
+canonical placements and emits typed stored-value, declared-before-reload, and
+overlapping-relative-slice dependencies. A dense `block_ordinal` is explicitly
+not a cross-block execution claim, and an overlapping abstract spill slice is
+not a program-memory alias judgment. Direct production and independent replay
+agree on all rows and bounded work before custody is issued. The carrier has no
+executable operation, address/base, frame coordinate, fault/trap behavior,
+opcode, encoding, emission, or publication type, so Q1 remains intact.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
