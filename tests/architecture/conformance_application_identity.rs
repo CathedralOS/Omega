@@ -37,7 +37,7 @@ fn closed_conformance_dispatch_never_authorizes_with_a_compact_identity_alone() 
         );
     }
     assert!(
-        terminal.contains("omega.psi.terminal.closed-conformance-application.v1\\0")
+        terminal.contains("omega.psi.terminal.closed-conformance-application.v2\\0")
             && terminal.contains("Sha256"),
         "Terminal closed-conformance identity lost its domain-separated SHA-256 owner"
     );

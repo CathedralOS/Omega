@@ -230,6 +230,21 @@ validator derive the domains, graph, and ordering separately. Exhaustion is a
 typed pressure result for the separately governed spill/recovery work, not
 permission to invent a home transition.
 
+The first non-rematerializing recovery boundary is a target-neutral logical
+spill-operation plan. Its tiny entrance joins validated selected instructions,
+live ranges, allocation legality, and deterministic spill choice, then sends
+the proposed plan through a separate replay rung. V1 admits only an
+active-resident non-address unsigned-U64 instruction result in one block. It
+records one logical storage identity, a store immediately before the incoming
+definition, a reload immediately before the first strictly later flexible use,
+and the complete ordered later-use rewrite suffix. The plan is versioned and
+identity-bound, but creates no selected instruction or virtual register and
+claims no physical slot, byte offset, alignment, frame, unwind, trap, address
+stability, encoding, or publication authority. Incoming victims, entry
+parameters, legalization temporaries, fixed or use-def suffixes, and
+cross-block ranges fail with typed errors rather than silently receiving a
+weaker recipe.
+
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
 are explicit target facts. Modulo scratch-register assignment is not an

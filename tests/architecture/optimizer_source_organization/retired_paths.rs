@@ -164,6 +164,20 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/compute.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/validate.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/codec.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/tests.rs",
+    ] {
+        if repository.join(obsolete).exists() {
+            violations.insert(format!(
+                "logical spill planning retains a retired flat entrance or mixed leaf: {obsolete}"
+            ));
+        }
+    }
+
+    for obsolete in [
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/codec_tests.rs",
     ] {
