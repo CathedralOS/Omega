@@ -309,24 +309,12 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         })
         .transpose()?;
     validate_selected_build_role(&source_storage, build_source_id)?;
-    let (build_requires_filesystem_layout, source_scoped_top_level_bindings) =
-        inject_build_prelude(
-            &mut source_storage,
-            build_source_id,
-            target_name.is_some(),
-            timings,
-        )?;
-    if build_requires_filesystem_layout {
-        imports.seed(crate::pipeline::frontend::bundled_omega_root().join("std/filesystem.omg"));
-        load_pending_imports(
-            &mut source_storage,
-            &mut imports,
-            root_path,
-            target_name,
-            package_inputs,
-            timings,
-        )?;
-    }
+    let source_scoped_top_level_bindings = inject_build_prelude(
+        &mut source_storage,
+        build_source_id,
+        target_name.is_some(),
+        timings,
+    )?;
 
     validate_selected_target(&source_storage, target_name)?;
     let source_file_count = source_storage.file_count();
@@ -647,66 +635,6 @@ pub machine BuildLog::write_line(&mut self, text: &[u8]) {
 // compiler-owned optimization report machine
 "#;
 
-const FILESYSTEM_BUILD_PRELUDE: &str = r#"
-// Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
-pub data Subsystem {
-    case Console;
-    case Gui;
-    case EfiApplication;
-    case Unspecified(value: u16);
-}
-// compiler-owned TargetProfile declaration
-// compiler-owned X86DeploymentFeatures declaration
-// compiler-owned optimization declarations
-pub data BuildSource {
-}
-pub data BuildOutput {
-}
-pub data BuildLog {
-}
-pub data Build {
-    // compiler-owned Build.target field
-    // compiler-owned Build.x86_deployment_features field
-    subsystem: Subsystem;
-    freestanding: bool;
-    optimizations: Optimizations;
-    source: BuildSource;
-    output: BuildOutput;
-    log: BuildLog;
-    filesystem: FilesystemHost;
-}
-pub data PackageSelection {
-    case Root;
-    case Named(package: &[u8]);
-}
-pub data Source {
-    case Path(location: &[u8]);
-    case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
-}
-pub machine Build::depend(&mut self, source: Source) {
-}
-pub machine Build::depend_as(&mut self, alias: &[u8], source: Source) {
-}
-pub machine Build::package(&mut self, name: &[u8]) {
-}
-pub machine Build::application(&mut self, name: &[u8]) {
-}
-pub machine Build::member(&mut self, path: &[u8]) {
-}
-// compiler-owned optimization enable machine
-pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
-    relative
-}
-pub machine BuildOutput::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
-    relative
-}
-pub machine BuildOutput::include_source(&mut self, generated: &[u8] in Path) {
-}
-pub machine BuildLog::write_line(&mut self, text: &[u8]) {
-}
-// compiler-owned optimization report machine
-"#;
-
 const BUILD_TARGET_FIELD_SLOT: &str = "    // compiler-owned Build.target field\n";
 const BUILD_TARGET_FIELD: &str = "    target: TargetProfile;\n";
 const BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT: &str =
@@ -784,11 +712,10 @@ fn inject_build_prelude(
     build_source_id: Option<psi_source::SourceId>,
     has_exact_target: bool,
     timings: &mut CompileTimings,
-) -> Result<(bool, Vec<psi_symbols::SourceScopedTopLevelBinding>), Vec<Diagnostic>> {
+) -> Result<Vec<psi_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     let mut has_build_machine = false;
     let mut build_source_declares_build_data = false;
     let mut program_declares_build_data = false;
-    let mut build_reaches_filesystem = false;
     for (_, file) in source_storage.files.iter() {
         let is_build_file = Some(file.source_id) == build_source_id;
         for root_item in &file.root_items {
@@ -797,12 +724,6 @@ fn inject_build_prelude(
                     if is_build_file && machine.name.as_str() == "build" =>
                 {
                     has_build_machine = true;
-                    build_reaches_filesystem |= source_storage
-                        .syntax_trees
-                        .items
-                        .identifier_path_members(machine.service_reaches)
-                        .iter()
-                        .any(|service| service.as_str() == "FilesystemHost");
                 }
                 psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
                     if is_build_file {
@@ -817,19 +738,14 @@ fn inject_build_prelude(
     }
     let inject_build_vocabulary = has_build_machine && !build_source_declares_build_data;
     if !inject_build_vocabulary {
-        return Ok((build_reaches_filesystem, Vec::new()));
+        return Ok(Vec::new());
     }
 
-    let build_prelude = if build_reaches_filesystem {
-        FILESYSTEM_BUILD_PRELUDE
-    } else {
-        BUILD_PRELUDE
-    };
     // Targetless checking is not an artifact activation and therefore exposes
     // no synthetic target. Exact-target requests receive the canonical field;
     // retaining the former Build shape here keeps targetless semantic checks
     // honest while product requests migrate to immutable activation.
-    let prelude = construct_build_prelude(build_prelude, has_exact_target);
+    let prelude = construct_build_prelude(BUILD_PRELUDE, has_exact_target);
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
@@ -852,7 +768,7 @@ fn inject_build_prelude(
         )],
         _ => Vec::new(),
     };
-    Ok((build_reaches_filesystem, bindings))
+    Ok(bindings)
 }
 
 fn assemble_syntax(
@@ -1106,127 +1022,123 @@ mod tests {
             "CrossPlatformCli",
             "LocalUnchecked",
         ];
-        for base in [BUILD_PRELUDE, FILESYSTEM_BUILD_PRELUDE] {
-            for (has_exact_target, expected_target_fields) in [(false, 0), (true, 1)] {
-                let prelude = construct_build_prelude(base, has_exact_target);
-                let tokens = psi_source_files_to_tokens::Lexer::new(&prelude)
-                    .tokenize()
-                    .expect("constructed build prelude must lex");
-                let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-                    .expect("constructed build prelude must parse as ordinary Omega");
-                let target_profile = syntax_trees
-                    .root_items()
-                    .find_map(|item| match item {
-                        psi_syntax_trees::item::Item::Data(data)
-                            if data.name.as_str() == "TargetProfile" =>
-                        {
-                            Some(data)
-                        }
-                        _ => None,
-                    })
-                    .expect("build prelude must define TargetProfile");
-                assert_eq!(
-                    syntax_trees
-                        .items
-                        .data_members(target_profile.members)
-                        .iter()
-                        .filter_map(|member| match member {
-                            psi_syntax_trees::item::DataMember::Variant(variant) => {
-                                Some(variant.name.as_str())
-                            }
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>(),
-                    expected_cases
-                );
-                let x86_deployment_features = syntax_trees
-                    .root_items()
-                    .find_map(|item| match item {
-                        psi_syntax_trees::item::Item::Data(data)
-                            if data.name.as_str() == "X86DeploymentFeatures" =>
-                        {
-                            Some(data)
-                        }
-                        _ => None,
-                    })
-                    .expect("build prelude must define X86DeploymentFeatures");
-                assert_eq!(
-                    syntax_trees
-                        .items
-                        .data_members(x86_deployment_features.members)
-                        .iter()
-                        .filter_map(|member| match member {
-                            psi_syntax_trees::item::DataMember::Variant(variant) => {
-                                Some(variant.name.as_str())
-                            }
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>(),
-                    ["Baseline", "AvxFma3"]
-                );
-                let build = syntax_trees
-                    .root_items()
-                    .find_map(|item| match item {
-                        psi_syntax_trees::item::Item::Data(data)
-                            if data.name.as_str() == "Build" =>
-                        {
-                            Some(data)
-                        }
-                        _ => None,
-                    })
-                    .expect("build prelude must define Build");
-                let target_fields = syntax_trees
+        for (has_exact_target, expected_target_fields) in [(false, 0), (true, 1)] {
+            let prelude = construct_build_prelude(BUILD_PRELUDE, has_exact_target);
+            let tokens = psi_source_files_to_tokens::Lexer::new(&prelude)
+                .tokenize()
+                .expect("constructed build prelude must lex");
+            let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+                .expect("constructed build prelude must parse as ordinary Omega");
+            let target_profile = syntax_trees
+                .root_items()
+                .find_map(|item| match item {
+                    psi_syntax_trees::item::Item::Data(data)
+                        if data.name.as_str() == "TargetProfile" =>
+                    {
+                        Some(data)
+                    }
+                    _ => None,
+                })
+                .expect("build prelude must define TargetProfile");
+            assert_eq!(
+                syntax_trees
                     .items
-                    .data_members(build.members)
+                    .data_members(target_profile.members)
                     .iter()
                     .filter_map(|member| match member {
-                        psi_syntax_trees::item::DataMember::Field(field)
-                            if field.name.as_str() == "target" =>
-                        {
-                            Some(field)
+                        psi_syntax_trees::item::DataMember::Variant(variant) => {
+                            Some(variant.name.as_str())
                         }
                         _ => None,
                     })
-                    .collect::<Vec<_>>();
-                assert_eq!(target_fields.len(), expected_target_fields);
-                if let [field] = target_fields.as_slice() {
-                    assert!(matches!(
-                        syntax_trees
-                            .type_references
-                            .type_reference(field.type_reference),
-                        psi_syntax_trees::types::TypeReferenceNode::Named(name)
-                            if name.as_str() == "TargetProfile"
-                    ));
-                }
-                let x86_feature_fields = syntax_trees
+                    .collect::<Vec<_>>(),
+                expected_cases
+            );
+            let x86_deployment_features = syntax_trees
+                .root_items()
+                .find_map(|item| match item {
+                    psi_syntax_trees::item::Item::Data(data)
+                        if data.name.as_str() == "X86DeploymentFeatures" =>
+                    {
+                        Some(data)
+                    }
+                    _ => None,
+                })
+                .expect("build prelude must define X86DeploymentFeatures");
+            assert_eq!(
+                syntax_trees
                     .items
-                    .data_members(build.members)
+                    .data_members(x86_deployment_features.members)
                     .iter()
                     .filter_map(|member| match member {
-                        psi_syntax_trees::item::DataMember::Field(field)
-                            if field.name.as_str() == "x86_deployment_features" =>
-                        {
-                            Some(field)
+                        psi_syntax_trees::item::DataMember::Variant(variant) => {
+                            Some(variant.name.as_str())
                         }
                         _ => None,
                     })
-                    .collect::<Vec<_>>();
-                assert_eq!(x86_feature_fields.len(), expected_target_fields);
-                if let [field] = x86_feature_fields.as_slice() {
-                    assert!(matches!(
-                        syntax_trees
-                            .type_references
-                            .type_reference(field.type_reference),
-                        psi_syntax_trees::types::TypeReferenceNode::Named(name)
-                            if name.as_str() == "X86DeploymentFeatures"
-                    ));
-                }
+                    .collect::<Vec<_>>(),
+                ["Baseline", "AvxFma3"]
+            );
+            let build = syntax_trees
+                .root_items()
+                .find_map(|item| match item {
+                    psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
+                        Some(data)
+                    }
+                    _ => None,
+                })
+                .expect("build prelude must define Build");
+            let target_fields = syntax_trees
+                .items
+                .data_members(build.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_syntax_trees::item::DataMember::Field(field)
+                        if field.name.as_str() == "target" =>
+                    {
+                        Some(field)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(target_fields.len(), expected_target_fields);
+            if let [field] = target_fields.as_slice() {
+                assert!(matches!(
+                    syntax_trees
+                        .type_references
+                        .type_reference(field.type_reference),
+                    psi_syntax_trees::types::TypeReferenceNode::Named(name)
+                        if name.as_str() == "TargetProfile"
+                ));
+            }
+            let x86_feature_fields = syntax_trees
+                .items
+                .data_members(build.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_syntax_trees::item::DataMember::Field(field)
+                        if field.name.as_str() == "x86_deployment_features" =>
+                    {
+                        Some(field)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(x86_feature_fields.len(), expected_target_fields);
+            if let [field] = x86_feature_fields.as_slice() {
+                assert!(matches!(
+                    syntax_trees
+                        .type_references
+                        .type_reference(field.type_reference),
+                    psi_syntax_trees::types::TypeReferenceNode::Named(name)
+                        if name.as_str() == "X86DeploymentFeatures"
+                ));
             }
         }
     }
 
     #[test]
-    fn both_build_preludes_own_the_exact_optimization_vocabulary() {
+    fn build_prelude_owns_the_exact_optimization_vocabulary() {
         let expected_cases = omega_optimization_core::Optimization::ALL
             .iter()
             .map(|optimization| optimization.build_case_name())
@@ -1238,93 +1150,91 @@ mod tests {
                     .map(|optimization| optimization.build_counter_field()),
             )
             .collect::<Vec<_>>();
-        for base in [BUILD_PRELUDE, FILESYSTEM_BUILD_PRELUDE] {
-            let prelude = construct_build_prelude(base, false);
-            let tokens = psi_source_files_to_tokens::Lexer::new(&prelude)
-                .tokenize()
-                .expect("toolchain build prelude must lex");
-            let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-                .expect("toolchain build prelude must parse as ordinary Omega");
-            let optimization = syntax_trees
-                .root_items()
-                .find_map(|item| match item {
-                    psi_syntax_trees::item::Item::Data(data)
-                        if data.name.as_str() == "Optimization" =>
-                    {
-                        Some(data)
+        let prelude = construct_build_prelude(BUILD_PRELUDE, false);
+        let tokens = psi_source_files_to_tokens::Lexer::new(&prelude)
+            .tokenize()
+            .expect("toolchain build prelude must lex");
+        let syntax_trees = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+            .expect("toolchain build prelude must parse as ordinary Omega");
+        let optimization = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data)
+                    if data.name.as_str() == "Optimization" =>
+                {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define Optimization");
+        assert_eq!(
+            syntax_trees
+                .items
+                .data_members(optimization.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_syntax_trees::item::DataMember::Variant(variant) => {
+                        Some(variant.name.as_str())
                     }
                     _ => None,
                 })
-                .expect("build prelude must define Optimization");
-            assert_eq!(
-                syntax_trees
-                    .items
-                    .data_members(optimization.members)
-                    .iter()
-                    .filter_map(|member| match member {
-                        psi_syntax_trees::item::DataMember::Variant(variant) => {
-                            Some(variant.name.as_str())
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
-                expected_cases
-            );
-            let optimizations = syntax_trees
-                .root_items()
-                .find_map(|item| match item {
-                    psi_syntax_trees::item::Item::Data(data)
-                        if data.name.as_str() == "Optimizations" =>
-                    {
-                        Some(data)
+                .collect::<Vec<_>>(),
+            expected_cases
+        );
+        let optimizations = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data)
+                    if data.name.as_str() == "Optimizations" =>
+                {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define Optimizations");
+        assert_eq!(
+            syntax_trees
+                .items
+                .data_members(optimizations.members)
+                .iter()
+                .filter_map(|member| match member {
+                    psi_syntax_trees::item::DataMember::Field(field) => {
+                        Some(field.name.as_str())
                     }
                     _ => None,
                 })
-                .expect("build prelude must define Optimizations");
-            assert_eq!(
-                syntax_trees
-                    .items
-                    .data_members(optimizations.members)
-                    .iter()
-                    .filter_map(|member| match member {
-                        psi_syntax_trees::item::DataMember::Field(field) => {
-                            Some(field.name.as_str())
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
-                expected_fields
-            );
-            let build = syntax_trees
-                .root_items()
-                .find_map(|item| match item {
-                    psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
-                        Some(data)
-                    }
-                    _ => None,
-                })
-                .expect("build prelude must define Build");
-            assert!(
-                syntax_trees
-                    .items
-                    .data_members(build.members)
-                    .iter()
-                    .any(|member| matches!(
-                        member,
-                        psi_syntax_trees::item::DataMember::Field(field)
-                            if field.name.as_str() == "optimizations"
-                    ))
-            );
-            assert!(syntax_trees.root_items().any(|item| matches!(
-                item,
-                psi_syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str() == "Optimizations::enable"
-            )));
-            assert!(syntax_trees.root_items().any(|item| matches!(
-                item,
-                psi_syntax_trees::item::Item::Machine(machine)
-                    if machine.name.as_str() == "Optimizations::emit_report"
-            )));
-        }
+                .collect::<Vec<_>>(),
+            expected_fields
+        );
+        let build = syntax_trees
+            .root_items()
+            .find_map(|item| match item {
+                psi_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
+                    Some(data)
+                }
+                _ => None,
+            })
+            .expect("build prelude must define Build");
+        assert!(
+            syntax_trees
+                .items
+                .data_members(build.members)
+                .iter()
+                .any(|member| matches!(
+                    member,
+                    psi_syntax_trees::item::DataMember::Field(field)
+                        if field.name.as_str() == "optimizations"
+                ))
+        );
+        assert!(syntax_trees.root_items().any(|item| matches!(
+            item,
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "Optimizations::enable"
+        )));
+        assert!(syntax_trees.root_items().any(|item| matches!(
+            item,
+            psi_syntax_trees::item::Item::Machine(machine)
+                if machine.name.as_str() == "Optimizations::emit_report"
+        )));
     }
 }

@@ -53,9 +53,7 @@ use psi_build_time_evaluation::{
     BuildMachineFilesystemSponsor, BuildTimeValue, PreparedBuildMachineEntry,
     PreparedBuildMachineProgram,
 };
-use psi_checked_interpreter::{
-    FilesystemMetadataField, FilesystemMetadataFieldLayout, FilesystemSponsorEntry,
-};
+use psi_checked_interpreter::FilesystemSponsorEntry;
 use psi_diagnostics::Diagnostic;
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
@@ -1297,10 +1295,7 @@ pub enum AdmittedBuildProgramDisposition {
 pub enum AdmittedBuildAuthorityVerdict {
     NoBuildMachine,
     Pure,
-    Granted {
-        filesystem_service_reachable: bool,
-        filesystem_facet_reachable: bool,
-    },
+    Granted,
 }
 
 /// Exact target vocabulary admitted for one selected build activation.
@@ -1337,8 +1332,6 @@ struct SelectedAdmittedBuildMachine {
     normalized_callable_identity: String,
     optimization_admission: optimization::BuildOptimizationAdmission,
     target_vocabulary: Option<TargetBuildVocabulary>,
-    filesystem_service_reachable: bool,
-    filesystem_facet_reachable: bool,
     filesystem_reachable: bool,
     execution_mode: BuildMachineExecutionMode,
     initial_build: BuildTimeValue,
@@ -1395,12 +1388,7 @@ impl AdmittedBuildProgram {
             AdmittedBuildMachine::None => AdmittedBuildAuthorityVerdict::NoBuildMachine,
             AdmittedBuildMachine::Selected(selected) => match &selected.execution_mode {
                 BuildMachineExecutionMode::Pure => AdmittedBuildAuthorityVerdict::Pure,
-                BuildMachineExecutionMode::Granted { .. } => {
-                    AdmittedBuildAuthorityVerdict::Granted {
-                        filesystem_service_reachable: selected.filesystem_service_reachable,
-                        filesystem_facet_reachable: selected.filesystem_facet_reachable,
-                    }
-                }
+                BuildMachineExecutionMode::Granted { .. } => AdmittedBuildAuthorityVerdict::Granted,
             },
         }
     }
@@ -2267,27 +2255,6 @@ pub fn is_build_machine(
         .is_some_and(|span| span.source_id == build_source_id)
 }
 
-fn is_exact_toolchain_build_service(
-    typed: &TypedTrees,
-    service: psi_language_semantics::ServiceReachId,
-    expected_name: &str,
-    expected_source: &str,
-) -> bool {
-    let Some(definition) = typed.service_reaches.definition(service) else {
-        return false;
-    };
-    definition.name == expected_name
-        && typed
-            .symbols
-            .symbol_source_span(definition.symbol)
-            .and_then(|span| typed.symbols.source_file(span))
-            .is_some_and(|file| {
-                file.origin == psi_source::SourceOrigin::Toolchain
-                    && file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new(expected_source))
-            })
-}
-
 fn has_exact_toolchain_build_facet(typed: &TypedTrees, name: &str) -> bool {
     typed.data_definitions().iter().any(|definition| {
         definition.name.as_str() == name
@@ -2716,149 +2683,6 @@ fn validate_immutable_build_target(
     } else {
         Err(diagnostics)
     }
-}
-
-fn canonical_metadata_field(name: &str) -> Option<FilesystemMetadataField> {
-    match name {
-        "dev" => Some(FilesystemMetadataField::Device),
-        "mode" => Some(FilesystemMetadataField::Mode),
-        "nlink" => Some(FilesystemMetadataField::LinkCount),
-        "ino" => Some(FilesystemMetadataField::Inode),
-        "uid" => Some(FilesystemMetadataField::User),
-        "gid" => Some(FilesystemMetadataField::Group),
-        "rdev" => Some(FilesystemMetadataField::ReferencedDevice),
-        "atime" => Some(FilesystemMetadataField::AccessTime),
-        "mtime" => Some(FilesystemMetadataField::ModificationTime),
-        "ctime" => Some(FilesystemMetadataField::ChangeTime),
-        "btime" => Some(FilesystemMetadataField::BirthTime),
-        "size" => Some(FilesystemMetadataField::Size),
-        "blocks" => Some(FilesystemMetadataField::Blocks512),
-        "blksize" => Some(FilesystemMetadataField::PreferredBlockSize),
-        _ => None,
-    }
-}
-
-fn exact_toolchain_filesystem_declaration(
-    typed: &TypedTrees,
-    symbol: SymbolHandle,
-    expected_name: &str,
-) -> bool {
-    typed
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)
-        .is_some_and(|definition| {
-            definition.name.as_str() == expected_name
-                && typed
-                    .symbols
-                    .symbol_source_span(symbol)
-                    .and_then(|span| typed.symbols.source_file(span))
-                    .is_some_and(|file| {
-                        file.origin == psi_source::SourceOrigin::Toolchain
-                            && file.path.strip_prefix(&file.package_root).ok()
-                                == Some(Path::new("filesystem.omg"))
-                    })
-        })
-}
-
-/// Extract the selected target's already-evaluated `StatLayout<StatRecord>`
-/// geometry. Target-scoped machine filtering and programmable-layout checking
-/// have both completed before this point; the evaluator receives only this
-/// closed physical descriptor, never target names or Omega IR.
-fn selected_filesystem_metadata_layout(
-    typed: &TypedTrees,
-) -> Result<BuildMachineFilesystemMetadataLayout, Vec<Diagnostic>> {
-    let matching = typed
-        .plan_laid_layouts
-        .iter()
-        .filter(|layout| {
-            exact_toolchain_filesystem_declaration(typed, layout.schema_symbol, "StatRecord")
-                && exact_toolchain_filesystem_declaration(typed, layout.policy_symbol, "StatLayout")
-        })
-        .collect::<Vec<_>>();
-    let [layout] = matching.as_slice() else {
-        let available = typed
-            .plan_laid_layouts
-            .iter()
-            .map(|layout| layout.data_name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        return Err(vec![Diagnostic::error(format!(
-            "selected target produced {} exact checked StatLayout<StatRecord> rows; expected one (available checked layouts: {available})",
-            matching.len(),
-        ))]);
-    };
-    let Some(record_size) = layout.validated_layout.size else {
-        return Err(vec![Diagnostic::error(
-            "selected target metadata layout is not fixed-size",
-        )]);
-    };
-    let record_size = usize::try_from(record_size).map_err(|_| {
-        vec![Diagnostic::error(
-            "selected target metadata record size cannot be represented on this compiler host",
-        )]
-    })?;
-    if record_size != layout.size {
-        return Err(vec![Diagnostic::error(
-            "selected target metadata layout size disagrees with its checked plan-laid carrier",
-        )]);
-    }
-
-    let mut fields = Vec::with_capacity(FilesystemMetadataField::ALL.len());
-    for entry in &layout.validated_layout.entries {
-        let Some(field) = canonical_metadata_field(entry.field.as_str()) else {
-            return Err(vec![Diagnostic::error(format!(
-                "selected target metadata layout contains unknown field `{}`",
-                entry.field
-            ))]);
-        };
-        let (offset, stored_width_bits) = match entry.placement {
-            psi_layout_plans::LayoutPlacementReport::At { offset } => {
-                (offset, u64::from(field.semantic_width_bits()))
-            }
-            psi_layout_plans::LayoutPlacementReport::IntegerAt {
-                offset,
-                stored_width,
-                interpretation,
-            } => {
-                let expected = if field.is_signed() {
-                    psi_layout_plans::IntegerInterpretation::Signed
-                } else {
-                    psi_layout_plans::IntegerInterpretation::Unsigned
-                };
-                if interpretation != expected {
-                    return Err(vec![Diagnostic::error(format!(
-                        "selected target metadata field `{}` has the wrong stored-integer interpretation",
-                        entry.field
-                    ))]);
-                }
-                (offset, stored_width)
-            }
-            psi_layout_plans::LayoutPlacementReport::Bits { .. } => {
-                return Err(vec![Diagnostic::error(format!(
-                    "selected target metadata field `{}` uses unsupported fragmented placement",
-                    entry.field
-                ))]);
-            }
-        };
-        fields.push(FilesystemMetadataFieldLayout::new(
-            field,
-            usize::try_from(offset).map_err(|_| {
-                vec![Diagnostic::error(format!(
-                    "selected target metadata field `{}` offset cannot be represented on this compiler host",
-                    entry.field
-                ))]
-            })?,
-            u16::try_from(stored_width_bits).map_err(|_| {
-                vec![Diagnostic::error(format!(
-                    "selected target metadata field `{}` width exceeds the checked interpreter vocabulary",
-                    entry.field
-                ))]
-            })?,
-        ));
-    }
-    BuildMachineFilesystemMetadataLayout::new(record_size, fields)
-        .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
 fn is_source_input_replay_record(
@@ -3705,9 +3529,9 @@ pub fn admit_build_program(
         validate_immutable_build_target(typed, target_vocabulary)?;
     }
 
-    // The build gate admits only the pinned standard staging service from
-    // build_and_package_model.md. BuildLog is a compiler-owned facet, not the
-    // runtime Console boundary. Custom boundary wrappers remain distinct.
+    // Build authority comes only from compiler-owned Build facets. Runtime
+    // boundary services remain ordinary program authority and are never
+    // admitted merely because a build machine reaches them.
     let transitive = service_reach_plan
         .for_machine(machine.symbol)
         .map(|entry| service_reach_plan.services(entry.inferred_transitive))
@@ -3729,75 +3553,16 @@ pub fn admit_build_program(
             transitive_names.join(", "),
         );
     }
-    const ALLOWED_BUILD_SERVICES: &[(&str, &str)] = &[("FilesystemHost", "filesystem_host.omg")];
-    let disallowed: Vec<&str> = transitive
-        .iter()
-        .filter(|service| {
-            let Some(definition) = typed.service_reaches.definition(**service) else {
-                return true;
-            };
-            !ALLOWED_BUILD_SERVICES.iter().any(|(name, source)| {
-                definition.name == *name
-                    && is_exact_toolchain_build_service(typed, **service, name, source)
-            })
-        })
-        .map(|service| {
-            typed
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.as_str())
-                .unwrap_or("<unknown canonical service>")
-        })
-        .collect();
-    if !disallowed.is_empty() {
+    if !transitive_names.is_empty() {
         return Err(vec![Diagnostic::error(format!(
-            "`{machine_name}` reaches boundary service{} `{}` -- build.omg may reach only \
-             the pinned staging service{} `{}`",
-            if disallowed.len() == 1 { "" } else { "s" },
-            disallowed.join(", "),
-            if ALLOWED_BUILD_SERVICES.len() == 1 {
-                ""
-            } else {
-                "s"
-            },
-            ALLOWED_BUILD_SERVICES
-                .iter()
-                .map(|(name, _)| *name)
-                .collect::<Vec<_>>()
-                .join("`, `"),
+            "`{machine_name}` reaches boundary service{} `{}` -- build.omg may not reach \
+             runtime boundary services; use the compiler-owned Build facets",
+            if transitive_names.len() == 1 { "" } else { "s" },
+            transitive_names.join(", "),
         ))]);
     }
-    // Allowed services must still be authored on the build machine's stable
-    // public ceiling; inferred reach cannot silently expand staging authority.
-    let declared = typed.service_reach_rows.services(machine.service_reach_row);
-    let undeclared: Vec<&str> = transitive
-        .iter()
-        .filter(|service| !declared.contains(service))
-        .map(|service| {
-            typed
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.as_str())
-                .unwrap_or("<unknown canonical service>")
-        })
-        .collect();
-    if !undeclared.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "`{machine_name}` reaches boundary service{} `{}` without declaring {} in its \
-             service ceiling; add `reaches {}` to the build machine's signature",
-            if undeclared.len() == 1 { "" } else { "s" },
-            undeclared.join(", "),
-            if undeclared.len() == 1 { "it" } else { "them" },
-            undeclared.join(", "),
-        ))]);
-    }
-
-    let filesystem_service_reachable = transitive.iter().any(|service| {
-        is_exact_toolchain_build_service(typed, *service, "FilesystemHost", "filesystem_host.omg")
-    });
-    let filesystem_facet_reachable =
+    let filesystem_reachable =
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
-    let filesystem_reachable = filesystem_service_reachable || filesystem_facet_reachable;
 
     let mut build_fields = Vec::new();
     if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
@@ -3861,15 +3626,6 @@ pub fn admit_build_program(
             ),
         ]);
     }
-    if filesystem_service_reachable {
-        build_fields.push((
-            "filesystem".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "FilesystemHost".to_owned(),
-                fields: Vec::new(),
-            },
-        ));
-    }
     let zero_build = BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
         fields: build_fields,
@@ -3878,14 +3634,9 @@ pub fn admit_build_program(
     // Omega owns the grant decision. Psi owns the target-neutral interpreter
     // entry selected by that explicit mode. BuildLog remains available in
     // either mode without granting a runtime boundary service.
-    let execution_mode = if transitive.is_empty() && !filesystem_facet_reachable {
+    let execution_mode = if !filesystem_reachable {
         BuildMachineExecutionMode::Pure
     } else {
-        let filesystem_metadata_layout = if filesystem_service_reachable {
-            selected_filesystem_metadata_layout(typed)?
-        } else {
-            BuildMachineFilesystemMetadataLayout::default()
-        };
         let filesystem = if filesystem_reachable {
             filesystem_scope.ensure_write_roots()?;
             filesystem_scope.ensure_canonical_source_metadata()?;
@@ -3895,7 +3646,7 @@ pub fn admit_build_program(
         };
         BuildMachineExecutionMode::Granted {
             filesystem,
-            filesystem_metadata_layout,
+            filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
         }
     };
     Ok(AdmittedBuildProgram {
@@ -3907,8 +3658,6 @@ pub fn admit_build_program(
             normalized_callable_identity,
             optimization_admission,
             target_vocabulary,
-            filesystem_service_reachable,
-            filesystem_facet_reachable,
             filesystem_reachable,
             execution_mode,
             initial_build: zero_build,
@@ -3953,8 +3702,6 @@ pub fn execute_admitted_build_program(
         normalized_callable_identity: _,
         optimization_admission,
         target_vocabulary,
-        filesystem_service_reachable,
-        filesystem_facet_reachable: _,
         filesystem_reachable,
         execution_mode,
         initial_build,
@@ -4229,11 +3976,7 @@ pub fn execute_admitted_build_program(
     let replay_usage = if let Some(replay) = replay {
         let replay_mode = BuildMachineExecutionMode::Granted {
             filesystem: BuildMachineFilesystemAccess::ReplayFilesystem(replay),
-            filesystem_metadata_layout: if filesystem_service_reachable {
-                selected_filesystem_metadata_layout(typed)?
-            } else {
-                BuildMachineFilesystemMetadataLayout::default()
-            },
+            filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
         };
         let replayed = match evaluation_sponsor {
             Some(sponsor) => {

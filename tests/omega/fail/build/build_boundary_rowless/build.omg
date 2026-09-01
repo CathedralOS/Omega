@@ -1,7 +1,6 @@
-// FAIL CANARY -- build.omg calls a custom boundary trait that is not one of
-// the pinned FilesystemHost/Console staging services. Canonical service
-// identity prevents a wrapper from laundering itself through a lowercase
-// compatibility category.
+// FAIL CANARY -- build.omg calls a custom runtime boundary trait. Build-time
+// authority comes only from compiler-owned Build facets; no runtime boundary
+// service is a staging service.
 boundary trait BuildLog { machine write_line(text: &[u8]); }
 
 data Logger {

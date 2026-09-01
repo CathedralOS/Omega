@@ -240,13 +240,11 @@ machine build(builder: &mut Build) {
 }
 ```
 
-The example uses the settled narrow surface; exact buffer-oriented spellings may
-vary as the implementation migrates. The legacy implementation currently joins
-`BuildSource::resolve` and `BuildOutput::resolve` to std's `Path` domain, routes
-I/O through `Build.filesystem: FilesystemHost`, and publishes through
-`BuildOutput::include_source`. That std seam is implementation debt: the final
-Build protocol owns its relative-path carrier, rooted read/write operations,
-generated-source publication, and log observations. The handoff remains usable
+The example sketches the settled narrow surface; the implemented buffer-oriented
+form uses compiler-owned `BuildPath`, `BuildSource`, and `BuildOutput` values.
+Runtime std's `Path` domain and `FilesystemHost` service are not part of build
+authority. Generated source is published through `BuildOutput::include_source`.
+The handoff remains usable
 only after matching sponsored staged-tree custody. In package-aware
 checked compilation, Omega executes the frozen build prepass once, appends the
 exact retained UTF-8 bytes under a compiler-owned `.omega/generated/...`

@@ -64,10 +64,7 @@ fn package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
 }
 
-fn exact_optimization_vocabulary_build(
-    optimization: Optimization,
-    filesystem_prelude: bool,
-) -> String {
+fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
     let mut enable_call = String::new();
     writeln!(
         enable_call,
@@ -75,18 +72,8 @@ fn exact_optimization_vocabulary_build(
         optimization.build_case_name()
     )
     .expect("writing an optimization enable call to a String cannot fail");
-    let import = if filesystem_prelude {
-        "use omega::language::std::filesystem_host;\n\n"
-    } else {
-        ""
-    };
-    let service_reach = if filesystem_prelude {
-        "reaches FilesystemHost\n"
-    } else {
-        ""
-    };
     format!(
-        "{import}machine build(builder: &mut Build)\n{service_reach}{{\n    builder.application(\"optimizer-exact-vocabulary\");\n{enable_call}    builder.optimizations.emit_report();\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"optimizer-exact-vocabulary\");\n{enable_call}    builder.optimizations.emit_report();\n}}\n"
     )
 }
 
@@ -159,40 +146,35 @@ fn duplicate_human_report_requests_reject_during_build_evaluation() {
 }
 
 #[test]
-fn every_exact_enable_and_rollback_maps_to_itself_through_both_build_preludes() {
+fn every_exact_enable_and_rollback_maps_to_itself_through_the_build_prelude() {
     for optimization in Optimization::ALL {
-        for (prelude_label, filesystem_prelude) in [("ordinary", false), ("filesystem", true)] {
-            let build = exact_optimization_vocabulary_build(optimization, filesystem_prelude);
-            let label = format!(
-                "selected-{prelude_label}-{}",
-                optimization.build_counter_field()
-            );
-            let root = project(&label, Some(&build));
-            let checked = compile_to_checked(&root.join("main.omg"), None)
-                .expect("the exact named selection should evaluate");
-            assert_eq!(
-                checked.optimization_selections().as_slice(),
-                &[optimization]
-            );
-            assert_eq!(
-                checked.optimization_report_request(),
-                OptimizationReportRequest::EmitHumanText
-            );
-            assert_eq!(
-                checked.optimization_selection_identity(),
-                checked.optimization_selections().identity()
-            );
+        let build = exact_optimization_vocabulary_build(optimization);
+        let label = format!("selected-{}", optimization.build_counter_field());
+        let root = project(&label, Some(&build));
+        let checked = compile_to_checked(&root.join("main.omg"), None)
+            .expect("the exact named selection should evaluate");
+        assert_eq!(
+            checked.optimization_selections().as_slice(),
+            &[optimization]
+        );
+        assert_eq!(
+            checked.optimization_report_request(),
+            OptimizationReportRequest::EmitHumanText
+        );
+        assert_eq!(
+            checked.optimization_selection_identity(),
+            checked.optimization_selections().identity()
+        );
 
-            let rollback = OptimizationRollback::from_exact_names([optimization.build_case_name()])
-                .expect("the exact build name is also the exact rollback name");
-            let receipt = rollback
-                .reconcile(checked.optimization_selections())
-                .expect("one exact rollback request leaves custody");
-            assert_eq!(receipt.build_selected().as_slice(), &[optimization]);
-            assert_eq!(receipt.requested_disabled().as_slice(), &[optimization]);
-            assert_eq!(receipt.actually_disabled().as_slice(), &[optimization]);
-            assert!(receipt.effective().is_empty());
-        }
+        let rollback = OptimizationRollback::from_exact_names([optimization.build_case_name()])
+            .expect("the exact build name is also the exact rollback name");
+        let receipt = rollback
+            .reconcile(checked.optimization_selections())
+            .expect("one exact rollback request leaves custody");
+        assert_eq!(receipt.build_selected().as_slice(), &[optimization]);
+        assert_eq!(receipt.requested_disabled().as_slice(), &[optimization]);
+        assert_eq!(receipt.actually_disabled().as_slice(), &[optimization]);
+        assert!(receipt.effective().is_empty());
     }
 }
 

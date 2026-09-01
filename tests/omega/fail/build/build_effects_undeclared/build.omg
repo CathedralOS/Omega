@@ -1,17 +1,16 @@
-// FAIL CANARY -- build.omg reaching FilesystemHost WITHOUT declaring that
-// canonical service in its public ceiling. The staging service is allowed,
-// but inferred reach may not silently widen the build contract.
-use omega::language::std::filesystem_host;
+// FAIL CANARY -- a build helper reaches an ordinary runtime boundary. The
+// transitive reach remains visible at the root and cannot become build
+// authority merely by hiding behind a helper.
+use omega::language::std::console;
 
-machine write_build_asset(builder: &mut Build)
-reaches FilesystemHost
+machine write_build_log(builder: &mut Build)
+reaches Console
 {
-    let output: &[u8] in Path = builder.output.resolve("asset.bin");
-    let descriptor: i32 = builder.filesystem.create(output, 438);
-    _ = builder.filesystem.close(descriptor);
+    let mut console: Console;
+    console.write_line("ordinary runtime boundary");
 }
 
 machine build(builder: &mut Build) {
     builder.application("build-effects-undeclared");
-    write_build_asset(builder);
+    write_build_log(builder);
 }
