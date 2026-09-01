@@ -799,7 +799,27 @@ fn plan_reborrow_restored_call_uses(
         let [(call_handle, call)] = calls.as_slice() else {
             continue;
         };
-        if call.has_receiver {
+        let Some(target_state) = crate::semantic_calls::find_state(program, call.target_symbol)
+        else {
+            continue;
+        };
+        let Some(target_machine) = program.machines().iter().find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == target_state.symbol)
+        }) else {
+            continue;
+        };
+        // A nominal type qualifier is source lookup, not a runtime receiver.
+        // Keep true instance-receiver calls outside this certificate.
+        if call.has_receiver
+            && (target_machine.attached_data_symbol != call.receiver_symbol
+                || program
+                    .state_parameters(target_state)
+                    .iter()
+                    .any(|parameter| parameter.is_self))
+        {
             continue;
         }
 
@@ -836,10 +856,6 @@ fn plan_reborrow_restored_call_uses(
             continue;
         };
 
-        let Some(target_state) = crate::semantic_calls::find_state(program, call.target_symbol)
-        else {
-            continue;
-        };
         let parameters = program
             .state_parameters(target_state)
             .iter()

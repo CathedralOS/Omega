@@ -217,7 +217,7 @@ pub(super) fn validate_structural_frontier(
                 // the machine's by-value ownership frontier.
                 (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     && !(parameter.is_self && parameter.access != StructuralAccess::Owned))
-                .then_some((parameter.place, parameter.multiplicity))
+                    .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),
         partial_custody_paths: BTreeMap::new(),

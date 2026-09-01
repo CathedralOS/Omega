@@ -16,8 +16,8 @@ use psi_terminal::{
     ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
     StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
     TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
-    TerminalPlacedViewInput, TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
-    TerminalRootServiceReach, VocabularyMarker,
+    TerminalPlacedViewInput, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
+    TerminalReborrowRootHandoffStep, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -261,6 +261,68 @@ fn decode_reborrow_root_handoff(
     })
 }
 
+fn encode_reborrow_restored_call_use(
+    writer: &mut Writer,
+    use_row: &TerminalReborrowRestoredCallUse,
+) -> Result<(), CodecError> {
+    writer.id(use_row.machine);
+    writer.id(use_row.operation);
+    writer.string(
+        "restored-use machine identity",
+        &use_row.source_machine_identity,
+    )?;
+    writer.string(
+        "restored-use state identity",
+        &use_row.source_state_identity,
+    )?;
+    writer.string(
+        "restored-use direct owner",
+        &use_row.direct_root_owner_identity,
+    )?;
+    encode_owner_path(writer, &use_row.direct_root_owner_path)?;
+    encode_place(writer, &use_row.direct_root_place)?;
+    encode_borrow_boundary(writer, &use_row.direct_root_activation)?;
+    encode_borrow_boundary(writer, &use_row.direct_root_weakening)?;
+    writer.string(
+        "restored-use direct-root lifetime",
+        &use_row.direct_root_lifetime_identity,
+    )?;
+    writer.string("restored-use child owner", &use_row.child_owner_identity)?;
+    encode_owner_path(writer, &use_row.child_owner_path)?;
+    encode_place(writer, &use_row.child_place)?;
+    encode_place_segments(writer, &use_row.projection_remainder)?;
+    encode_borrow_access(writer, use_row.child_access);
+    encode_borrow_boundary(writer, &use_row.child_activation)?;
+    encode_borrow_boundary(writer, &use_row.formation_boundary)?;
+    encode_borrow_boundary(writer, &use_row.child_weakening)?;
+    Ok(())
+}
+
+fn decode_reborrow_restored_call_use(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalReborrowRestoredCallUse, CodecError> {
+    Ok(TerminalReborrowRestoredCallUse {
+        machine: reader.id("MachineId")?,
+        operation: reader.id("OperationId")?,
+        source_machine_identity: reader.string("restored-use machine identity")?,
+        source_state_identity: reader.string("restored-use state identity")?,
+        direct_root_owner_identity: reader.string("restored-use direct owner")?,
+        direct_root_owner_path: decode_owner_path(reader)?,
+        direct_root_place: decode_place(reader)?,
+        direct_root_activation: decode_borrow_boundary(reader)?,
+        direct_root_weakening: decode_borrow_boundary(reader)?,
+        direct_root_lifetime_identity: reader.string("restored-use direct-root lifetime")?,
+        child_owner_identity: reader.string("restored-use child owner")?,
+        child_owner_path: decode_owner_path(reader)?,
+        child_place: decode_place(reader)?,
+        projection_remainder: decode_place_segments(reader)?,
+        child_access: decode_borrow_access(reader)?,
+        child_activation: decode_borrow_boundary(reader)?,
+        formation_boundary: decode_borrow_boundary(reader)?,
+        child_weakening: decode_borrow_boundary(reader)?,
+    })
+}
+
 pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
@@ -358,6 +420,13 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
     )?;
     for handoff in &module.reborrow_root_handoffs {
         encode_reborrow_root_handoff(&mut writer, handoff)?;
+    }
+    writer.len(
+        "reborrow restored call uses",
+        module.reborrow_restored_call_uses.len(),
+    )?;
+    for use_row in &module.reborrow_restored_call_uses {
+        encode_reborrow_restored_call_use(&mut writer, use_row)?;
     }
     writer.len("boundary machines", module.boundary_machines.len())?;
     for declaration in &module.boundary_machines {
@@ -665,6 +734,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         })
     })?;
     let reborrow_root_handoffs = decode_counted(reader, decode_reborrow_root_handoff)?;
+    let reborrow_restored_call_uses = decode_counted(reader, decode_reborrow_restored_call_use)?;
     let boundary_machines = decode_counted(reader, decode_boundary_machine)?;
     let provider_candidates = decode_counted(reader, decode_provider_candidate)?;
     let float_meaning_projections = decode_counted(reader, |reader| {
@@ -886,6 +956,7 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         },
         placed_view_inputs,
         reborrow_root_handoffs,
+        reborrow_restored_call_uses,
         boundary_machines,
         provider_candidates,
         float_meaning_projections,

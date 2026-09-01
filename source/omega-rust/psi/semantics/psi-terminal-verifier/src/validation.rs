@@ -357,9 +357,124 @@ fn validate_reborrow_root_handoffs(
     Ok(())
 }
 
+fn validate_reborrow_restored_call_uses(
+    module: &TerminalModule,
+    machines: &BTreeMap<psi_core::MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let rows = &module.reborrow_restored_call_uses;
+    let mut coordinates = BTreeSet::new();
+    for row in rows {
+        if !coordinates.insert((row.machine, row.operation)) {
+            return Err(ModuleError::DuplicateReborrowRestoredCallUse);
+        }
+        let machine = machines.get(&row.machine).copied();
+        let operations = machine
+            .into_iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|operation| operation.id == row.operation)
+            .collect::<Vec<_>>();
+        let exact_mutating_call = if let [operation] = operations.as_slice()
+            && operation.result == OperationResult::Unit
+            && let OperationKind::CallUnit {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &operation.kind
+            && let [argument] = structural_arguments.as_slice()
+            && argument.access == StructuralAccess::MutableBorrow
+            && argument.path.is_empty()
+            && claim_transfers.is_empty()
+            && let Some(callee) = machines.get(callee)
+            && callee.parameters.is_empty()
+            && callee.result == TerminalMachineResult::Unit
+            && let [parameter] = callee.structural_parameters.as_slice()
+            && parameter.position == 0
+            && !parameter.is_self
+            && parameter.access == StructuralAccess::MutableBorrow
+            && let Some(caller) = machine
+            && caller.structural_parameters.iter().any(|parameter| {
+                parameter.place == argument.place
+                    && parameter.access == StructuralAccess::MutableBorrow
+            }) {
+            true
+        } else {
+            false
+        };
+        let child_segments = &row.child_place.segments;
+        let root_segments = &row.direct_root_place.segments;
+        let exact_one_hop_lifecycle = matches!(
+            (
+                &row.direct_root_activation,
+                &row.child_activation,
+                &row.child_weakening,
+                &row.direct_root_weakening,
+            ),
+            (
+                psi_terminal::TerminalBorrowBoundarySource::Statement {
+                    statement_index: parent_start,
+                },
+                psi_terminal::TerminalBorrowBoundarySource::Statement {
+                    statement_index: child_start,
+                },
+                psi_terminal::TerminalBorrowBoundarySource::Statement {
+                    statement_index: child_end,
+                },
+                psi_terminal::TerminalBorrowBoundarySource::Statement {
+                    statement_index: parent_end,
+                },
+            ) if parent_start < child_start && child_start <= child_end && child_end < parent_end
+        );
+        let invalid = !exact_mutating_call
+            || !is_canonical_borrow_identity(&row.source_machine_identity)
+            || !is_canonical_borrow_identity(&row.source_state_identity)
+            || !is_canonical_borrow_identity(&row.direct_root_owner_identity)
+            || !is_canonical_borrow_identity(&row.direct_root_place.root_identity)
+            || !valid_owner_path(&row.direct_root_owner_path)
+            || !row.direct_root_owner_path.is_empty()
+            || !root_segments.iter().all(valid_place_segment)
+            || !valid_borrow_boundary(&row.direct_root_activation)
+            || !valid_borrow_boundary(&row.direct_root_weakening)
+            || !exact_one_hop_lifecycle
+            || !is_canonical_borrow_identity(&row.direct_root_lifetime_identity)
+            || row.direct_root_lifetime_identity != row.direct_root_place.root_identity
+            || !is_canonical_borrow_identity(&row.child_owner_identity)
+            || !is_canonical_borrow_identity(&row.child_place.root_identity)
+            || !valid_owner_path(&row.child_owner_path)
+            || !child_segments.iter().all(valid_place_segment)
+            || !row.projection_remainder.iter().all(valid_place_segment)
+            || !matches!(
+                row.child_access,
+                psi_terminal::StructuralAccess::MutableBorrow
+                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
+            )
+            || row.child_place.root_identity != row.direct_root_place.root_identity
+            || !child_segments.starts_with(root_segments)
+            || child_segments[root_segments.len()..] != row.projection_remainder
+            || row.formation_boundary != row.child_activation
+            || !valid_borrow_boundary(&row.child_activation)
+            || !valid_borrow_boundary(&row.formation_boundary)
+            || !valid_borrow_boundary(&row.child_weakening);
+        if invalid {
+            return Err(ModuleError::InvalidReborrowRestoredCallUse {
+                machine: row.machine,
+                operation: row.operation,
+            });
+        }
+    }
+    if !rows.windows(2).all(|pair| pair[0] < pair[1]) {
+        return Err(ModuleError::NonCanonicalReborrowRestoredCallUseOrder);
+    }
+    Ok(())
+}
+
 fn is_canonical_borrow_identity(identity: &str) -> bool {
     if let Some(digest) = identity.strip_prefix("terminal-borrow:") {
-        return digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit());
+        return digest.len() == 64
+            && digest
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
     }
     is_canonical_hermetic_identity(identity)
 }
@@ -449,6 +564,7 @@ fn validate_module_with_policy(
         .collect::<BTreeMap<_, _>>();
     validate_placed_view_inputs(module, &machines)?;
     validate_reborrow_root_handoffs(module, &machines)?;
+    validate_reborrow_restored_call_uses(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;

@@ -11,16 +11,18 @@ use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
-fn verified_source_store_retains_exact_write_only_parameter_and_preceding_value() {
+fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     let source = r#"
         data Sink {}
-        machine Sink::fill(destination: &write i32) {
+        machine Sink::fill(destination: &mut i32) {
             destination = 2;
         }
 
-        data Root {}
-        machine Root::enter(destination: &mut i32) {
-            Sink::fill(&write destination);
+        data Harness {}
+        machine Harness::exercise(root: &mut i32) {
+            let parent: &mut i32 = &mut root;
+            let child: &write i32 = &write parent;
+            Sink::fill(parent);
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
@@ -28,8 +30,8 @@ fn verified_source_store_retains_exact_write_only_parameter_and_preceding_value(
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed).expect("check source");
-    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::enter")
-        .expect("write-only source lowers to verified Terminal Psi");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Harness::exercise")
+        .expect("mutable source store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
     let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
@@ -43,7 +45,7 @@ fn verified_source_store_retains_exact_write_only_parameter_and_preceding_value(
                 matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
             })
         })
-        .expect("one function retains the write-only store");
+        .expect("one function retains the non-observing store");
     let store_index = store_function
         .operations
         .iter()
@@ -60,7 +62,7 @@ fn verified_source_store_retains_exact_write_only_parameter_and_preceding_value(
     assert_eq!(destination, &store_function.structural_parameters[0]);
     assert_eq!(destination.position, 0);
     assert!(!destination.is_self);
-    assert_eq!(destination.access, StructuralAccess::WriteOnlyBorrow);
+    assert_eq!(destination.access, StructuralAccess::MutableBorrow);
     assert_eq!(
         destination.multiplicity,
         StructuralMultiplicity::Unrestricted

@@ -1,0 +1,215 @@
+use psi_core::{
+    BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, StructuralPlaceKind,
+    StructuralTypeId,
+};
+use psi_terminal::{
+    Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalBorrowBoundarySource, TerminalBorrowPlace, TerminalMachine, TerminalMachineResult,
+    TerminalModule, TerminalReborrowRestoredCallUse, Terminator, VocabularyMarker,
+};
+use psi_terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
+use psi_terminal_verifier::ModuleError;
+
+fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
+    constructor(raw).expect("nonzero fixture identity")
+}
+
+fn borrow_identity(digit: char) -> String {
+    format!("terminal-borrow:{}", digit.to_string().repeat(64))
+}
+
+fn statement(statement_index: u64) -> TerminalBorrowBoundarySource {
+    TerminalBorrowBoundarySource::Statement { statement_index }
+}
+
+fn restored_call_use_module() -> TerminalModule {
+    let caller = id(1, MachineId::new);
+    let callee = id(2, MachineId::new);
+    let structural_type = id(1, StructuralTypeId::new);
+    let caller_place = id(1, PlaceId::new);
+    let callee_place = id(2, PlaceId::new);
+    let operation = id(1, OperationId::new);
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+    };
+    let contract = |raw| MachineContract {
+        id: id(raw, ContractId::new),
+        crash_routes: Vec::new(),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
+    };
+    let root_identity = borrow_identity('d');
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: caller,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "RestoredCell".to_owned(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: vec![TerminalReborrowRestoredCallUse {
+            machine: caller,
+            operation,
+            source_machine_identity: borrow_identity('a'),
+            source_state_identity: borrow_identity('b'),
+            direct_root_owner_identity: borrow_identity('c'),
+            direct_root_owner_path: Vec::new(),
+            direct_root_place: TerminalBorrowPlace {
+                root_identity: root_identity.clone(),
+                segments: Vec::new(),
+            },
+            direct_root_activation: statement(0),
+            direct_root_weakening: statement(4),
+            direct_root_lifetime_identity: root_identity.clone(),
+            child_owner_identity: borrow_identity('e'),
+            child_owner_path: Vec::new(),
+            child_place: TerminalBorrowPlace {
+                root_identity,
+                segments: Vec::new(),
+            },
+            projection_remainder: Vec::new(),
+            child_access: StructuralAccess::WriteOnlyBorrow,
+            child_activation: statement(1),
+            formation_boundary: statement(1),
+            child_weakening: statement(2),
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: caller,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place, 0)],
+                ranked_scc: None,
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: caller_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: id(1, BlockId::new),
+                blocks: vec![Block {
+                    id: id(1, BlockId::new),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: operation,
+                        result: OperationResult::Unit,
+                        kind: OperationKind::CallUnit {
+                            callee,
+                            structural_arguments: vec![StructuralArgument {
+                                place: caller_place,
+                                path: Vec::new(),
+                                access: StructuralAccess::MutableBorrow,
+                            }],
+                            claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnUnit {
+                        edge: id(1, EdgeId::new),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: contract(1),
+            },
+            TerminalMachine {
+                id: callee,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place, 0)],
+                ranked_scc: None,
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: callee_place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: 0,
+                        is_self: false,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: id(2, BlockId::new),
+                blocks: vec![Block {
+                    id: id(2, BlockId::new),
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: id(2, EdgeId::new),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: contract(2),
+            },
+        ],
+    }
+}
+
+#[test]
+fn restored_call_use_round_trips_and_commits_every_variable_axis() {
+    let module = restored_call_use_module();
+    let encoded = encode_module(&module).expect("restored use should encode");
+    assert_eq!(decode_module(&encoded), Ok(module.clone()));
+
+    let original = semantic_fingerprint(&module).expect("restored use should fingerprint");
+    let mut different_state = module.clone();
+    different_state.reborrow_restored_call_uses[0].source_state_identity = borrow_identity('f');
+    assert_ne!(
+        semantic_fingerprint(&different_state).expect("different state remains valid"),
+        original
+    );
+    let mut different_child_access = module;
+    different_child_access.reborrow_restored_call_uses[0].child_access =
+        StructuralAccess::MutableBorrow;
+    assert_ne!(
+        semantic_fingerprint(&different_child_access)
+            .expect("different child access remains valid"),
+        original
+    );
+}
+
+#[test]
+fn restored_call_use_encoding_fails_closed_on_substitution() {
+    let mut module = restored_call_use_module();
+    module.reborrow_restored_call_uses[0].direct_root_lifetime_identity = borrow_identity('f');
+    assert!(matches!(
+        encode_module(&module),
+        Err(CodecError::InvalidModule(
+            ModuleError::InvalidReborrowRestoredCallUse { .. }
+        ))
+    ));
+}

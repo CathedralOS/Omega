@@ -343,6 +343,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             root_service_reach,
             placed_view_inputs: Vec::new(),
             reborrow_root_handoffs: Vec::new(),
+            reborrow_restored_call_uses: Vec::new(),
             boundary_machines: vec![boundary_declaration],
             provider_candidates: Vec::new(),
             float_meaning_projections: Vec::new(),

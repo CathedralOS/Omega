@@ -172,8 +172,10 @@ pub(super) fn validate_unit_operation_static(
                 place.kind,
                 StructuralPlaceKind::Parameter { position, is_self }
                     if position == parameter.position && is_self == parameter.is_self
-            ) || parameter.access != StructuralAccess::WriteOnlyBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            ) || !matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || machine
                     .entry_claims

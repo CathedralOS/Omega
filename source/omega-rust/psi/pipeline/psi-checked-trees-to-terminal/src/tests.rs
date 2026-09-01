@@ -107,6 +107,21 @@ fn reborrow_source(child_access: &str) -> psi_checked_trees::CheckedTrees {
     ))
 }
 
+fn reborrow_restored_call_source(child_access: &str) -> psi_checked_trees::CheckedTrees {
+    checked_source(&format!(
+        r#"
+            data Harness {{}}
+            data Sink {{}}
+            machine Sink::mutate(value: &mut i32) {{ value = 2; }}
+            machine Harness::exercise(root: &mut i32) {{
+                let parent: &mut i32 = &mut root;
+                let child: {child_access} i32 = {child_access} parent;
+                Sink::mutate(parent);
+            }}
+        "#
+    ))
+}
+
 fn multihop_reborrow_source(
     middle_access: &str,
     leaf_access: &str,
@@ -201,6 +216,57 @@ fn terminal_reborrow_root_handoff_lowers_mutable_and_write_only_children() {
         assert_eq!(
             row.direct_root_lifetime_identity,
             row.direct_root_place.root_identity
+        );
+    }
+}
+
+#[test]
+fn terminal_reborrow_restored_call_use_lowers_mutable_and_write_only_children() {
+    for child_access in ["&mut", "&write"] {
+        let checked = reborrow_restored_call_source(child_access);
+        let lowered = lower_machine(&checked, "Harness::exercise")
+            .expect("restored-parent mutating call lowers to Terminal Psi");
+        let [use_row] = lowered
+            .semantic_module
+            .reborrow_restored_call_uses
+            .as_slice()
+        else {
+            panic!("one exact restored-parent call use")
+        };
+        assert_eq!(use_row.machine, lowered.semantic_module.entry);
+        assert_eq!(
+            use_row.child_access,
+            if child_access == "&mut" {
+                psi_terminal::StructuralAccess::MutableBorrow
+            } else {
+                psi_terminal::StructuralAccess::WriteOnlyBorrow
+            }
+        );
+        assert_eq!(
+            use_row.direct_root_lifetime_identity,
+            use_row.direct_root_place.root_identity
+        );
+        assert_eq!(use_row.formation_boundary, use_row.child_activation);
+        assert!(lowered.source_call_occurrences.iter().any(|occurrence| {
+            occurrence.terminal_operation == use_row.operation
+                && occurrence.source_state
+                    == checked
+                        .facts
+                        .borrow
+                        .reborrow_restored_call_use_certificates
+                        .iter()
+                        .next()
+                        .expect("checked restored use")
+                        .1
+                        .state_symbol
+        }));
+        psi_terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("restored call use verifies");
+        let encoded = psi_terminal_codec::encode_module(&lowered.semantic_module)
+            .expect("restored call use encodes");
+        assert_eq!(
+            psi_terminal_codec::decode_module(&encoded).expect("restored call use decodes"),
+            lowered.semantic_module
         );
     }
 }
@@ -1884,7 +1950,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &47_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &48_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -1965,7 +2031,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &47_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &48_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

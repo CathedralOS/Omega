@@ -20,6 +20,12 @@ pub enum ContractClauseKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModuleError {
+    NonCanonicalReborrowRestoredCallUseOrder,
+    DuplicateReborrowRestoredCallUse,
+    InvalidReborrowRestoredCallUse {
+        machine: MachineId,
+        operation: OperationId,
+    },
     NonCanonicalReborrowRootHandoffOrder,
     DuplicateReborrowRootHandoff,
     InvalidReborrowRootHandoff {

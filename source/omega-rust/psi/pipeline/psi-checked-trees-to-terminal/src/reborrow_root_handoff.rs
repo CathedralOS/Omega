@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{CheckedTrees, LoweringError, unsupported};
 
-fn identity(
+pub(crate) fn identity(
     checked: &CheckedTrees,
     symbol: psi_symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {
@@ -38,7 +38,7 @@ fn ordinal(value: usize) -> Result<u64, LoweringError> {
         .map_err(|_| LoweringError::Unsupported("reborrow custody coordinate is too large"))
 }
 
-fn boundary(
+pub(crate) fn boundary(
     checked: &CheckedTrees,
     source: FlowInvalidationSource,
 ) -> Result<TerminalBorrowBoundarySource, LoweringError> {
@@ -60,7 +60,7 @@ fn boundary(
     })
 }
 
-fn owner_path(
+pub(crate) fn owner_path(
     checked: &CheckedTrees,
     path: &[BorrowLoanOwnerSegment],
 ) -> Result<Vec<TerminalBorrowOwnerSegment>, LoweringError> {
@@ -82,7 +82,7 @@ fn owner_path(
         .collect()
 }
 
-fn place_segments(
+pub(crate) fn place_segments(
     checked: &CheckedTrees,
     segments: &[psi_facts::PlaceSegment],
 ) -> Result<Vec<TerminalBorrowPlaceSegment>, LoweringError> {
@@ -113,7 +113,7 @@ fn place_segments(
         .collect()
 }
 
-fn place(
+pub(crate) fn place(
     checked: &CheckedTrees,
     place: &psi_checked_trees::CapturedPlace,
 ) -> Result<TerminalBorrowPlace, LoweringError> {
@@ -123,7 +123,7 @@ fn place(
     })
 }
 
-fn access(kind: BorrowAccessKind) -> StructuralAccess {
+pub(crate) fn access(kind: BorrowAccessKind) -> StructuralAccess {
     match kind {
         BorrowAccessKind::Read => StructuralAccess::SharedBorrow,
         BorrowAccessKind::Mutable => StructuralAccess::MutableBorrow,

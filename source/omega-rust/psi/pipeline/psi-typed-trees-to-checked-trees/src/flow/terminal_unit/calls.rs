@@ -1307,7 +1307,7 @@ pub(super) fn structural_call_arguments(
             explicit_index = explicit_index.checked_add(1)?;
             continue;
         }
-        let place = if target.is_self {
+        let authored_place = if target.is_self {
             if is_reference(program, target.type_reference) {
                 continue;
             }
@@ -1341,6 +1341,16 @@ pub(super) fn structural_call_arguments(
                 expression,
             )?
         };
+        let restored_alias = reborrow_restored_call_alias_target(
+            facts,
+            caller_machine.symbol,
+            caller_state.symbol,
+            call,
+            &authored_place,
+        );
+        let place = restored_alias
+            .clone()
+            .unwrap_or_else(|| authored_place.clone());
         let psi_facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
@@ -1486,14 +1496,18 @@ pub(super) fn structural_call_arguments(
             source_parameter_index: u32::try_from(source_index).ok()?,
             path,
             type_identity: target_identity,
-            access: exact_structural_argument_access(
-                facts,
-                caller_machine.symbol,
-                caller_state.symbol,
-                call,
-                &place,
-                structural_access_for_type_reference(program, target.type_reference)?,
-            )?,
+            access: if restored_alias.is_some() {
+                structural_access_for_type_reference(program, target.type_reference)?
+            } else {
+                exact_structural_argument_access(
+                    facts,
+                    caller_machine.symbol,
+                    caller_state.symbol,
+                    call,
+                    &authored_place,
+                    structural_access_for_type_reference(program, target.type_reference)?,
+                )?
+            },
             byte_sequence_literal: None,
         });
     }
@@ -1501,6 +1515,56 @@ pub(super) fn structural_call_arguments(
         return None;
     }
     Some(output)
+}
+
+/// Translate the one bare reference carrier admitted by the checked
+/// post-reactivation certificate back to its exact restored structural place.
+/// This is intentionally not a general local-alias resolver.
+fn reborrow_restored_call_alias_target(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    call: &psi_checked_trees::FlowCallFact,
+    authored_place: &crate::flow::CanonicalPlace,
+) -> Option<crate::flow::CanonicalPlace> {
+    let psi_facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
+        return None;
+    };
+    if !authored_place.segments.is_empty() {
+        return None;
+    }
+    let candidates = facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .filter_map(|(_, certificate)| {
+            if certificate.machine_symbol != machine
+                || certificate.state_symbol != state
+                || certificate.target_symbol != call.target_symbol
+                || certificate.carrier_place.root_symbol != authored_root
+                || !certificate.carrier_place.segments.is_empty()
+                || certificate.access != psi_checked_trees::BorrowAccessKind::Mutable
+                || !facts.flow.control.calls.is_valid(certificate.call)
+            {
+                return None;
+            }
+            let certified_call = facts.flow.control.calls.get(certificate.call);
+            (certified_call.statement_index == call.statement_index
+                && certified_call.call_ordinal == call.call_ordinal
+                && certified_call.target_symbol == call.target_symbol
+                && certified_call.receiver_symbol == call.receiver_symbol
+                && certified_call.has_receiver == call.has_receiver
+                && certified_call.accesses == call.accesses)
+                .then_some(crate::flow::CanonicalPlace {
+                    root: psi_facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
+                    segments: certificate.restored_place.segments.clone(),
+                })
+        })
+        .collect::<Vec<_>>();
+    let [place] = candidates.as_slice() else {
+        return None;
+    };
+    Some(place.clone())
 }
 
 fn exact_structural_argument_access(
