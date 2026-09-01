@@ -285,9 +285,12 @@ explicitly.
     package roots;
     current trait-fixture compatibility seams are the two synthesized
     trait-default roots that still need separate authored-requirement and
-    executable-realization custody plus a Terminal composed-Unit plan, and the
-    two local named-`dyn` roots rejected by the
-    native LET-receiver realization fence; the two build/runtime float twins
+    executable-realization custody plus a Terminal composed-Unit plan, and two
+    local named-`dyn` roots: package-aware typing exposes a shared-borrow cast
+    normalization mismatch at the LET-receiver fence, while complete migration
+    still requires a checked composed-Unit plan, direct source-place realization
+    custody, and rebound dynamic descriptor/table custody in Terminal Psi; the
+    two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema
