@@ -175,6 +175,24 @@ separate `linear.rs` and `path_qualified.rs` rule leaves over shared binding
 composition and ownership-identity checks; their distinct provenance/effect
 accounting remains in separately named leaves.
 
+Independent control-flow validation mirrors that taxonomy instead of restoring
+a mixed replay file. Its small pass-family entrance maps constant folding,
+empty-block threading, block merging, shared-jump fusion, and unreachable
+machine pruning. The threading and merge groups descend immediately to one
+named validator folder per exact rule. Each small `mod.rs` owns exact admission
+and points directly to `replay.rs`, which reconstructs only that rule's graph
+transformation. A shared `contract.rs` admits only the rule identity, complete
+required-analysis set, complete invalidation set, and safety class declared by
+that entrance; replay separately binds the rule's exact cost and transformation
+evidence. Cross-rule, unknown-rule, superset, wrong-safety, and wrong-cost
+relabellings are rejected for all seven rules.
+
+Copy propagation uses the same direct route. Its pass entrance contains the
+one-row roster, `redundant_block_parameter/mod.rs` owns the exact contract and
+proposal join, and `proposal.rs` owns traversal mechanics. Independent
+validation admits that one exact contract before descending into observation
+and operation rewriting. The former flat producer path is retired.
+
 The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.

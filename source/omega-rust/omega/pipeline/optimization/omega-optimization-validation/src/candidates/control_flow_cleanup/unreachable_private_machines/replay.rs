@@ -1,36 +1,11 @@
-//! Unreachable private-machine pruning validation.
+//! Independent unreachable private-machine replay mechanics.
 
 use super::*;
 
-pub fn validate_unreachable_private_machines_candidate(
+pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::CallGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::CallGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
-        || !candidate.affected_blocks().is_empty()
-        || !candidate.substitutions().is_empty()
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
     let omega_optimization_unit::PsiRewriteDecisionPoint::MachineSet(decision_machines) =
         candidate.decision_point()
     else {
@@ -40,6 +15,11 @@ pub fn validate_unreachable_private_machines_candidate(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
     let expected_machines = unreachable_private_machine_complement(input);
+    if candidate.predicted_cost_delta()
+        != -i64::try_from(expected_machines.len()).unwrap_or(i64::MAX)
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
     let patch_machines = patch
         .machines
         .iter()

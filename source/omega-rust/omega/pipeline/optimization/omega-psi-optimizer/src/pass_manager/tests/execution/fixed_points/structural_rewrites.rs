@@ -155,6 +155,8 @@ fn named_copy_propagation_reaches_its_block_parameter_fixed_point() {
         run_unit(unit.clone(), &registry, budget(8)).unwrap();
     assert_eq!(commits.len(), 1);
     assert_eq!(usage.commits, 1);
+    assert_eq!(usage.iterations, 2);
+    assert_eq!(usage.rule_evaluations, 2);
     assert!(output.functions[0].blocks[1].parameters.is_empty());
     assert_eq!(ledger.records().len(), 1);
     let manifest = manifest.unwrap();
@@ -162,4 +164,46 @@ fn named_copy_propagation_reaches_its_block_parameter_fixed_point() {
     assert!(manifest.decisions()[0].consumed_facts().is_empty());
     assert_eq!(manifest.decisions()[0].input(), unit.identity);
     assert_eq!(manifest.output(), output.identity);
+
+    let (second, second_commits, second_usage, _, _, second_ledger) =
+        run_unit(output.clone(), &registry, budget(8)).unwrap();
+    assert_eq!(second, output);
+    assert!(second_commits.is_empty());
+    assert_eq!(second_usage.iterations, 1);
+    assert_eq!(second_usage.rule_evaluations, 1);
+    assert!(second_ledger.records().is_empty());
+}
+
+#[test]
+fn copy_propagation_is_disabled_by_default_deterministic_and_budgeted() {
+    let unit = redundant_block_parameter_unit(true);
+    let disabled = built_in_psi_registry(&OptimizationSelections::default()).unwrap();
+    let (unchanged, commits, usage, decisions, manifest, ledger) =
+        run_unit(unit.clone(), &disabled, budget(8)).unwrap();
+    assert_eq!(unchanged, unit);
+    assert!(commits.is_empty());
+    assert_eq!(usage.iterations, 1);
+    assert_eq!(usage.rule_evaluations, 0);
+    assert!(decisions.records.is_empty());
+    assert!(manifest.is_none());
+    assert!(ledger.records().is_empty());
+
+    let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+    let registry = built_in_psi_registry(&selections).unwrap();
+    let first = run_unit(unit.clone(), &registry, budget(8)).unwrap();
+    let second = run_unit(unit.clone(), &registry, budget(8)).unwrap();
+    assert_eq!(first.0, second.0);
+    assert_eq!(first.1, second.1);
+    assert_eq!(first.2, second.2);
+    assert_eq!(first.3, second.3);
+    assert_eq!(first.4, second.4);
+    assert_eq!(first.5, second.5);
+
+    let first_error = run_unit(unit.clone(), &registry, budget(1)).unwrap_err();
+    let second_error = run_unit(unit, &registry, budget(1)).unwrap_err();
+    assert_eq!(first_error, second_error);
+    assert_eq!(
+        first_error,
+        OptimizationRunError::WorkBudgetExhausted("iterations")
+    );
 }

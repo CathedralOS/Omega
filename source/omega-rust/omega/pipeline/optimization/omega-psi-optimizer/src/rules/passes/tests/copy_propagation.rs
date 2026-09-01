@@ -127,3 +127,146 @@ fn differing_bindings_decline_and_incomplete_edge_witness_rejects() {
         Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)
     );
 }
+
+#[test]
+fn redundant_block_parameter_validation_rejects_contract_cost_witness_and_provenance_corruption() {
+    let unit = redundant_block_parameter_unit(true);
+    let base = RedundantBlockParameterRule::contract();
+    let mut manager = crate::AnalysisManager::new(&unit);
+    let products = manager
+        .require_all(&unit, base.required_analyses())
+        .unwrap()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    let candidate = RedundantBlockParameterRule
+        .propose(&unit, RuleAnalysisView::new(&products))
+        .unwrap()
+        .pop()
+        .unwrap();
+    let PsiRewritePatch::RemoveRedundantBlockParameter(patch) = candidate.patch() else {
+        unreachable!()
+    };
+    let forge = |contract, provenance, witness, cost| {
+        PsiRewriteCandidate::new_redundant_block_parameter(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            provenance,
+            witness,
+            cost,
+            patch,
+        )
+        .unwrap()
+    };
+    let contracts = [
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.unknown-redundant-block-parameter.v1",
+            ),
+            base.pass(),
+            base.version(),
+            base.required_analyses(),
+            base.invalidated_analyses(),
+            base.safety_class(),
+        )
+        .unwrap(),
+        OptimizationRuleContract::new(
+            base.identity(),
+            base.pass(),
+            base.version(),
+            omega_optimization_core::AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::ScalarConstants,
+            ]),
+            base.invalidated_analyses(),
+            base.safety_class(),
+        )
+        .unwrap(),
+        OptimizationRuleContract::new(
+            base.identity(),
+            base.pass(),
+            base.version(),
+            base.required_analyses(),
+            omega_optimization_core::AnalysisInvalidationSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            base.safety_class(),
+        )
+        .unwrap(),
+        OptimizationRuleContract::new(
+            base.identity(),
+            base.pass(),
+            base.version(),
+            base.required_analyses(),
+            base.invalidated_analyses(),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .unwrap(),
+    ];
+    for contract in contracts {
+        let forged = forge(
+            contract,
+            candidate.provenance().to_vec(),
+            candidate
+                .redundant_block_parameter_witness()
+                .unwrap()
+                .clone(),
+            candidate.predicted_cost_delta(),
+        );
+        assert_eq!(
+            validate_redundant_block_parameter_candidate(&unit, &forged),
+            Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)
+        );
+    }
+
+    let wrong_cost = forge(
+        base,
+        candidate.provenance().to_vec(),
+        candidate
+            .redundant_block_parameter_witness()
+            .unwrap()
+            .clone(),
+        0,
+    );
+    assert_eq!(
+        validate_redundant_block_parameter_candidate(&unit, &wrong_cost),
+        Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)
+    );
+
+    let mut wrong_witness = candidate
+        .redundant_block_parameter_witness()
+        .unwrap()
+        .clone();
+    wrong_witness.incoming[0].argument = unit.functions[0].parameters[2].value;
+    let wrong_witness = forge(
+        base,
+        candidate.provenance().to_vec(),
+        wrong_witness,
+        candidate.predicted_cost_delta(),
+    );
+    assert_eq!(
+        validate_redundant_block_parameter_candidate(&unit, &wrong_witness),
+        Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)
+    );
+
+    let mut incomplete_provenance = candidate.provenance().to_vec();
+    incomplete_provenance.pop();
+    let incomplete_provenance = forge(
+        base,
+        incomplete_provenance,
+        candidate
+            .redundant_block_parameter_witness()
+            .unwrap()
+            .clone(),
+        candidate.predicted_cost_delta(),
+    );
+    assert_eq!(
+        validate_redundant_block_parameter_candidate(&unit, &incomplete_provenance),
+        Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+    );
+}
