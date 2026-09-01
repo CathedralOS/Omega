@@ -519,6 +519,15 @@ decision. Only true language-semantic questions belong in
   custody corruption pinned. This validates the existing proof-bearing path;
   it does not claim cast elimination or immediate materialization without the
   separate proof-certified Psi rule.
+  The adjacent constant bitwise-not-to-immediate family admits only
+  `[IntegerConstant, IntegerBitwiseNot, Return]`. Independent source grammar
+  and target replay retain both operation/result identities, the exact integer
+  type, source and complemented mathematical values, provenance, and return
+  edge while requiring `ReturnIntegerImmediate` rather than a runtime unary
+  expression. Signed and unsigned 8/16/32/64 plus address64 cross both carrier
+  boundaries and all five targets (90 direct cases); optimized custody adds 15
+  public-route combinations and keeps this grammar disjoint from both plain
+  immediate return and parameter bitwise-not.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -697,9 +706,14 @@ decision. Only true language-semantic questions belong in
   failures, and independently swaps all five authoritative reconstruction
   inputs: prephysical custody, the transformation ledger, live ranges,
   allocation legality, and register homes. A UEFI ProgramStorage
-  wrapper matrix remains engineering-dependent on a physical adapter/lowering
-  path for the accepted cyclic two-`Extent` linear return shape; it is not an
-  owner language-semantic question.
+  wrapper manifest matrix now reauthenticates all 12 fields that retain a valid
+  envelope and makes canonical producer replay reject them, covers five
+  additional mutable closed-shape fields plus stale outer identity, and rejects
+  17 exact envelope and closed-wire axes. This is local canonical
+  object/container/manifest replay, not end-to-end wrapper custody. A full
+  staged wrapper matrix remains engineering-dependent on a physical
+  adapter/lowering path for the accepted cyclic two-`Extent` linear return
+  shape; it is not an owner language-semantic question.
 
 ## P3 — Psi optimizer
 
@@ -734,19 +748,24 @@ decision. Only true language-semantic questions belong in
   tests fail closed. This creates no general ranking rule, unranked-progress
   authority, finite-work failure, execution permission, cyclic rewrite
   permission, or publication authority. The first authority-sensitive consumer
-  now derives a revision-bound counted-loop snapshot through a 38-line entrance.
-  Direct construction and independently keyed replay join the full component
-  and ranking certificate to the single preheader/exit and expose the entering
-  unsigned rank argument as a symbolic exact trip count. Fifteen snapshot axes
-  and stale-unit custody fail closed. The consumer remains outside the generic
-  bare-unit analysis manager and grants no rewrite or execution authority.
+  now derives a revision-bound counted-loop snapshot through a small entrance.
+  Direct construction consumes the ordinary `LoopForest`, requires its exact
+  reducible `LoopRegion` to agree with component and ranking custody, and joins
+  that region to the single preheader/exit while exposing the entering unsigned
+  rank argument as a symbolic exact trip count. Independently keyed replay
+  reconstructs current edge rows, boundaries, entry reachability, and header
+  dominance without calling CFG, dominator, SCC, or loop producers. Seventeen
+  corruption axes and stale-unit custody fail closed. The consumer remains
+  outside the generic bare-unit analysis manager and grants no rewrite or
+  execution authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
   failures.
 - [>] Retarget LICM and other loop consumers to validated Terminal SCCs. The
-  exact countdown-induction analysis is the first non-transforming consumer;
-  general consumers and rewrite-bearing passes remain open.
+  exact countdown-induction analysis is the first non-transforming consumer of
+  an authenticated ordinary `LoopForest` region; general consumers and
+  rewrite-bearing passes remain open.
 - [ ] Implement LICM only after transforms can invalidate and reconstruct
   component, loop-carried custody, and ranking evidence.
 
@@ -837,6 +856,11 @@ decision. Only true language-semantic questions belong in
     integer exact-cast relations and faithfully retains the producer's cast
     operation and obligation around the immediate operand; this is not an
     elimination claim.
+  - [x] Add constant bitwise-not-to-immediate as its own exact abstract-to-
+    target family. Its independently reconstructed source grammar and target
+    replay cover signed/unsigned 8/16/32/64 and address64 at both boundaries
+    across all five targets, retain both source operations in provenance, and
+    prove the target contains only the exact complemented immediate.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,

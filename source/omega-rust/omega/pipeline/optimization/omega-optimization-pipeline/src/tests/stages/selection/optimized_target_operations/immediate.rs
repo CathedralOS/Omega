@@ -105,6 +105,71 @@ fn optimized_target_lowering_retains_exact_boolean_translation_custody() {
 }
 
 #[test]
+fn optimized_target_lowering_retains_constant_bitwise_not_immediate_custody() {
+    let cases = [
+        (
+            IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+            IntegerValue::Unsigned(255),
+        ),
+        (
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+            IntegerValue::Signed(i8::MIN.into()),
+        ),
+        (IntegerType::address(64).unwrap(), IntegerValue::Unsigned(0)),
+    ];
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for (scalar_type, source_value) in cases {
+            let (semantic, proof) =
+                integer_bitwise_not_immediate_return_artifact(scalar_type, source_value);
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+            let AbstractToTargetFunctionTranslationDisposition::Validated(
+                AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseNotImmediate(
+                    row,
+                ),
+            ) = target.translation_validation().function_roster()[0].translation()
+            else {
+                panic!("optimized constant bitwise-not must retain its exact immediate family")
+            };
+            let materialized_value = scalar_type.bitwise_not(source_value).unwrap();
+            assert_eq!(row.constant_operation(), OperationId::new(67_003).unwrap());
+            assert_eq!(
+                row.bitwise_not_operation(),
+                OperationId::new(67_005).unwrap()
+            );
+            assert_eq!(row.constant_result(), ValueId::new(67_004).unwrap());
+            assert_eq!(row.bitwise_not_result(), ValueId::new(67_006).unwrap());
+            assert_eq!(row.scalar_type(), scalar_type);
+            assert_eq!(row.source_value(), source_value);
+            assert_eq!(row.materialized_value(), materialized_value);
+            assert!(matches!(
+                target.target_operations().functions[0].operation,
+                TargetOperation::ReturnIntegerImmediate {
+                    source_value,
+                    scalar_type: target_type,
+                    value,
+                    ..
+                } if source_value == ValueId::new(67_006).unwrap()
+                    && target_type == scalar_type
+                    && value == materialized_value
+            ));
+        }
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_constant_widen_immediate_custody() {
     let source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
     let target_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();

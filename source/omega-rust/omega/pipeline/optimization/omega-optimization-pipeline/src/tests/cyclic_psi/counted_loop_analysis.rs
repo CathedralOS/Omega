@@ -12,6 +12,13 @@ fn source_countdown_yields_one_revision_bound_exact_trip_count() {
     let analysis = session
         .counted_loop_analysis()
         .expect("analysis-only counted loop");
+    let mut ordinary_analyses = AnalysisManager::new(session.unit());
+    let AnalysisProduct::LoopForest(ordinary_loops) = ordinary_analyses
+        .require(session.unit(), AnalysisKind::LoopForest)
+        .expect("ordinary loop forest")
+    else {
+        panic!("loop-forest product")
+    };
     let [summary] = analysis.loops() else {
         panic!("one counted loop")
     };
@@ -23,10 +30,20 @@ fn source_countdown_yields_one_revision_bound_exact_trip_count() {
         session.cycle_components().components()[0].id
     );
     assert_eq!(summary.certificate.header, ranked.header);
+    let [(machine, regions)] = ordinary_loops.functions.as_slice() else {
+        panic!("one ordinary loop-forest function")
+    };
+    assert_eq!(*machine, module.entry);
+    let [ordinary_region] = regions.as_slice() else {
+        panic!("one ordinary loop region")
+    };
+    assert_eq!(&summary.region, ordinary_region);
+    assert_eq!(summary.region.header, Some(ranked.header));
     assert_eq!(
-        summary.members,
+        summary.region.blocks,
         session.cycle_components().components()[0].members
     );
+    assert!(!summary.region.irreducible);
     assert_eq!(
         summary.preheader_edge,
         session.cycle_components().components()[0].entries[0]
@@ -72,10 +89,12 @@ fn counted_loop_snapshot_replay_rejects_every_summary_axis() {
         Box::new(|snapshot| {
             snapshot.loops[0].certificate.component.internal_edges.pop();
         }),
+        Box::new(|snapshot| snapshot.loops[0].region.header = None),
         Box::new(|snapshot| {
-            snapshot.loops[0].members.pop();
+            snapshot.loops[0].region.blocks.pop();
         }),
-        Box::new(|snapshot| snapshot.loops[0].members.reverse()),
+        Box::new(|snapshot| snapshot.loops[0].region.blocks.reverse()),
+        Box::new(|snapshot| snapshot.loops[0].region.irreducible = true),
         Box::new(|snapshot| {
             snapshot.loops[0].preheader_edge.edge = snapshot.loops[0].exit_edge.edge;
         }),
@@ -103,6 +122,7 @@ fn counted_loop_snapshot_replay_rejects_every_summary_axis() {
                 psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap();
         }),
     ];
+    assert_eq!(corruptions.len(), 17);
     for mutate in corruptions {
         let mut corrupted = baseline.clone();
         mutate(&mut corrupted);

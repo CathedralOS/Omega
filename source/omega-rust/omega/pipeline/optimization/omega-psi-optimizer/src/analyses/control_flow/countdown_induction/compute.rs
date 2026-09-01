@@ -7,6 +7,7 @@ pub(super) fn propose(
     custody: &ValidatedOptimizerCycleComponents,
 ) -> Result<CountedLoopAnalysisSnapshot, CountedLoopAnalysisError> {
     validate_roots(unit, custody)?;
+    let loop_forest = compute_loop_forest(unit);
     let mut loops = Vec::new();
     for certificate in custody.ranking_certificates().certificates() {
         let component = custody
@@ -19,7 +20,25 @@ pub(super) fn propose(
             .iter()
             .find(|function| function.machine == certificate.component.machine)
             .ok_or_else(|| shape(certificate.component.machine))?;
-        loops.push(summary(function, component, certificate)?);
+        let function_regions = loop_forest
+            .functions
+            .iter()
+            .filter(|(machine, _)| *machine == function.machine)
+            .collect::<Vec<_>>();
+        let [(_, regions)] = function_regions.as_slice() else {
+            return Err(shape(function.machine));
+        };
+        let matching_regions = regions
+            .iter()
+            .filter(|region| region.blocks == component.members)
+            .collect::<Vec<_>>();
+        let [region] = matching_regions.as_slice() else {
+            return Err(shape(function.machine));
+        };
+        if region.header != Some(certificate.header) || region.irreducible {
+            return Err(shape(function.machine));
+        }
+        loops.push(summary(function, component, certificate, region)?);
     }
     loops.sort_by(|left, right| left.certificate.component.cmp(&right.certificate.component));
     Ok(CountedLoopAnalysisSnapshot {
@@ -33,6 +52,7 @@ fn summary(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    region: &LoopRegion,
 ) -> Result<UnsignedCountdownLoopSummary, CountedLoopAnalysisError> {
     let [preheader_edge] = component.entries.as_slice() else {
         return Err(shape(function.machine));
@@ -68,7 +88,7 @@ fn summary(
     }
     Ok(UnsignedCountdownLoopSummary {
         certificate: certificate.clone(),
-        members: component.members.clone(),
+        region: (*region).clone(),
         preheader_edge: *preheader_edge,
         exit_edge: *exit_edge,
         trip_count: ExactUnsignedTripCount {

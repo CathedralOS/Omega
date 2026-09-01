@@ -4,7 +4,7 @@ mod manifest;
 mod validation;
 
 pub(crate) use composition::compose_object;
-pub(crate) use manifest::{construct_manifest, valid_manifest_shape};
+pub(crate) use manifest::{construct_manifest, valid_manifest_shape, validate_manifest};
 pub(crate) use validation::validate_object;
 
 use crate::optimized_semantic_wrapper_object::error::*;

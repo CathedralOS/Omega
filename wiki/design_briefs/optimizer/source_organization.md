@@ -135,6 +135,14 @@ The mirrored `omega-optimization-pipeline/src/tests/cyclic_psi.rs` leaf builds a
 real source countdown and pins CFG, dominator, SCC, loop, and liveness analysis
 plus topology/frozen-body corruption. General cyclic authority and cyclic
 rewrite consumers remain outside this taxonomy.
+The first authority-sensitive consumer enters through the small
+`countdown_induction/mod.rs` coordination file. Its producer consumes the
+ordinary `LoopForest` and requires an exact reducible `LoopRegion` match against
+component and ranking custody. The replay side descends through
+`replay/region.rs` and independently reconstructs edge rows, boundaries,
+reachability, and header dominance without calling CFG, dominator, SCC, or loop
+producers. This bridge grants analysis facts only; execution and rewrite
+authority remain closed.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -311,6 +319,14 @@ mutation, byte geometry, wire rejection, and receipt-root mutation. The source-
 organization ladder registers the complete test taxonomy beside the owning V9
 codec taxonomy.
 
+ProgramStorage semantic-wrapper manifest coverage likewise enters through the
+five-line `manifest_mutation_matrix/mod.rs` stage group. Its `fixture`,
+`fields`, `wire`, and `wire_offsets` leaves separate canonical local
+object/manifest construction, reauthenticated logical mutation, and byte-axis
+rejection. The matrix deliberately stops at the existing canonical manifest
+replay; it does not claim the unavailable physical adapter or a full staged
+publication route.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
@@ -400,6 +416,13 @@ Abstract-to-target validation follows the same entrance rule. Its 38-line
 function order, and structural declarations before the catalog selects one
 named family leaf. Settlement-aware and plain validators are closed descriptor
 variants, not an ambient mode or a second family schedule.
+Constant bitwise-not immediate translation has its own small
+`straight_line_integer_bitwise_not_immediate/mod.rs` executable entrance. It
+descends directly to `grammar.rs` for the exact three-operation source shape and
+`replay.rs` for independent target/provenance reconstruction. Its tests mirror
+that descent through separate fixture, positive, source-corruption, and target-
+corruption leaves; the catalog canary and public optimized-custody leaf remain
+visible in the registered semantic ladder.
 
 GVN's `expression_keys/` group owns a closed key model and three explicit
 classifiers: total, proof-certified, and directional compatible-policy. Those

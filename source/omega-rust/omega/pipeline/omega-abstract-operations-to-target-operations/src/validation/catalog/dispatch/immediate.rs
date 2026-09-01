@@ -4,8 +4,9 @@ use omega_target_operations::TargetFunction;
 
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
-    straight_line_boolean_immediate, straight_line_integer_exact_cast_immediate_operand,
-    straight_line_integer_immediate, straight_line_integer_widen_immediate,
+    straight_line_boolean_immediate, straight_line_integer_bitwise_not_immediate,
+    straight_line_integer_exact_cast_immediate_operand, straight_line_integer_immediate,
+    straight_line_integer_widen_immediate,
 };
 use super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -29,6 +30,13 @@ pub(in crate::validation::catalog) const INTEGER_WIDEN: TranslationFamilyDescrip
         AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate,
         straight_line_integer_widen_immediate::is_candidate,
         straight_line_integer_widen_immediate,
+    );
+
+pub(in crate::validation::catalog) const INTEGER_BITWISE_NOT: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate,
+        straight_line_integer_bitwise_not_immediate::is_candidate,
+        straight_line_integer_bitwise_not_immediate,
     );
 
 pub(in crate::validation::catalog) const INTEGER_EXACT_CAST_OPERAND: TranslationFamilyDescriptor =
@@ -66,6 +74,16 @@ pub(super) fn straight_line_integer_widen_immediate(
     straight_line_integer_widen_immediate::validate(source, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerWidenImmediate)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerWidenImmediate)
+}
+
+pub(super) fn straight_line_integer_bitwise_not_immediate(
+    source: &AbstractFunction,
+    _expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_integer_bitwise_not_immediate::validate(source, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerBitwiseNotImmediate)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerBitwiseNotImmediate)
 }
 
 pub(super) fn straight_line_integer_exact_cast_immediate_operand(

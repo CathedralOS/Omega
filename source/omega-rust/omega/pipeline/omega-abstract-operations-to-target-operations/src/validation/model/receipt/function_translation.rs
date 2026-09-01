@@ -5,6 +5,7 @@ mod shift;
 
 use super::immediate::{
     StraightLineBooleanImmediateTranslationReceipt,
+    StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
@@ -52,6 +53,9 @@ use shift::{
 pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationReceipt),
     StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationReceipt),
+    StraightLineIntegerBitwiseNotImmediate(
+        StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
+    ),
     StraightLineIntegerExactCastImmediateOperand(
         StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     ),

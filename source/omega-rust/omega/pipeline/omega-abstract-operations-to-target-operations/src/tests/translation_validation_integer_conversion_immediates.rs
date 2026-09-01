@@ -2,6 +2,8 @@
 
 use super::*;
 
+#[path = "translation_validation_integer_bitwise_not_immediate/mod.rs"]
+mod bitwise_not;
 #[path = "translation_validation_integer_exact_cast_immediate_operand/mod.rs"]
 mod exact_cast;
 #[path = "translation_validation_integer_widen_immediate/mod.rs"]

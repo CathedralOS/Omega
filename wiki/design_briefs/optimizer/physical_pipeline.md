@@ -15,7 +15,7 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-eight families reconstruct parameterless straight-line
+replay. Its first forty-nine families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
@@ -126,7 +126,7 @@ wrapping-subtract, wrapping-multiply, and saturating-multiply retain exact-width
 operands,
 integer-widen retains distinct source/target types, and exact-cast additionally
 retains its proof obligation through `ReturnIntegerExpression`.
-The two constant-conversion siblings remain distinct from those parameter
+The three constant-unary siblings remain distinct from those parameter
 families. Constant widen validates `[IntegerConstant, IntegerWiden, Return]`
 and replays the materialized widened immediate. Proof-bearing constant exact
 cast validates `[IntegerConstant, IntegerExactCast, Return]` and faithfully
@@ -134,6 +134,12 @@ replays `IntegerExactCast(Immediate)`, retaining both operation identities,
 the obligation, source/target types, and the independently computed exact cast
 value. Its 38 legal native fixed-integer relations cross two representability
 boundaries and all five targets; no cast-elimination authority is inferred.
+Constant bitwise-not validates only
+`[IntegerConstant, IntegerBitwiseNot, Return]`, independently computes the
+exact width-aware complement, and requires `ReturnIntegerImmediate` with both
+source operations retained in provenance. Its signed/unsigned 8/16/32/64 and
+address64 carriers cross both boundaries and all five targets; it cannot be
+reclassified as either a plain immediate return or parameter bitwise-not.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
