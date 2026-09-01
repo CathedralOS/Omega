@@ -4900,6 +4900,157 @@ fn seeded_arithmetic_domain_argument_gate_rejects_identity_mutations() {
 }
 
 #[test]
+fn seeded_unindexed_declared_domain_argument_rejoins_exact_identity() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; } data Token { value: u8; } domain Token::Issued; domain Token::Other;",
+        "data Cell<T> { value: T; } data Generated { value: Cell<Token in Issued>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let instance = resolved
+        .data_definitions
+        .iter()
+        .skip(frontier)
+        .find(|definition| definition.name.as_str() == "Cell<Token in Issued>")
+        .expect("closed declared-domain Cell instance");
+    let origin_arguments = match instance.generic_instance.as_ref() {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        _ => unreachable!(),
+    };
+    let instance_members = instance.members;
+    let issued_symbol = resolved
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Issued")
+        .expect("Issued domain declaration")
+        .symbol;
+    let other_name = resolved
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Token::Other")
+        .expect("Other domain declaration")
+        .name
+        .clone();
+
+    let mut changed_origin_domain = resolved.clone();
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+        &changed_origin_domain
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    let constraints = argument.constraints;
+    let [psi_symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = changed_origin_domain
+        .tables
+        .types
+        .constraints
+        .span_mut_or_empty(constraints)
+    else {
+        unreachable!()
+    };
+    domain.name = other_name.clone();
+    assert!(
+        !plain_data_extension_shape_is_supported(&changed_origin_domain, frontier),
+        "the declared-domain symbol participates in canonical instance identity"
+    );
+
+    let mut changed_field_domain = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &changed_field_domain
+        .tables
+        .declarations
+        .data_members
+        .span_or_empty(instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(field_type) =
+        &field.type_reference
+    else {
+        unreachable!()
+    };
+    let field_constraints = field_type.constraints;
+    let [psi_symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = changed_field_domain
+        .tables
+        .types
+        .constraints
+        .span_mut_or_empty(field_constraints)
+    else {
+        unreachable!()
+    };
+    domain.name = other_name;
+    assert!(
+        !plain_data_extension_shape_is_supported(&changed_field_domain, frontier),
+        "the substituted field must retain the origin's exact declared domain"
+    );
+
+    let mut detached_domain_name = resolved.clone();
+    let psi_symbol_resolved_trees::types::TypeReference::Constrained(argument) =
+        &detached_domain_name
+            .tables
+            .declarations
+            .child_type_references
+            .span_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    let constraints = argument.constraints;
+    let [psi_symbol_resolved_trees::types::TypeConstraint::Domain(domain)] = detached_domain_name
+        .tables
+        .types
+        .constraints
+        .span_mut_or_empty(constraints)
+    else {
+        unreachable!()
+    };
+    domain.name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Issued");
+    assert!(
+        !plain_data_extension_shape_is_supported(&detached_domain_name, frontier),
+        "a same-spelled domain without an authored selection cannot mint identity"
+    );
+
+    let typed = lower_seeded_plain_data_extension(extension, base)
+        .expect("the exact declared-domain instance should use the seeded continuation");
+    let instance = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Cell<Token in Issued>")
+        .expect("typed declared-domain Cell instance");
+    let [psi_typed_trees::data::DataMember::Field(field)] = typed.data_members(instance) else {
+        panic!("typed declared-domain Cell instance retains one field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Constrained { constraints, .. } = typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        panic!("typed instance field retains its constraint")
+    };
+    let [psi_typed_trees::types::TypeConstraintNode::Domain(domain)] =
+        typed.type_reference_table.constraints(*constraints)
+    else {
+        panic!("typed instance field retains one declared domain")
+    };
+    assert_eq!(domain.symbol, issued_symbol);
+    assert!(domain.arguments.is_empty());
+
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; } data Token { value: u8; } domain Token::Root; domain Token::Issued = Token::Root;",
+        "data Cell<T> { value: T; } data Generated { value: Cell<Token in Issued>; }",
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(
+            extension.trees(),
+            base.typed().data_definitions().len(),
+        ),
+        "transparent domain aliases remain on the full-rebuild path"
+    );
+}
+
+#[test]
 fn seeded_integer_const_instance_gate_rejects_carrier_origin_and_shape_mutations() {
     let (base, extension) = seeded_normalized_plain_data_inputs(
         "data Authored { value: u16; }",

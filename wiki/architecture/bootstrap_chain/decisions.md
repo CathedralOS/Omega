@@ -497,12 +497,16 @@ complete lifetime application positionally. Concrete use-site lifetime names
 are rebound to the later template's own exact binder roster in the retained
 origin and substituted members, so nested chains share one stable synthesized
 identity without invented binders. Permuted, subset, or extra lifetime routing
-remains outside this exact cohort. The first exact constrained Type-argument
-cohort also continues: one already-supported closed named carrier may retain
-one semantic arithmetic-domain tag. Seeded validation reconstructs the carrier
-symbol and name, arithmetic-domain enum, canonical synthesized name, origin,
-and every substituted occurrence. Range constraints, named or declared/indexed
-domains, multiple constraints, and broader constrained shells remain fenced.
+remains outside this exact cohort. The exact constrained Type-argument cohort
+also continues: one already-supported closed named carrier may retain either
+one semantic arithmetic-domain tag or one exact source-declared, unindexed,
+non-alias domain. For a declared domain, seeded validation resolves the
+authored spelling to exactly one visible declaration on that carrier, rejoins
+the exact carrier and domain symbols and names, runs the ordinary domain
+normalization, and checks the canonical synthesized name, origin, and every
+substituted occurrence. Same-spelled lookalikes or ambiguous declarations,
+aliases, indexed domains, range or multiple constraints, and broader
+constrained shells remain fenced.
 Scalar const binders retain exact compiler-owned signed/unsigned integer,
 address, or Boolean carriers. Closed integer arguments use canonical in-range
 decimal leaves; already-normalized expressions share that identity. Closed
@@ -532,7 +536,7 @@ without local synthesis. The compiler normalizes a per-unit clone before
 seeded resolution but retains the raw parsed unit for fallback. Cross-unit
 synthesis, permuted/subset/extra lifetime routing through extension-local Type
 arguments, broader or custom-canonical structured const applications,
-declared/indexed/range/multi-constraint applications, parameter-bearing
+ambiguous/alias/indexed/range/multi-constraint applications, parameter-bearing
 constrained/dynamic/other composite shells, facts, quotients, zero gates,
 attached generated methods, and non-data shapes remain on the raw full-rebuild
 path. General seeded typing and deletion of that fallback remain open. The source-

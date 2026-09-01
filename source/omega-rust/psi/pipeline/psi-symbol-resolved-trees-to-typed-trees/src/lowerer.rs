@@ -189,6 +189,9 @@ pub fn lower_seeded_plain_data_extension(
         };
         lowerer.typed_trees.push_data_definition(lowered);
     }
+    if let Err(error) = normalize_domain_constraints(&source, &mut lowerer.typed_trees) {
+        return Err((retained, SeededPlainDataContinuationError::Lowering(error)));
+    }
     if !lowerer
         .typed_trees
         .authored_declaration_selections()

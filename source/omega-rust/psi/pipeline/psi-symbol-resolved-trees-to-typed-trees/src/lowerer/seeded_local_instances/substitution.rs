@@ -244,20 +244,18 @@ fn exact_substituted_argument_matches(
 ) -> bool {
     match (expected, actual) {
         (TypeReference::Constrained(expected), TypeReference::Constrained(actual)) => {
+            let Some(expected_constraint) = super::exact_constrained_argument(source, expected)
+            else {
+                return false;
+            };
+            let Some(actual_constraint) = super::exact_constrained_argument(source, actual) else {
+                return false;
+            };
             exact_substituted_argument_matches(
                 source,
                 source.child_type_reference(expected.base_type),
                 source.child_type_reference(actual.base_type),
-            ) && source
-                .tables
-                .types
-                .constraints
-                .span_or_empty(expected.constraints)
-                == source
-                    .tables
-                    .types
-                    .constraints
-                    .span_or_empty(actual.constraints)
+            ) && expected_constraint == actual_constraint
         }
         _ => expected == actual,
     }

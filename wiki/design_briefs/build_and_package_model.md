@@ -332,13 +332,16 @@ when it forwards the later template's complete lifetime application
 positionally. Concrete use-site names are rebound to that template's own exact
 binder roster in the retained origin and substituted members, giving nested
 chains one stable synthesized identity without invented binders. Permuted,
-subset, or extra lifetime routing remains outside this exact cohort. The first
-exact constrained Type-argument cohort also continues: one already-supported
-closed named carrier may retain one semantic arithmetic-domain tag. Seeded
-validation reconstructs the carrier symbol and name, arithmetic-domain enum,
-canonical synthesized name, origin, and every substituted occurrence. Range
-constraints, named or declared/indexed domains, multiple constraints, and
-broader constrained shells remain fenced.
+subset, or extra lifetime routing remains outside this exact cohort. The exact
+constrained Type-argument cohort also continues: one already-supported closed
+named carrier may retain either one semantic arithmetic-domain tag or one
+exact source-declared, unindexed, non-alias domain. For a declared domain,
+seeded validation resolves the authored spelling to exactly one visible
+declaration on that carrier, rejoins the exact carrier and domain symbols and
+names, runs the ordinary domain normalization, and checks the canonical
+synthesized name, origin, and every substituted occurrence. Same-spelled
+lookalikes or ambiguous declarations, aliases, indexed domains, range or
+multiple constraints, and broader constrained shells remain fenced.
 Scalar const binders retain an exact compiler-owned signed/unsigned integer,
 address, or Boolean carrier. Closed integer arguments use canonical in-range
 decimal leaves, and already-normalized closed expressions share that identity.
@@ -372,8 +375,8 @@ identities, recursive field/payload substitution, declaration/parameter/field/
 case ownership, same-unit source ownership, and use-site spelling. It does not
 infer an instance across generated units. Cyclic instance dependencies,
 permuted/subset/extra lifetime routing through extension-local Type arguments,
-broader or custom-canonical structured const applications, declared/indexed/
-range/multi-constraint applications, parameter-bearing constrained/dynamic/
+broader or custom-canonical structured const applications, ambiguous/alias/
+indexed/range/multi-constraint applications, parameter-bearing constrained/dynamic/
 other composite shells, fact-bearing, quotient, zero-gated,
 generated-method-bearing, dynamic, or non-data forms return the owned base and raw parsed extension to
 the existing full rebuild/rebind. Retained-base type applications
