@@ -5,7 +5,7 @@ kernel migration chosen.
 
 This note records what the 2026 completeness results for basic matching logic
 do and do not imply for Omega. It is deliberately separate from the settled
-[proof-kernel architecture](../architecture/bootstrap_lattice/proof_kernel.md).
+[proof-kernel architecture](../architecture/bootstrap_chain/proof_kernel.md).
 The current kernel, canonical semantic ledger, and artifact-verification route
 remain authoritative while this lane is investigated.
 

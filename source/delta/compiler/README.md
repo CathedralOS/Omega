@@ -437,7 +437,6 @@ The implementation order is tracked in
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `delta_compiler.gamma` | Sole Gamma-written Delta compiler source; currently owns the strict frontend and direct Alpha payload/fixup substrate. | Replace only atomically with another implementation of the same ruled edge. |
-| `test-frontend.sh` | Adjacent bounded gate for canonical DCREQ ingress, the retained frontend, source/resource guards, exact emitter substrate, and executed runtime-containment payloads. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
 | `profiles-v1.tsv` | Checked projection of DCREQ profile IDs, limits, and entries. | Replace atomically with a versioned profile revision and embedded compiler constants. |
 | `dcout-v1.tsv` | Checked Delta-compiler diagnostic projection. | Replace atomically with its versioned wire contract and compiler constants. |
 | `ecout-v1.tsv` | Checked generated Epsilon-compiler diagnostic projection. | Replace atomically with its versioned wire contract and adapter constants. |
@@ -445,6 +444,6 @@ The implementation order is tracked in
 
 ## Deletion condition
 
-Delete any future file or child subtree that does not reconstruct, implement,
-or efficiently test `delta_compiler.gamma → delta_compiler_bytecode.tape`;
+Delete any future file or child subtree that does not reconstruct or implement
+`delta_compiler.gamma → delta_compiler_bytecode.tape`;
 replace this owner only atomically with a changed, explicitly ruled topology.

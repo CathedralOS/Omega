@@ -53,7 +53,7 @@ fixed-up payloads are structurally
 replayed against Alpha's closed instruction shapes and direct-target starts
 before publication. The source remains incomplete compiler material, not an
 accepted compiler artifact.
-`interp.gamma` remains an untyped, bounded evaluation oracle; it is not an
+`tests/delta/interpreter/interp.gamma` remains an untyped, bounded evaluation oracle; it is not an
 alternate Delta language or a runtime to be serialized into emitted tapes.
 
 The compiler frontend and interpreter close their former correlated match blind
@@ -71,23 +71,22 @@ prevents compiler input from requiring one algebraic node per byte.
 Principal artifacts:
 
 - `LANGUAGE.md` - the normative typed executable Delta contract;
-- `compiler/` - owner of `delta_compiler.gamma`, adjacent validation, its future
+- `compiler/` - owner of `delta_compiler.gamma`, its closed tables, its future
   tape, and the exact edge;
-- `interp.gamma` - temporary bounded semantic oracle and candidate algorithm
-  source;
-- `reference/` - temporary Python differential scaffolding.
+- `tests/delta/` - compiler tests, the temporary bounded semantic oracle, and
+  independent differential scaffolding.
 
 Run the currently retained diagnostic gates from the repository root:
 
 ```sh
-sh source/delta/test-interp.sh
-sh source/delta/test-interp-arena.sh
-sh source/delta/compiler/test-frontend.sh
-sh source/delta/reference/delta-diamond-py.sh
+sh tests/delta/interpreter/test-interp.sh
+sh tests/delta/interpreter/test-interp-arena.sh
+sh tests/delta/compiler/test-frontend.sh
+sh tests/delta/reference/delta-diamond-py.sh
 ```
 
 Python, Rust, shell, and host tools are not Delta implementations in the
-completed lattice. The checked direct edge must leave the repository buildable
+completed bootstrap chain. The checked direct edge must leave the repository buildable
 from the audited Alpha seed and repository-owned bytes on an otherwise blank,
 offline machine.
 
@@ -96,9 +95,7 @@ offline machine.
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` | Normative Delta source and execution contract. | Replace only through an explicit language ruling with synchronized compiler and contract tests. |
-| `compiler/` | Sole owner of the Gamma-written compiler accepting Delta, adjacent validation, and its exact Alpha-tape edge. | Replace only atomically with an explicitly ruled lattice change. |
-| `interp.gamma`, `test-interp.sh`, `test-interp-arena.sh` | Candidate compiler material plus bounded semantic and resource discriminators. | Absorb or delete after the direct compiler subsumes each retained failure surface. |
-| `reference/` | Temporary independent meaning comparison and differential gate. | Delete when the checked direct edge subsumes every named diagnostic role. |
+| `compiler/` | Sole owner of the Gamma-written compiler accepting Delta, its closed tables, and its exact Alpha-tape edge. | Replace only atomically with an explicitly ruled bootstrap-chain change. |
 
 The older imperative experiment, generic canonical-byte prototype, and terminal
 codec spike are retired to Git history. Being written in Delta never made them

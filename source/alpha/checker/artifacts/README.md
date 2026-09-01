@@ -12,12 +12,12 @@ audited Alpha seed + canonical Gamma compiler tape
   -> `proof_checker_bytecode.tape`
 ```
 
-`../reconstruct-artifact.sh` performs that construction once, compares the
+`tests/proof-checker/reconstruct-artifact.sh` performs that construction once, compares the
 result byte-for-byte with the committed artifact, stamps it into the audited
 host seed, and exercises discriminating accept/reject controls. Repeating the
 construction is an optional reproducibility diagnostic. The normal
 checker and compiler-refinement gates consume this artifact through
-`../artifact_env.sh`. The canonical Gamma compiler artifact may compile the same
+`tools/bootstrap/proof-checker/artifact_env.sh`. The canonical Gamma compiler artifact may compile the same
 source as differential evidence only; it is not this artifact's authority.
 
 The current artifact is 271,096 bytes. It accepts the bounded `OMGCHK1` binary
@@ -30,10 +30,10 @@ complete gate admits a realistic maximum compiler tape with named lemmas and
 normalization, admits the simultaneous outer maxima, and pins adjacent input,
 subject, certificate, stack, and arena containment.
 
-Regenerate deliberately with `rebuild.sh`. Commit a changed tape only with its
+Regenerate deliberately with `tools/bootstrap/proof-checker/rebuild-artifact.sh`.
+Commit a changed tape only with its
 source or canonical-compiler change and a green reconstruction plus checker suite.
 
 | Retained file | Role | Deletion condition |
 | --- | --- | --- |
 | `proof_checker_bytecode.tape` | The sole accepted platform-independent checker artifact. | Replace atomically with its authoritative source and green exact reconstruction. |
-| `rebuild.sh` | Explicit mutation entry point for that artifact. | Delete when artifact replacement is owned by a different exact construction entry point. |

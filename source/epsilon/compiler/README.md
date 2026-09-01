@@ -446,7 +446,7 @@ The active migration order lives in
 ## Deletion condition
 
 This implementation owner is retained because its exact path is part of the
-canonical lattice contract. Delete any child subtree that does not reconstruct,
+canonical bootstrap-chain contract. Delete any child subtree that does not reconstruct,
 implement, or test
 `epsilon_compiler.delta → epsilon_compiler_bytecode.tape`; replace the owner only
-atomically with a changed, explicitly ruled lattice topology.
+atomically with a changed, explicitly ruled bootstrap-chain topology.

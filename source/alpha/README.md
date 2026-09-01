@@ -1,6 +1,6 @@
 # `source/alpha/` — the native tape executor
 
-Alpha is the execution floor of the compiler lattice. It is a small,
+Alpha is the execution floor of the bootstrap chain. It is a small,
 hand-auditable virtual machine with byte input, byte output, and a fixed binary
 instruction encoding. Alpha has no textual programming language and no
 assembler grammar.
@@ -24,22 +24,22 @@ alpha_arm64_macos        audited macOS arm64 VM container
 alpha_arm64_macos.s      hand-authored arm64 implementation
 alpha_arm64_macos.lst    committed arm64 disassembly
 SEMANTICS.md             AlphaBootstrapV2 execution and tape semantics
-seed_env.sh              host seed selection and tape stamping
-conformance.sh           executable opcode and boundary checks
-verify.sh                local seed, semantics, and Beta-tape reconstruction gate
-checker/                 rooted derivation-checker service beside the lattice
-alpha_ref.py             temporary untrusted executable reference
+checker/                 rooted derivation-checker source and tape
 ```
 
-`verify.sh` checks the selected host VM in three parts:
+Host invocation lives under `tools/bootstrap/alpha/`. Executable conformance
+and the independent reference live under `tests/alpha/`; the direct Alpha/Beta
+edge is `tests/bootstrap/alpha-beta-edge.sh`.
+
+That edge checks the selected host VM in three parts:
 
 - provenance where a reproducible native forge is available;
 - behavior against every opcode edge in `SEMANTICS.md`;
 - reconstruction of Beta's committed assembler tape from
   `../beta/compiler/assembler.beta`.
 
-`verify.sh --edge` omits the native-container provenance diagnostic. The direct
-compiler lattice starts with the selected audited Alpha VM; rebuilding that VM
+`alpha-beta-edge.sh --edge` omits the native-container provenance diagnostic.
+The direct compiler chain starts with the selected audited Alpha VM; rebuilding that VM
 from host assembly is useful supply-chain evidence, not another language rung.
 
 ## Tape identity
@@ -50,12 +50,12 @@ four-byte length. The maximum raw tape is therefore 1,048,572 bytes.
 
 The native containers are platform-specific. Alpha tapes are not. A compiler or
 checker artifact is identified by its raw tape bytes, never by a stamped PE or
-Mach-O container. `stamp_seed` is loading plumbing: it copies `[length | tape]`
+Mach-O container. `tools/bootstrap/alpha/seed_env.sh` is loading plumbing: it copies `[length | tape]`
 into the selected VM container and, on macOS, restores the OS-required code
 signature. It does not compile or change the tape's meaning.
 
 The Windows and macOS VMs are independent native realizations of the same Alpha
-semantics. `alpha_ref.py` is a third, untrusted diagnostic implementation. The
+semantics. `tests/alpha/reference/alpha_ref.py` is a third, untrusted diagnostic implementation. The
 written semantics and audited native correspondence carry authority;
 cross-implementation agreement is regression evidence only.
 
@@ -67,10 +67,7 @@ cross-implementation agreement is regression evidence only.
 | `SEMANTICS.md` | Authoritative Alpha execution and raw-tape relation. | Replace only atomically with a ruled Alpha revision and every consumer. |
 | `alpha_arm64_macos`, `alpha_arm64_macos.s`, `alpha_arm64_macos.lst` | Audited macOS arm64 realization, source, and listing. | Delete only with platform retirement or an equally audited replacement. |
 | `alpha_x64_windows.exe`, `alpha_x64_windows.hex` | Audited Windows x64 realization and listing. | Delete only with platform retirement or an equally audited replacement. |
-| `seed_env.sh` | Select and stamp the host VM without changing tape identity. | Delete when every caller can execute raw tapes through an equally audited interface. |
-| `conformance.sh`, `verify.sh` | Pin execution semantics and the direct Beta-program edge. | Delete only when a stronger checked admission subsumes the same facts. |
-| `alpha_ref.py`, `diamond-py.sh` | Temporary independent semantics comparison. | Delete together when the checked realization relation subsumes the diagnostic. |
 
-The Beta language, assembler source, direct assembler tape, examples, and
-self-host gate live in [`../beta/`](../beta/). There are intentionally no
+The Beta language, assembler source, and direct assembler tape live in
+[`../beta/`](../beta/); Beta fixtures and tests live in `tests/beta/`. There are intentionally no
 `.alpha` source files: Alpha programs are tapes.

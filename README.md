@@ -132,10 +132,10 @@ See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a
 The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape execution; Beta is its textual assembly. The Epsilon-written compiler closure `D` produces the first full Omega compiler `omega₀`, which compiles the Omega-written closure `C` into production `omega`. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
-[`repository_structure.md`](wiki/architecture/bootstrap_lattice/repository_structure.md).
+[`repository_structure.md`](wiki/architecture/bootstrap_chain/repository_structure.md).
 The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
-[`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
+[`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
 [`source/omega/README.md`](source/omega/README.md) describes the product-source side;
 the proof kernel is Alpha-owned checker infrastructure, not another language rung.
 

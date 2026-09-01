@@ -447,14 +447,14 @@ Remaining:
   module, library, generated/compile-time source, build input, and tool imported
   by that build.
 
-  The lattice-built Delta compiler builds the separate Delta-written closure
+  The bootstrap-built Delta compiler builds the separate Delta-written closure
   `D` into `omega₀`; `omega₀` then builds this Omega-written closure `C` into
   production `omega`. `D` and `C` implement the same complete Omega language
   but are different source closures in different implementation languages.
   This task owns `C`; `TASKS_BOOTSTRAP.md` owns `D` and both checked top edges.
 
   Author this source against the working compiler-source policy in
-  `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task
+  `wiki/architecture/bootstrap_chain/compiler_source_profile.md`; this task
   does not wait for Delta v1 or a frozen feature census. The deliberately
   conservative feature usage restricts only the compiler's own ordinary-Omega
   source, never the full Omega language that the resulting compiler implements.
@@ -3022,7 +3022,7 @@ Owners:
 
 - `wiki/architecture/pipeline/terminal_psi.md`
 - `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md`
-- `wiki/architecture/bootstrap_lattice/proof_kernel.md`
+- `wiki/architecture/bootstrap_chain/proof_kernel.md`
 
 Remaining:
 
@@ -12114,7 +12114,7 @@ specifications:
   total trusted bridge size, certificate size, checking cost, constructive
   assumptions, and positive/negative results against the current route; then
   attempt one explicit structural-induction correspondence and one external
-  arithmetic-proof import before considering any boot-lattice role; see
+  arithmetic-proof import before considering any bootstrap-chain role; see
   `wiki/design_briefs/matching_logic_proof_research.md`;
 - fault-tolerant component restart: define closed-custody component closure,
   explicit owner-death protocols for shared resources, external device reset or

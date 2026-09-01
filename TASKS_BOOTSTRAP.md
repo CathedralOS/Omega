@@ -1,4 +1,4 @@
-# Direct compiler lattice — active work
+# Direct bootstrap chain — active work
 
 Last pruned: 2026-08-30.
 
@@ -33,7 +33,7 @@ must have a present consumer, canonical owner, and deletion condition. This is
 a retention proof, not a documentation preference: unadaptable material is
 negative value because it consumes review, testing, maintenance, and
 architectural attention. There is no neutral category: merely avoiding direct
-conflict with the lattice is insufficient. Test coverage, prior investment,
+conflict with the chain is insufficient. Test coverage, prior investment,
 historical continuity, and “potentially useful” are not retention arguments
 unless the component strengthens the selected edge more economically than a
 direct replacement. If direct adaptation fails, becomes uneconomical, or
@@ -56,7 +56,7 @@ the agreed chain.
   receipt, wrapper, fixed-point gate, and differential implementation. Give it
   one bounded diagnostic or canonical-edge role, or delete it. No viewer,
   report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Epsilon
-  lattice. Retained wrappers now divide into exact seed/assembler construction,
+  chain. Retained wrappers now divide into exact seed/assembler construction,
   Gamma-source checker construction and soundness tests, exact seed/assembler and
   Gamma artifact reconstruction, and one structure check. The status-only
   encoding reconstructor was deleted when it could not be adapted into the
@@ -137,7 +137,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   immediate successor. Exact implemented compiler source/tape names are
   positively enumerated, and owner-aware scans reject forward imports and
   alternate native artifacts. Delete the `lattice_path` role facade and the
-  `verify-lattice.sh` ceremony wrapper around `source/alpha/verify.sh --edge`;
+  the retired ceremony wrapper around `tests/bootstrap/alpha-beta-edge.sh --edge`;
   the real Alpha gate is invoked directly from its owner.
 - [x] Make retention mechanically auditable: every owned file and subtree under
   the canonical Alpha-through-Omega owners must name its canonical edge or
@@ -145,7 +145,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   including leaf files inside a classified child, and every inventory must
   state deletion conditions. Delete unowned wrappers, comparators, corpora,
   reports, and generators; do not create an indefinite “diagnostic” exemption.
-  `check-path-hygiene.sh` enforces this file-level proof. The unrun 43-file Epsilon
+  `check-chain-hygiene.sh` enforces this file-level proof. The unrun 43-file Epsilon
   native-route corpus, completed Alpha extent-migration script, duplicate
   seed/reference random fuzzer, checker theorem museum/prover/adapters, and
   misleading Gamma `cold-start/` owner were removed.
@@ -193,7 +193,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   conformance tests synchronized. The canonical `.tape` is the raw Alpha
   payload; transparent seed stamping prepends its exact four-byte length inside
   the native container. The seed then exposes the exact Alpha observation
-  model. `source/alpha/verify.sh --edge` currently passes all 26 conformance
+  model. `tests/bootstrap/alpha-beta-edge.sh --edge` currently passes all 26 conformance
   cases and exact assembler reconstruction.
 - [x] Treat tape stamping as transparent packaging. No Mach-O, PE, ELF, code
   signature, linker receipt, or installation inventory becomes compiler
@@ -903,7 +903,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     This reduces the live source-join compiler with a trivial entry from
     254,109 to 250,761 bytes; the then-complete adjacent gate remained 193/193.
   - [x] **PROFILE-REVISION — D23: ALPHA-BOOTSTRAP-V2.** Migrate the complete
-    lattice profile atomically to a one-MiB stamped seed hole and 1,048,572-byte
+    chain profile atomically to a one-MiB stamped seed hole and 1,048,572-byte
     raw-tape maximum without changing Beta instructions. Both native seeds,
     stamping and assembler containers now carry 256 MiB of semantic memory and
     the exact hole. Gamma-generated programs use a one-MiB stack, two-MiB
@@ -1906,7 +1906,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       must be followed by the `machine` keyword, then enters the same root
       capacity, path, signature, body, implicit-state, and publication path as
       every unscoped machine. No target is selected or activated during parsing,
-      no target ABI enters the bootstrap lattice, and the four empty `target`
+      no target ABI enters the bootstrap chain, and the four empty `target`
       declarations in `build.omg` remain deletion-bound scaffolding rather than
       motivation for a second root model. Public target-scoped combinations and
       non-machine identifier-led roots remain implementation-incomplete. Of the

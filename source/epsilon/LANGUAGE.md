@@ -45,7 +45,7 @@ therefore no language-level `Exhausted` result.
 
 ## 2. Source bytes and tokens
 
-Epsilon source obeys the lattice-wide closed textual-ASCII envelope:
+Epsilon source obeys the chain-wide closed textual-ASCII envelope:
 
 ```text
 HT (0x09), LF (0x0A), CR (0x0D), and printable ASCII (0x20..0x7E)
