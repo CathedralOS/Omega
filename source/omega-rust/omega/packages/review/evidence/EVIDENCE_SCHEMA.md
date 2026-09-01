@@ -52,21 +52,22 @@ encoding, so changing any receipt axis changes review evidence. This remains
 opaque blocking disclosure: it does not imply provider selection, package
 admission, native realization, or audit acceptance.
 
-Schema v117 / row v75 admits actual selected named type/const-generic boundary-
-operator applications backed by checked Omega bodies. Omega supplies only the
-exact selected requirement/provider symbols; Psi independently derives each
-closed application from the authored operands and clones a private concrete
-machine through ordinary authoritative specialization. The authored generic
-provider remains intact as public API. Each canonical row retains the ordered
-package-qualified type or canonical const application, selected-plan digest,
-generic template, concrete machine/state, specialization commitment, and
-machine-contract commitment. Distinct applications retain distinct
-specializations; equal applications deduplicate only at semantic review.
-Replay independently reconstructs the application, template identity,
-specialization commitment, and checked realization contract. Open, missing,
-duplicate, substituted, stale, or category/carrier-changing rows reject.
-Fixed-token generic, lifetime, static-machine, proposition, external generic,
-symbolic cross-artifact, Terminal, and native physical coverage remain closed.
+Schema v117 / row v75 admits actual selected type/const-generic boundary-
+operator applications backed by checked Omega bodies. Named calls and supported
+local fixed-token uses enter the same row. Omega supplies only the exact
+selected requirement/provider symbols; Psi independently derives each closed
+application from the authored operands and clones a private concrete machine
+through ordinary authoritative specialization. The authored generic provider
+remains intact as public API. Each canonical row retains the ordered package-
+qualified type or canonical const application, selected-plan digest, generic
+template, concrete machine/state, specialization commitment, and machine-
+contract commitment. Distinct applications retain distinct specializations;
+equal applications deduplicate only at semantic review. Replay independently
+reconstructs the application, template identity, specialization commitment,
+and checked realization contract. Open, missing, duplicate, substituted,
+stale, or category/carrier-changing rows reject. Unsupported fixed-token
+shapes, lifetime, static-machine, proposition, external generic, symbolic
+cross-artifact, Terminal, and native physical coverage remain closed.
 
 Schema v116 / row v74 retains the atomic evaluated-import receipt beside each
 normalized locator: exact producer package/callable/closure, evaluator
@@ -81,10 +82,10 @@ realization edge defines the ordinal relation, so binder spelling is not
 identity and no duplicate mapping is encoded. Categories and const carriers
 remain exact. Provider type-property requirements may weaken the requirement
 telescope but never strengthen it. Arity, parameter, and result drift reject.
-Lifetime, static-machine, proposition, fixed-token generic, and external
-generic realizations remain closed. This declaration evidence alone grants no
-generic application coverage; v117 adds the first exact selected checked-body
-application join.
+Lifetime, static-machine, proposition, and external generic realizations remain
+closed. This declaration evidence alone grants no generic application
+coverage; v117 adds the first exact selected checked-body application join,
+including supported local fixed-token type/const uses.
 
 Schema v114 / row v72 adds D29's exact compiler-intrinsic realization role for
 actual monomorphic boundary-operator applications. The application rejoins its
@@ -363,16 +364,15 @@ value family, or a changed selection rejects. Integer admission is schema v93
 / row v51; the Boolean extension is schema v99 / row v57. Neither changes
 canonical-row recovery v14.
 
-Nongeneric, lifetime-free fixed-token boundary operators backed by one exact
-selected `CheckedAdapter` may enter package review only when their declaration
-has a dispatch-supported shape. The closed local gate admits arithmetic and
-comparison tokens with exactly two normalized operands, plus two-operand
-indexing; range and every other token/arity shape remain fail-closed. The
-existing selected-plan join still binds the exact operator coordinate to the
-checked adapter. External, aliased, bodyless, generic, and lifetime-bearing
-neighbors remain outside this admission slice. This acceptance-boundary
-expansion is schema v94 / row v52 and introduces no new canonical row atom or
-recovery-grammar revision.
+Schema v94 / row v52 first admitted nongeneric, lifetime-free fixed-token
+boundary operators backed by one exact selected `CheckedAdapter`. The closed
+local gate admits arithmetic and comparison tokens with exactly two normalized
+operands, plus two-operand indexing; range and every other token/arity shape
+remain fail-closed. The existing selected-plan join still binds the exact
+operator coordinate to the checked adapter. The later v115/v117 declaration
+and application lanes reuse that exact join for local type/const-generic
+checked bodies without adding a row atom. External, aliased, bodyless, lifetime-
+bearing, and unsupported-shape neighbors remain outside this admission slice.
 
 External executable-supply rows may also bind a bodyless, nongeneric,
 lifetime-free external realization to one exact public top-level boundary

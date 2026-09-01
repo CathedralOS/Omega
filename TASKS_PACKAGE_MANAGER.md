@@ -45,8 +45,9 @@ stop the item on one precise owner question before adding machinery.
   complete child set must equal the derived surviving set. D29 parents
   reference reconstructible operator coverage; D41 parents retain and replay
   complete boundary-trait settlements. Lifetime, machine, proposition,
-  fixed-token, external-generic, and other unsupported applications remain
-  fail-closed. D28 authorizes no universal generic coverage; only
+  unsupported fixed-token shapes, external-generic, and other unsupported
+  applications remain fail-closed. D28 authorizes no universal generic
+  coverage; only
   compiler-derived demand joined to an independently checked
   application-specific realization may authorize a row.
 
@@ -68,11 +69,11 @@ stop the item on one precise owner question before adding machinery.
   value-machine expressions as well as the attached-`Unit` plan lane. Named
   and fixed-token uses rejoin the exact authored selection, selected plan,
   checked realization, and independently rederived body contract; the two
-  lanes must agree when both exist. Local fixed-token generic type applications
-  now use ordinary authoritative specialization and project the same exact D29
-  row as named generic applications. Cross-artifact symbolic substitution,
-  remaining unsupported telescope categories, and D32 physical-child
-  completion remain open.
+  lanes must agree when both exist. Local fixed-token generic type and const
+  applications now use ordinary authoritative specialization and project the
+  same exact D29 row as named generic applications. Cross-artifact symbolic
+  substitution, remaining unsupported telescope categories, and D32
+  physical-child completion remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
