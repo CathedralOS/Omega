@@ -4971,6 +4971,158 @@ fn generated_plain_data_handoff_reuses_the_retained_typed_base() {
 }
 
 #[test]
+fn generated_erased_lifetime_data_handoff_retains_configuration_and_evidence() {
+    const GENERATED: &str =
+        "data View<'buf> { body: &'buf Main; }\ndata Envelope<'msg> { view: View<'msg>; }\n";
+    let (project, profile) = rooted_build_probe_project(
+        "generated-erased-lifetime-data",
+        r#"    builder.subsystem = Subsystem::Gui;
+    let generated: &[u8] in Path = builder.output.resolve("generated.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data View<'buf> { body: &'buf Main; }\ndata Envelope<'msg> { view: View<'msg>; }\n");
+    self.descriptor = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+
+    let checked = compile_rooted_probe_with_sponsored_output(
+        &project,
+        profile,
+        "generated-erased-lifetime-data-review",
+    )
+    .expect("erased lifetime-only generated data must continue from the retained frontend");
+    assert_eq!(
+        checked.subsystem(),
+        2,
+        "the retained build configuration wins"
+    );
+    let generated = checked
+        .typed
+        .symbols
+        .source_files()
+        .find(|source| source.path.ends_with(".omega/generated/generated.omg"))
+        .expect("final checked program retains generated lifetime-source custody");
+    assert_eq!(generated.source.as_ref(), GENERATED);
+
+    let main = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .expect("authored Main data");
+    let view = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "View")
+        .expect("generated View data");
+    let envelope = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Envelope")
+        .expect("generated Envelope data");
+    assert_eq!(
+        view.lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["buf"]
+    );
+    assert_eq!(
+        envelope
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["msg"]
+    );
+    let [psi_typed_trees::data::DataMember::Field(body)] = checked.typed.data_members(view) else {
+        panic!("View has one body field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Reference {
+        referee, lifetime, ..
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(body.type_reference)
+    else {
+        panic!("View.body remains a named-lifetime reference")
+    };
+    assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("buf"));
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.typed.type_reference_table.type_reference(*referee)
+    else {
+        panic!("View.body referee remains nominal")
+    };
+    assert_eq!(*symbol, main.symbol);
+    let [psi_typed_trees::data::DataMember::Field(view_field)] =
+        checked.typed.data_members(envelope)
+    else {
+        panic!("Envelope has one view field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(view_field.type_reference)
+    else {
+        panic!("Envelope.view remains an erased lifetime application")
+    };
+    assert_eq!(*base_symbol, view.symbol);
+    assert_eq!(
+        lifetime_arguments
+            .iter()
+            .map(|argument| argument.as_str())
+            .collect::<Vec<_>>(),
+        ["msg"]
+    );
+    assert!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty()
+    );
+
+    let selected_build = checked
+        .selected_build_machine_symbol()
+        .expect("lifetime continuation retains its exact selected build symbol");
+    assert!(
+        checked
+            .typed
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == selected_build)
+    );
+    let observation_count = checked
+        .build_observation_summary()
+        .expect("filesystem build retains observation evidence")
+        .filesystem_operation_attempts()
+        .len();
+    assert_eq!(observation_count, 3);
+    assert_eq!(
+        checked
+            .build_evaluation_usage()
+            .expect("filesystem build retains evaluation evidence")
+            .filesystem_operation_attempts,
+        u64::try_from(observation_count).expect("observation count")
+    );
+    checked
+        .verify_current_source_consumption()
+        .expect("lifetime source bytes remain tied to retained output custody");
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(
+        &project,
+        "generated-erased-lifetime-data-review",
+    ));
+}
+
+#[test]
 fn unsupported_generic_generated_data_uses_the_whole_program_rebuild_fallback() {
     let (project, profile) = rooted_build_probe_project(
         "generated-generic-data-fallback",

@@ -11669,19 +11669,24 @@ checked-result arithmetic decision listed below.
   shifting only the extension suffix and preserving compiler-generated clones
   of retained occurrences. Failure returns the original carrier intact.
   The first end-to-end typed continuation rung is now live for a nonempty
-  generated extension containing only plain monomorphic `data` roots. It
+  generated extension containing only plain runtime-monomorphic `data` roots.
+  It
   couples exact resolved and typed base snapshots in opaque consuming
   carriers, preserves retained handles, tables, authored selections, symbols,
   sources, and post-typing sidecars as exact prefixes, appends only
   extension-owned symbol/source/data/member/payload/type/selection suffixes,
   and keeps the exact selected build-machine symbol without the transitional
   source/callable-identity rebind. Primitive and exact nongeneric nominal
-  fields plus lifetime-free reference/slice/literal-fixed-array shells are
-  admitted;
-  generic, constrained, const-expression, dynamic, lifetime-bearing, and
-  non-data shapes return the retained base to the unchanged whole-program
-  rebuild/rebind fallback. Broader seeded typing and final removal of that
-  fallback remain engineering work, not a language-design blocker.
+  fields plus reference/slice/literal-fixed-array shells are admitted. The
+  same continuation now admits erased-lifetime-only data graphs: every
+  reference lifetime must name its owning data binder, and a lifetime
+  application must select an exact zero-runtime-parameter data declaration,
+  supply its complete lifetime arity from the owner's binders, and carry no
+  runtime arguments. Runtime-generic, constrained, const-expression, dynamic,
+  fact-bearing, quotient, zero-gated, invalid-lifetime, and non-data shapes
+  return the retained base to the unchanged whole-program rebuild/rebind
+  fallback. Broader seeded typing and final removal of that fallback remain
+  engineering work, not a language-design blocker.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or

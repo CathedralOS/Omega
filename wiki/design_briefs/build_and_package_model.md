@@ -296,15 +296,19 @@ target inputs, filesystem scope, and sponsor. Compiler orchestration keeps that
 carrier with the coherent base frontend, package authority/source-consumption
 verdict, and frozen transitional syntax until execution, then verifies the
 returned exact symbol. A bounded end-to-end continuation now accepts a
-nonempty generated suffix consisting only of plain monomorphic `data` roots,
-preserves every retained handle/table, authored-selection and symbol/source
+nonempty generated suffix consisting only of plain runtime-monomorphic `data`
+roots, preserves every retained handle/table, authored-selection and
+symbol/source
 row, and post-typing sidecar as exact prefixes, appends only extension-owned
 symbol/source/data/member/payload/type/selection suffixes, and retains the
 selected build symbol without transitional source/callable-identity rebind.
-Unsupported generic, constrained, lifetime-bearing, const-expression,
-dynamic, or non-data suffixes return the owned base to the existing full
-rebuild/rebind. General continuation and removal of that fallback remain
-open. Own generated outputs are now
+This includes erased-lifetime-only data graphs whose reference lifetimes name
+the owning data binders and whose lifetime applications select an exact zero-
+runtime-parameter data declaration at its complete arity without runtime
+arguments. Runtime-generic, constrained, invalid-lifetime, const-expression,
+dynamic, fact-bearing, quotient, zero-gated, or non-data suffixes return the
+owned base to the existing full rebuild/rebind. General continuation and
+removal of that fallback remain open. Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is
 consumed into the unchanged transitional combined pass without source reread or
