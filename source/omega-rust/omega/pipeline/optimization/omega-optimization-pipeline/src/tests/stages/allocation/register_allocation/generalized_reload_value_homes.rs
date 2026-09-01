@@ -259,6 +259,65 @@ impl Sources {
         omega_regalloc::validate_recursive_spill_insertion(&self.generalized, recovery, plan)
     }
 
+    pub(super) fn assign_recursive_reload_homes(
+        &self,
+        recursive: &omega_regalloc::ValidatedRecursiveSpillInsertion,
+        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        prior: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        budget: OptimizationWorkBudget,
+    ) -> Result<
+        omega_regalloc::ValidatedRecursiveReloadValueHomes,
+        omega_regalloc::RecursiveReloadValueHomeError,
+    > {
+        let legality = self.reloads.legality();
+        let ranges = legality.live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        let environment = selected.register_environment();
+        omega_regalloc::assign_recursive_reload_value_homes(
+            recursive,
+            recovery,
+            prior,
+            selected.selected(),
+            ranges.ranges(),
+            legality.legality(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            environment.allocation_constraint_keys(),
+            omega_regalloc::RecursiveReloadValueHomePolicy::CompleteBlockLocalLowestCompatibleViewV1,
+            budget,
+        )
+    }
+
+    pub(super) fn validate_recursive_reload_homes(
+        &self,
+        recursive: &omega_regalloc::ValidatedRecursiveSpillInsertion,
+        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        prior: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        plan: omega_regalloc::RecursiveReloadValueHomePlan,
+    ) -> Result<
+        omega_regalloc::ValidatedRecursiveReloadValueHomes,
+        omega_regalloc::RecursiveReloadValueHomeError,
+    > {
+        let legality = self.reloads.legality();
+        let ranges = legality.live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        let environment = selected.register_environment();
+        omega_regalloc::validate_recursive_reload_value_homes(
+            recursive,
+            recovery,
+            prior,
+            selected.selected(),
+            ranges.ranges(),
+            legality.legality(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            environment.allocation_constraint_keys(),
+            plan,
+        )
+    }
+
     fn validate(
         &self,
         candidate: omega_regalloc::GeneralizedReloadValueHomePlan,
