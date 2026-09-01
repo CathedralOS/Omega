@@ -10,7 +10,9 @@ fn omega(arguments: &[&str]) -> Output {
 }
 
 fn omega_in(directory: &std::path::Path, arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
+    let executable = std::fs::canonicalize(env!("CARGO_BIN_EXE_omega"))
+        .expect("resolve omega before changing child directory");
+    Command::new(executable)
         .current_dir(directory)
         .args(arguments)
         .output()
