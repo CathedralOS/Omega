@@ -21,6 +21,16 @@ pub(super) fn prove(
         let (source, cast_word) = definitions.cast_spine(cast_root)?;
         let first_cast = cast_word[0];
         let last_cast = *cast_word.last()?;
+        if !super::super::super::super::affine_custody::has_target_after(
+            context,
+            goal,
+            semantic_axioms,
+            definitions,
+            cast_root,
+            last_cast,
+        ) {
+            return None;
+        }
         assumptions
             .iter()
             .enumerate()
@@ -30,6 +40,16 @@ pub(super) fn prove(
                 };
                 [left, right].into_iter().find_map(|root| {
                     if !matches!(root, ScalarTerm::Value { .. }) || root == &source {
+                        return None;
+                    }
+                    if !super::super::super::super::affine_custody::has_target_before(
+                        context,
+                        semantic_axioms,
+                        definitions,
+                        root,
+                        &source,
+                        first_cast,
+                    ) {
                         return None;
                     }
                     completion::prove(

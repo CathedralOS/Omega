@@ -13,6 +13,7 @@ use super::candidates;
 /// prefix and completed proof.
 pub(crate) struct DefinitionIndex {
     by_input: BTreeMap<ScalarTerm, Vec<usize>>,
+    by_output: BTreeMap<ScalarTerm, Vec<usize>>,
     cast_roots: Vec<ScalarTerm>,
     cast_definitions: BTreeMap<ScalarTerm, Option<(usize, ScalarTerm)>>,
     words_by_root: BTreeMap<ScalarTerm, Rc<[Vec<usize>]>>,
@@ -31,6 +32,21 @@ impl DefinitionIndex {
                 candidates.push(index);
             }
         });
+        let mut by_output = BTreeMap::<ScalarTerm, Vec<usize>>::new();
+        for (index, axiom) in semantic_axioms.iter().enumerate() {
+            let Proposition::Equal(left, right) = axiom else {
+                continue;
+            };
+            for output in [left, right]
+                .into_iter()
+                .filter(|term| matches!(term, ScalarTerm::Value { .. }))
+            {
+                let definitions = by_output.entry(output.clone()).or_default();
+                if definitions.last() != Some(&index) {
+                    definitions.push(index);
+                }
+            }
+        }
         let mut cast_roots = Vec::new();
         let mut cast_definitions = BTreeMap::new();
         for (index, axiom) in semantic_axioms.iter().enumerate() {
@@ -46,6 +62,7 @@ impl DefinitionIndex {
         }
         Self {
             by_input,
+            by_output,
             cast_roots,
             cast_definitions,
             words_by_root: BTreeMap::new(),
@@ -63,6 +80,16 @@ impl DefinitionIndex {
         let candidates = self.by_input.get(input).map(Vec::as_slice).unwrap_or(&[]);
         let first = candidates.partition_point(|&index| index < start);
         candidates[first..].iter().copied()
+    }
+
+    pub(in crate::nonzero_divisor_certificate) fn output_definitions_before(
+        &self,
+        output: &ScalarTerm,
+        before: usize,
+    ) -> &[usize] {
+        let definitions = self.by_output.get(output).map(Vec::as_slice).unwrap_or(&[]);
+        let end = definitions.partition_point(|&index| index < before);
+        &definitions[..end]
     }
 
     pub(in crate::nonzero_divisor_certificate) fn cast_roots(

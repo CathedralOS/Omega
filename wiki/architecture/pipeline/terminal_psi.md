@@ -4084,6 +4084,21 @@ eligible witness to their own ordinary affine-custody completion. Their
 rejection within each candidate, and the fixed producer frontier are
 unchanged.
 
+Producer-side canonical integer selection indexes exact equality definitions
+by both input and value output while retaining their semantic-axiom order.
+Targeted affine/multiply reconstruction queries only definitions of its current
+output before the active prefix fence, and cast/affine candidates are attempted
+only when an indexed definition word reaches the requested endpoint on the
+required side of the first or last cast. These are necessary-condition search
+indexes, not proof authority: the selected source-ordered witness, literal
+citations, strict prefix boundaries, and completed proposition are still
+replayed by the proof kernel. Direct exact-add/subtract selection likewise tries
+operand-owned and complementary sibling endpoints first only when those values
+already occur in the pre-existing global candidate set, then retains that
+complete set as fallback. Consequently the accepted source frontier and final
+kernel boundary are unchanged; the index removes repeated full-ledger negative
+search rather than adding a proof form or widening the language.
+
 Affine-witness candidate coordination now separates goal-target enumeration
 from exact fixed-target completion. Independent producer and verifier
 `affine_custody/candidates/fixed` modules align literal landings and construct

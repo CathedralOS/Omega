@@ -20,6 +20,16 @@ pub(super) fn prove(
         };
         let (source, cast_word) = definitions.cast_spine(cast_root)?;
         let last_cast = *cast_word.last()?;
+        if !super::super::super::super::affine_custody::has_target_after(
+            context,
+            goal,
+            semantic_axioms,
+            definitions,
+            cast_root,
+            last_cast,
+        ) {
+            return None;
+        }
         assumptions
             .iter()
             .enumerate()
