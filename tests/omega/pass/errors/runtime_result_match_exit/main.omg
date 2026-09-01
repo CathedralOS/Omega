@@ -7,7 +7,7 @@
 // computed only in the divisor-nonzero branch (so a divide-by-zero is never executed --
 // the error is data, not a trap), and the matched payload flows to the handler state.
 // Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data DivResult {
     case Ok(value: i32 in Wrapping);

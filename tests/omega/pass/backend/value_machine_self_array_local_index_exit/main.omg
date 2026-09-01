@@ -9,7 +9,7 @@
 // index materializes and the read threads the receiver base.
 // fill(): buf[5]=99, returns buf[5]=99.
 // Expected exit: 99
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Probe { buf: [u8; 16]; }
 machine Probe::fill(&mut self) -> i64 {
