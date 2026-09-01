@@ -98,6 +98,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/exact_integer_cast_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/integer_widen_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/integer_bitwise_not_constants/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons/against_constant/integer_equal_range_constant/mod.rs",
         coordination_marker: "fn propose(",
     },

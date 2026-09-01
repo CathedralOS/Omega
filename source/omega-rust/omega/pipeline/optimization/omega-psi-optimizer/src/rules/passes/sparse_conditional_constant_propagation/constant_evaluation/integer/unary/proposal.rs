@@ -1,49 +1,22 @@
+//! Shared unary integer traversal and scalar-evaluation rewrite construction.
+
 use omega_abstract_operations::AbstractOperation as O;
-use omega_optimization_core::{
-    AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
-};
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract};
 use omega_optimization_unit::{
     IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, ProvenanceDisposition,
     ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate,
 };
-use psi_core::{MachineId, OperationId};
 
-use crate::rules::passes::support::accepted_obligation_fact;
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-use super::super::constant_evaluation_contract;
-use super::integer_constant;
+use super::super::integer_constant;
+use super::model::IntegerUnaryKind;
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ExactIntegerCastConstantsRule;
-
-impl ExactIntegerCastConstantsRule {
-    pub fn contract() -> OptimizationRuleContract {
-        constant_evaluation_contract(
-            b"omega.psi-rule.exact-integer-cast-constants.v1",
-            OptimizationSafetyClass::ProofCertified,
-        )
-    }
-}
-
-impl PsiOptimizationRule for ExactIntegerCastConstantsRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_exact_integer_cast_constants(unit, analyses, Self::contract())
-    }
-}
-
-fn propose_exact_integer_cast_constants(
+pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
+    kind: IntegerUnaryKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
     let Some(AnalysisProduct::ScalarConstants(constants)) =
         analyses.get(AnalysisKind::ScalarConstants)
@@ -56,24 +29,53 @@ fn propose_exact_integer_cast_constants(
     for function in &unit.functions {
         for block in &function.blocks {
             for (node_index, node) in block.nodes.iter().enumerate() {
-                let O::IntegerExactCast {
-                    psi_operation,
-                    result,
-                    source_type,
-                    target_type,
-                    operand,
-                    ..
-                } = node.operation
-                else {
-                    continue;
-                };
+                let (source_operation, result, source_type, target_type, operand) =
+                    match (&node.operation, kind) {
+                        (
+                            O::IntegerWiden {
+                                psi_operation,
+                                result,
+                                source_type,
+                                target_type,
+                                operand,
+                            },
+                            IntegerUnaryKind::Widen,
+                        ) => (
+                            *psi_operation,
+                            *result,
+                            *source_type,
+                            *target_type,
+                            *operand,
+                        ),
+                        (
+                            O::IntegerBitwiseNot {
+                                psi_operation,
+                                result,
+                                scalar_type,
+                                operand,
+                            },
+                            IntegerUnaryKind::BitwiseNot,
+                        ) => (
+                            *psi_operation,
+                            *result,
+                            *scalar_type,
+                            *scalar_type,
+                            *operand,
+                        ),
+                        _ => continue,
+                    };
                 let Some((operand_value, operand_fact)) =
                     integer_constant(constants, function.machine, operand)
                 else {
                     continue;
                 };
-                let Some(constant) = source_type.exact_cast_value_to(target_type, operand_value)
-                else {
+                let constant = match kind {
+                    IntegerUnaryKind::Widen => {
+                        source_type.widen_value_to(target_type, operand_value)
+                    }
+                    IntegerUnaryKind::BitwiseNot => source_type.bitwise_not(operand_value),
+                };
+                let Some(constant) = constant else {
                     continue;
                 };
                 let location = NodeLocation {
@@ -95,16 +97,11 @@ fn propose_exact_integer_cast_constants(
                             sources: node.provenance.clone(),
                             fuel: node.fuel.clone(),
                         }],
-                        proof_certified_unary_witness(
-                            unit,
-                            function.machine,
-                            psi_operation,
-                            operand_fact,
-                        )?,
+                        IntegerEvaluationWitness::Unary { operand_fact },
                         -1,
                         IntegerConstantRewrite {
                             location,
-                            source_operation: psi_operation,
+                            source_operation,
                             result,
                             scalar_type: target_type,
                             constant,
@@ -116,16 +113,4 @@ fn propose_exact_integer_cast_constants(
         }
     }
     Ok(candidates)
-}
-
-fn proof_certified_unary_witness(
-    unit: &PsiOptimizationUnit,
-    machine: MachineId,
-    operation: OperationId,
-    operand_fact: ScalarConstantFactIdentity,
-) -> Result<IntegerEvaluationWitness, RuleProposalError> {
-    Ok(IntegerEvaluationWitness::ProofCertifiedUnary {
-        operand_fact,
-        obligation_fact: accepted_obligation_fact(unit, machine, operation)?,
-    })
 }

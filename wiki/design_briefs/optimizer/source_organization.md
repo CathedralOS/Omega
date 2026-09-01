@@ -208,6 +208,15 @@ sole 39-row pass roster. The guard rejects restoration of the mixed producer,
 the flat test leaf, or inherited parent-glob dependencies anywhere below
 constant evaluation.
 
+Integer-result SCCP constant evaluation now gives exact cast, widen, and
+bitwise-not their own executable entrances. The proof-certified cast keeps its
+obligation join beside its proposal traversal. Widen and bitwise-not descend
+through a small `unary/` group map to a closed operation model and shared
+single-operand proposal builder. The guard pins all three proposal joins and
+the supporting ladders, retires the former mixed `cast.rs` and `unary.rs`
+leaves, and continues to forbid inherited parent-glob dependencies. The 22
+binary integer identities remain the next exact-rule split.
+
 ## Semantic folder templates
 
 Use the smallest applicable template; do not create empty leaves in advance.

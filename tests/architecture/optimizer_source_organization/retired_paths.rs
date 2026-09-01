@@ -49,6 +49,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/global_value_numbering/accounting.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/identity_rewrite.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/boolean.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/cast.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/range_comparisons.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation.rs",

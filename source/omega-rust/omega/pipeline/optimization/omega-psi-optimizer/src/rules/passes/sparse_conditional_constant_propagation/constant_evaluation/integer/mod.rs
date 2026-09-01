@@ -1,16 +1,17 @@
 //! Optimizer module role: stage group. Integer constant-evaluation taxonomy.
 //!
-//! `binary` owns arithmetic, shifts, and bitwise binary rules; `cast` owns the
-//! proof-certified exact cast; `unary` owns widening and bitwise-not; `facts`
-//! is the shared read-only scalar-constant/type lookup seam.
+//! `binary` owns arithmetic, shifts, and bitwise binary rules;
+//! `exact_integer_cast_constants` owns the proof-certified cast entrance;
+//! `unary` maps widening and bitwise-not to their exact entrances; `facts` is
+//! the shared read-only scalar-constant/type lookup seam.
 
 mod binary;
-mod cast;
+mod exact_integer_cast_constants;
 mod facts;
 mod unary;
 
 pub use binary::*;
-pub use cast::*;
+pub use exact_integer_cast_constants::ExactIntegerCastConstantsRule;
 pub use unary::*;
 
 pub(super) use facts::integer_constant;
