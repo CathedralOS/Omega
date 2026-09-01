@@ -251,7 +251,7 @@ satisfies CheckedMath::subtract
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .message
-                .contains("has no exact authored `via` custody")
+                .contains("disagrees with its exact checked, legacy, or evaluated supply carrier")
         }),
         "{diagnostics:?}"
     );

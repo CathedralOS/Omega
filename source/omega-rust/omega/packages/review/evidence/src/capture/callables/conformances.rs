@@ -8,8 +8,8 @@ use super::boundary_operators::{
 };
 use super::boundary_requirements::project_top_level_requirement_external_supply;
 use super::external_supply::{
-    project_external_binding, project_external_executable_supply_with_source,
-    validate_external_binding_payload,
+    project_evaluated_import, project_external_binding,
+    project_external_executable_supply_with_source, validate_external_binding_payload,
 };
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
@@ -22,6 +22,11 @@ use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::SymbolHandle;
+
+enum ExpectedExternalCarrier {
+    Legacy(psi_language_semantics::ExternalBindingId),
+    Evaluated,
+}
 
 pub(super) fn project_callable_conformances(
     compilation: &CheckedCompilation,
@@ -54,32 +59,69 @@ pub(super) fn project_callable_conformances(
                     conformances.len()
                 ))]);
             }
-            let (Some(binding), Some(mechanism)) = (binding, mechanism) else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has not installed its evaluated binding",
-                    machine.name
-                ))]);
+            let conformance = &conformances[0];
+            let (carrier, projected_binding) = match (binding, mechanism) {
+                (Some(binding), Some(mechanism))
+                    if conformance.external_binding == Some(binding)
+                        && !conformance.via_expression.is_valid() =>
+                {
+                    let Some(identity) = compilation.external_bindings.identity(binding) else {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed external callable `{}` has no exact binding-table identity",
+                            machine.name
+                        ))]);
+                    };
+                    if identity.mechanism() != mechanism {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed external callable `{}` has a supply mechanism inconsistent with its exact binding identity",
+                            machine.name
+                        ))]);
+                    }
+                    validate_external_binding_payload(compilation, machine, identity)?;
+                    (
+                        ExpectedExternalCarrier::Legacy(binding),
+                        project_external_binding(identity),
+                    )
+                }
+                (None, None)
+                    if conformance.external_binding.is_none()
+                        && conformance.via_expression.is_valid() =>
+                {
+                    let Some(row) = compilation.evaluated_via_bindings().exact(
+                        machine.symbol,
+                        conformance.symbol,
+                        conformance.requirement_symbol,
+                    ) else {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed external callable `{}` has no exact evaluated `via` row",
+                            machine.name
+                        ))]);
+                    };
+                    if row.via_expression() != conformance.via_expression {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed external callable `{}` evaluated `via` expression was substituted",
+                            machine.name
+                        ))]);
+                    }
+                    (
+                        ExpectedExternalCarrier::Evaluated,
+                        project_evaluated_import(compilation, row)?,
+                    )
+                }
+                _ => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "reviewed external callable `{}` has mixed or incomplete legacy/evaluated supply",
+                        machine.name
+                    ))]);
+                }
             };
-            let Some(identity) = compilation.external_bindings.identity(binding) else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has no exact binding-table identity",
-                    machine.name
-                ))]);
-            };
-            if identity.mechanism() != mechanism {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has a supply mechanism inconsistent with its exact binding identity",
-                    machine.name
-                ))]);
-            }
-            validate_external_binding_payload(compilation, machine, identity)?;
             let Some(signature) = external_callable_signature else {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed external callable `{}` has no self-contained executable-supply signature",
                     machine.name
                 ))]);
             };
-            Some((binding, project_external_binding(identity), signature))
+            Some((carrier, projected_binding, signature))
         }
         MachineSupplyMode::CheckedBody
         | MachineSupplyMode::Requirement
@@ -91,45 +133,28 @@ pub(super) fn project_callable_conformances(
     let mut operator_realizations = Vec::new();
     let mut external_executable_supply = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
-        match (
-            conformance.external_binding,
-            conformance.external_binding_source_span,
-        ) {
-            (None, None) | (Some(_), Some(_)) => {}
-            (None, Some(_)) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` retains authored `via` custody without an external binding",
-                    machine.name
-                ))]);
+        let carrier_is_exact = match expected_external.as_ref().map(|expected| &expected.0) {
+            None => {
+                conformance.external_binding.is_none()
+                    && !conformance.via_expression.is_valid()
+                    && conformance.external_binding_source_span.is_none()
             }
-            (Some(_), None) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has no exact authored `via` custody",
-                    machine.name
-                ))]);
+            Some(ExpectedExternalCarrier::Legacy(expected)) => {
+                conformance.external_binding == Some(*expected)
+                    && !conformance.via_expression.is_valid()
+                    && conformance.external_binding_source_span.is_some()
             }
-        }
-        match (expected_external.as_ref(), conformance.external_binding) {
-            (None, None) => {}
-            (None, Some(_)) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` retains an external conformance binding without external supply",
-                    machine.name
-                ))]);
+            Some(ExpectedExternalCarrier::Evaluated) => {
+                conformance.external_binding.is_none()
+                    && conformance.via_expression.is_valid()
+                    && conformance.external_binding_source_span.is_some()
             }
-            (Some(_), None) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has a conformance without its exact external binding",
-                    machine.name
-                ))]);
-            }
-            (Some((expected, _, _)), Some(actual)) if *expected != actual => {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has a conformance binding inconsistent with its supply mode",
-                    machine.name
-                ))]);
-            }
-            (Some(_), Some(_)) => {}
+        };
+        if !carrier_is_exact {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` conformance disagrees with its exact checked, legacy, or evaluated supply carrier",
+                machine.name
+            ))]);
         }
         let trait_definition = compilation
             .traits()
@@ -149,7 +174,7 @@ pub(super) fn project_callable_conformances(
                 machine,
                 conformance,
             ) {
-                if expected_external.is_none() || conformance.external_binding.is_none() {
+                if expected_external.is_none() {
                     return Err(vec![Diagnostic::error(format!(
                         "reviewed callable `{}` realizes top-level requirement `{}` without external executable supply not yet represented by package review",
                         machine.name, requirement.name
@@ -179,8 +204,7 @@ pub(super) fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            let external_operator =
-                expected_external.is_some() || conformance.external_binding.is_some();
+            let external_operator = expected_external.is_some();
             let operator = if external_operator {
                 psi_typed_trees::operator::resolve_satisfied_boundary_operator(
                     &compilation.typed,

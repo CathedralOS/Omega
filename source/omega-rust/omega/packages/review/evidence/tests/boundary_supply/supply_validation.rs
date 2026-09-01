@@ -472,8 +472,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .external_binding = Some(binding);
     }
 
-    let mut unevaluated_binding = checked.clone();
-    let leaf = unevaluated_binding
+    let mut incomplete_legacy_carrier = checked.clone();
+    let leaf = incomplete_legacy_carrier
         .typed
         .machines_mut()
         .iter_mut()
@@ -483,12 +483,12 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         binding: None,
         mechanism: None,
     };
-    let diagnostics = project_checked_package_review(&unevaluated_binding)
-        .expect_err("an unevaluated binding must not enter package evidence");
+    let diagnostics = project_checked_package_review(&incomplete_legacy_carrier)
+        .expect_err("an incomplete legacy binding carrier must not enter package evidence");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("has not installed its evaluated binding")
+            .contains("mixed or incomplete legacy/evaluated supply")
     }));
 
     let mut mechanism_mismatch = checked.clone();
@@ -533,7 +533,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("retains authored `via` custody without an external binding")
+            .contains("mixed or incomplete legacy/evaluated supply")
     }));
 
     let mut binding_without_source_span = checked.clone();
@@ -554,7 +554,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("has no exact authored `via` custody")
+            .contains("disagrees with its exact checked, legacy, or evaluated supply carrier")
     }));
 
     let mut invalid_source_span = checked.clone();
@@ -683,7 +683,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("conformance binding inconsistent with its supply mode")
+            .contains("mixed or incomplete legacy/evaluated supply")
     }));
 
     let mut nonexternal_supply = checked.clone();
@@ -699,7 +699,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("external conformance binding without external supply")
+            .contains("disagrees with its exact checked, legacy, or evaluated supply carrier")
     }));
 
     let malformed = [

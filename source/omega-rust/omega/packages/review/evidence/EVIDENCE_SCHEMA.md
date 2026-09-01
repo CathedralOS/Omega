@@ -1,8 +1,22 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 117 and row schema version 75. This file
+The canonical review schema is version 118 and row schema version 76. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v118 / row v76 projects ordinary evaluated `via` imports into canonical
+package review. Before projection, review requires an exact bijection between
+every retained typed `via` expression and the complete evaluated-binding table,
+including private and unselected package-owned leaves, and rejoins the exact
+expression, producer entry, source custody, target, and locator receipt. The
+new external-binding case is structurally distinct from the legacy pair of
+string-backed import names. It retains the stable target identity, atomic raw
+locator coordinates, producer package/callable/closure, evaluator semantics
+and complete measured usage, evaluation result, materializer schema/result,
+and locator plus aggregate receipt digests. Every field enters canonical row
+encoding, so changing any receipt axis changes review evidence. This remains
+opaque blocking disclosure: it does not imply provider selection, package
+admission, native realization, or audit acceptance.
 
 Schema v117 / row v75 admits actual selected named type/const-generic boundary-
 operator applications backed by checked Omega bodies. Omega supplies only the

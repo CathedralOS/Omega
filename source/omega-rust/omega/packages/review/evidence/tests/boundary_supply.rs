@@ -2,6 +2,8 @@ mod support;
 
 #[path = "boundary_supply/boundary_bodies.rs"]
 mod boundary_bodies;
+#[path = "boundary_supply/evaluated_via_supply.rs"]
+mod evaluated_via_supply;
 #[path = "boundary_supply/external_executable_supply.rs"]
 mod external_executable_supply;
 #[path = "boundary_supply/machine_telescopes.rs"]

@@ -1,6 +1,8 @@
+use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
-    PackageReviewExternalBinding, PackageReviewExternalExecutableSupply,
+    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport, PackageReviewExternalBinding,
+    PackageReviewExternalExecutableSupply, PackageReviewForeignLocator,
     PackageReviewSourceLocationRole,
 };
 use omega_compiler::CheckedCompilation;
@@ -25,6 +27,75 @@ pub(super) fn project_external_executable_supply_with_source(
             role: PackageReviewSourceLocationRole::ExternalBinding,
         }],
     })
+}
+
+pub(super) fn project_evaluated_import(
+    compilation: &CheckedCompilation,
+    row: &omega_provider_planning::evaluated_via_bindings::EvaluatedViaBindingRow,
+) -> Result<PackageReviewExternalBinding, Vec<Diagnostic>> {
+    let evaluated = row.evaluated();
+    let locator = evaluated.locator();
+    let projected_locator = match locator.locator() {
+        omega_target::ForeignLocatorCandidate::PeByName { library, export } => {
+            PackageReviewForeignLocator::PeByName {
+                library: library.clone(),
+                export: export.clone(),
+            }
+        }
+        omega_target::ForeignLocatorCandidate::PeByOrdinal { library, ordinal } => {
+            PackageReviewForeignLocator::PeByOrdinal {
+                library: library.clone(),
+                ordinal: *ordinal,
+            }
+        }
+        omega_target::ForeignLocatorCandidate::ElfVersioned {
+            object,
+            symbol,
+            version,
+        } => PackageReviewForeignLocator::ElfVersioned {
+            object: object.clone(),
+            symbol: symbol.clone(),
+            version: version.clone(),
+        },
+        omega_target::ForeignLocatorCandidate::MachODylibSymbol {
+            install_name,
+            symbol,
+        } => PackageReviewForeignLocator::MachODylibSymbol {
+            install_name: install_name.clone(),
+            symbol: symbol.clone(),
+        },
+    };
+    let receipt = evaluated.receipt();
+    let usage = receipt.evaluation_usage();
+    Ok(PackageReviewExternalBinding::NormalizedImport(
+        PackageReviewEvaluatedImport {
+            target: locator.target().identity().as_str().to_owned(),
+            locator: projected_locator,
+            locator_identity_digest: locator.identity_digest().as_bytes(),
+            producer: nominal_identity(compilation, row.producer_machine())?,
+            producer_package: receipt.producer_package(),
+            producer_callable_identity: receipt.producer_callable_identity().to_owned(),
+            producer_closure_digest: receipt.producer_closure_digest().as_bytes(),
+            evaluator_semantics_marker: receipt.evaluator_semantics_marker(),
+            evaluation_usage: PackageReviewEvaluatedBindingUsage {
+                usage_schema_version: usage.usage_schema_version(),
+                step_schedule_marker: usage.step_schedule_marker(),
+                fuel_units: usage.fuel_units(),
+                fuel_ceiling: usage.fuel_ceiling(),
+                build_log_bytes: usage.build_log_bytes(),
+                filesystem_operation_attempts: usage.filesystem_operation_attempts(),
+                peak_live_cells: usage.peak_live_cells(),
+                peak_live_text_bytes: usage.peak_live_text_bytes(),
+                result_cells: usage.result_cells(),
+                result_text_bytes: usage.result_text_bytes(),
+            },
+            evaluation_digest: receipt.evaluation_digest().as_bytes(),
+            materializer_schema_version: receipt.materializer_schema_version(),
+            materialization_digest: receipt.materialization_digest().as_bytes(),
+            receipt_locator_identity_digest: receipt.locator_identity_digest().as_bytes(),
+            receipt_identity_digest: receipt.identity_digest(),
+        },
+    ))
 }
 
 pub(super) fn validate_external_binding_payload(
@@ -128,6 +199,26 @@ pub(super) fn external_binding_matches_provider_binding(
         .map(|name| name.as_str())
         .unwrap_or_default();
     match (binding, selected) {
+        (
+            PackageReviewExternalBinding::NormalizedImport(reviewed),
+            omega_effects::provider_plan::ProviderBinding::Import { evaluated },
+        ) => compilation
+            .machine_trait_conformances(machine)
+            .first()
+            .and_then(|conformance| {
+                compilation.evaluated_via_bindings().exact(
+                    machine.symbol,
+                    conformance.symbol,
+                    conformance.requirement_symbol,
+                )
+            })
+            .is_some_and(|row| {
+                row.evaluated() == evaluated
+                    && project_evaluated_import(compilation, row).is_ok_and(|projected| {
+                        projected
+                            == PackageReviewExternalBinding::NormalizedImport(reviewed.clone())
+                    })
+            }),
         (
             PackageReviewExternalBinding::Import { library, symbol },
             omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap {
