@@ -8,6 +8,7 @@ mod input;
 mod machine_code;
 mod model;
 mod output;
+mod program_entry;
 mod providers;
 mod terminal_authority_policy;
 
@@ -19,47 +20,20 @@ pub use model::{
     NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
     NativeRealizationRequest, SettledNativeArtifact,
 };
+pub use program_entry::realize_program_entry_native_artifact;
 pub use terminal_authority_policy::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
     UnclassifiedCompilerIntrinsicTerminalMechanism,
     current_compiler_intrinsic_terminal_authority_policy,
 };
 
-use crate::entry_settlement::validate_native_program_entry_settlement;
 use diagnostics::realization_error;
 use input::lower_realization_input;
 use machine_code::emit_realization_machine_code;
 use omega_native_artifact::NativeArtifact;
 use output::assemble_native_artifact;
 use providers::{AdmittedNativeProviders, admit_native_providers};
-use psi_checked_trees_to_terminal::ProducedProgramEntryTerminalArtifact;
 use psi_diagnostics::Diagnostic;
-
-/// Realize a receipt-coupled checked `ProgramEntry` artifact and return its
-/// independently validated, owned native settlement alongside the ordinary
-/// authority-free native artifact.
-pub fn realize_program_entry_native_artifact(
-    produced: ProducedProgramEntryTerminalArtifact,
-    request: NativeRealizationRequest<'_>,
-) -> Result<SettledNativeArtifact, Vec<Diagnostic>> {
-    let (artifact, checked_entry, checked_scope) = produced.into_parts();
-    let program_entry = validate_native_program_entry_settlement(
-        &artifact,
-        &checked_entry,
-        request.program_entry,
-        request.target,
-    )
-    .map_err(|error| realization_error("checked ProgramEntry settlement", error))?;
-    let artifact = realize_native_artifact_with_checked_boundary_operator_scope(
-        artifact,
-        &checked_scope,
-        request,
-    )?;
-    Ok(SettledNativeArtifact {
-        artifact,
-        program_entry,
-    })
-}
 
 /// Realize one canonical Terminal-Psi artifact into an authority-free target
 /// object and executable image while retaining its captured source-entry
