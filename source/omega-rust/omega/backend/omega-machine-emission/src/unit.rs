@@ -747,15 +747,8 @@ pub(super) fn emit_unit_body(
                 operation_site = Some(*psi_operation);
                 let result_shape = result_home
                     .map(|home| {
-                        let expected_type =
-                            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
-                                .expect("signed i32 is a valid fixed integer type");
                         let shape = unit_scalar_shape(home.source_value, home.scalar_type)?;
-                        if home.defining_operation != *psi_operation
-                            || home.scalar_type != expected_type
-                            || shape != ValueShape::integer(4, 4)
-                            || home.shape != shape
-                        {
+                        if home.defining_operation != *psi_operation || home.shape != shape {
                             return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                         }
                         Ok(shape)

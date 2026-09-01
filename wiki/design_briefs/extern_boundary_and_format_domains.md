@@ -476,15 +476,16 @@ materialization byte interval. Runtime-home rows instead bind the exact source
 value and assigned durable home plus their load interval. With multiple
 arguments through the target-specific ceiling, the rows and intervals stay in
 parameter order and every interval ends exactly where the next begins. The
-first result-bearing lane is also complete: an exact signed `i32` result from a
-normalized foreign call in an attached `Unit` body is normalized from the
-evaluated result register into a durable scalar home and may feed a later
-normalized foreign call. Its home roster, producer ordinal, exact result-store
-interval, and later argument-load interval survive ordinary object construction
-and both Linux dynamic-ELF drivers. Machine emission rejoins each row to its
-preceding constant, exact preceding scalar-call producer, or exact preceding
-normalized-foreign result producer and emits the compact target register
-materialization.
+complete register-resident fixed-integer result family is also closed: exact
+signed and unsigned 8/16/32/64-bit results from normalized foreign calls in
+attached `Unit` bodies are normalized from their evaluated result registers
+into durable 64-bit scalar homes and may feed later normalized foreign calls.
+The declared sign and width, canonical shape, home roster, producer ordinal,
+exact result-store interval, and later argument-load interval survive ordinary
+object construction and both Linux dynamic-ELF drivers. Machine emission
+rejoins each row to its preceding constant, exact preceding scalar-call
+producer, or exact preceding normalized-foreign result producer and emits the
+compact target register materialization.
 Object construction repeats that semantic rejoin—including the literal source-
 value check—and independently replays the complete ordered call plan, result
 normalization/store bytes, placements, semantic call ownership, and physical
@@ -492,8 +493,9 @@ stack custody before consuming the rows. Both Linux profiles advance from the
 exact native rejoin through target, assignment, machine, ordinary object
 construction, and the complete dynamic-ELF driver. Stripped, reordered, or drifted source/type/value/
 home/index/register/byte/plan/stack custody rejects. General runtime
-expressions, the first stack-resident argument and beyond, other result shapes,
-complete task-stack-budget composition, optional `.gnu.hash`, and
+expressions, the first stack-resident argument and beyond, non-fixed-integer,
+float, aggregate, and indirect result shapes, complete task-stack-budget
+composition, optional `.gnu.hash`, and
 general external-admission ownership remain open engineering work. An owned direct
 `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a

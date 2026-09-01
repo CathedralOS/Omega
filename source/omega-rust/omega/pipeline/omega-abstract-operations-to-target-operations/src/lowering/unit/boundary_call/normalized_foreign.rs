@@ -1,5 +1,6 @@
 //! Normalized foreign scalar-call argument and result projection.
 
+use super::super::super::scalar_abi::fixed_native_integer_shape;
 use super::*;
 
 pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
@@ -67,7 +68,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 };
                 if known.scalar_type() != *integer_type
                     || placement.shape != *shape
-                    || u16::try_from(shape.byte_size) != Ok(*byte_size)
+                    || shape.byte_size != *byte_size
                     || match source {
                         TargetUnitScalarArgumentSource::IntegerImmediate {
                             scalar_type,
@@ -131,23 +132,24 @@ pub(super) fn lower_normalized_foreign_scalar_result(
         _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
     };
     let (source_value, result_type) = result;
-    let expected_type = IntegerType::new(IntegerSign::Signed, 32)
-        .expect("signed i32 is a valid fixed integer type");
-    let shape = ValueShape::integer(4, 4);
+    let shape = fixed_native_integer_shape(result_type)
+        .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
     let Some(placement) = boundary_entry_plan.call.result.as_ref() else {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     };
-    if declaration_result != expected_type
-        || result_type != expected_type
+    let [
+        ValueLocation::Register {
+            value_byte_offset: 0,
+            byte_size,
+            ..
+        },
+    ] = placement.locations.as_slice()
+    else {
+        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+    };
+    if declaration_result != result_type
         || placement.shape != shape
-        || !matches!(
-            placement.locations.as_slice(),
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size: 4,
-                ..
-            }]
-        )
+        || *byte_size != shape.byte_size
     {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }

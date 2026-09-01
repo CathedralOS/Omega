@@ -1788,15 +1788,13 @@ fn validate_foreign_scalar_arguments(
         .scalar_result
         .as_ref()
         .map(|result| {
-            let expected_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
-                .expect("signed i32 is a valid fixed integer type");
-            let expected_shape = omega_calling_conventions::ValueShape::integer(4, 4);
+            let expected_shape = unit_scalar_call_custody::integer_shape(result.home.scalar_type)
+                .ok_or_else(invalid)?;
             if result.home.defining_operation
                 != match call.owner {
                     CallSiteOwner::Operation(operation) => operation,
                     CallSiteOwner::CleanupAction { .. } => return Err(invalid()),
                 }
-                || result.home.scalar_type != expected_type
                 || result.home.shape != expected_shape
                 || !function.unit_scalar_homes.contains(&result.home)
             {
@@ -1850,15 +1848,16 @@ fn validate_foreign_scalar_arguments(
         call_end
     };
     let operation_end = if let Some(result) = &call.scalar_result {
+        let expected_shape = result.home.shape;
         if result.code_offset != post_call
             || call.call_plan.result.as_ref() != Some(&result.source)
             || !matches!(
                 result.source.locations.as_slice(),
                 [omega_calling_conventions::ValueLocation::Register {
                     value_byte_offset: 0,
-                    byte_size: 4,
+                    byte_size,
                     ..
-                }]
+                }] if *byte_size == expected_shape.byte_size
             )
         {
             return Err(invalid());

@@ -1,4 +1,7 @@
-use super::normalized::assign_normalized_foreign_scalar_arguments_for_plan;
+use super::normalized::{
+    assign_normalized_foreign_scalar_arguments_for_plan,
+    assign_normalized_foreign_scalar_call_for_plan,
+};
 use crate::assignment::shared::{
     BTreeMap, CallSignature, CallingPolicy, MachineRegister, NativeTarget, TargetUnitOperation,
     ValueId, ValueLocation, ValueShape,
@@ -385,4 +388,135 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         )
         .is_err()
     );
+}
+
+#[test]
+fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift() {
+    let operation = OperationId::new(401).unwrap();
+    let source = ValueId::new(402).unwrap();
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for (sign, bits) in [
+            (IntegerSign::Signed, 8),
+            (IntegerSign::Unsigned, 8),
+            (IntegerSign::Signed, 16),
+            (IntegerSign::Unsigned, 16),
+            (IntegerSign::Signed, 32),
+            (IntegerSign::Unsigned, 32),
+            (IntegerSign::Signed, 64),
+            (IntegerSign::Unsigned, 64),
+        ] {
+            let integer = IntegerType::new(sign, bits).unwrap();
+            let bytes = bits.div_ceil(8);
+            let shape = ValueShape::integer(bytes, bytes.next_power_of_two().min(8));
+            let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(shape),
+                },
+            )
+            .unwrap()
+            .plan()
+            .clone();
+            let result = omega_target_operations::TargetUnitScalarHomeRequirement {
+                defining_operation: operation,
+                source_value: source,
+                scalar_type: integer,
+                shape,
+            };
+            assert_eq!(
+                assign_normalized_foreign_scalar_call_for_plan(
+                    &plan,
+                    target,
+                    &[],
+                    Some(&result),
+                    operation,
+                    &[],
+                    &BTreeMap::new(),
+                ),
+                Ok(Vec::new())
+            );
+
+            let mut wrong_shape = result;
+            wrong_shape.shape.alignment = wrong_shape.shape.alignment.saturating_add(1);
+            assert!(
+                assign_normalized_foreign_scalar_call_for_plan(
+                    &plan,
+                    target,
+                    &[],
+                    Some(&wrong_shape),
+                    operation,
+                    &[],
+                    &BTreeMap::new(),
+                )
+                .is_err()
+            );
+            assert!(
+                assign_normalized_foreign_scalar_call_for_plan(
+                    &plan,
+                    target,
+                    &[],
+                    Some(&result),
+                    OperationId::new(403).unwrap(),
+                    &[],
+                    &BTreeMap::new(),
+                )
+                .is_err()
+            );
+
+            let mut wrong_fragment = plan.clone();
+            let ValueLocation::Register { byte_size, .. } =
+                &mut wrong_fragment.call.result.as_mut().unwrap().locations[0]
+            else {
+                unreachable!()
+            };
+            *byte_size = byte_size.saturating_add(1);
+            assert!(
+                assign_normalized_foreign_scalar_call_for_plan(
+                    &wrong_fragment,
+                    target,
+                    &[],
+                    Some(&result),
+                    operation,
+                    &[],
+                    &BTreeMap::new(),
+                )
+                .is_err()
+            );
+        }
+    }
+
+    for integer in [
+        IntegerType::new(IntegerSign::Signed, 24).unwrap(),
+        IntegerType::address(64).unwrap(),
+    ] {
+        let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        let invalid = omega_target_operations::TargetUnitScalarHomeRequirement {
+            defining_operation: operation,
+            source_value: source,
+            scalar_type: integer,
+            shape: ValueShape::integer(8, 8),
+        };
+        assert!(
+            assign_normalized_foreign_scalar_call_for_plan(
+                &plan,
+                NativeTarget::linux_x64(),
+                &[],
+                Some(&invalid),
+                operation,
+                &[],
+                &BTreeMap::new(),
+            )
+            .is_err()
+        );
+    }
 }
