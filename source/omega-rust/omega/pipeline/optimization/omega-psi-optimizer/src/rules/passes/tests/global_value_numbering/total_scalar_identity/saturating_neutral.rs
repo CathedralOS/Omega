@@ -142,8 +142,7 @@ fn saturating_neutral_rule_rejects_non_neutral_dead_impure_and_other_policies() 
             false,
         ),
     ] {
-        let unit =
-            saturating_neutral_identity_unit(operation, literal, literal_left, false);
+        let unit = saturating_neutral_identity_unit(operation, literal, literal_left, false);
         assert!(candidates(&unit).is_empty());
     }
 
@@ -175,7 +174,8 @@ fn saturating_neutral_rule_rejects_non_neutral_dead_impure_and_other_policies() 
         false,
         false,
     );
-    let mut products = analysis_products(&unit, SaturatingNeutralArithmeticIdentityRule::contract());
+    let mut products =
+        analysis_products(&unit, SaturatingNeutralArithmeticIdentityRule::contract());
     let effects = products
         .iter_mut()
         .find_map(|product| match product {

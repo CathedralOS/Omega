@@ -631,8 +631,16 @@ unchecked rewrite or opt into lossy floating-point semantics.
   exact rule leaves. Copy propagation now has an exact executable rule
   entrance, complete registry custody, contract/cost/witness/provenance
   corruption coverage, and positive, disabled, budget, determinism, and
-  idempotence canaries. The remaining operational axes and other rule families
-  are not yet complete.
+  idempotence canaries. GVN roster positions 9--15 now have exact complete
+  contract custody across all seven total scalar identity families and all 26
+  laws. Positive replay binds each family's validator identity and `-1` cost;
+  the corruption matrix rejects all 42 directed cross-family relabellings plus
+  unknown identities, analysis/invalidation supersets and subsets, wrong
+  safety, and wrong cost. The seven producers now live in a mirrored test
+  taxonomy with isolated fixed-point coverage for shift-zero and wrapping
+  multiply-zero, plus runtime-disabled, deterministic, and budgeted pass
+  canaries. The remaining operational axes and other rule families are not yet
+  complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

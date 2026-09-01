@@ -499,6 +499,17 @@ pub(super) fn candidate_with_contract(
     fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
     rule_contract: OptimizationRuleContract,
 ) -> PsiRewriteCandidate {
+    candidate_with_contract_and_cost(unit, patch, mutate_accounting, fact, rule_contract, -1)
+}
+
+pub(super) fn candidate_with_contract_and_cost(
+    unit: &PsiOptimizationUnit,
+    patch: TotalScalarIdentityRewrite,
+    mutate_accounting: bool,
+    fact: Option<omega_optimization_core::ScalarConstantFactIdentity>,
+    rule_contract: OptimizationRuleContract,
+    predicted_cost_delta: i64,
+) -> PsiRewriteCandidate {
     let function = &unit.functions[0];
     let O::IntegerConstant {
         psi_operation: support,
@@ -542,7 +553,7 @@ pub(super) fn candidate_with_contract(
         blocks,
         provenance,
         fact.unwrap_or(expected_fact),
-        -1,
+        predicted_cost_delta,
         patch,
     )
     .unwrap()

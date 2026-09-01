@@ -1,10 +1,16 @@
+use omega_optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
+    OptimizationRuleIdentity, OptimizationSafetyClass,
+};
 use omega_optimization_unit::TotalScalarIdentityKind;
 use psi_core::ValueId;
 
 use crate::OptimizationUnitValidationError;
 
 use super::super::validate_total_scalar_identity_candidate;
-use super::fixtures::{candidate, candidate_with_contract, contract, fixture, id};
+use super::fixtures::{
+    candidate, candidate_with_contract, candidate_with_contract_and_cost, contract, fixture, id,
+};
 
 #[test]
 fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
@@ -304,4 +310,123 @@ fn independent_validator_rejects_kind_fact_and_accounting_corruption() {
         ),
         Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     );
+}
+
+#[test]
+fn every_total_identity_family_rejects_cross_rule_and_contract_corruption() {
+    let families = [
+        TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
+        TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
+        TotalScalarIdentityKind::WrappingIntegerMultiplyZeroLeft,
+        TotalScalarIdentityKind::SaturatingIntegerAddZeroLeft,
+        TotalScalarIdentityKind::SaturatingIntegerMultiplyZeroLeft,
+        TotalScalarIdentityKind::IntegerBitwiseAndAllOnesLeft,
+        TotalScalarIdentityKind::IntegerBitwiseAndZeroLeft,
+    ];
+    let contracts = families.map(contract);
+
+    for (family_index, identity) in families.into_iter().enumerate() {
+        let (unit, patch) = fixture(identity);
+        validate_total_scalar_identity_candidate(&unit, &candidate(&unit, patch, false, None))
+            .unwrap();
+
+        for (contract_index, wrong_contract) in contracts.iter().copied().enumerate() {
+            if contract_index == family_index {
+                continue;
+            }
+            assert_eq!(
+                validate_total_scalar_identity_candidate(
+                    &unit,
+                    &candidate_with_contract(&unit, patch, false, None, wrong_contract),
+                ),
+                Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+            );
+        }
+
+        let base = contracts[family_index];
+        let corrupt_contracts = [
+            OptimizationRuleContract::new(
+                OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.unknown-total-scalar-identity.v1",
+                ),
+                base.pass(),
+                base.version(),
+                base.required_analyses(),
+                base.invalidated_analyses(),
+                base.safety_class(),
+            )
+            .unwrap(),
+            OptimizationRuleContract::new(
+                base.identity(),
+                base.pass(),
+                base.version(),
+                AnalysisSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::ScalarConstants,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                base.invalidated_analyses(),
+                base.safety_class(),
+            )
+            .unwrap(),
+            OptimizationRuleContract::new(
+                base.identity(),
+                base.pass(),
+                base.version(),
+                AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::UseDefinition]),
+                base.invalidated_analyses(),
+                base.safety_class(),
+            )
+            .unwrap(),
+            OptimizationRuleContract::new(
+                base.identity(),
+                base.pass(),
+                base.version(),
+                base.required_analyses(),
+                AnalysisInvalidationSet::new([
+                    AnalysisKind::ControlFlowGraph,
+                    AnalysisKind::UseDefinition,
+                    AnalysisKind::EffectSummaries,
+                ]),
+                base.safety_class(),
+            )
+            .unwrap(),
+            OptimizationRuleContract::new(
+                base.identity(),
+                base.pass(),
+                base.version(),
+                base.required_analyses(),
+                AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+                base.safety_class(),
+            )
+            .unwrap(),
+            OptimizationRuleContract::new(
+                base.identity(),
+                base.pass(),
+                base.version(),
+                base.required_analyses(),
+                base.invalidated_analyses(),
+                OptimizationSafetyClass::StructuralIdentity,
+            )
+            .unwrap(),
+        ];
+        for corrupt_contract in corrupt_contracts {
+            assert_eq!(
+                validate_total_scalar_identity_candidate(
+                    &unit,
+                    &candidate_with_contract(&unit, patch, false, None, corrupt_contract),
+                ),
+                Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+            );
+        }
+
+        assert_eq!(
+            validate_total_scalar_identity_candidate(
+                &unit,
+                &candidate_with_contract_and_cost(&unit, patch, false, None, base, 0),
+            ),
+            Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
+        );
+    }
 }

@@ -94,26 +94,24 @@ fn absent_selection_registers_nothing_and_missing_analysis_fails_closed() {
     let gvn = built_in_psi_registry(&gvn).unwrap();
     assert_eq!(gvn.len(), 16);
     assert_eq!(
-        gvn.contracts()
-            .map(|contract| contract.identity())
-            .collect::<Vec<_>>(),
+        gvn.contracts().collect::<Vec<_>>(),
         [
-            SameBlockTotalScalarCseRule::contract().identity(),
-            SameBlockProofCertifiedScalarCseRule::contract().identity(),
-            DominatorTotalScalarGvnRule::contract().identity(),
-            DominatorProofCertifiedScalarGvnRule::contract().identity(),
-            PhiTranslatedObligationFreeScalarGvnRule::contract().identity(),
-            PhiTranslatedProofCertifiedScalarGvnRule::contract().identity(),
-            SameBlockProofCertifiedCompatiblePolicyScalarCseRule::contract().identity(),
-            DominatorProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity(),
-            PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity(),
-            WrappingNeutralArithmeticIdentityRule::contract().identity(),
-            WrappingShiftZeroCountIdentityRule::contract().identity(),
-            WrappingMultiplyZeroAnnihilationRule::contract().identity(),
-            SaturatingNeutralArithmeticIdentityRule::contract().identity(),
-            SaturatingMultiplyZeroAnnihilationRule::contract().identity(),
-            BitwiseNeutralLiteralIdentityRule::contract().identity(),
-            BitwiseAbsorbingLiteralIdentityRule::contract().identity(),
+            SameBlockTotalScalarCseRule::contract(),
+            SameBlockProofCertifiedScalarCseRule::contract(),
+            DominatorTotalScalarGvnRule::contract(),
+            DominatorProofCertifiedScalarGvnRule::contract(),
+            PhiTranslatedObligationFreeScalarGvnRule::contract(),
+            PhiTranslatedProofCertifiedScalarGvnRule::contract(),
+            SameBlockProofCertifiedCompatiblePolicyScalarCseRule::contract(),
+            DominatorProofCertifiedCompatiblePolicyScalarGvnRule::contract(),
+            PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract(),
+            WrappingNeutralArithmeticIdentityRule::contract(),
+            WrappingShiftZeroCountIdentityRule::contract(),
+            WrappingMultiplyZeroAnnihilationRule::contract(),
+            SaturatingNeutralArithmeticIdentityRule::contract(),
+            SaturatingMultiplyZeroAnnihilationRule::contract(),
+            BitwiseNeutralLiteralIdentityRule::contract(),
+            BitwiseAbsorbingLiteralIdentityRule::contract(),
         ]
     );
     assert!(gvn.contracts().all(|contract| {

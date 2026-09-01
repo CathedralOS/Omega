@@ -28,22 +28,19 @@ pub fn validate_total_scalar_identity_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ScalarConstants)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
+    if candidate.required_analyses()
+        != AnalysisSet::new([
+            AnalysisKind::ScalarConstants,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
         || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
+        || candidate.predicted_cost_delta() != -1
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
