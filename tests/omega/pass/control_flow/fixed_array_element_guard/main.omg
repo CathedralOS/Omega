@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // the offset; an 8-byte guard is supported, so this now compiles and the guard
 // reads `cells[2]` correctly -- exit 0.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

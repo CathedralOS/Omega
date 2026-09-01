@@ -3,7 +3,7 @@
 // end. Each element is read into a field first, then compared (the sound pattern for a runtime-
 // indexed comparison). arr = [3,7,12,18,5], target = 12 -> found at index 2; exits 70 iff the
 // search stops there. A wrong index, or failing to stop, would miss 2.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

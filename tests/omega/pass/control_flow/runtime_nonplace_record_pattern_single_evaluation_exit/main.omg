@@ -3,7 +3,7 @@
 // Point, not evaluate the call once per extracted field. `[copy]` is the
 // current eligibility fence for extracting fields from a non-place subject.
 // Native and interpreter both exit 70; exit 2/3 exposes repeated evaluation.
-use omega::language::std::console;
+use omega_language_std::console;
 data Point [copy] { x: i32; y: i32; }
 data Main { console: Console; calls: u32 in Wrapping; }
 

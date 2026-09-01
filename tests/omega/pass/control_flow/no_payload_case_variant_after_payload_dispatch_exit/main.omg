@@ -8,7 +8,7 @@
 // argument materialization now writes the variant's tag ordinal when the
 // argument resolves to a case variant (see argument_materialization.rs).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data AlarmEvent {
     case Set(hour: i32 in Wrapping, minute: i32 in Wrapping);

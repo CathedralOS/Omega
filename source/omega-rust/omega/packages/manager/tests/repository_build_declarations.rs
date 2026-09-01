@@ -474,6 +474,19 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
 }
 
 #[test]
+fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
+    for (category, expected_roots, expected_consumers) in
+        [("capabilities", 8, 1), ("control_flow", 53, 48)]
+    {
+        assert_mixed_canary_category_standard_library_edges(
+            &repository_root().join("tests/omega/pass").join(category),
+            expected_roots,
+            expected_consumers,
+        );
+    }
+}
+
+#[test]
 fn float_canaries_retain_only_the_known_compiler_compatibility_seams() {
     assert_partial_canary_category_standard_library_migration(
         &repository_root().join("tests/omega/pass/float"),

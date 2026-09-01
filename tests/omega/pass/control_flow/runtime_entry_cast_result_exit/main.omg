@@ -2,7 +2,7 @@
 // ordinary value machine returns through result scratch and the native result
 // register. The Unit entry consumes that result before exiting explicitly.
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; value: u8; }
 

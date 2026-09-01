@@ -4,7 +4,7 @@
 // body -> back to inner -> next_i -> back to outer), the inner counter reset per outer iteration,
 // and field arithmetic accumulation. Discriminating: a miscounted loop or a dropped reset changes
 // the sum. Exit 70 iff sum == 36.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

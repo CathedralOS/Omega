@@ -8,7 +8,7 @@
 // callee, and the nested-walk straight-line expansion matched again at the
 // flattened nested call -- so the leaf ran 3x (native exit 3, interpreter 70).
 // The splice is now the single executor of record for non-guard chains.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Tally {

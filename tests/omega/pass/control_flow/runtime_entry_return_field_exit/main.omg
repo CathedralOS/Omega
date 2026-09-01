@@ -2,7 +2,7 @@
 // normalized result placement rather than silently leaving the return register
 // untouched. The Unit entry consumes that result and exits explicitly.
 // Exit = 200, native==interp.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; a: i32; }
 machine Main::computed(&mut self) -> i32 {

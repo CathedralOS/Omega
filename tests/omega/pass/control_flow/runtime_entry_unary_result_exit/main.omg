@@ -1,6 +1,6 @@
 // Runtime logical-not terminals compute through ordinary value-result scratch.
 // The Unit entry consumes that Boolean result before exiting explicitly.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; flag: bool; }
 

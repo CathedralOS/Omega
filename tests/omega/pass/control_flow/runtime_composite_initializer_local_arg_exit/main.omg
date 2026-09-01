@@ -11,7 +11,7 @@
 //   - field-read let in binary: let af = a + 1      (a = self.v)      -> 42
 // Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

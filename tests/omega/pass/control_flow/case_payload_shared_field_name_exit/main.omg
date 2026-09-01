@@ -8,7 +8,7 @@
 // symbol resolution binds the member to Transfer.amount (not Deposit.amount).
 // Before the fix native read amount==3 (=to) and exited 93.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tx {
     case Deposit(amount: i32);

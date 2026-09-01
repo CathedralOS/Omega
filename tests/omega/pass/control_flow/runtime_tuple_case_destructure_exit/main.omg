@@ -5,7 +5,7 @@
 // distinct aliases and passes both to the selected state. A second tuple arm
 // destructures two computed copy-record subjects, proving each is captured
 // exactly once before any field projection.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     case Empty;

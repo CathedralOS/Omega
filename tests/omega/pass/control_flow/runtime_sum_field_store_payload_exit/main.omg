@@ -7,7 +7,7 @@
 // Transfer.to, so the destructure read to=40 and amount=0. The read/destructure
 // path already tagged the variant; the write now matches it (writes/mod.rs
 // case_payload_field_variant_tag). to must be 3, amount 40 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tx {
     case Deposit(amount: i32);
     case Transfer(to: i32, amount: i32);

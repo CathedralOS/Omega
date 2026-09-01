@@ -9,7 +9,7 @@
 // The fix mirrors the mutation-table resolver's Cast -> Convert arm into the
 // branch resolver. Bare `x % 10` never hit this (non-cast leaves resolved).
 // exit 71 = sibling y wrong; 72 = z wrong (the dropped-field face); 73 = tag.
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i8); }
 data Main { console: Console; k: u64; }
 machine Main::mk(&mut self, x: u64 [0..=100]) -> Msg {

@@ -1,7 +1,7 @@
 // Nested runtime arithmetic at an ordinary value-machine terminal is
 // represented as recursive value operands before the final result-scratch
 // write. The Unit entry consumes that result before exiting explicitly.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; a: i32; b: i32; c: i32; }
 

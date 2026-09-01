@@ -6,7 +6,7 @@
 //      for i,j in 1..10 == (1+..+10)^2 == 55*55 == 3025.
 // Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
