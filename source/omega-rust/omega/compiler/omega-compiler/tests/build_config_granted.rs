@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata LifetimeBox<'boxed, T> {{ value: T; }}\ndata LifetimeOuter<'outer, T> {{ value: T; }}\ndata WithLifetimeTypeArgument<'call> {{ value: LifetimeOuter<'call, LifetimeBox<'call, Borrowed<'call, u32>>>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata StructuredConfig {{ count: u8; enabled: bool; }}\ndata StructuredConfigs {{}}\nconst StructuredConfigs::PRIMARY: StructuredConfig = StructuredConfig {{ count: 7, enabled: true }};\ndata StructuredIndexed<const C: StructuredConfig> {{ marker: u8; }}\ndata StructuredNested<const C: StructuredConfig> {{ value: StructuredIndexed<C>; }}\ndata WithStructured {{ value: StructuredNested<StructuredConfigs::PRIMARY>; }}\ndata StructuredMode {{ case Left(value: u8); case Right; }}\ndata StructuredModes {{}}\nconst StructuredModes::LEFT: StructuredMode = StructuredMode::Left {{ value: 9 }};\ndata StructuredByMode<const M: StructuredMode> {{ marker: u8; }}\ndata WithStructuredMode {{ value: StructuredByMode<StructuredModes::LEFT>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata LifetimeBox<'boxed, T> {{ value: T; }}\ndata LifetimeOuter<'outer, T> {{ value: T; }}\ndata WithLifetimeTypeArgument<'call> {{ value: LifetimeOuter<'call, LifetimeBox<'call, Borrowed<'call, u32>>>; }}\ndata WithArithmeticDomain {{ value: Cell<u32 in Wrapping>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata StructuredConfig {{ count: u8; enabled: bool; }}\ndata StructuredConfigs {{}}\nconst StructuredConfigs::PRIMARY: StructuredConfig = StructuredConfig {{ count: 7, enabled: true }};\ndata StructuredIndexed<const C: StructuredConfig> {{ marker: u8; }}\ndata StructuredNested<const C: StructuredConfig> {{ value: StructuredIndexed<C>; }}\ndata WithStructured {{ value: StructuredNested<StructuredConfigs::PRIMARY>; }}\ndata StructuredMode {{ case Left(value: u8); case Right; }}\ndata StructuredModes {{}}\nconst StructuredModes::LEFT: StructuredMode = StructuredMode::Left {{ value: 9 }};\ndata StructuredByMode<const M: StructuredMode> {{ marker: u8; }}\ndata WithStructuredMode {{ value: StructuredByMode<StructuredModes::LEFT>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -265,7 +265,11 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 16, "sixteen deduplicated closed instances");
+    assert_eq!(
+        instances.len(),
+        17,
+        "seventeen deduplicated closed instances"
+    );
     let instance = instances
         .iter()
         .copied()
@@ -421,6 +425,63 @@ machine build(builder: &mut Build) {{
         lifetime_outer_instance.symbol,
         "call",
     );
+    let arithmetic_domain_instance = find_data("Cell<u32 in Wrapping>");
+    let [psi_typed_trees::data::DataMember::Field(arithmetic_value)] =
+        checked.typed.data_members(arithmetic_domain_instance)
+    else {
+        panic!("the arithmetic-domain instance retains its substituted field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray {
+        element_type,
+        length,
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(arithmetic_value.type_reference)
+    else {
+        panic!("the arithmetic-domain instance retains Cell's array shell")
+    };
+    assert_eq!(
+        *length,
+        psi_typed_trees::types::FixedArrayLength::Literal(2)
+    );
+    let psi_typed_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(*element_type)
+    else {
+        panic!("the arithmetic-domain Type argument remains constrained")
+    };
+    assert!(matches!(
+        checked.typed.type_reference_table.type_reference(*base_type),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "u32"
+    ));
+    assert_eq!(
+        checked.typed.type_reference_table.constraints(*constraints),
+        [
+            psi_typed_trees::types::TypeConstraintNode::ArithmeticDomain(
+                psi_numerics::arithmetic::ArithmeticDomain::Wrapping,
+            )
+        ],
+    );
+    let [psi_typed_trees::data::DataMember::Field(arithmetic_use)] = checked
+        .typed
+        .data_members(find_data("WithArithmeticDomain"))
+    else {
+        panic!("the arithmetic-domain wrapper retains one field")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(arithmetic_use.type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+            if *symbol == arithmetic_domain_instance.symbol
+    ));
     let const_block_template = find_data("ConstBlock");
     let [_, const_parameter] = checked.typed.data_type_parameters(const_block_template) else {
         panic!("ConstBlock retains its Type and const binders")
