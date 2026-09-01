@@ -4251,7 +4251,7 @@ fn seeded_local_instance_gate_rejects_origin_and_declaration_mutations() {
 }
 
 #[test]
-fn seeded_plain_data_continuation_fences_broader_normalized_generic_instances() {
+fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
             "multiple_instances",
@@ -4270,6 +4270,39 @@ fn seeded_plain_data_continuation_fences_broader_normalized_generic_instances() 
             "data Cell<T> { value: T; } data Generated { first: Cell<u32>; second: Cell<u32>; next: Generated; }",
         ),
         (
+            "nominal_argument",
+            "data Cell<T> { value: T; } data Generated { value: Cell<Authored>; }",
+        ),
+        (
+            "multiple_parameters",
+            "data Cell<T, U> { left: T; right: U; } data Generated { value: Cell<u32, u64>; }",
+        ),
+        (
+            "phantom_parameter",
+            "data Cell<T> { tag: u8; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "indirect_wrapper_use",
+            "data Cell<T> { value: T; } data Generated { values: [Cell<u32>; 2]; }",
+        ),
+        (
+            "multiple_templates_instances_and_wrappers",
+            "data Cell<T> { value: T; } data Pair<A, B> { first: A; second: B; } data Item { value: u8; } data First { one: Cell<u32>; pair: Pair<u16, u64>; indirect: [Cell<u32>; 2]; } data Second { nominal: Cell<Item>; repeated: Pair<u16, u64>; }",
+        ),
+    ] {
+        let (base, extension) =
+            seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
+        let before = base.typed().data_definitions().len();
+        let typed = lower_seeded_plain_data_extension(extension, base)
+            .unwrap_or_else(|_| panic!("{name} should use the seeded continuation"));
+        assert!(typed.data_definitions().len() > before, "{name}");
+    }
+}
+
+#[test]
+fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instances() {
+    for (name, extension_source) in [
+        (
             "nested_instances",
             "data Cell<T> { value: T; } data Outer<T> { value: T; } data Generated { value: Outer<Cell<u32>>; }",
         ),
@@ -4286,28 +4319,12 @@ fn seeded_plain_data_continuation_fences_broader_normalized_generic_instances() 
             "data Cell<T> { value: T; } data Generated { value: Cell<u32 in Wrapping>; }",
         ),
         (
-            "nominal_argument",
-            "data Cell<T> { value: T; } data Generated { value: Cell<Authored>; }",
-        ),
-        (
             "nondefault_bound",
             "data Cell<T [copy]> { value: T; } data Generated { value: Cell<u32>; }",
         ),
         (
-            "multiple_parameters",
-            "data Cell<T, U> { left: T; right: U; } data Generated { value: Cell<u32, u64>; }",
-        ),
-        (
-            "phantom_parameter",
-            "data Cell<T> { tag: u8; } data Generated { value: Cell<u32>; }",
-        ),
-        (
             "indirect_template_parameter",
             "data Cell<T> { values: [T; 2]; } data Generated { value: Cell<u32>; }",
-        ),
-        (
-            "indirect_wrapper_use",
-            "data Cell<T> { value: T; } data Generated { values: [Cell<u32>; 2]; }",
         ),
         (
             "attached_method",
