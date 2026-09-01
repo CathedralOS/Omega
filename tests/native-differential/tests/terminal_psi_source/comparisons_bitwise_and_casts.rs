@@ -1432,21 +1432,27 @@ fn checked_source_runtime_wrapping_shifts_cross_the_full_pipeline() {
                     IntegerValue::Unsigned(value) => value as u64,
                     IntegerValue::Signed(value) => value as i64 as u64,
                 },
-                TerminalScalarValue::Boolean(_) => unreachable!(),
+                TerminalScalarValue::Boolean(_) | TerminalScalarValue::IeeeFloat(_) => {
+                    unreachable!()
+                }
             };
             let count_bits = match count {
                 TerminalScalarValue::Integer { value, .. } => match value {
                     IntegerValue::Unsigned(value) => value as u64,
                     IntegerValue::Signed(value) => value as i64 as u64,
                 },
-                TerminalScalarValue::Boolean(_) => unreachable!(),
+                TerminalScalarValue::Boolean(_) | TerminalScalarValue::IeeeFloat(_) => {
+                    unreachable!()
+                }
             };
             let expected_bits = match expected {
                 TerminalScalarValue::Integer { value, .. } => match value {
                     IntegerValue::Unsigned(value) => value as u64,
                     IntegerValue::Signed(value) => value as i64 as u64,
                 },
-                TerminalScalarValue::Boolean(_) => unreachable!(),
+                TerminalScalarValue::Boolean(_) | TerminalScalarValue::IeeeFloat(_) => {
+                    unreachable!()
+                }
             };
             assert!(
                 host_machine_code_with_two_u64_matches(
