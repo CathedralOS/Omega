@@ -778,6 +778,15 @@ the parameter and the telescope. A nested field keeps the separate named-
 conformance citation because its independently owned layout must authorize the
 demand.
 
+The fail-closed matrix exercises those distinctions at both source admission
+and independent retained-product replay. It rejects an authored `addr`
+substitute, omitted or inferred `from`, duplicate declaration names,
+duplicate/wrong binders or requirements, a locally coherent invented native
+parameter, a policy-returned extra telescope entry, the ordinal-derived v1
+parameter identity, and a self-consistent historical application-v2 envelope.
+The current application-v3 identity is recomputed from the exact retained
+signature and plan; no older coordinate or commitment is translated into it.
+
 The requirement supplies the complete callable signature, contracts,
 operational ceilings, and evaluated calling/entry plan; the binder does not
 repeat them.
@@ -1700,10 +1709,10 @@ input keyed by the stable Terminal `OperationId`, then retain it through
 abstract, target, assigned-operand, emitted-call, and artifact replay. The
 current canonical pipeline has no native-only callback-argument carrier in
 those representations; the removed custom/unknown host-operation prototype is
-not reusable evidence of completion. Those integrations and
-the remaining authored-hidden-parameter and stale-v1/v2 negative matrix are
+not reusable evidence of completion. Those native integrations remain
 engineering work under the settled v3 application model, not open
-language-design questions.
+language-design questions. The authored-hidden-parameter and stale-v1/v2
+negative matrix is complete at source admission and independent replay.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

@@ -3953,6 +3953,56 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 mod tests {
     use super::*;
 
+    fn legacy_boundary_plan_application_v2_identity(
+        signature: &MaterializedBoundarySignature,
+        validated: &ValidatedBoundaryEntryPlan,
+    ) -> (u64, [u8; 32]) {
+        let mut strong = Sha256::new();
+        strong.update(b"omega.boundary-plan-application.v2");
+        strong.update((signature.owner_requirement_identity.len() as u64).to_le_bytes());
+        strong.update(signature.owner_requirement_identity.as_bytes());
+        strong.update((signature.native_parameters.len() as u64).to_le_bytes());
+        for parameter in &signature.native_parameters {
+            strong.update(parameter.identity.get().to_le_bytes());
+            strong.update(parameter.native_ordinal.to_le_bytes());
+            match parameter.origin {
+                BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } => {
+                    strong.update([1]);
+                    strong.update(formal_ordinal.to_le_bytes());
+                }
+                BoundaryNativeParameterOrigin::PrivateCallback {
+                    binder,
+                    requirement,
+                } => {
+                    strong.update([2]);
+                    strong.update(binder.get().to_le_bytes());
+                    strong.update(requirement.get().to_le_bytes());
+                }
+            }
+            match parameter.shape {
+                BoundaryNativeParameterShape::Semantic(root) => {
+                    strong.update([1]);
+                    strong.update(root.to_le_bytes());
+                }
+                BoundaryNativeParameterShape::TargetFunctionPointer {
+                    byte_size,
+                    alignment,
+                } => {
+                    strong.update([2]);
+                    strong.update(byte_size.to_le_bytes());
+                    strong.update(alignment.to_le_bytes());
+                }
+            }
+        }
+        strong.update(validated.contract_commitment_digest());
+        let commitment: [u8; 32] = strong.finalize().into();
+        let report = callback_plan_report_fingerprint(
+            b"omega.boundary-plan-application-report.v2",
+            &[&commitment],
+        );
+        (report, commitment)
+    }
+
     #[test]
     fn compact_native_parameter_collision_rejects_within_exact_registrar_catalog() {
         let identity = NativeParameterId::new(0x51).expect("nonzero report identity");
@@ -3998,6 +4048,35 @@ mod tests {
             first,
             boundary_plan_application_identity(&renamed, &validated),
             "a changed declaration-owned native parameter identity must reissue the application"
+        );
+    }
+
+    #[test]
+    fn materialized_plan_cannot_create_an_undeclared_native_parameter() {
+        let call_signature = CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        };
+        let validated =
+            evaluate_ordinary_boundary_entry_plan(CallingPolicy::MicrosoftX64, &call_signature)
+                .expect("Microsoft x64 ordinary plan");
+        let signature = materialized_boundary_signature_from_abi(&call_signature).unwrap();
+        let mut invented = validated.plan().clone();
+        invented
+            .call
+            .parameters
+            .push(invented.call.parameters[0].clone());
+
+        let error = validate_materialized_boundary_plan_result(
+            BoundaryPlanResult::Accepted(invented),
+            &signature,
+        )
+        .expect_err("a calling policy cannot add a parameter to the declared telescope");
+        assert!(
+            error.contains(
+                "plan places 2 parameters for a boundary signature with 1 native parameters"
+            ),
+            "unexpected diagnostic: {error}",
         );
     }
 
@@ -4356,6 +4435,40 @@ mod tests {
         assert_eq!(
             bound.boundary_entry_plan,
             realizations[0].boundary_entry_plan
+        );
+    }
+
+    #[test]
+    fn nominal_callback_placement_rejects_self_consistent_legacy_v2_evidence() {
+        let (mut checked, mut realizations) = nominal_callback_fixture();
+        let validated = realizations[0]
+            .replayed_validated_plan()
+            .expect("fixture plan replays");
+        let (legacy_report, legacy_digest) = legacy_boundary_plan_application_v2_identity(
+            &realizations[0].materialized_signature,
+            &validated,
+        );
+        let legacy_commitment =
+            psi_typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+                legacy_digest,
+            );
+        realizations[0].report_fingerprint = legacy_report;
+        realizations[0].commitment = legacy_commitment;
+        let placement = checked.facts.nominal_machine_uses.uses[0]
+            .callback_placement
+            .as_mut()
+            .expect("fixture callback placement");
+        placement.boundary_calling_plan_report_fingerprint = legacy_report;
+        placement.boundary_calling_plan_commitment = legacy_commitment;
+
+        let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("retired application-v2 evidence must not be reinterpreted as v3");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("does not bind its exact evaluated target calling plan"),
+            "unexpected diagnostic: {:?}",
+            diagnostics[0],
         );
     }
 

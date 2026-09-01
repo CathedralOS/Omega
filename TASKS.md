@@ -8929,22 +8929,25 @@ Owners:
   through exact abstract/target/assigned operand and call emission plus
   downstream artifact replay. The canonical pipeline currently has no native-
   only callback-argument carrier, and the removed custom/unknown host-operation
-  prototype must not be treated as live implementation. Also complete the
-  negative matrix for authored `addr`, undeclared insertion, inferred or
-  duplicate/wrong binder/requirement, policy-created parameters, and stale v1
-  or legacy application-v2 evidence (the live application domain is v3). Add the same
-  target-neutral requirement placed at different x86/x64 offsets once the
-  target catalog gains its missing 32-bit x86 engineering support; its present
-  native targets are X86-64 and AArch64 only. The raw-offset canary now proves
-  that an authored integer equal to the physical slot offset cannot substitute
-  for compiler-issued parameter, layout, or slot identity while another exact
-  demand remains valid. Semantic projection/read and assignment already reject
-  because the private slot is absent from the layout data's source field
-  schema; serialization walks only that declared schema and therefore has no
-  private slot to name. Replay drift is already rejected independently by the
-  nominal consumer's exact-context replay, checked placement-fingerprint
-  binding, and late thunk-emission plan replay. These are internal retained-
-  evidence seams, not source-authorable shapes.
+  prototype must not be treated as live implementation. The direct-form
+  negative matrix is complete. Source and retained-product canaries reject an
+  authored `addr` substitute, omitted or inferred `from`, duplicate declaration
+  names, duplicate/wrong binders or requirements, undeclared/policy-created
+  parameter insertion, ordinal-derived v1 parameter identity, and a fully
+  self-consistent legacy application-v2 report/commitment pair. The live v3
+  application is always recomputed; no legacy evidence is reinterpreted. Add
+  the same target-neutral requirement placed at different x86/x64 offsets once
+  the target catalog gains its missing 32-bit x86 engineering support; its
+  present native targets are X86-64 and AArch64 only. The raw-offset canary now
+  proves that an authored integer equal to the physical slot offset cannot
+  substitute for compiler-issued parameter, layout, or slot identity while
+  another exact demand remains valid. Semantic projection/read and assignment
+  already reject because the private slot is absent from the layout data's
+  source field schema; serialization walks only that declared schema and
+  therefore has no private slot to name. Replay drift is already rejected
+  independently by the nominal consumer's exact-context replay, checked
+  placement-fingerprint binding, and late thunk-emission plan replay. These are
+  internal retained-evidence seams, not source-authorable shapes.
 - **REGISTERED-CALLBACK-LIFETIME — implement the runtime protocol.** A
   successful registrar call establishes one future external root represented
   by a linear `Registration`; rejection establishes none. Successful
