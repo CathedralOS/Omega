@@ -12,7 +12,7 @@
 // consumption route into the machine refuses on existing rails (locals
 // fence, discard fences, purity fence).
 use omega::language::core::nat;
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);

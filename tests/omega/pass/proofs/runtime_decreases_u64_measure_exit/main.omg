@@ -11,7 +11,7 @@
 // (collect_call_result_return_blockers), the splice fences exempt
 // dispatch-routed calls SOUNDLY: dispatched value calls either deliver
 // correctly or fail to compile, never silently ZII. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; hits: i32 in Wrapping; total: i32 in Wrapping; }
 machine Main::count(&mut self, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;

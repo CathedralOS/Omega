@@ -325,6 +325,7 @@ fn assert_mixed_canary_category_standard_library_edges(
     cases: &Path,
     expected_roots: usize,
     expected_standard_library_consumers: usize,
+    compatibility_roots: &[&str],
 ) {
     let mut roots = Vec::new();
     collect_build_roots(cases, &mut roots);
@@ -340,7 +341,25 @@ fn assert_mixed_canary_category_standard_library_edges(
         location: "../../../../../source/library/std".to_owned(),
     };
     let mut standard_library_consumers = 0;
+    let mut retained_compatibility = Vec::new();
     for root in roots {
+        let name = root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("canary root name");
+        if compatibility_roots.contains(&name) {
+            let projection = extract_build_dependency_projection(&root).unwrap();
+            assert!(
+                projection.dependencies().is_empty(),
+                "compatibility canary {} must not claim a migrated std edge",
+                root.display()
+            );
+            let source = fs::read_to_string(root.join("main.omg")).expect("compatibility source");
+            assert!(source.contains("omega::language::std::console"));
+            assert!(!source.contains("omega_language_std"));
+            retained_compatibility.push(name.to_owned());
+            continue;
+        }
         let mut uses_dependency_alias = false;
         for source in fs::read_dir(&root)
             .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
@@ -383,6 +402,13 @@ fn assert_mixed_canary_category_standard_library_edges(
         "unexpected std-consuming canary population in {}",
         cases.display()
     );
+    retained_compatibility.sort();
+    let mut expected = compatibility_roots
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(retained_compatibility, expected);
 }
 
 fn assert_partial_canary_category_standard_library_migration(
@@ -453,6 +479,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("expressions", 49),
         ("generics", 23),
         ("layouts", 19),
+        ("proofs", 6),
         ("recast", 23),
         ("storage", 10),
         ("structs", 12),
@@ -470,6 +497,24 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
         &repository_root().join("tests/omega/pass/slices"),
         69,
         41,
+        &[],
+    );
+}
+
+#[test]
+fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/wire"),
+        32,
+        24,
+        &[
+            "runtime_wire_decode_rejects_bad_nested_length_exit",
+            "runtime_wire_encode_repeated_then_string_exit",
+            "runtime_wire_policy_authored_nested_exit",
+            "runtime_wire_roundtrip_nested_and_repeated_exit",
+            "runtime_wire_roundtrip_nested_exit",
+            "runtime_wire_roundtrip_repeated_exit",
+        ],
     );
 }
 
@@ -482,6 +527,7 @@ fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_e
             &repository_root().join("tests/omega/pass").join(category),
             expected_roots,
             expected_consumers,
+            &[],
         );
     }
 }
@@ -566,6 +612,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
             &repository_root().join("tests/omega/pass").join(category),
             expected_roots,
             expected_standard_library_consumers,
+            &[],
         );
     }
 }

@@ -8,7 +8,7 @@
 // then runs untouched (everything here is proof-only).
 use omega::language::core::nat;
 use omega::language::core::seq;
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 // length of a two-element sequence is Succ(Succ(Zero)) -- two unfold

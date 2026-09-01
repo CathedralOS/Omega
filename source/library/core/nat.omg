@@ -53,7 +53,7 @@ requires
 // cross-machine call (no cycle; only self-calls need the measure).
 // Extraction lemmas (add_zero, add_succ, commutativity) ride N3/N4's
 // ensures-extraction rung.
-machine add(a: Nat, b: Nat) -> Nat
+pub machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring::add
 terminates by a;
 {

@@ -1,6 +1,6 @@
 // RANGE ESTABLISHMENT AT THE WIRE BOUNDARY: hostile 200 must not enter the
 // declared `u32 [0..=100]` field; a later in-range 50 must establish it.
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg {
     #0 v: u32;
     #1 delta: i32;

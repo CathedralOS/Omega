@@ -10,7 +10,7 @@
 // then 0x48 0x69). Exits 70 when ok, read = 5, and the re-encoded content
 // matches.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Blob {
     #0 bytes: &[u8];

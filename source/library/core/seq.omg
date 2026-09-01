@@ -5,7 +5,7 @@
 // as a canonical-representative domain over sorted sequences (no
 // quotient dependency -- N4 is decoupled from N6), which rides R2's
 // where-clauses.
-data Seq<T> {
+pub data Seq<T> {
     case Empty;
     case Cons(head: T, tail: Seq<T>);
 }
@@ -55,7 +55,7 @@ use omega::language::core::nat;
 // ladder, and the roster's first PROVEN lemma over a GENERIC recursive
 // type. The structural entailment judge (N3) is parametric over
 // constructor names, so it discharges Seq lemmas exactly as it does Nat's.
-machine length(s: Seq<u64>) -> Nat
+pub machine length(s: Seq<u64>) -> Nat
 terminates by s;
 {
     transition s {
@@ -81,7 +81,7 @@ ensures
 }
 
 // Concatenation, structurally recursive on the first sequence.
-machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
+pub machine append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
 terminates by s;
 {
     transition s {
@@ -120,7 +120,7 @@ ensures
 // induction on the first sequence -- cross-machine unfolding (append
 // inside length inside add) plus the inductive hypothesis; no citations
 // needed. Lean analog: `List.length_append`.
-machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
+pub machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
 terminates by s;
 ensures
     (length(append(s, t))) == (add(length(s), length(t)))

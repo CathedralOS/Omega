@@ -27,7 +27,7 @@
 // written = 8; the decoder consumes the same 8 bytes (read = 8, ok = true)
 // and every decoded field equals the original.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CounterMessage {
     #0 counter: u32;

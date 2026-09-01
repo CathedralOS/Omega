@@ -2,7 +2,7 @@
 // u64 must reject, while the canonical ten-group representation of u64::MAX
 // remains valid.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Scalar {
     #0 value: u64;

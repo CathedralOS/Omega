@@ -3,7 +3,7 @@
 // stable wire shape; the checked lineage migration completes the peer->local
 // route requested by build.omg.
 
-use omega::language::std::format_lineage;
+use omega_language_std::format_lineage;
 
 data RollingChannel {
 }

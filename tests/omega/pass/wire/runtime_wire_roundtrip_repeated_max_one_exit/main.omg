@@ -12,7 +12,7 @@
 // written = 6; the decoder consumes the same 6 bytes (read = 6, ok = true),
 // decodes the single required element.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Ping {
     #0 code: [u32; 1];

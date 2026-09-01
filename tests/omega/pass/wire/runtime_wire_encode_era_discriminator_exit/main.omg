@@ -11,7 +11,7 @@
 //   counter 7      -> 0x07
 // written = 3.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data VersionedMessage {
     version v1 {
