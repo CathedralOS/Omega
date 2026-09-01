@@ -3,6 +3,7 @@
 pub(crate) mod abstract_spill_insertion;
 pub(crate) mod generalized_reload_value_homes;
 pub(crate) mod generalized_spill_insertion;
+pub(crate) mod generalized_spill_recovery_choice;
 pub(crate) mod generalized_spill_recovery_worklist;
 pub(crate) mod home_assignment;
 pub(crate) mod logical_spill_operations;
@@ -18,6 +19,7 @@ pub(crate) mod synthetic_reload_values;
 pub use abstract_spill_insertion::*;
 pub use generalized_reload_value_homes::*;
 pub use generalized_spill_insertion::*;
+pub use generalized_spill_recovery_choice::*;
 pub use generalized_spill_recovery_worklist::*;
 pub use home_assignment::*;
 pub use logical_spill_operations::*;

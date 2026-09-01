@@ -202,6 +202,48 @@ pub(crate) fn ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Ve
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
+    format: psi_core::IeeeFloatFormat,
+) -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let values = match format {
+        psi_core::IeeeFloatFormat::Binary32 => [
+            psi_core::IeeeFloatValue::Binary32(0x8000_0000),
+            psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+            psi_core::IeeeFloatValue::Binary32(0x3f80_0001),
+        ],
+        psi_core::IeeeFloatFormat::Binary64 => [
+            psi_core::IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+            psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+            psi_core::IeeeFloatValue::Binary64(0x3ff0_0000_0000_0001),
+        ],
+    };
+    for (position, value) in values.into_iter().enumerate() {
+        module.machines[0].blocks[0].operations.push(Operation {
+            id: OperationId::new(3_530 + position as u64 * 2).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(3_531 + position as u64 * 2).unwrap(),
+                scalar_type: ScalarType::IeeeFloat(format),
+            }),
+            kind: OperationKind::IeeeFloatConstant { value },
+        });
+    }
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(3_536).unwrap(),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(3_537).unwrap(),
+            scalar_type: ScalarType::IeeeFloat(format),
+        }),
+        kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+            left: ValueId::new(3_531).unwrap(),
+            right: ValueId::new(3_533).unwrap(),
+            addend: ValueId::new(3_535).unwrap(),
+        },
+    });
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
     let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();

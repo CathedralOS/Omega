@@ -15,12 +15,13 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-three families reconstruct parameterless straight-line
+replay. Its first forty-four families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
 IEEE literal establishment, including an ordered sequence of at least two IEEE
-literals, followed by Unit return, integer and Boolean literal
+literals or three literals consumed by one settled nearest-even fused multiply-
+add, followed by Unit return, integer and Boolean literal
 returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -80,6 +81,18 @@ and global structural roster. Independent replay therefore preserves signed
 zero and NaN payloads without host-float conversion while the operation-count
 grammar keeps the sequence disjoint from both the singleton IEEE and
 return-only families.
+The x86 FMA sibling has the exact five-operation grammar of three raw-bit
+Binary32 or Binary64 constants, one nearest-even fused multiply-add consuming
+those values in order, and Unit return. Independent replay binds each
+definition and operand, the fused result, provenance, native Unit call plan,
+and the complete admitted settlement: canonical provider/target identity,
+scalar FMA slot, selected requirement and exact compiler-intrinsic realization,
+plus both the provider-plan report coordinate and strong digest. Whole-plan
+settlement admission rejects missing, duplicate, and unknown rows before family
+replay; Linux, Windows, and UEFI x86-64 are the exact applicable target set,
+while Arm fails with a typed family applicability error. Optimized custody
+passes the settlement through lowering and validation rather than reclassifying
+the fused operation or trusting target-carried metadata alone.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -147,6 +160,10 @@ identity. Its adjacent ordered catalog is the sole enable/disable inventory.
 Each descriptor joins one source classifier to one typed replay adapter; the
 separate selection leaf makes zero matches explicitly uncovered, retains one
 match on that function's roster row, and fails closed on ambiguity.
+The 28-line `validation/mod.rs` entrance is only the module map and public
+validation surface. `whole_plan.rs` owns Psi/target/function/structural-roster
+coordination and exact FMA-settlement admission, while catalog selection and
+each family leaf own their narrower classifier and independent semantic replay.
 Error and receipt publication follow the same descent: their small entrances
 map immediate, parameter, terminal, and whole-roster responsibilities. Named
 `error/family` and `receipt/function_translation` leaves own the closed tagged
@@ -466,7 +483,20 @@ replay separately retain the source pressure action and lineage, block,
 custody roots, and exact usage `{2, 2, 13, 1, 1}`. The item is not a generalized
 spill action or selected VReg; it chooses no victim or home and grants no
 instruction, memory, frame, trap, unwind, encoding, emission, or publication
-authority. Epoch-two victim choice is the next allocation boundary.
+authority. It feeds the adjacent epoch-two victim-choice boundary.
+That boundary now enters through the 50-line
+`generalized_spill_recovery_choice` coordinator. V1 independently reconstructs
+the complete blocker roster as typed residents with exact lifetimes and views,
+proves which single omissions recover a candidate view, and ranks only those
+contenders by farthest live end then highest canonical value. The current
+dual-target fixture retains both original `v5` and the epoch-zero reload as
+recoverable contenders and selects the latter at `[12,17)`. Direct traversal
+and keyed replay bind the work item, source pressure, candidate domain,
+residents, contenders, chosen/reclaimed views, every custody root, and exact
+usage `{2, 2, 13, 1, 1}`. This remains choice evidence: it performs no
+eviction, logical spill action, selected rewrite, memory/frame operation, trap
+claim, encoding, emission, or publication. Epoch-two logical recovery-action
+planning is the next allocation boundary.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

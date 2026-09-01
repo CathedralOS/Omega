@@ -254,7 +254,17 @@ pressure into one compiler-private epoch-two work identity while preserving
 the complete candidate domain and blocker roster. The item is deliberately
 distinct from a spill action and a selected VReg. It chooses no victim or home
 and grants no instruction, memory, frame, trap, unwind, encoding, emission, or
-publication authority; a later bounded choice boundary must consume it.
+publication authority; the adjacent bounded choice boundary consumes it.
+
+The adjacent `generalized_spill_recovery_choice` entrance owns that choice
+boundary. Its direct traversal and independent keyed replay reconstruct each
+retained blocker as a typed resident, prove the exact subset whose individual
+removal recovers a candidate view, and rank only that subset by farthest live
+end then highest canonical value. The V1 result retains the full resident and
+contender rosters plus selected/reclaimed views, but remains evidence only: it
+does not evict a value, create a logical spill action or selected register, or
+grant memory, frame, trap, unwind, encoding, emission, or publication
+authority.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

@@ -8,7 +8,7 @@ use super::super::{
 use crate::AbstractToTargetTranslationFamily;
 
 pub(super) type TranslationFamilyClassifier = fn(&AbstractFunction) -> bool;
-pub(super) type TranslationFamilyValidator = fn(
+pub(super) type PlainTranslationFamilyValidator = fn(
     &AbstractFunction,
     NativeTarget,
     &TargetFunction,
@@ -16,6 +16,22 @@ pub(super) type TranslationFamilyValidator = fn(
     AbstractToTargetFunctionTranslationReceipt,
     AbstractToTargetTranslationFamilyError,
 >;
+
+pub(super) type IeeeFloatFmaTranslationFamilyValidator = fn(
+    &AbstractFunction,
+    NativeTarget,
+    &TargetFunction,
+    &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
+) -> Result<
+    AbstractToTargetFunctionTranslationReceipt,
+    AbstractToTargetTranslationFamilyError,
+>;
+
+#[derive(Clone, Copy)]
+pub(super) enum TranslationFamilyValidator {
+    Plain(PlainTranslationFamilyValidator),
+    IeeeFloatFma(IeeeFloatFmaTranslationFamilyValidator),
+}
 
 #[derive(Clone, Copy)]
 pub(super) struct TranslationFamilyDescriptor {
@@ -28,12 +44,24 @@ impl TranslationFamilyDescriptor {
     pub(super) const fn new(
         family: AbstractToTargetTranslationFamily,
         is_candidate: TranslationFamilyClassifier,
-        validate: TranslationFamilyValidator,
+        validate: PlainTranslationFamilyValidator,
     ) -> Self {
         Self {
             family,
             is_candidate,
-            validate,
+            validate: TranslationFamilyValidator::Plain(validate),
+        }
+    }
+
+    pub(super) const fn with_ieee_float_fma(
+        family: AbstractToTargetTranslationFamily,
+        is_candidate: TranslationFamilyClassifier,
+        validate: IeeeFloatFmaTranslationFamilyValidator,
+    ) -> Self {
+        Self {
+            family,
+            is_candidate,
+            validate: TranslationFamilyValidator::IeeeFloatFma(validate),
         }
     }
 }

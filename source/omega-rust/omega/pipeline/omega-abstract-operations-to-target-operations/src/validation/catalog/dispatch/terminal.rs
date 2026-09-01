@@ -7,6 +7,7 @@ use super::super::super::{
     straight_line_byte_sequence_literal_unit_return,
     straight_line_ieee_float_literal_sequence_unit_return,
     straight_line_ieee_float_literal_unit_return, straight_line_integer_literal_unit_return,
+    straight_line_nearest_ieee_float_fused_multiply_add_unit_return,
     straight_line_port_write_unit_return, straight_line_scalar_crash,
     straight_line_trivial_affine_local_unit_return, straight_line_unit_call_return,
     straight_line_unit_return,
@@ -61,6 +62,13 @@ pub(in crate::validation::catalog) const IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN
     AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
     straight_line_ieee_float_literal_sequence_unit_return::is_candidate,
     straight_line_ieee_float_literal_sequence_unit_return,
+);
+
+pub(in crate::validation::catalog) const NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD_UNIT_RETURN:
+    TranslationFamilyDescriptor = TranslationFamilyDescriptor::with_ieee_float_fma(
+    AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
+    straight_line_nearest_ieee_float_fused_multiply_add_unit_return::is_candidate,
+    straight_line_nearest_ieee_float_fused_multiply_add_unit_return,
 );
 
 pub(in crate::validation::catalog) const TRIVIAL_AFFINE_LOCAL_UNIT_RETURN:
@@ -162,6 +170,26 @@ pub(super) fn straight_line_ieee_float_literal_sequence_unit_return(
     )
     .map_err(
         AbstractToTargetTranslationFamilyError::StraightLineIeeeFloatLiteralSequenceUnitReturn,
+    )
+}
+
+pub(super) fn straight_line_nearest_ieee_float_fused_multiply_add_unit_return(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+    settlements: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_nearest_ieee_float_fused_multiply_add_unit_return::validate(
+        source,
+        expected_target,
+        target,
+        settlements,
+    )
+    .map(
+        AbstractToTargetFunctionTranslationReceipt::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
+    )
+    .map_err(
+        AbstractToTargetTranslationFamilyError::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
     )
 }
 

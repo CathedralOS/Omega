@@ -26,6 +26,7 @@ use super::terminal::{
     StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
     StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt,
     StraightLineIntegerLiteralUnitReturnTranslationReceipt,
+    StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationReceipt,
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
     StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,
     StraightLineUnitCallReturnTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
@@ -58,6 +59,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineIeeeFloatLiteralSequenceUnitReturn(
         StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
+    ),
+    StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn(
+        StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationReceipt,
     ),
     StraightLineTrivialAffineLocalUnitReturn(
         StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,

@@ -17,6 +17,7 @@ use psi_terminal::{
     StructuralTypeShape, TerminalAffineCleanupAction,
 };
 
+use super::model::TranslationFamilyValidator;
 use super::*;
 use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
@@ -489,6 +490,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
+            AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
             AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
@@ -529,7 +531,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
     assert_eq!(identities.len(), ENABLED_TRANSLATION_FAMILIES.len());
 
     let (source, target) = boolean_literal_pair();
-    let disposition = validate_function(&source, NativeTarget::linux_x64(), &target).unwrap();
+    let disposition = validate_function(&source, NativeTarget::linux_x64(), &target, &[]).unwrap();
     assert!(matches!(
         disposition,
         AbstractToTargetFunctionTranslationDisposition::Validated(
@@ -565,10 +567,13 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
         )
     ));
 
+    let TranslationFamilyValidator::Plain(boolean_validator) = boolean.validate else {
+        panic!("the boolean family must use the plain validator contract");
+    };
     let overlapping_alias = TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
         boolean.is_candidate,
-        boolean.validate,
+        boolean_validator,
     );
     assert!(matches!(
         selection::validate(

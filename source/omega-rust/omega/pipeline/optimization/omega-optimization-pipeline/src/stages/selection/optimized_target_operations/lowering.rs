@@ -1,7 +1,8 @@
 use omega_abstract_operations_to_target_operations::{
-    AdmittedBoundarySettlement, LoweringError, lower_to_target_operations,
-    lower_to_target_operations_with_provider_executions,
+    AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement, LoweringError,
+    lower_to_target_operations, lower_to_target_operations_with_provider_executions,
     lower_to_target_operations_with_provider_executions_and_installation,
+    lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma,
 };
 use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
@@ -13,6 +14,20 @@ pub(super) fn lower_optimized_plan(
     target: NativeTarget,
 ) -> Result<TargetOperationPlan, LoweringError> {
     lower_to_target_operations(optimized.plan(), target)
+}
+
+pub(super) fn lower_optimized_plan_with_ieee_float_fma(
+    optimized: &ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedIeeeFloatFmaSettlement<'_>],
+) -> Result<TargetOperationPlan, LoweringError> {
+    lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
+        optimized.plan(),
+        target,
+        &[],
+        None,
+        settlements,
+    )
 }
 
 pub(super) fn lower_optimized_plan_with_provider_executions(

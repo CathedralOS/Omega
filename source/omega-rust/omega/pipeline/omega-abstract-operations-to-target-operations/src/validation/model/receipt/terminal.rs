@@ -361,6 +361,129 @@ impl StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IeeeFloatFusedMultiplyAddOperandReceipt {
+    defining_operation: OperationId,
+    source_value: ValueId,
+    value: IeeeFloatValue,
+}
+
+impl IeeeFloatFusedMultiplyAddOperandReceipt {
+    pub(in crate::validation) const fn new(
+        defining_operation: OperationId,
+        source_value: ValueId,
+        value: IeeeFloatValue,
+    ) -> Self {
+        Self {
+            defining_operation,
+            source_value,
+            value,
+        }
+    }
+
+    pub const fn defining_operation(&self) -> OperationId {
+        self.defining_operation
+    }
+
+    pub const fn source_value(&self) -> ValueId {
+        self.source_value
+    }
+
+    pub const fn value(&self) -> IeeeFloatValue {
+        self.value
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationReceipt {
+    machine: MachineId,
+    literals: [IeeeFloatLiteralSequenceMember; 3],
+    fma_operation: OperationId,
+    fma_result: ValueId,
+    format: psi_core::IeeeFloatFormat,
+    operands: [IeeeFloatFusedMultiplyAddOperandReceipt; 3],
+    provider_plan_report_identity: u64,
+    provider_plan_digest: [u8; 32],
+    slot: omega_target::X86ScalarFmaSlot,
+    provider: omega_target::AdmittedX86ScalarFmaProvider,
+    return_edge: EdgeId,
+}
+
+impl StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        literals: [IeeeFloatLiteralSequenceMember; 3],
+        fma_operation: OperationId,
+        fma_result: ValueId,
+        format: psi_core::IeeeFloatFormat,
+        operands: [IeeeFloatFusedMultiplyAddOperandReceipt; 3],
+        provider_plan_report_identity: u64,
+        provider_plan_digest: [u8; 32],
+        slot: omega_target::X86ScalarFmaSlot,
+        provider: omega_target::AdmittedX86ScalarFmaProvider,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            literals,
+            fma_operation,
+            fma_result,
+            format,
+            operands,
+            provider_plan_report_identity,
+            provider_plan_digest,
+            slot,
+            provider,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn literals(&self) -> &[IeeeFloatLiteralSequenceMember; 3] {
+        &self.literals
+    }
+
+    pub const fn fma_operation(&self) -> OperationId {
+        self.fma_operation
+    }
+
+    pub const fn fma_result(&self) -> ValueId {
+        self.fma_result
+    }
+
+    pub const fn format(&self) -> psi_core::IeeeFloatFormat {
+        self.format
+    }
+
+    pub const fn operands(&self) -> &[IeeeFloatFusedMultiplyAddOperandReceipt; 3] {
+        &self.operands
+    }
+
+    pub const fn provider_plan_report_identity(&self) -> u64 {
+        self.provider_plan_report_identity
+    }
+
+    pub const fn provider_plan_digest(&self) -> [u8; 32] {
+        self.provider_plan_digest
+    }
+
+    pub const fn slot(&self) -> omega_target::X86ScalarFmaSlot {
+        self.slot
+    }
+
+    pub const fn provider(&self) -> omega_target::AdmittedX86ScalarFmaProvider {
+        self.provider
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StraightLineTrivialAffineLocalUnitReturnTranslationReceipt {
     machine: MachineId,
