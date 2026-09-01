@@ -295,13 +295,10 @@ explicitly.
 
   Remaining work:
 
-  - finish compiler-owned selection finalization for the late-bound authored
-    `CheckedCall` in
-    `comptime/runtime_const_array_length_bare_call_arm_exit`, then migrate the
-    comptime cohort and remaining package-aware fixtures to explicit std
-    dependency edges; freestanding UEFI package roots remain dependency-free,
-    and standalone source fixtures stay on the compatibility path until they
-    acquire real package roots;
+  - migrate remaining package-aware fixtures to explicit std dependency edges;
+    freestanding UEFI package roots remain dependency-free, and standalone
+    source fixtures stay on the compatibility path until they acquire real
+    package roots;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

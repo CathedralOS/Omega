@@ -342,6 +342,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
     for (category, expected_count) in [
         ("backend", 2),
         ("borrow", 3),
+        ("comptime", 4),
         ("constants", 2),
         ("errors", 1),
     ] {

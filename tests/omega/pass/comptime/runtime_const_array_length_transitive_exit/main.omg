@@ -9,7 +9,7 @@
 // (index 15 only typechecks if 16 reached the range checker). Exits 70 only
 // when both reads are right.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

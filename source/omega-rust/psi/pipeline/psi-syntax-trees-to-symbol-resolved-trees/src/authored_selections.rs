@@ -302,26 +302,77 @@ fn finalize_authored_statement_call_selections(
     }
 
     for candidate in candidates {
-        let occurrence = match candidate.target {
-            CandidateTarget::Resolved(symbol) => program
-                .record_resolved_authored_declaration_selection(
-                    candidate.source_span,
-                    Exposure::PrivateImplementation,
-                    Kind::Call,
-                    symbol,
-                ),
-            CandidateTarget::LateBound(binding) => program
-                .record_late_bound_authored_declaration_selection(
-                    candidate.source_span,
-                    Exposure::PrivateImplementation,
-                    Kind::Call,
-                    binding,
-                ),
-        }
-        .map_err(record_diagnostic)?;
+        let occurrence =
+            if let Some(occurrence) = existing_statement_call_occurrence(program, candidate)? {
+                occurrence
+            } else {
+                match candidate.target {
+                    CandidateTarget::Resolved(symbol) => program
+                        .record_resolved_authored_declaration_selection(
+                            candidate.source_span,
+                            Exposure::PrivateImplementation,
+                            Kind::Call,
+                            symbol,
+                        ),
+                    CandidateTarget::LateBound(binding) => program
+                        .record_late_bound_authored_declaration_selection(
+                            candidate.source_span,
+                            Exposure::PrivateImplementation,
+                            Kind::Call,
+                            binding,
+                        ),
+                }
+                .map_err(record_diagnostic)?
+            };
         attach_statement_call_occurrence(program, candidate.site, occurrence)?;
     }
     Ok(())
+}
+
+fn existing_statement_call_occurrence(
+    program: &SymbolResolvedTrees,
+    candidate: AuthoredStatementCallCandidate,
+) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let mut retained = None;
+    for selection in program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.source_span() == candidate.source_span
+                && selection.exposure() == Exposure::PrivateImplementation
+                && selection.kind() == Kind::Call
+        })
+    {
+        let existing_target = match selection.target() {
+            Target::Resolved(existing) => CandidateTarget::Resolved(existing.selected_symbol()),
+            Target::LateBound(binding) => CandidateTarget::LateBound(binding),
+            Target::Intrinsic(_) => {
+                return Err(Diagnostic::error(
+                    "authored statement call reclassification found an intrinsic selection for the same source token",
+                )
+                .with_source_span(candidate.source_span));
+            }
+        };
+        reconcile_copy_targets(
+            candidate.source_span,
+            Kind::Call,
+            existing_target,
+            candidate.target,
+        )?;
+        if retained.is_some_and(|occurrence| occurrence != selection.occurrence_id()) {
+            return Err(Diagnostic::error(
+                "authored statement call reclassification found duplicate selections for the same source token",
+            )
+            .with_source_span(candidate.source_span));
+        }
+        retained = Some(selection.occurrence_id());
+    }
+    Ok(retained)
 }
 
 fn collect_authored_transition_call_candidate(

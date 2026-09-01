@@ -217,14 +217,22 @@ fn reclassify_state_call_value_target(
     if !state_symbol.is_valid() && !is_free_machine_self_recursion {
         return None;
     }
+    let target_symbol = if state_symbol.is_valid() {
+        state_symbol
+    } else {
+        // The machine symbol is the canonical coordinate for a transition to
+        // a free machine's entry. Downstream ranking and call-selection
+        // reconstruction already normalize this coordinate to entry state 0.
+        machine.symbol
+    };
 
     let mut path = HandleSpan::empty();
     statement_path_members.append_to_span(&mut path, call.target.clone());
 
     Some(
         psi_symbol_resolved_trees::statement::NamedTransitionTarget {
-            head_symbol: state_symbol,
-            symbol: state_symbol,
+            head_symbol: target_symbol,
+            symbol: target_symbol,
             storage: psi_symbol_resolved_trees::statement::NamedTransitionTargetStorage {
                 path,
                 path_starts_at_self: false,
