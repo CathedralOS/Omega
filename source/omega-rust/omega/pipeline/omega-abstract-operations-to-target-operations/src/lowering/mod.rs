@@ -2,6 +2,7 @@
 
 mod boundary_settlements;
 mod cleanup;
+mod compatibility;
 mod conditional_cleanup;
 mod coordination;
 mod function;
@@ -24,6 +25,11 @@ use crate::{AdmittedBoundarySettlement, LoweringError};
 use coordination::{
     lower_to_target_operations_with_settlements,
     lower_to_target_operations_with_settlements_and_installation,
+};
+
+pub use compatibility::{
+    lower_to_target_operations_with_provider_executions,
+    lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma,
 };
 
 #[cfg(test)]
@@ -52,21 +58,6 @@ pub fn lower_ranked_to_target_operations(
     ranked_countdown::lower(ranked, target)
 }
 
-/// Lower an effectful terminal plan using exact provider executions already
-/// admitted by the external-root ledger.
-pub fn lower_to_target_operations_with_provider_executions(
-    plan: &AbstractOperationPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedBoundarySettlement<'_>],
-) -> Result<TargetOperationPlan, LoweringError> {
-    lower_to_target_operations_with_provider_executions_and_installation(
-        plan,
-        target,
-        settlements,
-        None,
-    )
-}
-
 /// Lower with checked-provider installation evidence and any remaining
 /// external boundary settlements.
 pub fn lower_to_target_operations_with_provider_executions_and_installation(
@@ -75,36 +66,8 @@ pub fn lower_to_target_operations_with_provider_executions_and_installation(
     settlements: &[AdmittedBoundarySettlement<'_>],
     installation: Option<&dyn ProviderInstallationEvidence>,
 ) -> Result<TargetOperationPlan, LoweringError> {
-    lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
-        plan,
-        target,
-        settlements,
-        installation,
-        &[],
-    )
-}
-
-/// Lower with all ordinary provider/install settlements plus exact retained
-/// nearest-FMA occurrence custody. This is the consuming entrance used by
-/// Terminal native re-entry; simpler callers remain fail-closed by supplying
-/// no FMA settlements through the compatibility entrances above.
-pub fn lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
-    plan: &AbstractOperationPlan,
-    target: NativeTarget,
-    settlements: &[AdmittedBoundarySettlement<'_>],
-    installation: Option<&dyn ProviderInstallationEvidence>,
-    ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
-) -> Result<TargetOperationPlan, LoweringError> {
-    Ok(
-        lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
-            plan,
-            target,
-            settlements,
-            installation,
-            ieee_float_fma,
-            &[],
-        )?
-        .plan,
+    compatibility::lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
+        plan, target, settlements, installation, &[],
     )
 }
 

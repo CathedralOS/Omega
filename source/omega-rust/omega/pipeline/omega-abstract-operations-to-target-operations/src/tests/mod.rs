@@ -44,6 +44,7 @@ mod parameter_translation_fixture;
 mod ranked_countdown;
 mod scalar;
 mod structural_and_cleanup;
+mod support;
 mod translation_validation;
 mod translation_validation_boolean;
 mod translation_validation_boolean_equal_parameters;
@@ -83,20 +84,4 @@ mod unit_and_settlements;
 mod unit_scalar_calls;
 mod unit_structural_calls;
 
-pub(super) fn identity() -> TerminalPsiIdentity {
-    TerminalPsiIdentity {
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
-    }
-}
-
-pub(super) fn scalar_result(function: &AbstractFunction) -> AbstractResult {
-    function.result.scalar().expect("fixture is scalar")
-}
-
-pub(super) fn scalar_result_mut(function: &mut AbstractFunction) -> &mut AbstractResult {
-    let AbstractFunctionResult::Scalar(result) = &mut function.result else {
-        panic!("fixture is scalar")
-    };
-    result
-}
+pub(super) use support::{identity, scalar_result, scalar_result_mut};
