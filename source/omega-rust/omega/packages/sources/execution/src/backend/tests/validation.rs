@@ -12,6 +12,22 @@ fn every_preparation_reuses_the_frozen_absolute_executable() {
     assert!(backend.executable().is_absolute());
     assert_eq!(inspection.get_program(), backend.executable().as_os_str());
     assert_eq!(discovery.get_program(), backend.executable().as_os_str());
+    assert_eq!(inspection.limits().cpu_seconds, 120);
+    assert_eq!(
+        inspection.limits().address_space_bytes,
+        8 * 1024 * 1024 * 1024
+    );
+    assert_eq!(inspection.limits().file_size_bytes, 1024 * 1024 * 1024);
+    assert_eq!(inspection.limits().open_files, 256);
+    assert_eq!(inspection.limits().active_processes, 16);
+    assert_eq!(
+        inspection.limits().process_memory_bytes,
+        2 * 1024 * 1024 * 1024
+    );
+    assert_eq!(
+        inspection.limits().aggregate_memory_bytes,
+        4 * 1024 * 1024 * 1024
+    );
 }
 
 #[test]

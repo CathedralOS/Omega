@@ -20,6 +20,7 @@ use super::launch::assign_and_resume;
 use super::limits::WindowsJobLimits;
 use super::native::{KernelHandle, raw_os_error_is};
 use super::termination::{terminate_and_reap_child, terminate_job};
+use crate::BoundedProcessLimits;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,7 +31,7 @@ pub(super) enum JobLimitEvent {
     AggregateCpu,
 }
 
-/// A resolver child owned by a compiler-created Windows Job Object.
+/// A bounded child owned by a compiler-created Windows Job Object.
 #[derive(Debug)]
 pub(crate) struct WindowsJobChild {
     child: Child,
@@ -43,8 +44,8 @@ pub(crate) struct WindowsJobChild {
 }
 
 impl WindowsJobChild {
-    pub(crate) fn spawn(command: &mut Command) -> io::Result<Self> {
-        Self::spawn_with_config(command, WindowsJobLimits::production()?)
+    pub(crate) fn spawn(command: &mut Command, limits: BoundedProcessLimits) -> io::Result<Self> {
+        Self::spawn_with_config(command, WindowsJobLimits::from_limits(limits)?)
     }
 
     pub(super) fn spawn_with_config(

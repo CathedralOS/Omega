@@ -1,51 +1,7 @@
 use super::*;
-use crate::process::limits::{CHILD_OPEN_FILE_LIMIT, intersect_limit};
-
-#[cfg(unix)]
-#[test]
-fn compiler_resource_ceilings_never_loosen_inherited_limits() {
-    use rustix::process::Rlimit;
-
-    assert_eq!(
-        intersect_limit(
-            Rlimit {
-                current: Some(64),
-                maximum: Some(1_024),
-            },
-            256,
-        ),
-        Rlimit {
-            current: Some(64),
-            maximum: Some(256),
-        }
-    );
-    assert_eq!(
-        intersect_limit(
-            Rlimit {
-                current: Some(64),
-                maximum: Some(64),
-            },
-            256,
-        ),
-        Rlimit {
-            current: Some(64),
-            maximum: Some(64),
-        }
-    );
-    assert_eq!(
-        intersect_limit(
-            Rlimit {
-                current: None,
-                maximum: None,
-            },
-            256,
-        ),
-        Rlimit {
-            current: Some(256),
-            maximum: Some(256),
-        }
-    );
-}
+use crate::ResolverExecutionChild;
+use std::io::Read;
+use std::time::{Duration, Instant};
 
 #[cfg(unix)]
 #[test]
@@ -64,15 +20,29 @@ fn child_open_file_limit_is_enforced() {
         .stdin_null()
         .stdout_piped()
         .stderr_null();
-    let output = prepared
-        .into_command()
-        .expect("close prepared streams")
-        .output()
-        .expect("run limited shell");
-    assert!(output.status.success());
-    let limit = String::from_utf8_lossy(&output.stdout)
+    let mut child = ResolverExecutionChild::spawn(prepared).expect("run limited shell");
+    let mut stdout = String::new();
+    child
+        .take_stdout()
+        .expect("limited shell stdout was piped")
+        .read_to_string(&mut stdout)
+        .expect("read descriptor limit");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if child.try_wait().expect("wait for limited shell").is_some() {
+            break;
+        }
+        assert!(Instant::now() < deadline, "limited shell timed out");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    child
+        .terminate()
+        .expect("close limited shell process group");
+    let completion = child.finish().expect("finish limited shell");
+    assert!(completion.status().success());
+    let limit = stdout
         .trim()
         .parse::<u64>()
         .expect("shell reports a numeric descriptor limit");
-    assert!(limit <= CHILD_OPEN_FILE_LIMIT);
+    assert!(limit <= 256);
 }

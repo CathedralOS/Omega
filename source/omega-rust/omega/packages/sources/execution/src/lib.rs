@@ -3,20 +3,20 @@
 //! A backend freezes one absolute executable path outside package-controlled
 //! roots. Prepared commands retain structured arguments, environment changes,
 //! working directory, standard-stream custody, resource limits, and
-//! platform-owned process-container cleanup. Nothing in this crate is canonical package
-//! evidence.
+//! shared platform-owned process-container cleanup. Nothing in this crate is
+//! canonical package evidence.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod backend;
 mod phase;
-mod prepared;
-mod process;
 mod request;
 
 pub use backend::ResolverExecutionBackend;
-pub use phase::ResolverExecutionPhase;
-pub use prepared::ResolverPreparedExecution;
-pub use process::{
-    ResolverExecutionChild, ResolverExecutionCompletion, ResolverExecutionExitStatus,
+pub use omega_bounded_process::{
+    BoundedProcessChild as ResolverExecutionChild,
+    BoundedProcessCompletion as ResolverExecutionCompletion,
+    BoundedProcessExitStatus as ResolverExecutionExitStatus,
+    BoundedProcessPrepared as ResolverPreparedExecution,
 };
+pub use phase::ResolverExecutionPhase;

@@ -179,6 +179,23 @@ contract, and the cross-target pipeline leaf is
 `register_allocation/stack_slot_coloring.rs`. It does not add an optimization
 name or enter the allocation-recovery catalog.
 
+Abstract spill insertion continues below
+`omega-regalloc/src/allocation/abstract_spill_insertion/mod.rs`. Its entrance
+joins the validated logical-operation and stack-slot receipts, while `model.rs`
+and `identity.rs` own the schedule vocabulary and `compute.rs` and
+`validate.rs` retain separate production and replay custody. The mirrored
+pipeline leaf is `register_allocation/abstract_spill_insertion.rs`.
+
+Logical reload home assignment lives beside it at
+`omega-regalloc/src/allocation/reload_value_homes/mod.rs`. That executable
+entrance joins the source carriers and sends the producer result through
+independent replay. `compute.rs` owns the sorted linear proposal, `replay.rs`
+owns point-indexed reconstruction, `replay/mechanics.rs` owns only replay-local
+interference and accounting mechanics, and `model.rs`, `identity.rs`, and
+`validate.rs` own the closed artifact and admission boundary. Its mirrored
+pipeline leaf is `register_allocation/reload_value_homes.rs`. Neither stage is
+a selectable optimization rule.
+
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create

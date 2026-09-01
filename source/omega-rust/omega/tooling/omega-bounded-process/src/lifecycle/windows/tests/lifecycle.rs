@@ -2,7 +2,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use super::super::lifecycle::WindowsJobChild;
-use super::support::wait_bounded;
+use super::support::{test_limits, wait_bounded};
 
 #[test]
 fn job_reaches_active_process_zero_after_normal_exit() {
@@ -12,7 +12,9 @@ fn job_reaches_active_process_zero_after_normal_exit() {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let mut child = WindowsJobChild::spawn(&mut command).expect("spawn contained child");
+    let limits = test_limits(4, 512, 1024, Duration::from_secs(30));
+    let mut child =
+        WindowsJobChild::spawn_with_config(&mut command, limits).expect("spawn contained child");
     assert!(wait_bounded(&mut child, Duration::from_secs(5)).success());
 }
 
@@ -24,7 +26,9 @@ fn job_termination_reaches_active_process_zero() {
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    let mut child = WindowsJobChild::spawn(&mut command).expect("spawn contained child");
+    let limits = test_limits(4, 512, 1024, Duration::from_secs(30));
+    let mut child =
+        WindowsJobChild::spawn_with_config(&mut command, limits).expect("spawn contained child");
     child.kill().expect("terminate complete Windows Job");
     assert!(!wait_bounded(&mut child, Duration::from_secs(5)).success());
 }

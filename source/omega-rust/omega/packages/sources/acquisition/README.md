@@ -33,10 +33,12 @@ src/
 └── error.rs        fail-closed acquisition errors
 ```
 
-Native process lifecycle and concrete resource limits live in the peer
-[`execution/`](../execution/README.md) crate. Acquisition retains no executable
-identity, command/completion provenance, platform-guarantee row, or fetch
-receipt. Successful Git resolution exposes the authored canonical lineage,
+Native process lifecycle, concrete resource limits, and bounded duplex capture
+live in [`omega-bounded-process`](../../../tooling/omega-bounded-process/README.md).
+The peer [`execution/`](../execution/README.md) crate owns resolver-specific
+executable and phase/root preparation. Acquisition retains no executable identity,
+command/completion provenance, platform-guarantee row, or fetch receipt.
+Successful Git resolution exposes the authored canonical lineage,
 requested revision, selected objects and materialized content, immutable
 snapshot custody, and the concrete limits and retained-storage measurements
 that were actually checked.

@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use super::descriptors;
-use super::{ResolverExecutionCompletion, ResolverExecutionExitStatus};
-use crate::ResolverPreparedExecution;
+use super::{BoundedProcessCompletion, BoundedProcessExitStatus};
+use crate::BoundedProcessPrepared;
 use std::io;
 use std::process::{ChildStderr, ChildStdin, ChildStdout, ExitStatus};
 
@@ -10,7 +10,7 @@ use super::windows;
 #[cfg(unix)]
 use command_group::CommandGroup;
 
-pub struct ResolverExecutionChild {
+pub struct BoundedProcessChild {
     #[cfg(unix)]
     child: command_group::GroupChild,
     #[cfg(windows)]
@@ -22,11 +22,13 @@ pub struct ResolverExecutionChild {
     finished: bool,
 }
 
-impl ResolverExecutionChild {
-    /// Spawn a configured resolver command inside the platform process
+impl BoundedProcessChild {
+    /// Spawn a configured command inside the platform process
     /// container before any child code may execute.
-    pub fn spawn(prepared: ResolverPreparedExecution) -> io::Result<Self> {
-        let command = prepared.into_command()?;
+    pub fn spawn(prepared: BoundedProcessPrepared) -> io::Result<Self> {
+        let (command, limits) = prepared.into_command()?;
+        #[cfg(not(windows))]
+        let _ = limits;
         #[cfg(unix)]
         let mut command = {
             let mut command = command;
@@ -36,7 +38,7 @@ impl ResolverExecutionChild {
         #[cfg(windows)]
         let mut command = command;
         #[cfg(windows)]
-        let child = windows::WindowsJobChild::spawn(&mut command)?;
+        let child = windows::WindowsJobChild::spawn(&mut command, limits)?;
         #[cfg(unix)]
         let child = command.group_spawn()?;
         #[cfg(not(any(unix, windows)))]
@@ -98,23 +100,23 @@ impl ResolverExecutionChild {
         Ok(status)
     }
 
-    /// Consume a closed and reaped resolver execution.
-    pub fn finish(mut self) -> io::Result<ResolverExecutionCompletion> {
+    /// Consume a closed and reaped bounded execution.
+    pub fn finish(mut self) -> io::Result<BoundedProcessCompletion> {
         if !self.container_closed {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "resolver execution process container was not explicitly closed",
+                "bounded process container was not explicitly closed",
             ));
         }
         let status = self.status.ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::WouldBlock,
-                "resolver execution was not reaped before completion",
+                "bounded process was not reaped before completion",
             )
         })?;
         self.finished = true;
-        Ok(ResolverExecutionCompletion::new(
-            ResolverExecutionExitStatus::from_status(status),
+        Ok(BoundedProcessCompletion::new(
+            BoundedProcessExitStatus::from_status(status),
         ))
     }
 
@@ -129,7 +131,7 @@ impl ResolverExecutionChild {
     }
 }
 
-impl Drop for ResolverExecutionChild {
+impl Drop for BoundedProcessChild {
     fn drop(&mut self) {
         if self.finished {
             return;
@@ -148,7 +150,7 @@ fn native_container_already_absent(error: &io::Error) -> bool {
     #[cfg(unix)]
     {
         // POSIX ESRCH alone proves that no process group exists. EPERM proves
-        // the opposite: a group exists but this resolver cannot signal it.
+        // the opposite: a group exists but this caller cannot signal it.
         error.raw_os_error() == Some(3)
     }
     #[cfg(not(unix))]

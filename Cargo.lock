@@ -362,6 +362,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-bounded-process"
+version = "0.1.0"
+dependencies = [
+ "command-group",
+ "libc",
+ "rustix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "omega-build-declarations"
 version = "0.1.0"
 dependencies = [
@@ -1145,6 +1155,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "nix",
+ "omega-bounded-process",
  "omega-platform-custody",
  "omega-resolver-execution",
  "sha1-checked",
@@ -1316,10 +1327,7 @@ dependencies = [
 name = "omega-resolver-execution"
 version = "0.1.0"
 dependencies = [
- "command-group",
- "libc",
- "rustix",
- "windows-sys 0.61.2",
+ "omega-bounded-process",
 ]
 
 [[package]]

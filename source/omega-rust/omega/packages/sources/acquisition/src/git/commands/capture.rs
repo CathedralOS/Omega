@@ -1,57 +1,21 @@
-//! Bounded stream capture, deadlines, and process-group cleanup.
+//! Git error projection over the shared bounded-process execution boundary.
 
 use crate::SourceResolveError;
-use crate::git::executable::budget::{CapturedOutputLimitExceeded, GitCapturedOutputBudget};
+use crate::git::executable::budget::GitCapturedOutputBudget;
 use crate::limits::{GIT_COMMAND_CLEANUP_TIMEOUT, PROCESS_POLL_INTERVAL};
-use omega_resolver_execution::{ResolverExecutionChild, ResolverPreparedExecution};
+use omega_bounded_process::{
+    BoundedCaptureLimits, BoundedProcessInput, BoundedProcessOutput, BoundedProcessRunError,
+    run_bounded_process,
+};
+use omega_resolver_execution::ResolverPreparedExecution;
 use std::fs::File;
-use std::io::{Read, Write};
-use std::process::{ChildStdin, ExitStatus};
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-#[derive(Debug)]
-pub(crate) struct BoundedCommandOutput {
-    pub(crate) status: ExitStatus,
-    pub(crate) stdout: Vec<u8>,
-    pub(crate) stderr: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CapturedStream {
-    Stdout,
-    Stderr,
-}
-
-impl CapturedStream {
-    fn name(self) -> &'static str {
-        match self {
-            Self::Stdout => "stdout",
-            Self::Stderr => "stderr",
-        }
-    }
-}
-
-pub(crate) enum StreamCaptureResult {
-    Complete(Vec<u8>),
-    Overflow,
-    ResolutionOverflow(CapturedOutputLimitExceeded),
-    Failed(String),
-}
-
-struct StreamCapture {
-    stream: CapturedStream,
-    result: StreamCaptureResult,
-}
+pub(crate) type BoundedCommandOutput = BoundedProcessOutput;
 
 pub(crate) enum ResolverCommandInput {
     Null,
     File(File),
-}
-
-enum CommandWorkerResult {
-    Stream(StreamCapture),
-    Stdin(Result<(), String>),
 }
 
 #[cfg(test)]
@@ -92,372 +56,92 @@ pub(crate) fn run_command_bounded_with_budget(
 }
 
 pub(crate) fn run_command_bounded_with_stdin_and_budget(
-    mut command: ResolverPreparedExecution,
-    stdin: ResolverCommandInput,
+    command: ResolverPreparedExecution,
+    input: ResolverCommandInput,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
     timeout: Duration,
     captured_output_budget: GitCapturedOutputBudget,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
-    let started = Instant::now();
-    let deadline = started.checked_add(timeout).unwrap_or(started);
-    let cleanup_reserve = command_cleanup_reserve(timeout);
-    let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
-    let stdin_is_piped = matches!(&stdin, ResolverCommandInput::File(_));
-    if stdin_is_piped {
-        command.stdin_piped();
-    } else {
-        command.stdin_null();
-    }
-    command.stdout_piped().stderr_piped();
-    let mut child =
-        ResolverExecutionChild::spawn(command).map_err(|error| SourceResolveError::Git {
-            operation: format!("{operation} spawn"),
-            status: None,
-            stderr: error.to_string(),
-        })?;
-    let stdout = child.take_stdout().expect("command stdout was piped");
-    let stderr = child.take_stderr().expect("command stderr was piped");
-    let child_stdin = stdin_is_piped.then(|| child.take_stdin().expect("command stdin was piped"));
-    let (sender, receiver) = mpsc::channel();
-    if let Err(error) = spawn_stream_capture(
-        stdout,
-        CapturedStream::Stdout,
+    let limits = BoundedCaptureLimits::new(
         stdout_limit,
-        captured_output_budget.clone(),
-        &sender,
-    ) {
-        return fail_after_cleanup_before(
-            &mut child,
-            operation,
-            deadline,
-            SourceResolveError::Git {
-                operation: format!("{operation} stdout capture"),
-                status: None,
-                stderr: error.to_string(),
-            },
-        );
-    }
-    if let Err(error) = spawn_stream_capture(
-        stderr,
-        CapturedStream::Stderr,
         stderr_limit,
-        captured_output_budget,
-        &sender,
-    ) {
-        return fail_after_cleanup_before(
-            &mut child,
-            operation,
-            deadline,
-            SourceResolveError::Git {
-                operation: format!("{operation} stderr capture"),
-                status: None,
-                stderr: error.to_string(),
-            },
-        );
-    }
-    if let (ResolverCommandInput::File(input), Some(child_stdin)) = (stdin, child_stdin) {
-        if let Err(error) = spawn_stdin_copy(input, child_stdin, &sender) {
-            return fail_after_cleanup_before(
-                &mut child,
-                operation,
-                deadline,
-                SourceResolveError::Git {
-                    operation: format!("{operation} stdin transfer"),
-                    status: None,
-                    stderr: error.to_string(),
-                },
-            );
-        }
-    }
-    drop(sender);
-
-    let mut status = None;
-    let mut stdout = None;
-    let mut stderr = None;
-    let mut stdin_complete = !stdin_is_piped;
-    loop {
-        if Instant::now() >= deadline {
-            return fail_after_cleanup_before(
-                &mut child,
-                operation,
-                deadline,
-                SourceResolveError::GitTimedOut {
-                    operation: operation.to_owned(),
-                    timeout_millis: duration_millis(timeout),
-                },
-            );
-        }
-        if status.is_none() {
-            status = match child.try_wait() {
-                Ok(Some(status)) => {
-                    terminate_child_before(&mut child, operation, deadline)?;
-                    Some(status)
-                }
-                Ok(None) => None,
-                Err(error) => {
-                    return fail_after_cleanup_before(
-                        &mut child,
-                        operation,
-                        deadline,
-                        SourceResolveError::Git {
-                            operation: format!("{operation} wait"),
-                            status: None,
-                            stderr: error.to_string(),
-                        },
-                    );
-                }
-            };
-        }
-        if status.is_some() && stdout.is_some() && stderr.is_some() && stdin_complete {
-            child
-                .finish()
-                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
-                    message: format!("cannot finalize resolver child execution: {error}"),
-                })?;
-            return Ok(BoundedCommandOutput {
-                status: status.expect("status was checked"),
-                stdout: stdout.expect("stdout was checked"),
-                stderr: stderr.expect("stderr was checked"),
-            });
-        }
-
-        let now = Instant::now();
-        if now >= execution_deadline {
-            return fail_after_cleanup_before(
-                &mut child,
-                operation,
-                deadline,
-                SourceResolveError::GitTimedOut {
-                    operation: operation.to_owned(),
-                    timeout_millis: duration_millis(timeout),
-                },
-            );
-        }
-        let wait = PROCESS_POLL_INTERVAL.min(execution_deadline.saturating_duration_since(now));
-        match receiver.recv_timeout(wait) {
-            Ok(CommandWorkerResult::Stream(capture)) => {
-                let bytes = match capture.result {
-                    StreamCaptureResult::Complete(bytes) => bytes,
-                    StreamCaptureResult::Overflow => {
-                        return fail_after_cleanup_before(
-                            &mut child,
-                            operation,
-                            deadline,
-                            SourceResolveError::GitOutputOverflow {
-                                operation: operation.to_owned(),
-                                stream: capture.stream.name().to_owned(),
-                                limit: match capture.stream {
-                                    CapturedStream::Stdout => stdout_limit,
-                                    CapturedStream::Stderr => stderr_limit,
-                                },
-                            },
-                        );
-                    }
-                    StreamCaptureResult::ResolutionOverflow(exceeded) => {
-                        return fail_after_cleanup_before(
-                            &mut child,
-                            operation,
-                            deadline,
-                            SourceResolveError::GitResolutionCapturedOutputLimit {
-                                ceiling: exceeded.ceiling,
-                                attempted: exceeded.attempted,
-                            },
-                        );
-                    }
-                    StreamCaptureResult::Failed(message) => {
-                        return fail_after_cleanup_before(
-                            &mut child,
-                            operation,
-                            deadline,
-                            SourceResolveError::Git {
-                                operation: format!("{operation} {} capture", capture.stream.name()),
-                                status: None,
-                                stderr: message,
-                            },
-                        );
-                    }
-                };
-                match capture.stream {
-                    CapturedStream::Stdout => stdout = Some(bytes),
-                    CapturedStream::Stderr => stderr = Some(bytes),
-                }
-            }
-            Ok(CommandWorkerResult::Stdin(result)) => match result {
-                Ok(()) => stdin_complete = true,
-                Err(message) => {
-                    return fail_after_cleanup_before(
-                        &mut child,
-                        operation,
-                        deadline,
-                        SourceResolveError::Git {
-                            operation: format!("{operation} stdin transfer"),
-                            status: None,
-                            stderr: message,
-                        },
-                    );
-                }
-            },
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                if stdout.is_none() || stderr.is_none() || !stdin_complete {
-                    return fail_after_cleanup_before(
-                        &mut child,
-                        operation,
-                        deadline,
-                        SourceResolveError::Git {
-                            operation: format!("{operation} capture"),
-                            status: None,
-                            stderr: "command stream workers ended before all transfers completed"
-                                .to_owned(),
-                        },
-                    );
-                }
-                std::thread::sleep(wait);
-            }
-        }
-    }
-}
-
-fn spawn_stream_capture<R>(
-    reader: R,
-    stream: CapturedStream,
-    limit: usize,
-    captured_output_budget: GitCapturedOutputBudget,
-    sender: &mpsc::Sender<CommandWorkerResult>,
-) -> std::io::Result<()>
-where
-    R: Read + Send + 'static,
-{
-    let sender = sender.clone();
-    std::thread::Builder::new()
-        .name(format!("omega-git-{}", stream.name()))
-        .spawn(move || {
-            let result = capture_stream_bounded_with_budget(reader, limit, &captured_output_budget);
-            let _ = sender.send(CommandWorkerResult::Stream(StreamCapture {
-                stream,
-                result,
-            }));
-        })?;
-    Ok(())
-}
-
-fn spawn_stdin_copy(
-    mut input: File,
-    mut child_stdin: ChildStdin,
-    sender: &mpsc::Sender<CommandWorkerResult>,
-) -> std::io::Result<()> {
-    let sender = sender.clone();
-    std::thread::Builder::new()
-        .name("omega-git-stdin".to_owned())
-        .spawn(move || {
-            let result = std::io::copy(&mut input, &mut child_stdin)
-                .and_then(|_| child_stdin.flush())
-                .map(|_| ())
-                .map_err(|error| error.to_string());
-            drop(child_stdin);
-            drop(input);
-            let _ = sender.send(CommandWorkerResult::Stdin(result));
-        })?;
-    Ok(())
+        timeout,
+        GIT_COMMAND_CLEANUP_TIMEOUT,
+        PROCESS_POLL_INTERVAL,
+    );
+    let input = match input {
+        ResolverCommandInput::Null => BoundedProcessInput::Null,
+        ResolverCommandInput::File(file) => BoundedProcessInput::File(file),
+    };
+    run_bounded_process(command, input, limits, captured_output_budget)
+        .map_err(|error| project_error(operation, error))
 }
 
 #[cfg(test)]
-pub(crate) fn capture_stream_bounded<R>(mut reader: R, limit: usize) -> StreamCaptureResult
-where
-    R: Read,
-{
-    capture_stream_bounded_with_budget(&mut reader, limit, &GitCapturedOutputBudget::new(u64::MAX))
-}
-
-fn capture_stream_bounded_with_budget<R>(
-    mut reader: R,
-    limit: usize,
-    captured_output_budget: &GitCapturedOutputBudget,
-) -> StreamCaptureResult
-where
-    R: Read,
-{
-    let mut bytes = Vec::new();
-    let mut chunk = [0_u8; 64 * 1024];
-    loop {
-        let count = match reader.read(&mut chunk) {
-            Ok(0) => return StreamCaptureResult::Complete(bytes),
-            Ok(count) => count,
-            Err(error) => return StreamCaptureResult::Failed(error.to_string()),
-        };
-        let Some(next_length) = bytes.len().checked_add(count) else {
-            return StreamCaptureResult::Overflow;
-        };
-        if next_length > limit {
-            return StreamCaptureResult::Overflow;
-        }
-        if let Err(exceeded) = captured_output_budget.charge(count) {
-            return StreamCaptureResult::ResolutionOverflow(exceeded);
-        }
-        if bytes.try_reserve(count).is_err() {
-            return StreamCaptureResult::Failed("output capture allocation failed".to_owned());
-        }
-        bytes.extend_from_slice(&chunk[..count]);
-    }
-}
-
 pub(crate) fn command_cleanup_reserve(timeout: Duration) -> Duration {
     GIT_COMMAND_CLEANUP_TIMEOUT.min(timeout / 4)
 }
 
-fn fail_after_cleanup_before<T>(
-    child: &mut ResolverExecutionChild,
-    operation: &str,
-    deadline: Instant,
-    original: SourceResolveError,
-) -> Result<T, SourceResolveError> {
-    match terminate_child_before(child, operation, deadline) {
-        Ok(()) => Err(original),
-        Err(cleanup) => Err(cleanup),
-    }
-}
-
-fn terminate_child_before(
-    child: &mut ResolverExecutionChild,
-    operation: &str,
-    command_deadline: Instant,
-) -> Result<(), SourceResolveError> {
-    child
-        .terminate()
-        .map_err(|error| SourceResolveError::GitCleanupFailed {
-            operation: operation.to_owned(),
-            message: format!("could not terminate the process container: {error}"),
-        })?;
-    let started = Instant::now();
-    let cleanup_budget =
-        GIT_COMMAND_CLEANUP_TIMEOUT.min(command_deadline.saturating_duration_since(started));
-    let cleanup_deadline = started.checked_add(cleanup_budget).unwrap_or(started);
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => return Ok(()),
-            Ok(None) => {}
-            Err(error) => {
-                return Err(SourceResolveError::GitCleanupFailed {
-                    operation: operation.to_owned(),
-                    message: format!("could not reap the process: {error}"),
-                });
+fn project_error(operation: &str, error: BoundedProcessRunError) -> SourceResolveError {
+    match error {
+        BoundedProcessRunError::Spawn(message) => SourceResolveError::Git {
+            operation: format!("{operation} spawn"),
+            status: None,
+            stderr: message,
+        },
+        BoundedProcessRunError::WorkerSpawn { worker, message } => SourceResolveError::Git {
+            operation: format!("{operation} {worker}"),
+            status: None,
+            stderr: message,
+        },
+        BoundedProcessRunError::StreamCapture { stream, message } => SourceResolveError::Git {
+            operation: format!("{operation} {} capture", stream.name()),
+            status: None,
+            stderr: message,
+        },
+        BoundedProcessRunError::InputTransfer(message) => SourceResolveError::Git {
+            operation: format!("{operation} stdin transfer"),
+            status: None,
+            stderr: message,
+        },
+        BoundedProcessRunError::OutputOverflow { stream, limit } => {
+            SourceResolveError::GitOutputOverflow {
+                operation: operation.to_owned(),
+                stream: stream.name().to_owned(),
+                limit,
             }
         }
-        if Instant::now() >= cleanup_deadline {
-            let message = format!(
-                "could not reap the terminated process container within {} milliseconds",
-                duration_millis(cleanup_budget)
-            );
-            return Err(SourceResolveError::GitCleanupFailed {
-                operation: operation.to_owned(),
-                message,
-            });
+        BoundedProcessRunError::AggregateOutputOverflow { ceiling, attempted } => {
+            SourceResolveError::GitResolutionCapturedOutputLimit { ceiling, attempted }
         }
-        std::thread::sleep(
-            PROCESS_POLL_INTERVAL.min(cleanup_deadline.saturating_duration_since(Instant::now())),
-        );
+        BoundedProcessRunError::TimedOut { timeout } => SourceResolveError::GitTimedOut {
+            operation: operation.to_owned(),
+            timeout_millis: duration_millis(timeout),
+        },
+        BoundedProcessRunError::Wait(message) => SourceResolveError::Git {
+            operation: format!("{operation} wait"),
+            status: None,
+            stderr: message,
+        },
+        BoundedProcessRunError::Cleanup(message) => SourceResolveError::GitCleanupFailed {
+            operation: operation.to_owned(),
+            message,
+        },
+        BoundedProcessRunError::Finalize(message) => {
+            SourceResolveError::GitExecutionBoundaryInvalid {
+                message: format!("cannot finalize resolver child execution: {message}"),
+            }
+        }
+        BoundedProcessRunError::InvalidLimits => SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "bounded process received invalid capture limits".to_owned(),
+        },
+        BoundedProcessRunError::WorkersEndedEarly => SourceResolveError::Git {
+            operation: format!("{operation} capture"),
+            status: None,
+            stderr: "command stream workers ended before all transfers completed".to_owned(),
+        },
     }
 }
 

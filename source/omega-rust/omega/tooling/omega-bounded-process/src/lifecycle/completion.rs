@@ -1,14 +1,14 @@
 use std::process::ExitStatus;
 
-/// Platform-neutral status used for ordinary resolver control flow.
+/// Platform-neutral status used for ordinary caller control flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ResolverExecutionExitStatus {
+pub struct BoundedProcessExitStatus {
     success: bool,
     code: Option<i32>,
     unix_signal: Option<i32>,
 }
 
-impl ResolverExecutionExitStatus {
+impl BoundedProcessExitStatus {
     pub const fn success(&self) -> bool {
         self.success
     }
@@ -40,16 +40,16 @@ impl ResolverExecutionExitStatus {
 /// Ordinary completion returned after the platform process container is closed and
 /// the primary child is reaped. This is control-flow data, not evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResolverExecutionCompletion {
-    status: ResolverExecutionExitStatus,
+pub struct BoundedProcessCompletion {
+    status: BoundedProcessExitStatus,
 }
 
-impl ResolverExecutionCompletion {
-    pub(super) const fn new(status: ResolverExecutionExitStatus) -> Self {
+impl BoundedProcessCompletion {
+    pub(super) const fn new(status: BoundedProcessExitStatus) -> Self {
         Self { status }
     }
 
-    pub const fn status(&self) -> ResolverExecutionExitStatus {
+    pub const fn status(&self) -> BoundedProcessExitStatus {
         self.status
     }
 }

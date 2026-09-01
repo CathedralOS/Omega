@@ -116,6 +116,16 @@ is recordable and deterministically replayable, including exact analysis and
 proof/fact evidence; sandboxing and offline corpus tooling remain experimental
 work and are not part of ordinary builds.
 
+The neutral `omega-bounded-process` tooling boundary is only a prerequisite for
+external execution. It centralizes structured command preparation, concrete
+resource limits, bounded capture, deadlines, and process-container cleanup,
+and is already shared by resolver execution and Git acquisition. Unix process
+groups and Windows Jobs do not provide filesystem, executable, credential, or
+network isolation. External optimizer policy therefore remains unavailable
+until a platform-declared sandbox capability, exact request/response limits,
+candidate-custody replay, and an explicit fail-closed or recorded-baseline
+fallback are joined at a separate optimizer-owned entrance.
+
 ## Deterministic differential corpus
 
 `tests/native-differential/tests/optimizer_corpus.rs` is the small corpus

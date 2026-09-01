@@ -1,10 +1,10 @@
 # Omega Resolver Execution
 
-This crate owns native process preparation and lifecycle for package-source
-resolution. It is deliberately limited to structured command construction,
-concrete resource limits, and process-container cleanup. Callers choose one
-compiler-defined phase and open a backend around the absolute Git path frozen
-before package input.
+This crate owns resolver-specific executable, phase, and root preparation for
+package-source resolution. Shared structured command construction, concrete
+resource limits, bounded capture, and process-container cleanup live in
+`omega-bounded-process`. Callers choose one compiler-defined phase and open a
+backend around the absolute Git path frozen before package input.
 
 ## Structure
 
@@ -13,10 +13,8 @@ src/
 ├── lib.rs          public entrance and closed reexports
 ├── phase.rs        compiler-owned source-resolution phases
 ├── request.rs      validated executable and custody-path requests
-├── backend/        executable selection, request validation, and preparation
-├── prepared.rs     opaque structured command configuration
-└── process/        limits, descriptor custody, lifecycle, completion, and
-                    the Windows Job Object implementation
+└── backend/        resolver phases and roots over the shared bounded-process
+                    preparation and lifecycle boundary
 ```
 
 The dependency direction remains deliberate. Request construction feeds an
@@ -59,15 +57,17 @@ compiler-owned null or piped standard streams. Implicit stream inheritance is
 rejected, and spawning consumes the prepared value.
 
 Completion is returned only after the primary process has been reaped and the
-backend has terminated or observed the absence of the owned process container.
-The caller may inspect exit status and bounded output for ordinary control flow
-and diagnostics; the crate does not hash or canonically encode those facts.
+shared bounded-process backend has terminated or observed the absence of the
+owned process container.
+Callers may inspect completion for ordinary control flow and diagnostics; the
+crate does not hash or canonically encode those facts.
 
-Native mechanisms survive only when they directly implement an honest bound or
-lifecycle guarantee. Windows uses a kill-on-close Job Object with process,
-memory, and CPU ceilings. Unix applies concrete resource limits, starts a new
-process group, and kills that group during cleanup; it does not claim custody
-of a descendant that deliberately detaches from the group. Seatbelt,
+Native lifecycle and capture mechanics live in
+`tooling/omega-bounded-process`; this crate supplies the resolver's exact
+limits and phase/root authority. Windows uses a kill-on-close Job Object with
+process, memory, and CPU ceilings. Unix applies concrete resource limits,
+starts a new process group, and kills that group during cleanup; it does not
+claim custody of a descendant that deliberately detaches from the group. Seatbelt,
 Landlock filesystem mediation, executable/write allowlists, native-guarantee
 matrices, and canonical command/policy/completion observations are absent.
 Stronger host or CI isolation is an operator concern, not package evidence.

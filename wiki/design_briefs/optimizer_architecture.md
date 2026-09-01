@@ -185,6 +185,17 @@ an abstract spill-area origin. This grants neither final frame layout nor
 machine spill/reload insertion authority, keeping frame, ABI, unwind, and
 publication decisions at later explicit boundaries.
 
+Two more explicit compiler-private boundaries continue that descent. Abstract
+spill insertion joins the validated logical operations and slot coloring into
+one independently replayed store/reload/rewrite schedule; it still contains no
+selected or machine instruction. Reload-value home assignment then replays the
+original allocation prefix, removes the validated victim, derives the logical
+reload's complete pointwise legal-view intersection, and chooses the lowest
+compatible physical view. Its validator reconstructs a point-indexed event
+timeline independently from the producer's sorted linear schedule. Neither
+boundary grants a real virtual-register identity, memory effect, frame
+address, trap policy, encoding, emission, or publication authority.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and

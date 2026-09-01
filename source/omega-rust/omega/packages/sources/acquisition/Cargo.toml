@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-fixtures = []
 
 [dependencies]
+omega-bounded-process = { path = "../../../tooling/omega-bounded-process" }
 omega-platform-custody = { path = "../../../tooling/omega-platform-custody" }
 omega-resolver-execution = { path = "../execution" }
 cap-fs-ext = "4.0.3"

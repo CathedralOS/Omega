@@ -315,6 +315,26 @@ schema carries at most one spill action per function, so cross-target compiler
 fixtures reach offset zero while internal interval tests pin the full first-fit
 contract.
 
+Abstract spill insertion is the next small join. It consumes the validated
+logical operation and slot-coloring receipts and emits a deterministic
+per-function schedule containing the abstract store, reload, and complete
+later-use rewrite suffix. Its independent replay re-derives the ordering,
+register-environment and allocator-availability roots, logical reload class,
+and spill-area-relative geometry. It does not create an instruction, choose an
+opcode or stack/frame address, or claim memory, trap, unwind, probing,
+encoding, emission, or publication authority.
+
+Reload-value home assignment then gives that logical reload a bounded physical
+view without pretending the reload is already a real virtual register. V1
+reconstructs the original linear-scan prefix, applies exactly the validated
+single block-local spill, intersects the victim's legal views across the
+reload lifetime, and selects the lowest view compatible with every coexisting
+home. The producer uses a sorted linear schedule; independent replay uses a
+point-indexed event timeline with explicit original and reload occupants and
+separate work reconstruction. Reload pressure and later secondary pressure are
+typed failures. Recursive spill recovery, synthetic-register realization,
+memory effects, ISA lowering, and frame integration remain later boundaries.
+
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
 are explicit target facts. Modulo scratch-register assignment is not an
