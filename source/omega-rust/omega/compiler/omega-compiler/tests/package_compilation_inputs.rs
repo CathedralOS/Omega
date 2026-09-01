@@ -4104,6 +4104,8 @@ fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
     TempTree::write(
         filesystem.join("filesystem_host.omg"),
         r#"pub boundary trait FilesystemHost {
+    machine create(path: &[u8], mode: i32) -> i32
+    reaches FilesystemHost;
     machine write(descriptor: i32, bytes: &[u8]) -> i64
     reaches FilesystemHost;
 }
@@ -4112,6 +4114,11 @@ fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
     TempTree::write(
         root.join("main.omg"),
         r#"use host_services::filesystem_host;
+data Main { filesystem: FilesystemHost; descriptor: i32; }
+machine Main::main(&mut self) {
+    self.descriptor = self.filesystem.create("probe.txt", 438);
+}
+
 pub machine append(filesystem: FilesystemHost, descriptor: i32, bytes: &[u8]) -> i64
 reaches FilesystemHost
 invokes filesystem;
@@ -4218,6 +4225,48 @@ invokes filesystem;
             .expect("exact filesystem binding was consumed")
             .accepted(),
         &accepted,
+    );
+    let unbound =
+        psi_checked_interpreter::interpret_entry(&accepted_compilation, "Main::main", &[]);
+    assert!(
+        unbound.is_error(),
+        "an ordinary package boundary cannot route from its readable operation names",
+    );
+    let declaration_symbol = accepted_compilation
+        .resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+        .expect("exact filesystem binding was consumed")
+        .declaration_symbol();
+    let interpreter_binding =
+        psi_checked_interpreter::FilesystemServiceBinding::from_compiler_resolved_declaration(
+            &accepted_compilation,
+            declaration_symbol,
+        )
+        .expect("compiler-resolved declaration is one exact checked boundary");
+    let bound = psi_checked_interpreter::interpret_entry_with_options(
+        &accepted_compilation,
+        "Main::main",
+        &[],
+        psi_checked_interpreter::InterpretOptions::default()
+            .with_filesystem_service_binding(interpreter_binding),
+    );
+    assert_eq!(
+        bound.error, None,
+        "the exact accepted declaration symbol should route the filesystem provider",
+    );
+    let substituted_program = accepted_compilation.clone();
+    let substituted = psi_checked_interpreter::interpret_entry_with_options(
+        &substituted_program,
+        "Main::main",
+        &[],
+        psi_checked_interpreter::InterpretOptions::default()
+            .with_filesystem_service_binding(interpreter_binding),
+    );
+    assert!(
+        substituted
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("different checked program")),
+        "a raw symbol coordinate cannot be substituted into another checked program",
     );
 }
 

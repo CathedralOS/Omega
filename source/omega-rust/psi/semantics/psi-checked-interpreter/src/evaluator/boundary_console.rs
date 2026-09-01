@@ -1,10 +1,10 @@
 use super::*;
 
 impl<'program> Evaluator<'program> {
-    /// Resolve one call target to an exact canonical toolchain
-    /// `FilesystemHost` requirement before any provider authority is touched.
-    /// The returned readable leaf is handler routing only; the opaque target
-    /// symbol and source ownership perform authority selection.
+    /// Resolve one call target through an exact compiler-selected filesystem
+    /// boundary before any provider authority is touched. Package-aware
+    /// execution consumes Omega's accepted declaration symbol. Standalone
+    /// execution retains the exact bundled-std source fallback.
     pub(super) fn exact_filesystem_host_operation(
         &self,
         target_symbol: SymbolHandle,
@@ -12,9 +12,19 @@ impl<'program> Evaluator<'program> {
         if !target_symbol.is_valid() {
             return Ok(None);
         }
+        let package_binding = self.filesystem_service_symbol;
         let Some(trait_definition) = self.program.traits().iter().find(|definition| {
-            definition.name.as_str() == "FilesystemHost"
-                && self.symbol_has_exact_toolchain_source(definition.symbol, "filesystem_host.omg")
+            definition.is_boundary
+                && match package_binding {
+                    Some(symbol) => definition.symbol == symbol,
+                    None => {
+                        definition.name.as_str() == "FilesystemHost"
+                            && self.symbol_has_exact_toolchain_source(
+                                definition.symbol,
+                                "filesystem_host.omg",
+                            )
+                    }
+                }
         }) else {
             return Ok(None);
         };
@@ -24,8 +34,11 @@ impl<'program> Evaluator<'program> {
             .iter()
             .find(|signature| {
                 signature.symbol == target_symbol
-                    && self
-                        .symbol_has_exact_toolchain_source(signature.symbol, "filesystem_host.omg")
+                    && (package_binding.is_some()
+                        || self.symbol_has_exact_toolchain_source(
+                            signature.symbol,
+                            "filesystem_host.omg",
+                        ))
             })
         else {
             return Ok(None);
@@ -33,7 +46,7 @@ impl<'program> Evaluator<'program> {
         let operation = FilesystemHostOperation::from_canonical_name(signature.name.as_str())
             .ok_or_else(|| {
                 Halt::Unsupported(format!(
-                    "canonical filesystem host operation `{}` has no compiler-owned identity",
+                    "selected filesystem host operation `{}` has no compiler-owned identity",
                     signature.name.as_str()
                 ))
             })?;

@@ -670,9 +670,11 @@ name account is added. Each find-cursor snapshot has a separate 16-MiB
 retained-name ceiling in the ambient/differential interpreter. Rooted package-
 build evaluation rejects the unrooted find trio before operand evaluation or
 provider service, so no package sponsor, usage, or manifest lane is added for
-it. A root-aware Build-facet protocol must be admitted before that decision is
-revisited. Partial instrumentation is not described as generic filesystem
-scratch or memory containment.
+it. There is no authored package-build consumer for this runtime-shaped trio,
+so no hypothetical root-aware Build facet is added. A future concrete consumer
+must justify the smallest rooted operation it actually needs. Partial
+instrumentation is not described as generic filesystem scratch or memory
+containment.
 
 Cloning admitted filesystem operation attempts into interpreter custody has
 one deterministic retention-weight ceiling. Fixed typed rows use explicit,
