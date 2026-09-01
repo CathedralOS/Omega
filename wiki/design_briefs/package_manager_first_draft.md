@@ -482,6 +482,10 @@ The ordinary decoder accepts only its exact current version; an unknown version
 rejects with guidance to regenerate `omega.lock` from the exact source closure.
 The payload's own identities remain available for internal reconstruction and
 corruption diagnosis, but they are not a multi-version compatibility surface.
+This codec begins only after the supported authority-bearing evidence and
+`PackageInstance` are complete. The narrower in-memory ordinary acceptance gate
+is not a lock payload candidate; persisting it, or landing a magic-only outer
+frame around it, would create partial accepted state.
 
 The first resolver does not solve semantic-version ranges. Requests for the
 same `PackageKey` that reach the same immutable source resolution deduplicate,

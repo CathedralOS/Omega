@@ -162,6 +162,14 @@ stop the item on one precise owner question before adding machinery.
 
 ## P3 — Recheckable evidence and accepted lock
 
+Dependency order is strict here. Finish the authority-bearing evidence classes
+required by the supported package surface, then construct `PackageInstance`,
+then implement the accepted-lock codec. The current
+`AcceptedOrdinaryClosureEvidence` is an in-memory gate for its explicitly open
+ordinary lanes; encoding that subset would create a partial lock and is
+forbidden. `LOCK-BASELINE-RECOVERY` and `LOCK-CLOSURE-VALIDATION` begin only
+after the complete current-version lock payload exists.
+
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
   certificate required by an ordinary package claim. The first concrete result
@@ -226,6 +234,10 @@ stop the item on one precise owner question before adding machinery.
   contract, including every nested schema and encoding required for acceptance;
   an incompatible nested change therefore bumps it. Decode only the current
   version and reject unknown versions with regeneration guidance.
+  **Blocked on:** the required P2 evidence lanes,
+  `RECHECKABLE-PACKAGE-EVIDENCE`, and `PACKAGE-KEY-AND-INSTANCE`. Do not land an
+  outer frame, magic-only file, or codec over
+  `AcceptedOrdinaryClosureEvidence` while those inputs are incomplete.
 
 - [ ] **LOCK-BASELINE-RECOVERY.** Persist and recover accepted baselines with
   strict canonical framing and immediate local reconstruction. Missing lock
@@ -235,11 +247,14 @@ stop the item on one precise owner question before adding machinery.
   capsule may be promoted by renaming it. An unsupported historical lock is
   retained opaquely for its matching old toolchain or separate audit tooling;
   current Omega does not migrate or grandfather its acceptance.
+  **Blocked on:** `ACCEPTED-LOCK-SCHEMA`.
 
 - [ ] **LOCK-CLOSURE-VALIDATION.** Revalidate exact source lineage,
   resolutions, aliases, dependency reachability, obligation schemas,
   certificates, and open assumptions for the complete closure before any
   accepted lock is used or replaced.
+  **Blocked on:** `ACCEPTED-LOCK-SCHEMA` and
+  `LOCK-BASELINE-RECOVERY`.
 
 ## P4 — Admission policy and review
 
