@@ -290,6 +290,17 @@ pub enum AbstractOperation {
         destination: StructuralParameterDeclaration,
         value: AbstractResult,
     },
+    /// One verifier-approved scalar replacement at an exact field beneath a
+    /// structural parameter root. The complete parameter row retains root
+    /// authority, `path` and `field` retain the selected structural location,
+    /// and `value` rejoins the exact typed dominating scalar definition.
+    StructuralScalarFieldStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: psi_core::StructuralFieldId,
+        value: AbstractResult,
+    },
     /// Establish one exact payloadless case of a declared structural sum.
     /// Target realization remains deliberately separate from retention in the
     /// optimizer's target-neutral semantic vocabulary.
@@ -396,6 +407,16 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: ValueId,
         source: PlaceId,
+        field: psi_core::StructuralFieldId,
+    },
+    /// Read one exact relevant integer field through the complete verified
+    /// structural parameter declaration. The result retains both its value
+    /// identity and integer type; no source or field identity is recovered
+    /// from a declaration name downstream.
+    IntegerStructuralField {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: StructuralParameterDeclaration,
         field: psi_core::StructuralFieldId,
     },
     BooleanNot {

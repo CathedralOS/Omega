@@ -10,6 +10,7 @@ mod integer_constants_and_relations;
 mod integer_conversion;
 mod shifts;
 mod structural_establishment;
+mod structural_scalar_fields;
 
 use std::collections::BTreeMap;
 
@@ -53,6 +54,10 @@ pub(super) fn lower_operation(
         | OperationKind::BoundaryCall { .. } => calls::lower(operation, machine),
         OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
+        }
+        OperationKind::StructuralScalarFieldStore { .. }
+        | OperationKind::IntegerStructuralField { .. } => {
+            structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
         OperationKind::Call { .. } => calls::lower(operation, machine),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),

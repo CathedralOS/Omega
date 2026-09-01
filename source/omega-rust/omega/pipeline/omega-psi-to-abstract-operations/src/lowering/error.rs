@@ -12,6 +12,12 @@ pub enum LoweringError {
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// whole-root write-only parameter and its preceding scalar definition.
     InvalidWriteOnlyPrimitiveStore(psi_core::OperationId),
+    /// Independent Terminal-to-Omega projection could not rejoin the exact
+    /// parameter root, structural path and field, or typed scalar value.
+    InvalidStructuralScalarFieldStore(psi_core::OperationId),
+    /// Independent Terminal-to-Omega projection could not rejoin the exact
+    /// shared parameter root, integer field, and typed scalar result.
+    InvalidIntegerStructuralField(psi_core::OperationId),
     ScalarReturnFromUnitMachine(MachineId),
     UnitReturnFromScalarMachine(MachineId),
     /// The verified structural-result machine is wider than the exact
