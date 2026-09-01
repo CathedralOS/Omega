@@ -540,7 +540,7 @@ fn placement_destination(
     }
 }
 
-fn integer_shape(integer: IntegerType) -> Option<ValueShape> {
+pub(super) fn integer_shape(integer: IntegerType) -> Option<ValueShape> {
     if integer.carrier() != IntegerCarrier::Fixed || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
         return None;
     }

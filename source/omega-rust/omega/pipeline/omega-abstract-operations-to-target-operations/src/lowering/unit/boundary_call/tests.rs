@@ -333,3 +333,129 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
         );
     }
 }
+
+#[test]
+fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
+    let boundary = BoundaryMachineId::new(61).expect("boundary");
+    let operation = OperationId::new(62).expect("operation");
+    let value = ValueId::new(63).expect("value");
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        for (sign, bits) in [
+            (IntegerSign::Signed, 8),
+            (IntegerSign::Unsigned, 8),
+            (IntegerSign::Signed, 16),
+            (IntegerSign::Unsigned, 16),
+            (IntegerSign::Signed, 32),
+            (IntegerSign::Unsigned, 32),
+            (IntegerSign::Signed, 64),
+            (IntegerSign::Unsigned, 64),
+        ] {
+            let integer = IntegerType::new(sign, bits).unwrap();
+            let bytes = bits.div_ceil(8);
+            let shape = ValueShape::integer(bytes, bytes.next_power_of_two().min(8));
+            let mut declaration = declaration(boundary, Vec::new());
+            declaration.result = Some(ScalarType::Integer(integer));
+            let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target),
+                &CallSignature {
+                    parameters: Vec::new(),
+                    result: Some(shape),
+                },
+            )
+            .unwrap()
+            .plan()
+            .clone();
+            let result = omega_abstract_operations::AbstractResult {
+                value,
+                scalar_type: ScalarType::Integer(integer),
+            };
+            assert_eq!(
+                lower_normalized_foreign_scalar_result(
+                    boundary,
+                    &declaration,
+                    operation,
+                    Some(result),
+                    &plan,
+                ),
+                Ok(Some(TargetUnitScalarHomeRequirement {
+                    defining_operation: operation,
+                    source_value: value,
+                    scalar_type: integer,
+                    shape,
+                }))
+            );
+
+            let mut wrong_sign_declaration = declaration.clone();
+            wrong_sign_declaration.result = Some(ScalarType::Integer(
+                IntegerType::new(
+                    match sign {
+                        IntegerSign::Signed => IntegerSign::Unsigned,
+                        IntegerSign::Unsigned => IntegerSign::Signed,
+                    },
+                    bits,
+                )
+                .unwrap(),
+            ));
+            assert!(
+                lower_normalized_foreign_scalar_result(
+                    boundary,
+                    &wrong_sign_declaration,
+                    operation,
+                    Some(result),
+                    &plan,
+                )
+                .is_err()
+            );
+
+            let mut wrong_fragment = plan.clone();
+            let ValueLocation::Register { byte_size, .. } =
+                &mut wrong_fragment.call.result.as_mut().unwrap().locations[0]
+            else {
+                unreachable!()
+            };
+            *byte_size = byte_size.saturating_add(1);
+            assert!(
+                lower_normalized_foreign_scalar_result(
+                    boundary,
+                    &declaration,
+                    operation,
+                    Some(result),
+                    &wrong_fragment,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    for invalid in [
+        IntegerType::new(IntegerSign::Signed, 24).unwrap(),
+        IntegerType::address(64).unwrap(),
+    ] {
+        let mut declaration = declaration(boundary, Vec::new());
+        declaration.result = Some(ScalarType::Integer(invalid));
+        let plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        assert!(
+            lower_normalized_foreign_scalar_result(
+                boundary,
+                &declaration,
+                operation,
+                Some(omega_abstract_operations::AbstractResult {
+                    value,
+                    scalar_type: ScalarType::Integer(invalid),
+                }),
+                &plan,
+            )
+            .is_err()
+        );
+    }
+}

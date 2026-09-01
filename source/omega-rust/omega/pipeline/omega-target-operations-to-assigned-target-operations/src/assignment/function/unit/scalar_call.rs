@@ -266,7 +266,7 @@ fn align_unit_scalar_offset(value: u32, alignment: u32) -> Result<u32, Assignmen
         .ok_or(AssignmentError::UnitScalarFrameNotEncodable)
 }
 
-fn fixed_integer_shape(
+pub(super) fn fixed_integer_shape(
     value: ValueId,
     scalar_type: IntegerType,
 ) -> Result<ValueShape, AssignmentError> {

@@ -1,54 +1,75 @@
 use super::*;
 
-const PRODUCER_REQUIREMENT: &str = "omega::test::Foreign::produce()";
-const CONSUMER_REQUIREMENT: &str = "omega::test::Foreign::consume(i32)";
-
 #[test]
-fn exact_i32_foreign_result_flows_through_a_durable_home_to_a_later_import() {
-    for profile in [
-        omega_target::TargetProfile::LinuxX64,
-        omega_target::TargetProfile::LinuxArm64,
+fn every_fixed_integer_foreign_result_flows_through_a_durable_home_to_a_later_import() {
+    for (sign, bits, type_identity) in [
+        (psi_core::IntegerSign::Signed, 8_u16, "i8"),
+        (psi_core::IntegerSign::Unsigned, 8, "u8"),
+        (psi_core::IntegerSign::Signed, 16, "i16"),
+        (psi_core::IntegerSign::Unsigned, 16, "u16"),
+        (psi_core::IntegerSign::Signed, 32, "i32"),
+        (psi_core::IntegerSign::Unsigned, 32, "u32"),
+        (psi_core::IntegerSign::Signed, 64, "i64"),
+        (psi_core::IntegerSign::Unsigned, 64, "u64"),
     ] {
-        assert_exact_i32_foreign_result_flow(profile);
+        let integer = psi_core::IntegerType::new(sign, bits).unwrap();
+        for profile in [
+            omega_target::TargetProfile::LinuxX64,
+            omega_target::TargetProfile::LinuxArm64,
+        ] {
+            assert_exact_fixed_integer_foreign_result_flow(profile, integer, type_identity);
+        }
     }
 }
 
-fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
+fn assert_exact_fixed_integer_foreign_result_flow(
+    profile: omega_target::TargetProfile,
+    integer: psi_core::IntegerType,
+    type_identity: &str,
+) {
     let target = profile.native_target();
+    let producer_requirement = format!("omega::test::Foreign::produce_{type_identity}()");
+    let consumer_requirement =
+        format!("omega::test::Foreign::consume_{type_identity}({type_identity})");
+    let producer_symbol = format!("produce_{type_identity}");
+    let consumer_symbol = format!("consume_{type_identity}");
     let producer_boundary = psi_core::BoundaryMachineId::new(830).unwrap();
     let consumer_boundary = psi_core::BoundaryMachineId::new(831).unwrap();
     let producer_plan = configured_plan(
-        b"produce_i32",
+        producer_symbol.as_bytes(),
         profile,
         "produce",
-        PRODUCER_REQUIREMENT,
+        &producer_requirement,
+        type_identity,
         0,
         true,
     );
     let consumer_plan = configured_plan(
-        b"consume_i32",
+        consumer_symbol.as_bytes(),
         profile,
         "consume",
-        CONSUMER_REQUIREMENT,
+        &consumer_requirement,
+        type_identity,
         1,
         false,
     );
-    let producer_call_plan = evaluated_plan(target, Vec::new(), Some(integer_shape()));
-    let consumer_call_plan = evaluated_plan(target, vec![integer_shape()], None);
+    let shape = integer_shape(integer);
+    let producer_call_plan = evaluated_plan(target, Vec::new(), Some(shape));
+    let consumer_call_plan = evaluated_plan(target, vec![shape], None);
     let producer_external = external_row(
         &producer_plan,
         "produce",
-        PRODUCER_REQUIREMENT,
+        &producer_requirement,
         producer_call_plan.clone(),
     );
     let consumer_external = external_row(
         &consumer_plan,
         "consume",
-        CONSUMER_REQUIREMENT,
+        &consumer_requirement,
         consumer_call_plan.clone(),
     );
-    let producer_stack = same_stack(&producer_plan, PRODUCER_REQUIREMENT, 830);
-    let consumer_stack = same_stack(&consumer_plan, CONSUMER_REQUIREMENT, 831);
+    let producer_stack = same_stack(&producer_plan, &producer_requirement, 830);
+    let consumer_stack = same_stack(&consumer_plan, &consumer_requirement, 831);
     let producer_report = producer_plan.report_fingerprint();
     let consumer_report = consumer_plan.report_fingerprint();
     let producer_foreign = rejoin_normalized_foreign_call(
@@ -56,7 +77,7 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
         &[producer_external],
         &producer_stack,
         producer_report,
-        PRODUCER_REQUIREMENT,
+        &producer_requirement,
         target,
     )
     .unwrap();
@@ -65,21 +86,27 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
         &[consumer_external],
         &consumer_stack,
         consumer_report,
-        CONSUMER_REQUIREMENT,
+        &consumer_requirement,
         target,
     )
     .unwrap();
     let producer_execution = TestProviderExecution {
-        requirement: PRODUCER_REQUIREMENT.into(),
+        requirement: producer_requirement.clone(),
         provider_plan_report_identity: producer_report,
     };
     let consumer_execution = TestProviderExecution {
-        requirement: CONSUMER_REQUIREMENT.into(),
+        requirement: consumer_requirement.clone(),
         provider_plan_report_identity: consumer_report,
     };
 
     let target_plan = omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
-        &abstract_plan(producer_boundary, consumer_boundary),
+        &abstract_plan(
+            producer_boundary,
+            consumer_boundary,
+            integer,
+            &producer_requirement,
+            &consumer_requirement,
+        ),
         target,
         &[
             omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement {
@@ -119,6 +146,8 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
     };
     assert!(producer_arguments.is_empty());
     assert_eq!(consumer_arguments.len(), 1);
+    assert_eq!(target_home.scalar_type, integer);
+    assert_eq!(target_home.shape, shape);
     assert_eq!(
         consumer_arguments[0].source,
         omega_target_operations::TargetUnitScalarArgumentSource::Home(*target_home)
@@ -127,6 +156,15 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
         producer_call_plan.call.result.as_ref(),
         producer_binding.boundary_entry_plan.call.result.as_ref()
     );
+    assert!(matches!(
+        producer_call_plan.call.result.as_ref().unwrap().locations.as_slice(),
+        [omega_calling_conventions::ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size,
+        }] if *register == expected_result_register(target.architecture)
+            && *byte_size == shape.byte_size
+    ));
 
     let assigned =
         omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
@@ -151,6 +189,8 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
         unreachable!()
     };
     assert_eq!(assigned_home.byte_offset, 0);
+    assert_eq!(assigned_home.scalar_type, integer);
+    assert_eq!(assigned_home.shape, shape);
     assert_eq!(
         scalar_arguments[0].source,
         omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Home(*assigned_home)
@@ -187,13 +227,15 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
     assert_eq!(producer.call_plan, producer_call_plan.call);
     assert_eq!(consumer.call_plan, consumer_call_plan.call);
     assert_eq!(result.home, function.unit_scalar_homes[0]);
+    assert_eq!(result.home.scalar_type, integer);
+    assert_eq!(result.home.shape, shape);
     assert_eq!(
         argument.source,
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(result.home)
     );
     assert_eq!(
         &function.bytes[result.code_offset..result.code_offset + result.byte_count],
-        expected_result_bytes(target.architecture)
+        expected_result_bytes(target.architecture, integer)
     );
     assert_eq!(
         &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count],
@@ -214,9 +256,50 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
         .home
         .source_value = psi_core::ValueId::new(839).unwrap();
     assert!(omega_image_emission::build_object_artifact(&changed_result_home).is_err());
+    let mut changed_result_type = machine_code.clone();
+    changed_result_type.functions[0].foreign_calls[0]
+        .scalar_result
+        .as_mut()
+        .unwrap()
+        .home
+        .scalar_type = opposite_sign(integer);
+    assert!(omega_image_emission::build_object_artifact(&changed_result_type).is_err());
+    let mut changed_result_shape = machine_code.clone();
+    changed_result_shape.functions[0].foreign_calls[0]
+        .scalar_result
+        .as_mut()
+        .unwrap()
+        .home
+        .shape
+        .alignment = shape.alignment.saturating_add(1);
+    assert!(omega_image_emission::build_object_artifact(&changed_result_shape).is_err());
     let mut changed_result_bytes = machine_code.clone();
     changed_result_bytes.functions[0].bytes[result.code_offset] ^= 1;
     assert!(omega_image_emission::build_object_artifact(&changed_result_bytes).is_err());
+    let mut changed_result_interval = machine_code.clone();
+    changed_result_interval.functions[0].foreign_calls[0]
+        .scalar_result
+        .as_mut()
+        .unwrap()
+        .code_offset += 1;
+    assert!(omega_image_emission::build_object_artifact(&changed_result_interval).is_err());
+    let mut changed_result_placement = machine_code.clone();
+    let changed_result = changed_result_placement.functions[0].foreign_calls[0]
+        .scalar_result
+        .as_mut()
+        .unwrap();
+    let omega_calling_conventions::ValueLocation::Register { byte_size, .. } =
+        &mut changed_result.source.locations[0]
+    else {
+        unreachable!()
+    };
+    *byte_size = byte_size.saturating_add(1);
+    assert!(omega_image_emission::build_object_artifact(&changed_result_placement).is_err());
+    let mut duplicate_home = machine_code.clone();
+    duplicate_home.functions[0]
+        .unit_scalar_homes
+        .push(result.home);
+    assert!(omega_image_emission::build_object_artifact(&duplicate_home).is_err());
     let mut changed_consumer_home = machine_code.clone();
     let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
         &mut changed_consumer_home.functions[0].foreign_calls[1].scalar_arguments[0].source
@@ -228,6 +311,9 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
     let mut changed_ordinal = machine_code.clone();
     changed_ordinal.functions[0].foreign_calls[1].operation_ordinal = 0;
     assert!(omega_image_emission::build_object_artifact(&changed_ordinal).is_err());
+    let mut changed_producer_ordinal = machine_code.clone();
+    changed_producer_ordinal.functions[0].foreign_calls[0].operation_ordinal = 1;
+    assert!(omega_image_emission::build_object_artifact(&changed_producer_ordinal).is_err());
 
     let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
     assert_eq!(object.foreign_calls().len(), 2);
@@ -246,12 +332,31 @@ fn assert_exact_i32_foreign_result_flow(profile: omega_target::TargetProfile) {
     assert_eq!(image.output().final_image_relocations, 2);
 }
 
-fn integer_type() -> psi_core::IntegerType {
-    psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap()
+fn integer_shape(integer: psi_core::IntegerType) -> omega_calling_conventions::ValueShape {
+    let bytes = integer.bits().div_ceil(8);
+    omega_calling_conventions::ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
 }
 
-fn integer_shape() -> omega_calling_conventions::ValueShape {
-    omega_calling_conventions::ValueShape::integer(4, 4)
+fn opposite_sign(integer: psi_core::IntegerType) -> psi_core::IntegerType {
+    psi_core::IntegerType::new(
+        match integer.sign() {
+            psi_core::IntegerSign::Signed => psi_core::IntegerSign::Unsigned,
+            psi_core::IntegerSign::Unsigned => psi_core::IntegerSign::Signed,
+        },
+        integer.bits(),
+    )
+    .unwrap()
+}
+
+fn expected_result_register(
+    architecture: omega_target::Architecture,
+) -> omega_target_operations::MachineRegister {
+    match architecture {
+        omega_target::Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rax,
+        omega_target::Architecture::Aarch64 => {
+            omega_target_operations::MachineRegister::Aarch64X(0)
+        }
+    }
 }
 
 fn evaluated_plan(
@@ -273,6 +378,7 @@ fn configured_plan(
     profile: omega_target::TargetProfile,
     method: &str,
     requirement: &str,
+    type_identity: &str,
     parameter_count: usize,
     has_result: bool,
 ) -> ProviderPlan {
@@ -285,10 +391,10 @@ fn configured_plan(
     schema.parameter_type_identities = if parameter_count == 0 {
         Vec::new()
     } else {
-        vec!["i32".into()]
+        vec![type_identity.into()]
     };
     schema.has_result = has_result;
-    schema.result_type_identity = has_result.then(|| "i32".into());
+    schema.result_type_identity = has_result.then(|| type_identity.into());
     let row = &mut plan.rows[0];
     row.method = method.into();
     row.requirement_identity = requirement.into();
@@ -348,11 +454,14 @@ fn same_stack(
 fn abstract_plan(
     producer: psi_core::BoundaryMachineId,
     consumer: psi_core::BoundaryMachineId,
+    integer: psi_core::IntegerType,
+    producer_requirement: &str,
+    consumer_requirement: &str,
 ) -> omega_abstract_operations::AbstractOperationPlan {
     let machine = psi_core::MachineId::new(830).unwrap();
     let block = psi_core::BlockId::new(830).unwrap();
     let runtime = psi_core::ValueId::new(830).unwrap();
-    let scalar_type = psi_core::ScalarType::Integer(integer_type());
+    let scalar_type = psi_core::ScalarType::Integer(integer);
     omega_abstract_operations::AbstractOperationPlan {
         psi: psi_terminal::TerminalPsiIdentity {
             vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
@@ -363,7 +472,7 @@ fn abstract_plan(
         boundary_machines: vec![
             psi_terminal::BoundaryMachineDeclaration {
                 id: producer,
-                identity: PRODUCER_REQUIREMENT.into(),
+                identity: producer_requirement.into(),
                 attachment: None,
                 scalar_parameters: Vec::new(),
                 structural_parameters: Vec::new(),
@@ -375,7 +484,7 @@ fn abstract_plan(
             },
             psi_terminal::BoundaryMachineDeclaration {
                 id: consumer,
-                identity: CONSUMER_REQUIREMENT.into(),
+                identity: consumer_requirement.into(),
                 attachment: None,
                 scalar_parameters: vec![scalar_type],
                 structural_parameters: Vec::new(),
@@ -432,16 +541,38 @@ fn abstract_plan(
     }
 }
 
-fn expected_result_bytes(architecture: omega_target::Architecture) -> &'static [u8] {
+fn expected_result_bytes(
+    architecture: omega_target::Architecture,
+    integer: psi_core::IntegerType,
+) -> Vec<u8> {
     match architecture {
-        omega_target::Architecture::X86_64 => &[
-            0x48, 0x63, 0xc0, // movsxd rax, eax
-            0x48, 0x89, 0x44, 0x24, 0x00, // mov [rsp + 0], rax
-        ],
-        omega_target::Architecture::Aarch64 => &[
-            0x00, 0x7c, 0x40, 0x93, // sxtw x0, w0
-            0xe0, 0x03, 0x00, 0xf9, // str x0, [sp]
-        ],
+        omega_target::Architecture::X86_64 => {
+            let mut bytes = match (integer.sign(), integer.bits()) {
+                (psi_core::IntegerSign::Signed, 8) => vec![0x48, 0x0f, 0xbe, 0xc0],
+                (psi_core::IntegerSign::Signed, 16) => vec![0x48, 0x0f, 0xbf, 0xc0],
+                (psi_core::IntegerSign::Signed, 32) => vec![0x48, 0x63, 0xc0],
+                (psi_core::IntegerSign::Unsigned, 8) => vec![0x40, 0x0f, 0xb6, 0xc0],
+                (psi_core::IntegerSign::Unsigned, 16) => vec![0x40, 0x0f, 0xb7, 0xc0],
+                (psi_core::IntegerSign::Unsigned, 32) => vec![0x40, 0x89, 0xc0],
+                (_, 64) => Vec::new(),
+                _ => unreachable!(),
+            };
+            bytes.extend_from_slice(&[0x48, 0x89, 0x44, 0x24, 0x00]);
+            bytes
+        }
+        omega_target::Architecture::Aarch64 => {
+            let mut bytes = Vec::new();
+            if integer.bits() != 64 {
+                let base = match integer.sign() {
+                    psi_core::IntegerSign::Signed => 0x9340_0000,
+                    psi_core::IntegerSign::Unsigned => 0xd340_0000,
+                };
+                let instruction = base | (u32::from(integer.bits() - 1) << 10);
+                bytes.extend_from_slice(&instruction.to_le_bytes());
+            }
+            bytes.extend_from_slice(&0xf900_03e0_u32.to_le_bytes());
+            bytes
+        }
     }
 }
 

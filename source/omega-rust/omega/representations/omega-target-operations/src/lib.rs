@@ -544,8 +544,8 @@ pub enum TargetUnitOperation {
         binding: NormalizedForeignCallBinding,
         scalar_arguments: Vec<NormalizedForeignScalarArgument>,
         /// Optional fixed-integer result retained in the attached Unit frame.
-        /// The first production slice admits only an exact signed `i32`
-        /// register result; later calls may consume this durable home.
+        /// The evaluated plan must place the complete 8/16/32/64-bit signed or
+        /// unsigned value in one register; later calls may consume this home.
         result_home: Option<TargetUnitScalarHomeRequirement>,
     },
     PortWrite {

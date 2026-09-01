@@ -1,6 +1,4 @@
 use crate::assignment::shared::*;
-use psi_core::IntegerSign;
-
 pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     target: NativeTarget,
@@ -12,10 +10,12 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
 ) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
     let result_shape = result_home
         .map(|result| {
-            let expected_type = IntegerType::new(IntegerSign::Signed, 32)
-                .expect("signed i32 is a valid fixed integer type");
-            let expected_shape = ValueShape::integer(4, 4);
-            if result.scalar_type != expected_type || result.shape != expected_shape {
+            let expected_shape = super::super::scalar_call::fixed_integer_shape(
+                result.source_value,
+                result.scalar_type,
+            )
+            .map_err(|_| AssignmentError::ExpressionStackFrameNotEncodable)?;
+            if result.shape != expected_shape {
                 return Err(AssignmentError::ExpressionStackFrameNotEncodable);
             }
             Ok(expected_shape)
@@ -44,16 +44,17 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
         || match (result_home, boundary_entry_plan.call.result.as_ref()) {
             (None, None) => false,
             (Some(result), Some(placement)) => {
+                let exact_register_result = matches!(
+                    placement.locations.as_slice(),
+                    [ValueLocation::Register {
+                        value_byte_offset: 0,
+                        byte_size,
+                        ..
+                    }] if *byte_size == result.shape.byte_size
+                );
                 result.defining_operation != psi_operation
                     || placement.shape != result.shape
-                    || !matches!(
-                        placement.locations.as_slice(),
-                        [ValueLocation::Register {
-                            value_byte_offset: 0,
-                            byte_size: 4,
-                            ..
-                        }]
-                    )
+                    || !exact_register_result
             }
             _ => true,
         }
@@ -84,7 +85,7 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
             || argument.placement != boundary_entry_plan.call.parameters[parameter_index]
             || argument.placement.shape
                 != ValueShape::integer(expected_bytes, expected_bytes.next_power_of_two().min(8))
-            || u16::try_from(expected_bytes) != Ok(*byte_size)
+            || expected_bytes != *byte_size
         {
             return Err(AssignmentError::ExpressionParameterLocationConflict {
                 value: source_value,
