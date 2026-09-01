@@ -383,10 +383,18 @@ fn build_validated_proof_recursive_components(
 ) -> Vec<ValidatedProofRecursiveComponent> {
     let machines = program.machines();
     let exact_edges = collect_exact_proof_call_edges(program, symbols, proof_only, index_of);
+    let exact_self_recursive_members = exact_edges
+        .iter()
+        .filter(|edge| edge.caller == edge.callee)
+        .map(|edge| edge.caller)
+        .collect::<BTreeSet<_>>();
     let mut components = strongly_connected_components(adjacency)
         .into_iter()
         .filter(|members| {
-            members.len() > 1
+            (members.len() > 1
+                || members
+                    .first()
+                    .is_some_and(|member| exact_self_recursive_members.contains(member)))
                 && members
                     .iter()
                     .all(|member| proof_only.is_proof_machine(program, &machines[*member]))
@@ -644,7 +652,7 @@ fn collect_exact_proof_statement_edges(
             if (receiver_members.is_empty()
                 || matches!(receiver_members, [receiver] if receiver.as_str() == "self"))
                 && let Some(callee) =
-                    resolve_cross_machine_index(program, machine, symbols, index_of, &call.target)
+                    resolve_machine_index(program, machine, symbols, index_of, &call.target)
             {
                 edges.push(ExactProofCallEdge {
                     caller,
@@ -693,7 +701,7 @@ fn collect_exact_proof_statement_edges(
                         let members = program.statement_table.name_path_members(path.members);
                         if let [receiver, target] = members
                             && receiver.as_str() == "self"
-                            && let Some(callee) = resolve_cross_machine_index(
+                            && let Some(callee) = resolve_machine_index(
                                 program, machine, symbols, index_of, target,
                             )
                         {
@@ -774,7 +782,7 @@ fn collect_exact_proof_expression_edges(
                 );
             if receiver_is_selfish {
                 if let Some(callee) =
-                    resolve_cross_machine_index(program, machine, symbols, index_of, &call.target)
+                    resolve_machine_index(program, machine, symbols, index_of, &call.target)
                 {
                     edges.push(ExactProofCallEdge {
                         caller,
@@ -1233,6 +1241,20 @@ fn resolve_cross_machine_index(
     index_of: &HashMap<u32, usize>,
     name: &psi_typed_trees::name::Identifier,
 ) -> Option<usize> {
+    let callee = resolve_machine_index(program, machine, symbols, index_of, name)?;
+    (callee != *index_of.get(&machine.symbol.arena_index())?).then_some(callee)
+}
+
+/// Resolve an exact proof call to its owning machine, including the caller's
+/// own entry. Runtime cycle classification deliberately excludes self calls;
+/// proof-recursion certificates must retain them as exact induction edges.
+fn resolve_machine_index(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    index_of: &HashMap<u32, usize>,
+    name: &psi_typed_trees::name::Identifier,
+) -> Option<usize> {
     let callee = machine
         .attached_data
         .as_ref()
@@ -1244,7 +1266,7 @@ fn resolve_cross_machine_index(
             crate::calls::free_machine_entry_state(program, symbols, name.as_str())
                 .map(|(callee_machine, _)| callee_machine)
         });
-    let callee = callee.filter(|callee| callee.symbol != machine.symbol)?;
+    let callee = callee?;
     index_of.get(&callee.symbol.arena_index()).copied()
 }
 

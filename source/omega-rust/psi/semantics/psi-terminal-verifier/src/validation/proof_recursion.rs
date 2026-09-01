@@ -17,7 +17,7 @@ pub(super) fn validate_proof_recursive_components(
     for component in &module.proof_recursive_components {
         if component.rank_type_identity.is_empty()
             || component.types.is_empty()
-            || component.members.len() < 2
+            || component.members.is_empty()
             || component.edges.is_empty()
             || component
                 .members

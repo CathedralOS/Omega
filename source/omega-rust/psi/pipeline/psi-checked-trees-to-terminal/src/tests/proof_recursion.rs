@@ -39,6 +39,31 @@ const REACHABLE_PROOF_SCC: &str = r#"
     }
 "#;
 
+const REACHABLE_SINGLETON_PROOF_SCC: &str = r#"
+    data ProofTree {
+        case Leaf;
+        case Branch(first: ProofTree, second: ProofTree);
+    }
+
+    data Root {}
+    machine Root::main(&mut self)
+    requires descend(ProofTree::Leaf) == ProofTree::Leaf
+    {}
+
+    machine descend(n: ProofTree)
+    terminates by n;
+    -> ProofTree
+    {
+        transition n {
+            ProofTree::Leaf -> ProofTree::Leaf
+            ProofTree::Branch { first, second } -> ProofTree::Branch {
+                first: descend(first),
+                second: second,
+            }
+        }
+    }
+"#;
+
 #[test]
 fn selected_proof_closure_lowers_exact_recursive_component() {
     let checked = checked_managed_source(REACHABLE_PROOF_SCC);
@@ -173,9 +198,106 @@ fn selected_proof_closure_lowers_exact_recursive_component() {
 }
 
 #[test]
+fn selected_singleton_proof_closure_uses_the_grouped_certificate_path() {
+    let checked = checked_managed_source(REACHABLE_SINGLETON_PROOF_SCC);
+    let lowered = lower_machine(&checked, "Root::main").expect("proof SCC should lower");
+    let [component] = lowered
+        .semantic_module
+        .proof_recursive_components
+        .as_slice()
+    else {
+        panic!("one reachable singleton proof SCC")
+    };
+    assert_eq!(component.members.len(), 1);
+    assert_eq!(component.edges.len(), 1);
+    assert_eq!(component.edges[0].caller, component.members[0].contract);
+    assert_eq!(component.edges[0].callee, component.members[0].contract);
+    assert_eq!(component.edges[0].strict_member_path.len(), 1);
+
+    let [certificate] = lowered.proof_bundle.recursive_components.as_slice() else {
+        panic!("one grouped recursive certificate")
+    };
+    assert_eq!(certificate.certificate.edges.len(), 1);
+    let verified = psi_terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("source-produced singleton certificate verifies");
+    let synopsis =
+        psi_terminal_codec::render_verified_proof_synopsis(&verified).expect("proof synopsis");
+    assert_eq!(synopsis.matches("recursive-component ").count(), 1);
+    assert_eq!(synopsis.matches("  member ").count(), 1);
+    assert_eq!(synopsis.matches("  well-founded obligation ").count(), 1);
+    assert_eq!(synopsis.matches("  decrease obligation ").count(), 1);
+
+    let module_bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&module_bytes).expect("decode"),
+        lowered.semantic_module
+    );
+    let proof_bytes =
+        psi_terminal_codec::encode_proof_bundle(&lowered.proof_bundle).expect("encode proof");
+    assert_eq!(
+        psi_terminal_codec::decode_proof_bundle(&proof_bytes).expect("decode proof"),
+        lowered.proof_bundle
+    );
+    let _artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        lowered.debug_map.as_ref(),
+    )
+    .expect("canonical artifact");
+
+    let mut missing = lowered.proof_bundle.clone();
+    missing.recursive_components.clear();
+    assert!(matches!(
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing,
+            &psi_proof_admission::AdmissionProfile::default(),
+        ),
+        Err(psi_terminal_verifier::VerificationError::MissingRecursiveComponentEvidence(_))
+    ));
+
+    let mut changed_site = lowered.semantic_module.clone();
+    match &mut changed_site.proof_recursive_components[0].edges[0].site {
+        psi_terminal::TerminalProofRecursiveCallSite::Expression {
+            expression_ordinal, ..
+        } => *expression_ordinal += 100,
+        _ => panic!("fixture uses an expression call site"),
+    }
+    assert!(
+        psi_terminal_verifier::verify_module(
+            &changed_site,
+            &lowered.proof_bundle,
+            &psi_proof_admission::AdmissionProfile::default(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn unreachable_proof_scc_is_not_retained() {
     let source = REACHABLE_PROOF_SCC.replace(
         "    requires left(ProofTree::Leaf) == ProofTree::Leaf\n",
+        "",
+    );
+    let checked = checked_managed_source(&source);
+    let lowered = lower_machine(&checked, "Root::main").expect("unrelated entry should lower");
+    assert!(
+        lowered
+            .semantic_module
+            .proof_recursive_components
+            .is_empty()
+    );
+    assert!(lowered.proof_bundle.recursive_components.is_empty());
+}
+
+#[test]
+fn unreachable_singleton_proof_scc_is_not_retained() {
+    let source = REACHABLE_SINGLETON_PROOF_SCC.replace(
+        "    requires descend(ProofTree::Leaf) == ProofTree::Leaf\n",
         "",
     );
     let checked = checked_managed_source(&source);

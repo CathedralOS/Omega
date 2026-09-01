@@ -3683,7 +3683,7 @@ Remaining:
   structural-subterm relation; every exact internal statement, expression, or
   transition call site owns its own caller/callee rank parameters and resolved
   nonempty member path. Multiple calls between the same machine pair do not
-  collapse. Terminal format 55 / vocabulary 58 retains a closed finite-
+  collapse. Terminal format 57 / vocabulary 60 retains a closed finite-
   inductive proof-type graph and exact source-free component rows. The verifier
   resolves every strict path in that graph, reconstructs semantic component and
   ranking-relation identities plus one shared well-foundedness and one exact
@@ -3700,8 +3700,16 @@ Remaining:
   proof codec round trips, generic verifier admission, canonical artifact
   construction, and the one-WF/four-decrease synopsis; unreachable components,
   stale call coordinates or rank parameters, collapsed sites, and missing
-  grouped evidence reject. One-member self-recursive components and
-  normalization-law trust remain open.
+  grouped evidence reject. Exact one-member self-recursive proof components now
+  use that same path: validation retains the explicit self-edge only with a
+  nonempty structural-subterm witness, while runtime call-graph classification
+  continues to exclude internal self calls. Terminal validation requires the
+  singleton's self-edge for strong connectivity, reconstructs one shared
+  well-foundedness plus one decrease obligation, and the module/proof codecs,
+  canonical artifact, and verified synopsis retain that exact cardinality.
+  Unchanged-rank self-citation, unreachable singleton closure, missing grouped
+  evidence, and call-site mutation reject. Normalization-law trust remains
+  open.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one
