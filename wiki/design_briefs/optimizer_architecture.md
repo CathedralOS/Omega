@@ -311,7 +311,7 @@ proves eligibility mechanics without minting original-victim action authority.
 The adjacent `generalized_spill_recovery_actions` entrance converts exact
 reload- or original-victim evidence into epoch-two logical store, reload, and
 rewrite obligations. The legacy V1 reload entry keeps its original inputs and
-identity bytes. A separate V2 original entry additionally binds selected-plan
+identity encoding. A separate V2 original entry additionally binds selected-plan
 and live-range roots, reconstructs the original definition and complete
 flexible post-pressure use suffix, and retains a closed `Original(VReg)` versus
 `Reload(action)` victim type. Direct traversal and independently keyed replay

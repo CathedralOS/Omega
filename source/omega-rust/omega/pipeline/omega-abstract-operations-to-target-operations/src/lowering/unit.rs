@@ -575,9 +575,7 @@ pub(super) fn lower_unit_function(
             | AbstractOperation::Conditional { .. }
             | AbstractOperation::Return { .. }
             | AbstractOperation::ReturnStructural { .. } => {
-                return Err(LoweringError::UnsupportedOperationInUnitFunction(
-                    function.machine,
-                ));
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(function.machine));
             }
         }
     }
