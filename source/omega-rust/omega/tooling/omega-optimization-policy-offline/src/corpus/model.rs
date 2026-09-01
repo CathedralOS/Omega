@@ -16,7 +16,7 @@ pub enum OfflinePolicySplit {
 }
 
 impl OfflinePolicySplit {
-    pub(super) const fn tag(self) -> u8 {
+    pub(crate) const fn tag(self) -> u8 {
         match self {
             Self::Training => 1,
             Self::Evaluation => 2,
