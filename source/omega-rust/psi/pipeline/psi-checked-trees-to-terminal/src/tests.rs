@@ -2145,43 +2145,17 @@ fn emitted_direct_float_parameter_rejoins_terminal_owner_and_dense_scalar_parame
     );
 }
 
-#[test]
-fn emitted_direct_float_result_rejoins_terminal_owner_and_scalar_result() {
-    let source = r#"
-        data Token {}
-        machine Token::drop(&mut self) {}
-
-        data Root {}
-        machine Root::echo(token: Token, value: f32) -> f32 { value }
-    "#;
-    let mut checked = checked_source(source);
-    let owner_machine = checked
-        .machines()
-        .iter()
-        .find(|machine| checked.symbols.name(machine.symbol) == "Root::echo")
-        .expect("source owner")
-        .symbol;
-    checked.facts.proof.float_meaning_projections.push(
-        psi_checked_trees::CheckedFloatMeaningProjection {
-            result: psi_checked_trees::CheckedProofValueDeclaration {
-                id: psi_checked_trees::CheckedProofValueId(0),
-                value_type: psi_checked_trees::CheckedProofOnlyValueType::FloatMeaning,
-            },
-            source: psi_checked_trees::CheckedFloatProjectionSource::DirectMachineResult(
-                psi_checked_trees::CheckedDirectMachineFloatResult {
-                    owner_machine,
-                    fallback: psi_checked_trees::CheckedFloatProjectionInput {
-                        id: psi_checked_trees::CheckedFloatProjectionInputId(0),
-                        primitive: psi_checked_trees::types::PrimitiveType::F32,
-                    },
-                },
-            ),
-            operation: psi_numerics::float_projection::FloatProjectionOperation::Meaning32,
-            contract: psi_numerics::float_projection::FloatProjectionOperation::Meaning32
-                .contract_identity(),
-        },
+fn assert_source_direct_float_result(primitive: &str, projection: &str, format: IeeeFloatFormat) {
+    let source = format!(
+        r#"
+            machine result(value: {primitive}) -> {primitive}
+            ensures
+                Float::{projection}(result) == Float::{projection}(result);
+            {{ value }}
+        "#,
     );
-    let lowered = lower_machine(&checked, "Root::echo").expect("lower direct float result owner");
+    let checked = checked_float_projection_source(&source);
+    let lowered = lower_machine(&checked, "result").expect("lower direct float result owner");
     let machine = lowered
         .semantic_module
         .machines
@@ -2191,19 +2165,31 @@ fn emitted_direct_float_result_rejoins_terminal_owner_and_scalar_result() {
     let TerminalMachineResult::Scalar(result) = machine.result else {
         panic!("entry should retain its scalar result")
     };
+    assert_eq!(result.scalar_type, ScalarType::IeeeFloat(format));
+    assert!(machine.contract.requires.is_empty());
+    assert!(machine.contract.ensures.is_empty());
+    assert!(machine.contract.outcome_specific_ensures.is_empty());
+    assert!(machine.contract.crash_routes.is_empty());
+    let [projection] = lowered.semantic_module.float_meaning_projections.as_slice() else {
+        panic!("one source-derived FloatMeaning projection expected")
+    };
     assert_eq!(
-        result.scalar_type,
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)
-    );
-    assert_eq!(
-        lowered.semantic_module.float_meaning_projections[0].source,
+        projection.source,
         psi_terminal::FloatMeaningSource::DirectMachineResult(
             psi_terminal::DirectMachineFloatResult {
                 owner: machine.id,
                 result: result.id,
-                format: IeeeFloatFormat::Binary32,
+                format,
             }
         )
+    );
+    assert_eq!(
+        lowered.semantic_module.float_meaning_equalities,
+        vec![psi_terminal::FloatMeaningEqualityProposition {
+            id: psi_terminal::ProofPropositionId(0),
+            left: projection.result.id,
+            right: projection.result.id,
+        }]
     );
     psi_terminal_verifier::validate_module(&lowered.semantic_module).expect("verify direct result");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
@@ -2211,6 +2197,65 @@ fn emitted_direct_float_result_rejoins_terminal_owner_and_scalar_result() {
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module)
     );
+}
+
+#[test]
+fn source_direct_float_results_rejoin_terminal_owner_and_scalar_result() {
+    assert_source_direct_float_result("f32", "meaning32", IeeeFloatFormat::Binary32);
+    assert_source_direct_float_result("f64", "meaning64", IeeeFloatFormat::Binary64);
+}
+
+#[test]
+fn direct_float_result_proof_only_contract_rejects_additional_value_clauses() {
+    let checked = checked_float_projection_source(
+        r#"
+            machine result(value: f32) -> f32
+            requires
+                Float::meaning32(value) == Float::meaning32(value);
+            ensures
+                Float::meaning32(result) == Float::meaning32(result);
+            { value }
+        "#,
+    );
+    assert!(matches!(
+        lower_machine(&checked, "result"),
+        Err(LoweringError::Unsupported(
+            "machine must have exactly one requires and one ensures clause"
+        ))
+    ));
+}
+
+#[test]
+fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
+    let source = r#"
+        machine result(value: f32) -> f32
+        ensures
+            Float::meaning32(result) == Float::meaning32(result);
+        { value }
+
+        machine other(value: f32) -> f32 { value }
+    "#;
+    let checked = checked_float_projection_source(source);
+
+    let mut expression_drift = checked.clone();
+    expression_drift.facts.proof.float_meaning_equalities[0].source_expression =
+        psi_typed_trees::expression::ExpressionHandle::invalid();
+    assert!(lower_machine(&expression_drift, "result").is_err());
+
+    let mut owner_drift = checked;
+    let other = owner_drift
+        .machines()
+        .iter()
+        .find(|machine| owner_drift.symbols.name(machine.symbol) == "other")
+        .expect("other machine")
+        .symbol;
+    let psi_checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result) =
+        &mut owner_drift.facts.proof.float_meaning_projections[0].source
+    else {
+        panic!("direct result source expected")
+    };
+    result.owner_machine = other;
+    assert!(lower_machine(&owner_drift, "result").is_err());
 }
 
 #[test]

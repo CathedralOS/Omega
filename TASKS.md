@@ -10866,11 +10866,18 @@ Remaining N6/N8 work:
   proof value, and that value must be the exiting machine's retained direct
   result. Distinct result/parameter terms still require evidence, and raw IEEE
   `result == result` remains non-reflexive because of NaN. Source-to-checked
-  classification and backend artifact joining are therefore covered on their
-  respective sides. Their combined source-to-Terminal path remains open in the
-  runtime producer: current f32/f64 result producers do not yet compose a
-  result-bearing machine with this proof-only contract. Fix that producer
-  composition rather than weakening or bypassing either proof fence.
+  classification and backend artifact joining now compose through the bounded
+  standalone scalar producer. An ordinary source-derived f32/f64 result machine
+  may erase exactly one unbound owning-result `FloatMeaning` reflexivity clause
+  from its runtime `MachineContract` only after replaying the clause expression,
+  unique checked equality and projection, owner, format, and exact
+  `meaning32`/`meaning64` operation. Source-derived f32 and f64 canaries cross
+  Terminal verification and canonical codec replay with direct-result custody
+  and an empty runtime contract. Additional ordinary value clauses,
+  expression/owner substitution, and every non-exact shape retain the prior
+  closed-value rejection. Scalar callees and attached selected bodies keep
+  their existing contract modes; this rung does not widen nested carriers or
+  claim production proof-ledger discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

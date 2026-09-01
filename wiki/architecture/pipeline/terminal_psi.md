@@ -3511,6 +3511,15 @@ only after the exact authored `ensures` expression rejoins the checked
 that value retains the same owner. This checked-only source coordinate is
 erased here; it is not serialized or accepted as Terminal correspondence.
 Distinct projected terms and raw IEEE equality receive no such route.
+The standalone scalar producer now composes that exact checked route with the
+artifact-relative direct-result carrier. It accepts one unbound f32/f64
+`ensures` only after replaying the same source expression, unique equality and
+projection, owning result, matching format, and closed projection operation;
+the proof-only clause then contributes no runtime `MachineContract` value.
+Additional ordinary value clauses and expression, owner, format, or operation
+substitution fall back to the existing closed Boolean/integer contract fence.
+Scalar call-closure and selected-body preparation keep their prior modes, so
+this bounded root path grants no ambient callee or nested-result support.
 Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
