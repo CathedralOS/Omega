@@ -1,4 +1,4 @@
-use super::{exact_integer_add_parameters_plan, integer_type};
+use super::{exact_integer_subtract_parameters_plan, integer_type};
 use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
     lower_to_target_operations, validate_abstract_to_target_translation,
@@ -7,7 +7,7 @@ use omega_target::NativeTarget;
 use psi_core::{EdgeId, IntegerSign, ObligationId, OperationId, ScalarType, ValueId};
 
 #[test]
-fn validates_all_fixed_exact_integer_add_types_and_operand_placements_on_every_target() {
+fn validates_all_fixed_exact_integer_subtract_types_and_operand_placements_on_every_target() {
     let targets = [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
@@ -30,7 +30,7 @@ fn validates_all_fixed_exact_integer_add_types_and_operand_placements_on_every_t
     for target_profile in targets {
         for scalar_type in &integers {
             for (left, right) in operand_pairs {
-                let source = exact_integer_add_parameters_plan(
+                let source = exact_integer_subtract_parameters_plan(
                     &vec![ScalarType::Integer(*scalar_type); 10],
                     left,
                     right,
@@ -40,16 +40,16 @@ fn validates_all_fixed_exact_integer_add_types_and_operand_placements_on_every_t
                     validate_abstract_to_target_translation(&source, target_profile, &target)
                         .unwrap();
                 let AbstractToTargetFunctionTranslationDisposition::Validated(
-                    AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerAddParameters(row),
+                    AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerSubtractParameters(row),
                 ) = receipt.function_roster()[0].translation()
                 else {
-                    panic!("exact-integer-add must publish its family receipt")
+                    panic!("exact-integer-subtract must publish its family receipt")
                 };
                 assert_eq!(row.machine(), source.entry);
-                assert_eq!(row.add_operation(), OperationId::new(5_100).unwrap());
-                assert_eq!(row.obligation(), ObligationId::new(5_102).unwrap());
+                assert_eq!(row.subtract_operation(), OperationId::new(5_300).unwrap());
+                assert_eq!(row.obligation(), ObligationId::new(5_302).unwrap());
                 assert_eq!(row.return_edge(), EdgeId::new(3_004).unwrap());
-                assert_eq!(row.source_value(), ValueId::new(5_101).unwrap());
+                assert_eq!(row.source_value(), ValueId::new(5_301).unwrap());
                 assert_eq!(row.scalar_type(), *scalar_type);
                 assert_eq!(row.left_parameter_index(), left);
                 assert_eq!(row.right_parameter_index(), right);
@@ -65,10 +65,10 @@ fn validates_all_fixed_exact_integer_add_types_and_operand_placements_on_every_t
 }
 
 #[test]
-fn exact_integer_add_retains_obligation_order_and_mixed_roster_custody() {
+fn exact_integer_subtract_retains_obligation_order_and_mixed_roster_custody() {
     let integer = integer_type(IntegerSign::Unsigned, 32);
     for (left, right) in [(2, 1), (1, 1)] {
-        let source = exact_integer_add_parameters_plan(
+        let source = exact_integer_subtract_parameters_plan(
             &[
                 ScalarType::Boolean,
                 ScalarType::Integer(integer),
@@ -82,12 +82,14 @@ fn exact_integer_add_retains_obligation_order_and_mixed_roster_custody() {
         let receipt =
             validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
         let AbstractToTargetFunctionTranslationDisposition::Validated(
-            AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerAddParameters(row),
+            AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerSubtractParameters(
+                row,
+            ),
         ) = receipt.function_roster()[0].translation()
         else {
-            panic!("exact-integer-add must retain ordered operand and obligation custody")
+            panic!("exact-integer-subtract must retain ordered operand and obligation custody")
         };
-        assert_eq!(row.obligation(), ObligationId::new(5_102).unwrap());
+        assert_eq!(row.obligation(), ObligationId::new(5_302).unwrap());
         assert_eq!(row.left_parameter_index(), left);
         assert_eq!(row.right_parameter_index(), right);
         assert_eq!(row.left_value(), source.functions[0].parameters[left].value);

@@ -5,10 +5,12 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::super::super::model::{
-    ReconstructedExactIntegerAddParameters, ReconstructedIntegerArithmeticParameters,
+    ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerSubtractParameters,
+    ReconstructedIntegerArithmeticParameters,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
@@ -17,7 +19,7 @@ use crate::validation::model::{
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 
-pub(super) fn reconstruct_exact_add(
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_add(
     function: &AbstractFunction,
     expected_target: NativeTarget,
     target: &TargetFunction,
@@ -39,9 +41,32 @@ pub(super) fn reconstruct_exact_add(
     })
 }
 
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_subtract(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedExactIntegerSubtractParameters,
+    StraightLineExactIntegerSubtractParametersTranslationError,
+> {
+    let source =
+        super::super::super::source::integer::arithmetic::reconstruct_exact_subtract(function)?;
+    let arithmetic = super::replay::reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source.arithmetic,
+        StraightLineExactIntegerSubtractParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedExactIntegerSubtractParameters {
+        arithmetic,
+        obligation: source.obligation,
+    })
+}
+
 macro_rules! reconstruct_arithmetic {
     ($name:ident, $source:ident, $error:ty) => {
-        pub(super) fn $name(
+        pub(in crate::validation::straight_line_parameter) fn $name(
             function: &AbstractFunction,
             expected_target: NativeTarget,
             target: &TargetFunction,

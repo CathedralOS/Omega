@@ -18,6 +18,13 @@ pub(in crate::validation::catalog) const EXACT_INTEGER_ADD: TranslationFamilyDes
         exact_integer_add,
     );
 
+pub(in crate::validation::catalog) const EXACT_INTEGER_SUBTRACT: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineExactIntegerSubtractParameters,
+        straight_line_parameter::integer::arithmetic::exact_subtract::is_candidate,
+        exact_integer_subtract,
+    );
+
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
@@ -100,6 +107,20 @@ pub(in crate::validation::catalog::dispatch) fn exact_integer_add(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerAddParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerAddParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn exact_integer_subtract(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::exact_subtract::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerSubtractParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerSubtractParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(

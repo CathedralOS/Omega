@@ -1,13 +1,13 @@
-//! Exact `[ExactIntegerAdd(parameter, parameter), Return]` source replay.
+//! Exact `[ExactIntegerSubtract(parameter, parameter), Return]` source replay.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::{IntegerCarrier, ScalarType};
 
 use super::super::super::super::model::{
-    ExactIntegerAddParametersSource, IntegerArithmeticParametersSource, ParameterResultKind,
+    ExactIntegerSubtractParametersSource, IntegerArithmeticParametersSource, ParameterResultKind,
     ReconstructedEnvelope,
 };
-use crate::validation::model::StraightLineExactIntegerAddParametersTranslationError;
+use crate::validation::model::StraightLineExactIntegerSubtractParametersTranslationError;
 
 pub(in crate::validation::straight_line_parameter) fn is_candidate(
     function: &AbstractFunction,
@@ -16,7 +16,7 @@ pub(in crate::validation::straight_line_parameter) fn is_candidate(
         && matches!(
             function.operations.as_slice(),
             [
-                AbstractOperation::ExactIntegerAdd { .. },
+                AbstractOperation::ExactIntegerSubtract { .. },
                 AbstractOperation::Return {
                     cleanup_actions,
                     ..
@@ -28,13 +28,15 @@ pub(in crate::validation::straight_line_parameter) fn is_candidate(
 pub(super) fn reconstruct(
     function: &AbstractFunction,
     envelope: &ReconstructedEnvelope<'_>,
-) -> Result<ExactIntegerAddParametersSource, StraightLineExactIntegerAddParametersTranslationError>
-{
+) -> Result<
+    ExactIntegerSubtractParametersSource,
+    StraightLineExactIntegerSubtractParametersTranslationError,
+> {
     let [
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::ExactIntegerSubtract {
             psi_operation,
             obligation,
-            result: add_result,
+            result: subtract_result,
             scalar_type,
             left,
             right,
@@ -48,41 +50,46 @@ pub(super) fn reconstruct(
         },
     ] = function.operations.as_slice()
     else {
-        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster);
+        return Err(
+            StraightLineExactIntegerSubtractParametersTranslationError::SourceOperationRoster,
+        );
     };
     if !cleanup_actions.is_empty() {
-        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceCleanup);
+        return Err(StraightLineExactIntegerSubtractParametersTranslationError::SourceCleanup);
     }
     if *result != envelope.function_result
         || *return_type != ScalarType::Integer(*scalar_type)
-        || *value != *add_result
+        || *value != *subtract_result
     {
-        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceReturnLink);
+        return Err(StraightLineExactIntegerSubtractParametersTranslationError::SourceReturnLink);
     }
     if envelope
         .parameters
         .iter()
-        .any(|parameter| parameter.value == *add_result)
+        .any(|parameter| parameter.value == *subtract_result)
     {
-        return Err(StraightLineExactIntegerAddParametersTranslationError::SourceAddResultRoster);
+        return Err(
+            StraightLineExactIntegerSubtractParametersTranslationError::SourceSubtractResultRoster,
+        );
     }
     let (left_parameter_index, left_type) = super::super::parameter(envelope, *left)
-        .ok_or(StraightLineExactIntegerAddParametersTranslationError::SourceLeftOperandLink)?;
-    let (right_parameter_index, right_type) = super::super::parameter(envelope, *right)
-        .ok_or(StraightLineExactIntegerAddParametersTranslationError::SourceRightOperandLink)?;
+        .ok_or(StraightLineExactIntegerSubtractParametersTranslationError::SourceLeftOperandLink)?;
+    let (right_parameter_index, right_type) = super::super::parameter(envelope, *right).ok_or(
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceRightOperandLink,
+    )?;
     if scalar_type.carrier() != IntegerCarrier::Fixed
         || left_type != *scalar_type
         || right_type != *scalar_type
     {
         return Err(
-            StraightLineExactIntegerAddParametersTranslationError::SourceOperandTypeMismatch,
+            StraightLineExactIntegerSubtractParametersTranslationError::SourceOperandTypeMismatch,
         );
     }
-    Ok(ExactIntegerAddParametersSource {
+    Ok(ExactIntegerSubtractParametersSource {
         arithmetic: IntegerArithmeticParametersSource {
             operation: *psi_operation,
             return_edge: *psi_edge,
-            source_value: *add_result,
+            source_value: *subtract_result,
             scalar_type: *scalar_type,
             left_value: *left,
             right_value: *right,

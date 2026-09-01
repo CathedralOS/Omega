@@ -91,31 +91,35 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_exact_add",
+        coordination_marker: "reconstruct_exact_add,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_saturating_add",
+        coordination_marker: "reconstruct_exact_subtract,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_saturating_multiply",
+        coordination_marker: "reconstruct_saturating_add,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_saturating_subtract",
+        coordination_marker: "reconstruct_saturating_multiply,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_wrapping_add",
+        coordination_marker: "reconstruct_saturating_subtract,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_wrapping_subtract",
+        coordination_marker: "reconstruct_wrapping_add,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_wrapping_multiply",
+        coordination_marker: "reconstruct_wrapping_subtract,",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/source/integer/arithmetic/mod.rs",
+        coordination_marker: "reconstruct_wrapping_multiply,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/comparison/mod.rs",
@@ -139,31 +143,35 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_exact_add",
+        coordination_marker: "reconstruct_exact_add,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_saturating_add",
+        coordination_marker: "reconstruct_exact_subtract,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_saturating_multiply",
+        coordination_marker: "reconstruct_saturating_add,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_saturating_subtract",
+        coordination_marker: "reconstruct_saturating_multiply,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_wrapping_add",
+        coordination_marker: "reconstruct_saturating_subtract,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_wrapping_subtract",
+        coordination_marker: "reconstruct_wrapping_add,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
-        coordination_marker: "fn reconstruct_wrapping_multiply",
+        coordination_marker: "reconstruct_wrapping_subtract,",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/arithmetic/mod.rs",
+        coordination_marker: "reconstruct_wrapping_multiply,",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_parameter/integer/bitwise/replay.rs",

@@ -1,24 +1,25 @@
 use super::{integer_type, leaf_error};
-use crate::StraightLineExactIntegerAddParametersTranslationError;
+use crate::StraightLineExactIntegerSubtractParametersTranslationError;
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::{IntegerSign, IntegerType, ObligationId, PlaceId, ScalarType, ValueId};
 
 #[test]
-fn exact_integer_add_source_identity_type_and_obligation_corruption_fails_closed() {
+fn exact_integer_subtract_source_identity_type_and_obligation_corruption_fails_closed() {
     assert_eq!(
         leaf_error(|function| function.parameters.clear()),
-        StraightLineExactIntegerAddParametersTranslationError::SourceParameters
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceParameters
     );
     assert_eq!(
         leaf_error(
             |function| super::super::scalar_result_mut(function).scalar_type = ScalarType::Boolean
         ),
-        StraightLineExactIntegerAddParametersTranslationError::SourceResult
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceResult
     );
     assert_eq!(
         leaf_error(|function| {
             let parameter = function.parameters[0].value;
-            let AbstractOperation::ExactIntegerAdd { result, .. } = &mut function.operations[0]
+            let AbstractOperation::ExactIntegerSubtract { result, .. } =
+                &mut function.operations[0]
             else {
                 unreachable!()
             };
@@ -28,64 +29,65 @@ fn exact_integer_add_source_identity_type_and_obligation_corruption_fails_closed
             };
             *value = parameter;
         }),
-        StraightLineExactIntegerAddParametersTranslationError::SourceAddResultRoster
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceSubtractResultRoster
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::ExactIntegerAdd { left, .. } = &mut function.operations[0]
+            let AbstractOperation::ExactIntegerSubtract { left, .. } = &mut function.operations[0]
             else {
                 unreachable!()
             };
             *left = ValueId::new(51_500).unwrap();
         }),
-        StraightLineExactIntegerAddParametersTranslationError::SourceLeftOperandLink
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceLeftOperandLink
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::ExactIntegerAdd { right, .. } = &mut function.operations[0]
+            let AbstractOperation::ExactIntegerSubtract { right, .. } = &mut function.operations[0]
             else {
                 unreachable!()
             };
             *right = ValueId::new(51_501).unwrap();
         }),
-        StraightLineExactIntegerAddParametersTranslationError::SourceRightOperandLink
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceRightOperandLink
     );
     assert_eq!(
         leaf_error(|function| {
             function.parameters[1].scalar_type =
                 ScalarType::Integer(integer_type(IntegerSign::Unsigned, 32));
         }),
-        StraightLineExactIntegerAddParametersTranslationError::SourceOperandTypeMismatch
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceOperandTypeMismatch
     );
     assert_eq!(
         leaf_error(|function| {
-            let AbstractOperation::ExactIntegerAdd { obligation, .. } = &mut function.operations[0]
+            let AbstractOperation::ExactIntegerSubtract { obligation, .. } =
+                &mut function.operations[0]
             else {
                 unreachable!()
             };
             *obligation = ObligationId::new(51_502).unwrap();
         }),
-        StraightLineExactIntegerAddParametersTranslationError::TargetOperation
+        StraightLineExactIntegerSubtractParametersTranslationError::TargetOperation
     );
     assert_eq!(
         leaf_error(|function| set_integer_type(function, integer_type(IntegerSign::Signed, 24))),
-        StraightLineExactIntegerAddParametersTranslationError::SourceParameterShape
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceParameterShape
     );
     assert_eq!(
         leaf_error(|function| set_integer_type(function, IntegerType::address(64).unwrap())),
-        StraightLineExactIntegerAddParametersTranslationError::SourceOperandTypeMismatch
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceOperandTypeMismatch
     );
 }
 
 #[test]
-fn exact_integer_add_source_semantics_return_and_cleanup_corruption_fails_closed() {
+fn exact_integer_subtract_source_semantics_return_and_cleanup_corruption_fails_closed() {
     assert_eq!(
-        leaf_error(|function| replace_add(function, false)),
-        StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster
+        leaf_error(|function| replace_subtract(function, false)),
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceOperationRoster
     );
     assert_eq!(
-        leaf_error(|function| replace_add(function, true)),
-        StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster
+        leaf_error(|function| replace_subtract(function, true)),
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceOperationRoster
     );
     assert_eq!(
         leaf_error(|function| {
@@ -94,7 +96,7 @@ fn exact_integer_add_source_semantics_return_and_cleanup_corruption_fails_closed
             };
             *value = function.parameters[0].value;
         }),
-        StraightLineExactIntegerAddParametersTranslationError::SourceReturnLink
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceReturnLink
     );
     assert_eq!(
         leaf_error(|function| {
@@ -108,16 +110,16 @@ fn exact_integer_add_source_semantics_return_and_cleanup_corruption_fails_closed
                 PlaceId::new(51_503).unwrap(),
             ));
         }),
-        StraightLineExactIntegerAddParametersTranslationError::SourceCleanup
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceCleanup
     );
     assert_eq!(
         leaf_error(|function| function.operations.swap(0, 1)),
-        StraightLineExactIntegerAddParametersTranslationError::SourceOperationRoster
+        StraightLineExactIntegerSubtractParametersTranslationError::SourceOperationRoster
     );
 }
 
-fn replace_add(function: &mut AbstractFunction, saturating: bool) {
-    let AbstractOperation::ExactIntegerAdd {
+fn replace_subtract(function: &mut AbstractFunction, saturating: bool) {
+    let AbstractOperation::ExactIntegerSubtract {
         psi_operation,
         result,
         scalar_type,
@@ -129,7 +131,7 @@ fn replace_add(function: &mut AbstractFunction, saturating: bool) {
         unreachable!()
     };
     function.operations[0] = if saturating {
-        AbstractOperation::SaturatingIntegerAdd {
+        AbstractOperation::SaturatingIntegerSubtract {
             psi_operation,
             result,
             scalar_type,
@@ -137,7 +139,7 @@ fn replace_add(function: &mut AbstractFunction, saturating: bool) {
             right,
         }
     } else {
-        AbstractOperation::WrappingIntegerAdd {
+        AbstractOperation::WrappingIntegerSubtract {
             psi_operation,
             result,
             scalar_type,
@@ -151,7 +153,7 @@ fn set_integer_type(function: &mut AbstractFunction, scalar_type: IntegerType) {
     for parameter in &mut function.parameters {
         parameter.scalar_type = ScalarType::Integer(scalar_type);
     }
-    let AbstractOperation::ExactIntegerAdd {
+    let AbstractOperation::ExactIntegerSubtract {
         scalar_type: declared,
         ..
     } = &mut function.operations[0]

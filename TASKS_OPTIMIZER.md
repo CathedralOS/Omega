@@ -465,9 +465,10 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty-three abstract-to-target families, including
-  proof-bearing exact addition and saturating parameterized integer addition,
-  subtraction, and multiplication, selected incoming u12 folds, current
+  machine-rule family. Twenty-four abstract-to-target families, including
+  proof-bearing exact parameterized fixed-integer addition and subtraction plus
+  saturating parameterized integer addition, subtraction, and multiplication,
+  selected incoming u12 folds, current
   machine substitutions, structural-Unit encoding, resolved layout, and
   ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
