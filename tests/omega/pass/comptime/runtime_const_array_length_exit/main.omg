@@ -9,7 +9,7 @@
 // the substituted length really reached the range checker as 16, and the
 // values only survive if layout sized the field as 16 elements. Exits 70 only
 // when both elements hold their length-dependent values.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

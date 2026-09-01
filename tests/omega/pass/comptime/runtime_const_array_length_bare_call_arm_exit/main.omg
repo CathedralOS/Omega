@@ -9,7 +9,7 @@
 // index-15 write below typechecks only at length 16, and exits 70 only when
 // the value lands.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

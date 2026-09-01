@@ -68,6 +68,40 @@ fn successful_checking_finalizes_authored_call_occurrences() {
 }
 
 #[test]
+fn package_checking_finalizes_comptime_value_arm_calls_before_evaluation() {
+    let source = r#"
+        machine burn(remaining: u64, acc: u64)
+        terminates by remaining;
+        -> u64
+        {
+            transition remaining > 0 {
+                true -> (burn(remaining - 1, acc + 1))
+                false -> acc
+            }
+        }
+
+        machine table_size() -> u64 {
+            transition { _ -> (burn(4, 12)) }
+        }
+
+        data Main { slots: [i64; table_size()]; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked =
+        crate::lower_package_typed_trees_with_selected_generic_operator_providers(typed, &[])
+            .expect("package checking must retain the exact comptime call target");
+
+    assert!(
+        checked.authored_declaration_selections().all_finalized(),
+        "selections={:#?}",
+        checked.authored_declaration_selections()
+    );
+}
+
+#[test]
 fn checked_operator_contract_context_disambiguates_named_overloads() {
     let source = r#"
         data Token { case First; case Second; }
