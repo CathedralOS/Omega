@@ -12,7 +12,14 @@ pub fn recursive_spill_insertion_identity(
     plan: &RecursiveSpillInsertionPlan,
 ) -> RecursiveSpillInsertionIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.recursive-spill-insertion.v1\0");
+    bytes.extend_from_slice(match plan.policy {
+        RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1 => {
+            b"omega.recursive-spill-insertion.v1\0"
+        }
+        RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2 => {
+            b"omega.recursive-spill-insertion.v2\0"
+        }
+    });
     bytes.extend_from_slice(&plan.generalized_spill_insertion.bytes());
     bytes.extend_from_slice(&plan.recovery_actions.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
@@ -21,6 +28,7 @@ pub fn recursive_spill_insertion_identity(
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1 => 0,
+        RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2 => 1,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
@@ -115,6 +123,17 @@ fn source(bytes: &mut Vec<u8>, source: RecursiveSpillActionSource) {
             bytes.extend_from_slice(&work_item.ordinal.to_le_bytes());
             action(bytes, source_pressure);
             action(bytes, victim);
+        }
+        RecursiveSpillActionSource::EpochTwoOriginal {
+            work_item,
+            source_pressure,
+            victim,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&work_item.epoch.to_le_bytes());
+            bytes.extend_from_slice(&work_item.ordinal.to_le_bytes());
+            action(bytes, source_pressure);
+            bytes.extend_from_slice(&victim.0.to_le_bytes());
         }
     }
 }

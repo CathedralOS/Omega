@@ -185,12 +185,32 @@ pub(super) fn replay(
         let Some(first) = action.rewrites.iter().min() else {
             return Err(invalid(function, id));
         };
-        let victim = match (action.victim, action.store.source) {
+        let (source, stored_value) = match (policy, action.victim, action.store.source) {
             (
+                RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
                 crate::GeneralizedSpillRecoveryVictim::Reload(victim),
-                crate::GeneralizedSpillRecoveryVictim::Reload(source),
-            ) if victim == source => victim,
-            (victim, _) => {
+                crate::GeneralizedSpillRecoveryVictim::Reload(stored),
+            ) if victim == stored => (
+                RecursiveSpillActionSource::EpochTwo {
+                    work_item: action.source_work_item,
+                    source_pressure: action.source_pressure,
+                    victim,
+                },
+                RecursiveSpillStoredValue::Reload(victim),
+            ),
+            (
+                RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
+                crate::GeneralizedSpillRecoveryVictim::Original(victim),
+                crate::GeneralizedSpillRecoveryVictim::Original(stored),
+            ) if victim == stored => (
+                RecursiveSpillActionSource::EpochTwoOriginal {
+                    work_item: action.source_work_item,
+                    source_pressure: action.source_pressure,
+                    victim,
+                },
+                RecursiveSpillStoredValue::Original(victim),
+            ),
+            (_, victim, _) => {
                 return Err(RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
                     function,
                     action: id,
@@ -240,11 +260,7 @@ pub(super) fn replay(
         let row = ReplayRow {
             slot: RecursiveSpillSlot {
                 action: id,
-                source: RecursiveSpillActionSource::EpochTwo {
-                    work_item: action.source_work_item,
-                    source_pressure: action.source_pressure,
-                    victim,
-                },
+                source,
                 class: action.storage.class,
                 block: action.block,
                 live_from: action.pressure_point,
@@ -255,7 +271,7 @@ pub(super) fn replay(
             },
             store_instruction: action.store.before_instruction,
             before_reload: Some(action.store.before_pressure_reload),
-            stored_value: RecursiveSpillStoredValue::Reload(victim),
+            stored_value,
             source_view: action.store.source_view,
             reload_instruction: action.reload.before_instruction,
             destination_class: action.reload.destination_class,
@@ -386,6 +402,7 @@ fn admit_policy(policy: RecursiveSpillInsertionPolicy) -> Result<(), RecursiveSp
     if !matches!(
         policy,
         RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1
+            | RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2
     ) {
         return Err(RecursiveSpillInsertionError::UnsupportedPolicy);
     }

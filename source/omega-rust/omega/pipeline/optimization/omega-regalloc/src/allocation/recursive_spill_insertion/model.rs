@@ -27,6 +27,7 @@ impl RecursiveSpillInsertionIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RecursiveSpillInsertionPolicy {
     EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+    EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +37,11 @@ pub enum RecursiveSpillActionSource {
         work_item: GeneralizedSpillRecoveryWorkItemId,
         source_pressure: GeneralizedSpillActionId,
         victim: GeneralizedSpillActionId,
+    },
+    EpochTwoOriginal {
+        work_item: GeneralizedSpillRecoveryWorkItemId,
+        source_pressure: GeneralizedSpillActionId,
+        victim: VirtualRegisterId,
     },
 }
 

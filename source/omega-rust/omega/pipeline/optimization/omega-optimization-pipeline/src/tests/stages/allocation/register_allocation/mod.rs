@@ -13,6 +13,7 @@ mod guarded_original_spill_recovery_choice;
 mod live_ranges;
 mod liveness;
 mod logical_spill_operations;
+mod original_recursive_spill_insertion;
 mod original_spill_recovery_actions;
 mod post_allocation_manifest_mutation_matrix;
 mod recursive_spill_insertion;

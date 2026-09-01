@@ -62,7 +62,7 @@ pub(super) fn compute(
                 function: action.function,
             });
         }
-        pending[action.function].push(project_recovery_action(action)?);
+        pending[action.function].push(project_recovery_action(action, policy)?);
     }
     let functions = pending
         .into_iter()
@@ -95,7 +95,11 @@ pub(super) fn compute(
 pub(super) fn admit_policy(
     policy: RecursiveSpillInsertionPolicy,
 ) -> Result<(), RecursiveSpillInsertionError> {
-    if policy != RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1 {
+    if !matches!(
+        policy,
+        RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1
+            | RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2
+    ) {
         return Err(RecursiveSpillInsertionError::UnsupportedPolicy);
     }
     Ok(())
@@ -238,6 +242,7 @@ fn project_base_action(
 
 fn project_recovery_action(
     action: &crate::GeneralizedSpillRecoveryLogicalAction,
+    policy: RecursiveSpillInsertionPolicy,
 ) -> Result<PendingAction, RecursiveSpillInsertionError> {
     let function = action.function;
     let id = GeneralizedSpillActionId {
@@ -247,12 +252,32 @@ fn project_recovery_action(
     let Some(first) = action.rewrites.first() else {
         return Err(invalid(function, id));
     };
-    let victim = match (action.victim, action.store.source) {
+    let (source, stored_value) = match (policy, action.victim, action.store.source) {
         (
+            RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
             crate::GeneralizedSpillRecoveryVictim::Reload(victim),
-            crate::GeneralizedSpillRecoveryVictim::Reload(source),
-        ) if victim == source => victim,
-        (victim, _) => {
+            crate::GeneralizedSpillRecoveryVictim::Reload(stored),
+        ) if victim == stored => (
+            RecursiveSpillActionSource::EpochTwo {
+                work_item: action.source_work_item,
+                source_pressure: action.source_pressure,
+                victim,
+            },
+            RecursiveSpillStoredValue::Reload(victim),
+        ),
+        (
+            RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
+            crate::GeneralizedSpillRecoveryVictim::Original(victim),
+            crate::GeneralizedSpillRecoveryVictim::Original(stored),
+        ) if victim == stored => (
+            RecursiveSpillActionSource::EpochTwoOriginal {
+                work_item: action.source_work_item,
+                source_pressure: action.source_pressure,
+                victim,
+            },
+            RecursiveSpillStoredValue::Original(victim),
+        ),
+        (_, victim, _) => {
             return Err(RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
                 function,
                 action: id,
@@ -290,18 +315,14 @@ fn project_recovery_action(
     }
     Ok(PendingAction {
         id,
-        source: RecursiveSpillActionSource::EpochTwo {
-            work_item: action.source_work_item,
-            source_pressure: action.source_pressure,
-            victim,
-        },
+        source,
         class: action.storage.class,
         block: action.block,
         from: action.pressure_point,
         through: first.point,
         store_instruction: action.store.before_instruction,
         before_reload: Some(action.store.before_pressure_reload),
-        stored_value: RecursiveSpillStoredValue::Reload(victim),
+        stored_value,
         source_view: action.store.source_view,
         reload_instruction: action.reload.before_instruction,
         destination_class: action.reload.destination_class,
