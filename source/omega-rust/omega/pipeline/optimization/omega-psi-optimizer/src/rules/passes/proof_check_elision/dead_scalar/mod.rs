@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Exact unused unconditionally-total scalar elimination rule.
+//! Optimizer module role: executable entrance. Exact proof-certified unused scalar elimination rule.
 
 use omega_optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
@@ -6,8 +6,8 @@ use omega_optimization_core::{
 };
 use omega_optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
-use crate::rules::passes::DEAD_PURE_SCALAR_PASS_NAME;
-use crate::rules::passes::support::propose_unproved_dead_scalar_nodes;
+use crate::rules::passes::PROOF_CHECK_ELISION_PASS_NAME;
+use crate::rules::passes::support::propose_proof_certified_dead_scalar_nodes;
 use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 mod operation_admission;
@@ -15,28 +15,28 @@ mod operation_admission;
 use operation_admission::classify;
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DeadUnconditionallyTotalScalarEliminationRule;
+pub struct ProofCertifiedDeadScalarEliminationRule;
 
-impl DeadUnconditionallyTotalScalarEliminationRule {
+impl ProofCertifiedDeadScalarEliminationRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
+                b"omega.psi-rule.dead-unused-proof-certified-scalar-elimination.v1",
             ),
-            OptimizationPassIdentity::from_canonical_bytes(DEAD_PURE_SCALAR_PASS_NAME),
+            OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
             1,
             AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
             AnalysisInvalidationSet::new([
                 AnalysisKind::UseDefinition,
                 AnalysisKind::EffectSummaries,
             ]),
-            OptimizationSafetyClass::ExactOperationSemantics,
+            OptimizationSafetyClass::ProofCertified,
         )
         .expect("built-in rule has nonzero version")
     }
 }
 
-impl PsiOptimizationRule for DeadUnconditionallyTotalScalarEliminationRule {
+impl PsiOptimizationRule for ProofCertifiedDeadScalarEliminationRule {
     fn contract(&self) -> OptimizationRuleContract {
         Self::contract()
     }
@@ -46,6 +46,6 @@ impl PsiOptimizationRule for DeadUnconditionallyTotalScalarEliminationRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_unproved_dead_scalar_nodes(unit, analyses, Self::contract(), classify)
+        propose_proof_certified_dead_scalar_nodes(unit, analyses, Self::contract(), classify)
     }
 }

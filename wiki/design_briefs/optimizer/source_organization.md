@@ -162,12 +162,19 @@ passes, while `passes/<exact-pass>/mod.rs` visibly orders that pass's local
 rules. A family folder below a pass is a group, not another enablement table.
 
 Proof-check elision demonstrates the intended split. Its pass entrance is only
-the ordered roster and module map. Each exact identity leaf owns the operation
+the ordered roster and module map. Position zero's proof-certified dead-scalar
+rule lives at `proof_check_elision/dead_scalar/mod.rs`; no pass imports an
+enabled rule from a sibling pass. Each exact identity leaf owns the operation
 classifier bearing that identity's name. The adjacent `identity_rewrite/`
 group contains only the common candidate model, proposal construction, and
 typed zero/one vocabulary. Generic provenance accounting for deleting a node
 lives in `passes/support/node_elision_accounting.rs`, where GVN and proof-check
 elision consume it as peers; neither pass reaches through the other's module.
+The narrower `passes/support/dead_scalar_node/` protocol owns only liveness,
+effect, accounting, and proof-witness coordination shared by the literal,
+unconditionally-total, and proof-certified exact leaves. It receives each
+leaf's closed classifier and contract; it owns neither rule identity nor pass
+selection.
 
 Control-flow cleanup follows the same rule when two transformations share a
 concept but not an accounting contract. `empty_block_threading/` exposes
@@ -255,6 +262,13 @@ to prove default-disabled execution, exact evaluation order, deterministic
 repetition and budget failure, manifest/fact and ledger/commit custody,
 accepted-proof retention, source-obligation pruning, and fixed-point
 idempotence.
+
+Independent proof-check validation has the same single-entry route.
+`candidates/proof_check_elision/mod.rs` maps all twelve exact rule identities
+through its adjacent `rule_catalog.rs` to dead-node, operand-substitution,
+same-operand constant, or unit-divisor replay. The generic candidate dispatcher
+enters that route before patch-family dispatch; the SCCP entrance recognizes
+only SCCP rules and no longer contains a hidden proof-check identity table.
 
 SCCP range comparisons follow the same descent. The pass entrance retains the
 sole 39-row local order, while `range_comparisons/` first separates

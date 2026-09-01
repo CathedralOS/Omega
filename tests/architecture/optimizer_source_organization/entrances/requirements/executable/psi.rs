@@ -94,7 +94,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
-        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/proof_certified/mod.rs",
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/dead_scalar/mod.rs",
         coordination_marker: "fn propose(",
     },
     RequiredCoordinationEntrance {
@@ -296,6 +296,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/dead_scalar_elimination/mod.rs",
         coordination_marker: "fn validate_candidate_contract",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/proof_check_elision/mod.rs",
+        coordination_marker: "pub fn validate_proof_check_elision_candidate",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/copy_propagation/mod.rs",

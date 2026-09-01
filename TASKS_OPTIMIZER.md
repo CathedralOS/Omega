@@ -240,10 +240,17 @@ decision. Only true language-semantic questions belong in
   table; each pass entrance now owns its visible local rule order instead of
   re-exporting a sibling catalog function.
 - [x] Replace copy propagation's generic `rule.rs` and dead-scalar
-  elimination's mixed `rules.rs` with exact named rule leaves. Keep shared
-  family, proposal, shape, and accounting mechanics at their honest common
-  ancestor, and reject generic Psi production rule leaves in the architecture
-  guard.
+  elimination's mixed `rules.rs` with exact named rule leaves. Literal and
+  unconditionally-total admission remains under the dead-pure-scalar pass;
+  proof-certified dead-scalar admission lives under the proof-check pass that
+  actually enables it. Their neutral `support/dead_scalar_node/` rung owns
+  only shared traversal, liveness/effect, accounting, and witness mechanics,
+  while each exact leaf owns its pass, contract, and closed classifier. Retire
+  the former cross-pass family/shape/proposal paths and reject generic Psi
+  production rule leaves in the architecture guard. Independent proof-check
+  validation now has one visible twelve-rule routing entrance and adjacent
+  identity-to-protocol catalog; SCCP no longer recognizes or dispatches
+  proof-check rules.
 - [x] Split the 967-line optimization manifest into a 37-line wire-family
   entrance over decision-v5, pass-v1, work usage, fact reference, framing, and
   error leaves. Its tests now mirror those record families, and the guard
