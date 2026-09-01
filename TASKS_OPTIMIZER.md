@@ -501,7 +501,7 @@ decision. Only true language-semantic questions belong in
   recovery, and fixed-view-copy V6 persistence. Ordinary, Unit, and
   structural-scalar nonempty projection/lowering tests plus identity,
   independent replay, corruption, and V5 compatibility tests pin custody.
-- [ ] Apply **Boundary domain requirements consume carried qualifications**.
+- [>] Apply **Boundary domain requirements consume carried qualifications**.
   Terminal format 54 and vocabulary 57 remove the former boundary
   `requirement_obligations` field and wire payload rather than preserving an
   always-empty slot. Remaining work is to add optimizer/publication controls
@@ -509,7 +509,16 @@ decision. Only true language-semantic questions belong in
   qualification rosters, and declaration requirements; joins use at most the
   common intersection, CSE/GVN never equates unequal rosters by computation
   alone, and no transformation may widen a roster or otherwise mint a routed
-  qualification.
+  qualification. The first exact whole-root slice now crosses verified
+  Terminal production, a no-rewrite optimizer run, independent transformed-
+  unit replay, abstract-plan projection, and the pre-physical manifest. It
+  proves that the boundary call mints no proof question; binds the exact
+  boundary, empty argument path, carried roster, and declaration requirement;
+  and rejects reauthenticated missing/widened rosters, boundary substitution,
+  path substitution, erased requirements, and detached projection metadata.
+  Partial-path and operation-result qualification carriers plus explicit
+  join-intersection/CSE behavior remain engineering work, not open language
+  semantics.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
   versioned structural selected subtree; public encoding now emits v6 with
   exact structural-call requirement and crash-continuation rows. Decoding
@@ -650,8 +659,20 @@ decision. Only true language-semantic questions belong in
   corruption coverage. Current public logical plans contain at most one spill
   per function, so compiler fixtures can exercise only offset zero; internal
   interval tests pin overlapping, disjoint, touching, and cross-block coloring.
-  Physical spill/reload instruction insertion, final frame/SP/FP offsets,
-  unwind/probing integration, and downstream realization remain open.
+  A third independently replayed V1 artifact now joins those two validated
+  sources into one deterministic per-function abstract store/reload/rewrite
+  insertion schedule. It binds the logical plan, slot coloring, register
+  environment, allocator availability, optimization unit, fuel, budget,
+  physical views, reload class, and spill-area-relative geometry, with exact
+  ordering, empty-pressure, x86-64/AArch64, budget, and corruption coverage.
+  It creates no selected or machine instruction, allocates no reload home,
+  chooses no opcode or SP/FP address, and grants no frame, trap, unwind,
+  probing, encoding, emission, or publication authority. Lower spill-pseudo
+  representation, reload-value reanalysis/home assignment, abstract spill
+  memory effects and ISA lowering, final frame offsets, unwind/probing, and
+  downstream realization remain engineering work. Real memory insertion is
+  owner-blocked only on the spill-access fault semantics recorded in
+  `OWNER_QUESTIONS.md`; the abstract schedule itself is not blocked.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,
@@ -826,7 +847,14 @@ unchecked rewrite or opt into lossy floating-point semantics.
   custody fields plus authenticated phase-local selection, baseline/final
   layout, relaxation-identity, and rel8 exit-custody mutations. Its immutable
   replacement layout is likewise not reconsumable as the baseline input. The
-  remaining operational axes and other rule families are not yet complete.
+  active-resident immediate-U64 multi-use rematerialization rule now has an
+  operational matrix covering explicit disablement, typed no-pressure
+  refusal, applied x86-64/AArch64 cases, repeated reconstruction across every
+  recovery carrier, exact component work usages and first-over budgets, direct
+  action and enclosing-custody corruption, and a genuine second application
+  over rebuilt post-transform analyses that deterministically reaches
+  `NoAction`. The remaining operational axes and other rule families are not
+  yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The

@@ -7,6 +7,7 @@
 mod admission;
 mod function_relative;
 mod layout_independent_encoding;
+mod operational;
 mod post_allocation_machine;
 mod register_homes;
 mod resolved_layout;

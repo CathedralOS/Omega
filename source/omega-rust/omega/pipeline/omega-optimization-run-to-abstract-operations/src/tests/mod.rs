@@ -35,6 +35,7 @@ use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 use super::*;
 use crate::replay::work_usage;
 
+mod fixtures_boundary_qualifications;
 mod fixtures_common;
 mod fixtures_control_flow;
 mod fixtures_copy_propagation;
@@ -42,6 +43,7 @@ mod fixtures_gvn;
 mod fixtures_proof_elision;
 mod fixtures_scalar;
 
+use fixtures_boundary_qualifications::*;
 use fixtures_common::*;
 use fixtures_control_flow::*;
 use fixtures_copy_propagation::*;
@@ -49,6 +51,7 @@ use fixtures_gvn::*;
 use fixtures_proof_elision::*;
 use fixtures_scalar::*;
 
+mod boundary_qualifications;
 mod control_flow;
 mod copy_propagation;
 mod corruption;
