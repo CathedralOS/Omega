@@ -10323,9 +10323,9 @@ Remaining N6/N8 work:
   exact call endpoints; reconstruction imports only the guarded implication
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
-  bounded rung now permits one, two, three, four, or five distinct bound whole-
-  result terms to be used once each: the matching payloadless arm may pass them
-  as dense ordered named `requires` inputs of one direct tail state whose sole
+  bounded rung now permits one, two, three, four, five, or six distinct bound
+  whole-result terms to be used once each: the matching payloadless arm may pass
+  them as dense ordered named `requires` inputs of one direct tail state whose sole
   ordinary argument is the saved result and whose body returns that argument
   unchanged. Terminal
   retains an independently resolvable third machine with the exact ordered
@@ -10335,7 +10335,7 @@ Remaining N6/N8 work:
   the verifier reject omitted, duplicated, reordered, redirected, interface-
   drifted, or non-identity uses while fixed fuel and interpretation retain the
   existing four-unit runtime. Payload projections, multiple or partial-result
-  substitutions, six-or-more evidence arguments, repeated term use, later
+  substitutions, seven-or-more evidence arguments, repeated term use, later
   invalidation, erased proof-output linkage, wider structural calls, and
   tagged-sum execution remain fail-closed.
 

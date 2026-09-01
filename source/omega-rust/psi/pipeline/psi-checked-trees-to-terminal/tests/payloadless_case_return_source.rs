@@ -386,6 +386,66 @@ const SIX_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
     }
 "#;
 
+const SEVEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
+    trait Evidence {}
+    data Outcome [copy] { case Success; case Failure; }
+    proposition accepted(value: Outcome) evidence Evidence;
+    proposition trusted(value: Outcome) evidence Evidence;
+    proposition certified(value: Outcome) evidence Evidence;
+    proposition reviewed(value: Outcome) evidence Evidence;
+    proposition sealed(value: Outcome) evidence Evidence;
+    proposition ratified(value: Outcome) evidence Evidence;
+    proposition endorsed(value: Outcome) evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    data Root {}
+
+    machine Root::produce() -> Outcome
+    ensures Outcome::Success -> {
+        first: accepted(result);
+        second: trusted(result);
+        third: certified(result);
+        fourth: reviewed(result);
+        fifth: sealed(result);
+        sixth: ratified(result);
+        seventh: endorsed(result);
+    }
+    {
+        first = ConcreteEvidence;
+        second = ConcreteEvidence;
+        third = ConcreteEvidence;
+        fourth = ConcreteEvidence;
+        fifth = ConcreteEvidence;
+        sixth = ConcreteEvidence;
+        seventh = ConcreteEvidence;
+        Outcome::Success
+    }
+
+    machine Root::caller() -> Outcome {
+        let saved: Outcome = Root::produce();
+        transition saved {
+            Outcome::Success {
+                ; first: local_first, second: local_second,
+                  third: local_third, fourth: local_fourth,
+                  fifth: local_fifth, sixth: local_sixth,
+                  seventh: local_seventh
+            } -> finish(
+                saved; local_first, local_second, local_third,
+                local_fourth, local_fifth, local_sixth, local_seventh
+            )
+            Outcome::Failure { } -> saved
+        }
+        state finish(value: Outcome) -> Outcome
+        requires needed_first: accepted(value)
+        requires needed_second: trusted(value)
+        requires needed_third: certified(value)
+        requires needed_fourth: reviewed(value)
+        requires needed_fifth: sealed(value)
+        requires needed_sixth: ratified(value)
+        requires needed_seventh: endorsed(value)
+        { value }
+    }
+"#;
+
 #[test]
 fn selected_witness_tail_use_is_canonical_and_runtime_free() {
     let checked = checked(SELECTED_WITNESS_TAIL_USE_SOURCE);
@@ -1007,8 +1067,135 @@ fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 }
 
 #[test]
-fn six_selected_witness_tail_uses_remain_outside_the_bounded_rung() {
+fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     let checked = checked(SIX_SELECTED_WITNESS_TAIL_USES_SOURCE);
+    let caller_symbol = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("caller"))
+        .unwrap()
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(caller_symbol)
+        .expect("the exact six-witness tail use has a checked plan");
+    assert_eq!(plan.selected_evidence.len(), 6);
+    assert_eq!(
+        plan.selected_evidence
+            .iter()
+            .map(|selection| selection.tail_use.as_ref().unwrap().input_position)
+            .collect::<Vec<_>>(),
+        [0, 1, 2, 3, 4, 5]
+    );
+    assert!(
+        plan.selected_evidence
+            .windows(2)
+            .all(|rows| rows[0].selected_term != rows[1].selected_term)
+    );
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::caller")
+        .expect("the exact six-witness tail use lowers");
+    let module = &lowered.semantic_module;
+    let [caller, _callee, target] = module.machines.as_slice() else {
+        panic!("caller, producer, and proof-visible tail target remain canonical")
+    };
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        panic!("the producer call remains structural")
+    };
+    assert_eq!(selected_evidence.len(), 6);
+    assert_eq!(target.contract.requires.len(), 6);
+    let mut terminal_positions = Vec::new();
+    for selected in selected_evidence {
+        let [use_] = selected.uses.as_slice() else {
+            panic!("each selected row has one exact use")
+        };
+        assert_eq!(selected.expected_use_count, 1);
+        assert_eq!(use_.target, target.id);
+        assert_eq!(use_.source, selected.output);
+        let position = usize::try_from(use_.input_position).unwrap();
+        terminal_positions.push(use_.input_position);
+        assert_eq!(
+            target.contract.requires[position],
+            psi_core::Proposition::Atom(use_.target_requirement)
+        );
+    }
+    terminal_positions.sort_unstable();
+    assert_eq!(terminal_positions, [0, 1, 2, 3, 4, 5]);
+    assert!(target.blocks[0].operations.is_empty());
+
+    let bytes = encode_module(module).expect("six selected-witness rows encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
+    let verified = psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("all six independent tail requirements replay");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, module.entry)
+            .expect("proof-only uses do not add fuel")
+            .ceiling_units(),
+        4
+    );
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
+            .expect("six-witness artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(4);
+    assert!(matches!(
+        execution.resume(&mut meter).expect("artifact completes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(_))
+    ));
+
+    let mut reordered = module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut reordered.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence.swap(4, 5);
+    assert!(psi_terminal_verifier::validate_module(&reordered).is_err());
+
+    let mut duplicated_lane = module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut duplicated_lane.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence[5].uses[0].input_position = selected_evidence[4].uses[0].input_position;
+    assert!(psi_terminal_verifier::validate_module(&duplicated_lane).is_err());
+
+    let mut omitted_sixth = module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut omitted_sixth.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence.pop();
+    assert!(psi_terminal_verifier::validate_module(&omitted_sixth).is_err());
+
+    let mut seven_terminal_rows = module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut seven_terminal_rows.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected_evidence.push(selected_evidence[5].clone());
+    assert!(psi_terminal_verifier::validate_module(&seven_terminal_rows).is_err());
+}
+
+#[test]
+fn seven_selected_witness_tail_uses_remain_outside_the_bounded_rung() {
+    let checked = checked(SEVEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
