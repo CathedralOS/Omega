@@ -465,12 +465,12 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty-seven abstract-to-target families, including
+  machine-rule family. Twenty-eight abstract-to-target families, including
   proof-bearing exact parameterized fixed-integer addition, subtraction,
-  multiplication, division, and remainder plus saturating parameterized integer
-  addition, subtraction, and multiplication, selected incoming u12 folds,
-  current machine substitutions, structural-Unit encoding, resolved layout,
-  and ranked-u32 publication routes
+  multiplication, division, and remainder, proof-bearing wrapping division,
+  plus saturating parameterized integer addition, subtraction, and
+  multiplication, selected incoming u12 folds, current machine substitutions,
+  structural-Unit encoding, resolved layout, and ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
   fragment emission, relocation-free text/object custody, validated object
   publication, and callable-entry replay with exact source-kind, manifest, byte,
@@ -547,6 +547,13 @@ decision. Only true language-semantic questions belong in
   exact-divide, and exact-remainder also cross optimized-target custody with real
   Terminal certificates; quotient and remainder use Terminal's canonical
   nonzero-divisor and representable-result goal.
+- [x] Add independent proof-bearing wrapping-divide parameter translation. Its
+  exact catalog row retains ordered fixed-integer operands and the source
+  obligation, rejects address carriers and every arithmetic-policy
+  substitution, and crosses optimized-target custody with Terminal's canonical
+  nonzero-divisor certificate. Signed `MIN / -1` remains defined by
+  wrap-to-carrier and therefore does not acquire exact division's
+  representable-result precondition.
 - [x] Add independent saturating-add and saturating-subtract parameter
   translation families. Each exact catalog row reconstructs ordered source
   operands, whole-roster ABI placement, provenance, and its matching target

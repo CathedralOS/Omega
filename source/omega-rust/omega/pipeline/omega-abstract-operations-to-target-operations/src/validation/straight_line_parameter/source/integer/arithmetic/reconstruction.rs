@@ -7,6 +7,7 @@ use super::super::super::super::model::{
     ExactIntegerAddParametersSource, ExactIntegerDivideParametersSource,
     ExactIntegerMultiplyParametersSource, ExactIntegerRemainderParametersSource,
     ExactIntegerSubtractParametersSource, IntegerArithmeticParametersSource,
+    WrappingIntegerDivideParametersSource,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
@@ -18,6 +19,7 @@ use crate::validation::model::{
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
@@ -105,6 +107,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_remainde
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::exact_remainder::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_divide(
+    function: &AbstractFunction,
+) -> Result<
+    WrappingIntegerDivideParametersSource,
+    StraightLineWrappingIntegerDivideParametersTranslationError,
+> {
+    let Some(AbstractOperation::WrappingIntegerDivide { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineWrappingIntegerDivideParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::wrapping_divide::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(

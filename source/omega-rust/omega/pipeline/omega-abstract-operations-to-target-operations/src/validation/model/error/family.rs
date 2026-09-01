@@ -25,6 +25,7 @@ use super::parameter::{
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
@@ -66,6 +67,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineExactIntegerRemainderParameters(
         StraightLineExactIntegerRemainderParametersTranslationError,
+    ),
+    StraightLineWrappingIntegerDivideParameters(
+        StraightLineWrappingIntegerDivideParametersTranslationError,
     ),
     StraightLineSaturatingIntegerAddParameters(
         StraightLineSaturatingIntegerAddParametersTranslationError,

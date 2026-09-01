@@ -1,0 +1,33 @@
+//! Stable identities for independently replayed abstract-to-target families.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AbstractToTargetTranslationFamily {
+    StraightLineIntegerImmediate,
+    StraightLineBooleanImmediate,
+    StraightLineScalarCrash,
+    StraightLineIntegerParameter,
+    StraightLineBooleanParameter,
+    StraightLineBooleanNotParameter,
+    StraightLineIntegerBitwiseNotParameter,
+    StraightLineBooleanEqualParameters,
+    StraightLineIntegerEqualParameters,
+    StraightLineIntegerLessThanParameters,
+    StraightLineIntegerLessOrEqualParameters,
+    StraightLineIntegerWidenParameter,
+    StraightLineIntegerExactCastParameter,
+    StraightLineIntegerBitwiseAndParameters,
+    StraightLineIntegerBitwiseOrParameters,
+    StraightLineIntegerBitwiseXorParameters,
+    StraightLineExactIntegerAddParameters,
+    StraightLineExactIntegerSubtractParameters,
+    StraightLineExactIntegerMultiplyParameters,
+    StraightLineExactIntegerDivideParameters,
+    StraightLineExactIntegerRemainderParameters,
+    StraightLineWrappingIntegerDivideParameters,
+    StraightLineSaturatingIntegerAddParameters,
+    StraightLineWrappingIntegerAddParameters,
+    StraightLineSaturatingIntegerSubtractParameters,
+    StraightLineWrappingIntegerSubtractParameters,
+    StraightLineWrappingIntegerMultiplyParameters,
+    StraightLineSaturatingIntegerMultiplyParameters,
+}

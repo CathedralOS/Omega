@@ -34,6 +34,7 @@ pub use parameter::{
     StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt,
     StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
+    StraightLineWrappingIntegerDivideParametersTranslationReceipt,
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };

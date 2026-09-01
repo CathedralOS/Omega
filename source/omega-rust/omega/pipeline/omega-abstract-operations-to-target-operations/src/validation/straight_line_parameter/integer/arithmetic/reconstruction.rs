@@ -8,6 +8,7 @@ use super::super::super::model::{
     ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerDivideParameters,
     ReconstructedExactIntegerMultiplyParameters, ReconstructedExactIntegerRemainderParameters,
     ReconstructedExactIntegerSubtractParameters, ReconstructedIntegerArithmeticParameters,
+    ReconstructedWrappingIntegerDivideParameters,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
@@ -19,6 +20,7 @@ use crate::validation::model::{
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
@@ -132,6 +134,29 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_remainde
         StraightLineExactIntegerRemainderParametersTranslationError::TargetProvenance,
     )?;
     Ok(ReconstructedExactIntegerRemainderParameters {
+        arithmetic,
+        obligation: source.obligation,
+    })
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_divide(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedWrappingIntegerDivideParameters,
+    StraightLineWrappingIntegerDivideParametersTranslationError,
+> {
+    let source =
+        super::super::super::source::integer::arithmetic::reconstruct_wrapping_divide(function)?;
+    let arithmetic = super::replay::reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source.arithmetic,
+        StraightLineWrappingIntegerDivideParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedWrappingIntegerDivideParameters {
         arithmetic,
         obligation: source.obligation,
     })
