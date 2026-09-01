@@ -1,390 +1,134 @@
-# Gamma language
+# The Gamma language
 
-Gamma is the small, typed, pure definitional language used to implement the
-Delta compiler. A canonical Beta-written compiler accepts this language and
-emits Alpha tape directly. The older interpreter and type checker are bounded
-oracles and implementation material; neither defines a second Gamma language.
+> The small structured systems layer above Beta assembly. The canonical
+> compiler is implemented in Beta.
+> The rung name and place in `Alpha → Beta → Gamma → Delta → Epsilon` are fixed by
+> bootstrap decision D6.
+> Runtime meaning is fixed separately by [`SEMANTICS.md`](SEMANTICS.md).
 
-## Source envelope
+## What it is
 
-Gamma source uses the bootstrap textual-ASCII envelope. The only admitted
-source bytes are HT, LF, CR, and printable ASCII. NUL, DEL, bytes above `0x7F`,
-every other control byte, and a Unicode BOM reject before tokenization at their
-exact byte offsets. There is no decoding, normalization, Unicode table, or
-host-locale-dependent lexical rule.
+A small, monomorphic systems language — one scalar type (`i64`), raw memory access,
+procedures with parameters and locals (lowered to the
+[calling convention](CALLING_CONVENTION.md)), and **CFG/Omega-style control flow**:
+`state` basic blocks linked by guarded `to … when …` transitions, no `if`/`while`.
+Control flow is a state graph (the shape the higher Omega rung uses), not structured
+statements — a proc falls into its first state and into the next unless it transitions
+or returns; a loop is a state that transitions back to itself.
+That is exactly enough to write a lexer, parser, symbol table, and code emitter —
+the assembler proves the floor (it does all of this in raw assembly; Gamma just
+makes it pleasant). No types beyond `i64`, no generics, no proofs — those are
+higher rungs.
 
-Identifiers and decimal digits use explicit ASCII ranges. Exactly space, tab,
-CR, and LF are whitespace. A comment ends at CR, LF, or source end. Literal
-escapes, rather than raw non-ASCII source bytes, produce other byte values.
+## Grammar (v1)
 
-An identifier is `[A-Za-z_][A-Za-z0-9_]*`. Type and constructor names begin
-with `A..Z`; function, parameter, and local names begin with `a..z` or `_`.
-Keywords and the closed `bytes_*` built-ins are reserved. `;` begins a line
-comment. An integer literal is an optional `-` followed by one or more ASCII
-decimal digits and must fit `Int`.
-
-## Program form
-
-A Gamma program is a sequence of algebraic-data declarations followed by typed
-function declarations:
-
-```text
-program      := data-declaration* function-declaration+
-data         := (data TYPE (CONSTRUCTOR TYPE*)+)
-function     := (def NAME ((NAME TYPE)*) TYPE expression)
-type         := Int | Bytes | TYPE
-expression   := INTEGER | NAME
-              | (if expression expression expression)
-              | (let NAME expression expression)
-              | (+ expression expression) | (- expression expression)
-              | (* expression expression) | (/ expression expression)
-              | (% expression expression) | (eq expression expression)
-              | (lt expression expression)
-              | (NAME expression*)
-              | CONSTRUCTOR | (CONSTRUCTOR expression*)
-              | (match expression (pattern expression)+)
-              | (bytes_empty) | (bytes_single expression)
-              | (bytes_length expression)
-              | (bytes_get expression expression)
-              | (bytes_slice expression expression expression)
-              | (bytes_concat expression expression)
-pattern      := NAME | CONSTRUCTOR | (CONSTRUCTOR NAME*)
+```
+program    := proc*
+proc       := 'proc' IDENT '(' params? ')' block
+params     := IDENT (',' IDENT)*
+block      := '{' ordinary* state* '}'
+state      := 'state' IDENT block              ; recursively authored, flat CFG label
+ordinary   := 'let' IDENT '=' expr             ; declare + init a local
+            | IDENT '=' expr                  ; assign a local
+            | store                           ; write memory
+            | 'to' IDENT ('when' expr)?       ; a transition: jump, or guarded jump
+            | 'return' expr
+            | call                            ; call for effect (result discarded)
+            | 'emit' '(' STRING ')'           ; fixed byte output only
+expr       := sum (cmpop sum)?                ; a comparison yields 0 / 1
+sum        := term (('+' | '-') term)*
+term       := factor (('*' | '/' | '%') factor)*
+factor     := INT | CHAR | IDENT | call | load | '(' expr ')'
+call       := IDENT '(' (expr (',' expr)*)? ')'
+load       := 'byte' '[' expr ']'   |   'word' '[' expr ']'
+store      := ('byte' | 'word') '[' expr ']' '=' expr
+cmpop      := '<' | '>' | '==' | '<=' | '>=' | '!='
+CHAR       := "'" (char | '\\' ('n'|'t'|'r'|'0'|'\\'|"'")) "'"   ; the byte value
+INT        := decimal digits whose mathematical value is in 0..2^64-1
 ```
 
-The final source item is a declaration, not an untyped trailing expression.
-Declarations are mutually visible, so forward and mutual recursion are legal.
-Gamma is monomorphic and fully annotated. It has no closures, higher-order
-functions, mutation, effects, subtyping, or implicit conversion. Algebraic data
-is immutable and nominal.
+## Lexical form
 
-`Int` and `Bytes` are the only built-in data types. Every other type and
-constructor is declared in source. Functions and constructors support arbitrary
-arity; Beta's register count is not a Gamma language limit.
+Gamma source is a byte stream in the bootstrap textual-ASCII envelope. The only
+admitted source bytes are horizontal tab (`0x09`), line feed (`0x0A`), carriage
+return (`0x0D`), and printable ASCII (`0x20..0x7E`). NUL, DEL, bytes above
+`0x7F`, and every other control byte reject before tokenization at their exact
+byte offset. There is no source decoding, BOM, Unicode normalization,
+host-locale rule, or Unicode character classification.
 
-Gamma has four grammar-distinguished namespaces: type names, constructor names,
-function names, and local value names. Global declarations are unique within
-their namespace: type declarations are unique among types, constructors are
-globally unique among constructors because constructor uses are unqualified,
-and functions are unique among functions. The same spelling may name a type and a
-constructor, or a function and a local value, because the grammar determines
-which namespace each occurrence consults. For example, `(data Token (Token
-Int))` is well formed, and in `(f f)` the list head denotes the global function
-while the argument atom may denote a local `f`. Gamma has no function values.
+Space, tab, CR, and LF are the complete whitespace set. `;` begins a comment
+through the next CR, LF, or source end. Identifiers match
+`[A-Za-z_][A-Za-z0-9_]*`; decimal digits are exactly `0..9`. A direct character
+literal byte is printable ASCII except single quote and backslash, which use
+the closed escapes in the grammar. A direct `emit` string byte is printable
+ASCII except double quote and backslash; its escapes are exactly
+`\n \t \r \0 \\ \"`.
 
-Parameters, `let` binders, constructor-pattern binders, and catch-all pattern
-binders inhabit the local-value namespace. No new binder may duplicate a name
-in its active lexical environment. Parameters of one function are mutually
-unique. A `let` initializer is checked in the outer environment; its binder is
-active only in the body and may not duplicate an active parameter, `let`, or
-pattern binder. Pattern binders are mutually unique, may not duplicate an
-active outer local, and are active only in their match arm. A catch-all name is
-an ordinary arm-local binder. Disjoint arms, branches, and sibling scopes may
-reuse a spelling because their environments are never active together.
-Duplicate pattern names reject; they never express an equality constraint.
+These are source rules, not value restrictions. `write_byte(x)` can emit any
+low byte of `x`, and escapes can produce admitted control data without placing
+the corresponding control byte raw in source.
 
-Compilation first collects every global declaration and rejects the exact later
-declaration of a duplicate in that namespace. It then resolves mutually visible
-declaration types and checks bodies with scope-aware local-environment push/pop.
-A local conflict is reported at the exact later binder. Lookup never chooses a
-first or last row among competing declarations.
+**GAMMA-FLATTENED-CFG-INITIALIZATION.** Every procedure body and state body has
+the same recursive authored shape: an ordinary-statement prefix followed by
+zero or more state declarations. Once a state declaration begins in one block,
+no loose ordinary statement may follow it in that block. Within the ordinary
+prefix, `return` and an unconditional `to` must be the final ordinary statement;
+following state declarations remain legal because they declare separately
+targetable blocks.
 
-## Static semantics
+Nesting organizes source but does not create hierarchical runtime control or
+scope. State declarations flatten to procedure-wide labels in exact depth-first
+lexical order: emit a state's label, visit its ordinary prefix, recursively
+visit its child states, then continue with the next state after that subtree.
+An unterminated final child therefore falls through to the next outer sibling.
+All state names are unique and targetable throughout their procedure; braces do
+not qualify a state name or restrict a `to` edge.
 
-The checker resolves every type, function, constructor, variable, and pattern
-against its declaration. It checks parameter, function, and constructor arity;
-operator operands; call arguments; declared result types; match scrutinees;
-pattern constructors and bindings; and agreement among every match arm.
+Locals likewise occupy procedure-wide frame slots rather than block scopes. A
+`let` declaration becomes visible from its position in the flattened lexical
+order through the remainder of the procedure. Its initializer establishes the
+slot only after the expression succeeds. A later assignment to a resolved slot
+also establishes it after evaluating its right-hand side; reads require
+every-path establishment under the rules in `SEMANTICS.md`.
 
-Every match over an algebraic type is exhaustive. Constructors may be covered
-directly or by one final catch-all binding. Duplicate constructor arms, an arm
-after a catch-all, a constructor from another type, and a missing constructor
-reject the program. A checked Gamma program therefore has no dynamic
-"no arm matched" value.
+`;`-to-end-of-line comments. `read_byte()` / `write_byte(x)` are built-in calls
+(the only host boundary, straight to Alpha `read`/`write`); a call may also stand
+alone as a statement (`f(x)`), evaluated for effect with its result discarded.
+A char literal `'a'` is just its byte value (an `INT`), so text-processing code
+reads in characters instead of magic numbers (`peek() - '0'`, `c == '('`).
+Leading zeros are permitted in an `INT`; the range check is on its mathematical
+value and occurs before any wrapping machine accumulation.
 
-This requirement closes a known correlated oracle defect: the temporary type
-checker once omitted exhaustiveness while the interpreter fabricated `Int`
-zero when no arm matched. The checker now rejects incomplete coverage and the
-interpreter traps on the impossible runtime state as migration hardening, but
-their former agreement still demonstrates why a differential cannot establish
-a rule both sides omit. The direct compiler remains responsible for the
-authoritative static judgment.
+`emit("text")` is the one place a string literal is allowed: it writes the bytes
+to stdout (lowering to a `write` per byte). There is **no string type** — it is a
+write-only convenience so a compiler written in Gamma can emit fixed output (e.g.
+assembly mnemonics) without spelling every byte. `"..."` escapes are exactly
+`\n \t \r \0 \\ \"`.
 
-## Evaluation
+## Lowering (every construct maps to what we already have)
 
-Evaluation is pure, strict, and left-to-right. `if` evaluates only its selected
-branch. `match` evaluates its scrutinee once and then its selected arm. A
-function call evaluates each argument once from left to right before entering
-the callee. Proper tail calls are required: terminating tail recursion cannot
-also depend on an implementation return-stack ceiling.
+| Construct | Lowers to |
+| --- | --- |
+| `proc f(a, b) { ... }` | a label `f:`; params arrive in `r0`,`r1`; an `r14` frame-pointer prologue allocates below `r15`; the epilogue restores both |
+| `let x = e` / `x = e` | a frame slot at `[r14 - off]`; evaluate `e`, `store` into the slot |
+| reading `x` | `load` from its frame slot |
+| `f(args...)` | evaluate args into `r0..r3` (spilling caller-saved live values to the frame first); `call f`; result in `r0` |
+| `expr` | stack-based evaluation for `+ - * / %` and comparisons |
+| `state S { ... }` | a procedure-wide label `<proc>__S:` in depth-first lexical order; falls through to the next flattened state |
+| `to S` / `to S when e` | `jmp <proc>__S` / evaluate `e`, `jz` past a `jmp` to it |
+| `return e` | evaluate `e` into `r0`; epilogue; `ret` |
+| `byte[e]` / `word[e]` | checked logical raw-memory address, physical-region bias, then `loadb` / `load`; stores analogously |
 
-`Int` is a checked signed 64-bit integer. `eq` and `lt` on integers produce `0`
-or `1`; `if` treats zero as false and every other integer as true.
+## Deliberate limits
 
-`Bytes` is an immutable finite byte sequence, not an algebraic list and not a
-raw-memory address. The six `bytes_*` forms above are closed built-ins:
-`bytes_empty` and `bytes_single` construct; `bytes_length` returns `Int`;
-`bytes_get` returns the selected byte as `Int`; `bytes_slice` takes start and
-length; and `bytes_concat` joins two sequences. Every valid `Bytes` has an exact
-logical length representable as a nonnegative `Int`. `bytes_empty`,
-`bytes_single`, and `bytes_slice` preserve that invariant. `bytes_concat` loads
-the operands' logical lengths and traps before allocation when their exact
-mathematical sum exceeds `INT64_MAX`; otherwise its result stores that exact
-sum. `bytes_length` is therefore total over every valid `Bytes`. The compiler
-may represent sealed input as a flat view and constructed output as chunks or a
-rope, but representation and storage coordinates are never Gamma values.
+- One scalar type: `i64`.
+- At most four register arguments and one `r0` return value.
+- Raw `byte[]` and `word[]` memory rather than records or a safe object model.
+- No algebraic data, pattern matching, ownership, effects, generics, or proofs.
+- String literals exist only inside `emit`; there is no string value type.
 
-The authored runtime trap conditions are closed:
-
-- the mathematical result of signed addition, subtraction, or multiplication
-  is not representable as `Int`;
-- integer division or remainder has a zero divisor, or applies the signed
-  overflow pair `INT64_MIN` and `-1`;
-- `bytes_single` receives a value outside `0..255`;
-- `bytes_get` receives a negative or out-of-range index;
-- `bytes_slice` receives a negative start or length, or a range not contained
-  in its input; or
-- `bytes_concat` would produce a logical length greater than `INT64_MAX`.
-
-Out-of-range integer literals are static rejection rather than runtime traps.
-A malformed private `Bytes` descriptor, an impossible checked state, or replay
-disagreement is `InternalFailure`; physical heap, stack, input, or output
-exhaustion is `Incomplete`. Neither condition is a Gamma trap.
-
-The compact primitive is required by the compiler customer. Representing the
-4 MiB input profile as one `Cons(Int, Bytes)` node per byte would require at
-least 64 MiB at the current 16-byte row size, while the existing Gamma oracle
-has a 16 MiB heap. That mismatch is structural, not an optimization problem.
-
-Divergence remains divergence. Fuel is never Gamma meaning. An evaluator may
-bound work for a diagnostic run, but fuel exhaustion is an implementation
-profile's `Incomplete` result and proves neither rejection nor divergence.
-
-## Compiler-application profile
-
-Gamma itself has no byte-I/O operation. Its source semantics ends at a pure
-returned value; a compiler-generated Alpha adapter may join that value to
-sealed input and an external observation contract. D19 fixes that adapter
-choice as one closed, sealed application-profile ID supplied alongside the
-exact Gamma source. The ID is part of compilation identity and reconstruction
-evidence. It is not Gamma syntax, an ambient host flag, a filename convention,
-or a property inferred from source names.
-
-The canonical version-1 request is one exact length-delimited byte sequence:
-
-```text
-0..7    [47 43 52 45 51 01 00 00]  (`GCREQ`, version 1, reserved)
-8..11   application-profile ID, little-endian u32
-12..15  Gamma-source byte length, little-endian u32
-16..    exact Gamma-source bytes; exact end of request
-```
-
-The consuming compiler artifact's embedded metadata owns the profile-ID set.
-Version 1 assigns `1` to `ConformanceBytesV1` and `2` to
-`DeltaCompilerV1`; zero and every ID unknown to that artifact reject. A later
-ID does not require a new envelope version, while a representation change does.
-The exact request and selected embedded metadata participate in compilation
-identity. Profile facts are never repeated as request claims or inferred from
-source, filenames, or ambient invocation state.
-
-Each profile declares one exact maximum sealed-input extent satisfying
-`0 <= maximum <= INT64_MAX`. Both version-1 profiles select 4,194,304 bytes.
-`ConformanceBytesV1` also selects a 4,194,304-byte maximum successful output;
-`DeltaCompilerV1` selects AlphaBootstrapV2's 1,048,572-byte raw-tape maximum.
-The compiler validates those facts before adapter emission; an admitted input
-can therefore always become a valid Gamma `Bytes`. An input or output exceeding
-the selected maximum is profile-owned `Incomplete`, not a Gamma trap. These
-application limits are distinct from the Beta-written compiler's own 4-MiB
-Gamma-source resource even where their numeric values coincide.
-
-The two profiles are:
-
-- `ConformanceBytesV1` requires `main : Bytes -> Bytes`. Its adapter reads
-  one sealed input, invokes `main`, preflights the complete returned value, and
-  publishes exactly those bytes on success. Its runtime-containment outcomes
-  are profile-owned generated-program observations, not `GCOUT` or `DCOUT`.
-- `DeltaCompilerV1` requires the Gamma-written Delta compiler's exact entry and
-  result schema:
-
-```text
-(data DeltaCompileOutcome
-  (Complete Bytes)
-  (Reject DeltaRejectReason Int)
-  (StorageIncompleteAt Int Int Int)
-  (StorageIncompleteTotal Int Int))
-
-(def main ((source Bytes)) DeltaCompileOutcome ...)
-```
-
-The `Int` in `Reject` is the source byte offset. The storage-refusal payloads
-are respectively `(limit, requested, source_offset)` and `(limit, requested)`;
-they report only D31/D34's selected application-static-storage capacity. D17 and
-`source/delta/LANGUAGE.md` own the source-declared closed
-`DeltaRejectReason` and `DeltaCompileOutcome` sums. `Int` and `Bytes` remain
-Gamma's only built-in types; the profile injects no hidden nominal declaration.
-The selected `DeltaCompilerV1` profile owns the explicit `DCOUT`
-constructor-to-wire-code table and its version. That deliberate coupling keeps
-the published wire boundary stable; codes never derive from declaration order.
-
-Before emission, the compiler resolves and retains the exact `main`, outcome
-type, outcome constructors, and reason constructors. It requires exactly the
-four displayed outcome cases and payloads. The `DCOUT` table must be a total
-checked bijection over the complete reason sum: every exact constructor has one
-unique in-range code, and every table entry identifies one exact constructor.
-Matching names or shapes never select the profile and do not make nominal types
-interchangeable. A schema, entry, or table mismatch is a `GCOUT` compilation
-rejection; adding or removing a reason requires an explicit D17/profile-version
-decision.
-
-Only the generated `DeltaCompilerV1` Alpha adapter performs I/O. It reads sealed
-stdin, constructs the input `Bytes`, invokes `main`, and maps a returned value
-as follows:
-
-- `Complete(bytes)` validates and writes the exact raw artifact, then halts 0.
-- `Reject(reason, offset)` validates the exact reason and
-  `0 <= offset <= input length`, writes the accepted-edge diagnostic frame, and
-  halts 1.
-- `StorageIncompleteAt(limit, requested, offset)` validates the selected
-  application-static-storage limit in `0..INT64_MAX-1`, `requested > limit`,
-  and an in-range source offset, writes
-  `DCOUT::Incomplete(ApplicationStaticStorageBytes)` in
-  coordinate space 1, and halts 2. Any failed payload check is
-  `InternalFailure(InvalidReturnedOutcome)`.
-- `StorageIncompleteTotal(limit, requested)` performs the same limit checks,
-  writes that resource in coordinate space 0, and halts 2.
-- private source, heap, stack, output, or adapter exhaustion writes an
-  `Incomplete` frame and halts 2.
-- a Gamma trap, impossible checked state, adapter contradiction, or replay
-  disagreement writes an `InternalFailure` frame and halts 3.
-
-The two storage constructors are the sole source-authored path to
-`Incomplete`; input, stack, heap, output, and every `InternalFailure` remain
-adapter-owned. For these constructors only, D34 defines `requested` as
-`min(exact_demand, INT64_MAX)`: exact while representable, otherwise the
-canonical exceeded-demand witness. The V1 frame and its zero-reserved bytes do
-not change. No failure path publishes partial artifact bytes.
-
-### Conformance observation profile
-
-`ConformanceBytesV1` writes no byte until the complete returned `Bytes` has
-passed descriptor, logical-length, traversal, and output-extent preflight. Halt
-0 publishes exactly that value. Every recognized failure publishes empty
-stdout. The generated-program status block is:
-
-```text
-132  Alpha VM illegal-instruction trap
-248  InternalFailure
-249  AuthoredTrap
-250  StackExhausted
-251  MemoryContainmentViolation
-252  HeapExhausted
-253  InputExtent
-254  OutputExtent
-255  unassigned and noncanonical
-```
-
-Status 132 is the Alpha VM refusing an illegal instruction, not a Gamma
-language trap. Status 249 is a deliberate generated-code observation of one of
-Gamma's closed authored trap conditions. Status 255 remains unavailable so a
-shell or harness projection of `-1` cannot imitate an admitted internal
-failure. Divergence produces no terminal observation. The temporary
-`interp.beta` oracle predates this block and retains private statuses interpreted
-only by its own harness; they are not generated-program authority.
-
-## Compiler boundary family
-
-Canonical compiler edges share the boundary discipline settled for the Beta
-compiler, not Beta's exact `BCOUT` identity:
-
-- halt values `0..3` mean Complete, Reject, Incomplete, and InternalFailure;
-- success stdout is the raw runnable tape with no wrapper;
-- failure stdout is one canonical 40-byte, `0xFF`-prefixed frame whose tag agrees
-  with the halt value; and
-- unknown, malformed, noncanonical, or mismatched frames reject.
-
-Each accepted-language edge owns its magic, version, reason/resource/internal
-tables, and coordinate vocabulary. `BCOUT` remains Beta-specific; the Gamma and
-Delta compiler edges use their own identities (`GCOUT` and `DCOUT`). One
-parameterized decoder may validate all profiles, but no profile may interpret
-another profile's frame. `GCOUT` V1 is
-`[FF 47 43 4F 55 54 01 00]`; `DCOUT` V1 is
-`[FF 44 43 4F 55 54 01 00]`. Their coordinate spaces are:
-
-```text
-GCOUT  0 none, 1 Gamma source, 2 emitted payload, 3 internal row, 4 GCREQ
-DCOUT  0 none, 1 Delta source, 2 emitted payload, 3 internal row
-```
-
-`GCREQ` validation precedes Gamma lexing, declaration/type/match checking,
-selected-profile schema validation, and lowering/emission. The fixed header
-and magic/version/reserved bytes precede profile selection; profile selection
-precedes the declared source-length provision; and only an admitted length is
-followed by exactly that many body bytes plus one exact-end probe. Consequently
-a four-byte length cannot require attacker-selected input consumption before
-`Incomplete(source_bytes)`. Unknown profile and source-length exhaustion anchor
-at request bytes 8 and 12 respectively. Body truncation and one trailing byte
-are `malformed_request` at the first missing or trailing request byte.
-
-After an otherwise valid frontend pass, profile-schema categories are ordered
-`missing_entry`, `entry_schema_mismatch`, then `profile_schema_mismatch`.
-Within one category an absent required declaration with coordinate space
-`none` precedes located defects, then located defects use their earliest Gamma-
-source coordinate. Missing `main` has no coordinate; a wrong present `main`
-anchors at its declaration name. `DeltaCompilerV1` uses
-`profile_schema_mismatch` with no coordinate for an absent required nominal
-member and with a source coordinate for a present malformed member or reason-
-code bijection. `ConformanceBytesV1` cannot emit that reason.
-
-The closed tables are `compiler/gcout-v1.tsv`,
-`compiler/dcout-v1.tsv`, `compiler/profiles-v1.tsv`, and
-`compiler/conformance-observations-v1.tsv`. They are checked projections of
-constants embedded in the compiler artifact, not files consulted by the
-completed offline runtime. Generated-program statuses 248 through 254 remain
-separate runtime observations, never compiler-boundary cases.
-
-`gcout-v1.tsv` also records the request-profile contexts in which each code is
-canonical. `unselected` means no valid profile has yet been established. The
-request/outcome join checks this column because a detached GCOUT frame does not
-repeat the profile ID; a profile-impossible code is a noncanonical compiler
-result rather than an authored rejection.
-
-## Compilation requirements
-
-The Beta-written Gamma compiler type-checks before emission, erases types into a
-defined runtime representation, and emits Alpha tape directly. Its private
-frame ABI must support arbitrary function and constructor arity and preserve
-proper tail calls. It may not publish an interpreter plus serialized syntax,
-invoke an external evaluator, add Gamma operations to Beta or Alpha, or make a
-private capacity into Gamma semantics.
-
-`compiler/gamma_compiler.beta` now owns the retained static-semantics frontend;
-`interp.beta` remains a semantic oracle. The oracle's output convention--
-printing a value while also placing an integer projection in the halt word--is
-not the compiler boundary. The interpreter is absorbed only where an isolated
-algorithm is economical and otherwise reduced or deleted once the direct edge
-subsumes its diagnostic role. The Python reference is temporary differential
-scaffolding and never part of the completed offline bootstrap closure.
-
-The interpreter traps immediately on an unmatched pattern as a temporary
-hardening measure. The canonical compiler must instead reject the
-nonexhaustive source statically.
-
-## Current oracle coverage
-
-The current oracle gates check the outer source contract before parsing: the
-evaluation surface passes 48 focused cases, the compiler frontend passes 82
-plus one exact emitter-substrate probe, six executed runtime-containment
-probes, 16 checked-`Int` paths, 31 source-to-code lowering cases, resolved-call
-and resolved-constructor bridge payloads, four byte-determinism comparisons,
-14 compact-`Bytes` runtime paths, two executed
-arbitrary-arity/frame-ABI paths, three algebraic-value ABI paths, eight
-sealed-input runtime paths, and one sealed-input reconstruction comparison; the
-temporary independent evaluator agrees on 106 fixed or generated cases.
-These counts include CR-terminated comments and fail-closed NUL, vertical-tab,
-DEL, and high-byte controls. They cover bounded parts of this contract but do
-not constitute the missing compiler edge or establish an obligation both
-oracles omit.
-
-The former Gamma proof-kernel copies and the old generic canonical-byte and
-terminal-codec prototype were not consumed by a live artifact admission and are
-retired to Git history. Future artifact-specific decoding belongs beside the
-artifact it admits.
+These are rung boundaries, not unfinished Delta or Delta features. The
+canonical Beta-written compiler is
+[`compiler/gamma_compiler.beta`](compiler/gamma_compiler.beta).
+The former self-host and duplicate historical-compiler surface suite were
+deleted once the direct compiler and focused gate subsumed their useful role.

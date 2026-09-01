@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
-# Reconstruct the accepted checker once below Beta and compare the committed
+# Reconstruct the accepted checker once through the canonical Gamma compiler and compare the committed
 # tape byte-for-byte. A second identical run would measure reproducibility but
 # would add no source/artifact or derivation-validity premise.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 TMP=$(mktemp -d)
-trap 'trash "$TMP"' EXIT
+trap 'rm -rf -- "$TMP"' EXIT
 
 sh "$SCRIPT_DIR/construct-artifact.sh" "$TMP/check.tape"
 cmp "$TMP/check.tape" "$SCRIPT_DIR/artifacts/proof_checker_bytecode.tape"

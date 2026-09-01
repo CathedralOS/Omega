@@ -9,7 +9,7 @@ The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
 How Omega reaches its hosted compiler—the trust architecture and the exact
-`Alpha → Beta → Gamma → Delta` language spine—is a build-graph property
+`Alpha → Beta → Gamma → Delta → Epsilon` language spine—is a build-graph property
 described by [The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md)
 and its [target repository structure](bootstrap_lattice/repository_structure.md).
 It is not a separate source ownership domain.
@@ -163,22 +163,24 @@ Omega/
 |       |-- src/                                         # Tiny `omega` product command.
 |       `-- tests/                                       # Cargo integration tests for that product command.
 ||-- source/
-|   |-- alpha/                                             # Alpha semantics, seeds, assembler, and root checker.
+|   |-- alpha/                                             # Alpha semantics, native VM seeds, and root checker.
 |   |   `-- checker/                                       # Universal derivation checker and checker tests.
-|   |-- beta/                                              # Beta language, reference meaning, and gates.
-|   |   `-- compiler/                                      # Alpha-written compiler source, Alpha tape, and validation.
+|   |-- beta/                                              # Beta textual assembly.
+|   |   `-- compiler/                                      # Direct assembler tape, self-host source, and gates.
 |   |-- gamma/                                             # Gamma language and Beta-written compiler owner.
 |   |   `-- compiler/                                      # Gamma compiler source, Alpha tape, and validation.
 |   |-- delta/                                             # Delta language, compiler, tests, and artifacts.
 |   |   |-- compiler/                                     # Gamma-written compiler, Alpha tape, and validation.
 |   |   `-- tests/                                        # Delta language cases.
+|   |-- epsilon/                                           # Epsilon language and Delta-written compiler.
+|   |   `-- compiler/                                      # Epsilon compiler source, Alpha tape, and validation.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
-|   |-- omega/                                             # Delta- and Omega-written product compiler implementations.
-|   |   |-- omega_compiler.delta                          # Delta-written full Omega compiler D.
+|   |-- omega/                                             # Epsilon- and Omega-written product compiler implementations.
+|   |   |-- omega_compiler.epsilon                        # Epsilon-written full Omega compiler D.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
@@ -207,12 +209,12 @@ The displayed tree is the canonical ownership shape. The unblocked relocation
 steps are complete:
 
 ```text
-source/{alpha,beta,gamma,delta}/       canonical language rungs
+source/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root
 source/alpha/checker/                  root derivation checking
-source/beta/compiler/                  Beta compiler and its admission evidence
+source/beta/compiler/                  direct Beta assembler and its reconstruction
 source/omega-rust/                     current Rust product implementation and comparator
 tests/{omega,fixtures}/                language and package integration tests
 tools/lattice/                         lattice orchestration and path gates
@@ -222,10 +224,9 @@ tools/                                 other repository maintenance scripts
 Each rung remains the semantic owner of its language and lattice-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
 concept, not a second semantic owner. The root proof checker belongs to Alpha.
-Validation belongs beside the artifact it admits. The Beta compiler's current
-source/artifact reconstruction lives under `source/beta/compiler/validation/`;
-the replacement Delta validation will live under
-`source/delta/compiler/validation/` only after a Gamma-written compiler and its
+Validation belongs beside the artifact it admits. The Beta assembler's exact
+reconstruction lives under `source/beta/compiler/`; the replacement Epsilon
+validation will live under `source/epsilon/compiler/validation/` only after a Delta-written compiler and its
 Alpha tape exist. The removed Delta-to-Gamma/native-publication tree is not a
 validation precedent.
 

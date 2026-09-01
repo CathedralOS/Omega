@@ -33,7 +33,7 @@ fi
 cd "$OMEGA_PATH_ALPHA_CHECKER"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
-T=$(mktemp -d); trap 'trash "$T"' EXIT
+T=$(mktemp -d); trap 'rm -rf -- "$T"' EXIT
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 
 PASS=0; FAIL=0

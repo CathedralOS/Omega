@@ -1,0 +1,41 @@
+; fib.beta - tree-recursive Fibonacci using the data-stack calling convention.
+; fib(n) = n if n < 2 else fib(n-1) + fib(n-2). Two recursive calls per frame.
+; r15 = data stack pointer. arg in r0, result in r0. fib(10) = 55.
+; Stronger proof than factorial: nothing is assumed to survive a call in a register;
+; everything that must live across a call is held in the frame. See ../CALLING_CONVENTION.md.
+
+        imm   r15, 1048576
+        imm   r0, 10            ; fib(10) = 55
+        call  fib
+        halt  r0                ; exit code = 55
+
+fib:
+        imm   r1, 2
+        jlt   r0, r1, fib_ret   ; n < 2  ->  return n  (already in r0)
+        ; frame slot 0: save n
+        imm   r1, 8
+        sub   r15, r1
+        store r15, r0           ; [dsp] = n
+        ; r0 = fib(n - 1)
+        imm   r1, 1
+        sub   r0, r1
+        call  fib               ; r0 = fib(n-1)
+        ; frame slot 1: save fib(n-1).  now [dsp] = fib(n-1), [dsp+8] = n
+        imm   r1, 8
+        sub   r15, r1
+        store r15, r0
+        ; r0 = n - 2   (n is at dsp+8)
+        imm   r1, 8
+        add   r1, r15           ; r1 = dsp + 8  (address of n)
+        load  r0, r1            ; r0 = n
+        imm   r1, 2
+        sub   r0, r1            ; r0 = n - 2
+        call  fib               ; r0 = fib(n-2)
+        ; r0 = fib(n-2) + fib(n-1)   (fib(n-1) at [dsp])
+        load  r1, r15
+        add   r0, r1
+        ; pop both slots
+        imm   r1, 16
+        add   r15, r1
+fib_ret:
+        ret

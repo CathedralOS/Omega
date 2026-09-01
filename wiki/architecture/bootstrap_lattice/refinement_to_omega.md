@@ -7,10 +7,10 @@ Hosting does not establish correctness. Every compiler source is checked
 directly against the exact Alpha tape that executes it:
 
 ```text
-Alpha-written Beta compiler  ─▶ beta_compiler.tape
 Beta-written Gamma compiler  ─▶ gamma_compiler.tape
-Gamma-written Delta compiler ─▶ delta_compiler.tape
-Delta-written Omega D        ─▶ omega₀.tape
+Gamma-written Delta compiler  ─▶ delta_compiler.tape
+Delta-written Epsilon compiler ─▶ epsilon_compiler.tape
+Epsilon-written Omega D        ─▶ omega₀.tape
 Omega-written Omega C        ─▶ omega.tape
 ```
 

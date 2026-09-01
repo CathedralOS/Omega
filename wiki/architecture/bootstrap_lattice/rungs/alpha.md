@@ -7,7 +7,7 @@ It establishes **one thing**: given these bytes and this memory, these exact sta
 transitions occur. Nothing else — not types, not safety, not meaning.
 
 Alpha tape is also the single canonical executable representation of every
-bootstrap compiler from Beta through `omega`. This does not add higher-language
+bootstrap compiler from Gamma through `omega`. This does not add higher-language
 meaning to Alpha; it gives every source-to-artifact proof one common target
 machine.
 
@@ -57,12 +57,12 @@ seeds**, each hand-authored against the same semantics:
   hand-authored source) + `alpha_arm64_macos.lst` (a committed disassembly).
 
 A program is a "tape" stamped into a fixed `.tape`/`__tape` hole; the **same tape
-runs on every platform's seed**. The Alpha assembler self-hosts on both
+runs on every platform's seed**. The Beta assembler tape self-hosts on both
 (byte-identical program-byte fixed point; on macOS the OS-imposed code signature
 is excluded from the comparison — see below). `seed_env.sh` selects the seed and
 stamps tapes per-platform, so one set of build scripts serves every host.
 
-Beta, Gamma, Delta, `omega₀`, and `omega` therefore need no host-specific
+Gamma, Delta, Epsilon, `omega₀`, and `omega` therefore need no host-specific
 backend for their compiler artifacts. Product Omega separately owns native
 backends for user programs. A general checked Alpha-to-native realization may
 accelerate tapes; special higher-level substitutions are not part of Alpha.
@@ -70,9 +70,9 @@ accelerate tapes; special higher-level substitutions are not part of Alpha.
 **The two seeds provide a cross-platform conformance check.** They are separate
 realizations (different ISA, OS, and format), so the *same source* through both
 must yield *byte-identical tapes*—verified: the arm64 macOS VM reproduces the
-x64 VM's assembler bytecode from `assembler/assembler.alpha` byte-for-byte
+x64 VM's assembler bytecode from `../beta/compiler/assembler.beta` byte-for-byte
 (sha256 `15e75e68…`), the assembler self-hosts on macOS, and the example corpus
-(`.alpha` and `.beta`) runs to identical answers on both. This is the
+(`.beta` and `.gamma`) runs to identical answers on both. This is the
 executable companion to the written Alpha semantics. Agreement is useful
 evidence, but the semantics and audited implementation correspondence—not
 multiplicity—supply authority.
@@ -110,7 +110,7 @@ noting its trust-architecture framing is superseded by the
 - Keep D23's `AlphaBootstrapV2` coherent across seeds, compilers, generated
   memory maps, checker capacity, boundary outcome tables, and exact limit gates;
   no owner may retain or silently reintroduce the former V1 extent. D58 may
-  revise the Beta compiler's private count tables only through its measured,
+  revise the Gamma compiler's private count tables only through its measured,
   atomic source/tape/admission publication; it does not revise Alpha semantics
   or the V2 tape extent.
 - Fixed-width vs variable-width instruction encoding (canonical-parsing

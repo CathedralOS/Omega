@@ -1,117 +1,105 @@
-# Delta rung
+# `source/delta/` - safe definitional computation
 
-This directory owns the Delta language, its Gamma-written compiler, and
-adjacent source-to-Alpha-tape validation.
+Delta is the typed, pure functional rung above Gamma. It supplies nominal
+algebraic data, exhaustive pattern matching, checked signed integers, immutable
+bytes, forward and mutual recursion, and proper tail calls. It is deliberately
+small but sufficient to implement the Epsilon compiler.
 
-[`LANGUAGE.md`](LANGUAGE.md) is the normative Delta v1 contract fixed by D17.
-It is self-contained: a compiler, sample corpus, historical implementation, or
-Omega document cannot amend Delta by acceptance.
+D21 makes every valid `Bytes` logical length a nonnegative `Int`. Concatenation
+traps on an unrepresentable exact sum before allocation; physical storage
+failure remains profile-owned `Incomplete`, and malformed private descriptors
+remain `InternalFailure`.
 
-D22, D36, and D51 fix deterministic declaration identity beneath that contract:
-grammar-selected owner, machine, member, state, and local scopes; one pre-type
-scoped duplicate census; no active local shadowing; legal disjoint-state and
-member/local spelling reuse; free unqualified machines; mandatory receivers on
-owner-qualified data machines; disjoint constructor and receiver-method
-namespaces; and no authored machine bodies on boundary owners. D24 completes that census with transition-arm binder scope,
-same-phase `DuplicateName`/`InvalidBoundary` ordering, and unique-owner
-classification.
-D31 completes type formation and D34 completes its realizability report:
-positive array lengths, zero-field records, mixed-data rejection, exact
-storage-only `u8` and `never`/view/`Console` placement, structural diagnostic
-anchors, and profile-owned bounded-witness static-storage refusal.
-D37 fixes body/control candidate dependency as a complete premise DAG,
-including value/place/resultless/`never` joins and exact relational/projection
-anchors. D52 fixes resultless machine/constructor arguments at their authored
-argument-expression start and closes the distinct-reason coordinate audit.
-D53 fixes five local block-exit effects, checks every state without reachability
-analysis, and gives falloff and post-`never` constructs exact delimiter anchors.
-D38 fixes `.as_slice` as a once-evaluated, allocation-free full view of a
-place-valued fixed array; views and non-place array temporaries are not accepted
-receivers.
-D56 closes the fixed `Console`/`Main` entry taxonomy inside type formation:
-absence of an authored `Main::main` name is the sole `MissingEntry`, every
-present malformed or incomplete entry system is `InvalidEntry`, and no entry
-candidate is compared with body/control coordinates.
-D57 makes wildcard finality grammatical and orders transition-pattern checking
-as subject admission, semantic duplicate identity, payload arity, then static
-sum coverage. Scalar selectors compare by `i32` value, and missing sum coverage
-anchors at the transition subject.
-
-## Canonical edges
+The normative contract is [`LANGUAGE.md`](LANGUAGE.md). The canonical edge is:
 
 ```text
-Gamma-written Delta compiler
-  └─ gamma_compiler.tape ─▶ delta_compiler_bytecode.tape
-
-Delta-written Omega compiler D
-  └─ delta_compiler.tape ─▶ omega0_compiler_bytecode.tape
+Delta source --delta_compiler_bytecode.tape--> Alpha tape
 ```
 
-The first artifact accepts Delta. The second accepts Omega. They are different
-compilers and must not both be called “the Delta compiler.”
+The compiler accepting Delta is implemented in Gamma and owned by `compiler/`.
+Every canonical invocation supplies one D19 sealed application-profile ID.
+`ConformanceBytesV1` selects pure `main : Bytes -> Bytes` for general
+language conformance; `EpsilonCompilerV1` selects the Delta-written Epsilon
+compiler's source-owned `main : Bytes -> EpsilonCompileOutcome` and its checked
+`ECOUT` schema. A generated Alpha adapter alone reads sealed input, writes the
+selected profile's exact success output, owns private resource failures, and
+validates D31/D34's sole source-authored application-static-storage refusal.
+D20 fixes deterministic source identity: grammar position selects separate
+type, constructor, function, and local-value namespaces; globals are unique
+within their namespace; and an active local binding may not be shadowed.
+Disjoint scopes may reuse names.
 
-## Contents and migration
+## Current implementation state
 
-- [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) records Delta feature rationale and
-  change control.
-- `compiler/` owns the in-progress `delta_compiler.gamma`, its eventual
-  canonical Alpha tape, and refinement evidence. The retained source currently
-  contains final compiler material through complete parsing, the D22/D24
-  source-shaped identity census including D36's receiver restriction and the
-  superseded case/machine collision registry, D31 structural type formation,
-  the source-backed resolution catalog, ordered local-value resolution, exact scalar and
-  aggregate value/place facts, one generalized callable ledger, direct
-  qualified applications, grouped/unqualified machine applications and
-  discarded postfix-statement category admission in settled non-continuation
-  contexts, the superseded special receiver-scoped `self` carrier, named-data
-  receiver applications, exact sealed-`Console` receiver applications, and
-  explicit transition state applications with state/machine collision
-  rejection and separate state completion custody, transition subject,
-  resolved-case, complete payload-binder, and retained sum-coverage facts,
-  settled field/index/slice projection failures, D37 scalar and argument-
-  `never` category joins, let/assignment/assert and explicit-return relations,
-  first-following-statement terminal flow, and symbolic Alpha encoding.
-  D50 fixes bare-state-transfer spelling, D51 retires static qualified
-  machines plus special `self` resolution, D52 fixes resultless-argument
-  anchoring, D53 fixes local block exits, D56 fixes entry diagnostics, and D57
-  fixes transition-pattern and coverage diagnostics. Their implementation
-  remains alongside final body/control checking, the remaining D37
-  control/terminal premise DAG, D38 executable controls, storage realization/
-  lowering, `main`, and publication are incomplete, so it exposes no compiler
-  artifact yet. The
-  current fact pass does enforce D38's contextual receiver/result relation and
-  separate array-view extra-call rejection.
+The Gamma-written compiler source now lives at
+`compiler/delta_compiler.gamma`. Its retained strict frontend and direct Alpha
+emitter/runtime-containment substrate include executed checked-`Int` and
+compact immutable-`Bytes` helpers, resolved expression lowering, the
+arbitrary-arity/proper-tail-call frame and algebraic-value ABIs, profile-neutral
+whole-function label/body emission, and a dormant profile-parameterized
+sealed-input reader. D19 fixes its two possible application contracts and D20's
+resolver is implemented. The compiler now validates both exact D19 entry
+schemas, D31/D34's attributed/aggregate bounded-witness storage outcomes, and
+the declaration-order-independent 26-code Epsilon rejection bijection. D30 fixes `DCREQ`, both
+profile IDs and maxima, the generated-runtime observation block, and the exact
+`DCOUT`/`ECOUT` identities and tables. D33 fixes the bounded request order,
+schema-category priority, absence coordinates, and per-profile code legality.
+The retained compiler now enforces canonical `DCREQ` admission and records
+request/source rejection codes 3 through 18, all twelve compiler resources,
+and present emitter-internal classes 2 through 4 with exact quantitative
+fields. Schema and remaining internal DCOUT judgments, adapter completion,
+remaining lowering, and publication remain open. Complete
+fixed-up payloads are structurally
+replayed against Alpha's closed instruction shapes and direct-target starts
+before publication. The source remains incomplete compiler material, not an
+accepted compiler artifact.
+`interp.gamma` remains an untyped, bounded evaluation oracle; it is not an
+alternate Delta language or a runtime to be serialized into emitted tapes.
 
-The superseded Beta-written Delta-to-Gamma bridge and Darwin-native publication
-tree, including the restricted Delta-written Darwin compiler prototype, are
-deleted. Git history is sufficient; no compatibility owner replaces them.
-The associated 43-file corpus was also deleted: it had no runner and mixed
-native-backend slices, retired proof scripts, demonstrations, and unresolved
-language proposals. A compact positive/negative suite will be derived from D17
-and owned by the real compiler edge instead of restoring that corpus.
+The compiler frontend and interpreter close their former correlated match blind
+spot in different ways: the frontend rejects incomplete or duplicate coverage,
+while the interpreter traps rather than fabricating integer zero when no arm
+matches. Their historical shared omission remains the warning that differential
+agreement cannot prove a rule both compared programs omit; the completed
+canonical compiler must own the static judgment.
 
-## Boundaries
+The evaluator's 4 MiB source ceiling, 16 MiB arena, 4 KiB argument scratch, and
+50,000,000-call fuel are oracle resource bounds, not Delta semantics. Exhaustion
+is fail-closed and publishes no partial value. Delta's compact `Bytes` primitive
+prevents compiler input from requiring one algebraic node per byte.
 
-- Delta is independent of Omega even when spelling overlaps.
-- The Delta compiler is written in Gamma and emits exact Alpha tape directly.
-- Delta-written `D` implements full Omega and may generate a slow,
-  conservatively lowered `omega₀` tape.
-- All fixed capacities are source-visible bounds, explicit profile parameters,
-  or private budgets whose exhaustion is `Incomplete` and publishes no tape.
-- Shell and Python may invoke tests or stamp tapes. They may not parse, lower,
-  manufacture semantic evidence, or become compiler stages.
-- The Rust compiler remains a comparator, not a producer in the canonical
-  sequence.
+Principal artifacts:
 
-Active work is tracked in
-[`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
+- `LANGUAGE.md` - the normative typed executable Delta contract;
+- `compiler/` - owner of `delta_compiler.gamma`, adjacent validation, its future
+  tape, and the exact edge;
+- `interp.gamma` - temporary bounded semantic oracle and candidate algorithm
+  source;
+- `reference/` - temporary Python differential scaffolding.
+
+Run the currently retained diagnostic gates from the repository root:
+
+```sh
+sh source/delta/test-interp.sh
+sh source/delta/test-interp-arena.sh
+sh source/delta/compiler/test-frontend.sh
+sh source/delta/reference/delta-diamond-py.sh
+```
+
+Python, Rust, shell, and host tools are not Delta implementations in the
+completed lattice. The checked direct edge must leave the repository buildable
+from the audited Alpha seed and repository-owned bytes on an otherwise blank,
+offline machine.
 
 ## Retention inventory
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `compiler/` | The sole owner of the in-progress Gamma-written compiler accepting Delta and its exact Alpha-tape edge. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
+| `LANGUAGE.md` | Normative Delta source and execution contract. | Replace only through an explicit language ruling with synchronized compiler and contract tests. |
+| `compiler/` | Sole owner of the Gamma-written compiler accepting Delta, adjacent validation, and its exact Alpha-tape edge. | Replace only atomically with an explicitly ruled lattice change. |
+| `interp.gamma`, `test-interp.sh`, `test-interp-arena.sh` | Candidate compiler material plus bounded semantic and resource discriminators. | Absorb or delete after the direct compiler subsumes each retained failure surface. |
+| `reference/` | Temporary independent meaning comparison and differential gate. | Delete when the checked direct edge subsumes every named diagnostic role. |
 
-The root retains only the normative contract, its feature/change ledger, and
-this owner map. Proposed programs without a compiler or a contract-derived test
-role are not retained as tests.
+The older imperative experiment, generic canonical-byte prototype, and terminal
+codec spike are retired to Git history. Being written in Delta never made them
+part of Delta meaning or the canonical compiler chain.

@@ -17,51 +17,56 @@ fail() {
 }
 
 for required in \
-  "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
+  "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA_COMPILER" \
   "$OMEGA_PATH_ALPHA_CHECKER" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_GAMMA_COMPILER" "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
-  "$OMEGA_PATH_OMEGA" \
-  "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_COMPILER/validation"
+  "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_EPSILON_COMPILER" "$OMEGA_PATH_OMEGA"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done
 
 
-[ "$OMEGA_PATH_BETA_COMPILER_SOURCE" = "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" ] ||
-  fail "Beta compiler source locator is not canonical"
-[ "$OMEGA_PATH_BETA_COMPILER_TAPE" = "$OMEGA_PATH_BETA_COMPILER/beta_compiler_bytecode.tape" ] ||
-  fail "Beta compiler tape locator is not canonical"
-[ "$OMEGA_PATH_OMEGA_COMPILER_SOURCE" = "$OMEGA_PATH_OMEGA/omega_compiler.delta" ] ||
+[ "$OMEGA_PATH_BETA_ASSEMBLER_SOURCE" = "$OMEGA_PATH_BETA_COMPILER/assembler.beta" ] ||
+  fail "Beta assembler source locator is not canonical"
+[ "$OMEGA_PATH_BETA_ASSEMBLER_TAPE" = "$OMEGA_PATH_BETA_COMPILER/beta_assembler_bytecode.tape" ] ||
+  fail "Beta assembler tape locator is not canonical"
+[ "$OMEGA_PATH_GAMMA_COMPILER_SOURCE" = "$OMEGA_PATH_GAMMA_COMPILER/gamma_compiler.beta" ] ||
+  fail "Gamma compiler source locator is not canonical"
+[ "$OMEGA_PATH_GAMMA_COMPILER_TAPE" = "$OMEGA_PATH_GAMMA_COMPILER/gamma_compiler_bytecode.tape" ] ||
+  fail "Gamma compiler tape locator is not canonical"
+[ "$OMEGA_PATH_OMEGA_COMPILER_SOURCE" = "$OMEGA_PATH_OMEGA/omega_compiler.epsilon" ] ||
   fail "Omega D compiler source locator is not canonical"
 
-[ -f "$OMEGA_PATH_BETA_COMPILER_SOURCE" ] || fail "canonical Beta compiler source is absent"
-[ -f "$OMEGA_PATH_BETA_COMPILER_TAPE" ] || fail "canonical Beta compiler tape is absent"
-[ -f "$OMEGA_PATH_GAMMA_COMPILER/gamma_compiler.beta" ] ||
-  fail "canonical Gamma compiler source is absent"
+[ -f "$OMEGA_PATH_BETA_ASSEMBLER_SOURCE" ] || fail "canonical Beta assembler source is absent"
+[ -f "$OMEGA_PATH_BETA_ASSEMBLER_TAPE" ] || fail "canonical Beta assembler tape is absent"
+[ -f "$OMEGA_PATH_GAMMA_COMPILER_SOURCE" ] || fail "canonical Gamma compiler source is absent"
+[ -f "$OMEGA_PATH_GAMMA_COMPILER_TAPE" ] || fail "canonical Gamma compiler tape is absent"
+[ -f "$OMEGA_PATH_DELTA_COMPILER/delta_compiler.gamma" ] || fail "canonical Delta compiler source is absent"
+[ -f "$OMEGA_PATH_EPSILON_COMPILER/epsilon_compiler.delta" ] || fail "canonical Epsilon compiler source is absent"
 [ -f "$OMEGA_PATH_OMEGA_COMPILER_SOURCE" ] ||
   fail "canonical Omega D compiler source is absent"
 [ -f "$OMEGA_PATH_OMEGA/build.omg" ] || fail "canonical Omega C build root is absent"
 [ -f "$OMEGA_PATH_OMEGA/main.omg" ] || fail "canonical Omega C main root is absent"
 
-# D15 applies to the exact currently retained Alpha-through-Delta
+# D15 applies to the exact currently retained Beta-through-Epsilon
 # implementation-source membership, not to every file sharing a suffix. Keep
 # this list explicit as compiler closures are added or retired. Each byte must
 # be HT, LF, CR, or printable ASCII before any language tokenizer sees it.
 for bootstrap_ascii_source in \
-  source/alpha/assembler/assembler.alpha \
-  source/alpha/assembler/examples/echo.alpha \
-  source/alpha/assembler/examples/factorial.alpha \
-  source/alpha/assembler/examples/fib.alpha \
-  source/alpha/assembler/examples/gcd.alpha \
-  source/alpha/assembler/examples/multiply.alpha \
-  source/alpha/checker/implementations/beta/check.beta \
-  source/alpha/checker/implementations/beta/eq.beta \
-  source/beta/compiler/beta_compiler.alpha \
-  source/beta/compiler/validation/admission/bc-artifact-structure.alpha \
-  source/delta/compiler/delta_compiler.gamma \
-  source/gamma/interp.beta \
+  source/beta/compiler/assembler.beta \
+  source/beta/compiler/examples/echo.beta \
+  source/beta/compiler/examples/factorial.beta \
+  source/beta/compiler/examples/fib.beta \
+  source/beta/compiler/examples/gcd.beta \
+  source/beta/compiler/examples/multiply.beta \
+  source/alpha/checker/implementations/gamma/check.gamma \
+  source/alpha/checker/implementations/gamma/eq.gamma \
   source/gamma/compiler/gamma_compiler.beta \
-  source/omega/omega_compiler.delta
+  source/gamma/compiler/validation/admission/gc-artifact-structure.beta \
+  source/delta/compiler/delta_compiler.gamma \
+  source/delta/interp.gamma \
+  source/epsilon/compiler/epsilon_compiler.delta \
+  source/omega/omega_compiler.epsilon
 do
   bootstrap_ascii_path="$OMEGA_REPO_ROOT/$bootstrap_ascii_source"
   [ -f "$bootstrap_ascii_path" ] ||
@@ -86,6 +91,7 @@ tracked_source_roots=$(git -C "$OMEGA_REPO_ROOT" ls-files source | \
 expected_source_roots='alpha
 beta
 delta
+epsilon
 gamma
 library
 omega
@@ -99,31 +105,31 @@ psi'
 # alternate spelling, suffix, nested tape, or native compiler identity may
 # appear in their place.
 tracked_compiler_sources=$(git -C "$OMEGA_REPO_ROOT" ls-files \
-  source/beta source/gamma source/delta source/omega | \
-  grep -E '/[^/]*compiler\.(alpha|beta|gamma|delta|omg)$' || true)
-expected_compiler_sources='source/beta/compiler/beta_compiler.alpha
-source/delta/compiler/delta_compiler.gamma
+  source/beta source/gamma source/delta source/epsilon source/omega | \
+  grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' || true)
+expected_compiler_sources='source/delta/compiler/delta_compiler.gamma
+source/epsilon/compiler/epsilon_compiler.delta
 source/gamma/compiler/gamma_compiler.beta
-source/omega/omega_compiler.delta'
+source/omega/omega_compiler.epsilon'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside the canonical implemented location"
 
 tracked_compiler_tapes=$(git -C "$OMEGA_REPO_ROOT" ls-files \
-  source/beta source/gamma source/delta source/omega | \
+  source/beta source/gamma source/delta source/epsilon source/omega | \
   grep -E '/[^/]*compiler[^/]*\.tape$' || true)
-expected_compiler_tapes='source/beta/compiler/beta_compiler_bytecode.tape'
+expected_compiler_tapes='source/gamma/compiler/gamma_compiler_bytecode.tape'
 [ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
   fail "compiler tape exists outside the canonical implemented location"
 
 tracked_native_compilers=$(git -C "$OMEGA_REPO_ROOT" ls-files \
-  source/beta source/gamma source/delta source/omega | \
+  source/beta source/gamma source/delta source/epsilon source/omega | \
   grep -E '\.(exe|elf|dll|dylib|so|a|o|obj|wasm)$' || true)
 [ -z "$tracked_native_compilers" ] ||
   fail "native compiler artifact exists above the Alpha seed: $tracked_native_compilers"
 
 for canonical_owner in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
-  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_OMEGA"
+  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA"
 do
   generic_buckets=$(find "$canonical_owner" -type d \
     \( -name bootstrap -o -name on-ramp -o -name assurance -o -name canaries \) \
@@ -175,7 +181,6 @@ require_retention_inventory() { # repository-relative owner directory
 
 for inventoried_owner in \
   source/alpha \
-  source/alpha/assembler \
   source/alpha/checker \
   source/alpha/checker/artifacts \
   source/alpha/checker/corpus \
@@ -183,14 +188,16 @@ for inventoried_owner in \
   source/alpha/checker/implementations \
   source/beta \
   source/beta/compiler \
-  source/beta/compiler/validation \
-  source/beta/compiler/validation/admission \
-  source/beta/reference \
   source/gamma \
   source/gamma/compiler \
+  source/gamma/compiler/validation \
+  source/gamma/compiler/validation/admission \
   source/gamma/reference \
   source/delta \
   source/delta/compiler \
+  source/delta/reference \
+  source/epsilon \
+  source/epsilon/compiler \
   source/omega
 do
   require_retention_inventory "$inventoried_owner"
@@ -216,7 +223,7 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/canonical-bytes" ] || fail "unowned Gamma canonical-byte bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/terminal-codec-primitives" ] || fail "unowned Gamma terminal-codec bucket remains"
 [ ! -e "$OMEGA_PATH_DELTA/source-closures" ] || fail "Delta compiler validation records remain at the language root"
-[ ! -e "$OMEGA_PATH_BETA_COMPILER/artifacts" ] || fail "Beta compiler artifact remains in a nested artifacts bucket"
+[ ! -e "$OMEGA_PATH_BETA_COMPILER/artifacts" ] || fail "Beta assembler artifact remains in a nested artifacts bucket"
 [ ! -e "$OMEGA_PATH_BETA_COMPILER/validation/stress" ] || fail "generic Beta stress bucket remains"
 [ ! -e "$OMEGA_PATH_BETA_COMPILER/validation/admission/fol" ] || fail "toy Beta FOL capability seam remains"
 [ ! -e "$OMEGA_PATH_GAMMA_COMPILER/artifacts" ] || fail "Gamma compiler artifact remains in a nested artifacts bucket"
@@ -270,12 +277,13 @@ check_forward_boundary() { # owner label forbidden-pattern
   if command -v rg >/dev/null 2>&1; then
     boundary_violations=$(rg -n \
       --glob '*.sh' --glob '*.py' --glob '*.alpha' --glob '*.beta' \
-      --glob '*.gamma' --glob '*.delta' --glob '*.omg' \
+      --glob '*.gamma' --glob '*.delta' --glob '*.epsilon' --glob '*.omg' \
       "$boundary_pattern" "$boundary_owner" || true)
   else
     boundary_violations=$(find "$boundary_owner" -type f \
       \( -name '*.sh' -o -name '*.py' -o -name '*.alpha' -o \
          -name '*.beta' -o -name '*.gamma' -o -name '*.delta' -o \
+         -name '*.epsilon' -o \
          -name '*.omg' \) -exec grep -En "$boundary_pattern" {} + || true)
   fi
   if [ -n "$boundary_violations" ]; then
@@ -285,11 +293,13 @@ check_forward_boundary() { # owner label forbidden-pattern
   fi
 }
 
-check_forward_boundary "$OMEGA_PATH_BETA_COMPILER" "Beta compiler owner" \
-  'OMEGA_PATH_(DELTA|OMEGA)|OMEGA_REPO_ROOT.*/source/(delta|omega|psi)(/|[^A-Za-z0-9_-]|$)|source/(delta|omega|psi)(/|[^A-Za-z0-9_-]|$)'
+check_forward_boundary "$OMEGA_PATH_BETA_COMPILER" "Beta assembler owner" \
+  'OMEGA_PATH_(DELTA|EPSILON|OMEGA|PSI)|OMEGA_REPO_ROOT.*/source/(delta|epsilon|omega|psi)(/|[^A-Za-z0-9_-]|$)|source/(delta|epsilon|omega|psi)(/|[^A-Za-z0-9_-]|$)'
 check_forward_boundary "$OMEGA_PATH_GAMMA_COMPILER" "Gamma compiler owner" \
-  'OMEGA_PATH_OMEGA|OMEGA_REPO_ROOT.*/source/(omega|psi)(/|[^A-Za-z0-9_-]|$)|source/(omega|psi)(/|[^A-Za-z0-9_-]|$)'
+  'OMEGA_PATH_(EPSILON|OMEGA|PSI)|OMEGA_REPO_ROOT.*/source/(epsilon|omega|psi)(/|[^A-Za-z0-9_-]|$)|source/(epsilon|omega|psi)(/|[^A-Za-z0-9_-]|$)'
 check_forward_boundary "$OMEGA_PATH_DELTA_COMPILER" "Delta compiler owner" \
+  'OMEGA_PATH_(OMEGA|PSI)|OMEGA_REPO_ROOT.*/source/(omega|psi)(/|[^A-Za-z0-9_-]|$)|source/(omega|psi)(/|[^A-Za-z0-9_-]|$)'
+check_forward_boundary "$OMEGA_PATH_EPSILON_COMPILER" "Epsilon compiler owner" \
   'OMEGA_PATH_PSI|OMEGA_REPO_ROOT.*/source/psi(/|[^A-Za-z0-9_-]|$)|source/psi(/|[^A-Za-z0-9_-]|$)'
 
 # The retired external Delta producer must not re-enter source or lattice

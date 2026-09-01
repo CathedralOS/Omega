@@ -10709,7 +10709,7 @@ Remaining N6/N8 work:
   controls for NaN reflexivity, signed-zero distinction, IEEE-relation
   separation, lookalike declarations, cross-format/catalog substitution,
   arbitrary producer IDs, false coalescing, and proof erasure from runtime.
-  The rooted-checker milestone is complete: the canonical Alpha-written Beta
+  The rooted-checker milestone is complete: the canonical Gamma
   checker and its independent diagnostic comparator now parse, validate,
   substitute, and compare one closed source/format/projection/exact-core-
   declaration/catalog tuple through carrier-specific `FloatMeaningEqual` and
@@ -10719,7 +10719,7 @@ Remaining N6/N8 work:
   distinction, source-coordinate mutation, explicit distinct-term premises,
   lookalike declarations, cross-format/catalog substitution, generic-equality
   and relation separation, canonical Terminal coordinates, and quantifier
-  substitution. The authoritative tape was rebuilt through the below-Beta
+  substitution. The authoritative tape was rebuilt through the Beta-to-Gamma
   route and the complete independent diamond agrees. The bounded checked-plan
   deduplication rung is also live. Exact-bit literals now retain their raw
   `u32`/`u64` bits as semantic source identity through checked lowering,

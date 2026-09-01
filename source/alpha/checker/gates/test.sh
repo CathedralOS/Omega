@@ -15,11 +15,11 @@ done
 unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh"
-. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
+. "$OMEGA_PATH_GAMMA_COMPILER/artifact_env.sh"
 cd "$OMEGA_PATH_ALPHA_CHECKER"
 
 TMP=$(mktemp -d)
-trap 'trash "$TMP"' EXIT
+trap 'rm -rf -- "$TMP"' EXIT
 stamp_proof_checker "$TMP/check" >/dev/null
 
 PASS=0
@@ -206,15 +206,15 @@ file_chk "checker raw interval survives transport" "$TMP/raw-subst-frame" 1 acce
 # AlphaBootstrapV2's maximum tape is exercised as an actual compiler edge, not
 # as a zero-filled allocation. This source produces 12 bytes per fixed emitted
 # byte plus the 192-byte runnable-program envelope.
-stamp_beta_compiler "$TMP/beta-compiler" >/dev/null
+stamp_gamma_compiler "$TMP/gamma-compiler" >/dev/null
 awk 'BEGIN { printf "proc main() { emit(\""; for (i = 0; i < 87365; i++) printf "a"; print "\") return 1 + 1 }" }' \
-  > "$TMP/v2-max-core.beta"
-v2_source_core_extent=$(wc -c < "$TMP/v2-max-core.beta" | tr -d ' ')
-dd if="$TMP/v2-max-core.beta" status=none > "$TMP/v2-max.beta"
+  > "$TMP/v2-max-core.gamma"
+v2_source_core_extent=$(wc -c < "$TMP/v2-max-core.gamma" | tr -d ' ')
+dd if="$TMP/v2-max-core.gamma" status=none > "$TMP/v2-max.gamma"
 space_file $((262144 - v2_source_core_extent)) "$TMP/v2-source-pad"
-dd if="$TMP/v2-source-pad" status=none >> "$TMP/v2-max.beta"
+dd if="$TMP/v2-source-pad" status=none >> "$TMP/v2-max.gamma"
 set +e
-"$TMP/beta-compiler" < "$TMP/v2-max.beta" > "$TMP/v2-max.tape"
+"$TMP/gamma-compiler" < "$TMP/v2-max.gamma" > "$TMP/v2-max.tape"
 v2_compile_status=$?
 set -e
 v2_tape_extent=$(wc -c < "$TMP/v2-max.tape" | tr -d ' ')
@@ -234,13 +234,13 @@ printf '%s' \
 v2_real_cert_core_extent=$(wc -c < "$TMP/v2-real-cert-core" | tr -d ' ')
 space_file $((1500000 - v2_real_cert_core_extent)) "$TMP/v2-real.cert"
 dd if="$TMP/v2-real-cert-core" status=none >> "$TMP/v2-real.cert"
-write_frame_files "$TMP/v2-real.frame" "$TMP/v2-max.beta" "$TMP/v2-max.tape" "$TMP/v2-real.cert"
+write_frame_files "$TMP/v2-real.frame" "$TMP/v2-max.gamma" "$TMP/v2-max.tape" "$TMP/v2-real.cert"
 file_chk "V2 realistic complete input maximum" "$TMP/v2-real.frame" 1 accept
 
 # Each immediately adjacent declared extent and the next complete input byte
 # rejects before publication. The payload bytes are present, so these are real
 # boundary cases rather than truncation aliases.
-dd if="$TMP/v2-max.beta" status=none > "$TMP/v2-source-over"
+dd if="$TMP/v2-max.gamma" status=none > "$TMP/v2-source-over"
 printf ' ' >> "$TMP/v2-source-over"
 printf 'x' > "$TMP/v2-one"
 printf '%s' '(= z z) (refl z)' > "$TMP/v2-small-cert"
@@ -269,7 +269,7 @@ file_chk "V2 complete input adjacent extent" "$TMP/v2-input-over" 0 reject
 printf '%s' \
   '(fun 201 61 (k 61)) (fun 201 62 (k 62 (v 0))) (fun 201 63 (k 63 (rec 0) (rec 1))) (= (f 201 tape) tape) (refl tape)' \
   > "$TMP/v2-arena-over-cert"
-write_frame_files "$TMP/v2-arena-over-frame" "$TMP/v2-max.beta" "$TMP/v2-max.tape" "$TMP/v2-arena-over-cert"
+write_frame_files "$TMP/v2-arena-over-frame" "$TMP/v2-max.gamma" "$TMP/v2-max.tape" "$TMP/v2-arena-over-cert"
 file_chk "V2 permanent arena exhaustion" "$TMP/v2-arena-over-frame" 0 reject
 
 echo "checker rule discriminators: $PASS passed, $FAIL failed"

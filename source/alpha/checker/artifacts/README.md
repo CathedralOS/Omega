@@ -1,14 +1,14 @@
 # Persisted proof-checker artifact
 
 `proof_checker_bytecode.tape` is the platform-independent Alpha tape for the
-authoritative Beta certificate checker.
+authoritative Gamma certificate checker.
 
-Its construction lineage is deliberately below the accepted Beta compiler:
+Its construction lineage uses the accepted Gamma compiler:
 
 ```text
-audited Alpha seed + Alpha-written assembler
-  -> canonical Beta compiler written in Alpha (`../../../beta/compiler/beta_compiler.alpha`)
-  -> `../implementations/beta/check.beta`
+audited Alpha seed + canonical Gamma compiler tape
+  (`../../../gamma/compiler/gamma_compiler_bytecode.tape`)
+  -> `../implementations/gamma/check.gamma`
   -> `proof_checker_bytecode.tape`
 ```
 
@@ -17,12 +17,12 @@ result byte-for-byte with the committed artifact, stamps it into the audited
 host seed, and exercises discriminating accept/reject controls. Repeating the
 construction is an optional reproducibility diagnostic. The normal
 checker and compiler-refinement gates consume this artifact through
-`../artifact_env.sh`. The canonical Beta compiler artifact may compile the same
+`../artifact_env.sh`. The canonical Gamma compiler artifact may compile the same
 source as differential evidence only; it is not this artifact's authority.
 
-The current artifact is 238,926 bytes. It accepts the bounded `OMGCHK1` binary
+The current artifact is 271,096 bytes. It accepts the bounded `OMGCHK1` binary
 frame documented in the parent README and constructs exact raw `source` and
-`tape` indexed byte-tree constants internally. The rebuilt tape leaves 809,646
+`tape` indexed byte-tree constants internally. The rebuilt tape leaves 777,476
 bytes in the 1,048,572-byte AlphaBootstrapV2 payload extent.
 
 The checker source, persisted tape, and gate share the V2 frame and arena. The

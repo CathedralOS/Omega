@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # check_ref.py — an INDEPENDENT reference proof checker written from the
-# natural-deduction rules, not ported from check.beta. Reads "<goal> <proof>" on
+# natural-deduction rules, not ported from check.gamma. Reads "<goal> <proof>" on
 # stdin and prints the same accept/reject interface as the authoritative checker.
 #
 # The Beta checker is lattice-lineage and authoritative. This Python program is
@@ -9,10 +9,10 @@
 # (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +
 # Peano/list/user-function normalization), and the FULL induction fragment (natind/listind/eqelim/disj/sinj).
 # PLUS the inductive predicates Mem/ProdIs/Perm (Rel 777/778/779), generic structural induction over user
-# datatypes (rec + con_case), and named lemmas (def/use). check_ref now realizes EVERY rule of check.beta.
-# check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and curated
+# datatypes (rec + con_case), and named lemmas (def/use). check_ref now realizes EVERY rule of check.gamma.
+# check-ref-diamond.sh fuzzes it against check.gamma on random propositional/FO/equality/TV proofs and curated
 # induction + predicate + lemma corpora, requiring identical accept/reject. UNTRUSTED and checked, like the other
-# *_ref tools; a bug here (or in check.beta) surfaces as a disagreement — the trust anchor's one fully independent,
+# *_ref tools; a bug here (or in check.gamma) surfaces as a disagreement — the trust anchor's one fully independent,
 # auditable second implementation. It also decodes the generic OMGCHK1 frame
 # and constructs the same raw source/tape trees for artifact-proof diagnostics;
 # it does not reproduce the authoritative checker's runtime resource profile.
@@ -238,7 +238,7 @@ def term_contains_float_meaning(t):
         return True
     return any(term_contains_float_meaning(child) for child in t[1:])
 
-def prop_eq(p, q):                                     # proposition equality up to conversion (check.beta type_eq)
+def prop_eq(p, q):                                     # proposition equality up to conversion (check.gamma type_eq)
     if not isinstance(p, list) or not isinstance(q, list):
         return p == q                                  # bare atoms
     if p[0] != q[0]:
@@ -373,7 +373,7 @@ def subst_prop_keep(p, s, depth):                      # for induction's P(s n):
     return [h, subst_prop_keep(p[1], s, depth), subst_prop_keep(p[2], s, depth)]
 
 def con_case(cid, motive):                             # expected case type for constructor `cid` under `motive`
-    arity, r0, r1 = DATA[cid]                           # generic structural induction, mirroring check.beta con_case
+    arity, r0, r1 = DATA[cid]                           # generic structural induction, mirroring check.gamma con_case
     if arity == 0:
         return subst_prop(motive, ['k', cid], 0)                          # P(cid)
     if arity == 1:
@@ -541,7 +541,7 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
             return ['=', a[1], b[1]]
         return None
     # ---- inductive predicates: Mem (Rel 777), ProdIs (Rel 778), Perm (Rel 779). Each intro rule mirrors
-    # check.beta exactly; the inversions are sound because the only closed sources of these Rels are the intros.
+    # check.gamma exactly; the inversions are sound because the only closed sources of these Rels are the intros.
     def as_rel(pf_sub, rid):                            # infer pf_sub, require it prove (Rel rid a b); return the prop
         r = infer(pf_sub, ctx, idep)
         return r if isinstance(r, list) and r[0] == 'Rel' and r[1] == rid else None
@@ -624,7 +624,7 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
 def register(forms, framed=False):
     """Populate FUNS (rewrite rules), DATA (constructor shapes), and LEMMAS (named (def N type proof), each
     VERIFIED against its stated type in source order before it is citable). Sets DEFS_OK=False if any def fails
-    to verify — the whole cert then rejects, matching check.beta. Returns the non-declaration forms (goal, proof)."""
+    to verify — the whole cert then rejects, matching check.gamma. Returns the non-declaration forms (goal, proof)."""
     global DEFS_OK
     FUNS.clear(); DATA.clear(); LEMMAS.clear(); PRODUCTS.clear(); DEFS_OK = True
     if framed:

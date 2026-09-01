@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Loader for the platform-independent checker tape constructed below Beta.
+# Loader for the platform-independent checker tape constructed through Gamma.
 # Source tools/lattice/paths.sh first.
 
 [ -n "${OMEGA_PATH_ALPHA_CHECKER:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {

@@ -2,12 +2,12 @@
 # check-ref-fuzz.py CHECK_EXE K — differential-test the trust anchor across FOUR proof categories: (1)
 # propositional logic, (2) first-order (All/Exists), (3) equality by conversion (refl over Peano p/m), and
 # (4) USER-FUNCTION arithmetic certificates — the actual translation-validation cert language (data/fun
-# rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.beta and the independent
+# rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.gamma and the independent
 # reference check_ref.py must AGREE: both accept each cert, and both reject a perturbed (wrong-value/wrong-
 # type) variant. So check_ref independently validates not just the checker's logic but the REAL TV certs.
 # Deterministic (fixed seed). Curated induction (natind/listind/eqelim/disj/sinj), inductive-predicate
 # (Mem/ProdIs/Perm), and named-lemma + generic-induction (def/use/rec) corpora are also cross-checked —
-# check_ref now mirrors EVERY rule of check.beta.
+# check_ref now mirrors EVERY rule of check.gamma.
 import sys, os, random, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'implementations', 'reference'))
@@ -175,7 +175,7 @@ def tv_expr(rng, depth):                               # -> (term_string, value)
 
 # ---- induction corpus (natind + listind + eqelim + disj + sinj) --------------------------------------
 # Random valid induction proofs are impractical to generate, so this is a curated accept/reject corpus over
-# the whole induction fragment — Nat AND list induction (nil/cons/app/len normalization): check.beta and
+# the whole induction fragment — Nat AND list induction (nil/cons/app/len normalization): check.gamma and
 # check_ref must agree on every one.
 IND_CORPUS = [
     ("(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))", "accept"),
@@ -199,7 +199,7 @@ IND_CORPUS = [
 
 # ---- inductive-predicate corpus (Mem 777 / ProdIs 778 / Perm 779) ------------------------------------
 # The relations the number-theory layer (FTA) is built on. Intro rules (memhead/tail, pnil/pcons, permnil/
-# skip/swap/trans) and inversions (memcons/memnil, pnilinv/pconsinv) — check.beta and check_ref must agree.
+# skip/swap/trans) and inversions (memcons/memnil, pnilinv/pconsinv) — check.gamma and check_ref must agree.
 _ML = "(cons (s z) (cons (s (s z)) (cons (s (s (s z))) nil)))"       # [1,2,3]
 _MPF = "(memtail (s z) (memhead (s (s z)) (cons (s (s (s z))) nil)))"  # Mem(2,[1,2,3])
 _PL = "(cons (s (s z)) (cons (s (s (s z))) nil))"                      # [2,3]

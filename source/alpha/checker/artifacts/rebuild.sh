@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Deliberately replace the persisted checker artifact through its below-Beta edge.
+# Deliberately replace the persisted checker artifact through its Gamma edge.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)

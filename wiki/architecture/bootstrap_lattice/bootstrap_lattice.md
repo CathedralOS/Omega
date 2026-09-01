@@ -1,23 +1,24 @@
 # The Bootstrap Lattice
 
 > **Status: fixed architecture, incomplete upper implementations.** The language
-> spine is `Alpha → Beta → Gamma → Delta → Omega`. Alpha tape is the canonical
+> spine is `Alpha → Beta → Gamma → Delta → Epsilon → Omega`. Alpha tape is the canonical
 > executable form of every bootstrap compiler. Alpha is operational; current
-> Beta now has its canonical immediate-predecessor source and direct tape;
+> Gamma now has its canonical immediate-predecessor source and direct tape;
 > its full refinement remains open, as do the upper compiler implementations.
 
 ## The chain
 
-Let `D` be the exact Delta-written source closure of the first full Omega
+Let `D` be the exact Epsilon-written source closure of the first full Omega
 compiler, and `C` the exact Omega-written source closure of the self-hosting
 compiler:
 
 ```text
 audited Alpha seed
-  → Alpha-written Beta compiler       → beta_compiler_bytecode.tape
+  → direct Beta assembler tape
   → Beta-written Gamma compiler       → gamma_compiler_bytecode.tape
-  → Gamma-written Delta compiler      → delta_compiler_bytecode.tape
-  → Delta-written Omega closure D     → omega0_compiler_bytecode.tape
+  → Gamma-written Delta compiler       → delta_compiler_bytecode.tape
+  → Delta-written Epsilon compiler      → epsilon_compiler_bytecode.tape
+  → Epsilon-written Omega closure D     → omega0_compiler_bytecode.tape
   → Omega-written Omega closure C     → omega_compiler_bytecode.tape
 ```
 
@@ -29,11 +30,11 @@ implementation-language source closures. `omega₀` may be slow and
 conservatively generated; `omega` may apply the optimizer implemented by the
 Omega source.
 
-The former Beta-written Delta-to-Gamma translator crossed two ownership
+The former Gamma-written Epsilon-to-Delta translator crossed two ownership
 boundaries and is deleted with its native-publication apparatus. Git history is
 the archive; no compatibility route replaces it.
 
-Alpha assembly, Beta, Gamma, and Delta implementation source also share the
+Beta assembly, Gamma, Delta, and Epsilon implementation source also share the
 closed textual-ASCII envelope fixed by [D15](decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).
 This removes host decoding, Unicode tables, normalization, and invisible
 control-byte trivia from the bootstrap trust surface. Arbitrary bytes remain
@@ -42,12 +43,12 @@ characters.
 
 ## One canonical executable representation
 
-Alpha tape is the bootstrap authority from Beta through `omega`. A
+Alpha tape is the bootstrap authority from Gamma through `omega`. A
 target-specific Alpha VM seed executes the same tape on every supported host.
 Stamping the tape into a Mach-O, ELF, or PE seed is transparent packaging; the
 container, signature, and installation are not new compiler artifacts.
 
-This avoids requiring Beta, Gamma, or Delta to implement hardware-specific
+This avoids requiring Gamma, Delta, or Epsilon to implement hardware-specific
 backends. Each needs one lowering to the small Alpha machine. The product Omega
 compiler still owns native target backends for user programs.
 
@@ -63,10 +64,11 @@ facts. The canonical source relationship is:
 
 | Compiler artifact | Implementation source | Accepted input | Canonical output |
 | --- | --- | --- | --- |
-| Beta compiler | Alpha | Beta | Alpha tape |
+| Beta assembler | Alpha tape | Beta | Alpha tape |
 | Gamma compiler | Beta | Gamma | Alpha tape |
 | Delta compiler | Gamma | Delta | Alpha tape |
-| `omega₀` | Delta (`D`) | Omega | Alpha tape |
+| Epsilon compiler | Delta | Epsilon | Alpha tape |
+| `omega₀` | Epsilon (`D`) | Omega | Alpha tape |
 | `omega` | Omega (`C`) | Omega | Alpha tape |
 
 A self-hosted implementation of an intermediate language may remain a test,
@@ -101,7 +103,7 @@ lemmas—not executable bridge stages.
 ## Five roles often confused as “the bottom”
 
 1. **Seed execution** realizes Alpha semantics on a physical host.
-2. **Language semantics** define Alpha, Beta, Gamma, Delta, and Omega.
+2. **Language semantics** define Alpha, Gamma, Delta, Epsilon, and Omega.
 3. **Compiler construction** produces the next Alpha tape.
 4. **Proof checking** validates derivations independently of their producers.
 5. **Admissions** disclose hardware, firmware, foreign-system, and release
@@ -114,10 +116,11 @@ No implementation gains authority by occupying more than one role.
 | Rung | Responsibility | Canonical implementation direction |
 | --- | --- | --- |
 | [Alpha](rungs/alpha.md) | minimal deterministic tape execution | written semantics plus audited native VM seeds |
-| [Beta](rungs/beta.md) | small structured compiler language | Alpha-written compiler to Alpha tape |
-| [Gamma](rungs/gamma.md) | safe typed definitional computation | Beta-written direct compiler to Alpha tape |
-| [Delta](rungs/delta.md) | deterministic compiler-host systems language | Gamma-written compiler to Alpha tape |
-| [Omega](omega_toolchain.md) | full product language and compiler | Delta-written first compiler, then Omega-written compiler |
+| [Beta](rungs/beta.md) | textual Alpha assembly | direct Alpha tape plus readable self-host source |
+| [Gamma](rungs/gamma.md) | small structured compiler language | Beta-written compiler to Alpha tape |
+| [Delta](rungs/delta.md) | safe typed definitional computation | Gamma-written direct compiler to Alpha tape |
+| [Epsilon](rungs/epsilon.md) | deterministic compiler-host systems language | Delta-written compiler to Alpha tape |
+| [Omega](omega_toolchain.md) | full product language and compiler | Epsilon-written first compiler, then Omega-written compiler |
 
 The Alpha-owned [proof kernel](proof_kernel.md) is universal checker
 infrastructure, not another rung. Terminal Psi is an internal product compiler
@@ -154,7 +157,7 @@ Work stops for an owner ruling when implementation pressure indicates that the
 architecture itself may be wrong:
 
 - terrible wall time, memory use, or tape size on representative
-  `delta → omega₀` or `omega₀ → omega` work;
+  `epsilon → omega₀` or `omega₀ → omega` work;
 - excessive Alpha verbosity or pressure for new instructions/encodings;
 - prohibitive proof size or checking time after compositional cleanup;
 - apparent need for jets or other special native substitutions;
@@ -183,11 +186,11 @@ The ordered work is in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md). The principal open edges are:
 
 - finish admission and exact source-to-tape refinement for the already
-  canonical Alpha-written Beta construction;
-- turn the Beta-written Gamma implementation into the compiler artifact needed
-  to consume Gamma and emit Alpha tape;
-- implement the Delta compiler in Gamma;
-- author the first Omega compiler source closure `D` in Delta under Omega
+  canonical Beta-written Gamma construction;
+- turn the Gamma-written Delta implementation into the compiler artifact needed
+  to consume Delta and emit Alpha tape;
+- implement the Epsilon compiler in Delta;
+- author the first Omega compiler source closure `D` in Epsilon under Omega
   ownership, using historical prototypes only as Git-resident reference;
 - build `omega₀.tape` from `D`; and
 - compile `C` with `omega₀` into `omega.tape`.
