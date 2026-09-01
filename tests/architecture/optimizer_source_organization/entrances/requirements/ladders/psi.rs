@@ -307,4 +307,12 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/support/node_elision_accounting.rs",
         ],
     },
+    SemanticLadder {
+        family: "proof-check contract and operational custody tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/proof_check_elision/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/proof_check_elision/contract_custody.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/pass_manager/tests/execution/fixed_points/proof_check_operational.rs",
+        ],
+    },
 ];

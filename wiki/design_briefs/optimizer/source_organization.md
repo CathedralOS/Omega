@@ -244,6 +244,18 @@ both opt-in suites are disabled by default, deterministic under repeated
 execution and budget exhaustion, custody-preserving in their manifests and
 ledgers, and idempotent at the resulting fixed point.
 
+The complete proof-check roster has one companion contract matrix and one
+whole-engine operational matrix. The contract matrix pins all twelve ordered
+rows, their complete analysis contracts, proof-certified safety, `-1` cost,
+and exact validator identities. It rejects all 132 directed cross-rule
+relabellings plus unknown identities, analysis and invalidation subsets and
+supersets, wrong cost, and wrong safety at either candidate construction or
+independent validation. The operational matrix uses one fixture per roster row
+to prove default-disabled execution, exact evaluation order, deterministic
+repetition and budget failure, manifest/fact and ledger/commit custody,
+accepted-proof retention, source-obligation pruning, and fixed-point
+idempotence.
+
 SCCP range comparisons follow the same descent. The pass entrance retains the
 sole 39-row local order, while `range_comparisons/` first separates
 range-against-constant from range-against-range evidence. Each of the nine
