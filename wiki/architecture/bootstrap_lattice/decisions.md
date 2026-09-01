@@ -516,9 +516,10 @@ identity.
 D25 supplies the authoritative outer framing and canonical-content rules for
 this logical request and outcome. It retains each selected immutable source
 revision independently from the stable `PackageKey`, but deliberately gives no
-V1 wire identity to the future accepted `PackageInstance` carrier. Q1 owns the
-still-missing inner field/tag tables, commitment preimage, failure-code tables,
-phase order, and scalar provisions needed for one byte-interoperable wire.
+V1 wire identity to the future accepted `PackageInstance` carrier. D59 fixes
+the remaining inner-table, commitment, failure-order, scalar-publication, and
+shared-profile rules needed for one byte-interoperable wire; assigning and
+implementing its closed numeric tables remains compiler closure work.
 
 ## D19 — Gamma application adapters are selected by one sealed two-profile input
 
@@ -773,10 +774,10 @@ arithmetic, and therefore never turns hostile framing into a trap and outer
 `InternalFailure`.
 
 The identity, outer section extents, exact end, and canonical semantic contents
-in this decision are fixed. They do not by themselves assign every inner row's
-byte order, width, tag, or reserved fields, nor the closed failure/resource
-numbers. Q1 completes those physical tables before either compiler may claim a
-full V1 decoder or publisher.
+in this decision are fixed. D59 governs the one flat inner profile, exact
+commitment preimage, failure ordering, and bounded numeric publication. Its
+closed checked tables must be assigned and implemented before either compiler
+may claim a full V1 decoder or publisher.
 
 The subject encodes package rows in ascending recomputed
 `PackageKeyIdentity` order. Each row carries the structural package name and
@@ -2599,6 +2600,79 @@ Emitter or instruction-plan consolidation remains ordinary source-quality work.
 It is accepted only when Beta-authored checked source demonstrably reduces total
 source and proof complexity. It neither gates the measurement revision nor
 licenses preserving 1,024 by code golf.
+
+## D59 — One flat OCREQ v1 profile is shared at the wire, not in private representation
+
+D18's logical Omega compilation subject and invocation and D25's outer framing
+are realized by one flat, byte-exact `OCREQ` version-1 profile. The subject and
+invocation acquire no independent nested versions: representation changes move
+the outer version atomically. Normative checked tables publish every field and
+row in order, every little-endian width and extent, every zero-based graph
+index, every closed numeric tag, and every reserved slot. All reserved slots
+must be zero. Counts, lengths, indices, and coordinate-producing input extents
+remain at most `INT32_MAX`. Validated language names use their specified UTF-8
+grammar; snapshot paths, file contents, and link targets remain length-framed
+raw bytes. Rust object layout, enum order, serde, pointers, host paths, and
+private re-encodings are never wire inputs.
+
+The invocation's 32-byte subject commitment is SHA-256 over the exact byte
+sequence
+`"omega.ocreq.subject.sha256.v1\0" || subject-section-bytes`. It is not a hash
+of a reconstructed object. The compiler first validates the complete outer
+frame and the subject's canonical byte representation, then recomputes this
+commitment. Package-key identities remain independently recomputed from their
+structural package name and source lineage; the subject commitment does not
+replace those local identity checks.
+
+Framing precedes capacity. A decoder validates the identity and reserved bytes,
+rejects every encoded `u32` high bit, and establishes exact end from the known
+request extent before applying any request or compiler ceiling. The canonical
+Delta implementation is the worked arithmetic rule: compare section lengths
+against remaining extents subtractively and never form a potentially trapping
+`16 + subject_length + invocation_length` sum. A short stream claiming a huge
+section is malformed `Reject`; a structurally exact huge request may then be
+`Incomplete`. Only after framing and ceilings does validation proceed through
+canonical fields, package identities and order, graph, snapshots, admissions,
+subject commitment, source, build, and later compiler phases.
+
+D25's common `OCOUT` contract is retained rather than relaxed. Adjacent checked
+tables assign every Reject, Incomplete, and InternalFailure code, its admitted
+coordinate spaces, and fixed diagnostic phase. Common phase precedence,
+canonical coordinate ordering, and source anchors select the same published
+diagnostic when `D` and `C` process the same request under the same profile.
+This agreement is a useful differential oracle but does not replace either
+compiler's refinement proof. Unknown codes, illegal coordinate/code pairings,
+nonzero reserved slots, and noncanonical tails reject.
+
+The shared 40-byte frame retains `u64` physical fields, but OCREQ v1 normalizes
+every public limit, requested amount, and primary coordinate into
+`0..INT32_MAX`, with the high 32 bits zero and every selected limit strictly
+below `INT32_MAX`. For a nonnegative mathematical quantity `x`, publication is
+`min(x, INT32_MAX)`. The Delta implementation realizes this through a private
+`Exact(nonnegative i32) | Overflowed` domain and pre-addition or
+pre-multiplication tests; it never performs trapping arithmetic and catches the
+result. An Omega implementation may compute exactly in a wider domain and
+saturate only at publication. The wire constrains observable bytes, not private
+arithmetic.
+
+An intentionally narrower bootstrap compiler, if selected later, cannot reject
+valid Omega outside its coverage as invalid source. Its coverage is a disclosed
+resource profile of named scalar provisions; exceeding one yields
+`Incomplete(resource, limit, requested, coordinate)` and no language verdict.
+Where a language construct is provisioned by a count, a zero limit and the
+actual positive requested count honestly express its absence. Differential
+comparison requires the same profile on both compilers. This rule keeps the
+wire compatible with a future bootstrap subset but does not itself amend D6's
+current requirement that `omega₀` implement full Omega; changing that
+refinement scope remains a separate owner decision.
+
+The normative field, outcome, and resource tables are checked projections of
+constants embedded independently in both offline compiler artifacts, never
+host files consulted at runtime. Their remaining numeric assignment and
+implementation are ordinary closure work under this ruling: neither compiler
+may publish a complete V1 boundary until the tables, exact/adjacent vectors,
+unknown-tag rejection, phase selection, bounded arithmetic, and no-partial-
+publication gates agree.
 
 ## Dependency order
 
