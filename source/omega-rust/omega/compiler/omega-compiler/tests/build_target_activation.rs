@@ -406,6 +406,14 @@ machine Main::main(&mut self) {
         .iter()
         .map(|occurrence| occurrence.terminal_operation())
         .collect::<Vec<_>>();
+    let application_realizations = proposal.boundary_application_realizations().rows();
+    assert_eq!(application_realizations.len(), 2);
+    assert!(application_realizations.iter().all(|realization| {
+        realization.role()
+            == omega_boundary_applications::BoundaryApplicationRealizationRole::ExactCompilerIntrinsic
+            && realization.selected_plan_digest() != &[0; 32]
+            && terminal_operations.contains(&realization.terminal_operation())
+    }));
     let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
         .expect("canonical Terminal semantics decode");
 

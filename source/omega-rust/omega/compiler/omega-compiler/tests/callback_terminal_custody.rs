@@ -347,6 +347,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),
             proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),
@@ -365,6 +366,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             vec![occurrence.clone(), occurrence.clone()],
             proposal.ieee_float_fma_occurrences().to_vec(),
             proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),
@@ -391,6 +393,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         ],
         proposal.ieee_float_fma_occurrences().to_vec(),
         proposal.boundary_application_demands().clone(),
+        proposal.boundary_application_realizations().clone(),
         proposal.checked_boundary_operator_scope().clone(),
     )
     .expect("artifact-local replay cannot infer the checked native telescope");
@@ -425,6 +428,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),
             proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),
@@ -455,6 +459,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),
             proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
         )
         .expect("artifact-only proposal replay cannot reconstruct checked continuation handles");
@@ -479,6 +484,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         Vec::new(),
         proposal.ieee_float_fma_occurrences().to_vec(),
         proposal.boundary_application_demands().clone(),
+        proposal.boundary_application_realizations().clone(),
         proposal.checked_boundary_operator_scope().clone(),
     )
     .expect("artifact-local replay permits an empty occurrence catalog");

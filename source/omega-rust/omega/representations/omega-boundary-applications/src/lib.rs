@@ -10,6 +10,13 @@
 
 use psi_core::OperationId;
 
+mod realization;
+
+pub use realization::{
+    BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
+    BoundaryApplicationRealizationRole, TerminalBoundaryApplicationRealizations,
+};
+
 /// Exact-owner canonical identity of one nominal declaration.
 ///
 /// The authoritative compiler projection derives these bytes from the managed

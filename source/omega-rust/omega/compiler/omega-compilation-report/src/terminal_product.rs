@@ -174,6 +174,8 @@ pub struct TerminalNativeRealizationProposal {
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     boundary_application_demands: omega_boundary_applications::TerminalBoundaryApplicationDemands,
+    boundary_application_realizations:
+        omega_boundary_applications::TerminalBoundaryApplicationRealizations,
     checked_boundary_operator_scope:
         psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
 }
@@ -192,6 +194,7 @@ impl TerminalNativeRealizationProposal {
         callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
         ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
         boundary_application_demands: omega_boundary_applications::TerminalBoundaryApplicationDemands,
+        boundary_application_realizations: omega_boundary_applications::TerminalBoundaryApplicationRealizations,
         checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     ) -> Result<Self, &'static str> {
         let proposal = Self {
@@ -206,6 +209,7 @@ impl TerminalNativeRealizationProposal {
             callback_occurrences,
             ieee_float_fma_occurrences,
             boundary_application_demands,
+            boundary_application_realizations,
             checked_boundary_operator_scope,
         };
         proposal.validate_for_artifact(artifact)?;
@@ -226,6 +230,8 @@ impl TerminalNativeRealizationProposal {
             .validate_for_artifact(artifact)?;
         self.boundary_application_demands
             .validate_for_terminal(artifact.manifest().semantic())?;
+        self.boundary_application_realizations
+            .validate_for_demands(&self.boundary_application_demands)?;
         if self.boundary_application_demands.rows().len()
             != self.checked_boundary_operator_scope.occurrences().len()
             || !self
@@ -549,6 +555,12 @@ impl TerminalNativeRealizationProposal {
         &self,
     ) -> &omega_boundary_applications::TerminalBoundaryApplicationDemands {
         &self.boundary_application_demands
+    }
+
+    pub const fn boundary_application_realizations(
+        &self,
+    ) -> &omega_boundary_applications::TerminalBoundaryApplicationRealizations {
+        &self.boundary_application_realizations
     }
 }
 

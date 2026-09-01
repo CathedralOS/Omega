@@ -83,9 +83,14 @@ stop the item on one precise owner question before adding machinery.
   now projects those joined occurrences into representation-owned, exact-
   owner, source-free requirement and tagged type/const application rows bound
   to the canonical Terminal artifact; the product rejects missing, duplicate,
-  substituted, or non-Terminal operation coordinates. Role-specific semantic
-  companions, cross-artifact demand closure, D29 physical parents, and non-
-  identity optimization projections remain open.
+  substituted, or non-Terminal operation coordinates. A representation-owned
+  companion now covers that exact demand set with the strong selected-plan
+  digest and one closed role payload for nongeneric checked bodies,
+  authoritative generic specializations, or independently rederived compiler
+  intrinsics. Externally admitted concrete authority remains absent rather
+  than being represented by a self-issued placeholder commitment. Cross-
+  artifact demand closure, external realization custody, D29 physical parents,
+  and non-identity optimization projections remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,

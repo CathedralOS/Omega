@@ -9,5 +9,6 @@ name = "omega_boundary_applications"
 path = "src/lib.rs"
 
 [dependencies]
+omega-effects = { path = "../omega-effects" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
