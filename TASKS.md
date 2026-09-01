@@ -11904,8 +11904,9 @@ checked-result arithmetic decision listed below.
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
   The `omega-layout` materialization owner's 6,224-line regression corpus now
-  lives in a private test child. The 3,864-line production owner retains all 43
-  production functions, all 19 public projection entry points, exact module
+  lives in a 4,306-line private test root over a focused 1,885-line
+  depth-eight-through-twelve child. The 3,864-line production owner retains all
+  43 production functions, all 19 public projection entry points, exact module
   paths, diagnostics, and the complete 27-test crate behavior unchanged.
   The matching 10,497-line Psi materialization owner is now a 4,109-line public
   carrier/replay facade over private byte-derivation (4,940 lines), report-
