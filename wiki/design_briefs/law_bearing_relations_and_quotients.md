@@ -782,7 +782,8 @@ The first executable static requirement-call carrier is intentionally smaller
 than that general model. An attached or free caller's explicit proof-static
 binder may be specialized to one concrete named conformance whose direct
 requirement and realization are non-generic one-state callables. Unit retains
-its attached/free carrier. The first scalar rung admits only exact `i32`: its
+its attached/free carrier. The bounded scalar rung admits only exact `i32` or
+`bool`: its
 specialized caller is free, and its requirement and realization are
 receiverless with zero ordinary arguments. Erased named inputs do not count as
 ordinary arguments. The scalar value crosses the ordinary call result; no
@@ -800,11 +801,13 @@ proposition, interface, lane, and public selector. The caller receives a fresh o
 the satisfier's local alias, appended strengthening, forwarded term, and
 producer provenance remain private. Terminal retains the normalized public
 requirement separately from the owner-scoped application and concrete runtime
-callee, and verification rejoins every ordered lane with all three without
+callee. Its closed callable registry separately commits the source-derived
+matched requirement/realization result class, and verification rejoins every
+ordered lane and runtime result with all four without
 adding runtime arguments, storage, operations, or fuel. Inherited requirement
 rows, generic or subject-bearing public surfaces, unnamed rows, direct
-conformance-name calls, non-`i32` scalar results, receiver- or
-ordinary-argument-bearing scalar calls, attached scalar callers, and dynamic
+conformance-name calls, scalar results other than exact `i32` or `bool`,
+receiver- or ordinary-argument-bearing scalar calls, attached scalar callers, and dynamic
 dispatch remain closed.
 
 Proof-only evaluation, when a transparent body is actually

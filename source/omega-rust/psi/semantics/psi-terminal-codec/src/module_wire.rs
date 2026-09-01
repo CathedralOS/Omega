@@ -7,18 +7,19 @@
 use psi_core::{ContentProjectionIdentity, IeeeFloatFormat};
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
-    ClosedConformanceParameterBinding, ClosedConformanceParameterKind, ClosedConformanceRow,
-    EvidenceContractLane, EvidenceContractLaneKind, EvidenceTermDeclaration,
-    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency,
-    ProofOnlyValueType, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
-    ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration,
-    ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
-    StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
-    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
-    TerminalPlacedViewInput, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
-    TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
-    TerminalReborrowSharedCohortMember, TerminalRootServiceReach, VocabularyMarker,
+    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
+    ClosedConformanceParameterKind, ClosedConformanceRow, EvidenceContractLane,
+    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
+    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
+    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
+    StructuralDomainDeclaration, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
+    TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule, TerminalPlacedViewInput,
+    TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
+    TerminalReborrowRootHandoffStep, TerminalReborrowSharedCohortMember, TerminalRootServiceReach,
+    VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -686,6 +687,11 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
                 &callable.source_callable_identity,
             )?;
             writer.id(callable.machine);
+            writer.u8(match callable.result {
+                ClosedConformanceCallableResult::Unit => 1,
+                ClosedConformanceCallableResult::I32 => 2,
+                ClosedConformanceCallableResult::Bool => 3,
+            });
         }
         writer.len("closed conformance rows", application.rows.len())?;
         for row in &application.rows {
@@ -992,6 +998,17 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                     source_callable_identity: reader
                         .string("closed conformance realization callable identity")?,
                     machine: reader.id("MachineId")?,
+                    result: match reader.u8()? {
+                        1 => ClosedConformanceCallableResult::Unit,
+                        2 => ClosedConformanceCallableResult::I32,
+                        3 => ClosedConformanceCallableResult::Bool,
+                        tag => {
+                            return Err(CodecError::InvalidTag(
+                                "ClosedConformanceCallableResult",
+                                tag,
+                            ));
+                        }
+                    },
                 })
             })?,
             rows: decode_counted(reader, |reader| {

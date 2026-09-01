@@ -310,7 +310,7 @@ canonical bytes. Representation validation rejects missing, duplicate,
 reversed, surplus, role/payload-mismatched, and unknown-tag evidence before it
 independently reconstructs the theorem, correspondence, eligibility,
 fact-major/source and theorem-coordinate order, exact congruence-`P`/transport-
-`P` join, and direct-result shape. Format 51 / vocabulary 54 carry this
+`P` join, and direct-result shape. Format 53 / vocabulary 56 carry this
 strengthened source-free contract. A nonempty table is still
 rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
@@ -704,8 +704,8 @@ loan and ending at state exit. Each root-to-leaf edge is exactly
 The producer reverses the leaf's exact retired-parent path, rejects branching,
 and rejoins every resource, activation, parent-entry formation, weakening,
 captured-place, projection-remainder, and `ExclusiveSuspension` row before
-accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 51 /
-vocabulary 54 round-trip the complete lineage and restored-use publication.
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 53 /
+vocabulary 56 round-trip the complete lineage and restored-use publication.
 Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
@@ -881,7 +881,8 @@ is the requirement's normalized callable identity rather than the concrete machi
 A separate private dispatch row retains the caller-owned closed-conformance
 application, its domain-separated commitment, exact declaring trait/
 requirement/realization row, and emitted
-runtime callee. The bounded result is Unit or exact signed 32-bit scalar; the
+runtime callee. The bounded result is Unit, exact signed 32-bit scalar, or
+Boolean; the
 scalar form is receiverless, zero-ordinary-argument, and selected from a free
 caller. The selected output has no satisfier callee-term or forwarding
 coordinate: its requirement proposition and public selector authorize one
@@ -890,28 +891,30 @@ identity to the canonical row, the row to the owner-scoped application, and
 the private realization to the ordinary `CallUnit` or scalar `Call`; it rejects missing
 dispatch, identity, commitment, or report-fingerprint drift, private
 forwarding/provenance leakage, and reuse of an input or prior output term. Codec
-format 51 / vocabulary 54 preserve this split and serialize the application
+format 53 / vocabulary 56 preserve this split and serialize the application
 and dispatch commitments. Terminal validation recomputes the application
 commitment from its complete source-free structure, selects dispatch by owner
 plus that commitment, and then replays the exact row. The compact fingerprint
 is named a report fingerprint and remains report/index data only. Erasing the
 proof rows leaves runtime parameter/result shape, storage, operations, and fixed
 fuel unchanged. Scalar type, operation ID/kind, runtime callee, and dispatch
-realization drift reject independently.
+realization drift reject independently, including a coordinated `i32`/Boolean
+runtime retarget while the source-derived callable result class remains rooted.
 
 Independent Terminal replay rejoins the closed conformance row to its retained
 source realization identity and the artifact-local realization machine ID to
-the exact ordinary call. For the bounded static Unit/exact-i32 named-witness
-cohort, the owning application additionally retains an ordered canonical map
+the exact ordinary call. For the bounded static Unit/exact-`i32`/exact-Boolean
+named-witness cohort, the owning application additionally retains an ordered canonical map
 with exactly one entry from realization checked callable identity to exact
-Terminal `MachineId`; the sole mapped row retains only an optional
+Terminal `MachineId` and matched source requirement/realization result class;
+the sole mapped row retains only an optional
 callable-identity reference, and the dispatch retains that identity
 independently. Producer lowering derives the
 registry from the checked source-machine closure separately from the selected
 row reference. The verifier requires a global registry bijection, exact row
 resolution, no duplicate, unused, unconsumed, or plural entries/mapped rows,
-and an exact join among application, registry, row, callable identity, machine,
-operation, and runtime callee. The application report fingerprint and strong
+and an exact join among application, registry, row, callable identity, result
+class, machine, operation, and runtime callee. The application report fingerprint and strong
 commitment cover registry and row reference. Nonstatic applications and rows
 remain map-free. This is standalone
 replay for the existing bounded carrier, not a module-wide callable registry or
@@ -3386,7 +3389,7 @@ Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-51 / vocabulary 54 carries the closed artifact descriptor: rooted-checker
+53 / vocabulary 56 carries the closed artifact descriptor: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier

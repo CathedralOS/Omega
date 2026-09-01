@@ -3889,13 +3889,13 @@ fn static_named_witness_i32_result_rejects_receiver_and_ordinary_argument() {
         .expect_err("the first scalar rung must reject receivers and ordinary arguments");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "scalar extension must be exact i32 with a free caller, receiverless requirement and realization, and zero ordinary arguments",
+            "scalar extension must be exact i32 or bool with a free caller, receiverless requirement and realization, and zero ordinary arguments",
         )
     }));
 }
 
 #[test]
-fn static_named_witness_scalar_result_rejects_non_i32_primitive() {
+fn static_named_witness_requirement_call_accepts_exact_bool_result() {
     let source = r#"
         trait Evidence {}
         proposition ready() evidence Evidence;
@@ -3932,11 +3932,150 @@ fn static_named_witness_scalar_result_rejects_non_i32_primitive() {
     "#;
 
     let typed = typed_source(source).expect("typed bool static requirement call");
+    let checked = lower_typed_trees(typed)
+        .expect("one exact bool static requirement witness call should check");
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .collect::<Vec<_>>();
+    let [(invocation, dispatch)] = invocations.as_slice() else {
+        panic!("one exact bool static requirement proof-output call")
+    };
+    let target_state = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .find(|state| state.symbol == dispatch.realization_state)
+        .expect("private bool realization state");
+    assert_eq!(
+        checked
+            .typed
+            .primitive_type_reference(target_state.return_type),
+        Some(psi_typed_trees::types::PrimitiveType::Bool)
+    );
+    assert!(invocation.runtime_call.is_some());
+    assert_eq!(invocation.outputs.len(), 1);
+}
+
+#[test]
+fn static_named_witness_bool_result_accepts_one_exact_trait_default() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce() -> bool
+            requires public_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = public_in;
+                true
+            }
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {}
+
+        machine invoke<Element, Order: Element satisfies Producer>() -> bool
+        requires incoming: ready()
+        {
+            let (value; public_out: proof) = Order::produce(; incoming);
+            value
+        }
+
+        machine caller() -> bool
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(; incoming)
+        }
+    "#;
+
+    let typed = typed_source(source).expect("typed bool trait-default static requirement call");
+    let default_realization = typed
+        .conformances()
+        .iter()
+        .filter_map(|conformance| typed.closed_conformance_rows(conformance))
+        .flatten()
+        .find(|row| {
+            row.source == psi_typed_trees::trait_definition::ConformanceRowSource::TraitDefault
+        })
+        .expect("one selected bool trait-default row")
+        .realization_state;
+    let checked = lower_typed_trees(typed)
+        .expect("one exact bool trait-default static requirement witness call should check");
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .collect::<Vec<_>>();
+    let [(invocation, dispatch)] = invocations.as_slice() else {
+        panic!("one exact bool trait-default static requirement proof-output call")
+    };
+    assert_eq!(dispatch.realization_state, default_realization);
+    assert_eq!(invocation.target_state_symbol, default_realization);
+    assert!(invocation.runtime_call.is_some());
+    assert_eq!(invocation.outputs.len(), 1);
+}
+
+#[test]
+fn static_named_witness_scalar_result_rejects_primitive_outside_bounded_cohort() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce() -> i64
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce() -> i64
+            requires local_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = local_in;
+                17i64
+            }
+        }
+
+        machine invoke<Element, Order: Element satisfies Producer>() -> i64
+        requires incoming: ready()
+        {
+            let (value; public_out: proof) = Order::produce(; incoming);
+            value
+        }
+
+        machine caller() -> i64
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(; incoming)
+        }
+    "#;
+
+    let typed = typed_source(source).expect("typed i64 static requirement call");
     let diagnostics = lower_typed_trees(typed)
-        .expect_err("the first scalar rung must reject every primitive except exact i32");
+        .expect_err("the bounded scalar rung must reject primitives other than i32 and bool");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.message.contains(
-            "scalar extension must be exact i32 with a free caller, receiverless requirement and realization, and zero ordinary arguments",
+            "scalar extension must be exact i32 or bool with a free caller, receiverless requirement and realization, and zero ordinary arguments",
         )
     }));
 }

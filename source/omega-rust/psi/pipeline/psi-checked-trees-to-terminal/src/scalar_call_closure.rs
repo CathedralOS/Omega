@@ -7,7 +7,7 @@ pub(super) fn checked_scalar_call_closure(
     entry: psi_symbols::SymbolHandle,
 ) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
     let mut closure = vec![entry];
-    let mut authorized_static_i32_realizations = Vec::new();
+    let mut authorized_static_scalar_realizations = Vec::new();
     let mut next = 0usize;
     while let Some(machine) = closure.get(next).copied() {
         next += 1;
@@ -23,7 +23,7 @@ pub(super) fn checked_scalar_call_closure(
             ))?;
         if selection.signature != CheckedTerminalSignatureEligibility::Eligible
             && !(selection.signature == CheckedTerminalSignatureEligibility::Attached
-                && authorized_static_i32_realizations.contains(&machine))
+                && authorized_static_scalar_realizations.contains(&machine))
         {
             return unsupported("direct scalar call target has an unsupported terminal signature");
         }
@@ -35,7 +35,7 @@ pub(super) fn checked_scalar_call_closure(
             .ok_or(LoweringError::Unsupported(
                 "direct scalar call target has no checked scalar graph",
             ))?;
-        for (target, authorized_static_i32) in graph.states.iter().flat_map(|state| {
+        for (target, authorized_static_scalar) in graph.states.iter().flat_map(|state| {
             state.bindings.iter().filter_map(|binding| {
                 let CheckedScalarBindingValue::DirectCall { target_machine, .. } = &binding.value
                 else {
@@ -43,7 +43,7 @@ pub(super) fn checked_scalar_call_closure(
                 };
                 Some((
                     *target_machine,
-                    bounded_static_i32_dispatch_edge(checked, machine, state.state, binding),
+                    bounded_static_scalar_dispatch_edge(checked, machine, state.state, binding),
                 ))
             })
         }) {
@@ -58,15 +58,15 @@ pub(super) fn checked_scalar_call_closure(
                     "direct scalar call target has no checked terminal selection",
                 ))?;
             if target_selection.signature == CheckedTerminalSignatureEligibility::Attached
-                && !authorized_static_i32
+                && !authorized_static_scalar
             {
                 return unsupported(
-                    "attached scalar call target is not the exact bounded static i32 realization",
+                    "attached scalar call target is not an exact bounded static scalar realization",
                 );
             }
-            if authorized_static_i32 {
-                if !authorized_static_i32_realizations.contains(&target) {
-                    authorized_static_i32_realizations.push(target);
+            if authorized_static_scalar {
+                if !authorized_static_scalar_realizations.contains(&target) {
+                    authorized_static_scalar_realizations.push(target);
                 }
             }
             if !closure.contains(&target) {
@@ -77,11 +77,11 @@ pub(super) fn checked_scalar_call_closure(
     Ok(closure)
 }
 
-/// The first scalar named-witness rung is the sole exception that may pull an
-/// attached static realization into a free scalar caller's closure. Rejoin the
-/// exact proof-output call coordinate here so an unrelated proof row cannot
+/// The bounded scalar named-witness rung is the sole exception that may pull
+/// an attached static realization into a free scalar caller's closure. Rejoin
+/// the exact proof-output call coordinate here so an unrelated proof row cannot
 /// grant scalar eligibility to another attached machine.
-fn bounded_static_i32_dispatch_edge(
+fn bounded_static_scalar_dispatch_edge(
     checked: &CheckedTrees,
     caller_machine: psi_symbols::SymbolHandle,
     caller_state: psi_symbols::SymbolHandle,
@@ -147,7 +147,7 @@ fn bounded_static_i32_dispatch_edge(
                 && machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
                 && checked.typed.machine_states(machine).len() == 1
         });
-    let realization_is_exact_i32 = checked
+    let realization_result = checked
         .facts
         .flow
         .terminal_scalar_graphs
@@ -156,14 +156,11 @@ fn bounded_static_i32_dispatch_edge(
             let [state] = graph.states.as_slice() else {
                 return None;
             };
-            Some(
-                state.state == *target_state
-                    && state.parameter_types.is_empty()
-                    && state.result_type == PrimitiveType::I32,
-            )
+            (state.state == *target_state && state.parameter_types.is_empty())
+                .then_some(state.result_type)
         })
-        .unwrap_or(false);
-    let requirement_is_exact_i32 = checked
+        .filter(|result| matches!(result, PrimitiveType::I32 | PrimitiveType::Bool));
+    let requirement_result = checked
         .typed
         .traits()
         .iter()
@@ -175,21 +172,24 @@ fn bounded_static_i32_dispatch_edge(
                 .iter()
                 .find(|requirement| requirement.symbol == dispatch.requirement)
         })
-        .is_some_and(|requirement| {
+        .and_then(|requirement| {
             checked
                 .typed
                 .state_signature_parameters(requirement)
                 .is_empty()
-                && checked
-                    .typed
-                    .primitive_type_reference(requirement.return_type)
-                    == Some(PrimitiveType::I32)
-        });
+                .then(|| {
+                    checked
+                        .typed
+                        .primitive_type_reference(requirement.return_type)
+                })
+                .flatten()
+        })
+        .filter(|result| matches!(result, PrimitiveType::I32 | PrimitiveType::Bool));
 
     caller_is_free
         && realization_is_attached_checked_body
-        && realization_is_exact_i32
-        && requirement_is_exact_i32
+        && realization_result.is_some()
+        && realization_result == requirement_result
 }
 
 pub(super) fn lower_scalar_call_closure(

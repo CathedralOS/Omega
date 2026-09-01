@@ -1660,13 +1660,14 @@ fn lower_static_requirement_dispatch(
             runtime_result,
             Some(ProofOutputRuntimeResult::Scalar(scalar))
                 if scalar == terminal_scalar_type(PrimitiveType::I32)?
+                    || scalar == terminal_scalar_type(PrimitiveType::Bool)?
         );
     let Some(runtime_call) = runtime_call else {
         return unsupported("static requirement proof output has no bounded ordinary runtime call");
     };
     if !bounded_result {
         return unsupported(
-            "static requirement proof output is outside the bounded runtime Unit or exact i32 call",
+            "static requirement proof output is outside the bounded runtime Unit, exact i32, or exact bool call",
         );
     }
     let declaring_trait_identity = checked.symbols.display_path(dispatch.declaring_trait, "::");
