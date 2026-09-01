@@ -1038,6 +1038,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-optimization-policy-offline"
+version = "0.1.0"
+dependencies = [
+ "omega-optimization-core",
+ "omega-optimization-policy",
+ "sha2",
+]
+
+[[package]]
 name = "omega-optimization-run-to-abstract-operations"
 version = "0.1.0"
 dependencies = [

@@ -42,6 +42,7 @@ members = [
     "source/omega-rust/omega/representations/omega-optimization-core",
     "source/omega-rust/omega/tooling/omega-bounded-process",
     "source/omega-rust/omega/tooling/omega-platform-custody",
+    "source/omega-rust/omega/tooling/omega-optimization-policy-offline",
     "source/omega-rust/omega/representations/omega-target",
     "source/omega-rust/omega/representations/omega-calling-conventions",
     "source/omega-rust/omega/representations/omega-representation-selections",

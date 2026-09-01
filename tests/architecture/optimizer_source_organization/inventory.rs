@@ -16,6 +16,7 @@ const GOVERNED_ROOTS: &[&str] = &[
     "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization",
     "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/optimization",
     "source/omega-rust/omega/pipeline/optimization",
+    "source/omega-rust/omega/tooling/omega-optimization-policy-offline",
     "source/omega-rust/omega/representations/omega-legalized-operations",
     "source/omega-rust/omega/representations/omega-assigned-target-operations",
     "source/omega-rust/omega/representations/omega-optimization-core",
