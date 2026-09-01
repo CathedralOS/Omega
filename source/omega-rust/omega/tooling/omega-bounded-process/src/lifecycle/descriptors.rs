@@ -1,4 +1,4 @@
-//! Ambient Unix descriptor closure for resolver children.
+//! Ambient Unix descriptor closure for bounded children.
 
 use std::io;
 use std::os::unix::process::CommandExt;

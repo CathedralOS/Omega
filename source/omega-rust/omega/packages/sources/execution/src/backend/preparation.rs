@@ -1,11 +1,11 @@
 use super::request::validate_launch_request;
 use super::{ResolverExecutionAuthorityRoots, ResolverExecutionBackend};
-use crate::process::limits;
 use crate::request::{
     require_absolute, require_lexically_canonical_bounded_path, require_outside_roots,
     require_regular_file,
 };
 use crate::{ResolverExecutionPhase, ResolverPreparedExecution};
+use omega_bounded_process::BoundedProcessLimits;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -93,7 +93,18 @@ impl ResolverExecutionBackend {
             .expect("every resolver phase has exactly one working root");
         let mut command = Command::new(&self.executable);
         command.current_dir(working_root);
-        limits::configure_child_resource_limits(&mut command)?;
-        Ok(ResolverPreparedExecution::new(command))
+        ResolverPreparedExecution::new(command, resolver_process_limits(), "resolver")
     }
+}
+
+fn resolver_process_limits() -> BoundedProcessLimits {
+    BoundedProcessLimits::new(
+        120,
+        8 * 1024 * 1024 * 1024,
+        1024 * 1024 * 1024,
+        256,
+        16,
+        2 * 1024 * 1024 * 1024,
+        4 * 1024 * 1024 * 1024,
+    )
 }

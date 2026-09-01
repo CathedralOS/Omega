@@ -667,12 +667,24 @@ decision. Only true language-semantic questions belong in
   ordering, empty-pressure, x86-64/AArch64, budget, and corruption coverage.
   It creates no selected or machine instruction, allocates no reload home,
   chooses no opcode or SP/FP address, and grants no frame, trap, unwind,
-  probing, encoding, emission, or publication authority. Lower spill-pseudo
-  representation, reload-value reanalysis/home assignment, abstract spill
-  memory effects and ISA lowering, final frame offsets, unwind/probing, and
-  downstream realization remain engineering work. Real memory insertion is
-  owner-blocked only on the spill-access fault semantics recorded in
-  `OWNER_QUESTIONS.md`; the abstract schedule itself is not blocked.
+  probing, encoding, emission, or publication authority. A fourth
+  independently replayed V1 artifact now reanalyzes the logical reload value
+  introduced by that schedule. It reconstructs the original linear-scan
+  prefix, applies the validated single block-local spill, derives the reload's
+  exact lifetime and legal-view intersection, and assigns the lowest
+  compatible physical view. Its independent point-indexed event replay caught
+  the intermediate-point lifetime case and rejects root, assignment, complete
+  candidate-domain, coexisting-home, usage, and budget corruption on x86-64
+  and AArch64. It creates no real virtual register, selected or machine
+  instruction, memory effect, frame address, trap claim, encoding, emission,
+  or publication authority. Reload or subsequent pressure fails with typed
+  evidence; recursive recovery needs a bounded epoch/worklist artifact and a
+  separate synthetic-value namespace. Lower spill-pseudo representation,
+  abstract spill memory effects and ISA lowering, final frame offsets,
+  unwind/probing, and downstream realization remain engineering work. Real
+  memory insertion is owner-blocked only on the spill-access fault semantics
+  recorded in `OWNER_QUESTIONS.md`; the abstract schedule and reload-home
+  analysis are not blocked.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,
@@ -737,8 +749,17 @@ consumes and retains their identities through publication.
   selection, rule, candidate, fact, and cost-model identities.
 - [x] Record-only mode cannot change output; deterministic replay rejects stale
   or mismatched contexts and candidates.
-- [ ] Add a sandboxed external policy boundary with timeout/resource limits
-  and an explicit fallback.
+- [>] Add a sandboxed external policy boundary with timeout/resource limits
+  and an explicit fallback. The neutral `omega-bounded-process` prerequisite
+  now owns structured command preparation, process-container cleanup, concrete
+  resource limits, bounded duplex capture, wall-clock deadlines, and typed
+  failures on behalf of both Unix process groups and Windows Jobs. Resolver
+  execution and Git acquisition consume it without retaining duplicate
+  lifecycle or capture engines. These are resource and cleanup controls, not a
+  filesystem, executable, credential, or network sandbox. The optimizer still
+  needs a versioned external-policy execution adapter, request/response caps,
+  independently matched candidate custody, a required sandbox-capability
+  contract, and explicit fail-closed versus recorded-baseline fallback.
 - [ ] Add offline corpus capture, training, evaluation, and regression tools.
 
 ML may rank already-declared equal transformations. It cannot invent an
@@ -853,8 +874,13 @@ unchecked rewrite or opt into lossy floating-point semantics.
   recovery carrier, exact component work usages and first-over budgets, direct
   action and enclosing-custody corruption, and a genuine second application
   over rebuilt post-transform analyses that deterministically reaches
-  `NoAction`. The remaining operational axes and other rule families are not
-  yet complete.
+  `NoAction`. The shared-entry fixed-view-copy recovery rule now also pins
+  explicit disablement without hidden fallback, exact five-field work usage on
+  x86-64 and AArch64, exact-envelope success, deterministic refusal at every
+  representable first-over budget, and the nonzero budget-domain floor for
+  unit-valued axes. Its immutable transformed carrier is not accepted as a
+  second input, so no false idempotence claim is made. The remaining
+  operational axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The

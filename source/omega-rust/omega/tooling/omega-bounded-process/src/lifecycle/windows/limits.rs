@@ -1,9 +1,6 @@
 use std::io;
 
-use crate::process::limits::{
-    CHILD_AGGREGATE_CPU_SECONDS, CHILD_AGGREGATE_MEMORY_BYTES, CHILD_PROCESS_LIMIT,
-    CHILD_PROCESS_MEMORY_BYTES,
-};
+use crate::BoundedProcessLimits;
 
 const WINDOWS_TIME_TICKS_PER_SECOND: u64 = 10_000_000;
 
@@ -16,8 +13,9 @@ pub(super) struct WindowsJobLimits {
 }
 
 impl WindowsJobLimits {
-    pub(super) fn production() -> io::Result<Self> {
-        let aggregate_cpu_ticks = CHILD_AGGREGATE_CPU_SECONDS
+    pub(super) fn from_limits(limits: BoundedProcessLimits) -> io::Result<Self> {
+        let aggregate_cpu_ticks = limits
+            .cpu_seconds
             .checked_mul(WINDOWS_TIME_TICKS_PER_SECOND)
             .ok_or_else(|| {
                 io::Error::new(
@@ -26,9 +24,9 @@ impl WindowsJobLimits {
                 )
             })?;
         Ok(Self {
-            active_processes: CHILD_PROCESS_LIMIT,
-            process_memory_bytes: CHILD_PROCESS_MEMORY_BYTES,
-            aggregate_memory_bytes: CHILD_AGGREGATE_MEMORY_BYTES,
+            active_processes: limits.active_processes,
+            process_memory_bytes: limits.process_memory_bytes,
+            aggregate_memory_bytes: limits.aggregate_memory_bytes,
             aggregate_cpu_ticks,
         })
     }

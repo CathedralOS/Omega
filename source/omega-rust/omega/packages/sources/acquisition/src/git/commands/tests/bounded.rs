@@ -1,8 +1,7 @@
 #[cfg(unix)]
 use super::{
-    GIT_COMMAND_CLEANUP_TIMEOUT, GitCapturedOutputBudget, StreamCaptureResult,
-    capture_stream_bounded, command_cleanup_reserve, run_command_bounded,
-    run_command_bounded_with_budget, shell_command, temp_root,
+    GIT_COMMAND_CLEANUP_TIMEOUT, GitCapturedOutputBudget, command_cleanup_reserve,
+    run_command_bounded, run_command_bounded_with_budget, shell_command, temp_root,
 };
 use super::{SourceResolveError, reconcile_git_command_result};
 #[cfg(unix)]
@@ -66,16 +65,12 @@ fn bounded_command_uses_null_stdin_and_drains_both_streams() {
         exact_budget_overflow || fail_closed_macos_cleanup,
         "unexpected shared-output error: {error:?}"
     );
-    assert!(shared_budget.observed() <= shared_budget.ceiling);
+    assert!(shared_budget.observed() <= shared_budget.ceiling());
 }
 
 #[cfg(unix)]
 #[test]
 fn bounded_command_rejects_stdout_and_stderr_overflow() {
-    assert!(matches!(
-        capture_stream_bounded(std::io::Cursor::new(vec![0_u8; 1025]), 1024),
-        StreamCaptureResult::Overflow
-    ));
     for (stream, redirect) in [("stdout", ""), ("stderr", "1>&2")] {
         let script = format!(
             "i=0; while [ $i -lt 4096 ]; do printf x {redirect}; i=$((i + 1)); done; while :; do :; done"

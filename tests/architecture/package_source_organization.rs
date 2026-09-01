@@ -393,6 +393,8 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
     let packages = package_root();
     let acquisition = packages.join("sources/acquisition");
     let execution = packages.join("sources/execution");
+    let bounded_process =
+        workspace_root().join("source/omega-rust/omega/tooling/omega-bounded-process");
     let forbidden = [
         "GitSourceReceipt",
         "ResolverExecutionGuarantee",
@@ -452,6 +454,13 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
         !execution_manifest.contains("sha2") && !execution_manifest.contains("hex"),
         "resolver execution no longer hashes commands, policy, or executable bytes",
     );
+    assert!(
+        execution_manifest.contains("omega-bounded-process")
+            && !execution_manifest.contains("command-group")
+            && !execution_manifest.contains("windows-sys")
+            && !execution_manifest.contains("rustix"),
+        "resolver execution must consume the neutral process boundary instead of retaining platform lifecycle dependencies",
+    );
 
     let execution_entrance =
         fs::read_to_string(execution.join("src/lib.rs")).expect("read resolver execution entrance");
@@ -459,16 +468,21 @@ fn resolver_source_custody_excludes_ambient_executor_attestation() {
         execution_entrance.contains("ResolverExecutionPhase"),
         "resolver custody must preserve closed execution phases",
     );
-    let process_limits = fs::read_to_string(execution.join("src/process/limits.rs"))
-        .expect("read resolver process limits");
+    assert!(
+        !execution.join("src/process").exists()
+            || rust_files(&execution.join("src/process")).is_empty(),
+        "resolver execution must not duplicate the neutral process owner",
+    );
+    let process_limits = fs::read_to_string(bounded_process.join("src/lifecycle/limits.rs"))
+        .expect("read neutral process limits");
     assert!(
         process_limits.contains("configure_child_resource_limits"),
-        "resolver custody must preserve concrete Unix child limits",
+        "the neutral process boundary must preserve concrete Unix child limits",
     );
-    let windows_process = fs::read_to_string(execution.join("src/process/windows/mod.rs"))
-        .expect("read resolver Windows process owner");
+    let windows_process = fs::read_to_string(bounded_process.join("src/lifecycle/windows/mod.rs"))
+        .expect("read neutral Windows process owner");
     assert!(
         windows_process.contains("limits") && windows_process.contains("lifecycle"),
-        "resolver custody must preserve Windows Job Object limits and lifecycle custody",
+        "the neutral process boundary must preserve Windows Job Object limits and lifecycle custody",
     );
 }
