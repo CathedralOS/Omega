@@ -1901,6 +1901,8 @@ fn program_local_root_module() -> TerminalModule {
         services: Vec::new(),
         root_service_reach: TerminalRootServiceReach::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: psi_core::BoundaryMachineId::new(1).expect("boundary identity"),
             identity: "TestRoot::entry".into(),

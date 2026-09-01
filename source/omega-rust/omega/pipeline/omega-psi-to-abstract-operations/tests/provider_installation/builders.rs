@@ -56,6 +56,8 @@ pub(super) fn provider_module() -> TerminalModule {
             installation_dependencies: Vec::new(),
         },
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: REQUIREMENT.into(),
