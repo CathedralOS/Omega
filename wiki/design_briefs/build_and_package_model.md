@@ -4025,10 +4025,13 @@ the broad compatibility classification can be removed. Relabeling the same
 directory-derived authority would not complete that migration. Package-aware
 compilation does not inherit this lane: its toolchain-overlap gate is limited
 to the actual bundled core root, allowing the repository's std directory to
-enter as an ordinary package. Remaining product/parser/sample migration,
-standalone consumer migration, accepted-lock replay, and macOS GUI injection
-remain explicit seams to remove. Only `omega::language::core` has a magic mount
-in package-aware compilation.
+enter as an ordinary package. The compiler product and parser package now
+declare their own std edges, import through `omega_language_std`, reconcile one
+exact std package in the compiler/psi diamond, and pass the package-aware
+command route from resolver snapshot through checked compilation. Remaining
+sample/fixture migration, standalone consumer migration, accepted-lock replay,
+and macOS GUI injection remain explicit seams to remove. Only
+`omega::language::core` has a magic mount in package-aware compilation.
 
 Making std ordinary also makes core's package boundary concrete. Source-facing
 float namespaces, formats, meanings, semantic operators, and boundary

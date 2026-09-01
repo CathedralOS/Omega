@@ -1,3 +1,6 @@
 machine build(builder: &mut Build) {
     builder.package("psi");
+    builder.depend(Source::Path {
+        location: "../library/std"
+    });
 }

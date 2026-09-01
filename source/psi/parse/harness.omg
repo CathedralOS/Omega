@@ -1,7 +1,7 @@
 // Gate-owned black-box lexer/parser harness. This file is excluded from the
 // product compiler closure and imported only by the parser acceptance gate.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use psi::lex::lexer;
 use psi::parse::parser;
 use psi::syntax::syntax;

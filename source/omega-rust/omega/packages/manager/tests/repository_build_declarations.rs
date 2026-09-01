@@ -2,8 +2,35 @@ use omega_package_manager::declarations::PackageName;
 use omega_package_manager::declarations::{
     BuildDeclaration, BuildDeclarationError, WorkspaceMemberPath, extract_build_declaration,
 };
+use omega_package_manager::resolution::graph::{
+    PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
+};
+use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
+
+struct TempTree(PathBuf);
+
+impl TempTree {
+    fn new(name: &str) -> Self {
+        let path = std::env::temp_dir().join(format!(
+            "omega-repository-build-{name}-{}-{}",
+            std::process::id(),
+            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&path).expect("create repository build test tree");
+        Self(path)
+    }
+}
+
+impl Drop for TempTree {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -113,6 +140,80 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
         BuildDeclaration::Package(omega_package_manager::declarations::PackageDeclaration {
             name: PackageName::parse("omega-language-std").unwrap(),
         })
+    );
+}
+
+#[test]
+fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependency() {
+    let repository = repository_root();
+    let temp = TempTree::new("ordinary-standard-library-edges");
+    let storage = SourceResolverStorage::for_hardened_base(temp.0.join("resolved"))
+        .expect("create repository project resolver storage");
+
+    let compiler = resolve_external_local_project_closure_with_storage(
+        &repository.join("source/omega"),
+        ExternalSourceContext::derive(b"repository-compiler-product"),
+        omega_target::TargetProfile::CrossPlatformCli,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve compiler product dependency closure");
+    assert_eq!(compiler.graph().packages().len(), 3);
+    let compiler_root = compiler
+        .graph()
+        .package(compiler.graph().root())
+        .expect("compiler product root package");
+    let compiler_dependencies = compiler_root.dependencies();
+    assert_eq!(compiler_dependencies.len(), 2);
+    assert_eq!(compiler_dependencies[0].alias().as_str(), "psi");
+    assert_eq!(compiler_dependencies[0].target().name().as_str(), "psi");
+    assert_eq!(
+        compiler_dependencies[1].alias().as_str(),
+        "omega_language_std"
+    );
+    assert_eq!(
+        compiler_dependencies[1].target().name().as_str(),
+        "omega-language-std"
+    );
+    let compiler_psi = compiler
+        .graph()
+        .package(compiler_dependencies[0].target())
+        .expect("compiler product psi dependency");
+    let [psi_standard_library] = compiler_psi.dependencies() else {
+        panic!("psi should declare exactly one ordinary standard-library dependency")
+    };
+    assert_eq!(psi_standard_library.alias().as_str(), "omega_language_std");
+    assert_eq!(
+        psi_standard_library.target(),
+        compiler_dependencies[1].target(),
+        "compiler and psi should reconcile the same standard-library package"
+    );
+
+    let parser = resolve_external_local_project_closure_with_storage(
+        &repository.join("source/psi"),
+        ExternalSourceContext::derive(b"repository-parser-package"),
+        omega_target::TargetProfile::CrossPlatformCli,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve parser package dependency closure");
+    assert_eq!(parser.graph().packages().len(), 2);
+    let parser_root = parser
+        .graph()
+        .package(parser.graph().root())
+        .expect("parser root package");
+    let [parser_standard_library] = parser_root.dependencies() else {
+        panic!("parser should declare exactly one ordinary standard-library dependency")
+    };
+    assert_eq!(
+        parser_standard_library.alias().as_str(),
+        "omega_language_std"
+    );
+    assert_eq!(
+        parser_standard_library.target().name().as_str(),
+        "omega-language-std"
     );
 }
 

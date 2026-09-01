@@ -16,4 +16,7 @@ machine build(builder: &mut Build) {
     builder.depend_as("psi", Source::Path {
         location: "../psi"
     });
+    builder.depend(Source::Path {
+        location: "../library/std"
+    });
 }
