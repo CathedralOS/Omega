@@ -8,8 +8,9 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::CompilerIssuedPackageReviewSet;
 use omega_package_evidence::ledger::{
-    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageDangerousAuthorityObligation,
-    OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
+    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentOpenObligation,
+    OrdinaryPackageDangerousAuthorityObligation, OrdinaryPackageExternalExecutableSupplyObligation,
+    OrdinaryPackageObligationResultSet,
 };
 use std::collections::BTreeMap;
 
@@ -44,6 +45,12 @@ struct OpenExternalExecutableSupplyReference {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpenContractEntailmentReference {
+    package_index: usize,
+    obligation_index: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct OpenDangerousAuthorityReference {
     package_index: usize,
     authority_index: usize,
@@ -59,6 +66,7 @@ pub struct LocallyComposedPackageObligationResults {
     question: CanonicalPackageReconstructionQuestion,
     entries: Vec<LocallyComposedPackageObligationEntry>,
     root_open_accepted_claims: Vec<OpenAcceptedClaimReference>,
+    root_open_contract_entailment_obligations: Vec<OpenContractEntailmentReference>,
     root_open_external_executable_supplies: Vec<OpenExternalExecutableSupplyReference>,
     root_open_dangerous_authorities: Vec<OpenDangerousAuthorityReference>,
 }
@@ -91,6 +99,7 @@ impl LocallyComposedPackageObligationResults {
                 )
             })?;
         let mut open_claim_count = 0usize;
+        let mut open_contract_entailment_count = 0usize;
         let mut open_external_supply_count = 0usize;
         let mut open_dangerous_authority_count = 0usize;
         for question_entry in question.entries() {
@@ -116,6 +125,13 @@ impl LocallyComposedPackageObligationResults {
                 .ok_or_else(|| {
                     CanonicalPackageReconstructionQuestionError::new(
                         "package obligation open-claim count overflowed",
+                    )
+                })?;
+            open_contract_entailment_count = open_contract_entailment_count
+                .checked_add(results.open_contract_entailment_obligations().len())
+                .ok_or_else(|| {
+                    CanonicalPackageReconstructionQuestionError::new(
+                        "package obligation open contract-entailment count overflowed",
                     )
                 })?;
             open_external_supply_count = open_external_supply_count
@@ -160,6 +176,23 @@ impl LocallyComposedPackageObligationResults {
             }
         }
 
+        let mut root_open_contract_entailment_obligations = Vec::new();
+        root_open_contract_entailment_obligations
+            .try_reserve_exact(open_contract_entailment_count)
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package obligation open contract-entailment reference allocation failed",
+                )
+            })?;
+        for (package_index, entry) in entries.iter().enumerate() {
+            for obligation_index in 0..entry.results.open_contract_entailment_obligations().len() {
+                root_open_contract_entailment_obligations.push(OpenContractEntailmentReference {
+                    package_index,
+                    obligation_index,
+                });
+            }
+        }
+
         let mut root_open_external_executable_supplies = Vec::new();
         root_open_external_executable_supplies
             .try_reserve_exact(open_external_supply_count)
@@ -200,9 +233,32 @@ impl LocallyComposedPackageObligationResults {
             question,
             entries,
             root_open_accepted_claims,
+            root_open_contract_entailment_obligations,
             root_open_external_executable_supplies,
             root_open_dangerous_authorities,
         })
+    }
+
+    /// Iterate every unresolved contract entailment propagated to the selected
+    /// root while retaining its original package owner.
+    pub fn root_open_contract_entailment_obligations(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            &PackageKey,
+            &OrdinaryPackageContractEntailmentOpenObligation,
+        ),
+    > {
+        self.root_open_contract_entailment_obligations
+            .iter()
+            .map(|reference| {
+                let entry = &self.entries[reference.package_index];
+                (
+                    &entry.package,
+                    &entry.results.open_contract_entailment_obligations()
+                        [reference.obligation_index],
+                )
+            })
     }
 
     pub const fn question(&self) -> &CanonicalPackageReconstructionQuestion {

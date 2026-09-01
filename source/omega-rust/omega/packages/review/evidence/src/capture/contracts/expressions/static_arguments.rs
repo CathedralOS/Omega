@@ -165,8 +165,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
     arguments: &[psi_typed_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
     fn collect_argument_consts(
@@ -214,9 +213,9 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
         {
             continue;
         }
-        if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        if selection.exposure() != context.selection_exposure {
             return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` named const is not retained as a public-interface static-argument selection",
+                "reviewed {} `{}` named const has the wrong retained static-argument selection exposure",
                 context.subject_kind, context.subject_name
             ))]);
         }

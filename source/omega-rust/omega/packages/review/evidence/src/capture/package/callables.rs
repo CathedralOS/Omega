@@ -1,4 +1,5 @@
 use super::super::callables::{project_callable, project_private_external_executable_supply};
+use super::super::contracts::stand_downs::project_package_contract_entailment_open_obligations;
 use super::super::semantics::declarations::nominal_identity;
 use super::super::source::contracts::project_contract_source_locations;
 use super::super::source::invocations::project_machine_invocation_source_locations;
@@ -9,7 +10,8 @@ use super::super::source::service_reach::project_machine_service_reach_source_lo
 use super::super::source::suspension::project_machine_operational_source_locations;
 use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
-    CheckedPackageCallableReview, PackageReviewCallableRole, PackageReviewExternalExecutableSupply,
+    CheckedPackageCallableReview, PackageReviewCallableRole,
+    PackageReviewContractEntailmentOpenObligation, PackageReviewExternalExecutableSupply,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole,
 };
 use omega_compiler::CheckedCompilation;
@@ -21,6 +23,8 @@ pub(super) struct ProjectedPackageCallables {
     pub(super) callables: Vec<ProjectedReviewRow<CheckedPackageCallableReview>>,
     pub(super) external_executable_supply:
         Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
+    pub(super) contract_entailment_open_obligations:
+        Vec<ProjectedReviewRow<PackageReviewContractEntailmentOpenObligation>>,
 }
 
 pub(super) fn project_package_callables(
@@ -117,6 +121,8 @@ pub(super) fn project_package_callables(
         build_machine,
         &mut external_executable_supply,
     )?;
+    let contract_entailment_open_obligations =
+        project_package_contract_entailment_open_obligations(compilation, package)?;
 
     if build_machine.is_some() && !projected_build_machine {
         return Err(vec![Diagnostic::error(
@@ -144,6 +150,7 @@ pub(super) fn project_package_callables(
     Ok(ProjectedPackageCallables {
         callables,
         external_executable_supply,
+        contract_entailment_open_obligations,
     })
 }
 

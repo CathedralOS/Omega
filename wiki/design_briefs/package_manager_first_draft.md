@@ -2026,7 +2026,11 @@ stand down on facts outside that engine's language. The admission profile must
 reject an unresolved stand-down or retain the exact later checked obligation
 that discharged it. The package-aware checked path now retains exact
 machine/contract/fact coordinates with a closed stand-down reason from the
-pristine typed graph, and review rejects every checked-implementation row.
+pristine typed graph. Package review independently rederives that roster and
+retains each supported checked implementation as a blocking open-later-
+discharge row. The row binds the complete machine-contract commitment, so a
+hypothesis change cannot hide behind an unchanged displayed goal. Unsupported
+canonical projection still rejects fail-closed.
 Accepted and opaque supply remains in the trust lane. Sealing and any exact
 later-discharge ledger are still unfinished; a successful ordinary compilation
 is not by itself a complete proof verdict. Checked proofs are rechecked by the
@@ -2351,13 +2355,17 @@ accepted-lock state, or `PackageInstance` promotion route.
 The current ordinary result lanes are deliberately smaller than accepted
 evidence. For every bodyless accepted claim, dangerous authority, and opaque
 external executable supply, local reconstruction rejoins the typed compiler
-fact to its matching canonical obligation row and assigns only
-`OpenRootAdmission`. The manager
-composes those open obligations over the exact reconstruction question; a
-dependency obligation reaches the selected root with its original package
-owner. Fresh policy binding requires an exact conflict bijection for each
-supported row kind. No certificate or producer decision is representable, and
-the result has no codec, lock-promotion route, or `PackageInstance` constructor.
+fact to its matching canonical obligation row and assigns
+`OpenRootAdmission`. A freshly rederived contract-entailment stand-down instead
+becomes `OpenLaterDischarge`, keyed by exact callable and contract/fact
+positions and bound to the complete machine-contract commitment, projected
+goal, and closed reason. The manager composes all open obligations over the
+exact reconstruction question; a dependency obligation reaches the selected
+root with its original package owner. Root policy can resolve only root-
+admission lanes. Any open later-discharge result rejects before policy and can
+never enter accepted evidence. No certificate or producer decision is
+representable, and the result has no codec, lock-promotion route, or
+`PackageInstance` constructor.
 
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup

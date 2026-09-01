@@ -12,7 +12,7 @@ use omega_package_evidence::ledger::{
 };
 use omega_package_source::{ImmutableSourceResolution, SourceResolveError};
 
-pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 2;
+pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 3;
 
 /// Closed identity for the exact accepted-evidence vocabulary represented by
 /// this module. This is distinct from the obligation schema and any future

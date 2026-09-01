@@ -714,6 +714,166 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+fn dependency_contract_entailment_stand_down_propagates_but_cannot_be_admitted() {
+    let temporary = temporary_root("open-contract-entailment-composition");
+    let dependency = temporary.join("dependency");
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&dependency).expect("create contract dependency");
+    std::fs::create_dir_all(&root).expect("create contract consumer");
+    std::fs::write(
+        dependency.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("contract-surface");
+}
+"#,
+    )
+    .expect("write contract dependency build");
+    std::fs::write(
+        dependency.join("main.omg"),
+        r#"pub machine unchecked_claim(a: u64, b: u64)
+requires
+    min(a, b) >= 1
+ensures
+    a >= 1
+{
+}
+"#,
+    )
+    .expect("write unresolved contract entailment");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("contract-consumer");
+    builder.depend(Source::Path {
+        location: "../dependency"
+    });
+}
+"#,
+    )
+    .expect("write contract consumer build");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write contract consumer source");
+
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews =
+        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
+            .expect("compile unresolved contract-entailment closure");
+    let reconstruction_limits = CanonicalPackageReconstructionQuestionLimits::default();
+    let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
+    let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+        &closure,
+        &reviews,
+        reconstruction_limits,
+    )
+    .expect("compose locally reconstructed contract-entailment obligation");
+
+    let root_entry = composed
+        .entries()
+        .iter()
+        .find(|entry| entry.package() == closure.graph().root())
+        .expect("selected root result");
+    assert!(
+        root_entry
+            .results()
+            .open_contract_entailment_obligations()
+            .is_empty()
+    );
+    let propagated = composed
+        .root_open_contract_entailment_obligations()
+        .collect::<Vec<_>>();
+    let [(owner, obligation)] = propagated.as_slice() else {
+        panic!("one dependency contract-entailment obligation must propagate to the root")
+    };
+    assert_eq!(owner.name().as_str(), "contract-surface");
+    assert_eq!(
+        obligation.status(),
+        OrdinaryPackageObligationStatus::OpenLaterDischarge
+    );
+    assert_eq!(
+        obligation.row().kind(),
+        PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+    );
+    assert_eq!(
+        obligation.row().risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
+
+    let conflicts = compare_review_only_initial_capabilities(&reviews, &closure, conflict_limits)
+        .expect("derive exact fresh contract-entailment conflicts");
+    assert!(conflicts.packages().iter().any(|package| {
+        package.conflicts().iter().any(|conflict| {
+            conflict.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+                && conflict.risk() == PackageReviewCanonicalRowRisk::Blocking
+        })
+    }));
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure,
+            &reviews,
+            reconstruction_limits,
+            conflict_limits,
+            None,
+        ),
+        Err(FreshPackageRootPolicyError::UnresolvedLaterDischarge(
+            PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+        ))
+    ));
+    let accepted_decisions = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| {
+            package
+                .conflicts()
+                .iter()
+                .filter(|conflict| conflict.is_blocking())
+                .map(|conflict| {
+                    package
+                        .root_policy_decision(
+                            conflict,
+                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+                        )
+                        .expect("bind exact fresh contract-entailment blocker")
+                })
+        })
+        .collect::<Vec<_>>();
+    let accepted_policy =
+        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
+            .expect("resolve complete contract-entailment policy");
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure,
+            &reviews,
+            reconstruction_limits,
+            conflict_limits,
+            Some(&accepted_policy),
+        ),
+        Err(FreshPackageRootPolicyError::UnresolvedLaterDischarge(
+            PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+        ))
+    ));
+    assert!(matches!(
+        accept_ordinary_closure_evidence(
+            &closure,
+            &reviews,
+            reconstruction_limits,
+            conflict_limits,
+            Some(&accepted_policy),
+        ),
+        Err(AcceptedOrdinaryEvidenceError::RootPolicy(
+            FreshPackageRootPolicyError::UnresolvedLaterDischarge(
+                PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+            )
+        ))
+    ));
+
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
 fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh_match_rejects() {
     let (temporary, _closure, reviews, question) = graph_workbench_question();
     let limits = CanonicalPackageReconstructionQuestionLimits::default();

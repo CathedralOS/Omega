@@ -22,6 +22,15 @@ pub(crate) struct ContractProjectionContext<'a> {
     pub(crate) domain_symbol: Option<SymbolHandle>,
     pub(crate) data_symbol: Option<SymbolHandle>,
     pub(crate) lifetime_binders: &'a [psi_typed_trees::name::Identifier],
+    pub(crate) selection_exposure:
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+}
+
+impl ContractProjectionContext<'_> {
+    pub(crate) fn requires_public_nominals(&self) -> bool {
+        self.selection_exposure
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    }
 }
 
 pub(crate) fn project_callable_contracts(
@@ -44,6 +53,7 @@ pub(crate) fn project_callable_contracts(
         domain_symbol: None,
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
+        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     project_contracts(
         compilation,
@@ -51,6 +61,92 @@ pub(crate) fn project_callable_contracts(
         &context,
         binders,
     )
+}
+
+pub(crate) fn exact_contract_entailment_stand_down_contract(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    contract_index: usize,
+    fact_index: usize,
+) -> Result<psi_typed_trees::signature::SignatureContract, Vec<Diagnostic>> {
+    let contract = compilation
+        .machine_contracts(machine)
+        .get(contract_index)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "contract-entailment stand-down names a missing callable contract",
+            )]
+        })?;
+    let fact_offset = u32::try_from(fact_index).map_err(|_| {
+        vec![Diagnostic::error(
+            "contract-entailment stand-down fact index exceeds canonical u32",
+        )]
+    })?;
+    if fact_offset >= contract.facts.count() {
+        return Err(vec![Diagnostic::error(
+            "contract-entailment stand-down names a missing contract fact",
+        )]);
+    }
+    let fact = psi_arena::Handle::from_parts(
+        contract
+            .facts
+            .start()
+            .arena_index()
+            .checked_add(fact_offset)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "contract-entailment stand-down fact coordinate overflowed",
+                )]
+            })?,
+        contract.facts.start().generation(),
+    );
+    let mut exact = contract.clone();
+    exact.facts = psi_arena::HandleSpan::from_parts(fact, 1);
+    Ok(exact)
+}
+
+pub(crate) fn project_callable_contract_entailment_stand_down(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    entry: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    contract_index: usize,
+    fact_index: usize,
+) -> Result<PackageReviewCallableContract, Vec<Diagnostic>> {
+    let exact = exact_contract_entailment_stand_down_contract(
+        compilation,
+        machine,
+        contract_index,
+        fact_index,
+    )?;
+    let parameters = compilation.state_parameters(entry);
+    let context = ContractProjectionContext {
+        subject_kind: "callable",
+        subject_name: machine.name.as_str(),
+        owner: psi_checked_trees::ContractProofFactOwner::Machine {
+            machine_symbol: machine.symbol,
+        },
+        point: psi_facts::ProgramPoint::Machine {
+            machine_symbol: machine.symbol,
+        },
+        parameters,
+        domain_symbol: None,
+        data_symbol: None,
+        lifetime_binders: &machine.lifetime_parameters,
+        selection_exposure: if machine.is_public {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+        } else {
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+        },
+    };
+    let projected =
+        project_contracts(compilation, std::slice::from_ref(&exact), &context, binders)?;
+    let [contract] = projected.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "contract-entailment stand-down did not project exactly one canonical contract fact",
+        )]);
+    };
+    Ok(contract.clone())
 }
 
 pub(crate) fn project_trait_requirement_contracts(
@@ -137,7 +233,8 @@ pub(crate) fn project_contracts(
                             ))]
                         })?;
                     let domain_identity = nominal_identity(compilation, domain.symbol)?;
-                    if reviewed_package_owns(&domain_identity, reviewed_package)?
+                    if context.requires_public_nominals()
+                        && reviewed_package_owns(&domain_identity, reviewed_package)?
                         && !domain.is_public
                     {
                         return Err(vec![Diagnostic::error(format!(

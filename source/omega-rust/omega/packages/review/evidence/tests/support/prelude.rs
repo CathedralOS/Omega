@@ -9,10 +9,11 @@ pub(crate) use omega_package_evidence::encoding::{
     decode_package_review_canonical_row, encode_package_review_canonical_row,
 };
 pub(crate) use omega_package_evidence::ledger::{
-    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
-    ordinary_package_obligation_ledger_fingerprint,
+    OrdinaryPackageObligationStatus, decode_ordinary_package_obligation_ledger,
+    encode_ordinary_package_obligation_ledger, ordinary_package_obligation_ledger_fingerprint,
     ordinary_package_obligation_ledger_from_compiler_rows,
-    recover_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,
+    reconstruct_ordinary_package_obligation_results, recover_ordinary_package_obligation_ledger,
+    validate_ordinary_package_obligation_ledger,
 };
 pub(crate) use omega_package_evidence::project_checked_package_review;
 pub(crate) use omega_package_evidence::record::{
@@ -24,11 +25,12 @@ pub(crate) use omega_package_evidence::record::{
     PackageReviewCheckedServiceReach, PackageReviewCollectionViewOperation,
     PackageReviewCompilerIntrinsicExecution, PackageReviewConformanceSubject,
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewCrashCause, PackageReviewCrashInterface,
-    PackageReviewCrashRouteGuard, PackageReviewDangerousAuthorityClass, PackageReviewDataKind,
-    PackageReviewDataMember, PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
+    PackageReviewContractEntailmentOpenReason, PackageReviewContractExpression,
+    PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
+    PackageReviewCrashCause, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
+    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
     PackageReviewExternalBinding, PackageReviewExternalRequirement, PackageReviewFloatLiteral,
     PackageReviewForeignLocator, PackageReviewMachineParameterContract, PackageReviewNominalOwner,

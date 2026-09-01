@@ -256,6 +256,7 @@ pub(crate) fn project_trait_requirement(
         domain_symbol: None,
         data_symbol: None,
         lifetime_binders: &lifetime_binders,
+        selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
     };
     let contracts =
         project_trait_requirement_contracts(compilation, requirement, &contract_context, &binders)?;

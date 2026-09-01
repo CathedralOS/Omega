@@ -2,14 +2,40 @@ use super::super::declarations::encode_type_identity;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    PackageReviewCallableContract, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewPropositionApplication, PackageReviewPropositionBinderArgumentKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
+    PackageReviewCallableContract, PackageReviewContractEntailmentOpenObligation,
+    PackageReviewContractEntailmentOpenReason, PackageReviewContractFact,
+    PackageReviewContractKind, PackageReviewPropositionApplication,
+    PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence,
 };
 
 use super::declarations::{encode_evidence_interface, encode_proposition_binder};
 use super::expressions::encode_contract_expression;
 use super::identity::encode_nominal;
+
+pub(crate) fn encode_contract_entailment_open_obligation(
+    encoder: &mut Encoder,
+    obligation: &PackageReviewContractEntailmentOpenObligation,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &obligation.callable)?;
+    encoder.u32(obligation.contract_position);
+    encoder.u32(obligation.fact_position);
+    encode_contract_entailment_open_obligation_value(encoder, obligation)
+}
+
+pub(crate) fn encode_contract_entailment_open_obligation_value(
+    encoder: &mut Encoder,
+    obligation: &PackageReviewContractEntailmentOpenObligation,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.fixed_bytes(&obligation.machine_contract_commitment);
+    encode_callable_contract(encoder, &obligation.goal)?;
+    encoder.byte(match obligation.reason {
+        PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact => 0,
+        PackageReviewContractEntailmentOpenReason::UnrecognizedInductiveBody => 1,
+        PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage => 2,
+    });
+    Ok(())
+}
 
 pub(crate) fn encode_callable_contract(
     encoder: &mut Encoder,

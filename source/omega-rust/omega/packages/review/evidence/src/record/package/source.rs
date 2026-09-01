@@ -12,6 +12,7 @@ pub(crate) struct PackageReviewCanonicalRowSources {
     pub(crate) representation_tcb: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) semantic_dependencies: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) callables: Vec<PackageReviewCanonicalRowSource>,
+    pub(crate) contract_entailment_open_obligations: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) external_executable_supply: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) dangerous_authorities: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) dangerous_authority_slack: Vec<PackageReviewCanonicalRowSource>,

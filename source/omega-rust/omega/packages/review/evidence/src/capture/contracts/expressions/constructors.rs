@@ -33,7 +33,10 @@ pub(crate) fn project_contract_constructor_expression(
             "package review requires package-aware checked compilation",
         )]
     })?;
-    if reviewed_package_owns(&data_identity, reviewed_package)? && !data.is_public {
+    if context.requires_public_nominals()
+        && reviewed_package_owns(&data_identity, reviewed_package)?
+        && !data.is_public
+    {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` exposes non-public data `{}` through a constructor",
             context.subject_kind, context.subject_name, data.name

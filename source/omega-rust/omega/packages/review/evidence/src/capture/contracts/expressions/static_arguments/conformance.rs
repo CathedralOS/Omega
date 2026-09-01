@@ -16,8 +16,7 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
     arguments: &[psi_typed_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
     let authored = arguments
@@ -54,9 +53,9 @@ pub(crate) fn require_exact_conformance_static_argument_selections(
         {
             continue;
         }
-        if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        if selection.exposure() != context.selection_exposure {
             return Err(vec![Diagnostic::error(format!(
-                "reviewed {} `{}` conformance static argument is not retained as a public-interface selection",
+                "reviewed {} `{}` conformance static argument has the wrong retained selection exposure",
                 context.subject_kind, context.subject_name,
             ))]);
         }
@@ -203,7 +202,7 @@ pub(super) fn project_contract_conformance_application(
             matching_traits.len()
         )));
     };
-    if !trait_definition.is_public {
+    if context.requires_public_nominals() && !trait_definition.is_public {
         return Err(rejected("that exposes a non-public target trait"));
     }
     let trait_parameters = compilation.trait_type_parameters(trait_definition);

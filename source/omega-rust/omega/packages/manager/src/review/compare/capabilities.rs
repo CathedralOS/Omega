@@ -1,15 +1,15 @@
 //! Exact capability-set comparison and row conflict construction.
 
 use super::commitments::{
-    derive_candidate_closure_commitment, derive_conflict_fingerprint, ConflictFingerprintBaseline,
+    ConflictFingerprintBaseline, derive_candidate_closure_commitment, derive_conflict_fingerprint,
 };
 use super::model::*;
-use super::resources::{account_review_resources, ComparisonInputBudget};
+use super::resources::{ComparisonInputBudget, account_review_resources};
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
 use crate::review::candidate::validation::{
-    validate_review_only_closure, validate_review_only_records, ReviewOnlyClosureValidationError,
-    ReviewOnlySetValidationError,
+    ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
+    validate_review_only_records,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlyCanonicalRow};
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
@@ -456,6 +456,7 @@ const fn initial_admission_requires_root_policy(kind: PackageReviewCanonicalRowK
         PackageReviewCanonicalRowKind::AcceptedClaim
             | PackageReviewCanonicalRowKind::DangerousAuthority
             | PackageReviewCanonicalRowKind::ExternalExecutableSupply
+            | PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
     )
 }
 

@@ -8,6 +8,7 @@ use super::encoder::Encoder;
 use super::values::callables::{
     encode_callable, encode_external_executable_supply, encode_external_executable_supply_key,
 };
+use super::values::contracts::encode_contract_entailment_open_obligation_value;
 use super::values::declarations::{
     encode_const_shape, encode_operator_coordinate, encode_operator_shape, encode_proposition_shape,
 };
@@ -48,6 +49,7 @@ pub(crate) fn encode_rows_with_limits(
         .saturating_add(review.representation_tcb.len())
         .saturating_add(review.semantic_dependencies.len())
         .saturating_add(review.callables.len())
+        .saturating_add(review.contract_entailment_open_obligations.len())
         .saturating_add(review.external_executable_supply.len())
         .saturating_add(
             review
@@ -277,6 +279,34 @@ pub(crate) fn encode_rows_with_limits(
             )?,
         )?;
     }
+    for (index, obligation) in review
+        .contract_entailment_open_obligations
+        .iter()
+        .enumerate()
+    {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(
+                    &review.row_sources.contract_entailment_open_obligations,
+                    index,
+                )?,
+                |encoder| {
+                    encode_nominal(encoder, &obligation.callable)?;
+                    encoder.u32(obligation.contract_position);
+                    encoder.u32(obligation.fact_position);
+                    Ok(())
+                },
+                |encoder| encode_contract_entailment_open_obligation_value(encoder, obligation),
+            )?,
+        )?;
+    }
     for (index, authority) in review.dangerous_authorities.iter().enumerate() {
         push_row(
             &mut rows,
@@ -479,5 +509,6 @@ pub(crate) const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) 
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
         PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => 17,
+        PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => 18,
     }
 }

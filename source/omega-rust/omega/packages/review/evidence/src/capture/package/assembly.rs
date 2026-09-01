@@ -77,6 +77,12 @@ impl PendingPackageReview {
             self.callables.callables,
             PackageReviewSourceLocationRole::Declaration,
         )?;
+        let (contract_entailment_open_obligations, contract_entailment_open_obligation_sources) =
+            finalize_projected_rows(
+                compilation,
+                self.callables.contract_entailment_open_obligations,
+                PackageReviewSourceLocationRole::Declaration,
+            )?;
         let (external_executable_supply, external_executable_supply_sources) =
             finalize_projected_rows(
                 compilation,
@@ -98,6 +104,7 @@ impl PendingPackageReview {
             representation_tcb: representation_tcb_sources,
             semantic_dependencies: semantic_dependency_sources,
             callables: callable_sources,
+            contract_entailment_open_obligations: contract_entailment_open_obligation_sources,
             external_executable_supply: external_executable_supply_sources,
             dangerous_authorities: dangerous_authority_sources,
             dangerous_authority_slack: dangerous_authority_slack_sources,
@@ -122,6 +129,7 @@ impl PendingPackageReview {
             representation_tcb,
             semantic_dependencies,
             callables,
+            contract_entailment_open_obligations,
             external_executable_supply,
             dangerous_authorities,
             dangerous_authority_slack,
