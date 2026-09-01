@@ -474,7 +474,7 @@ fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
         staged_callable_object_artifact(NativeTarget::linux_x64(), false),
     )
     .unwrap();
-    staged.corrupt_custody_for_test();
+    staged.corrupt_custody_manifest_for_test();
     assert_eq!(
         validate_optimized_ordinary_callable_entry(&staged),
         Err(OptimizedOrdinaryCallableEntryError::ReceiptMismatch)

@@ -3176,6 +3176,48 @@ fn generalized_recovery_choice_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn generalized_recovery_action_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_actions",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read generalized recovery-action entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_generalized_spill_recovery_actions("),
+        "the generalized recovery-action entrance must visibly join production to independent replay",
+    );
+
+    let producer = std::fs::read_to_string(stage.join("compute.rs"))
+        .expect("read generalized recovery-action producer");
+    let mut replay = std::fs::read_to_string(stage.join("replay.rs"))
+        .expect("read generalized recovery-action replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read generalized recovery-action validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::work_usage"] {
+        assert!(
+            !replay.contains(forbidden),
+            "generalized recovery-action replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "reloads", "rewrites", "fn work_usage"] {
+        assert!(
+            replay.contains(required),
+            "generalized recovery-action replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["BTreeMap", "let mut reloads", "let mut machines"] {
+        assert!(
+            !producer.contains(forbidden),
+            "generalized recovery-action producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(

@@ -17,8 +17,18 @@ pub(crate) use affine_authority::{
 pub fn validate_psi_optimization_unit(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), OptimizationUnitValidationError> {
+    validate_psi_optimization_unit_with_control_cycles(
+        unit,
+        &function_structure::ControlCyclePolicy::default(),
+    )
+}
+
+pub(crate) fn validate_psi_optimization_unit_with_control_cycles(
+    unit: &PsiOptimizationUnit,
+    cycle_policy: &function_structure::ControlCyclePolicy,
+) -> Result<(), OptimizationUnitValidationError> {
     identity_indexes::validate_identity_and_fact_indexes(unit)?;
-    let indexes = catalogs::index_and_validate_unit_catalogs(unit)?;
+    let indexes = catalogs::index_and_validate_unit_catalogs(unit, cycle_policy)?;
     affine_authority::validate_retained_ownership_authority(unit)?;
     catalogs::validate_final_authorities(unit, &indexes)
 }

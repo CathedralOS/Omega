@@ -191,6 +191,78 @@ fn optimized_target_lowering_retains_finite_ieee_literal_sequence_custody() {
 }
 
 #[test]
+fn optimized_target_lowering_retains_finite_integer_literal_sequence_custody() {
+    let expected = [
+        (
+            OperationId::new(3_540).unwrap(),
+            ValueId::new(3_541).unwrap(),
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+            IntegerValue::Signed(-128),
+        ),
+        (
+            OperationId::new(3_542).unwrap(),
+            ValueId::new(3_543).unwrap(),
+            IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+            IntegerValue::Unsigned(65_535),
+        ),
+        (
+            OperationId::new(3_544).unwrap(),
+            ValueId::new(3_545).unwrap(),
+            IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+            IntegerValue::Signed(i64::MIN as i128),
+        ),
+    ];
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = integer_literal_sequence_unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLiteralSequenceUnitReturn(row),
+        ) = target.translation_validation().function_roster()[0].translation()
+        else {
+            panic!("optimized integer sequence must retain its exact validated family")
+        };
+        assert_eq!(row.literals().len(), expected.len());
+        for (member, (operation, result, scalar_type, value)) in row.literals().iter().zip(expected)
+        {
+            assert_eq!(member.operation(), operation);
+            assert_eq!(member.result(), result);
+            assert_eq!(member.scalar_type(), scalar_type);
+            assert_eq!(member.value(), value);
+        }
+        let TargetOperation::UnitBody(body) = &target.target_operations().functions[0].operation
+        else {
+            panic!("optimized integer sequence must remain in the Unit-body carrier")
+        };
+        assert_eq!(body.operations.len(), expected.len() + 1);
+        for (target_literal, (operation, result, scalar_type, value)) in
+            body.operations.iter().zip(expected)
+        {
+            assert!(matches!(target_literal,
+                TargetUnitOperation::IntegerConstant {
+                    psi_operation, result: target_result,
+                    scalar_type: target_type, value: target_value,
+                } if *psi_operation == operation
+                    && *target_result == result
+                    && *target_type == scalar_type
+                    && *target_value == value));
+        }
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_exact_nearest_ieee_fma_custody() {
     for (target_profile, profile) in [
         (NativeTarget::linux_x64(), TargetProfile::LinuxX64),

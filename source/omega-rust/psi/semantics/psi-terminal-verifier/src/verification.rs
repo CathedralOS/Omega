@@ -11,6 +11,7 @@ use crate::{
     ModuleError, ValidatedTerminalModule, VerifiedTerminalStructuralFrontiers,
     reconstruct_validated_structural_ownership_frontiers, validate_module,
     validate_module_for_interpretation, validate_module_for_native_ranked_countdown,
+    validate_module_for_optimization,
 };
 
 mod call_composition;
@@ -42,6 +43,16 @@ pub struct VerifiedTerminalModule<'module> {
 
 #[derive(Debug)]
 pub struct VerifiedInterpretableTerminalModule<'module> {
+    state: VerifiedTerminalModuleState<'module>,
+}
+
+/// Proof-checked authority for target-neutral optimizer analysis of ordinary
+/// acyclic Terminal Psi plus the exact existing unsigned-countdown carrier.
+///
+/// This opaque result grants no execution, interpretation, fixed-fuel,
+/// native-lowering, or publication authority.
+#[derive(Debug)]
+pub struct VerifiedOptimizableTerminalModule<'module> {
     state: VerifiedTerminalModuleState<'module>,
 }
 
@@ -116,6 +127,28 @@ impl<'module> VerifiedInterpretableTerminalModule<'module> {
     }
 }
 
+impl<'module> VerifiedOptimizableTerminalModule<'module> {
+    pub const fn module(&self) -> &'module TerminalModule {
+        self.state.validated.module()
+    }
+
+    pub fn accepted_facts(&self) -> &[AcceptedFact] {
+        &self.state.accepted_facts
+    }
+
+    pub const fn proof_bundle(&self) -> &ProofBundle {
+        &self.state.proof_bundle
+    }
+
+    pub const fn reconstructed_obligations(&self) -> &ReconstructedTerminalObligationSet {
+        &self.state.reconstructed_obligations
+    }
+
+    pub const fn structural_frontiers(&self) -> &VerifiedTerminalStructuralFrontiers {
+        &self.state.structural_frontiers
+    }
+}
+
 impl<'module> VerifiedFixedFuelTerminalModule<'module> {
     pub const fn module(&self) -> &'module TerminalModule {
         self.state.validated.module()
@@ -171,6 +204,18 @@ pub fn verify_module_for_interpretation<'module>(
         validate_module_for_interpretation(module).map_err(VerificationError::Module)?;
     verify_validated_module(validated.validated(), proof_bundle, profile)
         .map(|state| VerifiedInterpretableTerminalModule { state })
+}
+
+/// Verify the target-neutral optimizer subset without conferring authority on
+/// any executable or publication consumer.
+pub fn verify_module_for_optimization<'module>(
+    module: &'module TerminalModule,
+    proof_bundle: &ProofBundle,
+    profile: &AdmissionProfile,
+) -> Result<VerifiedOptimizableTerminalModule<'module>, VerificationError> {
+    let validated = validate_module_for_optimization(module).map_err(VerificationError::Module)?;
+    verify_validated_module(validated.validated(), proof_bundle, profile)
+        .map(|state| VerifiedOptimizableTerminalModule { state })
 }
 
 /// Verify the exact ranked-countdown subset accepted for whole-entry

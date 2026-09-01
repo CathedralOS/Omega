@@ -1,14 +1,16 @@
 //! Optimizer module role: executable entrance. Verified and transformed optimizer-context validation coordination.
 //!
-//! Both public routes validate the complete unit first, then replay immutable
-//! context indexes, seed/fact projection, and surviving frontier custody. The
-//! only policy difference is whether the initial revision identity is required.
+//! Both public routes first reconstruct any admitted exact ranked component,
+//! then validate the complete unit and replay immutable context indexes,
+//! seed/fact projection, and surviving frontier custody. The only policy
+//! difference is whether the initial revision identity is required.
 
 use super::*;
 
 mod context_projection;
 mod frontier_validation;
 mod immutable_custody;
+mod ranked_cycles;
 mod seed_projection;
 
 pub fn validate_verified_psi_optimization_unit(
@@ -36,7 +38,8 @@ pub(crate) fn validate_psi_optimization_unit_with_context(
     unit: &PsiOptimizationUnit,
     require_initial_revision: bool,
 ) -> Result<(), OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(unit)?;
+    let cycle_policy = ranked_cycles::validate_exact_ranked_cycles(input, unit)?;
+    super::core::validate_psi_optimization_unit_with_control_cycles(unit, &cycle_policy)?;
     let projected_context = context_projection::validate_context_projection(input, unit)?;
     seed_projection::validate_seed_projection(
         input,

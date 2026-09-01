@@ -25,6 +25,12 @@ pub(crate) fn lower_decoded_verified_module(
     lower_decoded_module(verified.module(), retain_payloadless_for_optimization)
 }
 
+pub(crate) fn lower_decoded_optimizable_module(
+    verified: &VerifiedOptimizableTerminalModule<'_>,
+) -> Result<AbstractOperationPlan, LoweringError> {
+    lower_decoded_module(verified.module(), true)
+}
+
 pub(crate) fn lower_decoded_native_ranked_module(
     verified: &VerifiedNativeRankedTerminalModule<'_>,
 ) -> Result<AbstractOperationPlan, LoweringError> {

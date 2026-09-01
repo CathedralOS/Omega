@@ -1,13 +1,13 @@
 use super::error::ArtifactLoweringError;
-use crate::lowering::lower_decoded_verified_module;
+use crate::lowering::lower_decoded_optimizable_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 use crate::shared::*;
 
 pub(super) fn retain_verified_optimization_input(
-    verified: &VerifiedTerminalModule<'_>,
+    verified: &VerifiedOptimizableTerminalModule<'_>,
 ) -> Result<VerifiedPsiOptimizationInput, ArtifactLoweringError> {
     let plan =
-        lower_decoded_verified_module(verified, true).map_err(ArtifactLoweringError::Lowering)?;
+        lower_decoded_optimizable_module(verified).map_err(ArtifactLoweringError::Lowering)?;
     let proof_bundle_fingerprint =
         psi_terminal_codec::proof_bundle_fingerprint(verified.proof_bundle())
             .map_err(ArtifactLoweringError::ProofFingerprint)?;

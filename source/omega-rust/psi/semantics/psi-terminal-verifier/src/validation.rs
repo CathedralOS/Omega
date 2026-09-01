@@ -152,6 +152,37 @@ pub fn validate_module_for_interpretation(
     })
 }
 
+/// Validate the exact Terminal-Psi subset admitted for target-neutral
+/// optimizer analysis.
+///
+/// This carrier is deliberately distinct from ordinary execution,
+/// interpretation, fixed-fuel, and native-ranked validation. It currently
+/// adds only the already-validated exact unsigned-countdown representation to
+/// the ordinary acyclic subset.
+#[derive(Debug, Clone, Copy)]
+pub struct ValidatedOptimizableTerminalModule<'module> {
+    validated: ValidatedTerminalModule<'module>,
+}
+
+impl<'module> ValidatedOptimizableTerminalModule<'module> {
+    pub const fn module(self) -> &'module TerminalModule {
+        self.validated.module()
+    }
+
+    pub(crate) const fn validated(self) -> ValidatedTerminalModule<'module> {
+        self.validated
+    }
+}
+
+pub fn validate_module_for_optimization(
+    module: &TerminalModule,
+) -> Result<ValidatedOptimizableTerminalModule<'_>, ModuleError> {
+    validate_module_with_policy(module, ValidationPolicy::Optimization)?;
+    Ok(ValidatedOptimizableTerminalModule {
+        validated: ValidatedTerminalModule { module },
+    })
+}
+
 pub(crate) fn validate_module_for_native_ranked_countdown(
     module: &TerminalModule,
 ) -> Result<ValidatedTerminalModule<'_>, ModuleError> {
@@ -769,6 +800,7 @@ pub fn validate_module_representation(module: &TerminalModule) -> Result<(), Mod
 enum ValidationPolicy {
     Execution,
     Interpretation,
+    Optimization,
     NativeRankedCountdown,
     Representation,
 }
@@ -838,7 +870,7 @@ fn validate_module_with_policy(
     root_service_reach::validate_root_service_reach_exact(module)?;
 
     match policy {
-        ValidationPolicy::Interpretation => {
+        ValidationPolicy::Interpretation | ValidationPolicy::Optimization => {
             validate_interpretable_ranked_countdown_module(module)?;
         }
         ValidationPolicy::NativeRankedCountdown => {

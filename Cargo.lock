@@ -1016,10 +1016,15 @@ dependencies = [
  "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-admission",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
  "psi-terminal-verifier",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
  "sha2",
 ]
 

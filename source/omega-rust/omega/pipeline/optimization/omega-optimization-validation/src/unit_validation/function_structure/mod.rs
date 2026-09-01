@@ -14,6 +14,7 @@ mod provenance;
 mod results;
 mod structural_roots;
 
+pub(crate) use control_flow::ControlCyclePolicy;
 pub(crate) use fact_index::reconstruct_fact_index;
 
 pub(crate) fn validate_function(
@@ -24,6 +25,7 @@ pub(crate) fn validate_function(
     services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
     structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     structural_domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
+    cycle_policy: &control_flow::ControlCyclePolicy,
 ) -> Result<(), OptimizationUnitValidationError> {
     if !valid_service_ceiling(&function.published_service_ceiling, services) {
         return Err(
@@ -39,7 +41,12 @@ pub(crate) fn validate_function(
     let blocks = control_flow::index_blocks(function)?;
     parameters::validate_parameter_metadata(function)?;
     let control_flow = control_flow::validate_nodes_and_edges(function, blocks)?;
-    control_flow::validate_total_cfg(function, &control_flow.blocks, &control_flow.successors)?;
+    control_flow::validate_total_cfg(
+        function,
+        &control_flow.blocks,
+        &control_flow.successors,
+        cycle_policy.admits(function.machine),
+    )?;
     results::validate_function_results(function)?;
 
     validate_byte_sequence_literal_witnesses(function, &byte_sequence_literals)?;

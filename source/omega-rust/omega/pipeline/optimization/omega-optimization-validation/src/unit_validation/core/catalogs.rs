@@ -10,9 +10,10 @@ pub(super) struct UnitIndexes<'a> {
     pub(super) pruned: BTreeSet<MachineId>,
 }
 
-pub(super) fn index_and_validate_unit_catalogs(
-    unit: &PsiOptimizationUnit,
-) -> Result<UnitIndexes<'_>, OptimizationUnitValidationError> {
+pub(super) fn index_and_validate_unit_catalogs<'unit>(
+    unit: &'unit PsiOptimizationUnit,
+    cycle_policy: &function_structure::ControlCyclePolicy,
+) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
     let mut machines = BTreeMap::new();
     for function in &unit.functions {
         if machines.insert(function.machine, function).is_some() {
@@ -106,6 +107,7 @@ pub(super) fn index_and_validate_unit_catalogs(
             &services,
             &structural_types,
             &structural_domains,
+            cycle_policy,
         )?;
     }
     Ok(UnitIndexes {

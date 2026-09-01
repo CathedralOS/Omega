@@ -51,9 +51,10 @@ pub use roster::{
 };
 pub use terminal::{
     IeeeFloatFusedMultiplyAddOperandReceipt, IeeeFloatLiteralSequenceMember,
-    StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
+    IntegerLiteralSequenceMember, StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
     StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
     StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt,
+    StraightLineIntegerLiteralSequenceUnitReturnTranslationReceipt,
     StraightLineIntegerLiteralUnitReturnTranslationReceipt,
     StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationReceipt,
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,

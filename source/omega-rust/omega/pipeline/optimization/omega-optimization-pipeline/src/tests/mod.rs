@@ -72,5 +72,6 @@ pub(crate) mod fixtures;
 pub(crate) use fixtures::*;
 
 mod coordination;
+mod cyclic_psi;
 mod stages;
 mod validation;

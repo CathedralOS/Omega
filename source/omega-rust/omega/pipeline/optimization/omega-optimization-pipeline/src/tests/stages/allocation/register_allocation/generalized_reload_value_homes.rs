@@ -114,6 +114,41 @@ impl Sources {
         )
     }
 
+    pub(super) fn plan_generalized_recovery_actions(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        budget: OptimizationWorkBudget,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        omega_regalloc::GeneralizedSpillRecoveryActionError,
+    > {
+        omega_regalloc::plan_generalized_spill_recovery_actions(
+            &self.generalized,
+            homes,
+            choices,
+            omega_regalloc::GeneralizedSpillRecoveryActionPolicy::EpochTwoReloadVictimLaterGeneralizedRewritesV1,
+            budget,
+        )
+    }
+
+    pub(super) fn validate_generalized_recovery_actions(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        choices: &omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        plan: omega_regalloc::GeneralizedSpillRecoveryActionPlan,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        omega_regalloc::GeneralizedSpillRecoveryActionError,
+    > {
+        omega_regalloc::validate_generalized_spill_recovery_actions(
+            &self.generalized,
+            homes,
+            choices,
+            plan,
+        )
+    }
+
     fn validate(
         &self,
         candidate: omega_regalloc::GeneralizedReloadValueHomePlan,

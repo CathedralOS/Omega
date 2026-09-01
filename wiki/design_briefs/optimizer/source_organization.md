@@ -122,6 +122,16 @@ stays attachment context: scalar-edge facts retain the raw target position but
 the nested-control plans carry separate dense scalar indices.
 Balanced, right-deep, convergent, and call-prefixed shapes do not receive
 sibling routes.
+
+Optimizer-only ranked-cycle admission follows the same visible descent.
+`omega-optimization-validation/src/unit_validation/context/mod.rs` remains the
+small executable context-validation entrance. Its `ranked_cycles` stage group
+routes independent SCC reconstruction through `topology.rs` and immutable
+component comparison through `freeze.rs`; it is not a second public entrance.
+The mirrored `omega-optimization-pipeline/src/tests/cyclic_psi.rs` leaf builds a
+real source countdown and pins CFG, dominator, SCC, loop, and liveness analysis
+plus topology/frozen-body corruption. General cyclic authority and cyclic
+rewrite consumers remain outside this taxonomy.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -263,6 +273,17 @@ guards register the full ladder and prohibit validator reentry into proposal.
 This is compiler-private choice evidence, not an optimization catalog or
 physical spill action.
 
+Epoch-two logical action planning continues at
+`omega-regalloc/src/allocation/generalized_spill_recovery_actions/mod.rs`.
+Its 26-line executable entrance joins direct schedule traversal to an
+independently keyed replay without hiding either lifecycle. `model.rs` owns the
+closed logical store/reload/rewrite vocabulary, `identity.rs` owns custody,
+and `validate.rs` compares replay before sealing a receipt. The mirrored
+pipeline leaf is `register_allocation/generalized_spill_recovery_actions.rs`;
+architecture guards register the complete ladder and forbid validation from
+calling producer mechanics. This stage remains target-neutral logical
+custody, not physical spill insertion or publication authority.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
@@ -346,7 +367,7 @@ The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
 
-Abstract-to-target validation follows the same entrance rule. Its 28-line
+Abstract-to-target validation follows the same entrance rule. Its 38-line
 `validation/mod.rs` exposes the module map and public validation calls;
 `whole_plan.rs` binds whole-plan roots, exact external settlement rosters,
 function order, and structural declarations before the catalog selects one

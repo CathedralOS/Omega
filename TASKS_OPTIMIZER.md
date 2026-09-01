@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-four abstract-to-target families are covered,
+  machine-rule family. Forty-five abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -490,6 +490,14 @@ decision. Only true language-semantic questions belong in
   and canonical structural roster across all five targets. If Psi dead-scalar
   elimination removes the literal, the transformed plan instead enters the
   distinct return-only family.
+  The adjacent integer-literal-sequence family admits an ordered sequence of
+  at least two `IntegerConstant` operations followed by `ReturnUnit`.
+  Independent replay retains every operation/result identity, exact integer
+  type and mathematical value, order, provenance, return edge, empty cleanup
+  and native call plan, and canonical structural roster across all five native
+  targets. Its operation-count grammar remains disjoint from the singleton
+  integer-literal and return-only families, and optimized-target custody keeps
+  the same typed sequence receipt.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -613,10 +621,14 @@ decision. Only true language-semantic questions belong in
   the interpreter result. Float, trap, atomic, placed-memory, cleanup, and
   transition lanes remain open.
 - [>] Add end-to-end mutation tests for every manifest and custody field. The
-  ordinary-callable entry slice now reauthenticates and rejects every mutable
-  manifest field, rejects every closed singleton wire tag and unavailable-data
-  position, and mutates each receipt custody root independently. Other artifact
-  and manifest families remain open. The function-fragment-emission V9 slice
+  ordinary-callable entry slice now reauthenticates and rejects all 54
+  representable record/subrecord fields and all 14 manifest fields, mutates
+  all three receipt custody roots independently, and covers 29 record-wire plus
+  20 manifest-wire axes including envelopes, vocabulary, target geometry and
+  compatibility, IDs, scalar/integer carriers, register location, exit,
+  hardening, entry/disposition, unavailable-data positions, trailing bytes,
+  and truncation. Other artifact and manifest families remain open. The
+  function-fragment-emission V9 slice
   now separately mutates all 30 representable record/subrecord fields, every
   codec envelope and closed tag, all six unavailable-data positions, and all
   three custody roots; independent reconstruction rejects every mutation. The
@@ -643,6 +655,19 @@ decision. Only true language-semantic questions belong in
   saturating neutral/multiply, and bitwise neutral/absorbing identities.
 - [x] Terminal Psi admits finite cyclic control through SCC topology rather
   than a `Loop` terminator; suspension remains an interprocedural call state.
+- [x] Admit the existing exact unsigned-countdown SCC to target-neutral
+  optimizer analysis through a distinct optimizer-only verifier authority.
+  Ordinary execution still rejects it, and no interpretation, fixed-fuel,
+  native, or publication authority is conferred. Verified-context validation
+  independently rederives the exact Terminal/current SCC, freezes every ranked
+  component block, and admits cycles only through a scoped
+  `ControlCyclePolicy`; bare unit validation remains acyclic. Current ownership
+  replay uses an equality-converging deterministic worklist, and a real
+  source-produced four-block countdown reaches CFG, dominator, SCC, loop, and
+  value-liveness analyses without rewrites. Topology, frozen-body, and missing-
+  function corruption fail typed. This slice creates no general component ID,
+  ranking certificate, unranked-progress authority, finite-work failure, or
+  cyclic rewrite permission.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, canonical component IDs,
   well-founded ranking certificates, productive unranked components, and
@@ -865,8 +890,21 @@ decision. Only true language-semantic questions belong in
   under exact usage `{2, 2, 13, 1, 1}`; all representable budget axes and
   cross-target custody fail closed. The 50-line entrance grants no eviction,
   logical action, selected VReg, instruction, memory, frame, trap, or
-  publication authority. Remaining work converts that choice into a bounded
-  epoch-two logical recovery action.
+  publication authority. A thirteenth independently replayed V1 artifact now
+  converts the selected compiler-private reload victim into bounded epoch-two
+  logical recovery obligations. It retains the epoch-two work identity,
+  source-pressure action, victim action and view, non-address storage class,
+  store-before-pressure-reload anchor, reload-before-first-later-rewrite
+  anchor, and complete later generalized-rewrite suffix. The public x86-64 and
+  AArch64 fixture stores action `{0,0}` before action `{1,0}` at point 14,
+  reloads as `{2,0}` before point 16, and rewrites that use under exact usage
+  `{1, 1, 7, 1, 1}`. Direct traversal and separately keyed replay bind every
+  root and logical field; mutation, representable-budget, and cross-target
+  custody fail closed. The 26-line entrance grants no selected VReg,
+  instruction, physical slot, address, memory effect, frame, trap, or
+  publication authority. V1 deliberately refuses an original-value victim;
+  generalizing that source role and integrating epoch two into the generalized
+  insertion schedule remain engineering work.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

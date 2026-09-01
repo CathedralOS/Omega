@@ -284,7 +284,7 @@ impl StagedValidatedOptimizedOrdinaryCallableEntry {
         &mut self.manifest
     }
     #[cfg(test)]
-    pub(crate) fn corrupt_custody_for_test(&mut self) {
+    pub(crate) fn corrupt_custody_manifest_for_test(&mut self) {
         self.custody.manifest =
             OptimizedOrdinaryCallableEntryManifestIdentity::from_canonical_bytes(b"bad");
     }

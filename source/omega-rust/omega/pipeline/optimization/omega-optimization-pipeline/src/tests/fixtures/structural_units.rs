@@ -202,6 +202,41 @@ pub(crate) fn ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Ve
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn integer_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    for (operation, result, scalar_type, value) in [
+        (
+            3_540,
+            3_541,
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+            IntegerValue::Signed(-128),
+        ),
+        (
+            3_542,
+            3_543,
+            IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+            IntegerValue::Unsigned(65_535),
+        ),
+        (
+            3_544,
+            3_545,
+            IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+            IntegerValue::Signed(i64::MIN as i128),
+        ),
+    ] {
+        module.machines[0].blocks[0].operations.push(Operation {
+            id: OperationId::new(operation).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(result).unwrap(),
+                scalar_type: ScalarType::Integer(scalar_type),
+            }),
+            kind: OperationKind::IntegerConstant { value },
+        });
+    }
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
     format: psi_core::IeeeFloatFormat,
 ) -> (Vec<u8>, Vec<u8>) {

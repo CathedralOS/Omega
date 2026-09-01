@@ -48,6 +48,7 @@ pub use terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationError,
     StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationError,
     StraightLineIeeeFloatLiteralUnitReturnTranslationError,
+    StraightLineIntegerLiteralSequenceUnitReturnTranslationError,
     StraightLineIntegerLiteralUnitReturnTranslationError,
     StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationError,
     StraightLinePortWriteUnitReturnTranslationError, StraightLineScalarCrashTranslationError,

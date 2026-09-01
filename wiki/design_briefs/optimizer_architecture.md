@@ -160,6 +160,15 @@ Selections remain exact even when rules share a phase. There are no broad
 profiles. Initially the physical pipeline admits only explicitly implemented
 compositions and rejects all others.
 
+Psi analysis has one exact cyclic admission rather than a broad loop mode. The
+optimizer-only Terminal authority accepts ordinary acyclic input plus the
+existing unsigned-countdown ranked SCC. Verified-context validation separately
+reconstructs the Terminal/current component, freezes its blocks, and gives only
+that function a scoped cycle policy; bare optimization-unit validation remains
+acyclic. This is sufficient for CFG, dominator, SCC, loop, and liveness
+analysis, but grants no rewrite, execution, interpretation, native, or
+publication authority.
+
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
 rematerialization proof custody; common encoding, layout, whole-function exit,
@@ -265,6 +274,15 @@ contender rosters plus selected/reclaimed views, but remains evidence only: it
 does not evict a value, create a logical spill action or selected register, or
 grant memory, frame, trap, unwind, encoding, emission, or publication
 authority.
+
+The adjacent `generalized_spill_recovery_actions` entrance converts that exact
+reload-victim evidence into epoch-two logical store, reload, and rewrite
+obligations. Direct schedule traversal and independently keyed replay must
+agree before receipt sealing. Its action namespace remains compiler-private;
+the result grants no selected register, instruction, physical slot, address,
+memory effect, frame, trap, encoding, emission, or publication authority.
+Original-value victims and insertion of epoch two into the generalized
+schedule remain explicit later boundaries.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

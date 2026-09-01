@@ -488,6 +488,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
             AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
+            AbstractToTargetTranslationFamily::StraightLineIntegerLiteralSequenceUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,

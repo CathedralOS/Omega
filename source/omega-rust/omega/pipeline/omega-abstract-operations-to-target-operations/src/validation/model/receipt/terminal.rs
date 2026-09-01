@@ -1,5 +1,11 @@
 //! Terminal Unit-return and scalar-Crash receipts.
 
+mod integer_literal_sequence;
+
+pub use integer_literal_sequence::{
+    IntegerLiteralSequenceMember, StraightLineIntegerLiteralSequenceUnitReturnTranslationReceipt,
+};
+
 use psi_core::{
     ClaimId, EdgeId, IeeeFloatValue, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, ScalarType, ServiceId, ValueId,
