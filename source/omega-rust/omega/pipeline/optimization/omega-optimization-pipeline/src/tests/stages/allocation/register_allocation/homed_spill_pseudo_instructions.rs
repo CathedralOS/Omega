@@ -5,13 +5,13 @@ use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
 use super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle};
 
-struct HomedBundle {
-    bundle: Bundle,
-    pseudos: omega_regalloc::ValidatedSpillPseudoInstructions,
-    homes: omega_regalloc::ValidatedRecursiveReloadValueHomes,
+pub(super) struct HomedBundle {
+    pub(super) bundle: Bundle,
+    pub(super) pseudos: omega_regalloc::ValidatedSpillPseudoInstructions,
+    pub(super) homes: omega_regalloc::ValidatedRecursiveReloadValueHomes,
 }
 
-fn build(constructor: fn(NativeTarget) -> Bundle, target: NativeTarget) -> HomedBundle {
+pub(super) fn build(constructor: fn(NativeTarget) -> Bundle, target: NativeTarget) -> HomedBundle {
     let bundle = constructor(target);
     let pseudos = omega_regalloc::lower_recursive_spill_pseudos(
         &bundle.recursive,
@@ -35,7 +35,7 @@ fn build(constructor: fn(NativeTarget) -> Bundle, target: NativeTarget) -> Homed
     }
 }
 
-fn lower(
+pub(super) fn lower(
     source: &HomedBundle,
     budget: OptimizationWorkBudget,
 ) -> Result<
