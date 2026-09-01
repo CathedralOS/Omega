@@ -458,6 +458,19 @@ leaves own the corresponding vocabulary and mechanics. Inventory and foreign-
 row tests mirror that split. The entrance remains meaningful without restoring
 the former 810-line mixed policy, codec, inventory, and test file.
 
+Terminal native-artifact realization now enters through the 65-line
+`realization/mod.rs` coordinator. Its two public routes visibly distinguish
+ordinary realization from checked boundary-scope custody, then join at the
+64-line `native_artifact.rs` lifecycle before descending through named input,
+provider, machine-code, and output stages. Installed selected-provider closure
+review independently enters through the 52-line
+`realization/terminal_authority_review.rs` coordinator. Its `context`,
+`reviewer`, and `operations` leaves separate exact lookup and reachability,
+recursive provider-closure expansion, and exhaustive authority-edge
+classification; its test matrix lives in a parallel `tests` leaf. These
+entrances preserve exact checked-scope validation and recursive closure review
+without returning to a mixed 920-line implementation-and-test file.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
