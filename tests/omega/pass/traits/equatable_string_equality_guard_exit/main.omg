@@ -11,7 +11,7 @@ requires
 // cannot load 16-byte runtime operands yet". Equal contents here take the
 // `true` arm -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tag {
     name: &[u8] in Utf8;

@@ -3,7 +3,7 @@
 // find the machine ATTACHED to that data type (like a contained-object call) --
 // previously this returned 0 (the call resolved to nothing). Here dispatch returns
 // Circle::code() == 99, so the guard takes the `good` arm and exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Circle {}
 

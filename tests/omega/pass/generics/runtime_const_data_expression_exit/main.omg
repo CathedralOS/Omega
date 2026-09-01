@@ -1,7 +1,7 @@
 // Closed integer expressions in const generic arguments fold before instance
 // synthesis. Distinct folded values must still select distinct layouts in both
 // engines; precedence, grouping, and shift parsing are all load-bearing here.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FixedBuffer<const N: u64> {
     items: [i32 in Wrapping; N];

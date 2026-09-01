@@ -1,7 +1,7 @@
 // A const parameter may be forwarded through another generic data instance.
 // Both declarations intentionally call it `N`: symbol identity, not the
 // repeated spelling, must select the inner binding and then follow it outward.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FixedBuffer<const N: u64> {
     items: [i32 in Wrapping; N];

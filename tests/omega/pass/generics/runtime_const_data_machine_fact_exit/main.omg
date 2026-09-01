@@ -1,6 +1,6 @@
 // A direct effect-free `machine(self)` integer-domain fact is evaluated
 // at build time for the concrete const-generic instance.
-use omega::language::std::console;
+use omega_language_std::console;
 
 machine is_positive(value: u64) -> bool {
     value > 0

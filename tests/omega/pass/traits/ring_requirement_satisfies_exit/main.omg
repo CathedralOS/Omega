@@ -11,7 +11,7 @@
 // satisfiers actually run: add32(2, 1) == 3, exit 70.
 // Loud-edge siblings: fail/traits/ring_requirement_unknown_rejected,
 // ring_requirement_signature_rejected, free_machine_bare_satisfies_rejected.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Peano {
     case Zero;

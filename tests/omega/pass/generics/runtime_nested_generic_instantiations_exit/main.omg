@@ -6,7 +6,7 @@
 // param-arg `Box<T>` inside `Pair<T>` is never mistaken for a concrete instance).
 // Before this, a nested generic errored outright ("references unknown data type
 // T"). Reads 30 from the i32 pair's box, true from the bool pair's box; exits 30.
-use omega::language::std::console;
+use omega_language_std::console;
 data Box<T> { value: T; }
 data Pair<T> { a: Box<T>; b: T; }
 data Main { console: Console; pi: Pair<i32>; pb: Pair<bool>; r: i32; }

@@ -7,7 +7,7 @@
 // same structural expansion. Exits 70 only when operator and callable faces
 // all agree.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Equatable {
     machine equals(&self, rhs: &Self) -> bool;

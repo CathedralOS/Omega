@@ -2853,6 +2853,44 @@ fn guard_hoist_copies_share_one_authored_call_occurrence() {
 }
 
 #[test]
+fn const_specialization_copies_share_the_authored_member_declaration() {
+    let source = r#"
+        data FixedBuffer<const N: u64> { items: [i32; N]; }
+        machine FixedBuffer::first(&self) -> i32 { self.items[0] }
+        data Main { small: FixedBuffer<2>; large: FixedBuffer<4>; }
+        machine Main::small(&self) -> i32 { self.small.first() }
+        machine Main::large(&self) -> i32 { self.large.first() }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize const copies");
+    let syntax = parse_syntax_trees(&tokens).expect("parse const copies");
+    let program = lower_syntax_trees(&syntax).expect("resolve const copies");
+    let items_start = source.find("self.items").expect("member source") + "self.".len();
+    let selections = program
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind()
+                == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::MemberAccess
+                && selection.source_span().span.start == items_start
+        })
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        panic!("one source member must own every specialized copy: {selections:?}");
+    };
+    let psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target) =
+        selection.target()
+    else {
+        panic!("specialized member selection must resolve exactly")
+    };
+    assert_eq!(
+        program.symbols.display_path(target.selected_symbol(), "::"),
+        "FixedBuffer::first::items"
+    );
+}
+
+#[test]
 fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
     let source = r#"
         machine helper() -> bool { true }

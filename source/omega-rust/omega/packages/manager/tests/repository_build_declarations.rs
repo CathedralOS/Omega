@@ -385,6 +385,44 @@ fn assert_mixed_canary_category_standard_library_edges(
     );
 }
 
+fn assert_partial_canary_category_standard_library_migration(
+    cases: &Path,
+    expected_roots: usize,
+    compatibility_roots: &[&str],
+) {
+    let mut roots = Vec::new();
+    collect_build_roots(cases, &mut roots);
+    assert_eq!(roots.len(), expected_roots);
+    let mut retained_compatibility = Vec::new();
+    for root in roots {
+        let name = root
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("canary root name");
+        if !compatibility_roots.contains(&name) {
+            assert_canary_declares_ordinary_standard_library_edge(&root);
+            continue;
+        }
+        let projection = extract_build_dependency_projection(&root).unwrap();
+        assert!(
+            projection.dependencies().is_empty(),
+            "compatibility canary {} must not claim a migrated std edge",
+            root.display()
+        );
+        let source = fs::read_to_string(root.join("main.omg")).expect("compatibility source");
+        assert!(source.contains("omega::language::std::console"));
+        assert!(!source.contains("omega_language_std"));
+        retained_compatibility.push(name.to_owned());
+    }
+    retained_compatibility.sort();
+    let mut expected = compatibility_roots
+        .iter()
+        .map(|name| (*name).to_owned())
+        .collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(retained_compatibility, expected);
+}
+
 #[test]
 fn time_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
@@ -412,6 +450,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("data", 20),
         ("dependent", 11),
         ("errors", 1),
+        ("generics", 23),
         ("layouts", 19),
         ("storage", 10),
         ("structs", 12),
@@ -421,6 +460,20 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
             expected_count,
         );
     }
+}
+
+#[test]
+fn trait_canaries_retain_only_the_known_compiler_compatibility_seams() {
+    assert_partial_canary_category_standard_library_migration(
+        &repository_root().join("tests/omega/pass/traits"),
+        22,
+        &[
+            "runtime_generic_trait_default_exit",
+            "runtime_inherited_trait_default_exit",
+            "runtime_local_named_dyn_devirtualized_exit",
+            "runtime_local_named_dyn_rebound_direct_exit",
+        ],
+    );
 }
 
 #[test]

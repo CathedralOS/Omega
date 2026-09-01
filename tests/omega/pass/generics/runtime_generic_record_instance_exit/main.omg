@@ -5,7 +5,7 @@
 // the layout builder now records ONE monomorphized instance per generic data (keyed by the
 // definition symbol, argument-collision -> the offsets are un-recorded and access rejects
 // cleanly). tag=30 + val=40 -> 70. Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 data Box<T> { val: T; tag: i32 in Wrapping; }
 data Main { console: Console; b: Box<i32 in Wrapping>; }
 machine Main::main(&mut self) {

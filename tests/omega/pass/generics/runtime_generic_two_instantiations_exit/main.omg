@@ -6,7 +6,7 @@
 // `data Box<bool> { value: bool }`, the T substituted), so resolution, typing,
 // and the native layout builder see ordinary records. Reads 30 from the i32
 // instance and true from the bool instance; exits 30.
-use omega::language::std::console;
+use omega_language_std::console;
 data Box<T> { value: T; }
 data Main { console: Console; bi: Box<i32>; bb: Box<bool>; r: i32; }
 machine Main::main(&mut self) {

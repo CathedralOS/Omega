@@ -1,7 +1,7 @@
 // Symbolic const arguments evaluate before instance synthesis. The direct
 // spelling resolves scoped const operands; the forwarded spelling resolves an
 // enclosing const parameter plus a scoped const in the concrete clone.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Sizes {
 }

@@ -1,6 +1,6 @@
 // A literal const data argument substitutes into the instance's fixed-array
 // extent before validation, layout, storage planning, and indexed lowering.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FixedBuffer<T, const N: u64> {
     items: [T; N];

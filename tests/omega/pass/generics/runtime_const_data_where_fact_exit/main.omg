@@ -1,7 +1,7 @@
 // Facts over only const parameters, including membership in an integer domain
 // with an evaluable domain body fact, discharge once for the concrete generic
 // instance. They are not runtime invariants on the synthesized record.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain u64::Positive
 requires

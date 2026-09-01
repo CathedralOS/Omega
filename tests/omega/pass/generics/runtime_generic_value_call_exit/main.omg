@@ -5,7 +5,7 @@
 // position inference), substitutes the machine's type-parameter references in place, and clears its
 // parameter list -- so the backend compiles it as a concrete value machine and the result
 // materializes. Exit 70. Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
 machine Main::main(&mut self) {

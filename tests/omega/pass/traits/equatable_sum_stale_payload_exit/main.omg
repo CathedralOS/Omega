@@ -7,7 +7,7 @@
 // compares the tag and then ONLY the active variant's payload, so a == b
 // holds. (Destructuring never sees the stale region; whole-value equality
 // is the only reader that could.) exit 72 = stale bytes leaked into ==.
-use omega::language::std::console;
+use omega_language_std::console;
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;
 }

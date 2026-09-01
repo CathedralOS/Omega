@@ -2,7 +2,7 @@
 // one statically known realization, so it does not need to materialize the
 // runtime descriptor/table used by pass-through or escaping dynamic values.
 // `s.code()` routes through Circle::Primary's explicit row to Circle::code().
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

@@ -4,7 +4,7 @@
 // receiver's static type the lexically-first impl won at EVERY call site (both
 // calls returned 9 -> n == 99). The receiver-type discrimination keeps them
 // apart: a == 9, b == 4, n == 9 * 10 + 4 == 94 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

@@ -15,7 +15,7 @@ requires
 // `==` in guard position must then hit (rung 3, exit 73). Exits 70 only when
 // all three guard-position compares are right.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair {
     a: i32;

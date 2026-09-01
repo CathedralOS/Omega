@@ -7,7 +7,7 @@
 // both compares are right. Also the regression net for the boolean-folding
 // factor/distribute mutual recursion this shape first exposed.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data RoomEvent {
     consumed: bool;
