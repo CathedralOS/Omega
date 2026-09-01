@@ -684,10 +684,18 @@ decision. Only true language-semantic questions belong in
   projected rosters, and every optimizer-node fuel/effect/ownership row; the
   legalized identity and typed receipt bind that custody on all five targets.
   Roster, machine, ABI, node, unrelated-shape, and producer/replay-boundary
-  corruption fail closed. Instruction selection returns a typed unsupported
-  result, so selection and every later physical stage remain unsupported. The
-  paired function-
-  result and operation-result source slice is also complete. Terminal
+  corruption fail closed. The same exact closure now reaches instruction
+  selection through a distinct atomic carrier: eight semantic fragment sites
+  retain their direct 8-byte integer placements, the selected ordinary-call
+  and return rows retain fixed views/classes/access plus implicit
+  uses/defs/clobbers, and target-dependent transfers retain either the full
+  `copy_i64` constraint or an explicit same-view/no-copy decision. Independent
+  replay reconstructs that authority on all five native targets. Empty plans
+  remain byte-identical selected-identity V12; only nonempty projected custody
+  enters V13. Liveness and pre-allocation machine-effect analysis reject the
+  carrier explicitly, so allocation, machine realization, encoding, and
+  publication remain unsupported rather than silently dropping it. The paired
+  function-result and operation-result source slice is also complete. Terminal
   declarations and structural operation results carry separate exact projected
   rosters; calls copy only the callee result roster; and return replay rejoins
   the declared source contract. Format-56/vocabulary-59 compatibility

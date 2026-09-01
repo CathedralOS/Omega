@@ -501,9 +501,22 @@ descend through explicit candidate, grammar/contract, and custody leaves.
 Ordinary legalization rosters remain in adjacent `ordinary_roster.rs` leaves,
 keeping the main source and replay entrances at 52 and 43 lines. Mirrored
 positive, corruption, and fence tests cover all five targets and keep the
-selection refusal visible. Layering guards forbid replay from importing the
+selection boundary visible. Layering guards forbid replay from importing the
 producer or target lowering, and the source-organization registry names both
 semantic ladders.
+
+Selection continues through
+`selection/construction/projected_structural_call_return/`. Its 70-line
+executable entrance coordinates only named `projection`, `constraints`, and
+`transfer` leaves; the selected representation has its own adjacent
+`projected_structural_call_return/` stage group. Independent validation enters
+through a 28-line coordinator and descends through separate `source` and
+`target` reconstruction leaves. Identity-specific encoding lives under
+`selection/identity/projected_structural.rs`, with shared register primitives
+extracted from the main identity file. The registered ladder terminates at
+public all-five custody and explicit liveness/pre-allocation refusal tests:
+allocation and later physical stages do not inherit authority merely because
+the atomic selected carrier exists.
 
 The checked-Psi exact-add proof producer uses the same navigability rule
 without pretending to be an optimizer catalog. Its 94-line `direct_add/mod.rs`
