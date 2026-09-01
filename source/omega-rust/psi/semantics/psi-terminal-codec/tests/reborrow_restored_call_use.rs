@@ -7,7 +7,8 @@ use psi_terminal::{
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalBorrowBoundarySource, TerminalBorrowPlace, TerminalMachine, TerminalMachineResult,
-    TerminalModule, TerminalReborrowRestoredCallUse, Terminator, VocabularyMarker,
+    TerminalModule, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    TerminalReborrowSharedCohortMember, Terminator, VocabularyMarker,
 };
 use psi_terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use psi_terminal_verifier::ModuleError;
@@ -64,6 +65,13 @@ fn restored_call_use_module() -> TerminalModule {
         reborrow_restored_call_uses: vec![TerminalReborrowRestoredCallUse {
             machine: caller,
             operation,
+            restoration_class: TerminalReborrowRestorationClass::ExclusiveReactivation,
+            call_boundary: TerminalBorrowBoundarySource::Call {
+                statement_index: 2,
+                call_ordinal: 0,
+                target_identity: borrow_identity('f'),
+            },
+            call_target_machine: callee,
             source_machine_identity: borrow_identity('a'),
             source_state_identity: borrow_identity('b'),
             direct_root_owner_identity: borrow_identity('c'),
@@ -86,6 +94,7 @@ fn restored_call_use_module() -> TerminalModule {
             child_activation: statement(1),
             formation_boundary: statement(1),
             child_weakening: statement(2),
+            shared_cohort: Vec::new(),
         }],
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
@@ -200,6 +209,41 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
             .expect("different child access remains valid"),
         original
     );
+
+    let mut shared = restored_call_use_module();
+    shared.reborrow_restored_call_uses[0].child_access = StructuralAccess::SharedBorrow;
+    shared.reborrow_restored_call_uses[0].restoration_class =
+        TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+    {
+        let row = &mut shared.reborrow_restored_call_uses[0];
+        row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
+            child_owner_identity: row.child_owner_identity.clone(),
+            child_owner_path: row.child_owner_path.clone(),
+            child_place: row.child_place.clone(),
+            child_access: row.child_access,
+            child_activation: row.child_activation.clone(),
+            child_weakening: row.child_weakening.clone(),
+        }];
+    }
+    let encoded_shared = encode_module(&shared).expect("sole shared freeze should encode");
+    assert_eq!(decode_module(&encoded_shared), Ok(shared.clone()));
+    assert_ne!(
+        semantic_fingerprint(&shared).expect("shared restoration fingerprints"),
+        original
+    );
+
+    let mut different_target = restored_call_use_module();
+    let TerminalBorrowBoundarySource::Call {
+        target_identity, ..
+    } = &mut different_target.reborrow_restored_call_uses[0].call_boundary
+    else {
+        unreachable!()
+    };
+    *target_identity = borrow_identity('9');
+    assert_ne!(
+        semantic_fingerprint(&different_target).expect("call target fingerprints"),
+        original
+    );
 }
 
 #[test]
@@ -212,4 +256,87 @@ fn restored_call_use_encoding_fails_closed_on_substitution() {
             ModuleError::InvalidReborrowRestoredCallUse { .. }
         ))
     ));
+
+    let mut wrong_class = restored_call_use_module();
+    wrong_class.reborrow_restored_call_uses[0].restoration_class =
+        TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+    assert!(matches!(
+        encode_module(&wrong_class),
+        Err(CodecError::InvalidModule(
+            ModuleError::InvalidReborrowRestoredCallUse { .. }
+        ))
+    ));
+
+    let mut wrong_statement = restored_call_use_module();
+    let TerminalBorrowBoundarySource::Call {
+        statement_index, ..
+    } = &mut wrong_statement.reborrow_restored_call_uses[0].call_boundary
+    else {
+        unreachable!()
+    };
+    *statement_index = 1;
+    assert!(matches!(
+        encode_module(&wrong_statement),
+        Err(CodecError::InvalidModule(
+            ModuleError::InvalidReborrowRestoredCallUse { .. }
+        ))
+    ));
+
+    let mut wrong_ordinal = restored_call_use_module();
+    let TerminalBorrowBoundarySource::Call { call_ordinal, .. } =
+        &mut wrong_ordinal.reborrow_restored_call_uses[0].call_boundary
+    else {
+        unreachable!()
+    };
+    *call_ordinal = 1;
+    assert!(matches!(
+        encode_module(&wrong_ordinal),
+        Err(CodecError::InvalidModule(
+            ModuleError::InvalidReborrowRestoredCallUse { .. }
+        ))
+    ));
+
+    let mut wrong_target_machine = restored_call_use_module();
+    wrong_target_machine.reborrow_restored_call_uses[0].call_target_machine = id(3, MachineId::new);
+    assert!(matches!(
+        encode_module(&wrong_target_machine),
+        Err(CodecError::InvalidModule(
+            ModuleError::InvalidReborrowRestoredCallUse { .. }
+        ))
+    ));
+
+    let mut shared = restored_call_use_module();
+    {
+        let row = &mut shared.reborrow_restored_call_uses[0];
+        row.restoration_class = TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+        row.child_access = StructuralAccess::SharedBorrow;
+        row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
+            child_owner_identity: row.child_owner_identity.clone(),
+            child_owner_path: row.child_owner_path.clone(),
+            child_place: row.child_place.clone(),
+            child_access: row.child_access,
+            child_activation: row.child_activation.clone(),
+            child_weakening: row.child_weakening.clone(),
+        }];
+    }
+    let mut missing_member = shared.clone();
+    missing_member.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .clear();
+    let mut duplicate_member = shared.clone();
+    let member = duplicate_member.reborrow_restored_call_uses[0].shared_cohort[0].clone();
+    duplicate_member.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .push(member);
+    let mut retargeted_member = shared;
+    retargeted_member.reborrow_restored_call_uses[0].shared_cohort[0].child_owner_identity =
+        borrow_identity('9');
+    for malformed in [missing_member, duplicate_member, retargeted_member] {
+        assert!(matches!(
+            encode_module(&malformed),
+            Err(CodecError::InvalidModule(
+                ModuleError::InvalidReborrowRestoredCallUse { .. }
+            ))
+        ));
+    }
 }

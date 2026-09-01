@@ -310,7 +310,7 @@ canonical bytes. Representation validation rejects missing, duplicate,
 reversed, surplus, role/payload-mismatched, and unknown-tag evidence before it
 independently reconstructs the theorem, correspondence, eligibility,
 fact-major/source and theorem-coordinate order, exact congruence-`P`/transport-
-`P` join, and direct-result shape. Format 50 / vocabulary 53 carry this
+`P` join, and direct-result shape. Format 51 / vocabulary 54 carry this
 strengthened source-free contract. A nonempty table is still
 rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
@@ -668,23 +668,32 @@ reordered, amplified, or retargeted rows reject transactionally before resource
 rebuild. The checked certificate is non-authorizing, and reaching a root grants
 no cleanup, transfer, or linear-discharge authority to the borrow layer.
 
-A sibling checked post-reactivation row now retains the first exact later use.
-One direct mutable parent lends an exact mutable or
-write-only child while other non-overlapping sequential siblings may occur in
-the state; the qualifying child ends by `LastUseExpired` through matching
-`Reactivate` and `ExclusiveSuspension` rows; and the same boundary enters one
+A sibling checked post-restoration row now retains the first exact later use.
+One direct mutable parent lends either an exact mutable/write-only exclusive
+child or one exact shared child occurrence with no sibling for that parent.
+Other non-overlapping sequential exclusive siblings may occur. The exclusive
+form binds matching `Reactivate` and `ExclusiveSuspension`; the shared form
+binds `RestoreSharedCohort`, exact roster `[child]`, and `SharedFreeze`. Both
+end by `LastUseExpired`, and the same boundary enters one
 runtime-receiver-free call with one exact mutable-reference parameter over the
 bare parent carrier whose mutation summary covers the complete restored
 referent. Nominal static qualification such as `Sink::mutate(parent)` is not a
 runtime receiver. Transactional replay
 rejoins both resources, weakening, disposition, containment, flow and borrow
 calls, carrier-read access, parent-loan entry constraint, captured places,
-restored access, and target identity. Shared, multihop, concurrent-sibling,
-state-exit, projected, receiver, extra-parameter, direct-assignment,
+restored access, and target identity. Multi-member or sequential shared,
+multihop, concurrent-sibling, state-exit, projected, receiver, extra-parameter,
+direct-assignment,
 partial-mutation, and nonmutating shapes remain absent. Terminal independently
 replays the checked join, the caller's exact `CallUnit`, and the receiver-free
-callee shape, then publishes one canonical row binding that operation to the
-direct-root lifetime and exclusive child interval. Authority is limited to the
+callee shape, then publishes one canonical row binding that operation to its
+ordinal-zero source call coordinate, bound callee, direct-root lifetime,
+explicit restoration class, child interval, and sole-shared cohort roster.
+The canonical target identity is committed source custody, not an identity
+reconstructed from machine bytes. The producer transactionally proves the
+selected checked cohort complete; the verifier replays exact roster cardinality
+and member equality and requires the shared caller to contain exactly one
+compatible whole-parent mutating `CallUnit`. Authority is limited to the
 named call; cleanup, transfer, and linear discharge remain unexpressible.
 
 The bounded Terminal publication now consumes that complete checked join for a
@@ -695,13 +704,14 @@ loan and ending at state exit. Each root-to-leaf edge is exactly
 The producer reverses the leaf's exact retired-parent path, rejects branching,
 and rejoins every resource, activation, parent-entry formation, weakening,
 captured-place, projection-remainder, and `ExclusiveSuspension` row before
-accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 50 /
-vocabulary 53 round-trip the complete lineage and restored-use publication.
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 51 /
+vocabulary 54 round-trip the complete lineage and restored-use publication.
 Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
-there is no cleanup, transfer, or linear-discharge vocabulary. Shared cohorts,
-multihop or branching restored use, projected or direct-assignment restored
+there is no cleanup, transfer, or linear-discharge vocabulary. Multi-member or
+sequential shared restored-use cohorts, multihop or branching restored use,
+projected or direct-assignment restored
 use, non-state-exit root custody, and broader branching remain outside this
 rung.
 
@@ -880,7 +890,7 @@ identity to the canonical row, the row to the owner-scoped application, and
 the private realization to the ordinary `CallUnit` or scalar `Call`; it rejects missing
 dispatch, identity, commitment, or report-fingerprint drift, private
 forwarding/provenance leakage, and reuse of an input or prior output term. Codec
-format 50 / vocabulary 53 preserve this split and serialize the application
+format 51 / vocabulary 54 preserve this split and serialize the application
 and dispatch commitments. Terminal validation recomputes the application
 commitment from its complete source-free structure, selects dispatch by owner
 plus that commitment, and then replays the exact row. The compact fingerprint
@@ -3376,7 +3386,7 @@ Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-50 / vocabulary 53 carries the closed artifact descriptor: rooted-checker
+51 / vocabulary 54 carries the closed artifact descriptor: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier

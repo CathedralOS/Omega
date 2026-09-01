@@ -5,7 +5,10 @@ use psi_checked_trees::{
     CheckedReborrowResourceDisposition, FlowBorrowWeakeningReason, FlowConstraintKind,
 };
 use psi_core::MachineId;
-use psi_terminal::TerminalReborrowRestoredCallUse;
+use psi_terminal::{
+    TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    TerminalReborrowSharedCohortMember,
+};
 
 use crate::{CheckedTrees, LoweredSourceCallOccurrence, LoweringError, unsupported};
 
@@ -96,6 +99,19 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             .contexts
             .constraint_refs
             .get(certificate.parent_entry_constraint);
+        if !flow
+            .contexts
+            .constraint_refs
+            .is_valid(child.parent_suspension.parent_entry_constraint)
+        {
+            return unsupported(
+                "restored reborrow call use formation constraint handle is invalid",
+            );
+        }
+        let formation_parent_constraint = flow
+            .contexts
+            .constraint_refs
+            .get(child.parent_suspension.parent_entry_constraint);
         let receiver_free_target = checked
             .typed
             .machines()
@@ -117,6 +133,19 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                     && (!call.has_receiver || machine.attached_data_symbol == call.receiver_symbol)
             });
 
+        let exclusive_reactivation = matches!(
+            child.access,
+            BorrowAccessKind::Mutable | BorrowAccessKind::WriteOnly
+        ) && child.access_effect
+            == CheckedReborrowAccessEffect::ExclusiveSuspension;
+        let sole_shared_freeze = child.access == BorrowAccessKind::Read
+            && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
+            && borrow
+                .reborrow_loan_resources
+                .iter()
+                .filter(|(_, candidate)| candidate.parent_loan == parent.loan)
+                .count()
+                == 1;
         let exact_resource = certificate.machine_symbol == child.machine_symbol
             && certificate.machine_symbol == parent.machine_symbol
             && certificate.state_symbol == child.state_symbol
@@ -130,11 +159,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 }
             && parent.access == BorrowAccessKind::Mutable
             && parent.owner_path.is_empty()
-            && matches!(
-                child.access,
-                BorrowAccessKind::Mutable | BorrowAccessKind::WriteOnly
-            )
-            && child.access_effect == CheckedReborrowAccessEffect::ExclusiveSuspension
+            && (exclusive_reactivation || sole_shared_freeze)
             && child.weakening_reason == FlowBorrowWeakeningReason::LastUseExpired
             && child.loan == child_activation.loan
             && child.loan == child_weakening.loan
@@ -142,10 +167,14 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && child.parent_suspension.parent_loan == parent.loan
             && child.parent_suspension.parent_resource == child.parent_resource
             && child.parent_suspension.source == child.activation_source
+            && formation_parent_constraint.kind
+                == FlowConstraintKind::BorrowLoan { loan: parent.loan }
             && child.parent_end_status.child_weakening == certificate.child_weakening
             && child.parent_end_status.child_loan == child.loan
             && child.parent_end_status.parent_loan == parent.loan
             && child.parent_end_status.parent_resource == child.parent_resource
+            && child.parent_end_status.status
+                == psi_checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
             && parent_weakening.loan == parent.loan
             && child.restoration.child_weakening_source == child.weakening_source
             && child.restoration.child_weakening_reason == child.weakening_reason
@@ -169,13 +198,19 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && disposition.parent_resource == child.parent_resource
             && disposition.boundary_source == child.weakening_source
             && disposition.boundary_phase == CheckedBorrowResourceLifecyclePhase::LastUseExpired
-            && disposition.shared_cohort.is_empty()
             && disposition.retired_parent_path.is_empty()
             && disposition.final_target
                 == CheckedBorrowResourceDispositionTarget::ParentResource(
                     child.parent_resource.clone(),
                 )
-            && disposition.disposition == CheckedReborrowResourceDisposition::Reactivate;
+            && if sole_shared_freeze {
+                disposition.shared_cohort.as_slice() == [certificate.child_resource]
+                    && disposition.disposition
+                        == CheckedReborrowResourceDisposition::RestoreSharedCohort
+            } else {
+                disposition.shared_cohort.is_empty()
+                    && disposition.disposition == CheckedReborrowResourceDisposition::Reactivate
+            };
         let exact_containment = containment.machine_symbol == certificate.machine_symbol
             && containment.state_symbol == certificate.state_symbol
             && containment.child_loan == child.loan
@@ -184,7 +219,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && containment.parent_resource == child.parent_resource
             && containment.parent_access == parent.access
             && containment.child_access == child.access
-            && containment.access_effect == CheckedReborrowAccessEffect::ExclusiveSuspension
+            && containment.access_effect == child.access_effect
             && containment.child_activation == child.parent_suspension.child_activation
             && containment.parent_entry_constraint
                 == child.parent_suspension.parent_entry_constraint
@@ -192,6 +227,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && containment.child_weakening == certificate.child_weakening
             && containment.child_weakening_source == child.weakening_source
             && containment.child_weakening_reason == child.weakening_reason
+            && containment.parent_weakening == child.parent_end_status.parent_weakening
             && containment.parent_place == parent.captured_place
             && containment.child_place == child.captured_place
             && child
@@ -200,7 +236,12 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 .starts_with(&parent.captured_place.segments)
             && containment.projection_remainder
                 == child.captured_place.segments[parent.captured_place.segments.len()..]
-            && containment.containment == CheckedReborrowContainmentKind::ExclusiveSuspension;
+            && containment.containment
+                == if sole_shared_freeze {
+                    CheckedReborrowContainmentKind::SharedFreeze
+                } else {
+                    CheckedReborrowContainmentKind::ExclusiveSuspension
+                };
         let exact_call = call.statement_index == borrow_call.statement_index
             && call.call_ordinal == borrow_call.call_ordinal
             && call.target_symbol == borrow_call.target_symbol
@@ -209,6 +250,11 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && receiver_free_target
             && call.target_symbol == certificate.target_symbol
             && call.accesses == borrow_call.accesses
+            && matches!(
+                child.weakening_source,
+                psi_checked_trees::FlowInvalidationSource::Statement { statement_index }
+                    if statement_index == call.statement_index
+            )
             && call.accesses.start() == certificate.call_access
             && call.accesses.len() == 1
             && call_access.root_symbol == parent.owner_symbol
@@ -265,9 +311,10 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 "restored reborrow call use requires one exact structural argument",
             );
         };
+        let callee_id = *callee;
         let callee = terminal_machines
             .iter()
-            .find(|machine| machine.id == *callee)
+            .find(|machine| machine.id == callee_id)
             .ok_or(LoweringError::Unsupported(
                 "restored reborrow call use names an absent Terminal callee",
             ))?;
@@ -294,9 +341,45 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 "restored reborrow call use Terminal operation drifted from checked authority",
             );
         }
+        let child_owner_identity = identity(checked, child.owner_symbol)?;
+        let child_owner_path = owner_path(checked, &child.owner_path)?;
+        let child_place = place(checked, &child.captured_place)?;
+        let child_access = access(child.access.clone());
+        let child_activation = boundary(checked, child_activation.source)?;
+        let child_weakening = boundary(checked, child_weakening.source)?;
+        let shared_cohort = sole_shared_freeze
+            .then(|| TerminalReborrowSharedCohortMember {
+                child_owner_identity: child_owner_identity.clone(),
+                child_owner_path: child_owner_path.clone(),
+                child_place: child_place.clone(),
+                child_access,
+                child_activation: child_activation.clone(),
+                child_weakening: child_weakening.clone(),
+            })
+            .into_iter()
+            .collect();
         rows.push(TerminalReborrowRestoredCallUse {
             machine: terminal_machine,
             operation: occurrence.terminal_operation,
+            restoration_class: if sole_shared_freeze {
+                TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
+            } else {
+                TerminalReborrowRestorationClass::ExclusiveReactivation
+            },
+            call_boundary: psi_terminal::TerminalBorrowBoundarySource::Call {
+                statement_index: u64::try_from(call.statement_index).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "restored reborrow call statement index exceeds Terminal range",
+                    )
+                })?,
+                call_ordinal: u64::try_from(call.call_ordinal).map_err(|_| {
+                    LoweringError::Unsupported(
+                        "restored reborrow call ordinal exceeds Terminal range",
+                    )
+                })?,
+                target_identity: identity(checked, call.target_symbol)?,
+            },
+            call_target_machine: callee_id,
             source_machine_identity: identity(checked, certificate.machine_symbol)?,
             source_state_identity: identity(checked, certificate.state_symbol)?,
             direct_root_owner_identity: identity(checked, parent.owner_symbol)?,
@@ -305,14 +388,15 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             direct_root_activation: boundary(checked, parent.activation_source)?,
             direct_root_weakening: boundary(checked, parent_weakening.source)?,
             direct_root_lifetime_identity: identity(checked, parent.parent_lifetime.root_symbol)?,
-            child_owner_identity: identity(checked, child.owner_symbol)?,
-            child_owner_path: owner_path(checked, &child.owner_path)?,
-            child_place: place(checked, &child.captured_place)?,
+            child_owner_identity,
+            child_owner_path,
+            child_place,
             projection_remainder: place_segments(checked, &containment.projection_remainder)?,
-            child_access: access(child.access.clone()),
-            child_activation: boundary(checked, child_activation.source)?,
+            child_access,
+            child_activation,
             formation_boundary: boundary(checked, child.parent_suspension.source)?,
-            child_weakening: boundary(checked, child_weakening.source)?,
+            child_weakening,
+            shared_cohort,
         });
     }
     rows.sort();

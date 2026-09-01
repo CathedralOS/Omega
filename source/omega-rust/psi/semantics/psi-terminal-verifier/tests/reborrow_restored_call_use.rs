@@ -7,7 +7,8 @@ use psi_terminal::{
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalBorrowBoundarySource, TerminalBorrowPlace, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalReborrowRestoredCallUse, Terminator,
+    TerminalMachineResult, TerminalModule, TerminalReborrowRestorationClass,
+    TerminalReborrowRestoredCallUse, TerminalReborrowSharedCohortMember, Terminator,
     VocabularyMarker,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
@@ -64,6 +65,13 @@ fn restored_call_use_module() -> TerminalModule {
         reborrow_restored_call_uses: vec![TerminalReborrowRestoredCallUse {
             machine: caller,
             operation,
+            restoration_class: TerminalReborrowRestorationClass::ExclusiveReactivation,
+            call_boundary: TerminalBorrowBoundarySource::Call {
+                statement_index: 2,
+                call_ordinal: 0,
+                target_identity: borrow_identity('f'),
+            },
+            call_target_machine: callee,
             source_machine_identity: borrow_identity('a'),
             source_state_identity: borrow_identity('b'),
             direct_root_owner_identity: borrow_identity('c'),
@@ -86,6 +94,7 @@ fn restored_call_use_module() -> TerminalModule {
             child_activation: statement(1),
             formation_boundary: statement(1),
             child_weakening: statement(2),
+            shared_cohort: Vec::new(),
         }],
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
@@ -194,7 +203,32 @@ fn assert_invalid(mutator: impl FnOnce(&mut TerminalModule)) {
 
 #[test]
 fn exact_restored_parent_call_use_validates() {
-    validate_module(&restored_call_use_module()).expect("exact restored-parent call use");
+    for child_access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+        StructuralAccess::SharedBorrow,
+    ] {
+        let mut module = restored_call_use_module();
+        module.reborrow_restored_call_uses[0].child_access = child_access;
+        module.reborrow_restored_call_uses[0].restoration_class =
+            if child_access == StructuralAccess::SharedBorrow {
+                TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
+            } else {
+                TerminalReborrowRestorationClass::ExclusiveReactivation
+            };
+        if child_access == StructuralAccess::SharedBorrow {
+            let row = &mut module.reborrow_restored_call_uses[0];
+            row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
+                child_owner_identity: row.child_owner_identity.clone(),
+                child_owner_path: row.child_owner_path.clone(),
+                child_place: row.child_place.clone(),
+                child_access: row.child_access,
+                child_activation: row.child_activation.clone(),
+                child_weakening: row.child_weakening.clone(),
+            }];
+        }
+        validate_module(&module).expect("exact restored-parent call use");
+    }
 }
 
 #[test]
@@ -254,7 +288,75 @@ fn restored_parent_call_use_rejects_identity_and_lineage_substitution() {
         module.reborrow_restored_call_uses[0].direct_root_activation = statement(2);
     });
     assert_invalid(|module| {
-        module.reborrow_restored_call_uses[0].child_access = StructuralAccess::SharedBorrow;
+        module.reborrow_restored_call_uses[0].child_access = StructuralAccess::Owned;
+    });
+    assert_invalid(|module| {
+        module.reborrow_restored_call_uses[0].restoration_class =
+            TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+    });
+
+    let mut shared = restored_call_use_module();
+    {
+        let row = &mut shared.reborrow_restored_call_uses[0];
+        row.restoration_class = TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+        row.child_access = StructuralAccess::SharedBorrow;
+        row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
+            child_owner_identity: row.child_owner_identity.clone(),
+            child_owner_path: row.child_owner_path.clone(),
+            child_place: row.child_place.clone(),
+            child_access: row.child_access,
+            child_activation: row.child_activation.clone(),
+            child_weakening: row.child_weakening.clone(),
+        }];
+    }
+    let mut missing = shared.clone();
+    missing.reborrow_restored_call_uses[0].shared_cohort.clear();
+    assert!(matches!(
+        validate_module(&missing),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+    let mut duplicate = shared.clone();
+    let member = duplicate.reborrow_restored_call_uses[0].shared_cohort[0].clone();
+    duplicate.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .push(member);
+    assert!(matches!(
+        validate_module(&duplicate),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+    let mut lookalike_operation = shared.clone();
+    let mut second_operation = lookalike_operation.machines[0].blocks[0].operations[0].clone();
+    second_operation.id = id(2, OperationId::new);
+    lookalike_operation.machines[0].blocks[0]
+        .operations
+        .push(second_operation);
+    assert!(matches!(
+        validate_module(&lookalike_operation),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+    shared.reborrow_restored_call_uses[0].shared_cohort[0].child_owner_identity =
+        borrow_identity('9');
+    assert!(matches!(
+        validate_module(&shared),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+    assert_invalid(|module| {
+        module.reborrow_restored_call_uses[0].call_boundary = TerminalBorrowBoundarySource::Call {
+            statement_index: 1,
+            call_ordinal: 0,
+            target_identity: borrow_identity('f'),
+        };
+    });
+    assert_invalid(|module| {
+        let TerminalBorrowBoundarySource::Call { call_ordinal, .. } =
+            &mut module.reborrow_restored_call_uses[0].call_boundary
+        else {
+            unreachable!()
+        };
+        *call_ordinal = 1;
+    });
+    assert_invalid(|module| {
+        module.reborrow_restored_call_uses[0].call_target_machine = id(3, MachineId::new);
     });
     assert_invalid(|module| {
         module.reborrow_restored_call_uses[0]
@@ -275,6 +377,49 @@ fn restored_parent_call_uses_are_unique_and_canonically_ordered() {
         Err(ModuleError::DuplicateReborrowRestoredCallUse)
     ));
 
+    let mut duplicate_lifecycle = restored_call_use_module();
+    let mut second_operation = duplicate_lifecycle.machines[0].blocks[0].operations[0].clone();
+    second_operation.id = id(2, OperationId::new);
+    duplicate_lifecycle.machines[0].blocks[0]
+        .operations
+        .push(second_operation);
+    let mut second_row = duplicate_lifecycle.reborrow_restored_call_uses[0].clone();
+    second_row.operation = id(2, OperationId::new);
+    second_row.source_machine_identity = borrow_identity('f');
+    second_row.source_state_identity = borrow_identity('9');
+    second_row.child_owner_identity = borrow_identity('8');
+    duplicate_lifecycle
+        .reborrow_restored_call_uses
+        .push(second_row);
+    assert!(matches!(
+        validate_module(&duplicate_lifecycle),
+        Err(ModuleError::DuplicateReborrowRestoredCallLifecycle)
+    ));
+
+    let mut duplicate_call_coordinate = restored_call_use_module();
+    let mut second_operation =
+        duplicate_call_coordinate.machines[0].blocks[0].operations[0].clone();
+    second_operation.id = id(2, OperationId::new);
+    duplicate_call_coordinate.machines[0].blocks[0]
+        .operations
+        .push(second_operation);
+    let mut second_row = duplicate_call_coordinate.reborrow_restored_call_uses[0].clone();
+    second_row.operation = id(2, OperationId::new);
+    second_row.child_activation = statement(2);
+    second_row.formation_boundary = statement(2);
+    second_row.call_boundary = TerminalBorrowBoundarySource::Call {
+        statement_index: 2,
+        call_ordinal: 0,
+        target_identity: borrow_identity('9'),
+    };
+    duplicate_call_coordinate
+        .reborrow_restored_call_uses
+        .push(second_row);
+    assert!(matches!(
+        validate_module(&duplicate_call_coordinate),
+        Err(ModuleError::DuplicateReborrowRestoredCallLifecycle)
+    ));
+
     let mut reordered = restored_call_use_module();
     let mut second_operation = reordered.machines[0].blocks[0].operations[0].clone();
     second_operation.id = id(2, OperationId::new);
@@ -283,6 +428,13 @@ fn restored_parent_call_uses_are_unique_and_canonically_ordered() {
         .push(second_operation);
     let mut second_row = reordered.reborrow_restored_call_uses[0].clone();
     second_row.operation = id(2, OperationId::new);
+    second_row.child_owner_identity = borrow_identity('f');
+    second_row.child_weakening = statement(3);
+    second_row.call_boundary = TerminalBorrowBoundarySource::Call {
+        statement_index: 3,
+        call_ordinal: 0,
+        target_identity: borrow_identity('f'),
+    };
     reordered.reborrow_restored_call_uses.push(second_row);
     reordered.reborrow_restored_call_uses.reverse();
     assert!(matches!(

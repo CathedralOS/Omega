@@ -28,8 +28,30 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        53
+        54
     }
+}
+
+/// Closed lifecycle interpretation for one restored-parent call publication.
+///
+/// The variants are deliberately not a general restoration algebra. They
+/// distinguish the two exact checked tuples accepted by this bounded row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalReborrowRestorationClass {
+    ExclusiveReactivation,
+    SoleSharedFreezeRestoration,
+}
+
+/// One exact member of the closed shared-freeze cohort restored by a bounded
+/// restored-parent call publication.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalReborrowSharedCohortMember {
+    pub child_owner_identity: String,
+    pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
+    pub child_place: TerminalBorrowPlace,
+    pub child_access: StructuralAccess,
+    pub child_activation: TerminalBorrowBoundarySource,
+    pub child_weakening: TerminalBorrowBoundarySource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -222,16 +244,20 @@ pub struct TerminalReborrowRootHandoff {
     pub lineage: Vec<TerminalReborrowRootHandoffStep>,
 }
 
-/// Closed publication of one exact use after one direct exclusive child has
-/// reactivated its mutable parent. The canonical operation identifies the sole
-/// authorized use. Access, disposition, containment, carrier-read, and restored-
-/// place facts that are fixed by this bounded form are verifier rules rather
-/// than malleable row fields; this vocabulary cannot express cleanup, transfer,
-/// or discharge.
+/// Closed publication of one exact use after one direct exclusive child, or
+/// the sole member of one shared-freeze cohort, has restored its mutable
+/// parent. The canonical operation identifies the sole authorized use. Access,
+/// restoration class, source call, and the sole shared roster are explicit;
+/// carrier-read and restored-place facts fixed by these bounded forms remain
+/// verifier rules. This vocabulary cannot express cleanup, transfer, or
+/// discharge.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalReborrowRestoredCallUse {
     pub machine: MachineId,
     pub operation: OperationId,
+    pub restoration_class: TerminalReborrowRestorationClass,
+    pub call_boundary: TerminalBorrowBoundarySource,
+    pub call_target_machine: MachineId,
     pub source_machine_identity: String,
     pub source_state_identity: String,
     pub direct_root_owner_identity: String,
@@ -248,6 +274,7 @@ pub struct TerminalReborrowRestoredCallUse {
     pub child_activation: TerminalBorrowBoundarySource,
     pub formation_boundary: TerminalBorrowBoundarySource,
     pub child_weakening: TerminalBorrowBoundarySource,
+    pub shared_cohort: Vec<TerminalReborrowSharedCohortMember>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

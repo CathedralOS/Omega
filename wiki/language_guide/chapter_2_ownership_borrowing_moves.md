@@ -276,20 +276,28 @@ cohort ended. Lexical survival and a compiler-recorded disposition are not by
 themselves authority. Terminal Psi independently reconstructs and replays this
 evidence before publishing post-reborrow use or root custody.
 
-The first checked post-reactivation use row and its Terminal publication are
-deliberately narrow. They accept one direct mutable parent and an exact mutable
-or write-only child while other non-overlapping sequential siblings may occur
-in the state, when that child ends by last use before the exact next runtime-
+The first checked post-restoration use row and its Terminal publication are
+deliberately narrow. They accept one direct mutable parent and either an exact
+mutable/write-only exclusive child or one exact shared child occurrence with no
+sibling for that parent. Other non-overlapping sequential exclusive siblings
+may occur. The exclusive form requires exact reactivation and
+exclusive-suspension evidence; the shared form requires an exact sole-member
+cohort restoration and shared-freeze evidence. The child ends by last use
+before the exact next runtime-
 receiver-free call
 whose sole mutable parameter consumes the bare parent carrier and mutates the
 whole restored referent. A nominally qualified static call is still runtime-
 receiver-free. Checked replay independently rejoins the child and parent
-resources, exclusive-suspension containment, reactivation, weakening, call,
-entry-loan, access, place, and target evidence. Shared cohorts, multihop
+resources, class-specific containment and disposition, weakening, call,
+entry-loan, access, place, and target evidence. Multi-member or sequential
+shared cohorts, multihop
 children, concurrent siblings, state exit, projected arguments, receiver
 calls, direct assignment, and partial mutation remain outside this row.
-Terminal then independently matches the exact `CallUnit` and callee shape and
-publishes authority for that one call only; it does not publish cleanup,
+Terminal then independently matches the exact `CallUnit`, ordinal-zero call
+coordinate, callee, restoration class, and encoded sole-member roster and
+requires exactly one compatible whole-parent mutating `CallUnit` in a shared
+caller. It publishes authority for that one call only. The source target identity is
+committed custody rather than reconstructed from machine bytes. It does not publish cleanup,
 transfer, or linear discharge.
 
 Published root custody remains deliberately narrow but now covers a finite

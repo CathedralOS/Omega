@@ -363,9 +363,28 @@ fn validate_reborrow_restored_call_uses(
 ) -> Result<(), ModuleError> {
     let rows = &module.reborrow_restored_call_uses;
     let mut coordinates = BTreeSet::new();
+    let mut lifecycles = BTreeSet::new();
+    let mut call_boundaries = BTreeSet::new();
     for row in rows {
         if !coordinates.insert((row.machine, row.operation)) {
             return Err(ModuleError::DuplicateReborrowRestoredCallUse);
+        }
+        if !lifecycles.insert((
+            row.machine,
+            &row.direct_root_activation,
+            &row.child_activation,
+            &row.child_weakening,
+        )) {
+            return Err(ModuleError::DuplicateReborrowRestoredCallLifecycle);
+        }
+        if let psi_terminal::TerminalBorrowBoundarySource::Call {
+            statement_index,
+            call_ordinal,
+            ..
+        } = &row.call_boundary
+            && !call_boundaries.insert((row.machine, *statement_index, *call_ordinal))
+        {
+            return Err(ModuleError::DuplicateReborrowRestoredCallLifecycle);
         }
         let machine = machines.get(&row.machine).copied();
         let operations = machine
@@ -374,34 +393,25 @@ fn validate_reborrow_restored_call_uses(
             .flat_map(|block| &block.operations)
             .filter(|operation| operation.id == row.operation)
             .collect::<Vec<_>>();
-        let exact_mutating_call = if let [operation] = operations.as_slice()
-            && operation.result == OperationResult::Unit
-            && let OperationKind::CallUnit {
-                callee,
-                structural_arguments,
-                claim_transfers,
-                ..
-            } = &operation.kind
-            && let [argument] = structural_arguments.as_slice()
-            && argument.access == StructuralAccess::MutableBorrow
-            && argument.path.is_empty()
-            && claim_transfers.is_empty()
-            && let Some(callee) = machines.get(callee)
-            && callee.parameters.is_empty()
-            && callee.result == TerminalMachineResult::Unit
-            && let [parameter] = callee.structural_parameters.as_slice()
-            && parameter.position == 0
-            && !parameter.is_self
-            && parameter.access == StructuralAccess::MutableBorrow
-            && let Some(caller) = machine
-            && caller.structural_parameters.iter().any(|parameter| {
-                parameter.place == argument.place
-                    && parameter.access == StructuralAccess::MutableBorrow
-            }) {
-            true
-        } else {
-            false
-        };
+        let exact_mutating_call = matches!(
+            (machine, operations.as_slice()),
+            (Some(caller), [operation])
+                if exact_restored_mutating_call(
+                    operation,
+                    caller,
+                    machines,
+                    Some(row.call_target_machine),
+                )
+        );
+        let sole_compatible_mutating_call = machine.is_some_and(|caller| {
+            caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| exact_restored_mutating_call(operation, caller, machines, None))
+                .count()
+                == 1
+        });
         let child_segments = &row.child_place.segments;
         let root_segments = &row.direct_root_place.segments;
         let exact_one_hop_lifecycle = matches!(
@@ -426,7 +436,49 @@ fn validate_reborrow_restored_call_uses(
                 },
             ) if parent_start < child_start && child_start <= child_end && child_end < parent_end
         );
+        let exact_call_boundary = matches!(
+            (&row.call_boundary, &row.child_weakening),
+            (
+                psi_terminal::TerminalBorrowBoundarySource::Call {
+                    statement_index: call_statement,
+                    call_ordinal: 0,
+                    target_identity,
+                },
+                psi_terminal::TerminalBorrowBoundarySource::Statement {
+                    statement_index: child_end,
+                },
+            ) if call_statement == child_end && is_canonical_borrow_identity(target_identity)
+        );
+        let exact_restoration_class = match row.restoration_class {
+            psi_terminal::TerminalReborrowRestorationClass::ExclusiveReactivation => {
+                matches!(
+                    row.child_access,
+                    psi_terminal::StructuralAccess::MutableBorrow
+                        | psi_terminal::StructuralAccess::WriteOnlyBorrow
+                ) && row.shared_cohort.is_empty()
+            }
+            psi_terminal::TerminalReborrowRestorationClass::SoleSharedFreezeRestoration => {
+                let [member] = row.shared_cohort.as_slice() else {
+                    return Err(ModuleError::InvalidReborrowRestoredCallUse {
+                        machine: row.machine,
+                        operation: row.operation,
+                    });
+                };
+                row.child_access == psi_terminal::StructuralAccess::SharedBorrow
+                    && member.child_owner_identity == row.child_owner_identity
+                    && member.child_owner_path == row.child_owner_path
+                    && member.child_place == row.child_place
+                    && member.child_access == row.child_access
+                    && member.child_activation == row.child_activation
+                    && member.child_weakening == row.child_weakening
+            }
+        };
         let invalid = !exact_mutating_call
+            || (row.restoration_class
+                == psi_terminal::TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
+                && !sole_compatible_mutating_call)
+            || !exact_call_boundary
+            || !exact_restoration_class
             || !is_canonical_borrow_identity(&row.source_machine_identity)
             || !is_canonical_borrow_identity(&row.source_state_identity)
             || !is_canonical_borrow_identity(&row.direct_root_owner_identity)
@@ -444,11 +496,6 @@ fn validate_reborrow_restored_call_uses(
             || !valid_owner_path(&row.child_owner_path)
             || !child_segments.iter().all(valid_place_segment)
             || !row.projection_remainder.iter().all(valid_place_segment)
-            || !matches!(
-                row.child_access,
-                psi_terminal::StructuralAccess::MutableBorrow
-                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
-            )
             || row.child_place.root_identity != row.direct_root_place.root_identity
             || !child_segments.starts_with(root_segments)
             || child_segments[root_segments.len()..] != row.projection_remainder
@@ -467,6 +514,50 @@ fn validate_reborrow_restored_call_uses(
         return Err(ModuleError::NonCanonicalReborrowRestoredCallUseOrder);
     }
     Ok(())
+}
+
+fn exact_restored_mutating_call(
+    operation: &psi_terminal::Operation,
+    caller: &TerminalMachine,
+    machines: &BTreeMap<psi_core::MachineId, &TerminalMachine>,
+    expected_callee: Option<psi_core::MachineId>,
+) -> bool {
+    if operation.result != OperationResult::Unit {
+        return false;
+    }
+    let OperationKind::CallUnit {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = &operation.kind
+    else {
+        return false;
+    };
+    if expected_callee.is_some_and(|expected| expected != *callee) {
+        return false;
+    }
+    let [argument] = structural_arguments.as_slice() else {
+        return false;
+    };
+    let Some(callee) = machines.get(callee) else {
+        return false;
+    };
+    argument.access == StructuralAccess::MutableBorrow
+        && argument.path.is_empty()
+        && claim_transfers.is_empty()
+        && callee.parameters.is_empty()
+        && callee.result == TerminalMachineResult::Unit
+        && matches!(
+            callee.structural_parameters.as_slice(),
+            [parameter]
+                if parameter.position == 0
+                    && !parameter.is_self
+                    && parameter.access == StructuralAccess::MutableBorrow
+        )
+        && caller.structural_parameters.iter().any(|parameter| {
+            parameter.place == argument.place && parameter.access == StructuralAccess::MutableBorrow
+        })
 }
 
 fn is_canonical_borrow_identity(identity: &str) -> bool {

@@ -255,6 +255,14 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
         1,
     );
     assert!(events.iter().all(|event| !event.shared_cohort.is_empty()));
+    assert!(
+        checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .is_empty(),
+        "a two-member shared cohort remains outside restored-call publication"
+    );
 }
 
 fn symbolic_adjacency() -> psi_checked_trees::CheckedTrees {
@@ -1096,6 +1104,123 @@ fn mutable_parent_write_only_child_restored_use() -> psi_checked_trees::CheckedT
     )
 }
 
+fn mutable_parent_sole_shared_child_restored_use() -> psi_checked_trees::CheckedTrees {
+    lower(
+        r#"
+        data Main { value: i32; }
+        machine observe(value: &i32) {}
+        machine mutate(value: &mut i32) { value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut i32 = &mut self.value;
+            let child: &i32 = &parent;
+            observe(child);
+            mutate(parent);
+        }
+        "#,
+    )
+}
+
+#[test]
+fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call() {
+    let mut checked = mutable_parent_sole_shared_child_restored_use();
+    let certificates = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .collect::<Vec<_>>();
+    let [(_, certificate)] = certificates.as_slice() else {
+        panic!("one sole-shared-child restored-use certificate")
+    };
+    let child = checked
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .get(certificate.child_resource);
+    assert_eq!(child.access, psi_checked_trees::BorrowAccessKind::Read);
+    assert_eq!(
+        child.access_effect,
+        psi_checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+    );
+    let disposition = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get(certificate.disposition);
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+    );
+    assert_eq!(disposition.shared_cohort, [certificate.child_resource]);
+    assert!(disposition.retired_parent_path.is_empty());
+    assert_eq!(
+        disposition.final_target,
+        psi_checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+            child.parent_resource.clone()
+        )
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .get(certificate.containment)
+            .containment,
+        psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("sole shared restored call use independently replays");
+}
+
+#[test]
+fn shared_restored_call_use_rejects_cohort_and_containment_drift_transactionally() {
+    let baseline = mutable_parent_sole_shared_child_restored_use();
+    let certificate = baseline
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .next()
+        .expect("shared restored use")
+        .1;
+    let mutations = [0, 1, 2];
+    for mutation in mutations {
+        let mut checked = baseline.clone();
+        match mutation {
+            0 => checked
+                .facts
+                .borrow
+                .reborrow_disposition_events
+                .get_mut(certificate.disposition)
+                .shared_cohort
+                .clear(),
+            1 => {
+                let event = checked
+                    .facts
+                    .borrow
+                    .reborrow_disposition_events
+                    .get_mut(certificate.disposition);
+                event.shared_cohort.push(certificate.child_resource);
+            }
+            2 => {
+                checked
+                    .facts
+                    .borrow
+                    .reborrow_containment_certificates
+                    .get_mut(certificate.containment)
+                    .containment =
+                    psi_checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .is_err(),
+            "shared restoration mutation {mutation} must reject"
+        );
+    }
+}
+
 #[test]
 fn write_only_child_reactivates_the_exact_mutable_parent_at_the_next_mutating_call() {
     let mut checked = mutable_parent_write_only_child_restored_use();
@@ -1800,20 +1925,55 @@ fn sequential_children_reactivate_then_final_child_certifies_the_exact_parent_us
 }
 
 #[test]
-fn restored_call_use_fences_unsupported_lifecycle_and_call_shapes() {
-    let sources = [
+fn sequential_shared_then_exclusive_child_only_certifies_the_exclusive_restoration() {
+    let checked = lower(
         r#"
-        data Cell { value: i32; }
-        data Main { cell: Cell; }
-        machine observe(value: &Cell) {}
-        machine mutate(value: &mut Cell) { value.value = 1; }
+        data Main { value: i32; }
+        machine observe(value: &i32) {}
+        machine mutate(value: &mut i32) { value = 1; }
         machine Main::exercise(&mut self) {
-            let parent: &mut Cell = &mut self.cell;
-            let child: &Cell = &parent;
-            observe(child);
+            let parent: &mut i32 = &mut self.value;
+            let shared: &i32 = &parent;
+            observe(shared);
+            let exclusive: &mut i32 = &mut parent;
+            mutate(exclusive);
             mutate(parent);
         }
         "#,
+    );
+    let certificates = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    let [certificate] = certificates.as_slice() else {
+        panic!("only the final exclusive child certifies restored use")
+    };
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .get(certificate.child_resource)
+            .access,
+        psi_checked_trees::BorrowAccessKind::Mutable
+    );
+    assert_eq!(
+        checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .get(certificate.disposition)
+            .disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate
+    );
+}
+
+#[test]
+fn restored_call_use_fences_unsupported_lifecycle_and_call_shapes() {
+    let sources = [
         r#"
         data Cell { value: i32; }
         data Main { cell: Cell; }
@@ -1824,6 +1984,20 @@ fn restored_call_use_fences_unsupported_lifecycle_and_call_shapes() {
             let child: &mut Cell = &mut parent;
             mutate(child);
             observe(parent);
+        }
+        "#,
+        r#"
+        data Cell { value: i32; }
+        data Main { cell: Cell; }
+        machine observe(value: &Cell) {}
+        machine mutate(value: &mut Cell) { value.value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut Cell = &mut self.cell;
+            let first: &Cell = &parent;
+            observe(first);
+            let second: &Cell = &parent;
+            observe(second);
+            mutate(parent);
         }
         "#,
         r#"

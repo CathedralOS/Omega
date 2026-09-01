@@ -22,6 +22,7 @@ pub enum ContractClauseKind {
 pub enum ModuleError {
     NonCanonicalReborrowRestoredCallUseOrder,
     DuplicateReborrowRestoredCallUse,
+    DuplicateReborrowRestoredCallLifecycle,
     InvalidReborrowRestoredCallUse {
         machine: MachineId,
         operation: OperationId,
