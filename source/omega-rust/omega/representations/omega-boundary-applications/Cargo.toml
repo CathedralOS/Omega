@@ -1,0 +1,13 @@
+[package]
+name = "omega-boundary-applications"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_boundary_applications"
+path = "src/lib.rs"
+
+[dependencies]
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

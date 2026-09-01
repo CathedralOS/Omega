@@ -212,6 +212,11 @@ fn project_terminal_native_realization_proposal(
             )
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let boundary_application_demands = project_terminal_boundary_application_demands(
+        checked,
+        artifact,
+        &checked_boundary_operator_scope,
+    )?;
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -223,9 +228,176 @@ fn project_terminal_native_realization_proposal(
         builtin_proposals,
         callback_occurrences,
         ieee_float_fma_occurrences,
+        boundary_application_demands,
         checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn project_terminal_boundary_application_demands(
+    checked: &crate::pipeline::CheckedCompilation,
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+) -> Result<omega_boundary_applications::TerminalBoundaryApplicationDemands, Vec<Diagnostic>> {
+    let mut rows = Vec::with_capacity(checked_scope.occurrences().len());
+    for occurrence in checked_scope.occurrences() {
+        let application = checked_scope
+            .applications()
+            .get(occurrence.application_index())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "Terminal boundary application occurrence names an absent checked demand",
+                )]
+            })?;
+        let operator = checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == application.requirement_symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "Terminal boundary application demand lost its operator declaration",
+                )]
+            })?;
+        if !operator.is_boundary {
+            return Err(vec![Diagnostic::error(
+                "Terminal boundary application demand names a non-boundary operator",
+            )]);
+        }
+        let declaration = canonical_boundary_nominal_identity(
+            checked,
+            application.requirement_symbol,
+            "operator requirement",
+        )?;
+        let overload = psi_typed_trees::operator::boundary_operator_requirement_identity(
+            &checked.typed,
+            operator,
+        );
+        let requirement =
+            omega_boundary_applications::BoundaryOperatorRequirement::new(declaration, overload)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+        let projected_application = project_boundary_application(checked, application)?;
+        rows.push(
+            omega_boundary_applications::TerminalBoundaryApplicationDemand::new(
+                occurrence.terminal_operation(),
+                requirement,
+                projected_application,
+            ),
+        );
+    }
+    omega_boundary_applications::TerminalBoundaryApplicationDemands::new(
+        artifact.manifest().semantic(),
+        rows,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn project_boundary_application(
+    checked: &crate::pipeline::CheckedCompilation,
+    application: &psi_checked_trees::CheckedBoundaryOperatorApplicationDemand,
+) -> Result<omega_boundary_applications::BoundaryApplication, Vec<Diagnostic>> {
+    if application.arguments.is_empty() {
+        return Ok(omega_boundary_applications::BoundaryApplication::Empty);
+    }
+    let mut arguments = Vec::with_capacity(application.arguments.len());
+    for (ordinal, argument) in application.arguments.iter().enumerate() {
+        let expected_ordinal = u32::try_from(ordinal).map_err(|_| {
+            vec![Diagnostic::error(
+                "Terminal boundary application exceeds the supported ordinal range",
+            )]
+        })?;
+        match argument {
+            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                binder_owner,
+                binder_ordinal,
+                type_reference,
+                ..
+            } if *binder_owner == application.requirement_symbol
+                && *binder_ordinal == expected_ordinal =>
+            {
+                arguments.push(
+                    omega_boundary_applications::BoundaryApplicationArgument::type_argument(
+                        *binder_ordinal,
+                        canonical_boundary_type_identity(checked, *type_reference)?,
+                    ),
+                );
+            }
+            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+                binder_owner,
+                binder_ordinal,
+                declared_carrier,
+                value,
+                ..
+            } if *binder_owner == application.requirement_symbol
+                && *binder_ordinal == expected_ordinal =>
+            {
+                psi_validation::validate_exact_const_value_encoding(
+                    &checked.typed,
+                    *declared_carrier,
+                    value.encoding.as_str(),
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "Terminal boundary const application has invalid canonical encoding: {reason}",
+                    ))]
+                })?;
+                arguments.push(
+                    omega_boundary_applications::BoundaryApplicationArgument::const_argument(
+                        *binder_ordinal,
+                        canonical_boundary_type_identity(checked, *declared_carrier)?,
+                        value.type_name.clone(),
+                        value.encoding.clone(),
+                    )
+                    .map_err(|message| vec![Diagnostic::error(message)])?,
+                );
+            }
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "Terminal boundary application does not rejoin its binder owner, category, and ordinal",
+                )]);
+            }
+        }
+    }
+    omega_boundary_applications::BoundaryApplication::exact(arguments)
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn canonical_boundary_nominal_identity(
+    checked: &crate::pipeline::CheckedCompilation,
+    symbol: psi_symbols::SymbolHandle,
+    role: &str,
+) -> Result<omega_boundary_applications::BoundaryNominalIdentity, Vec<Diagnostic>> {
+    let identity = checked
+        .package_qualified_nominal_identity_with_toolchain_sources(
+            symbol,
+            checked.exact_toolchain_sources(),
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "Terminal boundary {role} has no exact package or toolchain owner",
+            ))]
+        })?;
+    omega_boundary_applications::BoundaryNominalIdentity::new(identity.into_string())
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn canonical_boundary_type_identity(
+    checked: &crate::pipeline::CheckedCompilation,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Result<omega_boundary_applications::BoundaryTypeIdentity, Vec<Diagnostic>> {
+    let identity = checked
+        .package_qualified_type_identity_with_binders_and_toolchain_sources(
+            type_reference,
+            &[],
+            checked.exact_toolchain_sources(),
+        )
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Terminal boundary application type has no exact package or toolchain owner",
+            )]
+        })?;
+    omega_boundary_applications::BoundaryTypeIdentity::new(identity.into_string())
+        .map_err(|message| vec![Diagnostic::error(message)])
 }
 
 fn verify_terminal_artifact(

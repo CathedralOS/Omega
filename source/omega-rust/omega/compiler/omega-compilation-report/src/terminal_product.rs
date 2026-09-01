@@ -173,6 +173,7 @@ pub struct TerminalNativeRealizationProposal {
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
+    boundary_application_demands: omega_boundary_applications::TerminalBoundaryApplicationDemands,
     checked_boundary_operator_scope:
         psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
 }
@@ -190,6 +191,7 @@ impl TerminalNativeRealizationProposal {
         compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
         callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
         ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
+        boundary_application_demands: omega_boundary_applications::TerminalBoundaryApplicationDemands,
         checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     ) -> Result<Self, &'static str> {
         let proposal = Self {
@@ -203,6 +205,7 @@ impl TerminalNativeRealizationProposal {
             compiler_builtins,
             callback_occurrences,
             ieee_float_fma_occurrences,
+            boundary_application_demands,
             checked_boundary_operator_scope,
         };
         proposal.validate_for_artifact(artifact)?;
@@ -221,6 +224,23 @@ impl TerminalNativeRealizationProposal {
         }
         self.checked_boundary_operator_scope
             .validate_for_artifact(artifact)?;
+        self.boundary_application_demands
+            .validate_for_terminal(artifact.manifest().semantic())?;
+        if self.boundary_application_demands.rows().len()
+            != self.checked_boundary_operator_scope.occurrences().len()
+            || !self
+                .boundary_application_demands
+                .rows()
+                .iter()
+                .zip(self.checked_boundary_operator_scope.occurrences())
+                .all(|(demand, occurrence)| {
+                    demand.terminal_operation() == occurrence.terminal_operation()
+                })
+        {
+            return Err(
+                "Terminal native proposal source-free boundary demands differ from checked occurrence custody",
+            );
+        }
         if self.target_profile.native_target() != self.native_target
             || self.program_entry.source_signature().target_slot().owner != self.target_profile
         {
@@ -259,6 +279,20 @@ impl TerminalNativeRealizationProposal {
         let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
         )?;
+        for demand in self.boundary_application_demands.rows() {
+            let matching_operations = module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| operation.id == demand.terminal_operation())
+                .count();
+            if matching_operations != 1 {
+                return Err(
+                    "Terminal native proposal boundary demand does not name one canonical operation",
+                );
+            }
+        }
         let mut placement_indices = std::collections::BTreeSet::new();
         let mut callback_operations = std::collections::BTreeSet::new();
         let mut callback_thunk_identities = std::collections::HashSet::new();
@@ -509,6 +543,12 @@ impl TerminalNativeRealizationProposal {
         &self,
     ) -> &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope {
         &self.checked_boundary_operator_scope
+    }
+
+    pub const fn boundary_application_demands(
+        &self,
+    ) -> &omega_boundary_applications::TerminalBoundaryApplicationDemands {
+        &self.boundary_application_demands
     }
 }
 

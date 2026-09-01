@@ -79,9 +79,13 @@ stop the item on one precise owner question before adding machinery.
   roster and derives the current empty-roster D32 eligibility from those rows;
   a count-only proxy is not custody. Currently lowerable selected checked-body
   and nearest-FMA applications also retain a one-to-one compiler-private join
-  from their exact roster row to the emitted Terminal operation. Canonical
-  source-free application projection, role-specific semantic companions, D29
-  physical parents, and non-identity optimization projections remain open.
+  from their exact roster row to the emitted Terminal operation. The compiler
+  now projects those joined occurrences into representation-owned, exact-
+  owner, source-free requirement and tagged type/const application rows bound
+  to the canonical Terminal artifact; the product rejects missing, duplicate,
+  substituted, or non-Terminal operation coordinates. Role-specific semantic
+  companions, cross-artifact demand closure, D29 physical parents, and non-
+  identity optimization projections remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,

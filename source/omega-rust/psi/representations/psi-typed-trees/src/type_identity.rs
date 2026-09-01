@@ -277,10 +277,10 @@ impl TypedTrees {
         (!missing_exact_nominal_owner.get()).then_some(identity)
     }
 
-    /// Exact-owner identity for one already-resolved concrete type symbol.
-    /// Compiler builtin types use their closed semantic atom; authored
-    /// nominals require a managed package owner or exact toolchain source.
-    pub fn package_qualified_nominal_type_identity_with_toolchain_sources(
+    /// Exact-owner identity for one already-resolved nominal declaration.
+    /// Compiler builtins use their closed semantic atom; authored nominals
+    /// require a managed package owner or exact toolchain source.
+    pub fn package_qualified_nominal_identity_with_toolchain_sources(
         &self,
         symbol: SymbolHandle,
         exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
@@ -304,6 +304,19 @@ impl TypedTrees {
             .qualify_non_binder_name(self, symbol, path),
         );
         (!missing_exact_nominal_owner.get()).then_some(identity)
+    }
+
+    /// Type-oriented compatibility name for the general nominal identity
+    /// projection above.
+    pub fn package_qualified_nominal_type_identity_with_toolchain_sources(
+        &self,
+        symbol: SymbolHandle,
+        exact_toolchain_sources: &[(psi_source::SourceId, [u8; 32])],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.package_qualified_nominal_identity_with_toolchain_sources(
+            symbol,
+            exact_toolchain_sources,
+        )
     }
 
     /// Binder-aware identity after replacing exact type-parameter symbols with

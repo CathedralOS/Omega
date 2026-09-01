@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
+omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
 omega-backend-plan = { path = "../../backend/plans/omega-backend-plan" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-effects = { path = "../../representations/omega-effects" }
