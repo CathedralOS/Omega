@@ -138,16 +138,18 @@ stop the item on one precise owner question before adding machinery.
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
   certificate required by an ordinary package claim. The first concrete result
-  classes are complete in memory: bodyless accepted claims and opaque external executable
-  supplies rejoin their typed compiler facts and canonical obligation rows,
-  remain explicitly `OpenRootAdmission`, and propagate through the exact
+  classes are complete in memory: bodyless accepted claims, dangerous
+  authorities, and opaque external executable supplies rejoin their typed
+  compiler facts and canonical obligation rows, remain explicitly
+  `OpenRootAdmission`, and propagate through the exact
   dependency closure without producer decisions. Fresh admission rederives
   that obligation closure and the empty-baseline conflict set together,
-  requires separate bijections from dependency-owned open claims and external
-  supplies to their exact added conflicts, and replays a complete candidate-
-  bound root policy before exposing the in-memory acceptance. A rejected,
-  missing, stale, foreign, or row-substituted policy fails; a closure with no
-  blockers gets no synthetic policy record. This still issues no certificate,
+  requires separate bijections from dependency-owned claims, dangerous
+  authorities, and external supplies to their exact added conflicts, and
+  replays a complete candidate-bound root policy before exposing the in-memory
+  acceptance. A rejected, missing, stale, foreign, or row-substituted policy
+  fails; a closure with no blockers gets no synthetic policy record. This still
+  issues no certificate,
   accepted lock, package instance, or mutation authority.
   Add another result class only with a concrete compiler-owned obligation and
   certificate route or explicit open status. Do not persist this partial lane,
@@ -211,9 +213,9 @@ stop the item on one precise owner question before adding machinery.
   against an explicit empty admission baseline; it does not synthesize old
   resolution or evidence. The in-memory fresh-admission gate now requires every
   blocking row to have an exact accepted root decision and binds open accepted
-  claims and external executable supplies to their own package rows. The
-  remaining work is the accepted-lock reopen/revalidation and atomic
-  install/update transaction, not another review receipt.
+  claims, dangerous authorities, and external executable supplies to their own
+  package rows. The remaining work is accepted-lock reopen/revalidation and
+  the atomic install/update transaction, not another review receipt.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   no review blocker, no review blocker with audit recommended, blocked

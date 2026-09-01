@@ -4,10 +4,10 @@ The canonical review schema is version 119 and row schema version 77. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
-The ordinary obligation-semantics schema is version 3. Its in-memory result
-vocabulary explicitly leaves both bodyless accepted claims and external
-executable supplies open for root admission. The outer ledger encoding remains
-version 2; no new persistence authority is introduced.
+The ordinary obligation-semantics schema is version 4. Its in-memory result
+vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
+and external executable supplies open for root admission. The outer ledger
+encoding remains version 2; no new persistence authority is introduced.
 
 Schema v119 / row v77 implements D55 exact-requirement lifetime applications.
 Checked and external realization edges retain raw machine-lifetime ordinals for

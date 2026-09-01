@@ -54,12 +54,13 @@ local reconstruction question: recovered producer rows remain inert until the
 selected local compiler reconstructs the complete row set and requires exact
 equality.
 
-The supported result lanes do not pretend to prove a bodyless accepted claim or
-externally supplied executable code. `ledger/results.rs` rejoins each typed
-compiler fact to its canonical row, assigns only `OpenRootAdmission`, and
-supports fresh local equality checking. The manager may propagate those open
-obligations to a consuming root, but this crate provides no certificate, policy
-decision, persistence codec, accepted lock, or `PackageInstance` route.
+The supported result lanes do not pretend to prove a bodyless accepted claim,
+grant dangerous authority, or validate externally supplied executable code.
+`ledger/results.rs` rejoins each typed compiler fact to its canonical row,
+assigns only `OpenRootAdmission`, and supports fresh local equality checking.
+The manager may propagate those open obligations to a consuming root, but this
+crate provides no certificate, policy decision, persistence codec, accepted
+lock, or `PackageInstance` route.
 
 The crate root exports `project_checked_package_review` as its operation. The
 manager owns comparison and policy; this crate never admits a package.

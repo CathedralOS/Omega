@@ -8,8 +8,8 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::CompilerIssuedPackageReviewSet;
 use omega_package_evidence::ledger::{
-    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageExternalExecutableSupplyObligation,
-    OrdinaryPackageObligationResultSet,
+    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageDangerousAuthorityObligation,
+    OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
 };
 use std::collections::BTreeMap;
 
@@ -43,6 +43,12 @@ struct OpenExternalExecutableSupplyReference {
     supply_index: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpenDangerousAuthorityReference {
+    package_index: usize,
+    authority_index: usize,
+}
+
 /// Exact source/question association plus every supported open obligation
 /// reachable by the selected root.
 ///
@@ -54,6 +60,7 @@ pub struct LocallyComposedPackageObligationResults {
     entries: Vec<LocallyComposedPackageObligationEntry>,
     root_open_accepted_claims: Vec<OpenAcceptedClaimReference>,
     root_open_external_executable_supplies: Vec<OpenExternalExecutableSupplyReference>,
+    root_open_dangerous_authorities: Vec<OpenDangerousAuthorityReference>,
 }
 
 impl LocallyComposedPackageObligationResults {
@@ -85,6 +92,7 @@ impl LocallyComposedPackageObligationResults {
             })?;
         let mut open_claim_count = 0usize;
         let mut open_external_supply_count = 0usize;
+        let mut open_dangerous_authority_count = 0usize;
         for question_entry in question.entries() {
             let review = reviews_by_package
                 .remove(question_entry.package())
@@ -115,6 +123,13 @@ impl LocallyComposedPackageObligationResults {
                 .ok_or_else(|| {
                     CanonicalPackageReconstructionQuestionError::new(
                         "package obligation open external executable-supply count overflowed",
+                    )
+                })?;
+            open_dangerous_authority_count = open_dangerous_authority_count
+                .checked_add(results.open_dangerous_authorities().len())
+                .ok_or_else(|| {
+                    CanonicalPackageReconstructionQuestionError::new(
+                        "package obligation open dangerous-authority count overflowed",
                     )
                 })?;
             entries.push(LocallyComposedPackageObligationEntry {
@@ -164,11 +179,29 @@ impl LocallyComposedPackageObligationResults {
             }
         }
 
+        let mut root_open_dangerous_authorities = Vec::new();
+        root_open_dangerous_authorities
+            .try_reserve_exact(open_dangerous_authority_count)
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package obligation open dangerous-authority reference allocation failed",
+                )
+            })?;
+        for (package_index, entry) in entries.iter().enumerate() {
+            for authority_index in 0..entry.results.open_dangerous_authorities().len() {
+                root_open_dangerous_authorities.push(OpenDangerousAuthorityReference {
+                    package_index,
+                    authority_index,
+                });
+            }
+        }
+
         Ok(Self {
             question,
             entries,
             root_open_accepted_claims,
             root_open_external_executable_supplies,
+            root_open_dangerous_authorities,
         })
     }
 
@@ -212,6 +245,23 @@ impl LocallyComposedPackageObligationResults {
                 (
                     &entry.package,
                     &entry.results.open_external_executable_supplies()[reference.supply_index],
+                )
+            })
+    }
+
+    /// Iterate every dangerous authority propagated to the selected root
+    /// while retaining its original package owner.
+    pub fn root_open_dangerous_authorities(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (&PackageKey, &OrdinaryPackageDangerousAuthorityObligation)>
+    {
+        self.root_open_dangerous_authorities
+            .iter()
+            .map(|reference| {
+                let entry = &self.entries[reference.package_index];
+                (
+                    &entry.package,
+                    &entry.results.open_dangerous_authorities()[reference.authority_index],
                 )
             })
     }
