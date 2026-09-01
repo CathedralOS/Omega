@@ -717,7 +717,7 @@ pub(super) fn emit_unit_body(
     let parameter_homes;
     match target.architecture {
         Architecture::X86_64 => {
-            (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body, &assigned_scalar_homes)?;
+            (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body, target)?;
             let floating_control_base =
                 (has_ieee_float_fma || has_normalized_foreign_call).then_some(x86_frame_bytes);
             let floating_control_offsets = floating_control_base
@@ -797,7 +797,7 @@ pub(super) fn emit_unit_body(
         }
         Architecture::Aarch64 => {
             let (homes, mut frame_bytes, mut lr_offset) =
-                aarch64_unit_parameter_homes(body, &assigned_scalar_homes)?;
+                aarch64_unit_parameter_homes(body, target)?;
             if has_normalized_foreign_call {
                 let slot = lr_offset;
                 lr_offset = slot
@@ -2176,6 +2176,11 @@ fn assigned_unit_scalar_homes(
                 result_home,
                 ..
             } => Some((*psi_operation, *result_home)),
+            AssignedUnitOperation::DynamicScalarCall {
+                psi_operation,
+                result_home,
+                ..
+            } => Some((*psi_operation, *result_home)),
             AssignedUnitOperation::NormalizedForeignCall {
                 psi_operation,
                 result_home: Some(result_home),
@@ -2208,22 +2213,165 @@ const fn unit_scalar_home_record(home: AssignedUnitScalarHome) -> UnitScalarHome
     }
 }
 
-fn validate_assigned_scalar_homes(
+fn validate_assigned_unit_frame(
     cursor: &mut u32,
-    homes: &[AssignedUnitScalarHome],
+    body: &AssignedUnitBody,
+    target: NativeTarget,
 ) -> Result<(), EmissionError> {
-    for home in homes {
+    for operation in &body.operations {
+        let home = match operation {
+            AssignedUnitOperation::ScalarCall { result_home, .. }
+            | AssignedUnitOperation::NormalizedForeignCall {
+                result_home: Some(result_home),
+                ..
+            } => Some(*result_home),
+            AssignedUnitOperation::DynamicScalarCall {
+                psi_operation,
+                result_home,
+                descriptor_abi,
+                descriptor_home_byte_offset,
+                ..
+            } => {
+                validate_dynamic_scalar_frame_region(
+                    cursor,
+                    *psi_operation,
+                    *descriptor_abi,
+                    *descriptor_home_byte_offset,
+                    *result_home,
+                    target,
+                )?;
+                None
+            }
+            _ => None,
+        };
+        let Some(home) = home else {
+            continue;
+        };
         *cursor = align_u32(*cursor, 8)?;
         if home.byte_offset != *cursor {
-            return Err(EmissionError::InvalidUnitScalarCallCustody(
-                home.defining_operation,
-            ));
+            return Err(match operation {
+                AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
+                    EmissionError::InvalidDynamicScalarCallCustody(*psi_operation)
+                }
+                _ => EmissionError::InvalidUnitScalarCallCustody(home.defining_operation),
+            });
         }
         *cursor = cursor
             .checked_add(8)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
     Ok(())
+}
+
+fn validate_dynamic_scalar_frame_region(
+    cursor: &mut u32,
+    operation: psi_core::OperationId,
+    descriptor_abi: omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi,
+    descriptor_home_byte_offset: u32,
+    result_home: AssignedUnitScalarHome,
+    target: NativeTarget,
+) -> Result<(), EmissionError> {
+    let invalid = || EmissionError::InvalidDynamicScalarCallCustody(operation);
+    let pointer_size = u32::try_from(target.pointer_size).map_err(|_| invalid())?;
+    let pointer_alignment = u32::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    let descriptor_size = pointer_size.checked_mul(2).ok_or_else(invalid)?;
+    if descriptor_abi.instance_offset() != 0
+        || descriptor_abi.table_offset() != pointer_size
+        || descriptor_abi.word_size() != pointer_size
+        || descriptor_abi.total_size() != descriptor_size
+        || descriptor_abi.align() != pointer_alignment
+    {
+        return Err(invalid());
+    }
+    let alignment = descriptor_abi.align();
+    *cursor = align_u32(*cursor, alignment)?;
+    if descriptor_home_byte_offset != *cursor {
+        return Err(invalid());
+    }
+    *cursor = cursor
+        .checked_add(descriptor_size)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    *cursor = align_u32(*cursor, 8)?;
+    if result_home.defining_operation != operation || result_home.byte_offset != *cursor {
+        return Err(invalid());
+    }
+    *cursor = cursor
+        .checked_add(8)
+        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod dynamic_scalar_frame_tests {
+    use super::*;
+
+    fn result_home(operation: psi_core::OperationId, byte_offset: u32) -> AssignedUnitScalarHome {
+        let scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+        AssignedUnitScalarHome {
+            defining_operation: operation,
+            source_value: psi_core::ValueId::new(1).unwrap(),
+            scalar_type,
+            shape: ValueShape::integer(4, 4),
+            byte_offset,
+        }
+    }
+
+    #[test]
+    fn dynamic_descriptor_and_result_occupy_distinct_exact_frame_regions() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let target = omega_target::NativeTarget::linux_x64();
+        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+            0, 8, 8, 16, 8,
+        );
+        let mut cursor = 5;
+
+        validate_dynamic_scalar_frame_region(
+            &mut cursor,
+            operation,
+            descriptor,
+            8,
+            result_home(operation, 24),
+            target,
+        )
+        .expect("aligned descriptor and following result home must validate");
+
+        assert_eq!(cursor, 32);
+    }
+
+    #[test]
+    fn dynamic_frame_rejects_descriptor_result_and_owner_substitution() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let other = psi_core::OperationId::new(2).unwrap();
+        let target = omega_target::NativeTarget::linux_arm64();
+        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+            0, 8, 8, 16, 8,
+        );
+        let rejects = |descriptor, descriptor_offset, result| {
+            let mut cursor = 5;
+            assert_eq!(
+                validate_dynamic_scalar_frame_region(
+                    &mut cursor,
+                    operation,
+                    descriptor,
+                    descriptor_offset,
+                    result,
+                    target,
+                ),
+                Err(EmissionError::InvalidDynamicScalarCallCustody(operation))
+            );
+        };
+
+        rejects(descriptor, 16, result_home(operation, 24));
+        rejects(descriptor, 8, result_home(operation, 32));
+        rejects(descriptor, 8, result_home(other, 24));
+        rejects(
+            omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+                0, 16, 8, 16, 8,
+            ),
+            8,
+            result_home(operation, 24),
+        );
+    }
 }
 
 fn unit_scalar_shape(
@@ -2241,7 +2389,7 @@ fn unit_scalar_shape(
 
 fn x86_unit_parameter_homes(
     body: &AssignedUnitBody,
-    scalar_homes: &[AssignedUnitScalarHome],
+    target: NativeTarget,
 ) -> Result<(Vec<X86UnitParameterHome>, u32), EmissionError> {
     let mut homes = Vec::with_capacity(body.parameters.len());
     let mut cursor = 0_u32;
@@ -2276,13 +2424,13 @@ fn x86_unit_parameter_homes(
             .checked_add(byte_size)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
-    validate_assigned_scalar_homes(&mut cursor, scalar_homes)?;
+    validate_assigned_unit_frame(&mut cursor, body, target)?;
     Ok((homes, align_u32(cursor, 16)?))
 }
 
 fn aarch64_unit_parameter_homes(
     body: &AssignedUnitBody,
-    scalar_homes: &[AssignedUnitScalarHome],
+    target: NativeTarget,
 ) -> Result<(Vec<Aarch64UnitParameterHome>, u32, u32), EmissionError> {
     let mut homes = Vec::with_capacity(body.parameters.len());
     let mut cursor = 0_u32;
@@ -2317,7 +2465,7 @@ fn aarch64_unit_parameter_homes(
             .checked_add(byte_size)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
-    validate_assigned_scalar_homes(&mut cursor, scalar_homes)?;
+    validate_assigned_unit_frame(&mut cursor, body, target)?;
     let lr_offset = align_u32(cursor, 8)?;
     let frame_bytes = lr_offset
         .checked_add(8)

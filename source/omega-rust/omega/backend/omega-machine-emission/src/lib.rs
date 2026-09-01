@@ -1094,6 +1094,7 @@ pub enum EmissionError {
     InvalidUnitScalarCallCustody(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
+    InvalidDynamicScalarCallCustody(psi_core::OperationId),
     DynamicScalarTableMaterializationPending(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,

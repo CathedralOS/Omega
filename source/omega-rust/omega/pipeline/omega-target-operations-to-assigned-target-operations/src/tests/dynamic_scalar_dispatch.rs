@@ -136,7 +136,7 @@ fn assigns_canonical_descriptor_and_distinct_rebound_source() {
         assert_eq!(descriptor.total_size(), 16);
         assert_eq!(descriptor.align(), 8);
         assert_eq!(**descriptor_offset % 8, 0);
-        assert!(result.byte_offset >= **descriptor_offset + 16);
+        assert_eq!(result.byte_offset, **descriptor_offset + 16);
         assert_eq!(initial.path, dynamic.initial.source.path);
         assert_eq!(rebound.path, dynamic.rebound.source.path);
         assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
