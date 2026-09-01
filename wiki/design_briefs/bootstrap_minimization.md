@@ -2,10 +2,11 @@
 
 > **Status: topology selected; enforcement continues.**
 
-The selected lattice is `Alpha -> Beta -> Gamma -> Delta -> Omega`. Alpha is the
-unchanged tape machine. Beta is a tiny first-order functional calculus executed
-by one directly audited Alpha tape. Gamma and Delta are single-customer compiler
-languages. Only Omega has a meaningful self-host edge.
+The selected lattice is `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`.
+Alpha is the unchanged tape machine. Beta is the trusted imperative tape-
+assembly language with an admitted self-reconstructing compiler tape. Gamma,
+Delta, and Epsilon are single-customer evaluator/compiler languages. Only Omega
+has a meaningful later self-host edge.
 
 ## Objective
 
@@ -20,9 +21,10 @@ because every later edge inherits it.
 A language feature, runtime mechanism, checker rule, sidecar, or tool survives
 only when it serves one exact customer and reduces total audit cost:
 
-- Beta: Gamma compiler or derivation checker;
-- Gamma: Delta compiler;
-- Delta: Omega compiler `D`;
+- Beta: Gamma evaluator;
+- Gamma: Delta compiler or derivation checker;
+- Delta: Epsilon compiler;
+- Epsilon: Omega compiler `D`;
 - Omega `D`: first complete Omega compiler;
 - Omega `C`: production compiler and the sole self-host closure.
 
@@ -40,9 +42,9 @@ investment, compatibility, and hypothetical reuse are not reasons.
 - independent reconstruction of every checked source/tape proposition; and
 - no hidden host semantic stage or source-specific accelerator.
 
-The directly audited Beta evaluator is legitimate root material. Readable Alpha
-Tape Assembly may reconstruct it for diagnostics, but lower-language pedigree
-is not a correctness premise.
+The admitted Beta compiler tape is legitimate root material. Its exact Beta
+self-reconstruction is part of the authority argument because the measured
+Gamma evaluator prototype is too large for credible opaque bytecode review.
 
 ## Feature review
 

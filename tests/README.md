@@ -5,9 +5,9 @@ or a multi-package build rather than one Rust crate.
 
 - `architecture/` is the test-only Cargo package for cross-crate dependency and
   semantic-shape guards.
-- `alpha/` contains Alpha conformance, reference, and off-chain tape-tool tests.
-  A Beta, Gamma, or Delta directory is added only when that language has a real
-  executable subject.
+- `alpha/` contains Alpha conformance and reference tests.
+- `beta/` contains trusted Beta compiler reconstruction and differential tests.
+- `gamma/` contains the Gamma evaluator development gate.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
 - `omega/` contains Omega-language pass, fail, pending, and execution cases.
 - `fixtures/` contains reusable package and Terminal Psi inputs.

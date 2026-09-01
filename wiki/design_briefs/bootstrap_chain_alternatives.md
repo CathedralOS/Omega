@@ -1,11 +1,10 @@
 # Bootstrap chain alternatives
 
-> **Status: candidate C selected.** The live direction is
-> `Alpha -> Beta -> Gamma -> Delta -> Omega`. Alpha remains the portable tape
-> machine. Beta is a strict first-order functional bootstrap calculus executed
-> by one directly audited Alpha evaluator tape. The former Beta assembler is
-> off-chain Alpha tooling; the former imperative Gamma rung is retired. The
-> former Delta and Epsilon languages are renamed Gamma and Delta respectively.
+> **Status: candidate D selected after implementation measurement.** The live
+> direction is `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`. Alpha
+> remains the portable tape machine. Beta is the trusted imperative tape-
+> assembly language; Gamma is the strict functional calculus; Delta and Epsilon
+> are the typed functional and fixed-storage compiler languages.
 
 ## Question
 
@@ -88,59 +87,61 @@ compiler are cheaper to implement directly in Beta than Gamma plus its compiler
 and proof edge. Beta remains only if readable authoritative assembly is worth
 more than directly auditing the resulting seed tape.
 
-### C. Directly audited functional evaluator seed (selected)
+### C. Directly audited functional evaluator seed (rejected after prototype)
 
 ```text
 Alpha VM + one exact audited functional-evaluator tape
   +-- executes functional proof checker
-  `-- executes Beta-written Gamma compiler
-        -> Gamma-written Delta compiler
-        -> Delta-written Omega compiler
+  `-- executes Gamma-written Delta compiler
+        -> Delta-written Epsilon compiler
+        -> Epsilon-written Omega compiler
         -> Omega self-host
 ```
 
-This is the selected architecture. The evaluator is part of the root rather
-than the output of a permanent assembly-language rung. Its language should be
-only large enough for the checker and Gamma compiler: closed bytes and
+This was the initially selected architecture. The evaluator is part of the root
+rather than the output of a permanent assembly-language rung. Its language should be
+only large enough for the checker and Delta compiler: closed bytes and
 integers, immutable bindings, constructors, calls, conditionals, pattern
 matching, structural recursion or tail calls, bounded allocation, sealed byte
 input/output, and explicit failure.
 
-The selected Beta is a bootstrap calculus, not a general-purpose Lisp. It has
+The functional calculus is not a general-purpose Lisp. It has
 no closures, higher-order values, macros, polymorphism, general garbage
 collector, continuations, exceptions, modules, packages, mutation, raw memory,
 interactive evaluator, or ambient effects. Any proposed addition must reduce
 the complete audited chain for a named Gamma-compiler or checker workload.
 
-The checker and compiler remain readable functional source. The evaluator tape
-is the one low binary subject that receives direct instruction-level audit.
-This candidate replaces the old Beta and imperative Gamma mechanisms. The name
-Beta now belongs to the functional calculus; Alpha Tape Assembly remains only
-nonauthoritative construction tooling.
+The 42-case evaluator development slice assembled to 12,716 bytes before it
+implemented declarations, general calls, constructors, `match`, or proper tail
+calls. That measurement falsified the premise that the completed evaluator
+would be a credible standalone instruction-audit subject. Calling its readable
+source optional would merely hide the practical trust dependency.
 
-### D. Assembler-authored functional evaluator
+### D. Beta-authored functional evaluator (selected)
 
 ```text
 Alpha VM
-  -> minimal Beta assembler
-  -> functional evaluator tape
-  -> functional checker and Epsilon compiler
-  -> Epsilon -> Omega
+  -> admitted Beta compiler tape and exact Beta self-reconstruction
+  -> Beta-authored Gamma evaluator tape
+  -> Gamma-authored Delta compiler
+  -> Delta-authored Epsilon compiler
+  -> Epsilon-authored Omega compiler
+  -> Omega self-host
 ```
 
-This is the controlled comparison for candidate C. It has the same upper
-semantics, but retains Beta to make the evaluator source readable and exactly
-reconstructible. The experiment determines whether that readability repays the
-additional language, assembler implementation, cold-start artifact, and proof
-edge. A host-only assembler does not count as this candidate because it is
-construction tooling, not part of the trusted chain.
+This is the selected architecture. It has the same functional semantics as
+candidate C, but retains Beta to make the evaluator source readable and exactly
+reconstructible. Beta's compiler is itself Beta source with an admitted
+6,816-byte Alpha tape and byte-identical reconstruction. That added language
+edge is more honest and reviewable than treating the larger Gamma evaluator
+tape as independently understandable opaque root material.
 
 ### E. Directly audited functional compiler seed
 
 ```text
 Alpha VM + one exact audited functional-compiler tape
-  -> compiled functional checker and Epsilon compiler
-  -> Epsilon -> Omega
+  -> compiled functional checker and Delta compiler
+  -> Delta -> Epsilon -> Omega
 ```
 
 This replaces interpretation with compilation. It may improve bootstrap time
@@ -160,8 +161,8 @@ Alpha VM + audited functional evaluator or compiler
 
 This asks whether the fixed-storage compiler-host rung is necessary. It has the fewest semantic layers, but
 may make the first Omega compiler, its resource behavior, or its proof much
-larger. Delta survives only if a measured functional-to-Omega prototype is
-harder to audit than the Delta language, Delta compiler, Delta-written
+larger. Epsilon survives only if a measured functional-to-Omega prototype is
+harder to audit than the Epsilon language, Epsilon compiler, Epsilon-written
 Omega compiler, and both associated edges together.
 
 ### G. Direct state-machine seed
@@ -203,7 +204,7 @@ identifies the source of cost:
 | First language mechanism | evaluator, bytecode compiler, or direct compiler |
 | First source style | functional, state-machine, or assembly |
 | Checker placement | root kernel, program in the first source language, or later checked extension |
-| Upper bridge | first language directly to Omega, or through Delta |
+| Upper bridge | first language directly to Omega, or through Epsilon |
 
 Terminal Psi is not automatically a bootstrap rung. It is a portable product
 compiler boundary and enters this comparison only if a concrete candidate uses

@@ -5,18 +5,19 @@
 The trust-minimizing lattice is:
 
 ```text
-audited Alpha VM + directly audited Beta evaluator tape
-  -> Beta-written Gamma compiler -> gamma_compiler_bytecode.tape
+audited Alpha VM + admitted Beta compiler tape
+  -> Beta-written Gamma evaluator -> gamma_evaluator_bytecode.tape
   -> Gamma-written Delta compiler -> delta_compiler_bytecode.tape
-  -> Delta-written Omega compiler D -> omega0_compiler_bytecode.tape
+  -> Delta-written Epsilon compiler -> epsilon_compiler_bytecode.tape
+  -> Epsilon-written Omega compiler D -> omega0_compiler_bytecode.tape
   -> Omega-written Omega compiler C -> omega_compiler_bytecode.tape
 ```
 
-Alpha is unchanged. Beta is a strict first-order functional S-expression
-calculus interpreted by one directly audited Alpha tape. Gamma is the former
-Delta typed functional language. Delta is the former Epsilon fixed-storage
-compiler-host language. Epsilon is no longer a source owner or rung. Alpha Tape
-Assembly is retained only as off-chain tooling under `tools/alpha/`.
+Alpha is unchanged. Beta is the trusted imperative tape-assembly language whose
+self-reconstructing compiler has an admitted Alpha tape. Gamma is the strict
+functional calculus formerly called Beta. Delta is the former Gamma typed
+functional language, and Epsilon is the former Delta fixed-storage compiler
+host.
 
 ## Purpose
 
@@ -26,10 +27,11 @@ cheaper than another root artifact. It is not a public general-purpose trust
 platform. Features require a concrete customer and a favorable whole-chain
 audit.
 
-Intermediate self-hosting has no value in this architecture. A Beta evaluator
-need not be written in Beta; Gamma need not compile Gamma; Delta need not
-compile Delta. Only Omega closes a meaningful self-host edge because `omega0`
-must compile the production Omega-written compiler closure `C`.
+Beta self-reconstruction binds its readable compiler source to the admitted
+cold-start tape. No later intermediate rung needs self-hosting: Beta evaluates
+Gamma, Gamma compiles Delta, Delta compiles Epsilon, and Epsilon compiles Omega.
+Only Omega closes a further self-host edge because `omega0` must compile the
+production Omega-written compiler closure `C`.
 
 ## Edge discipline
 
@@ -48,17 +50,18 @@ exact source + exact Alpha tape
   -> source-to-tape refinement
 ```
 
-Reproducibility and differential agreement are diagnostics, not authority.
-The directly audited Beta evaluator is part of the root and therefore receives
-instruction-level audit rather than invented lower-language pedigree.
+The Beta compiler tape is admitted at the Alpha boundary; its exact Beta
+self-reconstruction is part of that authority story. Later sources derive
+their tapes through the immediately preceding trusted language.
 
 ## Current state
 
-Alpha conformance and off-chain assembler reconstruction are executable. The
-Beta evaluator and Beta-written Gamma compiler are absent. The Gamma-written
-Delta compiler source and Delta-written Omega `D` source are incomplete and
-have no canonical tapes. Omega-written `C` is also incomplete. No old compiler,
-interpreter, or compatibility route fills these gaps.
+Alpha conformance and trusted Beta compiler reconstruction are executable. The
+Beta-written Gamma evaluator has a passing development slice but no admitted
+tape. The Gamma-written Delta compiler is absent. The Delta-written Epsilon
+compiler and Epsilon-written Omega `D` are incomplete and have no canonical
+tapes. Omega-written `C` is also incomplete. No compatibility route fills these
+gaps.
 
 See the [manifest](chain_manifest.md), [repository map](repository_structure.md),
 and [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).

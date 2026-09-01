@@ -69,14 +69,18 @@ standing design brief as universal constants.
 The selected bootstrap lattice is:
 
 ```text
-Alpha VM + audited Beta evaluator → Gamma → Delta
-Delta-written Omega compiler D ──▶ omega₀
-omega₀ + Omega-written compiler C ──▶ omega
+Alpha VM + admitted Beta compiler tape
+  -> Beta-written Gamma evaluator
+  -> Gamma-written Delta compiler
+  -> Delta-written Epsilon compiler
+  -> Epsilon-written Omega compiler D
+  -> omega0
+omega0 + Omega-written compiler C -> omega
 ```
 
-The native Alpha executor is the sole per-platform binary. Alpha Tape Assembly
-is off-chain tooling; Beta is the first functional language and its evaluator
-tape is directly audited as root material.
+The native Alpha executor is the sole per-platform binary. Beta is the first
+trusted textual language; its compiler tape is admitted at the Alpha boundary
+and its Beta source reconstructs that tape byte-identically.
 
 Self-reproduction at any compiler stage establishes deterministic dependency
 closure, not correctness. Compiler artifacts become authoritative only when the
