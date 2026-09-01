@@ -77,7 +77,14 @@ fn canonical_rules(audit: &mut Audit) -> BTreeMap<String, CanonicalRule> {
     let mut rules = BTreeMap::new();
     for line in contents.lines().map(str::trim) {
         if let Some(rest) = line.strip_prefix("case: \"") {
-            pending_name = rest.split('"').next().map(str::to_owned);
+            pending_name = rest.split('"').next().map(|name| {
+                if is_broad_optimization_alias(name) {
+                    audit.violations.insert(format!(
+                        "canonical optimization vocabulary exposes forbidden broad alias `{name}`"
+                    ));
+                }
+                name.to_owned()
+            });
             continue;
         }
         let Some(name) = pending_name.take_if(|_| line.starts_with("phase: ")) else {
@@ -104,6 +111,21 @@ fn canonical_rules(audit: &mut Audit) -> BTreeMap<String, CanonicalRule> {
         }
     }
     rules
+}
+
+fn is_broad_optimization_alias(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "o0" | "o1"
+            | "o2"
+            | "o3"
+            | "os"
+            | "oz"
+            | "debug"
+            | "release"
+            | "optimizationlevel"
+            | "optimizationprofile"
+    )
 }
 
 fn catalog_applicability(audit: &mut Audit, name: &str, phase: &str) -> String {
@@ -225,4 +247,34 @@ pub(super) struct ReleaseRow {
     applicability: String,
     rollback: String,
     owner_review: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_broad_optimization_alias;
+
+    #[test]
+    fn broad_levels_and_build_modes_cannot_masquerade_as_exact_rules() {
+        for alias in [
+            "O0",
+            "O1",
+            "O2",
+            "O3",
+            "Os",
+            "Oz",
+            "Debug",
+            "Release",
+            "OptimizationLevel",
+            "OptimizationProfile",
+        ] {
+            assert!(is_broad_optimization_alias(alias), "missed `{alias}`");
+        }
+        for exact in [
+            "CopyPropagation",
+            "ProofCheckElision",
+            "X86SelectXorZeroI64MaterializationV1",
+        ] {
+            assert!(!is_broad_optimization_alias(exact), "rejected `{exact}`");
+        }
+    }
 }
