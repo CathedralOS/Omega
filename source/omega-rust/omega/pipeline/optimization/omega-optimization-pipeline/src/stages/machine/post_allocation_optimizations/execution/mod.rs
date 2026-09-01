@@ -19,8 +19,8 @@ use crate::{
 };
 
 pub(crate) use dispatch::{
-    stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_rule,
-    stage_optimized_post_allocation_machine_optimization_for_rule,
+    stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry,
+    stage_optimized_post_allocation_machine_optimization_for_catalog_entry,
 };
 pub use validation::{
     validate_optimized_post_allocation_machine_optimization_after_selected_lowering_custody,
@@ -34,12 +34,12 @@ pub fn stage_optimized_post_allocation_machine_optimization(
     StagedOptimizedPostAllocationMachineOptimization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    let rule = selected_post_allocation_machine_rule(
+    let entry = selected_post_allocation_machine_rule(
         source_lineage::register_home_selections(source),
         machine.machine().plan().target.architecture,
     )?
     .0;
-    stage_optimized_post_allocation_machine_optimization_for_rule(source, machine, rule)
+    stage_optimized_post_allocation_machine_optimization_for_catalog_entry(source, machine, entry)
 }
 
 pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lowering(
@@ -49,12 +49,12 @@ pub fn stage_optimized_post_allocation_machine_optimization_after_selected_lower
     StagedOptimizedPostAllocationMachineOptimization,
     OptimizedPostAllocationMachineOptimizationError,
 > {
-    let rule = selected_post_allocation_machine_rule(
+    let entry = selected_post_allocation_machine_rule(
         source_lineage::selected_lowering_selections(source),
         machine.machine().plan().target.architecture,
     )?
     .0;
-    stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_rule(
-        source, machine, rule,
+    stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry(
+        source, machine, entry,
     )
 }

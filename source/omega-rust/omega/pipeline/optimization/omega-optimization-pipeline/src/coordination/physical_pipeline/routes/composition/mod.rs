@@ -50,11 +50,11 @@ pub(crate) fn resolve_physical_phase_composition(
         return Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition);
     }
     if !post_allocation.is_empty() {
-        let (rule, _) = selected_post_allocation_machine_rule(selections, architecture)
+        let (entry, _) = selected_post_allocation_machine_rule(selections, architecture)
             .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachineRuleCatalog)?;
         return Ok(ResolvedPhysicalPhaseComposition::NonAllocation(
             ResolvedNonAllocationComposition::PostAllocationMachine {
-                rule,
+                entry,
                 after_selected_lowering: !selected_lowering.is_empty(),
             },
         ));

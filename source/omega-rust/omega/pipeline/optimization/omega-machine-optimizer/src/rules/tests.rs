@@ -3,7 +3,8 @@ use omega_target::Architecture;
 
 use super::{
     ORDERED_POST_ALLOCATION_MACHINE_RULES, POST_ALLOCATION_MACHINE_RULE_CATALOG,
-    PostAllocationMachineRuleCatalogError, selected_post_allocation_machine_rule,
+    PostAllocationMachineRuleCatalogError, PostAllocationMachineRuleKind,
+    selected_post_allocation_machine_rule,
 };
 
 #[test]
@@ -24,13 +25,23 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
         })
         .collect::<Vec<_>>();
     assert_eq!(declared, ORDERED_POST_ALLOCATION_MACHINE_RULES);
-    for descriptor in POST_ALLOCATION_MACHINE_RULE_CATALOG {
+    let expected_kinds = [
+        PostAllocationMachineRuleKind::Aarch64Cbnz,
+        PostAllocationMachineRuleKind::Aarch64Movn,
+        PostAllocationMachineRuleKind::X86XorZero,
+        PostAllocationMachineRuleKind::X86MovR32Imm32,
+    ];
+    for (descriptor, expected_kind) in POST_ALLOCATION_MACHINE_RULE_CATALOG
+        .into_iter()
+        .zip(expected_kinds)
+    {
         let optimization = descriptor.optimization();
-        let architecture = *descriptor.payload();
+        let architecture = descriptor.payload().architecture();
+        assert_eq!(descriptor.payload().kind(), expected_kind);
         let selections = OptimizationSelections::new([optimization]).unwrap();
         let (scheduled, phase) =
             selected_post_allocation_machine_rule(&selections, architecture).unwrap();
-        assert_eq!(scheduled, optimization);
+        assert_eq!(scheduled, descriptor);
         assert_eq!(phase, selections);
 
         let wrong = match architecture {

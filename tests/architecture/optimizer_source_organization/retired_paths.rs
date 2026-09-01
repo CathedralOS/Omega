@@ -203,6 +203,30 @@ pub(crate) fn check(audit: &mut Audit) {
         ));
     }
 
+    let post_allocation_dispatch = "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/execution/dispatch.rs";
+    match fs::read_to_string(repository.join(post_allocation_dispatch)) {
+        Ok(contents)
+            if [
+                "Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1",
+                "Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1",
+                "Optimization::X86SelectXorZeroI64MaterializationV1",
+                "Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1",
+                "stage_optimized_post_allocation_machine_optimization_for_rule",
+                "stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_rule",
+            ]
+            .into_iter()
+            .any(|retired| contents.contains(retired)) =>
+        {
+            violations.insert(format!(
+                "post-allocation execution restored a proxy name schedule beside its owning catalog: {post_allocation_dispatch}"
+            ));
+        }
+        Ok(_) => {}
+        Err(error) => {
+            violations.insert(format!("cannot read {post_allocation_dispatch}: {error}"));
+        }
+    }
+
     let obsolete_external_policy_schema = "source/omega-rust/omega/pipeline/optimization/omega-optimization-policy/src/external_schema.rs";
     if repository.join(obsolete_external_policy_schema).exists() {
         violations.insert(format!(
