@@ -224,6 +224,12 @@ fn project_terminal_native_realization_proposal(
     )?;
     let (boundary_application_demands, boundary_application_realizations) =
         boundary_application_coverage.into_parts();
+    let external_binding_rows = callback_closed_external_binding_rows(
+        checked,
+        &terminal_module,
+        callback_placements,
+        &callback_occurrences,
+    )?;
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -231,7 +237,7 @@ fn project_terminal_native_realization_proposal(
         checked.subsystem(),
         program_entry,
         checked.selected_provider_plans().clone(),
-        checked.external_binding_rows().to_vec(),
+        external_binding_rows,
         builtin_proposals,
         callback_occurrences,
         ieee_float_fma_occurrences,
@@ -240,6 +246,123 @@ fn project_terminal_native_realization_proposal(
         checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+/// Rejoin target-closed callback registrar plans to their selected import
+/// rows while the checked calling-policy realization and canonical Terminal
+/// operation still coexist. The locator remains the target package's only
+/// contribution; the registrar requirement owns its complete physical plan.
+fn callback_closed_external_binding_rows(
+    checked: &crate::pipeline::CheckedCompilation,
+    terminal_module: &psi_terminal::TerminalModule,
+    callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
+    callback_occurrences: &[omega_compilation_report::TerminalCallbackOccurrenceProposal],
+) -> Result<Vec<omega_calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
+    let mut rows = checked.external_binding_rows().to_vec();
+    let declarations = terminal_module
+        .boundary_machines
+        .iter()
+        .map(|declaration| (declaration.id, declaration.identity.as_str()))
+        .collect::<std::collections::BTreeMap<_, _>>();
+
+    for occurrence in callback_occurrences {
+        let placement = callback_placements
+            .get(occurrence.placement_index())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "callback registrar import closure names an absent retained placement",
+                )]
+            })?;
+        let materialization = placement.private_materialization.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "callback registrar import closure requires one private materialization",
+            )]
+        })?;
+        let operations = terminal_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|operation| operation.id == occurrence.terminal_operation())
+            .collect::<Vec<_>>();
+        let [operation] = operations.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "callback registrar import closure resolves Terminal operation {} to {} operations",
+                occurrence.terminal_operation().get(),
+                operations.len(),
+            ))]);
+        };
+        let psi_terminal::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
+            return Err(vec![Diagnostic::error(
+                "callback registrar import closure names a non-boundary Terminal operation",
+            )]);
+        };
+        let requirement = declarations.get(boundary).copied().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "callback registrar import closure names an absent Terminal boundary",
+            )]
+        })?;
+
+        let matching_realizations = checked
+            .boundary_calling_plan_realizations()
+            .iter()
+            .filter(|realization| {
+                realization
+                    .materialized_signature
+                    .owner_requirement_identity()
+                    == requirement
+                    && realization.callback_context_closed
+                    && realization.exact_boundary_entry_plan()
+                        == &materialization.registrar_boundary_entry_plan
+            })
+            .collect::<Vec<_>>();
+        let [realization] = matching_realizations.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "callback registrar `{requirement}` rejoins {} exact target-closed calling-plan realizations",
+                matching_realizations.len(),
+            ))]);
+        };
+        let validated = realization.replayed_validated_plan().map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "callback registrar `{requirement}` target-closed plan failed replay: {error}",
+            ))]
+        })?;
+        if validated.plan() != &materialization.registrar_boundary_entry_plan {
+            return Err(vec![Diagnostic::error(format!(
+                "callback registrar `{requirement}` target-closed plan changed during replay",
+            ))]);
+        }
+
+        let matching_rows = rows
+            .iter_mut()
+            .filter(|row| {
+                row.requirement_identity == requirement
+                    && matches!(
+                        row.binding,
+                        omega_calling_conventions::ExternalBindingKind::Import { .. }
+                    )
+            })
+            .collect::<Vec<_>>();
+        if matching_rows.is_empty() {
+            // Check-only Terminal custody does not require a target package to
+            // supply a normalized import. Native source-import re-entry will
+            // independently require and settle the exact row.
+            continue;
+        }
+        if matching_rows.len() != 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "callback registrar `{requirement}` rejoins {} retained external import rows",
+                matching_rows.len(),
+            ))]);
+        }
+        let row = matching_rows
+            .into_iter()
+            .next()
+            .expect("one exact callback external import row");
+        row.boundary_entry_plan = Some(materialization.registrar_boundary_entry_plan.clone());
+    }
+
+    Ok(rows)
 }
 
 fn produce_callback_thunk_artifact(

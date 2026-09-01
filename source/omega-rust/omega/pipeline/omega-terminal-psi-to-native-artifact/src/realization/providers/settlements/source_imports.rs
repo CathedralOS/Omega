@@ -12,6 +12,9 @@ pub(super) fn validate_source_evaluated_import_coverage(
     target: omega_target::NativeTarget,
     external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     settlements: &[NativeProviderSettlement<'_>],
+    native_callbacks: &[
+        omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument
+    ],
 ) -> Result<(), Vec<Diagnostic>> {
     let boundary_identities = plan
         .boundary_machines
@@ -34,6 +37,47 @@ pub(super) fn validate_source_evaluated_import_coverage(
             ))]);
         };
         demanded.insert(*requirement);
+    }
+
+    let mut callbacks_by_requirement = std::collections::BTreeMap::<
+        &str,
+        Vec<&omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument>,
+    >::new();
+    for callback in native_callbacks {
+        let matching = plan
+            .functions
+            .iter()
+            .flat_map(|function| &function.operations)
+            .filter_map(|operation| {
+                let omega_abstract_operations::AbstractOperation::BoundaryCall {
+                    psi_operation,
+                    boundary,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                (*psi_operation == callback.terminal_operation).then_some(boundary)
+            })
+            .collect::<Vec<_>>();
+        let [boundary] = matching.as_slice() else {
+            return Err(vec![Diagnostic::error(format!(
+                "native callback operation {} resolves to {} abstract boundary calls during source-import coverage",
+                callback.terminal_operation.get(),
+                matching.len(),
+            ))]);
+        };
+        let requirement = boundary_identities.get(boundary).copied().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "native callback operation {} cites absent boundary {:?}",
+                callback.terminal_operation.get(),
+                boundary,
+            ))]
+        })?;
+        callbacks_by_requirement
+            .entry(requirement)
+            .or_default()
+            .push(callback);
     }
 
     let mut required_imports = BTreeSet::new();
@@ -123,10 +167,29 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         "demanded normalized import `{requirement}` substituted its retained external locator"
                     ))]);
                 }
-                let mechanism = crate::realization::normalized_foreign_terminal_mechanism(
-                    evaluated.locator(),
-                    boundary_entry_plan,
-                )
+                let matching_callbacks = callbacks_by_requirement
+                    .get(requirement)
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
+                let mechanism = match matching_callbacks {
+                    [] => crate::realization::normalized_foreign_terminal_mechanism(
+                        evaluated.locator(),
+                        boundary_entry_plan,
+                    ),
+                    [callback]
+                        if callback.registrar_boundary_entry_plan == *boundary_entry_plan =>
+                    {
+                        crate::realization::normalized_foreign_terminal_mechanism_with_callback_materializations(
+                            evaluated.locator(),
+                            boundary_entry_plan,
+                            &callback.registrar_context,
+                        )
+                    }
+                    callbacks => Err(format!(
+                        "retained implementation contract rejoins {} exact native callbacks with no unique matching registrar plan",
+                        callbacks.len(),
+                    )),
+                }
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"

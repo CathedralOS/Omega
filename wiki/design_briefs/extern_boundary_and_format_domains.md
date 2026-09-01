@@ -911,7 +911,7 @@ equally shaped parameter reorder that a placement-only fingerprint would miss.
 The migration from ordinal-derived IDs uses a new fingerprint version and
 reissues affected artifacts rather than reinterpreting them.
 
-The first downstream direct-parameter carrier remains address-free. For
+The first downstream direct-parameter carrier begins address-free. For
 exactly one whole native parameter on the ordinary unoptimized normalized-
 import path for supported ELF/Mach-O targets, compiler-owned lowering joins the
 retained callback occurrence to its registrar call by Terminal `OperationId`, preserves
@@ -920,15 +920,18 @@ target lowering, and assigns the policy-selected physical destination. The
 cohort is limited to the established fixed-width integer semantic arguments
 and result and requires exactly one binder, demand, and materialization, a
 target-pointer-shaped application, and one complete register or stack placement.
-Carrying that identity does not create a code pointer, source argument,
+Carrying that identity alone does not create a code pointer, source argument,
 relocation, or executable registration. The separately retained checked body
 now lowers to an isolated canonical Terminal artifact, compiles into a
 disjoint compiler-private machine-code function, and is replayed into one exact
 private object symbol and final executable-function span. Its artifact-local
-`MachineId` never joins the semantic program namespace. Field-projected and
-multiple callbacks remain fenced, as do callback-address loading,
-registrar-call emission and relocation, end-to-end native-artifact replay, and
-executable registrar settlement.
+`MachineId` never joins the semantic program namespace. The direct-parameter
+continuation now selects the address load, emits the registrar call, targets
+the private symbol with exact x86-64 or AArch64 relocations, and independently
+decodes the final patched address. A source-evaluated normalized-import canary
+crosses that complete native-artifact route. Field-projected and multiple
+callbacks remain fenced, as do runtime registration, lifetime, installation,
+and publication.
 
 A projected native callback field is a typed private-materialization demand in
 the normalized layout plan, not a field of the source-visible specification.

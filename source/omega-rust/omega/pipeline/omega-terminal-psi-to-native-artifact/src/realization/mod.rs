@@ -26,6 +26,7 @@ pub use terminal_authority_policy::{
     TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
     UnclassifiedTerminalMechanism, current_compiler_intrinsic_terminal_authority_policy,
     current_terminal_authority_policy, normalized_foreign_terminal_mechanism,
+    normalized_foreign_terminal_mechanism_with_callback_materializations,
     terminal_authority_policy_with_rows,
 };
 

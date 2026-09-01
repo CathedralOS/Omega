@@ -1023,11 +1023,12 @@ projection and refinement evidence are described below. Callback uses now also
 retain the nonzero report fingerprint of their exact evaluated boundary calling
 plan; ordinary nominal uses retain no callback placement. This is the target-
 owned plan cache/join coordinate, not authority or a source-visible address.
-Check-only and native orchestration
-consume it before handoff, revalidate the retained plan, and require one exact
-trait/requirement/fingerprint realization. The validated payloadless thunk and
-its address-free relocation demand are now retained; target/object relocation
-and runtime registration remain later lowering slices.
+Check-only and native orchestration consume it before handoff, revalidate the
+retained plan, and require one exact trait/requirement/fingerprint realization.
+The validated payloadless thunk and its address-free relocation demand are
+retained at this rung. The direct-parameter cohort now completes target/object
+relocation and final-image replay as described below; field materialization and
+runtime registration remain later lowering slices.
 
 Provider planning carries the complete validated inbound plan in the bound
 placement and the complete registrar plan in any private materialization. The
@@ -1743,18 +1744,23 @@ pointer shape, and `ValuePlacement`; retained-product replay compares it
 structurally with the placement's registrar plan instead of inferring it from
 the ID or ordinal. Missing, duplicate, unreachable, wrong-target, non-boundary,
 native-application-drifted, and artifact-drifted rows reject independently.
-Native production remains fenced after the first consuming target/assignment
-rung. That rung carries exactly one direct native-only callback application,
+Native production now carries the first direct callback through the complete
+source-evaluated normalized-import route. Target lowering carries exactly one
+direct native-only callback application,
 keyed by stable Terminal `OperationId`, through target lowering and physical
 assignment while retaining the selected thunk identity separately from source
 scalar values. The checked callback body is now retained as an isolated
 canonical Terminal artifact and independently compiled into a disjoint private
 machine-code function. Object and final-image replay bind that function to the
 exact placement-derived symbol and text span without merging its artifact-local
-`MachineId` into the semantic namespace. The next slice starts with
-address-load selection, exact registrar-call emission and relocation, and
-end-to-end native-artifact replay. The removed custom/unknown host-operation prototype is not reusable
-evidence of completion. Those integrations remain engineering work under the
+`MachineId` into the semantic namespace. Machine emission selects the exact
+register-or-stack address load; object construction emits architecture-specific
+relocations to that private symbol, and final-image replay decodes the patched
+address and requires the private function's final text address. The callback-
+closed registrar plan is also rejoined to its exact source-evaluated locator
+and explicit receiving-policy row. The removed custom/unknown host-operation
+prototype is not reusable evidence of completion. Runtime registration,
+installed lifetime custody, and publication remain engineering work under the
 settled v3 application model, not open language-design questions. The authored-
 hidden-parameter and stale-v1/v2 negative matrix is complete at source
 admission and independent replay.
