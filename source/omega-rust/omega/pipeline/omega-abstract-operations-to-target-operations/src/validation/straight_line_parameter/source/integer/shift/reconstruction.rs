@@ -5,6 +5,7 @@ use psi_core::ScalarType;
 
 use super::super::super::super::model::IntegerShiftParametersSource;
 use crate::validation::model::StraightLineWrappingIntegerShiftLeftParametersTranslationError;
+use crate::validation::model::StraightLineWrappingIntegerShiftRightParametersTranslationError;
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_left(
     function: &AbstractFunction,
@@ -22,4 +23,22 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_left(
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*value_type))?;
     super::wrapping_left::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_right(
+    function: &AbstractFunction,
+) -> Result<
+    IntegerShiftParametersSource,
+    StraightLineWrappingIntegerShiftRightParametersTranslationError,
+> {
+    let Some(AbstractOperation::WrappingIntegerShiftRight { value_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineWrappingIntegerShiftRightParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*value_type))?;
+    super::wrapping_right::reconstruct(function, &envelope)
 }

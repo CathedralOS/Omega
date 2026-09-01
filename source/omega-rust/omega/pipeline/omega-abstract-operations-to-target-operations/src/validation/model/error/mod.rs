@@ -39,6 +39,7 @@ pub use parameter::{
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerRemainderParametersTranslationError,
     StraightLineWrappingIntegerShiftLeftParametersTranslationError,
+    StraightLineWrappingIntegerShiftRightParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 pub use terminal::StraightLineScalarCrashTranslationError;

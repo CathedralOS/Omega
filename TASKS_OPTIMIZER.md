@@ -465,12 +465,12 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-two abstract-to-target families, including
+  machine-rule family. Thirty-three abstract-to-target families, including
   proof-bearing exact parameterized fixed-integer addition, subtraction,
   multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
   addition, subtraction, and multiplication and independently typed wrapping
-  shift-left, selected incoming u12 folds,
+  shifts, selected incoming u12 folds,
   current machine substitutions, structural-Unit encoding, resolved layout,
   and ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
@@ -579,13 +579,15 @@ decision. Only true language-semantic questions belong in
   retain ordered operands across every integer width, address-U64, all five
   native target profiles, and register/stack placement; wrapping, proof-bearing
   exact, add, and subtract policy substitution fails closed.
-- [x] Add independent wrapping shift-left parameter translation. Its exact
-  catalog row and dedicated shift taxonomy retain independently typed value and
-  count operands, ordered ABI placement, and exact source/target provenance.
-  Fixed and address64 carriers are admitted independently, signed negative
-  counts retain Euclidean modulo-width reduction, and wrapping-right, exact
-  shifts, bitwise, and arithmetic expression substitutions fail closed through
-  optimized-target custody.
+- [x] Add independent wrapping shift parameter translation. The left and right
+  catalog rows descend through one dedicated shift taxonomy while retaining
+  independently typed value and count operands, ordered ABI placement, and
+  exact source/target provenance. Fixed and address64 carriers are admitted
+  independently and signed negative counts retain Euclidean modulo-width
+  reduction. Right shift separately retains unsigned fixed/address zero-fill
+  and signed fixed sign-fill semantics; direction swaps, exact shifts, bitwise,
+  and arithmetic expression substitutions fail closed through optimized-target
+  custody.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

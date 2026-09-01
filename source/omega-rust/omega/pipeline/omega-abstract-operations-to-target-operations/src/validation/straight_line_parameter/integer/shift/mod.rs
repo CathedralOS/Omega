@@ -2,5 +2,6 @@
 
 mod reconstruction;
 pub(crate) mod wrapping_left;
+pub(crate) mod wrapping_right;
 
-pub(super) use reconstruction::reconstruct_wrapping_left;
+pub(super) use reconstruction::{reconstruct_wrapping_left, reconstruct_wrapping_right};

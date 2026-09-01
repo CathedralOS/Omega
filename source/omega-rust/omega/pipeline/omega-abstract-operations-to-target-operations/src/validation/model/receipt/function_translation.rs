@@ -29,7 +29,7 @@ use arithmetic::{
     WrappingDivideReceipt, WrappingMultiplyReceipt, WrappingRemainderReceipt,
     WrappingSubtractReceipt,
 };
-use shift::WrappingShiftLeftReceipt;
+use shift::{WrappingShiftLeftReceipt, WrappingShiftRightReceipt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetFunctionTranslationReceipt {
@@ -60,6 +60,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
         StraightLineIntegerBitwiseXorParametersTranslationReceipt,
     ),
     StraightLineWrappingIntegerShiftLeftParameters(WrappingShiftLeftReceipt),
+    StraightLineWrappingIntegerShiftRightParameters(WrappingShiftRightReceipt),
     StraightLineExactIntegerAddParameters(ExactAddReceipt),
     StraightLineExactIntegerSubtractParameters(ExactSubtractReceipt),
     StraightLineExactIntegerMultiplyParameters(ExactMultiplyReceipt),

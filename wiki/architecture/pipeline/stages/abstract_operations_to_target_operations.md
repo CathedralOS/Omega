@@ -24,7 +24,7 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   classifier to one typed validator, and ambiguous classification fails closed.
 - `validation/catalog/dispatch/mod.rs` maps that inventory through immediate,
   parameter, and terminal adapters. Parameter adapters descend through
-  `parameter/{direct,unary,bitwise,comparison}.rs`.
+  `parameter/{direct,unary,bitwise,comparison,arithmetic,shift}` stage groups.
 - `validation/straight_line_integer_immediate.rs` owns the first closed
   translation family: parameterless `[IntegerConstant, Return]` to
   `ReturnIntegerImmediate`.
@@ -35,15 +35,15 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `validation/straight_line_parameter/mod.rs` owns the shared source-envelope
   to native-ABI replay join for nonempty scalar parameter rosters. Boolean and
   integer target replay descend through named `direct`, `unary`, `bitwise`,
-  and `comparison` folders.
+  `comparison`, `arithmetic`, and `shift` folders.
 - `validation/straight_line_parameter/source/mod.rs` maps source grammar,
   descending into a common `envelope.rs`, direct-return and Boolean grammar,
   or `source/integer/mod.rs`. The integer coordinator owns common
-  typed-parameter lookup before descending into comparison, unary, or bitwise
-  grammar.
+  typed-parameter lookup before descending into comparison, unary, bitwise,
+  arithmetic, or independently typed shift grammar.
   Unary source replay distinguishes bitwise-not from widen and validates the
   exact fixed-integer widening relation before target replay begins.
-- `validation/straight_line_parameter/{boolean,integer}/{direct,unary,bitwise,comparison}`
+- `validation/straight_line_parameter/{boolean,integer}/{direct,unary,bitwise,comparison,arithmetic,shift}`
   retain distinct exact family identities and validate corresponding target
   variants after independent register or stack reconstruction. Binary
   Boolean-result families open recursive `ReturnBooleanExpression` carriers
@@ -56,6 +56,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   fixed-integer widening. Integer bitwise AND, OR, and XOR each retain ordered
   or identical operands and the exact common fixed-width integer carrier;
   shared ABI/provenance replay sits below their operator-specific leaves.
+  Wrapping shift-left and shift-right descend through a distinct shift rung
+  that retains independently typed value/count operands and ABI locations;
+  right shift preserves unsigned fixed/address zero-fill and signed fixed
+  sign-fill after canonical modulo-width count reduction.
 - `validation/model/{error,receipt}/mod.rs` are the small family maps above
   immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and

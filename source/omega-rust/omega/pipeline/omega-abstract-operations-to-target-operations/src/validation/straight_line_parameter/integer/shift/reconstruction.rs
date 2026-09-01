@@ -12,6 +12,7 @@ use super::super::super::{
 use crate::validation::model::{
     StraightLineParameterReconstructionError,
     StraightLineWrappingIntegerShiftLeftParametersTranslationError,
+    StraightLineWrappingIntegerShiftRightParametersTranslationError,
 };
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_left(
@@ -29,6 +30,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_left(
         target,
         source,
         StraightLineWrappingIntegerShiftLeftParametersTranslationError::TargetProvenance,
+    )
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_right(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedIntegerShiftParameters,
+    StraightLineWrappingIntegerShiftRightParametersTranslationError,
+> {
+    let source = super::super::super::source::integer::shift::reconstruct_wrapping_right(function)?;
+    reconstruct(
+        function,
+        expected_target,
+        target,
+        source,
+        StraightLineWrappingIntegerShiftRightParametersTranslationError::TargetProvenance,
     )
 }
 
