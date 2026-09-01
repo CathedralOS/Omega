@@ -2142,7 +2142,7 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through ninth bounded represented-record levels are now live under the
+  Third through tenth bounded represented-record levels are now live under the
   same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
@@ -2150,7 +2150,7 @@ Owners:
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A tenth
+  storage, content, domain, provider, or establishment authority. An eleventh
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -10023,9 +10023,18 @@ reach or trust, and private proof improvements do not change public identity.
   Terminal body before the result enters composition. Arrival, adapter, and
   body provenance are independent in canonical identity and reports.
 
-  Remaining: produce the x86 fact carrier directly from the installed
-  gate/TSS realization rather than a test target-fact fixture; add other target
-  arrival rules as their installation facts land. The first nontrivial
+  The production x86 installation join now produces that target-fact carrier
+  from an opaque table/profile-validation roster plus the validated gate and
+  TSS stack maps. The public gate/TSS context IDs must exactly equal the sealed
+  complete roster, so omission and padding reject. The roster and produced
+  target carrier retain the exact `InstalledCodeContext`; compact-equal or
+  foreign occurrences cannot substitute. The join derives current,
+  privilege-transition, or IST stack selection, takes nesting and public stack
+  policy only from the exact boundary plan, and binds the compiler entry
+  identity/offset before the sealed target rule runs. Missing/repeated TSS
+  rows, descriptor-entry drift, ordinary-call substitution, and incompatible
+  fixed stack policy reject. Remaining: add other target arrival rules as their
+  installation facts land. The first nontrivial
   generated-adapter rung now replays the existing receiver-free x86 semantic
   ProgramStorage wrapper's canonical template and resolved private-continuation
   call, binds the exact installed artifact/entry, boundary ABI, Terminal body,

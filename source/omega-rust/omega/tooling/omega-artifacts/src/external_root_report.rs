@@ -320,6 +320,12 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
         } else {
             output.push_str("null");
         }
+        output.push_str(", \"target_installation_validation_receipt\": ");
+        if let Some(receipt) = entry_evidence.target_installation_validation_receipt() {
+            push_hex_identity(output, receipt.normalized_identity());
+        } else {
+            output.push_str("null");
+        }
         output.push_str(", \"generated_adapter_fingerprint\": ");
         if let Some(adapter) = entry_evidence.generated_adapter() {
             push_hex_identity(output, adapter.report_fingerprint());

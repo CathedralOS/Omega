@@ -9,11 +9,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, CallSignature,
-    CallingPolicy, EntryStack, EntryStackEpoch, EntryStackRealization, EntryStackStage, Preemption,
-    StackDomainRef, StackOccupancy, ValidatedBoundaryEntryPlan, ValidatedEntryStackDomainClosure,
-    ValidatedEntryStackRealization, ValueShape, X86_64TargetDerivedHardwareArrival,
+    CallingPolicy, EntryControl, EntryStack, EntryStackEpoch, EntryStackRealization,
+    EntryStackStage, InstalledEntryFactIdentity, MachineRegime, Preemption, StackDomainRef,
+    StackOccupancy, ValidatedBoundaryEntryPlan, ValidatedEntryStackDomainClosure,
+    ValidatedEntryStackRealization, ValidatedX86_64InstalledHardwareEntryFacts, ValueShape,
+    X86_64HardwareStackSelection, X86_64InstalledArrivalContext, X86_64InstalledGateTssRealization,
+    X86_64InstalledHardwareEntryFacts, X86_64TargetDerivedHardwareArrival,
+    X86_64TargetProfileIdentity, derive_x86_64_hardware_arrival,
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_domain_closure,
-    validate_entry_stack_realization,
+    validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
 use omega_executable_installation::{
     ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
@@ -28,6 +32,7 @@ use super::stack_demand::fingerprint_stack_local_evidence;
 use super::{
     ExternalRootDiagnostic, ExternalRootId, Fnv1a, ProviderStackSummary, RootProviderId,
     StackDomain, StackLocalEvidence, StackNestingRelation, StackValidationReceiptId,
+    X86_64GateProfileValidationReceiptId,
 };
 
 /// Structurally closed input to epoch composition.
@@ -110,6 +115,119 @@ impl AdmittedOpaqueArrivalContextSet {
             && self.boundary_contract_commitment != [0; 32]
             && self.boundary_contract_commitment == boundary.contract_commitment_digest()
     }
+}
+
+/// Opaque table-owner validation of the complete x86-64 arrival-context
+/// roster for one exact installed gate/profile occurrence.
+///
+/// The public gate/TSS detail carrier is deliberately not a completeness
+/// proof. Production must compare its complete arrival rows with this sealed
+/// roster before deriving target facts, so removing, padding, or changing one
+/// context cannot narrow architectural stack demand.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedX86_64InstalledGateProfileRoster {
+    architecture: omega_target::Architecture,
+    installed_code: InstalledCodeId,
+    installed_code_context: InstalledCodeContext,
+    artifact: ArtifactId,
+    entry: EntryStubId,
+    boundary_contract_report_fingerprint: u64,
+    boundary_contract_commitment: [u8; 32],
+    realization: X86_64InstalledGateTssRealization,
+    validation_receipt: X86_64GateProfileValidationReceiptId,
+}
+
+impl ValidatedX86_64InstalledGateProfileRoster {
+    pub const fn realization(&self) -> &X86_64InstalledGateTssRealization {
+        &self.realization
+    }
+
+    pub const fn validation_receipt(&self) -> X86_64GateProfileValidationReceiptId {
+        self.validation_receipt
+    }
+
+    fn matches_installed_entry(
+        &self,
+        boundary: &ValidatedBoundaryEntryPlan,
+        installed_code: &InstalledCode,
+        entry: EntryStubId,
+    ) -> bool {
+        self.architecture == installed_code.architecture()
+            && self.installed_code == installed_code.identity()
+            && self.installed_code_context == installed_code.receipt_context()
+            && self.artifact == installed_code.artifact()
+            && self.entry == entry
+            && self.boundary_contract_report_fingerprint == boundary.contract_report_fingerprint()
+            && self.boundary_contract_commitment != [0; 32]
+            && self.boundary_contract_commitment == boundary.contract_commitment_digest()
+    }
+}
+
+/// Retain the exact complete context roster established by the x86 table and
+/// target-profile validator. The returned carrier is opaque; later gate/TSS
+/// details must equal this complete set rather than asserting completeness for
+/// themselves.
+pub fn validate_x86_64_installed_gate_profile_roster(
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    mut realization: X86_64InstalledGateTssRealization,
+    validation_receipt: X86_64GateProfileValidationReceiptId,
+) -> Result<ValidatedX86_64InstalledGateProfileRoster, ExternalRootDiagnostic> {
+    installed_code.selected_entry_target(entry).map_err(|_| {
+        ExternalRootDiagnostic(
+            "x86-64 installed gate/profile validation names no exact installed entry".into(),
+        )
+    })?;
+    if installed_code.architecture() != omega_target::Architecture::X86_64
+        || boundary.plan().state.initial_regime != MachineRegime::X86Long64
+        || boundary.plan().call.entry_control != EntryControl::InterruptReturn
+    {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 installed gate/profile validation requires an x86 long-mode InterruptReturn entry"
+                .into(),
+        ));
+    }
+    canonicalize_x86_64_installed_gate_tss_realization(&mut realization);
+    if realization.arrivals.is_empty() {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 installed gate/profile validation contains no arrival context".into(),
+        ));
+    }
+    if realization
+        .arrivals
+        .windows(2)
+        .any(|pair| pair[0].context == pair[1].context)
+    {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 installed gate/profile validation repeats an arrival context".into(),
+        ));
+    }
+    Ok(ValidatedX86_64InstalledGateProfileRoster {
+        architecture: installed_code.architecture(),
+        installed_code: installed_code.identity(),
+        installed_code_context: installed_code.receipt_context(),
+        artifact: installed_code.artifact(),
+        entry,
+        boundary_contract_report_fingerprint: boundary.contract_report_fingerprint(),
+        boundary_contract_commitment: boundary.contract_commitment_digest(),
+        realization,
+        validation_receipt,
+    })
+}
+
+fn canonicalize_x86_64_installed_gate_tss_realization(
+    realization: &mut X86_64InstalledGateTssRealization,
+) {
+    realization
+        .tss
+        .privilege_stacks
+        .sort_by_key(|stack| stack.entry_privilege);
+    realization
+        .tss
+        .interrupt_stacks
+        .sort_by_key(|stack| stack.slot);
+    realization.arrivals.sort_by_key(|arrival| arrival.context);
 }
 
 /// Admit one opaque provider's complete arrival-context claim for an exact
@@ -247,6 +365,7 @@ pub struct EntryStackRealizationEvidence {
     arrival_origin: ArrivalStackRealizationOrigin,
     adapter_origin: AdapterStackRealizationOrigin,
     target_rule_report_fingerprint: Option<u64>,
+    target_installation_validation_receipt: Option<X86_64GateProfileValidationReceiptId>,
     generated_adapter: Option<GeneratedProgramStorageAdapterStackEvidence>,
     validation_receipt: Option<StackValidationReceiptId>,
 }
@@ -306,6 +425,12 @@ impl EntryStackRealizationEvidence {
 
     pub const fn target_rule_report_fingerprint(&self) -> Option<u64> {
         self.target_rule_report_fingerprint
+    }
+
+    pub const fn target_installation_validation_receipt(
+        &self,
+    ) -> Option<X86_64GateProfileValidationReceiptId> {
+        self.target_installation_validation_receipt
     }
 
     pub const fn generated_adapter(&self) -> Option<&GeneratedProgramStorageAdapterStackEvidence> {
@@ -413,6 +538,7 @@ pub fn bind_opaque_adapter_stack_realization(
         arrival_origin: ArrivalStackRealizationOrigin::OpaqueProvider,
         adapter_origin: AdapterStackRealizationOrigin::OpaqueProvider,
         target_rule_report_fingerprint: None,
+        target_installation_validation_receipt: None,
         generated_adapter: None,
         validation_receipt: Some(arrival_contexts.validation_receipt()),
     };
@@ -510,9 +636,211 @@ pub fn bind_direct_generated_entry_stack_realization(
             arrival_origin: ArrivalStackRealizationOrigin::NoHardwareArrival,
             adapter_origin: AdapterStackRealizationOrigin::None,
             target_rule_report_fingerprint: None,
+            target_installation_validation_receipt: None,
             generated_adapter: None,
             validation_receipt: None,
         },
+    })
+}
+
+/// Exact production result of the installed gate/profile/TSS join.
+///
+/// This wrapper retains the opaque installed occurrence and table-validation
+/// receipt beside the target-neutral facts and sealed architectural result.
+/// A caller cannot strip that provenance and still enter the direct-entry
+/// binder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledX86_64TargetDerivedHardwareArrival {
+    installed_code_context: InstalledCodeContext,
+    validation_receipt: X86_64GateProfileValidationReceiptId,
+    facts: ValidatedX86_64InstalledHardwareEntryFacts,
+    target_arrival: X86_64TargetDerivedHardwareArrival,
+}
+
+impl InstalledX86_64TargetDerivedHardwareArrival {
+    pub const fn facts(&self) -> &ValidatedX86_64InstalledHardwareEntryFacts {
+        &self.facts
+    }
+
+    pub const fn target_arrival(&self) -> &X86_64TargetDerivedHardwareArrival {
+        &self.target_arrival
+    }
+
+    pub const fn validation_receipt(&self) -> X86_64GateProfileValidationReceiptId {
+        self.validation_receipt
+    }
+
+    pub const fn report_fingerprint(&self) -> u64 {
+        self.target_arrival.report_fingerprint()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_target_arrival_for_test(
+        mut self,
+        target_arrival: X86_64TargetDerivedHardwareArrival,
+    ) -> Self {
+        self.target_arrival = target_arrival;
+        self
+    }
+}
+
+/// Produce the sealed x86-64 target-fact carrier from one exact installed
+/// gate/TSS realization.
+///
+/// The public gate/TSS details must exactly equal the independently sealed
+/// table/profile roster. The consumer cannot author the selected hardware
+/// stack, boundary nesting, compiler artifact identity, or architectural frame
+/// size. Those values are derived here from the validated boundary plan and
+/// exact `InstalledCode` occurrence before the ordinary target-rule validator
+/// accepts the result.
+pub fn produce_x86_64_installed_hardware_entry_facts(
+    boundary: &ValidatedBoundaryEntryPlan,
+    installed_code: &InstalledCode,
+    entry: EntryStubId,
+    entry_offset: u64,
+    complete_roster: &ValidatedX86_64InstalledGateProfileRoster,
+    mut realization: X86_64InstalledGateTssRealization,
+) -> Result<InstalledX86_64TargetDerivedHardwareArrival, ExternalRootDiagnostic> {
+    if installed_code.architecture() != omega_target::Architecture::X86_64
+        || boundary.plan().state.initial_regime != MachineRegime::X86Long64
+        || boundary.plan().call.entry_control != EntryControl::InterruptReturn
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed x86-64 gate/TSS realization requires an x86 long-mode InterruptReturn entry"
+                .into(),
+        ));
+    }
+    if !installed_code.binds_entry_offset(entry, entry_offset) {
+        return Err(ExternalRootDiagnostic(
+            "installed x86-64 gate names a different installed entry offset".into(),
+        ));
+    }
+    if !complete_roster.matches_installed_entry(boundary, installed_code, entry) {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 installed gate/profile roster names a different exact installed occurrence, entry, or boundary"
+                .into(),
+        ));
+    }
+    if realization.gate.entry_identity == 0
+        || realization.gate.entry_identity != entry.normalized_identity()
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed x86-64 gate names a different compiler entry identity".into(),
+        ));
+    }
+    if realization.gate.entry_privilege > 3 {
+        return Err(ExternalRootDiagnostic(
+            "installed x86-64 gate has an entry privilege outside 0..=3".into(),
+        ));
+    }
+    if realization
+        .gate
+        .interrupt_stack_table_slot
+        .is_some_and(|slot| !(1..=7).contains(&slot))
+    {
+        return Err(ExternalRootDiagnostic(
+            "installed x86-64 gate selects an invalid interrupt-stack-table slot".into(),
+        ));
+    }
+
+    let mut privilege_levels = BTreeSet::new();
+    for stack in &realization.tss.privilege_stacks {
+        if stack.entry_privilege > 2
+            || stack.dedicated_class == 0
+            || !privilege_levels.insert(stack.entry_privilege)
+        {
+            return Err(ExternalRootDiagnostic(
+                "installed x86-64 TSS has an invalid or repeated privilege-stack selection".into(),
+            ));
+        }
+    }
+    let mut interrupt_slots = BTreeSet::new();
+    for stack in &realization.tss.interrupt_stacks {
+        if !(1..=7).contains(&stack.slot)
+            || stack.dedicated_class == 0
+            || !interrupt_slots.insert(stack.slot)
+        {
+            return Err(ExternalRootDiagnostic(
+                "installed x86-64 TSS has an invalid or repeated interrupt-stack selection".into(),
+            ));
+        }
+    }
+    canonicalize_x86_64_installed_gate_tss_realization(&mut realization);
+
+    let mut contexts = Vec::with_capacity(realization.arrivals.len());
+    for arrival in &realization.arrivals {
+        let stack_selection = if let Some(slot) = realization.gate.interrupt_stack_table_slot {
+            let Some(stack) = realization
+                .tss
+                .interrupt_stacks
+                .iter()
+                .find(|stack| stack.slot == slot)
+            else {
+                return Err(ExternalRootDiagnostic(format!(
+                    "installed x86-64 gate selects absent TSS interrupt-stack slot {slot}"
+                )));
+            };
+            X86_64HardwareStackSelection::InterruptStackTable {
+                slot,
+                dedicated_class: stack.dedicated_class,
+            }
+        } else if arrival.interrupted_privilege == realization.gate.entry_privilege {
+            X86_64HardwareStackSelection::Current
+        } else {
+            let Some(stack) = realization
+                .tss
+                .privilege_stacks
+                .iter()
+                .find(|stack| stack.entry_privilege == realization.gate.entry_privilege)
+            else {
+                return Err(ExternalRootDiagnostic(format!(
+                    "installed x86-64 gate requires an absent TSS privilege-{} stack",
+                    realization.gate.entry_privilege
+                )));
+            };
+            X86_64HardwareStackSelection::PrivilegeTransition {
+                dedicated_class: stack.dedicated_class,
+            }
+        };
+        contexts.push(X86_64InstalledArrivalContext {
+            context: arrival.context,
+            mechanism: arrival.mechanism,
+            interrupted_privilege: arrival.interrupted_privilege,
+            entry_privilege: realization.gate.entry_privilege,
+            stack_selection,
+            nesting: boundary.plan().state.preemption,
+        });
+    }
+    if realization != complete_roster.realization {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 installed gate/TSS realization does not equal the complete validated gate/profile realization"
+                .into(),
+        ));
+    }
+
+    let facts = validate_x86_64_installed_hardware_entry_facts(X86_64InstalledHardwareEntryFacts {
+        identity: InstalledEntryFactIdentity {
+            target_profile: X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES,
+            artifact: installed_code.artifact().normalized_identity(),
+            installed_code: installed_code.identity().normalized_identity(),
+            entry: entry.normalized_identity(),
+            entry_offset,
+            boundary_plan_report_fingerprint: boundary.contract_report_fingerprint(),
+            boundary_plan_commitment: boundary.contract_commitment_digest(),
+        },
+        vector: realization.gate.vector,
+        gate: realization.gate.gate,
+        boundary_stack: boundary.plan().state.stack,
+        contexts,
+    })
+    .map_err(|diagnostic| ExternalRootDiagnostic(diagnostic.0))?;
+    let target_arrival = derive_x86_64_hardware_arrival(&facts)
+        .map_err(|diagnostic| ExternalRootDiagnostic(diagnostic.0))?;
+    Ok(InstalledX86_64TargetDerivedHardwareArrival {
+        installed_code_context: installed_code.receipt_context(),
+        validation_receipt: complete_roster.validation_receipt,
+        facts,
+        target_arrival,
     })
 }
 
@@ -527,7 +855,7 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
     boundary: &ValidatedBoundaryEntryPlan,
     installed_code: &InstalledCode,
     entry: EntryStubId,
-    target_arrival: &X86_64TargetDerivedHardwareArrival,
+    installed_target_arrival: &InstalledX86_64TargetDerivedHardwareArrival,
 ) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
     let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence else {
         return Err(ExternalRootDiagnostic(
@@ -545,6 +873,12 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
             "target-derived direct entry body evidence names a different installed entry".into(),
         ));
     }
+    if installed_target_arrival.installed_code_context != installed_code.receipt_context() {
+        return Err(ExternalRootDiagnostic(
+            "x86-64 target arrival evidence names a different exact installed occurrence".into(),
+        ));
+    }
+    let target_arrival = installed_target_arrival.target_arrival();
     let identity = target_arrival.installed_identity();
     if identity.artifact != installed_code.artifact().normalized_identity()
         || identity.installed_code != installed_code.identity().normalized_identity()
@@ -593,6 +927,9 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
             arrival_origin: ArrivalStackRealizationOrigin::X86_64TargetRule,
             adapter_origin: AdapterStackRealizationOrigin::None,
             target_rule_report_fingerprint: Some(target_arrival.report_fingerprint()),
+            target_installation_validation_receipt: Some(
+                installed_target_arrival.validation_receipt(),
+            ),
             generated_adapter: None,
             validation_receipt: None,
         },
@@ -759,6 +1096,7 @@ pub fn bind_x86_64_generated_program_storage_adapter_stack_realization(
             arrival_origin: ArrivalStackRealizationOrigin::NoHardwareArrival,
             adapter_origin: AdapterStackRealizationOrigin::GeneratedProgramStorageSemanticWrapper,
             target_rule_report_fingerprint: None,
+            target_installation_validation_receipt: None,
             generated_adapter: Some(generated_adapter),
             validation_receipt: None,
         },
@@ -1062,6 +1400,12 @@ pub fn compose_bound_entry_stack_epochs<'a>(
         report_fingerprint.u64(
             evidence
                 .target_rule_report_fingerprint()
+                .unwrap_or_default(),
+        );
+        report_fingerprint.u64(
+            evidence
+                .target_installation_validation_receipt()
+                .map(X86_64GateProfileValidationReceiptId::normalized_identity)
                 .unwrap_or_default(),
         );
         report_fingerprint.u64(

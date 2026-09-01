@@ -391,6 +391,17 @@ stack transitions in the emitted adapter delimit further epochs, and nesting
 resolves `Interrupted` against the active domain of the exact epoch in which it
 occurs.
 
+The live x86 installation join now consumes the validated gate/TSS realization
+in that shape. An opaque table/profile-validation carrier retains the complete
+context roster, exact boundary, validation receipt, and `InstalledCodeContext`;
+the public gate/TSS details must equal its full roster before derivation. The
+join resolves the gate's zero/nonzero IST field through the exact TSS privilege
+and IST stack-class maps, takes nesting from the matching boundary plan, and
+replays the descriptor's symbolic entry against that exact installed-code
+occurrence. Thus a table consumer cannot omit an arrival or replace the
+physical selection, compiler entry, occurrence, or public stack policy with a
+parallel target-fact fixture.
+
 ## Symbolic materialization and rebasing
 
 Toolchain-known addresses are symbolic relocation targets, not `addr` values in
