@@ -10,7 +10,7 @@
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-use omega::language::std::console;
+use omega_language_std::console;
 data LabelMessage {
     #0 count: u32;
     #1 label: &[u8] in Utf8;

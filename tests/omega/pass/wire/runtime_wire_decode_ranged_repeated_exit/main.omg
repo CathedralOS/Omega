@@ -3,7 +3,7 @@
 // Hostile 5 must not overwrite the prior first element; a later valid payload
 // must establish and store both elements.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Samples {
     #0 values: [i32; 2];

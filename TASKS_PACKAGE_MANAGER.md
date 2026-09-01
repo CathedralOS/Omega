@@ -306,7 +306,9 @@ explicitly.
     retain compatibility because early named-operator calls have no exact
     operational callable identity, and the x86 FMA plan-association root does
     so because targetless package dependency projection omits the exact-target
-    `Build.x86_deployment_features` field;
+    `Build.x86_deployment_features` field; six nested/repeated wire roots retain
+    compatibility because generated codec source loses requester-owned schema
+    type visibility under package-scoped compilation;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

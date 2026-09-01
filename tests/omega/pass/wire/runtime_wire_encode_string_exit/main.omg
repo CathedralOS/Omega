@@ -19,7 +19,7 @@ requires
 //   'i'            -> 0x69 (105)
 // written = 7.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data LabelMessage {
     #0 count: u32;

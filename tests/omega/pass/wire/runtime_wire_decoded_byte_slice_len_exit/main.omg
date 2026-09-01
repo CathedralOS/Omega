@@ -10,7 +10,7 @@
 // step had no data layout to resolve against, so `let n = decoded.bytes.len`
 // emitted no write and `n` held uninitialized garbage. Exits 70 when n == 2.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Blob {
     #0 bytes: &[u8];

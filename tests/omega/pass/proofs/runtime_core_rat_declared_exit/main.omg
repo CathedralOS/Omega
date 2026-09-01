@@ -5,7 +5,7 @@
 // ladder), rat_eq is cross-multiplication. A program that uses core Rat
 // and never consumes it at runtime compiles and runs untouched.
 use omega::language::core::rat;
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);

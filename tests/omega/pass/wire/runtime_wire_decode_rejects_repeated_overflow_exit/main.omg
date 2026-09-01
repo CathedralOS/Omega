@@ -16,7 +16,7 @@
 //
 // Exit 70 only when BOTH decodes report failure.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Burst {
     #0 samples: [i32; 2];

@@ -11,7 +11,7 @@
 //   -65           81 01
 // Total: 8 bytes.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Telemetry {
     #0 readings: &[i32];

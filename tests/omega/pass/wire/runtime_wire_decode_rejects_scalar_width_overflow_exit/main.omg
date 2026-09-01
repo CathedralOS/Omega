@@ -1,7 +1,7 @@
 // NARROW SCALAR REPRESENTATION ESTABLISHMENT. Hostile varints wider than the
 // declared u32/i32 carriers must not become valid by truncating at the store.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data NarrowScalars {
     #0 count: u32;

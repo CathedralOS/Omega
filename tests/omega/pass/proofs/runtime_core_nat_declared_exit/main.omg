@@ -8,7 +8,7 @@
 // untouched; the consumption twin refuses with the classification named
 // (fail/proofs/core_nat_runtime_consumption_rejected).
 use omega::language::core::nat;
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);

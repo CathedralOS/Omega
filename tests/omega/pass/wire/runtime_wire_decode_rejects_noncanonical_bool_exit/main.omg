@@ -2,7 +2,7 @@
 // represented by 0 or 1; hostile varint 2 must not be normalized to true.
 // The same rule applies to a plain field and packed repeated elements.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Flags {
     #0 enabled: bool;

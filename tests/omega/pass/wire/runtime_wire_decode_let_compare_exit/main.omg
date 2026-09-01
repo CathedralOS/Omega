@@ -16,7 +16,7 @@
 // exits: 71 = the let-bound compare read the stale pre-decode constant.
 // Does a SAMPLE-TWIN decode + field GUARD share the fold bug? No corpus
 // canary guard-reads a decoded field (they re-encode instead).
-use omega::language::std::console;
+use omega_language_std::console;
 data PointMsg {
     #0 x: u32;
     #1 y: u32;

@@ -15,7 +15,7 @@
 //   flag varint reads 0x00     -> false
 // read = 7, ok = false -- the canary takes the failure path and exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CounterMessage {
     #0 counter: u32;

@@ -9,7 +9,7 @@
 // (CopyRuntimeFrameIndexedToRuntimeFrame), the same machinery a `let b = s[i]`
 // local-copy uses. Exits 70 when decoded.bytes[0] == 72.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Blob {
     #0 bytes: &[u8];

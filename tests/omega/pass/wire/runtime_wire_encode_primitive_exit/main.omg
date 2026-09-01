@@ -15,7 +15,7 @@
 //   flag true      -> 0x01
 // written = 8.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CounterMessage {
     #0 counter: u32;

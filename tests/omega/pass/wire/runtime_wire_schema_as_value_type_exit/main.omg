@@ -12,7 +12,7 @@
 // the wire selection branches now clear the static-value table like every
 // other mutating call).
 // exits: 71 = value use wrong; 72 = encode wrong; 73 = roundtrip wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Point {
     #0 x: u32;
     #1 y: u32;

@@ -17,7 +17,7 @@ requires
 // written = 5; the canary checks the five bytes + the written count in-language
 // and exits 70 when byte-exact.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Blob {
     #0 bytes: &[u8];

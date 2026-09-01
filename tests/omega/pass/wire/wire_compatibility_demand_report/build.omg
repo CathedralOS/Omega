@@ -1,5 +1,6 @@
 machine build(builder: &mut Build) {
     builder.application("wire-compatibility-demand-report");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.require_wire_compatibility<
         RollingChannel,
         MessageLineage,
