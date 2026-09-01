@@ -311,18 +311,55 @@ fn compute_and_independent_replay_bind_every_action_and_retention() {
 #[test]
 fn compute_charges_the_exact_bounded_scan() {
     let (selected, selected_identity, source, source_identity, physical) = fixture();
-    let budget = OptimizationWorkBudget::new(1, 20, 20, 20, 20).unwrap();
-    assert_eq!(
-        super::compute_from_parts(
-            &selected,
-            selected_identity,
-            &source,
-            source_identity,
-            &physical,
-            budget,
+    let exact_budget = OptimizationWorkBudget::new(6, 2, 2, 2, 3).unwrap();
+    let computed = super::compute_from_parts(
+        &selected,
+        selected_identity,
+        &source,
+        source_identity,
+        &physical,
+        exact_budget,
+    )
+    .unwrap();
+    assert_eq!(computed.usage.rule_evaluations, 6);
+    assert_eq!(computed.usage.candidates, 2);
+    assert_eq!(computed.usage.validation_steps, 2);
+    assert_eq!(computed.usage.commits, 2);
+    assert_eq!(computed.usage.iterations, 3);
+
+    for (budget, axis) in [
+        (
+            OptimizationWorkBudget::new(5, 2, 2, 2, 3).unwrap(),
+            Aarch64MovnMaterializationWorkAxis::RuleEvaluations,
         ),
-        Err(Aarch64MovnMaterializationError::BudgetExceeded(
-            Aarch64MovnMaterializationWorkAxis::RuleEvaluations
-        ))
-    );
+        (
+            OptimizationWorkBudget::new(6, 1, 2, 2, 3).unwrap(),
+            Aarch64MovnMaterializationWorkAxis::Candidates,
+        ),
+        (
+            OptimizationWorkBudget::new(6, 2, 1, 2, 3).unwrap(),
+            Aarch64MovnMaterializationWorkAxis::ValidationSteps,
+        ),
+        (
+            OptimizationWorkBudget::new(6, 2, 2, 1, 3).unwrap(),
+            Aarch64MovnMaterializationWorkAxis::Commits,
+        ),
+        (
+            OptimizationWorkBudget::new(6, 2, 2, 2, 2).unwrap(),
+            Aarch64MovnMaterializationWorkAxis::Iterations,
+        ),
+    ] {
+        assert_eq!(
+            super::compute_from_parts(
+                &selected,
+                selected_identity,
+                &source,
+                source_identity,
+                &physical,
+                budget,
+            ),
+            Err(Aarch64MovnMaterializationError::BudgetExceeded(axis)),
+            "a one-below {axis:?} budget must fail on its typed axis",
+        );
+    }
 }

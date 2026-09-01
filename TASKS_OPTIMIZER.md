@@ -803,8 +803,14 @@ unchecked rewrite or opt into lossy floating-point semantics.
   custody fields after the enclosing V9 manifest identity is recomputed. The
   x86 XOR-zero rule now has the same exact five-axis success/boundary matrix,
   independently rejects action corruption, and runs all eight authenticated
-  custody mutations through the shared post-allocation corruption harness.
-  True second-application idempotence remains open for both rules: each
+  custody mutations through the shared post-allocation corruption harness. The
+  x86 zero-extending MOV-r32-imm32 rule now pins the same five exact usage and
+  first-over-boundary axes, retains its independent action-corruption refusal,
+  and crosses that shared eight-field authenticated-custody harness as well.
+  AArch64 MOVN now pins exact successful usage and the first-over-boundary
+  failure on all five work axes, independently rejects authenticated action
+  corruption, and crosses the same shared eight-field custody harness. True
+  second-application idempotence remains open for all four rules: each
   publishes an immutable encoding-choice artifact, not a rewritten
   `PostAllocationMachinePlan` that it can honestly consume again.
   Repeated reconstruction remains determinism evidence and is not relabelled as
