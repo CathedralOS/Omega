@@ -1,7 +1,7 @@
 // A scalar binary expression can be passed directly to a host boundary. The
 // backend materializes it into statement-local argument scratch before the
 // platform marshaller reads the value.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -3,7 +3,7 @@
 // explicitly-discarded statement call must bump the counter exactly once.
 // calls == 41 -> exit 70 (executed once); 40 -> exit 10 (discard dropped the
 // call entirely); 42 -> exit 3 (executed twice).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tally {
     calls: u64;

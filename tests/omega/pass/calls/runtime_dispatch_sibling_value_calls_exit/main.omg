@@ -1,7 +1,7 @@
 // Two LOOPING value calls in one initializer are both dispatch-routed. Their
 // call ordinals must distinguish clone contexts, receiver bases, continuations,
 // and result slots: first contributes 2 * 10, second contributes 2 * 25.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tally { count: i32 in Wrapping; }
 

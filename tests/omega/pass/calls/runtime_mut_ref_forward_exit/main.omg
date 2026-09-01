@@ -7,7 +7,7 @@
 // reference and the caller observes it via the aliased field.
 // exit 71 = the forwarded write missed self.c.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Counter { n: i32 in Wrapping; }
 data Main { console: Console; c: Counter; }

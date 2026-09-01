@@ -4,7 +4,7 @@
 // register is loaded from the value's storage slot. Computes 5 + 65 = 70 and exits
 // with that exact value (so a passing run is exit code 70, NOT 0 and NOT a literal).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

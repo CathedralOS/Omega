@@ -1,7 +1,7 @@
 // Free LOOPING machine in value position: `count` walks a slice through a
 // self-transition; the looped accumulator must be delivered back to `n`.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

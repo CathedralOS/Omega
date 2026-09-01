@@ -5,7 +5,7 @@
 // mutation ops, so `v` carried the PRE-mutation value (native exit 2,
 // interpreter 70); the selection is now deferred to the statement's
 // LocalStorage operation, after the callee's effects.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Tally {

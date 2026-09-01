@@ -1,6 +1,6 @@
 // A nested authored value call in host-call argument position executes before
 // the boundary operation and marshals directly from its call-result slot.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -4,7 +4,7 @@
 // returned the receiver unchanged), so the last field's value clobbered the
 // whole struct at root size (silent for <=8-byte structs, the loud 16-byte
 // fence otherwise). make(3500) -> {35, 7} -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Pair8 {
     a: u32;
     b: u32;

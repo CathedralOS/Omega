@@ -7,7 +7,7 @@
 // runtime storage write lowering"). Both targets and both arms (condition +
 // default) are exercised at runtime; exits 70 only when all are correct.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

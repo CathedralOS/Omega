@@ -1,7 +1,7 @@
 // Repeated stateful inline calls with the SAME target, receiver, and literal
 // argument must read their own ordinal result slots, including a nested
 // occurrence. Aliasing the nested call to its identical sibling exits 69.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Gauge { value: i32 in Wrapping; }
 

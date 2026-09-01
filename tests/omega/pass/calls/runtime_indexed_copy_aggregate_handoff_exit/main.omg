@@ -1,7 +1,7 @@
 // A runtime-selected `[copy]` record must retain its complete representation
 // when it is passed to and returned from a value machine. The runtime index
 // keeps this on the indexed-place path instead of allowing literal folding.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Header [copy] {
     tag: u8;

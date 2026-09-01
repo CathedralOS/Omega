@@ -6,7 +6,7 @@
 // dbl(5) == 11 must take the FALSE arm; dbl(5) == 10 the true arm; and a
 // NotEqual designed-false leg closes the operator family.
 // exit 70 = all three legs right; 71/72/73 name the leg.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;

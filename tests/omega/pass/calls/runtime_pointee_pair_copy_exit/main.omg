@@ -1,7 +1,7 @@
 // Copying one referenced field into another referenced field is a
 // pointee-pair CopyPlaces operation. Both pointer slots are frame-held in the
 // callee, so final footprint replay has one shared frame-base relocation.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Big {
     pad0: u64;

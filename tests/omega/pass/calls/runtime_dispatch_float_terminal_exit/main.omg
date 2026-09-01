@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // type-agnostic, so a float PLACE terminal round-trips byte-exact (1.5 in,
 // 1.5 out through the frame result slot). Float BINARY terminals
 // (`-> acc + 0.5`) remain the bail row (the binary serve is integer-only).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::pick(&mut self, n: i32, acc: f64)
 terminates by n -> Nat::Descending;

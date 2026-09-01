@@ -2,7 +2,7 @@
 // address-bearing: `&self.big` must pass its address, and a direct assignment
 // from `r.value` must dereference that address rather than read the parameter
 // slot inline. Big is wider than a pointer and value lives at offset 16.
-use omega::language::std::console;
+use omega_language_std::console;
 data Big { pad0: u64; pad1: u64; value: i32 in Wrapping; }
 data Main { console: Console; big: Big; got: i32 in Wrapping; }
 

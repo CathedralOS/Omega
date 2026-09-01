@@ -4,7 +4,7 @@
 // `amount` without the constructed variant's tag, Transfer's amount lands at
 // Deposit's offset -- destructuring reads ZII/garbage.
 // exit 70 = both fields right; 71 = wrong tag; 72 = to lost; 73 = amount lost.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Event {
     case Deposit(amount: i64);

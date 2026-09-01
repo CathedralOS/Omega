@@ -9,7 +9,7 @@
 // resolve correctly here (named local OR inline-constructed arg); the known remaining bug is
 // narrower -- forwarding an ELEMENT of a by-value struct param whose field is itself an array
 // (got(container.items[0])) to a nested value-call.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Coeffs {
     a: i32 in Wrapping;

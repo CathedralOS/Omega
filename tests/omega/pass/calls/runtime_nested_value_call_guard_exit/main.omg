@@ -16,9 +16,9 @@
 //   4. saturating_add unclamped -> exact sum (ZII DurationResult = Overflow
 //      -> would clamp to MAX)
 // Expected exit: 70.
-use omega::language::std::time;
+use omega_language_std::time;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

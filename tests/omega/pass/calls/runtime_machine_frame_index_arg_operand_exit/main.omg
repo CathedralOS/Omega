@@ -4,7 +4,7 @@
 // projection pins that synthetic operand hoists retain the leaf's declared
 // range instead of becoming an unprovable ranged-local store.
 // 9+30=39 -> report(9) -> 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Cell {
     v: i32 [0..=50];
 }

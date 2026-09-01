@@ -10,8 +10,8 @@ use omega::language::core::float_operations;
 // float twin of the dispatch integer binary-terminal path -- before it
 // landed, this shape refused at the call-result fence. Distinct exit codes
 // name the first window that misses.
-use omega::language::std::math;
-use omega::language::std::console;
+use omega_language_std::math;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     // sin(1) = 0.841470984807896507...

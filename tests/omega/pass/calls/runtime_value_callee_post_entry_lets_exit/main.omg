@@ -6,7 +6,7 @@
 // NON-entry state of an inlined value callee -- the split div/mod/mul chain
 // across post-entry states must deliver the same value both engines.
 // swap_digits(42): work -> tens=4, ones=2; emit(2, 4) -> 2*10 + 4 = 24.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::swap_digits(&self, x: i32 [0..=99]) -> i32 {
     transition x > 0 {

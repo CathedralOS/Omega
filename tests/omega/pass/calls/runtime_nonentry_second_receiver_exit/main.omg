@@ -7,7 +7,7 @@
 // table alignment (arena indices are 1-BASED; the positional table read the
 // NEXT state's base and this canary is the shape that exposes it: 300 -- or
 // an out-of-region write -- instead of 21).
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
 terminates by n -> Nat::Descending;

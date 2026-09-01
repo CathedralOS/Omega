@@ -6,7 +6,7 @@
 // interpreter always read the true window length). The window length `4 - 1 = 3` is
 // a compile-time constant, now folded in the value-write path too. `n == 3` matches
 // -> exit 3.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

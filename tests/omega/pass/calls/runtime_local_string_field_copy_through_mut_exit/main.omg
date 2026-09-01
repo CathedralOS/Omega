@@ -5,7 +5,7 @@
 // Fixed by honoring the resolved storage region (frame vs machine) in the
 // string-descriptor write selection.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

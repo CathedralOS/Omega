@@ -11,7 +11,7 @@
 // the slot planner: only a BARE-call binding names its call-result slot after
 // the binding; an embedded call's scratch stays anonymous (__call_result).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Calc {}
 

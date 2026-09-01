@@ -1,6 +1,6 @@
 // A numeric cast used directly as a scalar host-boundary argument reuses the
 // ordinary conversion writer in the argument's reserved scratch slot.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

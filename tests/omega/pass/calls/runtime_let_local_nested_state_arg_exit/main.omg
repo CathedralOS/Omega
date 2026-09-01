@@ -12,7 +12,7 @@
 // Interpreter: exits 70 (slot == 1 in try1 is correctly true).
 // Native x64:  exits 70 after the LocalStorage fold-block fix.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data S [copy] {
     arr: [i32; 4];

@@ -9,7 +9,7 @@
 // as InlineExpansion and its nested call is delivered. Dungeon generation shape
 // (a build segment -> carve_room -> room_mut chain).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CellId { case R00; case R01; case R02; case R03; }
 

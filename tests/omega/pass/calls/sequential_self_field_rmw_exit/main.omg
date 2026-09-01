@@ -13,7 +13,7 @@
 //
 // Interpreter and native x64 both exit 70 (total == 5 after 5 increments).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data S [copy] {
     // Wrapping DECLARED: an unbounded counter increment is overflow-capable and

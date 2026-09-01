@@ -6,7 +6,7 @@
 // no slots) fell into the case-wide NAME fallback and copied MAIN's
 // same-named local (unwritten -> ZII delivered: interp 70 vs native 71,
 // the nested-inline result scramble). 7 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

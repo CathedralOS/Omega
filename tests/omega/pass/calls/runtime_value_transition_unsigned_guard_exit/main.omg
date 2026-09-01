@@ -9,7 +9,7 @@
 // exercised at runtime. A signed mis-compare selects arm A (10) instead of arm
 // B (20) and exits 71; a correct unsigned compare exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

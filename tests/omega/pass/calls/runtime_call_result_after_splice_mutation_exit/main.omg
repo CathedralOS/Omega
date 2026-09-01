@@ -8,7 +8,7 @@
 // the initializer is a mutating call. The guard-only sibling
 // (runtime_assignment_call_post_mutation_value_exit) keeps its slot either way
 // and stays green.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Rng {
     seed: u64 in Wrapping;

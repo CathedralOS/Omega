@@ -9,7 +9,7 @@
 // the straight-line initializer write (fold_straight_line_prior_local_names).
 // proc(100,7): q=100/7=14, scaled=14*7=98, rem=100-98=2.
 // Expected exit: 2
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::proc(&self, total: i32 [0..=1000], freq: i32 [0..=1000]) -> i32 {
     transition freq > 0 {

@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // IEEE-754 bit pattern; an f32 slot takes the landing-aware single-rounded
 // bits. The RUNTIME-float-local ARG twin is still pinned pending
 // (float_local_value_call_arg_divergence).
-use omega::language::std::console;
+use omega_language_std::console;
 machine passthru(x: f64) -> f64 {
     transition { _ -> (x) }
 }

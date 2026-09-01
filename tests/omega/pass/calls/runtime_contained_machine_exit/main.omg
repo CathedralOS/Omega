@@ -11,7 +11,7 @@
 // several, use distinct types or direct field ops until the receiver field is threaded.
 // Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Counter {
     value: i32 in Wrapping;

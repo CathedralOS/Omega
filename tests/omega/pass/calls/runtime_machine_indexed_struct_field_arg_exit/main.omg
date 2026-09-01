@@ -2,7 +2,7 @@
 // element's field (`self.cells[self.k].v`) passed as a transition argument.
 // Same silent wrong-arm miscompile, same fix (the field offset rides
 // field_byte_offset in the machine-indexed copy). cells[2].v=9 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Cell {
     v: i32;
 }

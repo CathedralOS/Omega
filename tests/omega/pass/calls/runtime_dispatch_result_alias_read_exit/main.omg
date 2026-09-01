@@ -5,7 +5,7 @@
 // POINTER would copy the pointer bits into the caller's result slot
 // (silent-wrong garbage). The last unprobed return-write matrix shape
 // (2026-07-10a), alongside float terminals (documented loud-bail).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::peek(&mut self, acc: &mut i32, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;

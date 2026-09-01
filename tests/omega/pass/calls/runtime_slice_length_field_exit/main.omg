@@ -4,7 +4,7 @@
 // length value is a 32-bit count, so reading its low 4-byte word lowers into the
 // i32 target (an 8-byte read does not) -- matching the carrier `.len` convention.
 // arr has 5 elements -> exit 5.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

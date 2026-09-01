@@ -2,7 +2,7 @@
 // a NESTED member of the param (`b.value`). The alias substitution appends the
 // suffix [value] to the Member receiver -- the old catch-all DROPPED it and
 // read the receiver's first bytes (pad == 99) instead of value == 42.
-use omega::language::std::console;
+use omega_language_std::console;
 data Inner {
     pad: i32;
     value: i32;

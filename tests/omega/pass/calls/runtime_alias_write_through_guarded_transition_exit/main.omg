@@ -11,7 +11,7 @@
 // written in the sub-state `read` reached via `key < 4` (the forwarded-alias case).
 // Exits 70 only when BOTH writes reach the caller's `found`.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Item {
     key: i32;

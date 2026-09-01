@@ -10,7 +10,7 @@
 // Mirrors the dungeon find_room: a self-looping search forwards `out_room: &mut Room`
 // to a terminal state that writes the matched element's fields through it.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     id: i32;

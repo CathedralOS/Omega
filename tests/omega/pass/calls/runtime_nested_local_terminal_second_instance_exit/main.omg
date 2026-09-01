@@ -7,7 +7,7 @@
 // lookup must normalize to segment 0 or the value expression vanishes
 // (this shape was the "no selected return-write" frontier fence).
 // mid1{t1:1,t2:2}: 3 iterations of +2 = 6 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
 terminates by n -> Nat::Descending;

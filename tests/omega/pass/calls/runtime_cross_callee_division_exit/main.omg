@@ -10,9 +10,9 @@
 // equivalent). A negative exit status here = the crash is back.
 // Differential: rate_b = ticks_per_second / clamp(ticks_per_second) == 1 on
 // both engines (interp virtual 1000/1000, native QPF/QPF).
-use omega::language::std::time_host;
+use omega_language_std::time_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Wrapper { host: TimeHost; }
 

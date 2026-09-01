@@ -6,7 +6,7 @@
 // Fixed: when no slot exists, the caller statement's Assignment target
 // resolves to its MACHINE-region place and the terminal writes there
 // (edges.rs assignment_target_machine_place). Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; total: i32 in Wrapping; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;

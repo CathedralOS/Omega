@@ -7,7 +7,7 @@
 // min(self.a, self.b) == 7`, so both arms test one local. DISCRIMINATING: with
 // a=8,b=7 -> min=7 -> true arm -> good (exit 70). A wrong min, or a subject that
 // failed to pair (vacuous guard), would exit 71. Native must match the interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 8;

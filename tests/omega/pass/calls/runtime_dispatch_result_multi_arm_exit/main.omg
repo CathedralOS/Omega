@@ -4,7 +4,7 @@
 // silent fallthrough (native 72 vs interp 70); the place arm delivered. Pins
 // per-arm terminal delivery across both terminal kinds + the field-binding
 // return path. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; low: i32 in Wrapping; high: i32 in Wrapping; }
 machine Main::classify(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;

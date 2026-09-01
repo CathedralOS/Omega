@@ -12,7 +12,7 @@
 // results to a LOCAL all work, so it's the dispatch+struct+field intersection in the
 // leaf result delivery.) Bind the call to a local first. Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Dir {
     case N;

@@ -5,7 +5,7 @@
 // read-0 miscompile; the interpreter always read the true length). Here `s` views
 // a fixed `[i32; 5]` through `.as_slice()`, so the length folds to the constant 5
 // and `n == 5` must take the true arm -> exit 5.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -5,7 +5,7 @@
 // and the reused call-result slot still holds 9, native reads stale hp.
 // exit 70 = both right; 71 = first tag; 72 = first hp; 73 = second tag;
 // 74 = second hp STALE (the bug).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Shaped {
     hp: i32;

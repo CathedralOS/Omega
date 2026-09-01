@@ -2,7 +2,7 @@
 // returns a selected arm value AND increments the caller's tally through the
 // reference (a counting probe pinning call-count semantics: exactly one call).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

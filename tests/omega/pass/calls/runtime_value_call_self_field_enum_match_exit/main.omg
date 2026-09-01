@@ -9,7 +9,7 @@
 // substitution doesn't reach the value-call guard subject). Dispatching on a self
 // FIELD (here) or on a PARAM both work; use one of those. Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Shape {
     case Circle;

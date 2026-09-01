@@ -2,7 +2,7 @@
 // runtime record parameter to a same-named record parameter in its callee.
 // Native lowering must substitute the complete caller place before applying
 // member suffixes; leaving the callee parameter unbound reads its ZII storage.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair {
     first: i32;

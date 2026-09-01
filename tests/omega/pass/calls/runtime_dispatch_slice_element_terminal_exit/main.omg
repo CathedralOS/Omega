@@ -8,7 +8,7 @@
 // crashed (2026-07-09l, reverted) -- the region split IS the fix; no
 // region-parametric encoder was needed. The FIELD-CARRIER idiom stays
 // pinned by calls/runtime_dispatch_machine_array_slice_arg_exit.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; nums: [i32; 4]; }
 machine Main::pick(&mut self, s: &[i32], i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;

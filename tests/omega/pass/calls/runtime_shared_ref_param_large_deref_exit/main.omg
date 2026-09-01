@@ -11,7 +11,7 @@
 // non-boundary deref read the slot inline and Cathedral's M2 boot #UD'd.
 // value = 42 at offset 16; an inline read of the 8-byte slot fetches garbage.
 // exit 42.
-use omega::language::std::console;
+use omega_language_std::console;
 data Big {
     pad0:  u64;
     pad1:  u64;

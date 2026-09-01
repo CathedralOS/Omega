@@ -4,7 +4,7 @@
 // passed instance (the multi-instance spelling now SERVES via the
 // param-binding walk; calls/runtime_param_receiver_second_instance_exit).
 // only.count = 9 delivered through the param -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

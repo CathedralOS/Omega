@@ -8,7 +8,7 @@
 // dispatch on their payload case, the shared `hit` sub-state increments a
 // Wrapping counter, and the caller observes hits == 2. exit 72 = a call's
 // dispatch or effect was dropped.
-use omega::language::std::console;
+use omega_language_std::console;
 data Rec { case A(v: i32); case B(v: i32); case C(v: i32); }
 data Main { console: Console; hits: u32 in Wrapping; }
 machine Main::check(&mut self, r: Rec) {

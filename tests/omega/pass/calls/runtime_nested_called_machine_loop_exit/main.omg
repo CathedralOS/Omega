@@ -4,7 +4,7 @@
 // continuation down through the tail calls so the loop's result flows back and
 // the program exits 70 (result == 122). Before specialization this exited 0.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     id: i32;

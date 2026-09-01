@@ -7,7 +7,7 @@
 // reads SILENTLY folded to the stale initializer (native 1 / interp 2;
 // the plain spelling now refuses:
 // fail/calls/plain_let_reassign_rejected).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; out: i32; }
 machine Main::main(&mut self) {
     let mut x: u32 = 1;

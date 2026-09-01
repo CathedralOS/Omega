@@ -5,7 +5,7 @@
 // a zero `state` pointer and exited by signal.
 
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data RandomState {
     seed: u64 in Wrapping;
