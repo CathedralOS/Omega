@@ -94,6 +94,37 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
 }
 
 #[test]
+fn reload_victim_v1_recursive_identity_remains_byte_stable() {
+    let (sources, actions) = sources(NativeTarget::linux_x64());
+    let scheduled = sources
+        .schedule_recursive_spills(
+            &actions,
+            OptimizationWorkBudget::new(1, 3, 14, 3, 4).unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        scheduled.receipt().identity().bytes(),
+        [
+            208, 173, 63, 61, 36, 40, 86, 92, 71, 238, 165, 13, 121, 207, 137, 115, 176, 102, 60,
+            226, 159, 193, 193, 19, 2, 30, 96, 206, 34, 67, 112, 178,
+        ]
+    );
+    assert_eq!(
+        sources.schedule_original_recursive_spills(
+            &actions,
+            OptimizationWorkBudget::new(1, 3, 14, 3, 4).unwrap(),
+        ),
+        Err(
+            omega_regalloc::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
+                function: 0,
+                action: id(2, 0),
+                victim: omega_regalloc::GeneralizedSpillRecoveryVictim::Reload(id(0, 0)),
+            }
+        )
+    );
+}
+
+#[test]
 fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (sources, actions) = sources(target);
