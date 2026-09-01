@@ -7,7 +7,7 @@
 //     reference, semantics)
 // Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Inner {
     v: i32 in Trapping;

@@ -12,7 +12,7 @@
 // Constructs Event::Click with a Point payload and a scalar, matches it, and reads
 // the nested struct fields + the scalar. Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point {
     x: i32 in Trapping;

@@ -3,7 +3,7 @@
 // frame). Two sibling nested fields must track independently: pos.x accumulates 7 x 10 = 70
 // and pos.y accumulates 3 x 10 = 30. Chained guards self-check both, so any cross-talk or
 // stale-read between the nested places takes the false arm. Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Body { pos: Vec2; vel: Vec2; }
 data Main { console: Console; body: Body; i: i32 in Wrapping; }

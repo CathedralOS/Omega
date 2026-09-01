@@ -5,7 +5,7 @@
 // `self.ents[i].pos.x` read in a loop (accumulate) and temp-RMW written back (double each).
 // Three entities with pos.x = 1,2,3: the sum is 6, and after doubling pos.x = 2,4,6.
 // All checked -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Vec2 {
     x: i32 in Wrapping;

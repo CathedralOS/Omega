@@ -9,7 +9,7 @@
 // contract, and the difference is 0.
 // Caller-side requires enforcement is real and strict:
 // fail/dependent/requires_call_unproven_rejected pins the refusal.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main { console: Console; a: u32; b: u32; out: i32; }
 machine Main::main(&mut self) requires self.a <= self.b {

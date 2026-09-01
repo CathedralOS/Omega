@@ -6,7 +6,7 @@
 // `self.acc.sum = self.acc.sum + self.acc.n`), a CROSS-struct write (`self.rng.lo =
 // self.acc.sum`), and a two-way nested verify. Sums 1..5 = 15 -> exit 70. Wrapping so it
 // stays valid regardless of the (design-gated) nested-field exact-arith decision.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Acc {
     sum: i32 in Wrapping;
