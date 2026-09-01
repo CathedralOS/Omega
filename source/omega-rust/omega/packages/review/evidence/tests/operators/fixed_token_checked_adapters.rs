@@ -199,6 +199,71 @@ pub machine exercise(left: Vector<4>, right: Vector<4>) -> Vector<4> {
 }
 
 #[test]
+fn review_projects_fixed_token_type_and_const_generic_index_application() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let checked = compile_fixture(
+        r#"pub data Buffer<Element, const Count: u64> {
+    value: Element
+}
+
+pub data Indexing {}
+pub boundary operator [] Indexing::index<Element, const Count: u64>(
+    items: Buffer<Element, Count>,
+    index: u64
+) -> Element
+requires index == 0u64;
+
+pub data IndexingProvider {}
+pub machine IndexingProvider::index<Value, const Length: u64>(
+    items: Buffer<Value, Length>,
+    index: u64
+) -> Value
+satisfies Indexing::index
+requires index == 0u64
+{ items.value }
+
+pub machine exercise(items: Buffer<i32, 4>, index: u64) -> i32
+requires index == 0u64
+{
+    items[index]
+}
+"#,
+    );
+    let review = project_checked_package_review(&checked)
+        .expect("fixed-token generic index application should project");
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact fixed-token generic index application")
+    };
+    let PackageReviewBoundaryApplication::Exact(arguments) = application.application() else {
+        panic!("fixed-token generic index use has a nonempty application")
+    };
+    let [
+        PackageReviewBoundaryApplicationArgument::Type { type_identity, .. },
+        PackageReviewBoundaryApplicationArgument::Const {
+            binder_ordinal,
+            declared_carrier,
+            value_type,
+            value_encoding,
+        },
+    ] = arguments.as_slice()
+    else {
+        panic!("fixed-token generic index use retains its type and const arguments")
+    };
+    assert!(type_identity.canonical().contains("i32"));
+    assert_eq!(*binder_ordinal, 1);
+    assert!(declared_carrier.canonical().contains("u64"));
+    let expected = psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
+    assert_eq!(value_type, &expected.type_name);
+    assert_eq!(value_encoding, &expected.encoding);
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
+    );
+}
+
+#[test]
 fn fixed_token_checked_adapter_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
