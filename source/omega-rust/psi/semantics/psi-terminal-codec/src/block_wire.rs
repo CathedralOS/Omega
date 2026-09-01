@@ -18,12 +18,12 @@ use super::contract_wire::{
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
-use super::structural_result_wire::{
-    ResultPathWireFormat, decode_operation_result, encode_operation_result,
-};
 use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
 use super::scalar_wire::{
     decode_ieee_float_value, decode_integer_value, encode_ieee_float_value, encode_integer_value,
+};
+use super::structural_result_wire::{
+    ResultPathWireFormat, decode_operation_result, encode_operation_result,
 };
 use super::wire::{Reader, Writer};
 use super::{
@@ -62,6 +62,18 @@ pub(super) fn encode_block_for_result_paths(
             OperationKind::WriteOnlyPrimitiveStore { destination, value } => {
                 writer.u8(43);
                 writer.id(destination);
+                writer.id(value);
+            }
+            OperationKind::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
+                value,
+            } => {
+                writer.u8(46);
+                writer.id(destination);
+                encode_structural_path(writer, "structural scalar field store path", &path)?;
+                writer.id(field);
                 writer.id(value);
             }
             OperationKind::EstablishPayloadlessCase { result_case } => {
@@ -268,6 +280,11 @@ pub(super) fn encode_block_for_result_paths(
             }
             OperationKind::BooleanStructuralField { source, field } => {
                 writer.u8(38);
+                writer.id(source);
+                writer.id(field);
+            }
+            OperationKind::IntegerStructuralField { source, field } => {
+                writer.u8(47);
                 writer.id(source);
                 writer.id(field);
             }
@@ -637,15 +654,18 @@ pub(super) fn decode_block_for_result_paths(
         let result = match reader.u8()? {
             0 => OperationResult::Unit,
             1 => OperationResult::Scalar(decode_declaration(reader)?),
-            2 => OperationResult::Structural(decode_operation_result(
-                reader,
-                result_path_format,
-            )?),
+            2 => OperationResult::Structural(decode_operation_result(reader, result_path_format)?),
             tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
         };
         let kind = match reader.u8()? {
             43 => OperationKind::WriteOnlyPrimitiveStore {
                 destination: reader.id("PlaceId")?,
+                value: reader.id("ValueId")?,
+            },
+            46 => OperationKind::StructuralScalarFieldStore {
+                destination: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
+                field: reader.id("StructuralFieldId")?,
                 value: reader.id("ValueId")?,
             },
             42 => OperationKind::EstablishPayloadlessCase {
@@ -674,6 +694,10 @@ pub(super) fn decode_block_for_result_paths(
                 addend: reader.id("ValueId")?,
             },
             38 => OperationKind::BooleanStructuralField {
+                source: reader.id("PlaceId")?,
+                field: reader.id("StructuralFieldId")?,
+            },
+            47 => OperationKind::IntegerStructuralField {
                 source: reader.id("PlaceId")?,
                 field: reader.id("StructuralFieldId")?,
             },
@@ -1042,14 +1066,15 @@ pub(super) fn decode_block_for_result_paths(
 #[cfg(test)]
 mod tests {
     use psi_core::{
-        BlockId, ClaimId, EdgeId, EvidenceTermId, MachineId, ObligationId, OperationId, PlaceId,
-        PropositionId, StructuralCaseId, StructuralTypeId,
+        BlockId, ClaimId, EdgeId, EvidenceTermId, IntegerSign, IntegerType, MachineId,
+        ObligationId, OperationId, PlaceId, PropositionId, ScalarType, StructuralCaseId,
+        StructuralFieldId, StructuralTypeId, ValueId,
     };
     use psi_terminal::{
         Block, EvidenceInterfaceIdentity, Operation, OperationKind, OperationResult,
         OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity, OutcomeSpecificGuard,
-        StructuralMultiplicity, StructuralOperationResult, StructuralResultClaimBinding,
-        StructuralResultClaimTransfer, Terminator,
+        StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+        StructuralResultClaimBinding, StructuralResultClaimTransfer, Terminator, ValueDeclaration,
     };
 
     use super::{decode_block, encode_block};
@@ -1142,6 +1167,86 @@ mod tests {
             decode_block(&mut Reader::new(&invalid)),
             Err(CodecError::InvalidTag("OperationKind", 255)),
         );
+    }
+
+    #[test]
+    fn structural_scalar_field_operations_use_exact_stable_wire_fields() {
+        let store = Block {
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Unit,
+                kind: OperationKind::StructuralScalarFieldStore {
+                    destination: id::<PlaceId>(3),
+                    path: vec![StructuralPathSegment::Field("item".into())],
+                    field: id::<StructuralFieldId>(4),
+                    value: id::<ValueId>(5),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(6),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &store).expect("structural scalar-field store encodes");
+        let bytes = writer.finish();
+        assert_eq!(bytes[25], 46, "StructuralScalarFieldStore wire tag");
+        assert_eq!(&bytes[26..34], &id::<PlaceId>(3).get().to_le_bytes());
+        assert_eq!(&bytes[34..38], &1_u32.to_le_bytes());
+        assert_eq!(bytes[38], 1, "Field structural-path segment wire tag");
+        assert_eq!(
+            &bytes[47..55],
+            &id::<StructuralFieldId>(4).get().to_le_bytes()
+        );
+        assert_eq!(&bytes[55..63], &id::<ValueId>(5).get().to_le_bytes());
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(store));
+
+        let mut invalid_path = bytes;
+        invalid_path[38] = 255;
+        assert_eq!(
+            decode_block(&mut Reader::new(&invalid_path)),
+            Err(CodecError::InvalidTag("StructuralPathSegment", 255)),
+        );
+
+        let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let read = Block {
+            id: id::<BlockId>(7),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(8),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id::<ValueId>(9),
+                    scalar_type: integer,
+                }),
+                kind: OperationKind::IntegerStructuralField {
+                    source: id::<PlaceId>(10),
+                    field: id::<StructuralFieldId>(11),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: id::<EdgeId>(12),
+                value: id::<ValueId>(9),
+                cleanup_actions: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &read).expect("integer structural field read encodes");
+        let bytes = writer.finish();
+        let kind = bytes
+            .iter()
+            .position(|byte| *byte == 47)
+            .expect("IntegerStructuralField wire tag");
+        assert_eq!(
+            &bytes[kind + 1..kind + 9],
+            &id::<PlaceId>(10).get().to_le_bytes()
+        );
+        assert_eq!(
+            &bytes[kind + 9..kind + 17],
+            &id::<StructuralFieldId>(11).get().to_le_bytes(),
+        );
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(read));
     }
 
     #[test]

@@ -125,11 +125,13 @@ pub(super) fn append_operation(
         OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::PortWrite { .. }
-        | OperationKind::BooleanStructuralField { .. } => {
+        | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::IntegerStructuralField { .. } => {
             unreachable!("structural/effect rows return before specialized reconstruction")
         }
         OperationKind::Call { .. }

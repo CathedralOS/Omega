@@ -2,7 +2,7 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatFormat,
     IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
     PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
-    StructuralTypeId, ValueId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -266,6 +266,58 @@ fn write_only_boolean_store_survives_unit_call_and_is_atomic_at_fuel_exhaustion(
         93,
         TerminalScalarValue::Boolean(false),
         TerminalScalarValue::Boolean(true),
+    );
+}
+
+#[test]
+fn structural_scalar_field_store_is_visible_through_a_projected_call_without_replay() {
+    let module = structural_scalar_field_call_module();
+    let semantic = encode_module(&module).expect("structural scalar-field semantics encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let structural = TerminalStructuralValue {
+        opaque_identity: 95,
+        structural_type: structural_type_id(95),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural],
+    )
+    .expect("verified structural scalar-field call starts");
+    let mut meter = TerminalFuelMeter::with_allowance(2);
+
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+            schedule: TerminalFuelSchedule::CURRENT.identity(),
+            site: FuelChargeSite::Operation(operation_id(3)),
+            required_units: 1,
+            remaining_units: 0,
+        })
+    );
+    meter.replenish(4).unwrap();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(99),
+            }
+        ))
+    );
+    assert_eq!(meter.usage().total_units(), 6);
+    assert_eq!(
+        meter
+            .usage()
+            .at(FuelChargeSite::Operation(operation_id(2)))
+            .unwrap()
+            .executions(),
+        1,
+        "the committed field store is not replayed after replenishment",
     );
 }
 
@@ -2979,6 +3031,160 @@ fn write_only_boolean_call_module() -> TerminalModule {
     module
 }
 
+fn structural_scalar_field_call_module() -> TerminalModule {
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let owner_type = structural_type_id(95);
+    let item_type = structural_type_id(96);
+    let caller_place = place_id(95);
+    let callee_place = place_id(96);
+    let parameter = |place, structural_type, access| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: true,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let place = |id| StructuralPlaceDeclaration {
+        id,
+        kind: psi_core::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: true,
+        },
+    };
+    let mut module = unit_module();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: owner_type,
+            identity: "test::Owner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(1),
+                    identity: "item".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(item_type),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: item_type,
+            identity: "test::Item".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(1),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(integer),
+                }],
+            },
+        },
+    ];
+    let caller = &mut module.machines[0];
+    caller.attachment = Some(owner_type);
+    caller.structural_parameters = vec![parameter(
+        caller_place,
+        owner_type,
+        StructuralAccess::MutableBorrow,
+    )];
+    caller.structural_places = vec![place(caller_place)];
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(3),
+        scalar_type: integer,
+    });
+    caller.blocks[0].operations = vec![
+        Operation {
+            id: operation_id(1),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value_id(1),
+                scalar_type: integer,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(99),
+            },
+        },
+        Operation {
+            id: operation_id(2),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: caller_place,
+                path: vec![StructuralPathSegment::Field("item".into())],
+                field: structural_field_id(1),
+                value: value_id(1),
+            },
+        },
+        Operation {
+            id: operation_id(3),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value_id(2),
+                scalar_type: integer,
+            }),
+            kind: OperationKind::CallStructuralScalar {
+                callee: machine_id(96),
+                structural_arguments: vec![StructuralArgument {
+                    place: caller_place,
+                    path: vec![StructuralPathSegment::Field("item".into())],
+                    access: StructuralAccess::SharedBorrow,
+                }],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        },
+    ];
+    caller.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(2),
+        cleanup_actions: Vec::new(),
+    };
+
+    module.machines.push(TerminalMachine {
+        id: machine_id(96),
+        attachment: Some(item_type),
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(
+            callee_place,
+            item_type,
+            StructuralAccess::SharedBorrow,
+        )],
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: value_id(5),
+            scalar_type: integer,
+        }),
+        structural_places: vec![place(callee_place)],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(96),
+        blocks: vec![Block {
+            id: block_id(96),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: operation_id(4),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(4),
+                    scalar_type: integer,
+                }),
+                kind: OperationKind::IntegerStructuralField {
+                    source: callee_place,
+                    field: structural_field_id(1),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: edge_id(96),
+                value: value_id(4),
+                cleanup_actions: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(96)),
+    });
+    module
+}
+
 fn nominal_affine_module() -> TerminalModule {
     let token = StructuralTypeDeclaration {
         id: structural_type_id(1),
@@ -4341,6 +4547,10 @@ fn claim_id(raw: u64) -> ClaimId {
 
 fn structural_type_id(raw: u64) -> StructuralTypeId {
     StructuralTypeId::new(raw).unwrap()
+}
+
+fn structural_field_id(raw: u64) -> StructuralFieldId {
+    StructuralFieldId::new(raw).unwrap()
 }
 
 fn structural_case_id(raw: u64) -> StructuralCaseId {

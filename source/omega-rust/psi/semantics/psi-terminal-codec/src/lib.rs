@@ -89,8 +89,8 @@ use module_wire::{decode_module_body, encode_raw};
 
 use proposition_wire::{decode_proposition, encode_proposition};
 use psi_core::{
-    ClaimId, ObligationId, PropositionError, PsiSemanticId, ServiceId, StructuralPlaceKind,
-    StructuralTypeId,
+    ClaimId, ObligationId, PropositionError, PsiSemanticId, ScalarType, ServiceId,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     NominalAffineCleanup, Operation, OperationKind, OperationResult, StructuralAffineDiscard,
@@ -106,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 60;
+const FORMAT_MARKER: u16 = 61;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -899,6 +899,124 @@ fn validate_operation_foundation(
                 .map(|declaration| declaration.scalar_type);
             if actual != Some(expected) {
                 return malformed("write-only primitive store value type does not match referent");
+            }
+        }
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            value,
+        } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("structural scalar field store declares a non-Unit result");
+            }
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *destination)
+            else {
+                return malformed("structural scalar field store destination is not a parameter");
+            };
+            if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !matches!(
+                    parameter.access,
+                    psi_terminal::StructuralAccess::MutableBorrow
+                        | psi_terminal::StructuralAccess::WriteOnlyBorrow
+                )
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || !matches!(path.as_slice(), [StructuralPathSegment::Field(_)])
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *destination)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *destination)
+            {
+                return malformed("structural scalar field store has invalid destination custody");
+            }
+            let parent_type = validate_structural_path(module, parameter.structural_type, path)?;
+            let Some(expected) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parent_type)
+                .and_then(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => fields.iter().find_map(|candidate| {
+                        (candidate.id == *field && !candidate.relevance.is_erased())
+                            .then_some(&candidate.field_type)
+                            .and_then(|field_type| match field_type {
+                                StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                                _ => None,
+                            })
+                    }),
+                    _ => None,
+                })
+            else {
+                return malformed(
+                    "structural scalar field store does not select a relevant scalar field",
+                );
+            };
+            let actual = machine
+                .parameters
+                .iter()
+                .chain(machine.result.scalar_ref())
+                .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+                .chain(machine.blocks.iter().flat_map(|block| {
+                    block
+                        .operations
+                        .iter()
+                        .filter_map(|candidate| candidate.result.scalar_ref())
+                }))
+                .find(|declaration| declaration.id == *value)
+                .map(|declaration| declaration.scalar_type);
+            if actual != Some(expected) {
+                return malformed("structural scalar field store value type does not match field");
+            }
+        }
+        OperationKind::IntegerStructuralField { source, field } => {
+            let Some(result) = operation.result.scalar_ref() else {
+                return malformed("integer structural field has no scalar result");
+            };
+            if !matches!(result.scalar_type, ScalarType::Integer(_)) {
+                return malformed("integer structural field has a non-integer result");
+            }
+            let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+            else {
+                return malformed("integer structural field source is not a parameter");
+            };
+            let matching = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .and_then(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => fields.iter().find(|candidate| {
+                        candidate.id == *field
+                            && !candidate.relevance.is_erased()
+                            && candidate.field_type
+                                == StructuralFieldType::Scalar(result.scalar_type)
+                    }),
+                    _ => None,
+                });
+            if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.access != psi_terminal::StructuralAccess::SharedBorrow
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == *source)
+                || machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == *source)
+                || matching.is_none()
+            {
+                return malformed("integer structural field has invalid source custody");
             }
         }
         OperationKind::EstablishPayloadlessCase { result_case } => {

@@ -47,6 +47,7 @@ mod root_service_reach;
 mod structural_operations;
 mod structural_qualification_rosters;
 mod structural_result_contracts;
+mod structural_scalar_fields;
 
 use call_graph::validate_call_graph;
 use conformance_applications::validate_closed_conformance_applications;

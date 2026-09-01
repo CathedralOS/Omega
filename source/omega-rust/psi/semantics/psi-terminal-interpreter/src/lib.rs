@@ -238,6 +238,12 @@ struct StructuralRuntimePlace {
     path: Vec<StructuralPathSegment>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct StructuralScalarRuntimeField {
+    parent: StructuralRuntimePlace,
+    field: StructuralFieldId,
+}
+
 impl From<&TerminalStructuralValue> for StructuralRuntimePlace {
     fn from(value: &TerminalStructuralValue) -> Self {
         Self {
@@ -431,6 +437,10 @@ pub struct TerminalExecution {
     /// place maps are only views into this stable logical storage arena.
     structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
+    /// Scalar leaves written below aggregate structural values. Keys use the
+    /// invocation-independent opaque identity and resolved parent path, so a
+    /// projected call observes the same field without native layout claims.
+    structural_scalar_fields: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     /// Immutable exact literal payloads keyed by invocation-independent
     /// terminal machine/place identity. Literal operations are canonical and
@@ -718,6 +728,7 @@ impl TerminalExecution {
             structural_values,
             structural_primitive_storage,
             structural_primitive_entry_places,
+            structural_scalar_fields: BTreeMap::new(),
             payloadless_case_values: BTreeMap::new(),
             byte_sequence_literals: BTreeMap::new(),
             structural_boolean_fields,
@@ -1505,6 +1516,65 @@ impl TerminalExecution {
                             ))?;
                         *stored = source;
                     }
+                    OperationKind::StructuralScalarFieldStore {
+                        destination,
+                        path,
+                        field,
+                        value,
+                    } => {
+                        if !matches!(operation.result, psi_terminal::OperationResult::Unit) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let machine = self.machines.get(&self.current_machine).ok_or(
+                            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+                        )?;
+                        let parameter = machine
+                            .structural_parameters
+                            .iter()
+                            .find(|parameter| parameter.place == destination)
+                            .filter(|parameter| {
+                                matches!(
+                                    parameter.access,
+                                    StructuralAccess::MutableBorrow
+                                        | StructuralAccess::WriteOnlyBorrow
+                                ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                                    && parameter.qualifications.is_empty()
+                                    && parameter.projected_qualifications.is_empty()
+                            })
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let source = self
+                            .values
+                            .get(&value)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+                        let parent = resolve_structural_arguments(
+                            &self.structural_types,
+                            &self.structural_values,
+                            &[StructuralArgument {
+                                place: destination,
+                                path,
+                                access: parameter.access,
+                            }],
+                        )?
+                        .pop()
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        if direct_scalar_field_type(
+                            &self.structural_types,
+                            parent.structural_type,
+                            field,
+                        ) != Some(source.scalar_type())
+                            || !terminal_scalar_belongs_to_type(source)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.structural_scalar_fields.insert(
+                            StructuralScalarRuntimeField {
+                                parent: StructuralRuntimePlace::from(&parent),
+                                field,
+                            },
+                            source,
+                        );
+                    }
                     OperationKind::IntegerConstant { value } => {
                         let ScalarType::Integer(scalar_type) =
                             operation.result.expect_scalar().scalar_type
@@ -1599,6 +1669,38 @@ impl TerminalExecution {
                             operation.result.expect_scalar().id,
                             TerminalScalarValue::Boolean(value),
                         );
+                    }
+                    OperationKind::IntegerStructuralField { source, field } => {
+                        let result = operation.result.expect_scalar();
+                        if !matches!(result.scalar_type, ScalarType::Integer(_)) {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let structural_value = self.structural_values.get(&source).ok_or(
+                            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+                        )?;
+                        if direct_scalar_field_type(
+                            &self.structural_types,
+                            structural_value.structural_type,
+                            field,
+                        ) != Some(result.scalar_type)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let value = self
+                            .structural_scalar_fields
+                            .get(&StructuralScalarRuntimeField {
+                                parent: StructuralRuntimePlace::from(structural_value),
+                                field,
+                            })
+                            .copied()
+                            .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
+                                source,
+                                field,
+                            })?;
+                        if value.scalar_type() != result.scalar_type {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.values.insert(result.id, value);
                     }
                     OperationKind::BooleanNot { operand } => {
                         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
@@ -2409,6 +2511,11 @@ impl TerminalExecution {
                         .get(value)
                         .copied()
                         .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
+                    for parameter in machine.structural_parameters.iter().filter(|parameter| {
+                        parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    }) {
+                        self.structural_values.remove(&parameter.place);
+                    }
                     let cleanups = commit_cleanup_actions(
                         &self.structural_types,
                         &self.machines,
@@ -3467,6 +3574,28 @@ fn resolve_structural_arguments(
         .collect()
 }
 
+fn direct_scalar_field_type(
+    structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    field: StructuralFieldId,
+) -> Option<ScalarType> {
+    let declaration = structural_types.get(&structural_type)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    fields.iter().find_map(|candidate| {
+        (candidate.id == field && !candidate.relevance.is_erased())
+            .then_some(&candidate.field_type)
+            .and_then(|field_type| match field_type {
+                psi_terminal::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                psi_terminal::StructuralFieldType::IeeeFloat(_)
+                | psi_terminal::StructuralFieldType::ByteSequence(_)
+                | psi_terminal::StructuralFieldType::Structural(_)
+                | psi_terminal::StructuralFieldType::Erased { .. } => None,
+            })
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn transfer_claims(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
@@ -3841,6 +3970,10 @@ pub enum TerminalInterpretError {
         actual: ScalarType,
     },
     StructuralPrimitiveStorageMissing(PlaceId),
+    StructuralScalarFieldMissing {
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
     StructuralBooleanFieldArgumentInvalid {
         argument_index: u32,
         field: StructuralFieldId,
