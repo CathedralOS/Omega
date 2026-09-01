@@ -10695,23 +10695,25 @@ Remaining N6/N8 work:
   congruence-`P`/transport-`P` join. Adapted lift shapes remain outside this
   first carrier. Execution validation still rejects every retained row.
   Package review now has a separate proof-only record for the exact total,
-  direct `define` correspondence. Its producer reruns the all-program
-  transactional extractor, requires exact batch equality, then selects the
-  requested package's nonempty public-operation subset. Each source-free row
-  binds the complete canonical correspondence, including exact public callable,
-  theorem application and contract-fact coordinates, positional relations,
+  direct `define` correspondence and the exact position-preserving direct
+  transport-backed `lift`. Its producer reruns the all-program transactional
+  extractor, requires exact batch equality, then selects the requested
+  package's nonempty public-operation subset. Each source-free row binds the
+  complete canonical correspondence, including exact public callable, theorem
+  application and contract-fact coordinates, positional relations,
   eligibility, and direct result coordinate; explanatory custody points to the
   selected public operation declaration because the typed quotient call itself
-  is synthesized. Canonical package-review schema 120 / row schema 78 /
-  recovery schema 16 add the blocking row kind, deterministic key order, and
-  bounded opaque row recovery.
+  is synthesized. Package-review schema 120 / row schema 78 / recovery schema
+  16 already encode the closed transport operation kind and complete two-role
+  payload, so this projection needs no schema bump.
   Foreign-package rows in the complete extractor batch do not poison the
-  selected package, while lift, adapted, private, omitted/substituted/reordered/
-  partial/duplicate batches, and a requested package with no owned row remain
-  rejected. This record is deliberately not part of ordinary checked package
-  projection: quotient contract calls and every executable request remain
-  blanket-rejected, and full package-review migration plus executable admission
-  remain open. This does not close the full stage-4 migration.
+  selected package, while two-argument lift, adapted, literal, permuted,
+  repeated, generic, private, omitted/substituted/reordered/partial/duplicate
+  batches, and a requested package with no owned row remain rejected. This
+  record is deliberately not part of ordinary checked package projection:
+  quotient contract calls and every executable request remain blanket-
+  rejected, and full package-review migration plus executable admission remain
+  open. This does not close the full stage-4 migration.
 
   A failed built-in implication diagnostic must print the expected public and
   representative fact coordinates and point directly to
@@ -10721,15 +10723,19 @@ Remaining N6/N8 work:
   identity before the role-specific payload.
 
   The deliberately non-executable stage-4 preparation seam is now module
-  canonical for the narrow total direct `define` case. A separate
+  canonical for the narrow total direct `define` and position-preserving
+  transport-backed `lift` cases. A separate
   all-or-nothing validation API erases source handles into package-qualified
   callable/type identities, parameter ordinals, contract-fact coordinates,
   the exact positional relations and theorem expansion, eligibility
   certificates, and the direct result edge. It admits only monomorphic
-  one-state operations with empty static telescopes, empty public/
-  representative preconditions, no theorem legality premises, immutable
-  non-attached parameters, complete checked purity/termination/crash evidence,
-  and an exact direct result. `TerminalModule` owns the strictly ordered
+  one-state operations with empty static telescopes, immutable non-attached
+  parameters, complete checked purity/termination/crash evidence, and an exact
+  direct result. Faithful `define` additionally requires empty public/
+  representative preconditions and no theorem legality premises. The transport
+  rung instead requires the exact `Congruence,
+  ForwardPreconditionTransport` roster and its complete source/theorem
+  coordinate replay. `TerminalModule` owns the strictly ordered
   retained rows; the canonical codec binds every certificate and rederives its
   canonical identity on decode, and normal representation validation
   independently reconstructs the theorem parameters, relation premises,

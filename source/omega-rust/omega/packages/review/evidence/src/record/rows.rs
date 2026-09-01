@@ -53,7 +53,7 @@ pub enum PackageReviewCanonicalRowKind {
     /// checked body. This is semantic review data, not Terminal/native
     /// coverage or package admission.
     BoundaryApplicationRealization,
-    /// One proof-only total-direct quotient `define` correspondence, rederived
+    /// One bounded proof-only direct quotient correspondence, rederived
     /// transactionally from source and carrying no executable authority.
     NonExecutableQuotientCorrespondence,
 }

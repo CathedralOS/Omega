@@ -315,13 +315,17 @@ strengthened source-free contract. A nonempty table is still
 rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
 therefore a canonical-retention prerequisite, not executable quotient
-lowering. A separate proof-only package-review row now covers only the total,
-direct `define` correspondence by transactionally rederiving the complete
-source batch and retaining the selected package's exact public callable,
-theorem/contract-fact coordinates, relations, eligibility, and result
-coordinate. It is not ordinary checked package projection: quotient contract
-calls and executable requests remain blanket-rejected, while lift/adapted
-forms and the full package-review migration remain open.
+lowering. A separate proof-only package-review row now covers the total, direct
+`define` correspondence and the position-preserving direct transport-backed
+`lift` by transactionally rederiving the complete source batch and retaining
+the selected package's exact public callable, theorem/contract-fact
+coordinates, relations, eligibility, and result coordinate. Package-review
+schema 120 / row schema 78 / recovery schema 16 already encode the closed
+transport kind and complete two-role payload, so no schema bump is required.
+It is not ordinary checked package projection: quotient contract calls and
+executable requests remain blanket-rejected, while two-argument lift, adapted,
+literal, permuted, repeated, generic, private, and broader forms plus the full
+package-review migration remain open.
 
 Nominal static-machine callback bindings survive as explicit call-use rows.
 Each row names the registration call and operation, static-machine argument
