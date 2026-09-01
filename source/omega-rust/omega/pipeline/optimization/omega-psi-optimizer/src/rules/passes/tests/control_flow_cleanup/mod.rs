@@ -7,6 +7,7 @@ use super::*;
 
 mod block_merges;
 mod constant_conditionals;
+mod contracts;
 mod empty_blocks;
 mod shared_jump_fusion;
 mod unreachable_machines;

@@ -50,6 +50,38 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn built_in_registrations",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/copy_propagation/redundant_block_parameter/mod.rs",
+        coordination_marker: "fn propose(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/constant_conditionals/mod.rs",
+        coordination_marker: "pub fn validate_constant_conditional_candidate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/linear/mod.rs",
+        coordination_marker: "pub fn validate_linear_empty_block_candidate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/empty_block_threading/path_qualified/mod.rs",
+        coordination_marker: "pub fn validate_path_qualified_empty_block_candidate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/block_merging/adjacent/mod.rs",
+        coordination_marker: "pub fn validate_adjacent_block_merge_candidate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/shared_jump_fusion/mod.rs",
+        coordination_marker: "pub fn validate_shared_jump_fusion_candidate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/unreachable_private_machines/mod.rs",
+        coordination_marker: "pub fn validate_unreachable_private_machines_candidate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/control_flow_cleanup/block_merging/non_adjacent/mod.rs",
+        coordination_marker: "pub fn validate_non_adjacent_block_merge_candidate",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/dead_scalar_elimination/mod.rs",
         coordination_marker: "fn built_in_registrations",
     },

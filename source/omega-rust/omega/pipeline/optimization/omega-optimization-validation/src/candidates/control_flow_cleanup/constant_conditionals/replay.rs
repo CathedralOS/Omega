@@ -1,38 +1,11 @@
-//! Constant conditional folding validation.
+//! Independent constant-conditional replay mechanics.
 
 use super::*;
 
-pub fn validate_constant_conditional_candidate(
+pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ScalarConstants)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::CallGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
-        || !candidate.substitutions().is_empty()
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
     let PsiRewritePatch::FoldConstantConditional(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };

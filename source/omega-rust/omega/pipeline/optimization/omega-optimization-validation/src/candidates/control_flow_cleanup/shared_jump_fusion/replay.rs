@@ -1,37 +1,11 @@
-//! Shared terminal jump-fusion validation.
+//! Independent shared terminal-jump fusion replay mechanics.
 
 use super::*;
 
-pub fn validate_shared_jump_fusion_candidate(
+pub(super) fn validate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit(input)?;
-    if candidate.input() != input.identity {
-        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
-    }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::OwnershipFrontiers)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::PostDominators)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
-    {
-        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
-    }
     let PsiRewritePatch::FuseSharedTerminalJump(patch) = candidate.patch() else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };

@@ -623,8 +623,16 @@ unchecked rewrite or opt into lossy floating-point semantics.
   relabelling, unknown identities, foreign range facts, corrupted results, and
   exact contracts at roster positions 30--38. Validation now rejects analysis
   and invalidation supersets instead of accepting a contract that merely
-  contains the expected analyses. The remaining operational axes and other
-  rule families are not yet complete.
+  contains the expected analyses. All seven control-flow-cleanup validators
+  now bind exact rule identity, complete analysis and invalidation sets, safety
+  class, and rule-specific cost; a full cross-rule corruption matrix rejects
+  every relabelling plus unknown identities, supersets, wrong safety, and wrong
+  cost. Mixed empty-threading and block-merge validation files now descend to
+  exact rule leaves. Copy propagation now has an exact executable rule
+  entrance, complete registry custody, contract/cost/witness/provenance
+  corruption coverage, and positive, disabled, budget, determinism, and
+  idempotence canaries. The remaining operational axes and other rule families
+  are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

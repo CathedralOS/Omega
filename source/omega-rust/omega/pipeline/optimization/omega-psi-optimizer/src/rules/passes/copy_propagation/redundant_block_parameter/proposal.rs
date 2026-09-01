@@ -1,61 +1,17 @@
-//! Exact redundant block-parameter proposal mechanics.
+//! Analysis admission and deterministic redundant-parameter proposal construction.
 
 use std::collections::BTreeSet;
 
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
-use omega_optimization_core::{
-    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-};
+use crate::rules::passes::support::replacement_dominates_parameter_uses;
+use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
+use omega_optimization_core::{AnalysisKind, OptimizationRuleContract};
 use omega_optimization_unit::{
     BlockParameterIncomingBinding, NodeLocation, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness,
 };
 
-use super::super::{COPY_PROPAGATION_PASS_NAME, support::replacement_dominates_parameter_uses};
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct RedundantBlockParameterRule;
-
-impl RedundantBlockParameterRule {
-    pub fn contract() -> OptimizationRuleContract {
-        OptimizationRuleContract::new(
-            OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.redundant-block-parameter.v1",
-            ),
-            OptimizationPassIdentity::from_canonical_bytes(COPY_PROPAGATION_PASS_NAME),
-            1,
-            AnalysisSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::Dominators,
-                AnalysisKind::UseDefinition,
-            ]),
-            AnalysisInvalidationSet::new([
-                AnalysisKind::UseDefinition,
-                AnalysisKind::EffectSummaries,
-            ]),
-            OptimizationSafetyClass::StructuralIdentity,
-        )
-        .expect("built-in rule has nonzero version")
-    }
-}
-
-impl PsiOptimizationRule for RedundantBlockParameterRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_redundant_block_parameters(unit, analyses, Self::contract())
-    }
-}
-
-fn propose_redundant_block_parameters(
+pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     analyses: RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,

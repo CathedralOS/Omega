@@ -33,22 +33,23 @@ fn validate_candidate_contract(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::Dominators)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
+    if candidate.rule()
+        != OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.redundant-block-parameter.v1",
+        )
+        || candidate.required_analyses()
+            != AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+            ])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
         || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
+        || candidate.predicted_cost_delta() != -1
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }

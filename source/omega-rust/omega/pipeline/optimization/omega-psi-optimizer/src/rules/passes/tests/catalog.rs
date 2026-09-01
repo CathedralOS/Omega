@@ -39,8 +39,10 @@ fn built_in_schedule_is_independent_of_registration_arrival_order() {
     for optimization in [
         Optimization::SparseConditionalConstantPropagation,
         Optimization::ControlFlowCleanup,
+        Optimization::CopyPropagation,
         Optimization::GlobalValueNumbering,
         Optimization::DeadPureScalarElimination,
+        Optimization::ProofCheckElision,
     ] {
         let expected = registry_for_optimization(optimization).unwrap();
         let expected_contracts = expected.contracts().collect::<Vec<_>>();
@@ -67,9 +69,27 @@ fn absent_selection_registers_nothing_and_missing_analysis_fails_closed() {
         ))
     );
     let cleanup = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-    assert_eq!(built_in_psi_registry(&cleanup).unwrap().len(), 7);
+    let cleanup = built_in_psi_registry(&cleanup).unwrap();
+    assert_eq!(cleanup.len(), 7);
+    assert_eq!(
+        cleanup.contracts().collect::<Vec<_>>(),
+        [
+            ConstantConditionalFoldRule::contract(),
+            LinearEmptyBlockThreadRule::contract(),
+            PathQualifiedEmptyBlockThreadRule::contract(),
+            AdjacentBlockMergeRule::contract(),
+            SharedJumpFusionRule::contract(),
+            UnreachablePrivateMachinePruneRule::contract(),
+            NonAdjacentBlockMergeRule::contract(),
+        ]
+    );
     let copy = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
-    assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
+    let copy = built_in_psi_registry(&copy).unwrap();
+    assert_eq!(copy.len(), 1);
+    assert_eq!(
+        copy.contracts().collect::<Vec<_>>(),
+        [RedundantBlockParameterRule::contract()]
+    );
     let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
     let gvn = built_in_psi_registry(&gvn).unwrap();
     assert_eq!(gvn.len(), 16);
