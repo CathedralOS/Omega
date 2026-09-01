@@ -6,6 +6,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerWidenImmediate,
     StraightLineIntegerBitwiseNotImmediate,
     StraightLineIntegerEqualImmediate,
+    StraightLineIntegerLessThanImmediate,
     StraightLineIntegerExactCastImmediateOperand,
     StraightLineBooleanImmediate,
     StraightLineBooleanNotImmediate,
