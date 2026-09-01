@@ -3879,6 +3879,17 @@ Remaining:
   mutation, and missing-proof canaries reject before reporting. General proof
   SCC production, well-foundedness propositions, and normalization-law trust
   remain open.
+
+  The first general proof-SCC plumbing milestone now retains canonical
+  multi-member proof-only components from validation into checked termination
+  facts. One component owns one normalized rank type and structural-subterm
+  relation; every exact internal statement, expression, or transition call
+  site owns its own caller/callee rank parameters and resolved nonempty member
+  path. Multiple calls between the same machine pair do not collapse. This is
+  checked frontend evidence only: Terminal component rows, a shared
+  well-foundedness citation, proof-bundle production, codec/verifier
+  reconstruction, synopsis publication, and one-member self-recursive
+  components remain open before this can be called a certificate.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one
@@ -3938,6 +3949,16 @@ Remaining:
   the interpreter spelling match and backend-only invention as authority once
   that join is live. Keep fixed fuel, compiler diagnostics/artifacts, and
   deployment admissions in their D39-defined consumer/product layers.
+
+  **DESIGN BLOCKER — authored external-completion authority.** D39 fixes the
+  semantic completion kind and forbids deriving it from a boundary/provider
+  spelling, selected realization, syscall, or backend behavior, but no ruling
+  yet fixes the authored boundary declaration form or the authority that owns
+  and resolves `effect_identity`. The current source and checked boundary
+  signature have no carrier for that fact. Do not fabricate the terminal row
+  from `Console::exit_process`, `never`, or selected-provider metadata; the
+  end-to-end implementation resumes once that language-level carrier and
+  identity authority are ruled.
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace the current trusted Rust fusion of
   artifact traversal and algebraic reduction with the settled two-part closure.
   A total low-rung generator consumes canonical terminal-Psi bytes, validates

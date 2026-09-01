@@ -124,7 +124,7 @@ pub(crate) fn build_check_facts(
     // retains public negative guarantees separately from private inference.
     let blocking = build_blocking_facts(program, &machine_blocking);
     // TPR/EFX: termination is published as an independent exact-machine root.
-    let termination = build_termination_facts(program, &flow, &semantic)?;
+    let termination = build_termination_facts(program, &flow, &semantic, validation_facts)?;
     // R5/STR: body-derived mutation frames are an independent checked axis,
     // never a field of the published machine contract.
     let mutation = build_mutation_facts(program);
@@ -396,6 +396,7 @@ fn build_termination_facts(
     program: &TypedTrees,
     flow: &psi_checked_trees::FlowFacts,
     semantic: &psi_facts::FactPlan,
+    validation: &psi_validation::ProgramValidationFacts,
 ) -> Result<psi_checked_trees::TerminationFacts, Vec<psi_diagnostics::Diagnostic>> {
     let summaries = crate::checks::termination::analyze_checked_progress(program, flow, semantic)?;
     Ok(psi_checked_trees::TerminationFacts {
@@ -422,6 +423,69 @@ fn build_termination_facts(
                 |summary| psi_checked_trees::MachineBuildBoundProgressDemands {
                     machine: summary.machine,
                     demands: summary.build_bound_demands,
+                },
+            )
+            .collect(),
+        proof_recursive_components: validation
+            .proof_recursive_components
+            .iter()
+            .map(
+                |component| psi_checked_trees::CheckedProofRecursiveComponent {
+                    members: component
+                        .members
+                        .iter()
+                        .map(|member| psi_checked_trees::CheckedProofRecursiveMember {
+                            machine: member.machine,
+                            rank_parameter: member.rank_parameter,
+                        })
+                        .collect(),
+                    ranking_relation: match component.ranking_relation {
+                        psi_validation::ValidatedProofRankingRelation::StructuralSubterm => {
+                            psi_checked_trees::CheckedProofRankingRelation::StructuralSubterm
+                        }
+                    },
+                    rank_type_identity: component.rank_type_identity.clone(),
+                    edges: component
+                        .edges
+                        .iter()
+                        .map(|edge| psi_checked_trees::CheckedProofRecursiveEdge {
+                            caller: edge.caller,
+                            callee: edge.callee,
+                            site: match edge.site {
+                                psi_validation::ValidatedProofRecursiveCallSite::Statement {
+                                    state,
+                                    statement_index,
+                                } => psi_checked_trees::CheckedProofRecursiveCallSite::Statement {
+                                    state,
+                                    statement_index,
+                                },
+                                psi_validation::ValidatedProofRecursiveCallSite::Expression {
+                                    state,
+                                    statement_index,
+                                    expression_ordinal,
+                                } => psi_checked_trees::CheckedProofRecursiveCallSite::Expression {
+                                    state,
+                                    statement_index,
+                                    expression_ordinal,
+                                },
+                                psi_validation::ValidatedProofRecursiveCallSite::Transition {
+                                    state,
+                                    statement_index,
+                                    lane,
+                                } => psi_checked_trees::CheckedProofRecursiveCallSite::Transition {
+                                    state,
+                                    statement_index,
+                                    lane: match lane {
+                                        psi_validation::ValidatedProofRecursiveTransitionLane::Target => psi_checked_trees::CheckedProofRecursiveTransitionLane::Target,
+                                        psi_validation::ValidatedProofRecursiveTransitionLane::Continuation => psi_checked_trees::CheckedProofRecursiveTransitionLane::Continuation,
+                                    },
+                                },
+                            },
+                            caller_rank_parameter: edge.caller_rank_parameter,
+                            callee_rank_parameter: edge.callee_rank_parameter,
+                            strict_member_path: edge.strict_member_path.clone(),
+                        })
+                        .collect(),
                 },
             )
             .collect(),

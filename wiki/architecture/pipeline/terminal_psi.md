@@ -3207,6 +3207,12 @@ current ordinary Unit `exit_process` call, interpreter spelling match, and
 provider-selected nonreturning backend operation are migration facts rather
 than issuers for this row.
 
+The semantics are settled, but the authored carrier is design-blocked. No
+current boundary declaration field states the completion kind, and no ruling
+assigns ownership or resolution of `effect_identity`. Because D39 explicitly
+forbids spelling-, provider-, syscall-, and backend-derived authority, Terminal
+must not infer this row until the source form and identity authority are fixed.
+
 Fixed fuel, timeout, and `Incomplete` outcomes remain in consumer profiles.
 Compiler products compose input, diagnostics, artifact bytes, and product
 resource outcomes over this reusable trace. Deployment adds the distinct

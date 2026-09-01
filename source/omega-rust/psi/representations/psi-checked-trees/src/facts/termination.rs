@@ -15,6 +15,63 @@ pub struct TerminationFacts {
     /// caller premises and not evidence that the selected provider satisfies
     /// the profile.
     pub build_bound_progress: Vec<MachineBuildBoundProgressDemands>,
+    /// Accepted proof-only recursive components. The common relation/type are
+    /// component-owned and every exact internal call site retains an
+    /// independent strict-subterm witness.
+    pub proof_recursive_components: Vec<CheckedProofRecursiveComponent>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedProofRankingRelation {
+    StructuralSubterm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedProofRecursiveCallSite {
+    Statement {
+        state: SymbolHandle,
+        statement_index: usize,
+    },
+    Expression {
+        state: SymbolHandle,
+        statement_index: usize,
+        expression_ordinal: usize,
+    },
+    Transition {
+        state: SymbolHandle,
+        statement_index: usize,
+        lane: CheckedProofRecursiveTransitionLane,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedProofRecursiveTransitionLane {
+    Target,
+    Continuation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProofRecursiveMember {
+    pub machine: SymbolHandle,
+    pub rank_parameter: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProofRecursiveEdge {
+    pub caller: SymbolHandle,
+    pub callee: SymbolHandle,
+    pub site: CheckedProofRecursiveCallSite,
+    pub caller_rank_parameter: SymbolHandle,
+    pub callee_rank_parameter: SymbolHandle,
+    pub strict_member_path: Vec<SymbolHandle>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProofRecursiveComponent {
+    pub members: Vec<CheckedProofRecursiveMember>,
+    pub ranking_relation: CheckedProofRankingRelation,
+    pub rank_type_identity: String,
+    pub edges: Vec<CheckedProofRecursiveEdge>,
 }
 
 impl TerminationFacts {
@@ -117,6 +174,7 @@ mod tests {
                 },
             ],
             build_bound_progress: Vec::new(),
+            proof_recursive_components: Vec::new(),
         };
 
         assert_eq!(facts.for_machine(internal), Some(&internal_plan));

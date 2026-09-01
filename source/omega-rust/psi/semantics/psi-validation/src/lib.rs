@@ -46,6 +46,11 @@ mod type_references;
 mod wire;
 mod write_only_borrows;
 
+pub use crate::call_cycles::{
+    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
+    ValidatedProofRecursiveTransitionLane,
+};
 pub use crate::calls::{CallFrameResolver, frame_paths_overlap};
 use crate::calls::{
     validate_call_node, validate_proof_machine_recursion, validate_self_recursive_call_positions,
@@ -156,6 +161,9 @@ pub struct ProgramValidationFacts {
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
+    /// Canonical proof-only call SCCs accepted by the structural-subterm
+    /// validator. Every exact internal call site retains its own witness.
+    pub proof_recursive_components: Vec<ValidatedProofRecursiveComponent>,
 }
 
 /// Exact source-independent coordinate of a contract-entailment goal that the
@@ -349,7 +357,8 @@ fn validate_program_internal(
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);
     // Chapter 3 / MR4: runtime call cycles require the constant-stack tail
     // admission; erased proof-only SCCs instead require strict structural descent.
-    call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
+    let proof_recursive_components =
+        call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
@@ -650,6 +659,7 @@ fn validate_program_internal(
         float_meaning_projection_invocations,
         float_meaning_equality_propositions,
         fact_call_projections,
+        proof_recursive_components,
     })
 }
 

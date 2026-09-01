@@ -20,7 +20,90 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use psi_typed_trees::types::TypeReferenceHandle;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+
+/// The one closed ranking relation currently admitted for a proof-only call
+/// SCC. The ranked value must have one common normalized type across every
+/// member and each internal call must pass a nonempty member path rooted at
+/// the caller's ranked parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ValidatedProofRankingRelation {
+    StructuralSubterm,
+}
+
+/// Exact source-independent coordinate of one proof-SCC call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValidatedProofRecursiveCallSite {
+    Statement {
+        state: SymbolHandle,
+        statement_index: usize,
+    },
+    Expression {
+        state: SymbolHandle,
+        statement_index: usize,
+        /// Preorder expression-node ordinal within the owning statement.
+        expression_ordinal: usize,
+    },
+    Transition {
+        state: SymbolHandle,
+        statement_index: usize,
+        lane: ValidatedProofRecursiveTransitionLane,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ValidatedProofRecursiveTransitionLane {
+    Target,
+    Continuation,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedProofRecursiveMember {
+    pub machine: SymbolHandle,
+    pub rank_parameter: SymbolHandle,
+}
+
+/// One exact internal call-site decrease witness. A machine pair may occur
+/// more than once; no pair-level Boolean is an adequate certificate input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedProofRecursiveEdge {
+    pub caller: SymbolHandle,
+    pub callee: SymbolHandle,
+    pub site: ValidatedProofRecursiveCallSite,
+    pub caller_rank_parameter: SymbolHandle,
+    pub callee_rank_parameter: SymbolHandle,
+    /// Exact resolved member declarations from the ranked root to the strict
+    /// descendant, never source member spellings.
+    pub strict_member_path: Vec<SymbolHandle>,
+}
+
+/// One validator-owned strongly connected proof component. The common rank
+/// type and relation occur once; every exact internal call site has its own
+/// decrease witness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedProofRecursiveComponent {
+    pub members: Vec<ValidatedProofRecursiveMember>,
+    pub ranking_relation: ValidatedProofRankingRelation,
+    pub rank_type_identity: String,
+    pub edges: Vec<ValidatedProofRecursiveEdge>,
+}
+
+#[derive(Debug, Clone)]
+struct ProofEdgeDecreaseWitness {
+    caller_rank_parameter: SymbolHandle,
+    callee_rank_parameter: SymbolHandle,
+    rank_type_identity: String,
+    strict_member_path: Vec<SymbolHandle>,
+}
+
+#[derive(Debug, Clone)]
+struct ExactProofCallEdge {
+    caller: usize,
+    callee: usize,
+    site: ValidatedProofRecursiveCallSite,
+    decrease: Option<ProofEdgeDecreaseWitness>,
+}
 
 /// Return every exact machine/state symbol called from `machine`, independent
 /// of whether the call executes at runtime.  Unlike the cycle graph, proof
@@ -196,7 +279,7 @@ pub(crate) fn validate_machine_call_cycles(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> Vec<ValidatedProofRecursiveComponent> {
     let proof_only = psi_typed_trees::proof_only::classify(program);
     let machines = program.machines();
     let mut index_of: HashMap<u32, usize> = HashMap::with_capacity(machines.len());
@@ -286,6 +369,469 @@ pub(crate) fn validate_machine_call_cycles(
                 diagnostics,
             );
         }
+    }
+
+    build_validated_proof_recursive_components(program, symbols, &proof_only, &edges, &index_of)
+}
+
+fn build_validated_proof_recursive_components(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    proof_only: &psi_typed_trees::proof_only::ProofOnlyClassification,
+    adjacency: &[Vec<usize>],
+    index_of: &HashMap<u32, usize>,
+) -> Vec<ValidatedProofRecursiveComponent> {
+    let machines = program.machines();
+    let exact_edges = collect_exact_proof_call_edges(program, symbols, proof_only, index_of);
+    let mut components = strongly_connected_components(adjacency)
+        .into_iter()
+        .filter(|members| {
+            members.len() > 1
+                && members
+                    .iter()
+                    .all(|member| proof_only.is_proof_machine(program, &machines[*member]))
+        })
+        .collect::<Vec<_>>();
+    components.sort_by_key(|members| members.first().copied().unwrap_or(usize::MAX));
+
+    components
+        .into_iter()
+        .filter_map(|members| {
+            let member_set = members.iter().copied().collect::<BTreeSet<_>>();
+            let mut component_edges = exact_edges
+                .iter()
+                .filter(|edge| {
+                    member_set.contains(&edge.caller) && member_set.contains(&edge.callee)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            component_edges.sort_by_key(|edge| {
+                (
+                    machines[edge.caller].symbol.arena_index(),
+                    proof_call_site_sort_key(edge.site),
+                    machines[edge.callee].symbol.arena_index(),
+                )
+            });
+            if component_edges.is_empty()
+                || component_edges.iter().any(|edge| edge.decrease.is_none())
+            {
+                return None;
+            }
+            let rank_type_identity = component_edges
+                .first()
+                .and_then(|edge| edge.decrease.as_ref())?
+                .rank_type_identity
+                .clone();
+            if component_edges.iter().any(|edge| {
+                edge.decrease
+                    .as_ref()
+                    .is_none_or(|witness| witness.rank_type_identity != rank_type_identity)
+            }) {
+                return None;
+            }
+
+            let members = members
+                .into_iter()
+                .map(|member| {
+                    let machine = &machines[member];
+                    let (rank_parameter, _, member_rank_type) =
+                        proof_rank_parameter(program, machine)?;
+                    (member_rank_type == rank_type_identity).then_some(
+                        ValidatedProofRecursiveMember {
+                            machine: machine.symbol,
+                            rank_parameter,
+                        },
+                    )
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let edges = component_edges
+                .into_iter()
+                .map(|edge| {
+                    let decrease = edge.decrease?;
+                    Some(ValidatedProofRecursiveEdge {
+                        caller: machines[edge.caller].symbol,
+                        callee: machines[edge.callee].symbol,
+                        site: edge.site,
+                        caller_rank_parameter: decrease.caller_rank_parameter,
+                        callee_rank_parameter: decrease.callee_rank_parameter,
+                        strict_member_path: decrease.strict_member_path,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(ValidatedProofRecursiveComponent {
+                members,
+                ranking_relation: ValidatedProofRankingRelation::StructuralSubterm,
+                rank_type_identity,
+                edges,
+            })
+        })
+        .collect()
+}
+
+fn proof_call_site_sort_key(
+    site: ValidatedProofRecursiveCallSite,
+) -> (u8, u32, u32, usize, u32, u32) {
+    match site {
+        ValidatedProofRecursiveCallSite::Statement {
+            state,
+            statement_index,
+        } => (
+            1,
+            state.arena_index(),
+            state.generation(),
+            statement_index,
+            0,
+            0,
+        ),
+        ValidatedProofRecursiveCallSite::Expression {
+            state,
+            statement_index,
+            expression_ordinal,
+        } => (
+            2,
+            state.arena_index(),
+            state.generation(),
+            statement_index,
+            u32::try_from(expression_ordinal).unwrap_or(u32::MAX),
+            0,
+        ),
+        ValidatedProofRecursiveCallSite::Transition {
+            state,
+            statement_index,
+            lane,
+        } => (
+            3,
+            state.arena_index(),
+            state.generation(),
+            statement_index,
+            match lane {
+                ValidatedProofRecursiveTransitionLane::Target => 1,
+                ValidatedProofRecursiveTransitionLane::Continuation => 2,
+            },
+            0,
+        ),
+    }
+}
+
+fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    fn finish_order(
+        node: usize,
+        adjacency: &[Vec<usize>],
+        visited: &mut [bool],
+        order: &mut Vec<usize>,
+    ) {
+        if std::mem::replace(&mut visited[node], true) {
+            return;
+        }
+        for next in &adjacency[node] {
+            finish_order(*next, adjacency, visited, order);
+        }
+        order.push(node);
+    }
+
+    fn collect_component(
+        node: usize,
+        reverse: &[Vec<usize>],
+        visited: &mut [bool],
+        component: &mut Vec<usize>,
+    ) {
+        if std::mem::replace(&mut visited[node], true) {
+            return;
+        }
+        component.push(node);
+        for next in &reverse[node] {
+            collect_component(*next, reverse, visited, component);
+        }
+    }
+
+    let mut order = Vec::with_capacity(adjacency.len());
+    let mut visited = vec![false; adjacency.len()];
+    for node in 0..adjacency.len() {
+        finish_order(node, adjacency, &mut visited, &mut order);
+    }
+    let mut reverse = vec![Vec::new(); adjacency.len()];
+    for (source, targets) in adjacency.iter().enumerate() {
+        for target in targets {
+            reverse[*target].push(source);
+        }
+    }
+    for targets in &mut reverse {
+        targets.sort_unstable();
+        targets.dedup();
+    }
+    visited.fill(false);
+    let mut components = Vec::new();
+    while let Some(node) = order.pop() {
+        if visited[node] {
+            continue;
+        }
+        let mut component = Vec::new();
+        collect_component(node, &reverse, &mut visited, &mut component);
+        component.sort_unstable();
+        components.push(component);
+    }
+    components
+}
+
+fn collect_exact_proof_call_edges(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    proof_only: &psi_typed_trees::proof_only::ProofOnlyClassification,
+    index_of: &HashMap<u32, usize>,
+) -> Vec<ExactProofCallEdge> {
+    let mut edges = Vec::new();
+    for (caller, machine) in program.machines().iter().enumerate() {
+        if !proof_only.is_proof_machine(program, machine) {
+            continue;
+        }
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                collect_exact_proof_statement_edges(
+                    program,
+                    machine,
+                    state.symbol,
+                    statement_index,
+                    statement,
+                    symbols,
+                    index_of,
+                    caller,
+                    &mut edges,
+                );
+            }
+        }
+    }
+    edges
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_exact_proof_statement_edges(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    symbols: &TopLevelSymbols<'_>,
+    index_of: &HashMap<u32, usize>,
+    caller: usize,
+    edges: &mut Vec<ExactProofCallEdge>,
+) {
+    let mut expression_ordinal = 0usize;
+    macro_rules! collect_expression {
+        ($expression:expr) => {
+            collect_exact_proof_expression_edges(
+                program,
+                machine,
+                state,
+                statement_index,
+                $expression,
+                symbols,
+                index_of,
+                caller,
+                &mut expression_ordinal,
+                edges,
+            )
+        };
+    }
+    match statement {
+        StatementNode::AssemblyFact(_) => {}
+        StatementNode::Call(call) => {
+            let receiver_members = program.statement_table.name_path_members(call.receiver);
+            if (receiver_members.is_empty()
+                || matches!(receiver_members, [receiver] if receiver.as_str() == "self"))
+                && let Some(callee) =
+                    resolve_cross_machine_index(program, machine, symbols, index_of, &call.target)
+            {
+                edges.push(ExactProofCallEdge {
+                    caller,
+                    callee,
+                    site: ValidatedProofRecursiveCallSite::Statement {
+                        state,
+                        statement_index,
+                    },
+                    decrease: proof_edge_decrease_witness(
+                        program,
+                        machine,
+                        symbols,
+                        &call.target,
+                        program.statement_table.expression_handles(call.arguments),
+                    ),
+                });
+            }
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                collect_expression!(*argument);
+            }
+        }
+        StatementNode::Assignment(assignment) => collect_expression!(assignment.value),
+        StatementNode::Expression(expression) => collect_expression!(*expression),
+        StatementNode::LocalData(local) => collect_expression!(local.initial_value),
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                collect_expression!(guard);
+            }
+            for (target_handle, lane) in [
+                (
+                    transition.target,
+                    ValidatedProofRecursiveTransitionLane::Target,
+                ),
+                (
+                    transition.continuation,
+                    ValidatedProofRecursiveTransitionLane::Continuation,
+                ),
+            ] {
+                if !target_handle.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(target_handle) {
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } => {
+                        let members = program.statement_table.name_path_members(path.members);
+                        if let [receiver, target] = members
+                            && receiver.as_str() == "self"
+                            && let Some(callee) = resolve_cross_machine_index(
+                                program, machine, symbols, index_of, target,
+                            )
+                        {
+                            edges.push(ExactProofCallEdge {
+                                caller,
+                                callee,
+                                site: ValidatedProofRecursiveCallSite::Transition {
+                                    state,
+                                    statement_index,
+                                    lane,
+                                },
+                                decrease: proof_edge_decrease_witness(
+                                    program,
+                                    machine,
+                                    symbols,
+                                    target,
+                                    program.statement_table.expression_handles(*arguments),
+                                ),
+                            });
+                        }
+                        for argument in program.statement_table.expression_handles(*arguments) {
+                            collect_expression!(*argument);
+                        }
+                    }
+                    TransitionTargetNode::Value(expression) => collect_expression!(*expression),
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_exact_proof_expression_edges(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    symbols: &TopLevelSymbols<'_>,
+    index_of: &HashMap<u32, usize>,
+    caller: usize,
+    next_expression_ordinal: &mut usize,
+    edges: &mut Vec<ExactProofCallEdge>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    let expression_ordinal = *next_expression_ordinal;
+    *next_expression_ordinal = expression_ordinal.saturating_add(1);
+    macro_rules! recurse {
+        ($child:expr) => {
+            collect_exact_proof_expression_edges(
+                program,
+                machine,
+                state,
+                statement_index,
+                $child,
+                symbols,
+                index_of,
+                caller,
+                next_expression_ordinal,
+                edges,
+            )
+        };
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Atomic(atomic) => recurse!(atomic.value),
+        ExpressionNode::Call(call) => {
+            let receiver_is_selfish = !call.receiver.is_valid()
+                || matches!(
+                    program.expression_table.expression(call.receiver),
+                    ExpressionNode::Name(path)
+                        if matches!(
+                            program.expression_table.name_path_members(path.members),
+                            [only] if only.as_str() == "self"
+                        )
+                );
+            if receiver_is_selfish {
+                if let Some(callee) =
+                    resolve_cross_machine_index(program, machine, symbols, index_of, &call.target)
+                {
+                    edges.push(ExactProofCallEdge {
+                        caller,
+                        callee,
+                        site: ValidatedProofRecursiveCallSite::Expression {
+                            state,
+                            statement_index,
+                            expression_ordinal,
+                        },
+                        decrease: proof_edge_decrease_witness(
+                            program,
+                            machine,
+                            symbols,
+                            &call.target,
+                            program.expression_table.expression_handles(call.arguments),
+                        ),
+                    });
+                }
+            } else {
+                recurse!(call.receiver);
+            }
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                recurse!(*argument);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            recurse!(binary.left);
+            recurse!(binary.right);
+        }
+        ExpressionNode::Cast(cast) => recurse!(cast.value),
+        ExpressionNode::Indexed(indexed) => {
+            recurse!(indexed.collection);
+            recurse!(indexed.index);
+        }
+        ExpressionNode::Member(member) => recurse!(member.receiver),
+        ExpressionNode::Borrow(inner) => recurse!(inner.target),
+        ExpressionNode::Range(range) => {
+            recurse!(range.start);
+            recurse!(range.end);
+        }
+        ExpressionNode::Unary(unary) => recurse!(unary.operand),
+        ExpressionNode::ArrayLiteral(items) => {
+            for item in program.expression_table.expression_handles(*items) {
+                recurse!(*item);
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                recurse!(field.value);
+            }
+        }
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
     }
 }
 
@@ -671,6 +1217,22 @@ fn add_edge_for_name(
     decreases: bool,
     out: &mut BTreeMap<usize, (bool, bool)>,
 ) {
+    if let Some(index) = resolve_cross_machine_index(program, machine, symbols, index_of, name) {
+        // Every call site between the pair must be a tail transition arm
+        // target (and decrease-proven) for the EDGE to classify (MR4).
+        let entry = out.entry(index).or_insert((is_tail, decreases));
+        entry.0 = entry.0 && is_tail;
+        entry.1 = entry.1 && decreases;
+    }
+}
+
+fn resolve_cross_machine_index(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    index_of: &HashMap<u32, usize>,
+    name: &psi_typed_trees::name::Identifier,
+) -> Option<usize> {
     let callee = machine
         .attached_data
         .as_ref()
@@ -682,16 +1244,8 @@ fn add_edge_for_name(
             crate::calls::free_machine_entry_state(program, symbols, name.as_str())
                 .map(|(callee_machine, _)| callee_machine)
         });
-    if let Some(callee_machine) = callee
-        && callee_machine.symbol != machine.symbol
-        && let Some(&index) = index_of.get(&callee_machine.symbol.arena_index())
-    {
-        // Every call site between the pair must be a tail transition arm
-        // target (and decrease-proven) for the EDGE to classify (MR4).
-        let entry = out.entry(index).or_insert((is_tail, decreases));
-        entry.0 = entry.0 && is_tail;
-        entry.1 = entry.1 && decreases;
-    }
+    let callee = callee.filter(|callee| callee.symbol != machine.symbol)?;
+    index_of.get(&callee.symbol.arena_index()).copied()
 }
 
 /// The v1 guard shape: `name == 0` (either operand order) over an integer
@@ -757,25 +1311,49 @@ fn proof_edge_decrease_proven(
     target: &psi_typed_trees::name::Identifier,
     arguments: &[ExpressionHandle],
 ) -> bool {
+    proof_edge_decrease_witness(program, machine, symbols, target, arguments).is_some()
+}
+
+fn proof_rank_parameter(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Option<(SymbolHandle, TypeReferenceHandle, String)> {
     let Some(caller_witness) = machine.termination_plan.implementation_witness.as_ref() else {
-        return false;
+        return None;
     };
     let [caller_subject] = caller_witness.subjects.as_slice() else {
-        return false;
+        return None;
     };
-    let Some(caller_measure_symbol) = program
-        .machine_states(machine)
-        .first()
-        .and_then(|entry| {
-            program
-                .state_parameters(entry)
-                .iter()
-                .find(|parameter| parameter.name.as_str() == caller_subject.as_str())
-        })
-        .map(|parameter| parameter.symbol)
-    else {
-        return false;
-    };
+    let parameter = program.machine_states(machine).first().and_then(|entry| {
+        program
+            .state_parameters(entry)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == caller_subject.as_str())
+    })?;
+    Some((
+        parameter.symbol,
+        parameter.type_reference,
+        program
+            .package_qualified_type_identity(parameter.type_reference)
+            .into_string(),
+    ))
+}
+
+fn proof_edge_decrease_witness(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    target: &psi_typed_trees::name::Identifier,
+    arguments: &[ExpressionHandle],
+) -> Option<ProofEdgeDecreaseWitness> {
+    let (caller_measure_symbol, caller_rank_type, caller_rank_type_identity) =
+        proof_rank_parameter(program, machine)?;
+    let caller_subject = machine
+        .termination_plan
+        .implementation_witness
+        .as_ref()?
+        .subjects
+        .first()?;
     let Some((callee_machine, callee_entry)) = machine
         .attached_data
         .as_ref()
@@ -784,88 +1362,153 @@ fn proof_edge_decrease_proven(
         })
         .or_else(|| crate::calls::free_machine_entry_state(program, symbols, target.as_str()))
     else {
-        return false;
+        return None;
     };
     let Some(callee_witness) = callee_machine
         .termination_plan
         .implementation_witness
         .as_ref()
     else {
-        return false;
+        return None;
     };
     let [callee_subject] = callee_witness.subjects.as_slice() else {
-        return false;
+        return None;
     };
-    let Some(measure_position) = program
+    let Some((measure_position, callee_parameter)) = program
         .state_parameters(callee_entry)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .position(|parameter| parameter.name.as_str() == callee_subject.as_str())
+        .enumerate()
+        .find(|(_, parameter)| parameter.name.as_str() == callee_subject.as_str())
     else {
-        return false;
+        return None;
     };
-    arguments.get(measure_position).is_some_and(|argument| {
-        expression_is_strict_member_of(
-            program,
-            *argument,
-            caller_measure_symbol,
-            caller_subject.as_str(),
-        )
+    let callee_rank_type_identity = program
+        .package_qualified_type_identity(callee_parameter.type_reference)
+        .into_string();
+    if callee_rank_type_identity != caller_rank_type_identity {
+        return None;
+    }
+    let strict_member_path = expression_strict_member_path(
+        program,
+        *arguments.get(measure_position)?,
+        caller_measure_symbol,
+        caller_subject.as_str(),
+        caller_rank_type,
+    );
+    let strict_member_path = strict_member_path?;
+    Some(ProofEdgeDecreaseWitness {
+        caller_rank_parameter: caller_measure_symbol,
+        callee_rank_parameter: callee_parameter.symbol,
+        rank_type_identity: caller_rank_type_identity,
+        strict_member_path,
     })
 }
 
-fn expression_is_strict_member_of(
+fn expression_strict_member_path(
     program: &TypedTrees,
     expression: ExpressionHandle,
     root_symbol: SymbolHandle,
     root_name: &str,
-) -> bool {
+    root_type: TypeReferenceHandle,
+) -> Option<Vec<SymbolHandle>> {
+    let (path, _) = expression_member_path(program, expression, root_symbol, root_name, root_type)?;
+    (!path.is_empty()).then_some(path)
+}
+
+fn expression_member_path(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    root_symbol: SymbolHandle,
+    root_name: &str,
+    root_type: TypeReferenceHandle,
+) -> Option<(Vec<SymbolHandle>, TypeReferenceHandle)> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            expression_is_strict_member_of(program, atomic.value, root_symbol, root_name)
+            expression_member_path(program, atomic.value, root_symbol, root_name, root_type)
         }
         ExpressionNode::Cast(cast) => {
-            expression_is_strict_member_of(program, cast.value, root_symbol, root_name)
+            expression_member_path(program, cast.value, root_symbol, root_name, root_type)
         }
         ExpressionNode::Member(member) => {
-            expression_is_rooted_at_name(program, member.receiver, root_symbol, root_name)
+            let (mut path, receiver_type) = expression_member_path(
+                program,
+                member.receiver,
+                root_symbol,
+                root_name,
+                root_type,
+            )?;
+            let field = exact_member_field(
+                program,
+                receiver_type,
+                member.member_symbol,
+                member.member.as_str(),
+                member.case_variant.as_ref().map(|variant| variant.as_str()),
+            )?;
+            path.push(field.symbol);
+            Some((path, field.type_reference))
         }
         ExpressionNode::Borrow(inner) => {
-            expression_is_strict_member_of(program, inner.target, root_symbol, root_name)
+            expression_member_path(program, inner.target, root_symbol, root_name, root_type)
         }
-        _ => false,
+        ExpressionNode::Name(path) => (path.symbol == root_symbol
+            || (!path.symbol.is_valid()
+                && matches!(
+                    program.expression_table.name_path_members(path.members),
+                    [only] if only.as_str() == root_name
+                )))
+        .then(|| (Vec::new(), root_type)),
+        _ => None,
     }
 }
 
-fn expression_is_rooted_at_name(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    root_symbol: SymbolHandle,
-    root_name: &str,
-) -> bool {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            expression_is_rooted_at_name(program, atomic.value, root_symbol, root_name)
+/// Resolve one member hop to the exact declaration selected by the typed
+/// receiver. Case-payload member expressions currently retain the selected
+/// variant name but not the payload field symbol, so recover that symbol from
+/// the unique declaration under the receiver's nominal type. The returned
+/// witness never retains either spelling.
+fn exact_member_field<'program>(
+    program: &'program TypedTrees,
+    receiver_type: TypeReferenceHandle,
+    member_symbol: SymbolHandle,
+    member_name: &str,
+    case_variant: Option<&str>,
+) -> Option<&'program psi_typed_trees::data::DataField> {
+    let data = crate::places::data_definition_for_type(program, receiver_type)?;
+
+    if let Some(case_variant) = case_variant {
+        let mut matches = program.data_members(data).iter().filter_map(|member| {
+            let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.name.as_str() == case_variant).then_some(variant)
+        });
+        let variant = matches.next()?;
+        if matches.next().is_some() {
+            return None;
         }
-        ExpressionNode::Cast(cast) => {
-            expression_is_rooted_at_name(program, cast.value, root_symbol, root_name)
-        }
-        ExpressionNode::Member(member) => {
-            expression_is_rooted_at_name(program, member.receiver, root_symbol, root_name)
-        }
-        ExpressionNode::Borrow(inner) => {
-            expression_is_rooted_at_name(program, inner.target, root_symbol, root_name)
-        }
-        ExpressionNode::Name(path) => {
-            path.symbol == root_symbol
-                || (!path.symbol.is_valid()
-                    && matches!(
-                        program.expression_table.name_path_members(path.members),
-                        [only] if only.as_str() == root_name
-                    ))
-        }
-        _ => false,
+        let mut fields = program.data_payload_fields(variant).iter().filter(|field| {
+            field.name.as_str() == member_name
+                && (!member_symbol.is_valid() || field.symbol == member_symbol)
+                && field.symbol.is_valid()
+                && field.type_reference.is_valid()
+        });
+        let field = fields.next()?;
+        return fields.next().is_none().then_some(field);
     }
+
+    let mut fields = program.data_members(data).iter().filter_map(|member| {
+        let psi_typed_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+        (field.name.as_str() == member_name
+            && (!member_symbol.is_valid() || field.symbol == member_symbol)
+            && field.symbol.is_valid()
+            && field.type_reference.is_valid())
+        .then_some(field)
+    });
+    let field = fields.next()?;
+    fields.next().is_none().then_some(field)
 }
 
 /// MR4 admission v1: prove the tail edge strictly decreases the CALLEE's
