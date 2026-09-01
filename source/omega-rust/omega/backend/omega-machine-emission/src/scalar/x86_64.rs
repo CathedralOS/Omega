@@ -605,11 +605,12 @@ fn emit_x86_64_boolean_expression_node(
             field_byte_offset,
         } => {
             let code_offset = bytes.len();
-            emit_x86_64_boolean_structural_field(
+            emit_x86_64_structural_field(
                 bytes,
                 *source_value,
                 source_placement,
                 *field_byte_offset,
+                1,
                 frame_byte_size,
                 stack_depth,
             )?;
@@ -750,17 +751,19 @@ fn emit_x86_64_boolean_expression_node(
     Ok(())
 }
 
-fn emit_x86_64_boolean_structural_field(
+fn emit_x86_64_structural_field(
     bytes: &mut Vec<u8>,
     source_value: ValueId,
     placement: &ValuePlacement,
     field_byte_offset: u32,
+    field_byte_size: u16,
     frame_byte_size: u32,
     stack_depth: u32,
 ) -> Result<(), EmissionError> {
-    if field_byte_offset >= u32::from(placement.shape.byte_size) {
-        return Err(EmissionError::UnsupportedAggregatePlacement);
-    }
+    let field_end = field_byte_offset
+        .checked_add(u32::from(field_byte_size))
+        .filter(|end| *end <= u32::from(placement.shape.byte_size))
+        .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
     if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
         let base = match *pointer {
             IndirectPointerLocation::Register(register) => {
@@ -788,7 +791,7 @@ fn emit_x86_64_boolean_structural_field(
                 11
             }
         };
-        return emit_x86_64_memory_load_width(bytes, 0, base, field_byte_offset, 1);
+        return emit_x86_64_memory_load_width(bytes, 0, base, field_byte_offset, field_byte_size);
     }
     let location = placement
         .locations
@@ -805,7 +808,7 @@ fn emit_x86_64_boolean_structural_field(
                 ..
             } => {
                 let start = u32::from(*value_byte_offset);
-                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+                field_byte_offset >= start && field_end <= start + u32::from(*byte_size)
             }
             ValueLocation::Indirect { .. } => false,
         })
@@ -845,7 +848,7 @@ fn emit_x86_64_boolean_structural_field(
                     value: source_value,
                     byte_offset: stack_byte_offset,
                 })?;
-            emit_x86_64_stack_load_width(bytes, 0, incoming, 1)
+            emit_x86_64_stack_load_width(bytes, 0, incoming, field_byte_size)
         }
         ValueLocation::Indirect { .. } => Err(EmissionError::UnsupportedAggregatePlacement),
     }
@@ -1238,6 +1241,32 @@ fn emit_x86_64_expression_node(
                 }
             }
             emit_x86_64_normalize(bytes, scalar_type);
+        }
+        AssignedIntegerExpression::StructuralField {
+            source_value,
+            source_placement,
+            field_byte_offset,
+            integer_type,
+            ..
+        } => {
+            if integer_type != &scalar_type {
+                return Err(EmissionError::StructuralIntegerTypeMismatch {
+                    value: *source_value,
+                    expected: scalar_type,
+                    actual: *integer_type,
+                });
+            }
+            let field_byte_size = require_native_integer_width(*source_value, *integer_type)? / 8;
+            emit_x86_64_structural_field(
+                bytes,
+                *source_value,
+                source_placement,
+                *field_byte_offset,
+                field_byte_size,
+                frame_byte_size,
+                stack_depth,
+            )?;
+            emit_x86_64_normalize(bytes, *integer_type);
         }
         AssignedIntegerExpression::BitwiseNot { operand, .. } => {
             emit_x86_64_expression_node(

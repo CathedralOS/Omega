@@ -1051,6 +1051,15 @@ pub enum TargetIntegerExpression {
         parameter_index: usize,
         location: ScalarParameterLocation,
     },
+    StructuralField {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        field: StructuralFieldId,
+        source_placement: ValuePlacement,
+        field_byte_offset: u32,
+        integer_type: IntegerType,
+    },
     BitwiseNot {
         psi_operation: OperationId,
         operand: Box<TargetIntegerExpression>,

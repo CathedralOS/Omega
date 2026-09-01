@@ -73,6 +73,23 @@ pub(super) fn assign_expression(
                 },
             )?,
         }),
+        TargetIntegerExpression::StructuralField {
+            psi_operation,
+            source_value,
+            source,
+            field,
+            source_placement,
+            field_byte_offset,
+            integer_type,
+        } => Ok(AssignedIntegerExpression::StructuralField {
+            psi_operation: *psi_operation,
+            source_value: *source_value,
+            source: *source,
+            field: *field,
+            source_placement: source_placement.clone(),
+            field_byte_offset: *field_byte_offset,
+            integer_type: *integer_type,
+        }),
         TargetIntegerExpression::BitwiseNot {
             psi_operation,
             operand,

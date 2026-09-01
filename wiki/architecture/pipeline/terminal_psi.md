@@ -586,9 +586,14 @@ parameter row, readable or writable access, empty qualification/claim custody,
 record path, relevant field, scalar type, and dominating SSA definition.
 Canonical encoding, semantic observation, fixed fuel, and reference execution
 preserve the store across the projected call without asserting a native
-layout. Terminal-to-abstract lowering retains the complete rows. Optimizer and
-native projected-store/integer-read/call realization remain separate custody
-work; `WriteOnlyPrimitiveStore` remains the distinct whole-root operation.
+layout. Terminal-to-abstract lowering retains the complete rows, and optimizer
+validation reconstructs their definitions, uses, places, and provenance. The
+native scalar lane realizes an exact direct integer-field read on x86-64 and
+AArch64 while preserving the operation, value, source place, field, placement,
+offset, and integer type through physical assignment; it rejects type or
+placement drift before emission. Native projected-store and structural-call
+realization remain separate custody work; `WriteOnlyPrimitiveStore` remains the
+distinct whole-root operation.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

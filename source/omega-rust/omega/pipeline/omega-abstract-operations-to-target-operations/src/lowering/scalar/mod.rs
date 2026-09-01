@@ -15,7 +15,9 @@ use super::conditional_cleanup::{
     uniform_conditional_cleanup,
 };
 use super::shared::*;
-use super::structural_layout::{direct_boolean_field_offset, structural_shape};
+use super::structural_layout::{
+    direct_boolean_field_offset, direct_integer_field_offset, structural_shape,
+};
 use conditional_control::{
     lower_boolean_block, lower_boolean_conditional, lower_integer_conditional,
 };

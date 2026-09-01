@@ -532,7 +532,8 @@ fn linear_integer_expression(expression: &AssignedIntegerExpression) -> bool {
         | AssignedIntegerExpression::SaturatingDivide { .. }
         | AssignedIntegerExpression::SaturatingRemainder { .. } => false,
         AssignedIntegerExpression::Immediate { .. }
-        | AssignedIntegerExpression::Parameter { .. } => true,
+        | AssignedIntegerExpression::Parameter { .. }
+        | AssignedIntegerExpression::StructuralField { .. } => true,
         AssignedIntegerExpression::BitwiseNot { operand, .. }
         | AssignedIntegerExpression::IntegerWiden { operand, .. }
         | AssignedIntegerExpression::IntegerExactCast { operand, .. } => {
@@ -589,7 +590,8 @@ pub(crate) fn accountable_direct_integer_expression(
             .iter()
             .all(|argument| accountable_call_argument_expression(&argument.expression)),
         AssignedIntegerExpression::Immediate { .. }
-        | AssignedIntegerExpression::Parameter { .. } => true,
+        | AssignedIntegerExpression::Parameter { .. }
+        | AssignedIntegerExpression::StructuralField { .. } => true,
         AssignedIntegerExpression::BitwiseNot { operand, .. }
         | AssignedIntegerExpression::IntegerWiden { operand, .. }
         | AssignedIntegerExpression::IntegerExactCast { operand, .. } => {
@@ -862,7 +864,8 @@ fn accountable_conditional_arm_integer_expression(expression: &AssignedIntegerEx
             .iter()
             .all(|argument| accountable_conditional_call_argument_expression(&argument.expression)),
         AssignedIntegerExpression::Immediate { .. }
-        | AssignedIntegerExpression::Parameter { .. } => true,
+        | AssignedIntegerExpression::Parameter { .. }
+        | AssignedIntegerExpression::StructuralField { .. } => true,
         AssignedIntegerExpression::BitwiseNot { operand, .. }
         | AssignedIntegerExpression::IntegerWiden { operand, .. }
         | AssignedIntegerExpression::IntegerExactCast { operand, .. } => {
@@ -1010,7 +1013,8 @@ pub(crate) fn expression_source(expression: &AssignedIntegerExpression) -> Value
     match expression {
         AssignedIntegerExpression::Call { source_value, .. } => *source_value,
         AssignedIntegerExpression::Immediate { source_value, .. }
-        | AssignedIntegerExpression::Parameter { source_value, .. } => *source_value,
+        | AssignedIntegerExpression::Parameter { source_value, .. }
+        | AssignedIntegerExpression::StructuralField { source_value, .. } => *source_value,
         AssignedIntegerExpression::BitwiseNot { operand, .. }
         | AssignedIntegerExpression::IntegerWiden { operand, .. }
         | AssignedIntegerExpression::IntegerExactCast { operand, .. } => expression_source(operand),

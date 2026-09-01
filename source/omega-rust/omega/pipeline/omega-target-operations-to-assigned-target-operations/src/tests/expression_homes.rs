@@ -6,12 +6,18 @@ use crate::{AssignmentError, assign_registers};
 use omega_assigned_target_operations::{
     AssignedIntegerExpression, AssignedOperation, AssignedScalarExpression, AssignedScalarLocation,
 };
+use omega_calling_conventions::{
+    IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
+};
 use omega_target::NativeTarget;
 use omega_target_operations::{
     TargetCallArgument, TargetFunction, TargetIntegerExpression, TargetOperation,
     TargetScalarExpression, TerminalPsiProvenance,
 };
-use psi_core::{EdgeId, IntegerSign, IntegerType, ObligationId, OperationId, ScalarType};
+use psi_core::{
+    EdgeId, IntegerSign, IntegerType, ObligationId, OperationId, PlaceId, ScalarType,
+    StructuralFieldId,
+};
 use psi_terminal::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, SemanticFingerprint, TerminalPsiIdentity,
     VocabularyMarker,
@@ -136,6 +142,69 @@ fn exact_arithmetic_obligation_survives_register_assignment() {
             ..
         } if *retained == obligation
     ));
+}
+
+#[test]
+fn integer_structural_field_custody_survives_register_assignment() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let psi_operation = OperationId::new(19).expect("field operation");
+    let source_value = ValueId::new(20).expect("field value");
+    let source = PlaceId::new(21).expect("structural source");
+    let field = StructuralFieldId::new(22).expect("field identity");
+    let source_placement = ValuePlacement {
+        shape: ValueShape::integer(24, 8),
+        locations: vec![ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(MachineRegister::X86Rdi),
+            copy_stack_byte_offset: None,
+            byte_size: 24,
+            alignment: 8,
+        }],
+    };
+    let mut plan = expression_plan(
+        NativeTarget::linux_x64(),
+        ScalarParameterLocation::Register(MachineRegister::X86Rdi),
+        ScalarParameterLocation::Register(MachineRegister::X86Rsi),
+    );
+    let TargetOperation::ReturnIntegerExpression {
+        scalar_type,
+        expression,
+        ..
+    } = &mut plan.functions[0].operation
+    else {
+        unreachable!()
+    };
+    *scalar_type = integer_type;
+    *expression = TargetIntegerExpression::StructuralField {
+        psi_operation,
+        source_value,
+        source,
+        field,
+        source_placement: source_placement.clone(),
+        field_byte_offset: 12,
+        integer_type,
+    };
+
+    let assigned = assign_registers(&plan).expect("assign structural integer field");
+    let AssignedOperation::ReturnIntegerExpression {
+        frame, expression, ..
+    } = &assigned.functions[0].operation
+    else {
+        panic!("fixture must remain an integer expression")
+    };
+    assert_eq!(frame.byte_size, 0);
+    assert!(frame.register_spills.is_empty());
+    assert_eq!(
+        expression,
+        &AssignedIntegerExpression::StructuralField {
+            psi_operation,
+            source_value,
+            source,
+            field,
+            source_placement,
+            field_byte_offset: 12,
+            integer_type,
+        }
+    );
 }
 
 #[test]
