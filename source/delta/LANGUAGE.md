@@ -125,9 +125,14 @@ statement      := "let" IDENT ":" type "=" expression ";"
 terminal       := transition
                 | "return" expression? ";"
 
-transition     := "transition" expression "{" arm+ "}"
-arm            := pattern "->" continuation
-pattern        := INT | "true" | "false" | "_"
+transition     := "transition" expression "{" transition_body "}"
+transition_body
+               := nonwildcard_arm+ wildcard_arm? | wildcard_arm
+nonwildcard_arm
+               := nonwildcard_pattern "->" continuation
+wildcard_arm   := "_" "->" continuation
+nonwildcard_pattern
+               := INT | "true" | "false"
                 | IDENT "::" IDENT binder?
 binder         := "{" (IDENT ("," IDENT)*)? "}"
 continuation   := postfix_expression
@@ -581,10 +586,46 @@ continuation is `TypeMismatch` at the continuation expression start. A value
 return is written explicitly as `-> return expression`; there is no implicit
 machine-tail return effect.
 
+A transition has at least one arm. Its grammar admits at most one `_`, only as
+the final arm. After parsing a wildcard arm the next token must therefore be
+`}`; another pattern, including another `_`, is `UnexpectedToken` at that next
+token. Wildcards do not participate in `DuplicatePattern`, whose scope remains
+repeated scalar selectors and exact sum cases.
+
 A sum transition must name every case exactly once or end with `_`; this is a
-static rule. A scalar transition may use integer or Boolean patterns and at
-most one final `_`. If no scalar arm matches, execution traps as
+static rule and the `or` is inclusive. Naming every current case and retaining
+a final `_` is legal, so adding a case does not invalidate an untouched
+transition. A scalar transition may use integer or Boolean patterns and the
+optional final `_`. If no scalar arm matches, execution traps as
 `NonExhaustiveTransition`.
+
+Pattern names resolve before semantic checks. An unknown owner or case is
+`UnknownName` at that name. A known boundary or record owner used where a sum
+case is required, a scalar selector used with a sum subject, a case used with a
+scalar subject, or a case from a different nominal sum is `TypeMismatch` at the
+pattern's first byte. An incompatible pattern contributes no duplicate or
+payload-arity candidate.
+
+A subject-compatible scalar selector or exact case claims its semantic identity
+before payload arity is checked. A later occurrence of that identity is solely
+`DuplicatePattern` at the later pattern's first byte, even when the earlier
+unique case subsequently fails arity. A unique case with the wrong payload
+binder count is solely `ArityMismatch` at its pattern's first byte. Only a
+unique, category-compatible, arity-compatible pattern supplies complete pattern
+and typed-binder facts.
+
+Scalar selector identity is the validated `i32` value, never its token spelling:
+`false`, `0`, and `00` are one selector, and `true`, `1`, and `001` are one
+selector. Negative patterns are not grammatical because unary `-` is not part
+of `nonwildcard_pattern`; `-1 ->` is `UnexpectedToken` at `-`. Out-of-range
+positive integer tokens reject before semantic selector identity is formed.
+
+Static sum coverage consumes a complete sum subject and completed pattern
+premises. If neither every case nor a final wildcard covers the sum,
+`NonexhaustiveSum` anchors at the transition subject's first byte. A failed
+category, duplicate, or arity premise suppresses coverage; after that defect is
+repaired, missing coverage may become the next rejection. This deliberate
+two-round diagnosis is premise ordering, not traversal-dependent recovery.
 
 The subject of a scalar transition is not a Boolean context. For example, `7`
 against only `true` and `false` arms produces `NonExhaustiveTransition`, not

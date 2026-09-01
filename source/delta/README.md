@@ -32,6 +32,10 @@ D56 closes the fixed `Console`/`Main` entry taxonomy inside type formation:
 absence of an authored `Main::main` name is the sole `MissingEntry`, every
 present malformed or incomplete entry system is `InvalidEntry`, and no entry
 candidate is compared with body/control coordinates.
+D57 makes wildcard finality grammatical and orders transition-pattern checking
+as subject admission, semantic duplicate identity, payload arity, then static
+sum coverage. Scalar selectors compare by `i32` value, and missing sum coverage
+anchors at the transition subject.
 
 ## Canonical edges
 
@@ -69,12 +73,12 @@ compilers and must not both be called “the Delta compiler.”
   first-following-statement terminal flow, and symbolic Alpha encoding.
   D50 fixes bare-state-transfer spelling, D51 retires static qualified
   machines plus special `self` resolution, D52 fixes resultless-argument
-  anchoring, D53 fixes local block exits, and D56 fixes entry diagnostics. Their
-  implementation remains alongside final body/control checking, owner-blocked
-  transition-pattern/coverage diagnostics, the remaining D37 control/terminal
-  premise DAG, D38 executable controls, storage realization/lowering,
-  `main`, and publication are incomplete, so it exposes no compiler artifact
-  yet. The
+  anchoring, D53 fixes local block exits, D56 fixes entry diagnostics, and D57
+  fixes transition-pattern and coverage diagnostics. Their implementation
+  remains alongside final body/control checking, the remaining D37
+  control/terminal premise DAG, D38 executable controls, storage realization/
+  lowering, `main`, and publication are incomplete, so it exposes no compiler
+  artifact yet. The
   current fact pass does enforce D38's contextual receiver/result relation and
   separate array-view extra-call rejection.
 

@@ -617,6 +617,9 @@
   (NoDeltaTransitionSubjectReference)
   (OneDeltaTransitionSubjectReference DeltaTransitionSubjectKind))
 
+; D57 requires this broad progress pair to split into name-resolved,
+; subject-admitted semantic identity, and complete-pattern stages before the
+; negative transition-pattern judgment is implemented.
 (data DeltaTransitionPatternProgress
   (DeltaTransitionPatternResolved)
   (DeltaTransitionPatternComplete))
@@ -648,9 +651,9 @@
   (DeltaTransitionCoverageMissing)
   (DeltaTransitionCoverageUnresolved))
 
-; Missing coverage is retained without publishing `NonexhaustiveSum` until
-; the owner assigns that absence an exact source coordinate. Unresolved keeps
-; an invalid or incomplete pattern premise from manufacturing a coverage fact.
+; D57 assigns missing complete coverage to `NonexhaustiveSum` at the transition
+; subject. Unresolved keeps an invalid or incomplete pattern premise from
+; manufacturing that later coverage judgment.
 (data DeltaTransitionCoverageReference
   (DeltaTransitionCoverageReferenceSyntax DeltaTerminal DeltaDeclaration
     DeltaTransitionCoverageState))
@@ -1694,6 +1697,9 @@
   (delta_parse_binary_min source cursor 1))
 
 ; ---- transition patterns and arms --------------------------------------
+; The current parser still accepts `_` through the common pattern arm. D57
+; requires a nonempty transition body with at most one grammar-owned final
+; wildcard; any following pattern must reject as `UnexpectedToken`.
 
 (def delta_pattern_start ((patternValue DeltaPattern)) Int
   (match patternValue

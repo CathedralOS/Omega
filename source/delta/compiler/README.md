@@ -46,11 +46,11 @@ Unqualified, named-data receiver, and exact
 sealed-boundary applications now retain source identity and settled result
 facts; explicit state applications and state/machine collision classification
 are retained separately. Transition subjects, resolved patterns, typed payload
-binders, and sum coverage now have separate exact custody; resolved semantic
-pattern identities make later duplicate checking reconstructable without
-claiming its unsettled ordering. D50 settles bare states and D52 settles
-resultless argument anchoring; their branches and the remaining body/control
-judgments stay with the rest of D37's premise-DAG composition.
+binders, and sum coverage now have separate exact custody. D57 settles subject
+admission before semantic duplicate identity, duplicate identity before payload
+arity, and coverage after completed pattern premises. D50 settles bare states
+and D52 settles resultless argument anchoring; their branches and the remaining
+body/control judgments stay with the rest of D37's premise-DAG composition.
 D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
@@ -204,15 +204,20 @@ Each complete transition subject is retained once as scalar `i32` or one exact
 nominal sum owner after the ordinary result category relation. Pattern
 resolution is source-shaped and independent across arms: scalar selectors have
 semantic `i32` identity, qualified cases retain exact owner/member custody, and
-payload arity plus subject-owner compatibility gates complete pattern custody.
+subject-owner compatibility grants semantic pattern identity before payload
+arity gates complete pattern custody. A later repeated admitted identity is
+`DuplicatePattern` even if the first occurrence later fails arity. `true` and
+`1` are one selector, as are `false` and `0`, independent of leading zeros.
 Only a complete case pattern supplies positional payload types and places to
 its D24 binder locals; `u8` payloads therefore read as `i32` while retaining
-their storage type. Resolved-but-incomplete patterns retain no guessed
-category, arity, or duplicate candidate. Every continuation remains
-independently checked, and each sum transition retains complete, missing, or
-unresolved coverage. The owner queue retains the total negative pattern/
-coverage premise DAG,
-including duplicate and wildcard ordering and the missing-coverage coordinate.
+their storage type. D57 requires distinct name-resolved, subject-admitted,
+semantic-identity, and complete stages instead of the current broad
+`Resolved | Complete` progress. Every continuation remains independently
+checked, and each sum transition retains complete, missing, or unresolved
+coverage. Transition grammar admits one optional final wildcard; a following
+pattern is `UnexpectedToken`, while a redundant final wildcard remains legal.
+Missing complete sum coverage is `NonexhaustiveSum` at the subject after every
+pattern premise completes. These D57 branches remain implementation work.
 
 Named-record projection retains both the exact owner declaration and authored
 field for later ordinal/layout recovery. A field inherits a place only from a
@@ -285,9 +290,9 @@ direct static-machine spelling.
 | Area | Positive controls | Negative controls and exact obligation |
 | --- | --- | --- |
 | Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
-| Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
+| Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF; one optional final transition wildcard | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, a pattern after `_`, and negative pattern `-`; `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
 | Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; case/receiver-method spelling reuse; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate exact machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
-| Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; unordered exact `Console` member signatures; complete scalar and sum transitions | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; D56 absent/malformed/duplicate/competing entry shapes; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
+| Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; unordered exact `Console` member signatures; complete scalar and sum transitions, including redundant final wildcard | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; D56 absent/malformed/duplicate/competing entry shapes; D57 category/semantic-duplicate/arity/missing-coverage transitions; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
 The payload row describes the current `AlphaBootstrapV2` profile selected by
@@ -346,6 +351,15 @@ an entry defect beside a body defect. They assert source-extent omission,
 authored-construct anchors, same-reason deduplication, direct reason equality
 without the redundant `kind`, and the absence of any type/body coordinate
 merge.
+
+D57 transition controls cover a pattern after `_`, a repeated `_`, and an
+exhaustive sum with a redundant final wildcard; category-incompatible scalar
+and case patterns; duplicate cases before payload arity; and missing sum
+coverage at the subject. Scalar identity controls pair `true` with `1`, `false`
+with `0`, and decimal spellings with leading zeros. Two-round controls repair a
+category, duplicate, or arity failure and then expose the previously suppressed
+`NonexhaustiveSum`. Scalar misses remain executable
+`NonExhaustiveTransition` traps rather than static rejections.
 
 Resolution-catalog, local-resolution, and expression-fact controls remain
 planned, not claimed execution: forward data
