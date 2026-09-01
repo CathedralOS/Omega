@@ -11,7 +11,7 @@ fn scalar_parameter(value: u64, scalar_type: IntegerType) -> AbstractParameter {
     }
 }
 
-fn attached_unit_scalar_call_plan() -> AbstractOperationPlan {
+pub(super) fn attached_unit_scalar_call_plan() -> AbstractOperationPlan {
     let attached_machine = MachineId::new(1).expect("attached machine");
     let scalar_machine = MachineId::new(2).expect("scalar machine");
     let attachment = StructuralTypeId::new(1).expect("attachment");

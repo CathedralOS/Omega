@@ -1144,6 +1144,11 @@ duplicate, stale, substituted, padded, or role-swapped children. A verified
 eliminated occurrence needs no child. Package review may stop at D29 semantic
 coverage; native or external execution claims may not.
 
+The first identity-projection implementation now exercises compiler-intrinsic
+direct bytes and a nongeneric checked-body internal call through final native
+custody. A checked call before an immediate Linux exit delegates to complete
+Unit lowering and validation; malformed isolated exit shapes still reject.
+
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not
 redispatch through the selected operator family; spelling the operator inside

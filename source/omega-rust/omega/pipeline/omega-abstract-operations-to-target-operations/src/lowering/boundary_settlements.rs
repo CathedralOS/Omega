@@ -61,13 +61,14 @@ pub(super) fn lower_linux_exit_group_i32(
     ] = function.operations.as_slice()
     else {
         // A Linux exit may be the nonreturning tail of a larger straight-line
-        // Unit effect body (notably write_line -> exit_process). Let the Unit
-        // lowering validate that composition; retain the directed error for a
-        // malformed isolated exit shape.
+        // Unit effect body (notably a checked scalar call or write_line before
+        // exit_process). Let the Unit lowering validate those compositions;
+        // retain the directed error for a malformed isolated exit shape.
         return if function.operations.iter().any(|operation| {
             matches!(
                 operation,
                 AbstractOperation::EstablishByteSequenceLiteral { .. }
+                    | AbstractOperation::Call { .. }
             )
         }) || function
             .operations

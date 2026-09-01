@@ -45,8 +45,6 @@ stop the item on one precise owner question before adding machinery.
   - complete D32 physical-child custody for verified non-identity optimization
     and remaining native roles, with an exact bijection to surviving optimized
     occurrences and reconstructible D29/D41 parents;
-  - enable the checked-body physical lane without weakening the existing
-    `InvalidLinuxExitGroupShape` backend rejection; and
   - add external realization custody only when independently admitted concrete
     authority exists. Never substitute a self-issued commitment.
 
@@ -63,10 +61,9 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Complete the remaining checked-body D29 physical lane, admitted-provider
-  parent, and verified non-identity optimization-projection lanes. Extend
-  `CompilerBuiltinExecution` only for a demanded local target mechanism and
-  keep planner conversion exhaustive.
+  Complete the admitted-provider parent and verified non-identity optimization-
+  projection lanes. Extend `CompilerBuiltinExecution` only for a demanded local
+  target mechanism and keep planner conversion exhaustive.
   Retain complete standalone-product structures as additional native proposal
   classes land; do not regress to hidden `CheckedCompilation` state or replace
   those structures with compact report fingerprints. The accepted package

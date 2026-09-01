@@ -121,6 +121,71 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
     );
 }
 
+fn assert_selected_operator_native_physical_call(
+    canary: &Path,
+    label: &str,
+    expected_role: omega_boundary_applications::BoundaryApplicationRealizationRole,
+) {
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let native_report = compile_rooted_backend_canary_without_output_for_target(canary, target)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "{label} should retain checked-body physical custody for {target}: {diagnostics:#?}"
+                )
+            });
+        let native = native_report
+            .retained_native_artifact()
+            .unwrap_or_else(|| panic!("{label} should retain its {target} native artifact"));
+        native.validate().unwrap_or_else(|error| {
+            panic!("{label} {target} native artifact should replay: {error}")
+        });
+        let physical = native_report
+            .require_package_native_physical_evidence()
+            .unwrap_or_else(|error| panic!("{label} {target} package gate should accept: {error}"));
+        assert!(std::ptr::eq(
+            physical,
+            native
+                .physical_evidence()
+                .unwrap_or_else(|| panic!("{label} should retain complete {target} D32 evidence")),
+        ));
+        let coverage = native
+            .boundary_application_coverage()
+            .unwrap_or_else(|| panic!("{label} should retain exact D29 coverage custody"));
+        let [realization] = coverage.realizations().rows() else {
+            panic!("{label} should retain one exact checked-body realization")
+        };
+        assert_eq!(realization.role(), expected_role);
+        let operator_children = physical
+            .children()
+            .iter()
+            .filter(|child| {
+                matches!(
+                    child.parent(),
+                    omega_terminal_psi_to_native_artifact::PhysicalChildParent::OperatorApplicationCoverage(_)
+                )
+            })
+            .collect::<Vec<_>>();
+        let [operator_child] = operator_children.as_slice() else {
+            panic!("{label} should retain one exact checked-body operator child")
+        };
+        assert!(matches!(
+            operator_child.occurrence(),
+            omega_terminal_psi_to_native_artifact::NativePhysicalOccurrence::Operator(_)
+        ));
+        assert_eq!(
+            operator_child.relocation(),
+            omega_terminal_psi_to_native_artifact::PhysicalRelocationDisposition::ResolvedInternalCall
+        );
+        assert!(operator_child.machine_span().byte_count() > 0);
+        assert_eq!(
+            physical.children().len(),
+            physical.projection().operator_occurrences().len()
+                + physical.projection().boundary_occurrences().len(),
+            "{label} {target} physical children must cover the complete identity projection"
+        );
+    }
+}
+
 #[test]
 fn runtime_adapter_dispatch_exit_canary_runs() {
     // PRV4 adapter dispatch: the boundary-trait call rewrites to the unique
@@ -187,6 +252,26 @@ fn checked_fixed_operator_dispatch_exit_canary_runs() {
         outcome.error,
     );
     assert_selected_operator_terminal_call(&canary, "checked fixed-token operator canary");
+}
+
+#[test]
+fn checked_boundary_operator_physical_custody_canary_compiles() {
+    let canary = pass_canary("providers/checked_boundary_operator_physical_custody");
+    assert_selected_operator_native_physical_call(
+        &canary,
+        "checked boundary-operator physical-custody canary",
+        omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+    );
+
+    let dynamic_exit = pass_canary("providers/checked_boundary_operator_dispatch_exit");
+    let diagnostics =
+        compile_rooted_backend_canary_without_output_for_target(&dynamic_exit, "linux_x86_64")
+            .expect_err("the immediate-only exit settlement must still reject a call-result input");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("InvalidLinuxExitGroupShape") })
+    );
 }
 
 #[test]

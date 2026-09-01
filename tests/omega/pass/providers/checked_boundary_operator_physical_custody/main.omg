@@ -1,0 +1,27 @@
+// A selected checked boundary-operator call retains one exact physical child
+// beside the independent nonreturning Console settlement. The result is not
+// passed into that first immediate-only settlement lane.
+use omega_language_std::console;
+
+data CheckedMath {}
+
+boundary operator CheckedMath::offset_zero(value: i32) -> i32
+requires value == value
+ensures result == value + 0 && value == value;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+requires input == input
+ensures result == input + 0 && input == input
+{
+    transition { _ -> (input + 0) }
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let result: i32 = CheckedMath::offset_zero(70);
+    self.console.exit_process(70);
+}
