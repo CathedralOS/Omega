@@ -292,6 +292,12 @@ fn decode_post_allocation_optimization(
         {
             Ok(Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1)
         }
+        value
+            if value
+                == Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1 as u8 =>
+        {
+            Ok(Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1)
+        }
         value => Err(
             FunctionFragmentTextSectionManifestDecodeError::UnknownPostAllocationMachineOptimization(
                 value,

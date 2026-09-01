@@ -480,7 +480,11 @@ decision. Only true language-semantic questions belong in
   rematerialization through the generic post-allocation realization and final
   publication path, retaining both phase identities and rejecting manifest,
   exit-contract, target, and unadmitted-pair corruption. The remaining source
-  families and publication routes are not yet complete.
+  families and publication routes are not yet complete. The sibling x86
+  sign-extending `MOV r64, imm32` family now independently selects the exact
+  i32 round-trip bit domain, validates canonical seven-byte ISA forms and
+  exact-view writes, and crosses the same generic direct and active-resident
+  publication routes with corruption coverage.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
@@ -490,15 +494,14 @@ decision. Only true language-semantic questions belong in
   structural-scalar nonempty projection/lowering tests plus identity,
   independent replay, corruption, and V5 compatibility tests pin custody.
 - [ ] Apply **Boundary domain requirements consume carried qualifications**.
-  Until the next Terminal format/vocabulary revision, keep the legacy boundary
-  `requirement_obligations` slot empty and reject every nonempty roster as
-  `BoundaryStructuralRequirementsMintObligations`. At that revision remove the
-  field from the boundary variant and its wire payload rather than preserving
-  an always-empty slot. Add optimizer/publication controls that bind the exact
-  boundary, structural argument paths, carried qualification rosters, and
-  declaration requirements; joins use at most the common intersection, CSE/GVN
-  never equates unequal rosters by computation alone, and no transformation may
-  widen a roster or otherwise mint a routed qualification.
+  Terminal format 54 and vocabulary 57 remove the former boundary
+  `requirement_obligations` field and wire payload rather than preserving an
+  always-empty slot. Remaining work is to add optimizer/publication controls
+  that bind the exact boundary, structural argument paths, carried
+  qualification rosters, and declaration requirements; joins use at most the
+  common intersection, CSE/GVN never equates unequal rosters by computation
+  alone, and no transformation may widen a roster or otherwise mint a routed
+  qualification.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
   versioned structural selected subtree; public encoding now emits v6 with
   exact structural-call requirement and crash-continuation rows. Decoding
@@ -605,6 +608,11 @@ decision. Only true language-semantic questions belong in
   drift fail closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
+  - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
+    family over the full i32 round-trip bit domain. Its independently replayed
+    symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
+    seven-byte layout, direct and active-resident custody, object/fragment, and
+    callable publication all preserve exact-view writes and RFLAGS.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and
   logical fuel across every selected rule.
 
@@ -647,19 +655,20 @@ decision. Only true language-semantic questions belong in
 
 - [x] Target-neutral post-allocation symbolic plan/effects with independent
   validation.
-- [x] AArch64 CBNZ fusion and MOVN materialization; x86 XOR-zero and
-  MOV-r32-imm32 materialization; x86 rel8 layout relaxation.
+- [x] AArch64 CBNZ fusion and MOVN materialization; x86 XOR-zero,
+  MOV-r32-imm32, and sign-extending MOV-r64-imm32 materialization; x86 rel8
+  layout relaxation.
 - [x] Generic encoding/layout/realization carriers let a new substitution add
   one rule leaf and catalog row rather than a new vertical pipeline.
 - [x] Retain the canonical post-allocation catalog entry through physical
   composition and dispatch both source lineages on its closed typed rule kind;
   the pipeline contains no duplicate exact-name schedule.
-- [x] Admit the first allocation-recovery plus post-allocation-machine pair:
+- [x] Admit the first allocation-recovery plus post-allocation-machine pairs:
   active-resident immediate-U64 multi-use rematerialization followed by x86
-  MOV-r32-imm32 selection. One generic realization retains both phase roots,
-  exact baseline/final bytes, whole-function exit custody, and final
-  fragment/object/callable publication; every other recovery-machine pair
-  remains a typed rejection.
+  MOV-r32-imm32 or sign-extending MOV-r64-imm32 selection. One generic
+  realization retains both phase roots, exact baseline/final bytes,
+  whole-function exit custody, and final fragment/object/callable publication;
+  every other recovery-machine pair remains a typed rejection.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
   - [x] Establish the first bounded terminal-pair matcher and move the AArch64
@@ -780,16 +789,17 @@ unchecked rewrite or opt into lossy floating-point semantics.
   commits, ledgers, pre/post-physical manifests, custody receipts, selected
   bytes, and resolved layouts. The Psi lane exercises exact wrapping-add SCCP;
   the separately interpreted selected-machine lane exercises x86-64
-  zero-extended `MOV r32, imm32` and AArch64 shortest `MOVN` materialization
-  with independent ISA decoders/validators. `OMEGA_OPTIMIZER_CORPUS_CASE=<n>`
-  replays one fully printed record. This separation is explicit because folded
-  SCCP source provenance is not yet an admitted selected-lowering constant
-  definition; the corpus does not claim an unsupported composed carrier.
+  zero-extended `MOV r32, imm32`, sign-extended `MOV r64, imm32`, and AArch64
+  shortest `MOVN` materialization with independent ISA decoders/validators.
+  `OMEGA_OPTIMIZER_CORPUS_CASE=<n>` replays one fully printed record. This
+  separation is explicit because folded SCCP source provenance is not yet an
+  admitted selected-lowering constant definition; the corpus does not claim an
+  unsupported composed carrier.
 - [ ] Add supported target/OS allocator, encoding, unwind, object, and callable
   matrices.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
 - [x] Publish exact-rule release notes and rollback procedures. The versioned
-  V1 inventory names all 15 canonical exact rules, phases, target
+  V1 inventory names all 16 canonical exact rules, phases, target
   applicability, experimental status, exact rollback spelling, supported
   compositions, and fail-closed carrier limits; its native-only runbook owns
   receipt capture, verification, and restoration.

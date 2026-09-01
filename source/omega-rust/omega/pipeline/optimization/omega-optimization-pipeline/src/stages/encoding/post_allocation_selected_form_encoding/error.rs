@@ -1,5 +1,6 @@
 use omega_isa_aarch64::Aarch64SelectedFormEncodingError;
 use omega_isa_x86_64::X86_64MovR32Imm32I64MaterializationError;
+use omega_isa_x86_64::X86_64MovR64Imm32SignExtendedI64MaterializationError;
 use omega_isa_x86_64::{X86_64SelectedFormEncodingError, X86_64StructuralUnitCallTemplateError};
 use omega_selected_instructions::SelectedInstructionId;
 
@@ -20,6 +21,7 @@ pub enum OptimizedSelectedFormEncodingError {
     CountOverflow,
     X86_64(X86_64SelectedFormEncodingError),
     X86_64MovR32Imm32(X86_64MovR32Imm32I64MaterializationError),
+    X86_64MovR64Imm32SignExtended(X86_64MovR64Imm32SignExtendedI64MaterializationError),
     X86_64Structural(X86_64StructuralUnitCallTemplateError),
     Aarch64(Aarch64SelectedFormEncodingError),
     ArtifactMismatch,

@@ -581,6 +581,39 @@ fn x86_mov_r32_imm32_materialization_selection_round_trips_but_remains_default_o
 }
 
 #[test]
+fn x86_mov_r64_imm32_materialization_selection_round_trips_but_remains_default_off() {
+    let absent = project("x86-mov-r64-imm32-default-off", None);
+    let checked = compile_to_checked(&absent.join("main.omg"), None)
+        .expect("an absent build must leave x86 MOV-r64-imm32 materialization disabled");
+    assert!(
+        !checked
+            .optimization_selections()
+            .contains(Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1)
+    );
+
+    let selected = project(
+        "x86-mov-r64-imm32-selected",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-x86-mov-r64-imm32-selected");
+    builder.optimizations.enable(Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1);
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&selected.join("main.omg"), None)
+        .expect("the named x86 MOV-r64-imm32 materialization selection should evaluate");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1]
+    );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
+}
+
+#[test]
 fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() {
     let absent = project("shared-entry-copy-default-off", None);
     let checked = compile_to_checked(&absent.join("main.omg"), None)

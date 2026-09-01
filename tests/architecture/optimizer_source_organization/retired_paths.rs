@@ -225,6 +225,7 @@ pub(crate) fn check(audit: &mut Audit) {
                 "Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1",
                 "Optimization::X86SelectXorZeroI64MaterializationV1",
                 "Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1",
+                "Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1",
                 "stage_optimized_post_allocation_machine_optimization_for_rule",
                 "stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_rule",
             ]

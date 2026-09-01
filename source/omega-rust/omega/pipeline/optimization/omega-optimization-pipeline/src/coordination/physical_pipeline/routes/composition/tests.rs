@@ -62,12 +62,21 @@ fn expected_pair(
         if post_allocation == 1 {
             let admitted = pair
                 .contains(&Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
-                && pair
-                    .contains(&Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1);
+                && (pair
+                    .contains(&Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1)
+                    || pair.contains(
+                        &Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
+                    ));
             if !admitted {
                 return ExpectedDisposition::UnsupportedPhysicalComposition;
             }
-            let optimization = Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1;
+            let optimization = pair
+                .into_iter()
+                .find(|optimization| {
+                    optimization.execution_phase()
+                        == OptimizationExecutionPhase::PostAllocationMachine
+                })
+                .unwrap();
             let entry = post_allocation_entry(optimization);
             let required = entry.payload().architecture();
             if required != architecture {
@@ -250,10 +259,10 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
         }
     }
 
-    assert_eq!(cells, 210);
-    assert_eq!(accepted, 121);
-    assert_eq!(unsupported, 48);
-    assert_eq!(wrong_target, 41);
+    assert_eq!(cells, 240);
+    assert_eq!(accepted, 130);
+    assert_eq!(unsupported, 60);
+    assert_eq!(wrong_target, 50);
 }
 
 #[test]

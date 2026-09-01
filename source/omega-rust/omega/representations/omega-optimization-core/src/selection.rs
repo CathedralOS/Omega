@@ -2,8 +2,8 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 10;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v10\0";
+const SELECTION_ENCODING_VERSION: u32 = 11;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v11\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -78,7 +78,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    15;
+    16;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -152,6 +152,11 @@ optimization_vocabulary! {
     X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 = 15 => {
         case: "X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1",
         counter: "x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1",
+        phase: PostAllocationMachine
+    },
+    X86SelectMovR64Imm32SignExtendedI64MaterializationV1 = 16 => {
+        case: "X86SelectMovR64Imm32SignExtendedI64MaterializationV1",
+        counter: "x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1",
         phase: PostAllocationMachine
     },
 }
@@ -423,6 +428,7 @@ mod tests {
             Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
             Optimization::X86SelectXorZeroI64MaterializationV1,
             Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+            Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
         ])
         .expect("unique selections");
         assert_eq!(
@@ -438,6 +444,7 @@ mod tests {
                 Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
                 Optimization::X86SelectXorZeroI64MaterializationV1,
                 Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+                Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
             ]
         );
         let encoded = selections.encode();
@@ -485,10 +492,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&8_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&10_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(8))
+            Err(SelectionDecodeError::UnsupportedVersion(10))
         );
     }
 
@@ -511,6 +518,7 @@ mod tests {
             Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
             Optimization::X86SelectXorZeroI64MaterializationV1,
             Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+            Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
             Optimization::SelectedIncomingU12ExactSubtractImmediate,
@@ -537,6 +545,7 @@ mod tests {
                 Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
                 Optimization::X86SelectXorZeroI64MaterializationV1,
                 Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+                Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
             ]
         );
         assert_eq!(

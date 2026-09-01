@@ -25,6 +25,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `Aarch64SelectShortestMovnSeededI64MaterializationV1` | PostAllocationMachine | AArch64 | Experimental | `--disable-optimization Aarch64SelectShortestMovnSeededI64MaterializationV1` | Required |
 | `X86SelectXorZeroI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectXorZeroI64MaterializationV1` | Required |
 | `X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1` | Required |
+| `X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | PostAllocationMachine | x86-64 | Experimental | `--disable-optimization X86SelectMovR64Imm32SignExtendedI64MaterializationV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s
@@ -38,7 +39,9 @@ the repository gate.
 - Both selected-lowering rules may be selected together.
 - Selected lowering may precede one target-compatible post-allocation rule, or
   x86-64 function-relative branch relaxation.
-- One allocation-recovery rule may run only without another non-Psi phase.
+- One allocation-recovery rule may run alone; active-resident immediate-U64
+  multi-use rematerialization may also precede either exact x86 imm32
+  materialization rule.
 - One post-allocation machine rule may run at a time and cannot compose with
   function-relative layout.
 - Psi selections are orthogonal overlays and do not alter physical-route

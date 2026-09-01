@@ -43,9 +43,12 @@ pub(crate) fn resolve_physical_phase_composition(
         let post_allocation = if post_allocation.is_empty() {
             None
         } else {
-            if rule != Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1
+            let supported = post_allocation.as_slice()
+                == [Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1]
                 || post_allocation.as_slice()
-                    != [Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1]
+                    == [Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1];
+            if rule != Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1
+                || !supported
             {
                 return Err(
                     OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,

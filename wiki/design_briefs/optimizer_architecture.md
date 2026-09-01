@@ -153,7 +153,7 @@ The major optimization phases are:
 | Psi | validated optimization unit | validated transformed unit | CFG cleanup, SCCP, copy propagation, GVN, dead scalar elimination, proof-check elision |
 | Selected lowering | selected virtual-register program | validated selected rewrite plan | exact incoming-immediate folds |
 | Allocation recovery | selected program plus allocation facts | revalidated physical homes | fixed-view copies, bounded rematerialization |
-| Post-allocation machine | physical symbolic instructions plus liveness | validated form-substitution plan | AArch64 CBNZ/MOVN, x86 XOR-zero/MOV-r32-imm32 |
+| Post-allocation machine | physical symbolic instructions plus liveness | validated form-substitution plan | AArch64 CBNZ/MOVN, x86 XOR-zero/MOV-r32-imm32/MOV-r64-imm32 |
 | Function-relative layout | encoded rows plus labels | validated resolved layout | x86 rel32-to-rel8 relaxation |
 
 Selections remain exact even when rules share a phase. There are no broad
@@ -167,13 +167,13 @@ fragment, object, and callable stages sit above that taxonomy. Adding another
 recovery rule therefore adds a source leaf and catalog disposition, not a new
 publication vertical.
 
-The first admitted recovery-machine composition preserves that taxonomy:
-active-resident immediate-U64 multi-use rematerialization can feed the exact
-x86 MOV-r32-imm32 rule through the generic post-allocation realization's
-`AfterAllocationRecovery` source leaf. The composition entrance names this one
-pair explicitly; all other recovery-machine pairs still reject. The join
-retains both phase-selection roots and independently replays source, machine,
-encoding, layout, and exit custody before publication.
+The admitted recovery-machine compositions preserve that taxonomy:
+active-resident immediate-U64 multi-use rematerialization can feed either exact
+x86 imm32 materialization leaf through the generic post-allocation
+realization's `AfterAllocationRecovery` source leaf. The composition entrance
+names those two pairs explicitly; all other recovery-machine pairs still
+reject. The join retains both phase-selection roots and independently replays
+source, machine, encoding, layout, and exit custody before publication.
 
 Logical spilling and stack-slot coloring are compiler-private allocation
 decisions rather than user-selected optimization rules. The coloring entrance

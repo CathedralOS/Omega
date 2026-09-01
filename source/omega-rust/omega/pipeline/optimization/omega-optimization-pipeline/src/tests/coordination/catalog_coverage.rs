@@ -1,19 +1,19 @@
 use omega_machine_optimizer::{
-    POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogError,
-    selected_post_allocation_machine_rule,
+    selected_post_allocation_machine_rule, PostAllocationMachineRuleCatalogError,
+    POST_ALLOCATION_MACHINE_RULE_CATALOG,
 };
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
-use omega_psi_optimizer::{PSI_PASS_CATALOG, PsiPassTargetApplicability, built_in_psi_registries};
+use omega_psi_optimizer::{built_in_psi_registries, PsiPassTargetApplicability, PSI_PASS_CATALOG};
 use omega_regalloc::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, RegisterAllocationRuleTargetApplicability,
-    SELECTED_LOWERING_RULE_CATALOG, resolve_selected_lowering_rules,
-    selected_allocation_recovery_rule,
+    resolve_selected_lowering_rules, selected_allocation_recovery_rule,
+    RegisterAllocationRuleTargetApplicability, ALLOCATION_RECOVERY_RULE_CATALOG,
+    SELECTED_LOWERING_RULE_CATALOG,
 };
 use omega_target::{Architecture, NativeTarget};
 
 use crate::{
-    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
-    stages::layout::x86_branch_relaxation::x86_rel8_selected,
+    stages::layout::x86_branch_relaxation::x86_rel8_selected, FunctionRelativeLayoutCatalogError,
+    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,7 +120,7 @@ fn every_exact_optimization_has_one_rule_stage_disposition() {
                 *target == TestTargetDisposition::Architecture(Architecture::X86_64)
             })
             .count(),
-        3
+        4
     );
 }
 
@@ -211,6 +211,6 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
         }
     }
 
-    assert_eq!(scheduled, 63);
-    assert_eq!(rejected, 12);
+    assert_eq!(scheduled, 66);
+    assert_eq!(rejected, 14);
 }

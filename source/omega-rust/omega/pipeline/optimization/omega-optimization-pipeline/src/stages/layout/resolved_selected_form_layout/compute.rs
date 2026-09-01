@@ -4,9 +4,10 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding_with_post_allocation_machine_optimization,
+    StagedOptimizedPostAllocationMachineOptimization, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedSelectedFormEncoding,
 };
 
 use super::error::OptimizedResolvedSelectedFormLayoutError;
@@ -36,6 +37,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Cbnz(fusion) => Some(fusion),
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(_)
         | StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(_)
+        | StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(_)
         | StagedOptimizedPostAllocationMachineOptimization::X86XorZero(_) => None,
     });
     let selected_plan = selected.selected_plan();
