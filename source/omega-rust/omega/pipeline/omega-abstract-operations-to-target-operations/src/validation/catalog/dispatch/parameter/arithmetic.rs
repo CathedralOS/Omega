@@ -60,6 +60,13 @@ pub(in crate::validation::catalog) const WRAPPING_INTEGER_REMAINDER: Translation
         wrapping_integer_remainder,
     );
 
+pub(in crate::validation::catalog) const SATURATING_INTEGER_DIVIDE: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerDivideParameters,
+        straight_line_parameter::integer::arithmetic::saturating_divide::is_candidate,
+        saturating_integer_divide,
+    );
+
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
@@ -258,6 +265,20 @@ pub(in crate::validation::catalog::dispatch) fn saturating_integer_subtract(
     .map_err(
         AbstractToTargetTranslationFamilyError::StraightLineSaturatingIntegerSubtractParameters,
     )
+}
+
+pub(in crate::validation::catalog::dispatch) fn saturating_integer_divide(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::saturating_divide::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerDivideParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineSaturatingIntegerDivideParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_multiply(

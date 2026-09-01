@@ -58,6 +58,8 @@ pub use validation::{
     StraightLineIntegerWidenParameterTranslationReceipt,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationReceipt,
+    StraightLineSaturatingIntegerDivideParametersTranslationError,
+    StraightLineSaturatingIntegerDivideParametersTranslationReceipt,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,

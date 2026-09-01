@@ -7,7 +7,8 @@ use super::super::super::super::model::{
     ExactIntegerAddParametersSource, ExactIntegerDivideParametersSource,
     ExactIntegerMultiplyParametersSource, ExactIntegerRemainderParametersSource,
     ExactIntegerSubtractParametersSource, IntegerArithmeticParametersSource,
-    WrappingIntegerDivideParametersSource, WrappingIntegerRemainderParametersSource,
+    SaturatingIntegerDivideParametersSource, WrappingIntegerDivideParametersSource,
+    WrappingIntegerRemainderParametersSource,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
@@ -16,6 +17,7 @@ use crate::validation::model::{
     StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerDivideParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
@@ -144,6 +146,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_remai
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::wrapping_remainder::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_divide(
+    function: &AbstractFunction,
+) -> Result<
+    SaturatingIntegerDivideParametersSource,
+    StraightLineSaturatingIntegerDivideParametersTranslationError,
+> {
+    let Some(AbstractOperation::SaturatingIntegerDivide { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineSaturatingIntegerDivideParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::saturating_divide::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(

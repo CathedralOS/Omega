@@ -1,5 +1,7 @@
 //! Exact receipt-to-family identity projection.
 
+mod arithmetic;
+
 use super::AbstractToTargetFunctionTranslationReceipt;
 use crate::validation::model::AbstractToTargetTranslationFamily;
 
@@ -54,44 +56,21 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerBitwiseXorParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
             }
-            Self::StraightLineExactIntegerAddParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters
-            }
-            Self::StraightLineExactIntegerSubtractParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineExactIntegerSubtractParameters
-            }
-            Self::StraightLineExactIntegerMultiplyParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineExactIntegerMultiplyParameters
-            }
-            Self::StraightLineExactIntegerDivideParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineExactIntegerDivideParameters
-            }
-            Self::StraightLineExactIntegerRemainderParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineExactIntegerRemainderParameters
-            }
-            Self::StraightLineWrappingIntegerDivideParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideParameters
-            }
-            Self::StraightLineWrappingIntegerRemainderParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerRemainderParameters
-            }
-            Self::StraightLineSaturatingIntegerAddParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters
-            }
-            Self::StraightLineWrappingIntegerAddParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters
-            }
-            Self::StraightLineSaturatingIntegerSubtractParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractParameters
-            }
-            Self::StraightLineWrappingIntegerSubtractParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters
-            }
-            Self::StraightLineWrappingIntegerMultiplyParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters
-            }
-            Self::StraightLineSaturatingIntegerMultiplyParameters(_) => {
-                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyParameters
+            receipt @ (Self::StraightLineExactIntegerAddParameters(_)
+            | Self::StraightLineExactIntegerSubtractParameters(_)
+            | Self::StraightLineExactIntegerMultiplyParameters(_)
+            | Self::StraightLineExactIntegerDivideParameters(_)
+            | Self::StraightLineExactIntegerRemainderParameters(_)
+            | Self::StraightLineWrappingIntegerDivideParameters(_)
+            | Self::StraightLineWrappingIntegerRemainderParameters(_)
+            | Self::StraightLineSaturatingIntegerDivideParameters(_)
+            | Self::StraightLineSaturatingIntegerAddParameters(_)
+            | Self::StraightLineWrappingIntegerAddParameters(_)
+            | Self::StraightLineSaturatingIntegerSubtractParameters(_)
+            | Self::StraightLineWrappingIntegerSubtractParameters(_)
+            | Self::StraightLineWrappingIntegerMultiplyParameters(_)
+            | Self::StraightLineSaturatingIntegerMultiplyParameters(_)) => {
+                arithmetic::family(receipt)
             }
         }
     }

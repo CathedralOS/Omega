@@ -1,16 +1,13 @@
 //! Closed tagged error carrier for one independently replayed function family.
 
+mod arithmetic;
+
 use super::immediate::{
     StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
 };
 use super::parameter::{
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
-    StraightLineExactIntegerAddParametersTranslationError,
-    StraightLineExactIntegerDivideParametersTranslationError,
-    StraightLineExactIntegerMultiplyParametersTranslationError,
-    StraightLineExactIntegerRemainderParametersTranslationError,
-    StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerBitwiseOrParametersTranslationError,
@@ -21,16 +18,14 @@ use super::parameter::{
     StraightLineIntegerLessThanParametersTranslationError,
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
-    StraightLineSaturatingIntegerAddParametersTranslationError,
-    StraightLineSaturatingIntegerMultiplyParametersTranslationError,
-    StraightLineSaturatingIntegerSubtractParametersTranslationError,
-    StraightLineWrappingIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerDivideParametersTranslationError,
-    StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    StraightLineWrappingIntegerRemainderParametersTranslationError,
-    StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 use super::terminal::StraightLineScalarCrashTranslationError;
+use arithmetic::{
+    ExactAddError, ExactDivideError, ExactMultiplyError, ExactRemainderError, ExactSubtractError,
+    SaturatingAddError, SaturatingDivideError, SaturatingMultiplyError, SaturatingSubtractError,
+    WrappingAddError, WrappingDivideError, WrappingMultiplyError, WrappingRemainderError,
+    WrappingSubtractError,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
@@ -56,41 +51,18 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationError,
     ),
-    StraightLineExactIntegerAddParameters(StraightLineExactIntegerAddParametersTranslationError),
-    StraightLineExactIntegerSubtractParameters(
-        StraightLineExactIntegerSubtractParametersTranslationError,
-    ),
-    StraightLineExactIntegerMultiplyParameters(
-        StraightLineExactIntegerMultiplyParametersTranslationError,
-    ),
-    StraightLineExactIntegerDivideParameters(
-        StraightLineExactIntegerDivideParametersTranslationError,
-    ),
-    StraightLineExactIntegerRemainderParameters(
-        StraightLineExactIntegerRemainderParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerDivideParameters(
-        StraightLineWrappingIntegerDivideParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerRemainderParameters(
-        StraightLineWrappingIntegerRemainderParametersTranslationError,
-    ),
-    StraightLineSaturatingIntegerAddParameters(
-        StraightLineSaturatingIntegerAddParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerAddParameters(
-        StraightLineWrappingIntegerAddParametersTranslationError,
-    ),
-    StraightLineSaturatingIntegerSubtractParameters(
-        StraightLineSaturatingIntegerSubtractParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerSubtractParameters(
-        StraightLineWrappingIntegerSubtractParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerMultiplyParameters(
-        StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    ),
-    StraightLineSaturatingIntegerMultiplyParameters(
-        StraightLineSaturatingIntegerMultiplyParametersTranslationError,
-    ),
+    StraightLineExactIntegerAddParameters(ExactAddError),
+    StraightLineExactIntegerSubtractParameters(ExactSubtractError),
+    StraightLineExactIntegerMultiplyParameters(ExactMultiplyError),
+    StraightLineExactIntegerDivideParameters(ExactDivideError),
+    StraightLineExactIntegerRemainderParameters(ExactRemainderError),
+    StraightLineWrappingIntegerDivideParameters(WrappingDivideError),
+    StraightLineWrappingIntegerRemainderParameters(WrappingRemainderError),
+    StraightLineSaturatingIntegerDivideParameters(SaturatingDivideError),
+    StraightLineSaturatingIntegerAddParameters(SaturatingAddError),
+    StraightLineWrappingIntegerAddParameters(WrappingAddError),
+    StraightLineSaturatingIntegerSubtractParameters(SaturatingSubtractError),
+    StraightLineWrappingIntegerSubtractParameters(WrappingSubtractError),
+    StraightLineWrappingIntegerMultiplyParameters(WrappingMultiplyError),
+    StraightLineSaturatingIntegerMultiplyParameters(SaturatingMultiplyError),
 }
