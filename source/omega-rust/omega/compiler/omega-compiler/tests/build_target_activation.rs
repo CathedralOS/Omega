@@ -341,10 +341,15 @@ fn terminal_product_retains_exact_fma_operation_plan_and_x86_admission() {
 data Main { }
 
 machine Main::main(&mut self) {
-    let fused: f32 = F32::fused_multiply_add(
+    let fused32: f32 = F32::fused_multiply_add(
         1.00000011920928955078125f32,
         0.99999988079071044921875f32,
         -1.0f32,
+    );
+    let fused64: f64 = F64::fused_multiply_add(
+        1.0000000000000002220446049250313080847263336181640625f64,
+        0.9999999999999997779553950749686919152736663818359375f64,
+        -1.0f64,
     );
 }
 "#,
@@ -371,10 +376,36 @@ machine Main::main(&mut self) {
         .native_realization_proposal()
         .expect("Terminal report retains native proposal");
     let occurrences = proposal.ieee_float_fma_occurrences();
-    assert!(
-        !occurrences.is_empty(),
-        "selected FMA custody must not disappear"
+    assert_eq!(
+        occurrences.len(),
+        2,
+        "both source-ordered selected FMA occurrences must survive"
     );
+    assert_eq!(
+        occurrences
+            .iter()
+            .map(|occurrence| occurrence.format())
+            .collect::<Vec<_>>(),
+        vec![
+            psi_core::IeeeFloatFormat::Binary32,
+            psi_core::IeeeFloatFormat::Binary64,
+        ],
+        "mixed formats must retain source order and distinct semantic slots"
+    );
+    assert_ne!(
+        occurrences[0].terminal_operation(),
+        occurrences[1].terminal_operation(),
+        "plural source occurrences require distinct Terminal coordinates"
+    );
+    assert_ne!(
+        occurrences[0].provider_plan_index(),
+        occurrences[1].provider_plan_index(),
+        "F32 and F64 must rejoin distinct selected plans"
+    );
+    let terminal_operations = occurrences
+        .iter()
+        .map(|occurrence| occurrence.terminal_operation())
+        .collect::<Vec<_>>();
     let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
         .expect("canonical Terminal semantics decode");
 
@@ -432,8 +463,28 @@ machine Main::main(&mut self) {
     let [function] = fma_functions.as_slice() else {
         panic!("one bounded FMA function must survive ordinary object construction")
     };
-    assert_eq!(function.x86_scalar_fma.len(), 1);
-    assert_eq!(function.x86_scalar_fma_occurrences.len(), 1);
+    assert_eq!(function.x86_scalar_fma.len(), 2);
+    assert_eq!(function.x86_scalar_fma_occurrences.len(), 2);
+    assert_eq!(
+        function
+            .x86_scalar_fma_occurrences
+            .iter()
+            .map(|occurrence| occurrence.terminal_operation)
+            .collect::<Vec<_>>(),
+        terminal_operations,
+        "machine custody must retain the exact source-ordered Terminal roster"
+    );
+    assert_eq!(
+        function
+            .x86_scalar_fma_occurrences
+            .iter()
+            .map(|occurrence| occurrence.slot)
+            .collect::<Vec<_>>(),
+        vec![
+            omega_target::X86ScalarFmaSlot::Binary32,
+            omega_target::X86ScalarFmaSlot::Binary64,
+        ]
+    );
     let control = function
         .x86_floating_control
         .expect("native FMA function retains canonical MXCSR custody");
@@ -441,6 +492,15 @@ machine Main::main(&mut self) {
     assert_eq!(
         native.object().x86_scalar_fma_provider(),
         Some(function.x86_scalar_fma_occurrences[0].admitted_provider)
+    );
+    assert!(
+        function
+            .x86_scalar_fma_occurrences
+            .iter()
+            .all(|occurrence| {
+                occurrence.admitted_provider
+                    == function.x86_scalar_fma_occurrences[0].admitted_provider
+            })
     );
     let occurrence = function.x86_scalar_fma_occurrences[0];
     let mut parts = native.into_parts();

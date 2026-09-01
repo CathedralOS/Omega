@@ -2,46 +2,55 @@
 
 use super::*;
 
-pub(super) fn selected_ieee_float_fma_result_local<'applications>(
+pub(super) fn selected_ieee_float_fma_result_locals<'applications>(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     statements: &[StatementNode],
     applications: &'applications [crate::SelectedIeeeFloatFmaUnitApplication],
-) -> Option<(
-    &'applications crate::SelectedIeeeFloatFmaUnitApplication,
-    CheckedUnitScalarResultBindingPlan,
-)> {
-    let StatementNode::LocalData(local) = statements.first()? else {
-        return None;
-    };
-    if local.is_mutable || !local.initial_value.is_valid() {
-        return None;
+) -> Option<
+    Vec<(
+        &'applications crate::SelectedIeeeFloatFmaUnitApplication,
+        CheckedUnitScalarResultBindingPlan,
+    )>,
+> {
+    let mut results = Vec::new();
+    for (statement_index, statement) in statements.iter().enumerate() {
+        let StatementNode::LocalData(local) = statement else {
+            break;
+        };
+        if local.is_mutable || !local.initial_value.is_valid() {
+            break;
+        }
+        let matches = applications
+            .iter()
+            .filter(|application| {
+                application.expression == local.initial_value
+                    && application.origin
+                        == psi_checked_trees::CheckedValueOrigin::StateStatement {
+                            machine_symbol: machine.symbol,
+                            state_symbol: state.symbol,
+                            statement_index,
+                            role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
+                        }
+            })
+            .collect::<Vec<_>>();
+        let [application] = matches.as_slice() else {
+            if matches.is_empty() {
+                break;
+            }
+            return None;
+        };
+        results.push((
+            *application,
+            CheckedUnitScalarResultBindingPlan {
+                statement_index: u32::try_from(statement_index).ok()?,
+                binding_ordinal: u32::try_from(results.len()).ok()?,
+                primitive_type: program.primitive_type_reference(local.type_reference)?,
+            },
+        ));
     }
-    let matches = applications
-        .iter()
-        .filter(|application| {
-            application.expression == local.initial_value
-                && application.origin
-                    == psi_checked_trees::CheckedValueOrigin::StateStatement {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                        statement_index: 0,
-                        role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
-                    }
-        })
-        .collect::<Vec<_>>();
-    let [application] = matches.as_slice() else {
-        return None;
-    };
-    Some((
-        *application,
-        CheckedUnitScalarResultBindingPlan {
-            statement_index: 0,
-            binding_ordinal: 0,
-            primitive_type: program.primitive_type_reference(local.type_reference)?,
-        },
-    ))
+    (!results.is_empty()).then_some(results)
 }
 
 pub(super) fn build_selected_ieee_float_fma(
@@ -60,14 +69,15 @@ pub(super) fn build_selected_ieee_float_fma(
     let operands = [*left, *right, *addend]
         .into_iter()
         .map(|operand| {
-            crate::values::lower_unit_scalar_argument(
+            let operand = crate::values::lower_unit_scalar_argument(
                 program,
                 &facts.operators,
                 source_state,
-                0,
+                usize::try_from(result.statement_index).ok()?,
                 operand,
                 result.primitive_type,
-            )
+            )?;
+            matches!(operand, CheckedScalarExpression::IeeeFloatLiteral { .. }).then_some(operand)
         })
         .collect::<Option<Vec<_>>>()?;
     Some(

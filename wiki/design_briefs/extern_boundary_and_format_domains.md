@@ -794,13 +794,16 @@ Directed-rounding operations do not alter ambient control state, and
 silently enables FTZ/DAZ cannot leave behind a valid Omega hardware-float
 realization.
 
-The first concrete outbound realization is conservative by mechanism. Every
+The settled first outbound realization is conservative by mechanism: every
 returning import or indirect vtable/table call receives an aligned trampoline
 that saves and restores the caller's complete MXCSR/FPCR around the existing
 call sequence. Direct syscalls do not execute a returning user-space
-counterparty and receive no envelope. The target call layout remains unchanged
-inside the trampoline, and relocation planning rebases its existing fixups by
-the exact target prefix width. An admitted per-binding preservation proof may
+counterparty and receive no envelope. The maintained ordinary backend has not
+yet implemented or retained that returning-foreign trampoline; its existing
+policy predicate is a requirement, not proof that the envelope ran. Once
+implemented, the target call layout remains unchanged inside the trampoline,
+and relocation planning rebases its existing fixups by the exact target prefix
+width. An admitted per-binding preservation proof may
 later select a zero-envelope optimization.
 
 ## Foreign execution and stack accounting
