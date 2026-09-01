@@ -2,6 +2,28 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "terminal native-artifact realization",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/native_artifact.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/boundary_applications.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/input.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/providers/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/machine_code.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/output.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "terminal authority closure review",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review/context.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review/reviewer.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review/operations.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_review/tests.rs",
+        ],
+    },
+    SemanticLadder {
         family: "terminal authority policy",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/realization/terminal_authority_policy/mod.rs",
