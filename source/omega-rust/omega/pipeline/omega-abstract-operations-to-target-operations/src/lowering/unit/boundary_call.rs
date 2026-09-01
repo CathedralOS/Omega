@@ -1,6 +1,9 @@
 //! Boundary settlement and admitted-provider Unit-call lowering.
 
-use super::*;
+use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
+use super::super::shared::*;
+use super::super::structural_layout::structural_shape;
+use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
 mod normalized_foreign;
 
