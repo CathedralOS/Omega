@@ -28,6 +28,7 @@ mod enabled_families;
 mod integer_bitwise_and_immediate;
 mod integer_bitwise_not_immediate;
 mod integer_bitwise_or_immediate;
+mod integer_bitwise_xor_immediate;
 mod integer_equal_immediate;
 mod integer_less_than_immediate;
 mod integer_exact_cast_immediate_operand;

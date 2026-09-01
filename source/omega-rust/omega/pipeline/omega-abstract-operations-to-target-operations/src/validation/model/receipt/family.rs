@@ -21,6 +21,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerBitwiseOrImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrImmediate
             }
+            Self::StraightLineIntegerBitwiseXorImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorImmediate
+            }
             Self::StraightLineWrappingIntegerAddImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate
             }

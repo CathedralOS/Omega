@@ -150,6 +150,26 @@ pub enum StraightLineIntegerBitwiseOrImmediateTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerBitwiseXorImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceIntegerType,
+    SourceConstantOutsideType,
+    SourceBitwiseXorOperands,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineWrappingIntegerAddImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,
