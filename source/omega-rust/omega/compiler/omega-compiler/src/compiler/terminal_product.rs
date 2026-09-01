@@ -124,6 +124,13 @@ fn project_terminal_native_realization_proposal(
                     matching.len(),
                 ))]);
             };
+            let callback_thunk_identity =
+                omega_backend_plan::canonical_callback_thunk_identity(placement_index, placement)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "callback placement {placement_index} cannot derive one valid callback-thunk identity",
+                        ))]
+                    })?;
             Ok(omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 occurrence.terminal_operation,
@@ -135,6 +142,7 @@ fn project_terminal_native_realization_proposal(
                             .direct_registrar_parameter_application
                             .clone()
                     }),
+                callback_thunk_identity,
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

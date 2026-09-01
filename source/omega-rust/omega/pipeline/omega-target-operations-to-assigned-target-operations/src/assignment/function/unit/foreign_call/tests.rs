@@ -449,6 +449,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
                     operation,
                     &[],
                     &BTreeMap::new(),
+                    None,
                 ),
                 Ok(Vec::new())
             );
@@ -464,6 +465,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
                     operation,
                     &[],
                     &BTreeMap::new(),
+                    None,
                 )
                 .is_err()
             );
@@ -476,6 +478,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
                     OperationId::new(403).unwrap(),
                     &[],
                     &BTreeMap::new(),
+                    None,
                 )
                 .is_err()
             );
@@ -496,6 +499,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
                     operation,
                     &[],
                     &BTreeMap::new(),
+                    None,
                 )
                 .is_err()
             );
@@ -531,6 +535,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
                 operation,
                 &[],
                 &BTreeMap::new(),
+                None,
             )
             .is_err()
         );

@@ -42,9 +42,9 @@ impl<'evidence> SourceEvaluatedImportSettlement<'evidence> {
 /// Consume one retained Terminal product and realize its demanded evaluated
 /// imports through externally admitted execution and same-stack custody.
 ///
-/// The first lane deliberately rejects callback custody. Callback placement
-/// needs a combined checked-scope realization owner and cannot be inferred from
-/// an opaque retained sidecar.
+/// Direct callback custody is normalized from the exact retained placement and
+/// occurrence pair. The native pipeline currently consumes that row through
+/// physical assignment and then rejects at the explicit emission fence.
 pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
     retained: omega_compilation_report::RetainedTerminalArtifact,
     profile: &psi_proof_admission::AdmissionProfile,
@@ -54,29 +54,22 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
     retained
         .validate()
         .map_err(|message| diagnostic("retained Terminal product", message))?;
-    if !retained.callback_placements().is_empty() {
-        return Err(diagnostic(
-            "retained Terminal product",
-            "source-evaluated import realization does not yet consume callback custody",
-        ));
-    }
-    let (artifact, callback_placements, proposal) = retained.into_parts();
-    debug_assert!(callback_placements.is_empty());
-    let proposal = proposal.ok_or_else(|| {
+    let retained_proposal = retained.native_realization_proposal().ok_or_else(|| {
         diagnostic(
             "retained Terminal product",
             "source-evaluated import realization requires one native proposal",
         )
     })?;
+    let native_callbacks = admitted_native_callbacks(
+        retained.callback_placements(),
+        retained_proposal.callback_occurrences(),
+    )?;
+    let (artifact, callback_placements, proposal) = retained.into_parts();
+    debug_assert_eq!(callback_placements.len(), native_callbacks.len());
+    let proposal = proposal.expect("native proposal was checked before retained product split");
     proposal
         .validate_for_artifact(&artifact)
         .map_err(|message| diagnostic("Terminal native proposal", message))?;
-    if !proposal.callback_occurrences().is_empty() {
-        return Err(diagnostic(
-            "Terminal native proposal",
-            "source-evaluated import realization does not yet consume callback occurrences",
-        ));
-    }
 
     let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         diagnostic(
@@ -168,8 +161,73 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
             settlements: &native_settlements,
             compiler_builtins: &compiler_builtins,
             ieee_float_fma: &ieee_float_fma,
+            native_callbacks: &native_callbacks,
         },
     )
+}
+
+fn admitted_native_callbacks(
+    placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
+    occurrences: &[omega_compilation_report::TerminalCallbackOccurrenceProposal],
+) -> Result<
+    Vec<omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument>,
+    Vec<Diagnostic>,
+> {
+    if placements.len() > 1 || occurrences.len() > 1 {
+        return Err(diagnostic(
+            "Terminal callback custody",
+            "ordinary native realization currently admits exactly one direct callback",
+        ));
+    }
+    let mut admitted = Vec::with_capacity(occurrences.len());
+    for occurrence in occurrences {
+        let placement = placements
+            .get(occurrence.placement_index())
+            .ok_or_else(|| {
+                diagnostic(
+                    "Terminal callback custody",
+                    "callback occurrence names an absent retained placement",
+                )
+            })?;
+        let materialization = placement.private_materialization.as_ref().ok_or_else(|| {
+            diagnostic(
+                "Terminal callback custody",
+                "callback placement has no private registrar materialization",
+            )
+        })?;
+        let application = occurrence.direct_parameter_application().ok_or_else(|| {
+            diagnostic(
+                "Terminal callback custody",
+                "field callback materialization is outside the direct-parameter cohort",
+            )
+        })?;
+        if materialization
+            .direct_registrar_parameter_application
+            .as_ref()
+            != Some(application)
+            || materialization.destination
+                != omega_calling_conventions::NativePlace::Parameter(application.parameter)
+        {
+            return Err(diagnostic(
+                "Terminal callback custody",
+                "direct callback application drifted from its retained registrar materialization",
+            ));
+        }
+        admitted.push(
+            omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument {
+                terminal_operation: occurrence.terminal_operation(),
+                placement_index: occurrence.placement_index(),
+                callback_function: occurrence.callback_thunk_identity(),
+                application: application.clone(),
+                registrar_boundary_entry_plan: materialization
+                    .registrar_boundary_entry_plan
+                    .clone(),
+                registrar_context: materialization.context.clone(),
+                registrar_application_commitment: materialization.registrar_application_commitment,
+            },
+        );
+    }
+    Ok(admitted)
 }
 
 fn exact_demanded_import_plans<'proposal>(

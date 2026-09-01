@@ -42,6 +42,150 @@ fn entry_plan(
     .clone()
 }
 
+fn interleaved_callback(
+    boundary: BoundaryMachineId,
+) -> (
+    omega_calling_conventions::BoundaryEntryPlan,
+    omega_target_operations::TargetNativeCallbackArgument,
+) {
+    let target = NativeTarget::linux_x64();
+    let shape = ValueShape::integer(8, 8);
+    let mut plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![shape, shape, shape],
+            result: None,
+        },
+    )
+    .expect("three-slot registrar plan")
+    .plan()
+    .clone();
+    let binder = omega_calling_conventions::StaticMachineBinderId::new(71).unwrap();
+    let parameter = omega_calling_conventions::NativeParameterId::new(72).unwrap();
+    let requirement = omega_calling_conventions::CallbackRequirementId::new(73).unwrap();
+    let destination = omega_calling_conventions::NativePlace::Parameter(parameter);
+    plan.call.callback_materializations =
+        vec![omega_calling_conventions::CallbackMaterialization {
+            binder,
+            destination: destination.clone(),
+        }];
+    let context = omega_calling_conventions::CallbackMaterializationContext {
+        binders: vec![omega_calling_conventions::CallbackBinderRequirement {
+            binder,
+            requirement,
+        }],
+        demands: vec![omega_calling_conventions::NativeCallbackDemand {
+            destination,
+            requirement,
+        }],
+    };
+    let application = omega_calling_conventions::NativeParameterApplication {
+        parameter,
+        native_ordinal: 1,
+        shape,
+        placement: plan.call.parameters[1].clone(),
+    };
+    (
+        plan.clone(),
+        omega_target_operations::TargetNativeCallbackArgument {
+            terminal_operation: OperationId::new(boundary.get()).unwrap(),
+            placement_index: 0,
+            callback_function: omega_function_identity::MachineFunctionIdentity::default(),
+            application,
+            registrar_boundary_entry_plan: plan,
+            registrar_context: context,
+            registrar_application_commitment: [0x55; 32],
+        },
+    )
+}
+
+#[test]
+fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_zero_and_two() {
+    let boundary = BoundaryMachineId::new(61).unwrap();
+    let first = ValueId::new(62).unwrap();
+    let second = ValueId::new(63).unwrap();
+    let first_operation = OperationId::new(64).unwrap();
+    let second_operation = OperationId::new(65).unwrap();
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let declaration = declaration(
+        boundary,
+        vec![
+            ScalarType::Integer(integer_type),
+            ScalarType::Integer(integer_type),
+        ],
+    );
+    let scalar_values = BTreeMap::from([
+        (
+            first,
+            KnownUnitInteger::Immediate {
+                defining_operation: first_operation,
+                scalar_type: integer_type,
+                value: IntegerValue::Unsigned(11),
+            },
+        ),
+        (
+            second,
+            KnownUnitInteger::Immediate {
+                defining_operation: second_operation,
+                scalar_type: integer_type,
+                value: IntegerValue::Unsigned(22),
+            },
+        ),
+    ]);
+    let (plan, callback) = interleaved_callback(boundary);
+    let arguments = lower_normalized_foreign_scalar_arguments_with_result(
+        boundary,
+        &declaration,
+        &[first, second],
+        &plan,
+        &scalar_values,
+        None,
+        Some(&callback),
+    )
+    .expect("one interleaved native-only callback argument");
+    assert_eq!(arguments.len(), 2);
+    assert_eq!(arguments[0].parameter_index, 0);
+    assert_eq!(arguments[0].source_value(), first);
+    assert_eq!(arguments[0].placement, plan.call.parameters[0]);
+    assert_eq!(arguments[1].parameter_index, 2);
+    assert_eq!(arguments[1].source_value(), second);
+    assert_eq!(arguments[1].placement, plan.call.parameters[2]);
+
+    let mut wrong_ordinal = callback.clone();
+    wrong_ordinal.application.native_ordinal = 2;
+    assert!(
+        lower_normalized_foreign_scalar_arguments_with_result(
+            boundary,
+            &declaration,
+            &[first, second],
+            &plan,
+            &scalar_values,
+            None,
+            Some(&wrong_ordinal),
+        )
+        .is_err()
+    );
+
+    let mut wrong_plan = callback;
+    wrong_plan
+        .registrar_boundary_entry_plan
+        .call
+        .parameters
+        .swap(1, 2);
+    assert!(
+        lower_normalized_foreign_scalar_arguments_with_result(
+            boundary,
+            &declaration,
+            &[first, second],
+            &plan,
+            &scalar_values,
+            None,
+            Some(&wrong_plan),
+        )
+        .is_err()
+    );
+}
+
 #[test]
 fn fixed_integer_literal_preserves_source_type_value_order_and_register_placement() {
     let boundary = BoundaryMachineId::new(41).expect("boundary");

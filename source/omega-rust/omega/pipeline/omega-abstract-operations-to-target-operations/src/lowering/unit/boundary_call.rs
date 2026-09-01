@@ -23,6 +23,7 @@ pub(super) fn lower_boundary_call(
         (MachineId, OperationId, BoundaryMachineId),
         InstalledProviderUnitCallEvidence,
     >,
+    native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     mut shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     mut active: &mut BTreeSet<StructuralTypeId>,
@@ -46,6 +47,7 @@ pub(super) fn lower_boundary_call(
             completion_claim_sources,
             completion_receipts,
         } => {
+            let native_callback = native_callbacks.get(psi_operation);
             if let Some(installed) =
                 installed_calls.get(&(function.machine, *psi_operation, *boundary))
             {
@@ -247,6 +249,7 @@ pub(super) fn lower_boundary_call(
                     &foreign.boundary_entry_plan,
                     scalar_values,
                     result_home.map(|home| home.shape),
+                    native_callback,
                 )?;
                 if arguments.len() != declaration.scalar_parameters.len()
                     || !structural_arguments.is_empty()
@@ -269,6 +272,10 @@ pub(super) fn lower_boundary_call(
                     || foreign.boundary_entry_plan.call.entry_control
                         != omega_calling_conventions::EntryControl::CallReturn
                     || foreign.locator.target().native_target() != target
+                    || native_callback.is_some_and(|callback| {
+                        callback.terminal_operation != *psi_operation
+                            || callback.registrar_boundary_entry_plan != foreign.boundary_entry_plan
+                    })
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                 }

@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-effects = { path = "../../representations/omega-effects" }
+omega-function-identity = { path = "../../representations/omega-function-identity" }
 omega-target = { path = "../../representations/omega-target" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
@@ -22,6 +23,7 @@ psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
 psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }

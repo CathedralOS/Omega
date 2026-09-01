@@ -12,6 +12,7 @@ pub(super) fn assign(
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
     result_home: Option<omega_target_operations::TargetUnitScalarHomeRequirement>,
     preceding_operations: &[TargetUnitOperation],
+    native_callback: Option<&omega_target_operations::TargetNativeCallbackArgument>,
     assigned_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
     next_home: &mut u32,
 ) -> Result<
@@ -43,6 +44,7 @@ pub(super) fn assign(
         psi_operation,
         preceding_operations,
         assigned_homes,
+        native_callback,
     )?;
     let result_home = result_home
         .map(|result| {

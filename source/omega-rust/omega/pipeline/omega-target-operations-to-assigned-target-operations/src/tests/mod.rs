@@ -3,5 +3,6 @@
 
 mod boolean_cleanup;
 mod expression_homes;
+mod native_callback;
 mod ranked_countdown;
 mod structural_calls;

@@ -7044,20 +7044,54 @@ Owners:
   The driver supplies checked provenance and order; the report carrier only
   replays each row's structural validity and cannot reconstruct that
   provenance independently. Check-only requests remain valid and retain the
-  rows. The canonical native-realization seam now also offers an opaque
+  rows. The canonical native-realization seam also offers a generic opaque
   by-value adapter that returns the exact sidecar beside either its source-free
   native artifact or diagnostic rejection. It does not inspect, admit, lower,
-  or fingerprint the rows, and the neutral `NativeArtifact` remains free of
-  checked/source carriers. Native artifact requests remain fenced until the
-  compiler report and publication route preserve the sidecar without an
-  artifact-only escape; the deleted legacy backend route is not authority to
-  discard it. These custody milestones grant no callback registration,
+  or fingerprint the rows. Separately, the compiler's canonical source-
+  evaluated-import re-entry now interprets one direct row and consumes it
+  through target lowering and assignment before the explicit emission fence.
+  The neutral `NativeArtifact` remains free of checked/source carriers; the
+  deleted legacy backend route is not authority to discard them. These custody
+  milestones grant no callback registration,
   invocation, address, lifetime, or publication authority.
+  A separate first direct-parameter continuation now consumes that retained
+  sidecar through target lowering and physical assignment. For exactly one
+  direct `NativePlace::Parameter` callback on the ordinary unoptimized
+  normalized-import path for supported ELF/Mach-O targets, it rejoins the
+  target-owned
+  occurrence to the exact registrar `BoundaryCall` by Terminal `OperationId`,
+  retains the selected callback-thunk `MachineFunctionIdentity`, and carries
+  the exact native-parameter application at its authored native ordinal beside
+  the registrar's ordinary fixed-width integer scalar arguments. Exactly one
+  binder, demand, and materialization, a target-pointer-shaped application, and
+  one complete register or stack placement are required. Physical assignment
+  preserves the same operation, placement index and complete target callback
+  row, nominal native parameter,
+  selected thunk identity, and plan-selected register or stack destination.
+  The callback contributes no source `ValueId`, Omega runtime type, inferred
+  position, or trailing hidden argument. Missing, duplicate, wrong-operation,
+  field, multiple-callback, native-order, or thunk-identity drift remains
+  fenced; invalid destination geometry rejects during assignment. This is an
+  address-free assignment receipt
+  only: thunk-body and private/object-symbol synthesis, address-load selection,
+  registrar-call emission, callback relocation, object/native-artifact replay,
+  and executable registrar settlement remain open. It grants no registration,
+  invocation, address, lifetime or lease, installation, or publication
+  authority.
+  The application-v3 commitment is retained from the compiler-owned placement
+  as a provenance projection, not rederived by this rung: the complete authored
+  nominal telescope needed to authenticate it is absent after source-free
+  handoff. Likewise, exact placement-to-`OperationId` provenance remains a
+  producer-owned join; retained replay enforces unique boundary operations but
+  cannot reconstruct the authored site from Terminal Psi alone. Independent
+  commitment authentication and an independently replayable site-to-operation
+  receipt remain open before artifact publication.
   The symbol is planned object identity only and never an Omega value. A
-  callback thunk now also has a distinct machine-function identity bound to
+  future synthesized callback thunk already has a distinct machine-function
+  identity bound to
   its placement-row index and selected source entry, so an ordinary source
   function wearing the callback symbol cannot satisfy emission. That role
-  survives the existing assigned-operation, machine-instruction, byte, and
+  can survive the existing assigned-operation, machine-instruction, byte, and
   object carriers; object planning preserves its richer placement-derived
   symbol, and final emission requires the encoded identity to equal the exact
   planned callback role. Target-instruction lowering now validates the whole

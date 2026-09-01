@@ -14,6 +14,7 @@ pub(super) fn assign(
     function: &TargetFunction,
     operation: &TargetOperation,
     target: NativeTarget,
+    native_callbacks: &[omega_target_operations::TargetNativeCallbackArgument],
 ) -> Result<AssignedOperation, AssignmentError> {
     let TargetOperation::UnitBody(body) = operation else {
         unreachable!("Unit assignment receives a Unit body");
@@ -25,11 +26,20 @@ pub(super) fn assign(
         .iter()
         .enumerate()
         .map(|(operation_index, operation)| {
+            let native_callback = match operation {
+                TargetUnitOperation::NormalizedForeignCall { psi_operation, .. } => {
+                    native_callbacks
+                        .iter()
+                        .find(|callback| callback.terminal_operation == *psi_operation)
+                }
+                _ => None,
+            };
             operation::assign(
                 function.machine,
                 operation,
                 &body.operations[..operation_index],
                 target,
+                native_callback,
                 &mut assigned_scalar_homes,
                 &mut next_scalar_home,
             )

@@ -4,7 +4,7 @@ pub use callback_placements::{
     BoundCallbackPrivateMaterialization, BoundNominalCallbackPlacement,
     CallbackPlacementBindingIdentity, CallbackThunkPlan, callback_placement_binding_identity,
     callback_thunk_placement_identity_report_fingerprint, canonical_callback_private_symbol,
-    validate_bound_nominal_callback_placement,
+    canonical_callback_thunk_identity, validate_bound_nominal_callback_placement,
 };
 pub use callback_root_schedule::{
     CallbackRootActivationIdentity, CallbackRootSchedule, plan_callback_root_schedule,

@@ -787,6 +787,29 @@ parameter identity, and a self-consistent historical application-v2 envelope.
 The current application-v3 identity is recomputed from the exact retained
 signature and plan; no older coordinate or commitment is translated into it.
 
+Downstream direct-parameter lowering currently closes one address-free custody
+cohort: exactly one direct `NativePlace::Parameter` callback on the ordinary
+unoptimized normalized-import path for supported ELF/Mach-O targets, with only
+the established fixed-width integer semantic arguments and result. The cohort
+requires exactly one binder, demand, and materialization, a target-pointer-
+shaped application, and one complete register or stack placement. Its retained
+occurrence rejoins one Terminal registrar operation by exact `OperationId`.
+Target lowering retains its exact nominal parameter, authored native ordinal,
+target-closed application, and selected callback-thunk
+`MachineFunctionIdentity` beside the ordinary source scalar arguments.
+Physical assignment then binds that same entry to the policy-selected register
+or stack destination without synthesizing an Omega value or inferring a
+parameter position. The retained thunk identity is not a function address,
+pointer value, or emitted symbol. Field destinations, multiple callbacks,
+thunk-body or symbol synthesis, address loads, call emission, relocations,
+source-free artifact replay, and executable registrar settlement remain
+outside this cohort.
+The application-v3 commitment retained on this carrier remains a compiler-
+origin provenance projection. This rung does not claim to rederive it from the
+reduced plan/context tuple: the complete authored nominal telescope required by
+the canonical application identity is no longer present. Independent
+commitment authentication remains required before artifact publication.
+
 The requirement supplies the complete callable signature, contracts,
 operational ceilings, and evaluated calling/entry plan; the binder does not
 repeat them.
@@ -1022,14 +1045,14 @@ retains that sidecar beside the source-free artifact, exposes borrowed
 observation, and permits only a consuming transfer of both parts together.
 Checked provenance and canonical row order come from the private driver route;
 the report carrier validates each row but does not attempt to reconstruct its
-origin. The canonical native-realization seam likewise has an opaque by-value
+origin. The canonical native-realization seam also has a generic opaque by-value
 adapter that returns the exact sidecar beside successful native realization or
 diagnostic rejection without interpreting its contents. The neutral source-
-free `NativeArtifact` does not absorb those checked-derived rows. Check-only
-compilation remains valid, and native artifact requests remain fenced until
-compiler-report and publication custody preserve the sidecar without an
-artifact-only escape. These custody routes grant no registration, invocation,
-address, lifetime, or publication authority.
+free `NativeArtifact` does not absorb those checked-derived rows. Separately,
+the compiler source-evaluated-import re-entry consumes one admitted direct row
+through target lowering and physical assignment, then rejects at callback
+emission. Check-only compilation remains valid. These custody routes grant no
+registration, invocation, address, lifetime, or publication authority.
 
 The identity row additionally pins two separate normalized public-contract
 endpoints: the callback requirement capsule and the selected machine's declared
@@ -1705,18 +1728,17 @@ pointer shape, and `ValuePlacement`; retained-product replay compares it
 structurally with the placement's registrar plan instead of inferring it from
 the ID or ordinal. Missing, duplicate, unreachable, wrong-target, non-boundary,
 native-application-drifted, and artifact-drifted rows reject independently.
-Native production remains fenced until it can consume the row rather than
-silently discarding it.
-
-The next slice must carry that target-owned application as adjunct realization
-input keyed by the stable Terminal `OperationId`, then retain it through
-abstract, target, assigned-operand, emitted-call, and artifact replay. The
-current canonical pipeline has no native-only callback-argument carrier in
-those representations; the removed custom/unknown host-operation prototype is
-not reusable evidence of completion. Those native integrations remain
-engineering work under the settled v3 application model, not open
-language-design questions. The authored-hidden-parameter and stale-v1/v2
-negative matrix is complete at source admission and independent replay.
+Native production remains fenced after the first consuming target/assignment
+rung. That rung carries exactly one direct native-only callback application,
+keyed by stable Terminal `OperationId`, through target lowering and physical
+assignment while retaining the selected thunk identity separately from source
+scalar values. The next slice starts with thunk/private-symbol synthesis,
+address-load selection, exact registrar-call emission, and downstream artifact
+replay. The removed custom/unknown host-operation prototype is not reusable
+evidence of completion. Those integrations remain engineering work under the
+settled v3 application model, not open language-design questions. The authored-
+hidden-parameter and stale-v1/v2 negative matrix is complete at source
+admission and independent replay.
 
 Compiler-body memory operations likewise retain their exact plan-selected place
 and relocation recipes through emission and replay validation. Current

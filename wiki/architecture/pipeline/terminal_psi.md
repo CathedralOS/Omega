@@ -409,18 +409,18 @@ current single-slot `Field` form. Layout/slot/requirement/data-symbol identity,
 offset, pointer extent, and alignment replay against the selected target and
 containing data layout. The offset is retained evidence, not source-authored
 identity. Multi-segment physical path composition rejects as an engineering
-gap, and direct-parameter construction remains synthetic-only pending the
-settled source/native-telescope implementation.
-That physical-destination recipe itself has no selected/assigned operation,
+gap. The direct-parameter form is now owned by the separate canonical cohort
+below; this paragraph describes the still-open projected-field form.
+That field physical-destination recipe itself has no selected/assigned operation,
 object symbol, relocation, bytes, runtime address, registration authority, or
 lease; the exact registrar-native-parameter-to-assigned-operand join follows
 separately.
 
 The former custom/unknown assigned-operand carrier is likewise absent from the
-canonical path. New work must not revive that source-specific branch. It must
-join the target-owned occurrence/application row to the ordinary Terminal
-boundary call, then retain exact abstract, target, assigned, and emitted-call
-identities with independent replay.
+canonical path. New work must not revive that source-specific branch. The live
+direct-parameter cohort uses target-owned adjunct custody through assignment;
+future work must consume that exact assigned row during thunk/address and
+registrar-call emission with independent downstream replay.
 
 #### Canonical direct-parameter custody
 
@@ -438,9 +438,34 @@ complete row with the independently validated callback placement. Canonical
 Terminal Psi remains source-handle-free. Proposal replay rejects missing,
 duplicate, unreachable, wrong-target, non-boundary-operation, native-
 application, and artifact drift, while native realization remains fenced. The
-next rung is to feed this adjunct row into native realization and retain its
-exact abstract, target, assigned, and emitted-call joins; none may be inferred
-from the parameter ID or registrar plan position.
+first consuming rung is now closed for exactly one direct
+`NativePlace::Parameter` callback on the ordinary unoptimized normalized-import
+path for supported ELF/Mach-O targets, with only the established fixed-width
+integer semantic arguments and result. It requires exactly one binder, demand,
+and materialization, a target-pointer-shaped application, and one complete
+register or stack placement. Target lowering joins the proposal to the
+exact retained registrar `BoundaryCall` by `OperationId`, carries the selected
+callback-thunk `MachineFunctionIdentity` and exact native-parameter application
+at its authored ordinal beside the ordinary source scalar arguments, and
+physical assignment preserves that tuple while binding the plan-selected
+parameter destination. The callback contributes no Terminal operand, source
+`ValueId`, Omega runtime type, inferred position, or trailing argument. Field
+destinations and multiple callback entries remain fenced. This remains
+compiler-owned target custody: Terminal Psi does not encode the thunk identity
+or physical assignment, and the source-free artifact cannot reconstruct either
+from the operation alone. Thunk-body and private/object-symbol synthesis,
+address-load selection, registrar-call emission, relocation,
+object/native-artifact replay, and executable registrar settlement remain
+later rungs. No registration, invocation, address, lifetime or lease,
+installation, or publication authority follows.
+The application-v3 commitment travels as a compiler-origin provenance
+projection; target lowering cannot rederive it because the complete authored
+nominal telescope is intentionally absent after source-free handoff. The exact
+placement-to-`OperationId` mapping is likewise producer-owned. Retained replay
+requires unique boundary-operation identities but cannot reconstruct the
+authored site from Terminal Psi alone. Independent commitment authentication
+and an independently replayable site-to-operation receipt remain later
+publication prerequisites.
 
 #### Retired object-store and installation prototype
 
@@ -2831,13 +2856,15 @@ or a production rejection. Omega retains the resulting artifact and sidecar as
 one compiler product with no consuming artifact-only projection. The private
 driver route supplies checked provenance and order; the retained-product
 validator replays the artifact and every row but does not infer their origin.
-The canonical native-realization seam now has a separate generic adapter that
+The canonical native-realization seam has a separate generic adapter that
 returns the opaque sidecar by value beside either the successful native
 artifact or diagnostic rejection. It neither adds callback vocabulary to the
-source-free artifact nor interprets the rows. Compiler native requests remain
-fenced until report and publication custody can preserve the same sidecar
-without an artifact-only escape. This establishes custody only, not
-registration, invocation, address, lifetime, or publication authority.
+source-free artifact nor interprets the rows. Distinctly, the compiler's
+source-evaluated-import re-entry now interprets one direct callback row and
+consumes it through target lowering and assignment before the explicit emission
+fence. Neither route publishes callback custody into `NativeArtifact`. This
+establishes custody only, not registration, invocation, address, lifetime, or
+publication authority.
 
 The compiler exposes one production native-realization boundary after that
 owner. It consumes the complete canonical artifact by value, then performs

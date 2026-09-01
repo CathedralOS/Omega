@@ -917,6 +917,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             settlements: &[],
             compiler_builtins: &compiler_builtins,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .expect("retained Terminal product and independent local admission should realize natively");

@@ -260,6 +260,19 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         panic!("one exact Terminal registrar occurrence must be retained");
     };
     assert_eq!(occurrence.placement_index(), 0);
+    let callback_thunk_identity = occurrence.callback_thunk_identity();
+    assert_eq!(
+        callback_thunk_identity.callback_thunk_placement_index(),
+        Some(0)
+    );
+    let callback_continuation = callback_thunk_identity.associated_source_continuation();
+    assert_eq!(callback_continuation.machine, placement.selected_machine);
+    assert_eq!(callback_continuation.state, placement.selected_entry);
+    assert_eq!(callback_continuation.segment_index, 0);
+    assert_eq!(
+        Some(callback_thunk_identity),
+        omega_backend_plan::canonical_callback_thunk_identity(0, placement)
+    );
     let application = occurrence
         .direct_parameter_application()
         .expect("direct callback occurrence retains its target-closed telescope row");
@@ -329,6 +342,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                     0,
                     wrong_operation,
                     Some(application.clone()),
+                    callback_thunk_identity,
                 )
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),
@@ -370,6 +384,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 0,
                 occurrence.terminal_operation(),
                 Some(drifted_application),
+                callback_thunk_identity,
             ),
         ],
         proposal.ieee_float_fma_occurrences().to_vec(),
@@ -384,6 +399,68 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         )
         .is_err(),
         "retained-product replay must reject native telescope drift",
+    );
+    let placement_index_drift = omega_backend_plan::canonical_callback_thunk_identity(1, placement)
+        .expect("the same exact placement admits a distinct indexed thunk identity");
+    assert!(
+        omega_compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+            vec![
+                omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(application.clone()),
+                    placement_index_drift,
+                ),
+            ],
+            proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.checked_boundary_operator_scope().clone(),
+        )
+        .is_err(),
+        "a callback-thunk role for another placement index must reject",
+    );
+    let mut continuation_drift_placement = placement.clone();
+    continuation_drift_placement.selected_entry = placement.registration_operation;
+    let continuation_drift =
+        omega_backend_plan::canonical_callback_thunk_identity(0, &continuation_drift_placement)
+            .expect("a valid but unrelated continuation can form a mutation identity");
+    let continuation_drift_proposal =
+        omega_compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            proposal.compiler_builtins().to_vec(),
+            vec![
+                omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(application.clone()),
+                    continuation_drift,
+                ),
+            ],
+            proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.checked_boundary_operator_scope().clone(),
+        )
+        .expect("artifact-only proposal replay cannot reconstruct checked continuation handles");
+    assert!(
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            replay_copy_terminal_artifact(retained.artifact()),
+            retained.callback_placements().to_vec(),
+            continuation_drift_proposal,
+        )
+        .is_err(),
+        "retained-product replay must reject callback-thunk continuation drift",
     );
     let missing = omega_compilation_report::TerminalNativeRealizationProposal::new(
         retained.artifact(),

@@ -18,6 +18,7 @@ use omega_abstract_operations::AbstractOperationPlan;
 use omega_installation_evidence::ProviderInstallationEvidence;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetOperationPlan;
+use omega_target_operations::TargetOperationPlanWithNativeCallbacks;
 
 use crate::{AdmittedBoundarySettlement, LoweringError};
 use coordination::{
@@ -27,6 +28,11 @@ use coordination::{
 
 #[cfg(test)]
 pub(crate) use coordination::lower_to_target_operations_with_settlements as lower_with_settlements_for_tests;
+#[cfg(test)]
+pub(crate) use coordination::{
+    bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
+    validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
+};
 #[cfg(test)]
 pub(crate) use structural_layout::structural_shape as structural_shape_for_tests;
 
@@ -89,6 +95,31 @@ pub fn lower_to_target_operations_with_provider_executions_installation_and_ieee
     installation: Option<&dyn ProviderInstallationEvidence>,
     ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
 ) -> Result<TargetOperationPlan, LoweringError> {
+    Ok(
+        lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
+            plan,
+            target,
+            settlements,
+            installation,
+            ieee_float_fma,
+            &[],
+        )?
+        .plan,
+    )
+}
+
+/// Lower the ordinary source-free plan while consuming exact target-owned
+/// native callback argument admissions. Compatibility entrances above pass an
+/// empty slice and therefore preserve their prior result type and behavior.
+#[allow(clippy::too_many_arguments)]
+pub fn lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
+    plan: &AbstractOperationPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedBoundarySettlement<'_>],
+    installation: Option<&dyn ProviderInstallationEvidence>,
+    ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
+    native_callbacks: &[crate::AdmittedNativeCallbackArgument],
+) -> Result<TargetOperationPlanWithNativeCallbacks, LoweringError> {
     let bindings = provider_evidence::bind_provider_executions(plan, settlements)?;
     lower_to_target_operations_with_settlements_and_installation(
         plan,
@@ -96,5 +127,6 @@ pub fn lower_to_target_operations_with_provider_executions_installation_and_ieee
         &bindings,
         installation,
         ieee_float_fma,
+        native_callbacks,
     )
 }

@@ -10,6 +10,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     result_shape: Option<ValueShape>,
+    native_callback: Option<&omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     let scalar_parameter_shapes = declaration
         .scalar_parameters
@@ -27,17 +28,51 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
             Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let callback_ordinal = native_callback
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .transpose()
+        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     let signature = CallSignature {
-        parameters: scalar_parameter_shapes.clone(),
+        parameters: if native_callback.is_some() {
+            boundary_entry_plan
+                .call
+                .parameters
+                .iter()
+                .map(|placement| placement.shape)
+                .collect()
+        } else {
+            scalar_parameter_shapes.clone()
+        },
         result: result_shape,
     };
-    let validated = omega_calling_conventions::validate_boundary_entry_plan(
-        boundary_entry_plan.clone(),
-        &signature,
-    )
+    let validated = match native_callback {
+        Some(callback) => {
+            let callback_placement = callback_ordinal
+                .and_then(|ordinal| boundary_entry_plan.call.parameters.get(ordinal));
+            if callback.registrar_boundary_entry_plan != *boundary_entry_plan
+                || callback.application.shape != callback.application.placement.shape
+                || callback_placement != Some(&callback.application.placement)
+            {
+                return Err(LoweringError::InvalidNativeCallbackArgument(
+                    callback.terminal_operation,
+                ));
+            }
+            omega_calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                boundary_entry_plan.clone(),
+                &signature,
+                &callback.registrar_context,
+            )
+        }
+        None => omega_calling_conventions::validate_boundary_entry_plan(
+            boundary_entry_plan.clone(),
+            &signature,
+        ),
+    }
     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     if arguments.len() != declaration.scalar_parameters.len()
         || validated.plan() != boundary_entry_plan
+        || boundary_entry_plan.call.parameters.len()
+            != scalar_parameter_shapes.len() + usize::from(native_callback.is_some())
     {
         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
     }
@@ -45,10 +80,18 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
         .iter()
         .zip(&declaration.scalar_parameters)
         .zip(&scalar_parameter_shapes)
-        .zip(&boundary_entry_plan.call.parameters)
         .enumerate()
         .map(
-            |(parameter_index, (((source_value, parameter), shape), placement))| {
+            |(semantic_parameter_index, ((source_value, parameter), shape))| {
+                let parameter_index = semantic_parameter_index
+                    + usize::from(
+                        callback_ordinal.is_some_and(|ordinal| semantic_parameter_index >= ordinal),
+                    );
+                let placement = boundary_entry_plan
+                    .call
+                    .parameters
+                    .get(parameter_index)
+                    .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
                 let ScalarType::Integer(integer_type) = parameter else {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
@@ -112,6 +155,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments(
         arguments,
         boundary_entry_plan,
         scalar_values,
+        None,
         None,
     )
 }

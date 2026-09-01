@@ -17,6 +17,7 @@ pub struct TerminalCallbackOccurrenceProposal {
     placement_index: usize,
     terminal_operation: psi_core::OperationId,
     direct_parameter_application: Option<omega_calling_conventions::NativeParameterApplication>,
+    callback_thunk_identity: omega_function_identity::MachineFunctionIdentity,
 }
 
 impl TerminalCallbackOccurrenceProposal {
@@ -24,11 +25,13 @@ impl TerminalCallbackOccurrenceProposal {
         placement_index: usize,
         terminal_operation: psi_core::OperationId,
         direct_parameter_application: Option<omega_calling_conventions::NativeParameterApplication>,
+        callback_thunk_identity: omega_function_identity::MachineFunctionIdentity,
     ) -> Self {
         Self {
             placement_index,
             terminal_operation,
             direct_parameter_application,
+            callback_thunk_identity,
         }
     }
 
@@ -44,6 +47,12 @@ impl TerminalCallbackOccurrenceProposal {
         &self,
     ) -> Option<&omega_calling_conventions::NativeParameterApplication> {
         self.direct_parameter_application.as_ref()
+    }
+
+    pub const fn callback_thunk_identity(
+        &self,
+    ) -> omega_function_identity::MachineFunctionIdentity {
+        self.callback_thunk_identity
     }
 }
 
@@ -251,9 +260,27 @@ impl TerminalNativeRealizationProposal {
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
         )?;
         let mut placement_indices = std::collections::BTreeSet::new();
+        let mut callback_operations = std::collections::BTreeSet::new();
+        let mut callback_thunk_identities = std::collections::HashSet::new();
         for occurrence in &self.callback_occurrences {
             if !placement_indices.insert(occurrence.placement_index) {
                 return Err("Terminal native proposal repeats a callback placement occurrence");
+            }
+            if !occurrence.callback_thunk_identity.is_valid()
+                || occurrence
+                    .callback_thunk_identity
+                    .callback_thunk_placement_index()
+                    != Some(occurrence.placement_index)
+            {
+                return Err(
+                    "Terminal callback occurrence has an invalid callback-thunk role or placement index",
+                );
+            }
+            if !callback_thunk_identities.insert(occurrence.callback_thunk_identity) {
+                return Err("Terminal native proposal repeats a callback-thunk identity");
+            }
+            if !callback_operations.insert(occurrence.terminal_operation) {
+                return Err("Terminal native proposal repeats a callback registrar operation");
             }
             let matching = module
                 .machines
@@ -594,6 +621,18 @@ impl RetainedTerminalArtifact {
                 if occurrence.direct_parameter_application() != expected_application {
                     return Err(
                         "Terminal callback occurrence native parameter application drifted from its retained placement",
+                    );
+                }
+                let expected_thunk = omega_backend_plan::canonical_callback_thunk_identity(
+                    placement_index,
+                    &self.callback_placements[placement_index],
+                )
+                .ok_or(
+                    "retained callback placement cannot derive one valid callback-thunk identity",
+                )?;
+                if occurrence.callback_thunk_identity() != expected_thunk {
+                    return Err(
+                        "Terminal callback occurrence thunk continuation drifted from its retained placement",
                     );
                 }
             }

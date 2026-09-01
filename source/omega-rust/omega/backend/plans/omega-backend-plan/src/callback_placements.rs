@@ -364,6 +364,27 @@ pub fn callback_placement_binding_identity(
     }
 }
 
+/// Derive the sole compiler-private function identity for one retained
+/// callback placement.
+///
+/// The placement index remains an exact join into the ordered placement
+/// roster. The continuation is always the selected machine/entry pair's
+/// canonical segment zero; callers may not supply either coordinate
+/// independently.
+pub fn canonical_callback_thunk_identity(
+    placement_index: usize,
+    placement: &BoundNominalCallbackPlacement,
+) -> Option<omega_function_identity::MachineFunctionIdentity> {
+    omega_function_identity::MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: placement.selected_machine,
+            state: placement.selected_entry,
+            segment_index: 0,
+        },
+        placement_index,
+    )
+}
+
 /// Independently replay the exact evaluated calling plan retained by one
 /// callback placement.
 ///

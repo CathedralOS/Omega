@@ -42,6 +42,7 @@ pub(super) fn assign(
                     operation: scalar.as_ref().clone(),
                 },
                 target,
+                &[],
             )?
             .operation;
             AssignedOperation::ScalarReturnWithCleanup {

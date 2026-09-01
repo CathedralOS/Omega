@@ -907,6 +907,21 @@ equally shaped parameter reorder that a placement-only fingerprint would miss.
 The migration from ordinal-derived IDs uses a new fingerprint version and
 reissues affected artifacts rather than reinterpreting them.
 
+The first downstream direct-parameter carrier remains address-free. For
+exactly one whole native parameter on the ordinary unoptimized normalized-
+import path for supported ELF/Mach-O targets, compiler-owned lowering joins the
+retained callback occurrence to its registrar call by Terminal `OperationId`, preserves
+the selected callback-thunk identity and exact authored native position through
+target lowering, and assigns the policy-selected physical destination. The
+cohort is limited to the established fixed-width integer semantic arguments
+and result and requires exactly one binder, demand, and materialization, a
+target-pointer-shaped application, and one complete register or stack placement.
+Carrying that identity does not create a code pointer, source argument, emitted
+thunk, private symbol, relocation, or executable registration. Field-projected
+and multiple callbacks remain fenced, as do thunk-body and symbol synthesis,
+address-load and registrar-call emission, object/native-artifact replay, and
+executable registrar settlement.
+
 A projected native callback field is a typed private-materialization demand in
 the normalized layout plan, not a field of the source-visible specification.
 The target package declares its stable identity as an explicitly named

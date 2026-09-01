@@ -18,10 +18,13 @@ psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 
 [dev-dependencies]
 omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }
+omega-function-identity = { path = "../../representations/omega-function-identity" }
 omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
+omega-task-plans = { path = "../../representations/omega-task-plans" }
 psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
