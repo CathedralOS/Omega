@@ -10720,8 +10720,13 @@ boundary without its corresponding checked law.
   ordinary leaf—including private and unselected leaves—as a structurally
   distinct normalized import with its atomic raw locator, producer identity,
   complete evaluation/materialization receipt, exact `via` custody, and
-  canonical schema-v118/row-v76 encoding. Replacing the current top-level-only
-  provider provenance replay remains open. `Syscall` and
+  canonical schema-v118/row-v76 encoding. Candidate validation and selected
+  provider replay now consume the exact derived schema/provider/requirement/
+  realization provenance plus the retained evaluated-binding table for trait,
+  top-level-requirement, and operator rows. Every checked-adapter, segregated
+  legacy external, and ordinary evaluated carrier is independently rejoined;
+  missing table coverage, category drift, target drift, and binding or symbol
+  substitution reject without fallback. `Syscall` and
   `VtableField` remain on their visibly segregated legacy carriers until their
   own ordinary typed value vocabularies exist.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
