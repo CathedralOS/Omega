@@ -2086,6 +2086,20 @@ for `LinuxExitGroupI32`. It does not infer a verdict from authored
 members. Every new catalog role must receive an explicit exhaustive policy
 disposition before admission can accept it.
 
+The next implementation rung shares that policy through one role-tagged
+`TerminalMechanismIdentity` and admits exact normalized-foreign rows. A
+foreign role binds the selected target and collision-resistant normalized
+locator identity to the strong contract commitment of its canonical admitted
+`BoundaryEntryPlan`; provider report fingerprints never enter the key.
+Receiving authorities supply a finite explicit table, and policy version 2
+commits the complete intrinsic inventory, every foreign row, canonical order,
+and every disposition. Direct demanded imports classify before provider
+settlement. Missing or duplicate rows, locator or contract substitution, wrong
+target, duplicate selected/external rows, and legacy string-backed bindings
+reject. This rung covers PE-by-name, PE-by-ordinal, versioned ELF, and Mach-O;
+it does not yet prove complete selected-provider-closure traversal or the
+service/schema containment join.
+
 String-backed imports are never durable classification identities. Before
 foreign-import classification replaces the transitional filename-and-trait
 review, the structural locator vocabulary first gains Mach-O, ordinary source

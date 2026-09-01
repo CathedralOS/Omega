@@ -59,6 +59,96 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     bytes
 }
 
+/// One exact normalized foreign leaf after source binding evaluation and
+/// calling-plan admission. The target and raw locator coordinates are sealed
+/// by `locator_identity`; the separately retained calling-plan commitment is
+/// the admitted implementation contract. Neither provider identity nor
+/// service schema is permitted to alter this physical identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NormalizedForeignTerminalMechanismIdentity {
+    target: omega_target::TargetProfile,
+    locator_identity: omega_target::ForeignLocatorIdentityDigest,
+    implementation_contract: crate::provider_plan::BoundaryCallingPlanCommitment,
+}
+
+impl NormalizedForeignTerminalMechanismIdentity {
+    pub fn from_normalized_locator(
+        locator: &omega_target::NormalizedForeignLocator,
+        implementation_contract: crate::provider_plan::BoundaryCallingPlanCommitment,
+    ) -> Self {
+        Self {
+            target: locator.target(),
+            locator_identity: locator.identity_digest(),
+            implementation_contract,
+        }
+    }
+
+    pub const fn target(self) -> omega_target::TargetProfile {
+        self.target
+    }
+
+    pub const fn locator_identity(self) -> omega_target::ForeignLocatorIdentityDigest {
+        self.locator_identity
+    }
+
+    pub const fn implementation_contract(
+        self,
+    ) -> crate::provider_plan::BoundaryCallingPlanCommitment {
+        self.implementation_contract
+    }
+}
+
+/// D45's closed, role-tagged post-normalization terminal-mechanism sum.
+///
+/// The role discriminant is semantic identity. Compiler intrinsics and foreign
+/// locators therefore cannot collide even if their child encodings happen to
+/// contain equal bytes. Future syscall, firmware/table, and checked-physical
+/// roles must be added as explicit variants rather than flattened optional
+/// fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalMechanismIdentity {
+    CompilerIntrinsic(CompilerIntrinsicExecutionIdentity),
+    NormalizedForeign(NormalizedForeignTerminalMechanismIdentity),
+}
+
+impl From<CompilerIntrinsicExecutionIdentity> for TerminalMechanismIdentity {
+    fn from(identity: CompilerIntrinsicExecutionIdentity) -> Self {
+        Self::CompilerIntrinsic(identity)
+    }
+}
+
+impl From<NormalizedForeignTerminalMechanismIdentity> for TerminalMechanismIdentity {
+    fn from(identity: NormalizedForeignTerminalMechanismIdentity) -> Self {
+        Self::NormalizedForeign(identity)
+    }
+}
+
+/// Canonical role-tagged bytes for policy ordering and commitment.
+pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) -> Vec<u8> {
+    match identity {
+        TerminalMechanismIdentity::CompilerIntrinsic(intrinsic) => {
+            let mut bytes = Vec::with_capacity(9);
+            bytes.push(0);
+            bytes.extend_from_slice(&compiler_intrinsic_execution_identity_bytes(intrinsic));
+            bytes
+        }
+        TerminalMechanismIdentity::NormalizedForeign(foreign) => {
+            let target = foreign.target().identity().as_str().as_bytes();
+            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 32 + 32);
+            bytes.push(1);
+            bytes.extend_from_slice(
+                &u32::try_from(target.len())
+                    .expect("target-profile identity length fits u32")
+                    .to_be_bytes(),
+            );
+            bytes.extend_from_slice(target);
+            bytes.extend_from_slice(&foreign.locator_identity().as_bytes());
+            bytes.extend_from_slice(&foreign.implementation_contract().as_bytes());
+            bytes
+        }
+    }
+}
+
 const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOperation) -> u8 {
     match operation {
         CompilerPrimitiveFloatBinaryOperation::Add => 0,

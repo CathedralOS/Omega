@@ -8,6 +8,9 @@ use psi_diagnostics::Diagnostic;
 pub(super) fn validate_source_evaluated_import_coverage(
     plan: &omega_abstract_operations::AbstractOperationPlan,
     selected_plans: &omega_effects::SelectedProviderPlanFacts,
+    policy: &crate::realization::TerminalAuthorityPolicy,
+    target: omega_target::NativeTarget,
+    external_binding_rows: &[omega_calling_conventions::ExternalBindingRow],
     settlements: &[NativeProviderSettlement<'_>],
 ) -> Result<(), Vec<Diagnostic>> {
     let boundary_identities = plan
@@ -35,26 +38,113 @@ pub(super) fn validate_source_evaluated_import_coverage(
 
     let mut required_imports = BTreeSet::new();
     for requirement in demanded {
-        let import_matches = selected_plans
+        let selected_rows = selected_plans
             .plans()
             .iter()
-            .flat_map(|provider_plan| &provider_plan.rows)
-            .filter(|row| {
-                row.requirement_identity == requirement
-                    && matches!(
-                        row.binding,
-                        omega_effects::provider_plan::ProviderBinding::Import { .. }
-                    )
+            .flat_map(|provider_plan| {
+                provider_plan
+                    .rows
+                    .iter()
+                    .filter(move |row| row.requirement_identity == requirement)
+                    .map(move |row| (provider_plan, row))
             })
-            .count();
-        match import_matches {
-            0 => {}
-            1 => {
+            .collect::<Vec<_>>();
+        if selected_rows.len() > 1
+            && selected_rows.iter().any(|(_, row)| {
+                matches!(
+                    row.binding,
+                    omega_effects::provider_plan::ProviderBinding::Import { .. }
+                        | omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { .. }
+                )
+            })
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "demanded import `{requirement}` resolves to {} selected provider rows",
+                selected_rows.len(),
+            ))]);
+        }
+        if selected_rows.iter().any(|(_, row)| {
+            matches!(
+                row.binding,
+                omega_effects::provider_plan::ProviderBinding::StringBackedImportBootstrap { .. }
+            )
+        }) {
+            return Err(vec![Diagnostic::error(format!(
+                "demanded import `{requirement}` retains a legacy string-backed binding with no normalized terminal-mechanism identity"
+            ))]);
+        }
+        let import_matches = selected_rows
+            .iter()
+            .filter(|(_, row)| {
+                matches!(
+                    row.binding,
+                    omega_effects::provider_plan::ProviderBinding::Import { .. }
+                )
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        match import_matches.as_slice() {
+            [] => {}
+            [(_provider_plan, row)] => {
+                let omega_effects::provider_plan::ProviderBinding::Import { evaluated } =
+                    &row.binding
+                else {
+                    unreachable!("filtered import row")
+                };
+                if evaluated.locator().target().native_target() != target {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded normalized import `{requirement}` targets `{}` rather than the receiving native target",
+                        evaluated.locator().target().target_name(),
+                    ))]);
+                }
+                let external_rows = external_binding_rows
+                    .iter()
+                    .filter(|external| external.requirement_identity == requirement)
+                    .collect::<Vec<_>>();
+                let [external] = external_rows.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded normalized import `{requirement}` resolves to {} retained external implementation contracts",
+                        external_rows.len(),
+                    ))]);
+                };
+                let (
+                    omega_calling_conventions::ExternalBindingKind::Import {
+                        locator: external_locator,
+                    },
+                    Some(boundary_entry_plan),
+                ) = (&external.binding, &external.boundary_entry_plan)
+                else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded normalized import `{requirement}` does not retain one normalized locator and admitted boundary contract"
+                    ))]);
+                };
+                if external_locator != evaluated.locator() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded normalized import `{requirement}` substituted its retained external locator"
+                    ))]);
+                }
+                let mechanism = crate::realization::normalized_foreign_terminal_mechanism(
+                    evaluated.locator(),
+                    boundary_entry_plan,
+                )
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"
+                    ))]
+                })?;
+                policy.classify(mechanism).map_err(|unclassified| {
+                    vec![Diagnostic::error(format!(
+                        "receiving terminal-authority policy version {} does not classify normalized foreign mechanism {:?} required by `{requirement}`",
+                        policy.identity().version(),
+                        unclassified.mechanism(),
+                    ))]
+                })?;
                 required_imports.insert(requirement);
             }
-            count => {
+            matches => {
                 return Err(vec![Diagnostic::error(format!(
-                    "demanded source-evaluated import `{requirement}` resolves to {count} selected import rows"
+                    "demanded source-evaluated import `{requirement}` resolves to {} selected import rows",
+                    matches.len()
                 ))]);
             }
         }

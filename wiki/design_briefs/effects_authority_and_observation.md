@@ -519,6 +519,18 @@ identity. Exact-policy replay rejects substitution. This records physical
 classification policy only; it does not prove service/schema containment or
 mint provider-execution admission evidence.
 
+The direct normalized-foreign rung now uses the same version-2 policy through
+one role-tagged `TerminalMechanismIdentity`. Each explicit foreign row binds
+the exact selected target and normalized locator identity to the strong
+contract commitment of its canonical admitted `BoundaryEntryPlan`; a provider
+report fingerprint is never the contract key. Native realization classifies
+every directly demanded PE-by-name, PE-by-ordinal, versioned-ELF, or Mach-O
+import before provider settlement. Missing or duplicate policy rows, locator
+or contract substitution, wrong target, duplicate selected/external rows, and
+legacy string-backed imports fail closed. The accepted whole-table identity
+remains in native-artifact replay. Complete selected-provider-closure traversal
+and exact service/schema containment remain the next distinct join.
+
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle
 provenance, or another exact constraint proof whose identity enters the
@@ -543,16 +555,14 @@ remains retained. Until raw integer descriptors migrate to typed unforgeable
 handles, those groups bound operations but make no object-confinement claim.
 
 The current filename-and-trait keyed dangerous-authority classifier is a
-transitional implementation defect. The first policy rung exhaustively
-classifies the closed `CompilerIntrinsicExecutionIdentity` families. Before
-foreign-import classification replaces the transitional table, the normalized
-locator sum gains Mach-O, source binding evaluation converts authored imports
-to exact locators, and target policy supplies locator rows. PE-by-name,
-PE-by-ordinal, versioned ELF, and Mach-O remain distinct. String-backed import
-bootstrap rows never become a parallel identity system. The obsolete filename
-table is replaced by an exact service/schema permission table plus binding-
-derived containment before filesystem faceting, so that migration never
-expands the filename classifier.
+transitional implementation defect. Receiving target policy now classifies the
+closed compiler-intrinsic family and direct normalized PE-by-name,
+PE-by-ordinal, versioned-ELF, and Mach-O imports without admitting string-backed
+bootstrap rows. This physical classification does not replace the transitional
+table by itself. The obsolete filename table is removed only when complete
+selected-provider-closure traversal joins those leaves to an exact
+service/schema permission table plus binding-derived containment, before
+filesystem faceting, so the migration never expands the filename classifier.
 
 ### Resources
 

@@ -1,7 +1,7 @@
 use omega_compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
     SourceEvaluatedImportSettlement, compile,
-    realize_retained_terminal_artifact_with_source_evaluated_imports,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use omega_installation_evidence::ProviderExecutionEvidence;
@@ -156,10 +156,13 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
         SameStackContributionAdmissionReceiptId::from_normalized_identity(0x5846_4d41_0005)
             .unwrap(),
     );
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports(
+    let policy = terminal_authority_policy(&retained);
+    let policy_identity = policy.identity();
+    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
+        policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
             &admission.same_stack,
@@ -170,6 +173,9 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
     artifact
         .validate()
         .expect("combined native artifact replays");
+    artifact
+        .validate_for_terminal_authority_policy(policy_identity)
+        .expect("combined artifact retains the exact accepted foreign policy");
     let function = artifact
         .object()
         .functions()
@@ -254,6 +260,39 @@ fn import_coordinates(
     )
 }
 
+fn terminal_authority_policy(
+    retained: &omega_compilation_report::RetainedTerminalArtifact,
+) -> omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let matches = proposal
+        .external_binding_rows()
+        .iter()
+        .filter_map(|row| {
+            let omega_calling_conventions::ExternalBindingKind::Import { locator } = &row.binding
+            else {
+                return None;
+            };
+            Some((locator, row.boundary_entry_plan.as_ref()?))
+        })
+        .collect::<Vec<_>>();
+    let [(locator, boundary_entry_plan)] = matches.as_slice() else {
+        panic!("one exact normalized import policy row expected")
+    };
+    omega_terminal_psi_to_native_artifact::terminal_authority_policy_with_rows(vec![
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicyRow::new(
+            omega_terminal_psi_to_native_artifact::normalized_foreign_terminal_mechanism(
+                locator,
+                boundary_entry_plan,
+            )
+            .expect("retained foreign boundary plan is canonical"),
+            omega_effects::TerminalAuthorityDisposition::from_classes([]),
+        ),
+    ])
+    .expect("receiving policy has one exact normalized import row")
+}
+
 struct AdmittedImport {
     execution: TestProviderExecution,
     same_stack: AdmittedSameStackContribution,
@@ -294,10 +333,12 @@ fn admit_import(
 fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let fixture = Fixture::new();
     let missing = fixture.compile_terminal();
-    let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports(
+    let missing_policy = terminal_authority_policy(&missing);
+    let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         missing,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
+        missing_policy,
         &[],
     )
     .expect_err("a demanded source-evaluated import requires external custody");
@@ -313,10 +354,13 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         SameStackContributionAdmissionReceiptId::from_normalized_identity(0x4d41_4348_4f05)
             .unwrap(),
     );
-    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports(
+    let policy = terminal_authority_policy(&retained);
+    let policy_identity = policy.identity();
+    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
+        policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
             &admission.same_stack,
@@ -334,6 +378,9 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     });
 
     artifact.validate().expect("native artifact replays");
+    artifact
+        .validate_for_terminal_authority_policy(policy_identity)
+        .expect("native artifact retains the exact accepted foreign policy");
     assert_eq!(artifact.target(), omega_target::NativeTarget::macos_arm64());
     assert_eq!(artifact.provider_executions().len(), 1);
     let [foreign_call] = artifact.object().foreign_calls() else {

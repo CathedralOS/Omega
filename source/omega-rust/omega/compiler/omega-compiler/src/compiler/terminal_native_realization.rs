@@ -51,6 +51,25 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
     optimization_selections: &omega_optimization_core::OptimizationSelections,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<omega_compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        retained,
+        profile,
+        optimization_selections,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        imports,
+    )
+}
+
+/// Realize a retained Terminal product under one receiving-authority policy.
+/// Normalized foreign imports require exact explicit rows; the compatibility
+/// entrypoint above intentionally supplies only the closed intrinsic table.
+pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+    retained: omega_compilation_report::RetainedTerminalArtifact,
+    profile: &psi_proof_admission::AdmissionProfile,
+    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    terminal_authority_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
+    imports: &[SourceEvaluatedImportSettlement<'_>],
+) -> Result<omega_compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
     retained
         .validate()
         .map_err(|message| diagnostic("retained Terminal product", message))?;
@@ -152,8 +171,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
             target: proposal.native_target(),
             subsystem: proposal.subsystem(),
             profile,
-            terminal_authority_policy:
-                omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+            terminal_authority_policy,
             program_entry,
             optimization_selections,
             selected_provider_plans: proposal.selected_provider_plans(),

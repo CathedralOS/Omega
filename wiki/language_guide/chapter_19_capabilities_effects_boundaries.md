@@ -520,6 +520,19 @@ accepted policy version and commitment in the native artifact's strong
 identity. Replaying against a different accepted policy fails. This is not yet
 the service/schema containment join and grants no provider-execution admission.
 
+Direct normalized foreign imports now enter that same version-2 policy through
+a distinct `TerminalMechanismIdentity` role. Each explicit row binds the exact
+target and collision-resistant normalized locator identity to the strong
+contract commitment of its canonical admitted `BoundaryEntryPlan`, never to a
+provider report fingerprint. Native realization classifies every directly
+demanded PE-by-name, PE-by-ordinal, versioned-ELF, or Mach-O import before
+provider settlement. Missing or duplicate rows, locator or contract
+substitution, wrong target, duplicate selected/external rows, and legacy
+string-backed imports reject. The native artifact retains the complete policy
+identity. Complete selected-provider-closure traversal and the service/schema
+permission join remain separate, later work; this rung does not grant provider
+execution or same-stack custody.
+
 Review reports an excess as an explicit containment failure, and accepted
 realization rejects it. For example, a filesystem provider whose selected
 Linux binding reaches a process-execution syscall does not become safe because

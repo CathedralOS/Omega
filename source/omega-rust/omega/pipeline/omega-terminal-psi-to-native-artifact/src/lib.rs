@@ -36,11 +36,13 @@ pub use realization::{
     CompilerIntrinsicTerminalAuthorityPolicy, NativeBoundaryRealization,
     NativeCompilerBuiltinSettlement, NativeProviderSettlement, NativeRealizationRequest,
     RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
-    UnclassifiedCompilerIntrinsicTerminalMechanism,
-    current_compiler_intrinsic_terminal_authority_policy, realize_native_artifact,
-    realize_native_artifact_with_callback_custody,
+    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
+    TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
+    UnclassifiedTerminalMechanism, current_compiler_intrinsic_terminal_authority_policy,
+    current_terminal_authority_policy, normalized_foreign_terminal_mechanism,
+    realize_native_artifact, realize_native_artifact_with_callback_custody,
     realize_native_artifact_with_checked_boundary_operator_scope,
-    realize_program_entry_native_artifact,
+    realize_program_entry_native_artifact, terminal_authority_policy_with_rows,
 };
 
 #[cfg(test)]

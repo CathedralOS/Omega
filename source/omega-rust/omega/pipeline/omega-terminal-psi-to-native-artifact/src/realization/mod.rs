@@ -23,8 +23,11 @@ pub use model::{
 pub use program_entry::realize_program_entry_native_artifact;
 pub use terminal_authority_policy::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
-    UnclassifiedCompilerIntrinsicTerminalMechanism,
-    current_compiler_intrinsic_terminal_authority_policy,
+    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
+    TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
+    UnclassifiedTerminalMechanism, current_compiler_intrinsic_terminal_authority_policy,
+    current_terminal_authority_policy, normalized_foreign_terminal_mechanism,
+    terminal_authority_policy_with_rows,
 };
 
 use boundary_applications::retain_boundary_application_coverage;
