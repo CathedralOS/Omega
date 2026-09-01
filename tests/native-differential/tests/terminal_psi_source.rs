@@ -201,6 +201,7 @@ fn stage_terminal_component(
             selected_provider_plans: checked.selected_provider_plans(),
             external_binding_rows: checked.external_binding_rows(),
             settlements,
+            boundary_application_coverage: None,
             compiler_builtins: &[],
             ieee_float_fma: &[],
             native_callbacks: &[],
