@@ -18,9 +18,10 @@ use psi_terminal::{
 use psi_terminal_verifier::{
     ModuleError, ObligationEvidence, ProofBundle, VerificationError,
     reconstruct_interpretable_operation_obligations, validate_module,
-    validate_module_for_interpretation, validate_module_representation, verify_module,
-    verify_module_for_fixed_fuel, verify_module_for_interpretation,
-    verify_module_for_native_ranked_countdown,
+    validate_module_for_interpretation, validate_module_for_optimization,
+    validate_module_representation, verify_module, verify_module_for_fixed_fuel,
+    verify_module_for_interpretation, verify_module_for_native_ranked_countdown,
+    verify_module_for_optimization,
 };
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -348,6 +349,8 @@ fn ranked_countdown_has_distinct_interpreter_only_authority() {
     assert_eq!(validate_module_representation(&module), Ok(()));
     let interpretable = validate_module_for_interpretation(&module)
         .expect("exact ranked countdown is interpreter-valid");
+    validate_module_for_optimization(&module)
+        .expect("exact ranked countdown is independently optimizer-valid");
     let obligations = reconstruct_interpretable_operation_obligations(interpretable)
         .expect("countdown proof question reconstructs over its acyclic skeleton");
     assert_eq!(obligations.len(), 1);
@@ -415,6 +418,15 @@ fn native_ranked_countdown_authority_retains_proof_and_structural_frontiers() {
     let native =
         verify_module_for_native_ranked_countdown(&module, &proof, &AdmissionProfile::default())
             .expect("exact structural Unit u32 countdown has native authority");
+    let optimizable = verify_module_for_optimization(&module, &proof, &AdmissionProfile::default())
+        .expect("exact countdown has separate target-neutral optimizer authority");
+    assert_eq!(optimizable.module(), &module);
+    assert_eq!(optimizable.proof_bundle(), &proof);
+    assert_eq!(
+        optimizable.reconstructed_obligations().obligations().len(),
+        1
+    );
+    assert_eq!(optimizable.accepted_facts().len(), 1);
     assert_eq!(native.module(), &module);
     assert_eq!(native.module(), &module);
     assert_eq!(native.proof_bundle(), &proof);

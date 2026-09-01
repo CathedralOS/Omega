@@ -4,58 +4,21 @@ use super::*;
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
-    successors: &BTreeMap<BlockId, Vec<BlockId>>,
+    _successors: &BTreeMap<BlockId, Vec<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     boundary_machines: &BTreeMap<psi_core::BoundaryMachineId, &BoundaryMachineDeclaration>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     entry: CurrentOwnership,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let mut predecessor_edges = blocks
-        .keys()
-        .map(|block| (*block, 0usize))
-        .collect::<BTreeMap<_, _>>();
-    for targets in successors.values() {
-        for target in targets {
-            *predecessor_edges
-                .get_mut(target)
-                .expect("CFG validation precedes current ownership replay") += 1;
-        }
-    }
-    let mut ready = predecessor_edges
-        .iter()
-        .filter_map(|(block, count)| (*count == 0).then_some(*block))
-        .collect::<BTreeSet<_>>();
-    let mut incoming = BTreeMap::<BlockId, Vec<CurrentOwnership>>::new();
-    incoming.insert(function.entry, vec![entry]);
+    let mut ready = BTreeSet::from([function.entry]);
+    let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
+    incoming.insert(function.entry, entry);
 
     while let Some(block_id) = ready.pop_first() {
-        let frontiers = incoming
-            .remove(&block_id)
-            .expect("total reachable acyclic CFG has a current ownership frontier");
-        let mut frontier = frontiers
-            .first()
-            .expect("reachable block has an incoming ownership frontier")
+        let mut frontier = incoming
+            .get(&block_id)
+            .expect("reachable block has a current ownership frontier")
             .clone();
-        if frontiers
-            .iter()
-            .any(|candidate| candidate.claims != frontier.claims)
-        {
-            return Err(OptimizationUnitValidationError::CurrentClaimJoinMismatch {
-                machine: function.machine,
-                block: block_id,
-            });
-        }
-        if frontiers.iter().any(|candidate| {
-            candidate.owned_places != frontier.owned_places
-                || candidate.partial_custody_paths != frontier.partial_custody_paths
-        }) {
-            return Err(
-                OptimizationUnitValidationError::CurrentOwnedPlaceJoinMismatch {
-                    machine: function.machine,
-                    block: block_id,
-                },
-            );
-        }
 
         let block = blocks[&block_id];
         for (node_index, node) in block.nodes.iter().enumerate() {
@@ -437,15 +400,35 @@ pub(super) fn validate_current_ownership_cfg(
                 &mut outgoing,
                 &edge.trivial_affine_discards,
             )?;
-            incoming.entry(edge.target).or_default().push(outgoing);
-            let count = predecessor_edges
-                .get_mut(&edge.target)
-                .expect("validated edge target is indexed");
-            *count -= 1;
-            if *count == 0 {
+            if let Some(existing) = incoming.get(&edge.target) {
+                if existing.claims != outgoing.claims {
+                    return Err(OptimizationUnitValidationError::CurrentClaimJoinMismatch {
+                        machine: function.machine,
+                        block: edge.target,
+                    });
+                }
+                if existing.owned_places != outgoing.owned_places
+                    || existing.partial_custody_paths != outgoing.partial_custody_paths
+                {
+                    return Err(
+                        OptimizationUnitValidationError::CurrentOwnedPlaceJoinMismatch {
+                            machine: function.machine,
+                            block: edge.target,
+                        },
+                    );
+                }
+            } else {
+                incoming.insert(edge.target, outgoing);
                 ready.insert(edge.target);
             }
         }
+    }
+
+    if let Some(block) = blocks.keys().find(|block| !incoming.contains_key(block)) {
+        return Err(OptimizationUnitValidationError::UnreachableBlock {
+            machine: function.machine,
+            block: *block,
+        });
     }
 
     Ok(())

@@ -43,7 +43,7 @@ pub fn lower_artifact_sections_for_optimization(
         .map_err(ArtifactLoweringError::SemanticDecode)?;
     let proof = psi_terminal_codec::decode_proof_bundle(proof_bytes)
         .map_err(ArtifactLoweringError::ProofDecode)?;
-    let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
+    let verified = psi_terminal_verifier::verify_module_for_optimization(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     retain_verified_optimization_input(&verified)
 }

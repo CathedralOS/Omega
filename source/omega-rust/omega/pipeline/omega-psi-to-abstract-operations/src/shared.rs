@@ -15,4 +15,4 @@ pub(crate) use psi_terminal::{
     TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 pub(crate) use psi_terminal_codec::{CodecError, terminal_psi_identity};
-pub(crate) use psi_terminal_verifier::VerifiedTerminalModule;
+pub(crate) use psi_terminal_verifier::{VerifiedOptimizableTerminalModule, VerifiedTerminalModule};

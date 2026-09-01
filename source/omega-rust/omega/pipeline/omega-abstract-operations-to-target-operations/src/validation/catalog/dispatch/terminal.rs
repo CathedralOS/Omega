@@ -6,7 +6,8 @@ use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
     straight_line_byte_sequence_literal_unit_return,
     straight_line_ieee_float_literal_sequence_unit_return,
-    straight_line_ieee_float_literal_unit_return, straight_line_integer_literal_unit_return,
+    straight_line_ieee_float_literal_unit_return,
+    straight_line_integer_literal_sequence_unit_return, straight_line_integer_literal_unit_return,
     straight_line_nearest_ieee_float_fused_multiply_add_unit_return,
     straight_line_port_write_unit_return, straight_line_scalar_crash,
     straight_line_trivial_affine_local_unit_return, straight_line_unit_call_return,
@@ -49,6 +50,13 @@ pub(in crate::validation::catalog) const INTEGER_LITERAL_UNIT_RETURN: Translatio
         straight_line_integer_literal_unit_return::is_candidate,
         straight_line_integer_literal_unit_return,
     );
+
+pub(in crate::validation::catalog) const INTEGER_LITERAL_SEQUENCE_UNIT_RETURN:
+    TranslationFamilyDescriptor = TranslationFamilyDescriptor::new(
+    AbstractToTargetTranslationFamily::StraightLineIntegerLiteralSequenceUnitReturn,
+    straight_line_integer_literal_sequence_unit_return::is_candidate,
+    straight_line_integer_literal_sequence_unit_return,
+);
 
 pub(in crate::validation::catalog) const IEEE_FLOAT_LITERAL_UNIT_RETURN:
     TranslationFamilyDescriptor = TranslationFamilyDescriptor::new(
@@ -143,6 +151,20 @@ pub(super) fn straight_line_integer_literal_unit_return(
     straight_line_integer_literal_unit_return::validate(source, expected_target, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLiteralUnitReturn)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerLiteralUnitReturn)
+}
+
+pub(super) fn straight_line_integer_literal_sequence_unit_return(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_integer_literal_sequence_unit_return::validate(source, expected_target, target)
+        .map(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLiteralSequenceUnitReturn,
+        )
+        .map_err(
+            AbstractToTargetTranslationFamilyError::StraightLineIntegerLiteralSequenceUnitReturn,
+        )
 }
 
 pub(super) fn straight_line_ieee_float_literal_unit_return(

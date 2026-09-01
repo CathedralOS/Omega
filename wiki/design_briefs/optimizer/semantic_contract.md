@@ -84,6 +84,17 @@ fixed points, and distinct ranked, bounded, or unranked progress authority. The
 remaining ordinary cyclic execution and optimizer-consumer work is engineering,
 not an unresolved language meaning.
 
+The optimizer currently admits one deliberately smaller cyclic subset: the
+existing exact unsigned countdown. A distinct optimizer-only verifier carrier
+confers analysis authority without conferring execution, interpretation,
+fixed-fuel, native, or publication authority. Verified-context validation
+independently rederives the Terminal and current SCC membership, freezes the
+ranked component at the optimization-unit level, and scopes cycle admission to
+that function. Current ownership reaches its fixed point only when all incoming
+and backedge states are equal. General component identities, ranking
+certificates, productive unranked components, finite-work failures, and
+transforms that invalidate SCC evidence remain closed.
+
 ## Provenance
 
 Every surviving or synthesized value, instruction, block, edge, and emitted

@@ -198,6 +198,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn choose_generalized_spill_recovery_victims",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_actions/mod.rs",
+        coordination_marker: "pub fn plan_generalized_spill_recovery_actions",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_recovery_worklist/mod.rs",
         coordination_marker: "pub fn seed_spill_recovery_worklist",
     },

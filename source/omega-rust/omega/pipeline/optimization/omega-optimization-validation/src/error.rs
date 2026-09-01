@@ -180,6 +180,14 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
+    RankedCycleFunctionMissing(MachineId),
+    RankedCycleTopologyMismatch {
+        machine: MachineId,
+    },
+    RankedCycleFrozenBlockMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
     ParameterMetadataMismatch {
         machine: MachineId,
         block: Option<BlockId>,

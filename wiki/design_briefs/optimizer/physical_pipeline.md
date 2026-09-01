@@ -15,13 +15,13 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-four families reconstruct parameterless straight-line
+replay. Its first forty-five families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
-IEEE literal establishment, including an ordered sequence of at least two IEEE
-literals or three literals consumed by one settled nearest-even fused multiply-
-add, followed by Unit return, integer and Boolean literal
+IEEE literal establishment, including ordered sequences of at least two
+integer or IEEE literals, or three IEEE literals consumed by one settled
+nearest-even fused multiply-add, followed by Unit return, integer and Boolean literal
 returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -81,6 +81,13 @@ and global structural roster. Independent replay therefore preserves signed
 zero and NaN payloads without host-float conversion while the operation-count
 grammar keeps the sequence disjoint from both the singleton IEEE and
 return-only families.
+The integer-sequence sibling likewise admits two or more consecutive constants
+before Unit return, but retains each exact integer type and mathematical value
+rather than raw IEEE bits. Independent replay binds every operation/result
+identity, order, provenance, return edge, empty native Unit call plan, cleanup,
+and global structural roster across all five native targets. Its count-based
+grammar is disjoint from the singleton integer-literal and return-only routes,
+and optimized custody preserves the typed sequence receipt.
 The x86 FMA sibling has the exact five-operation grammar of three raw-bit
 Binary32 or Binary64 constants, one nearest-even fused multiply-add consuming
 those values in order, and Unit return. Independent replay binds each
@@ -160,7 +167,7 @@ identity. Its adjacent ordered catalog is the sole enable/disable inventory.
 Each descriptor joins one source classifier to one typed replay adapter; the
 separate selection leaf makes zero matches explicitly uncovered, retains one
 match on that function's roster row, and fails closed on ambiguity.
-The 28-line `validation/mod.rs` entrance is only the module map and public
+The 38-line `validation/mod.rs` entrance is only the module map and public
 validation surface. `whole_plan.rs` owns Psi/target/function/structural-roster
 coordination and exact FMA-settlement admission, while catalog selection and
 each family leaf own their narrower classifier and independent semantic replay.
@@ -495,8 +502,18 @@ and keyed replay bind the work item, source pressure, candidate domain,
 residents, contenders, chosen/reclaimed views, every custody root, and exact
 usage `{2, 2, 13, 1, 1}`. This remains choice evidence: it performs no
 eviction, logical spill action, selected rewrite, memory/frame operation, trap
-claim, encoding, emission, or publication. Epoch-two logical recovery-action
-planning is the next allocation boundary.
+claim, encoding, emission, or publication. The adjacent 26-line
+`generalized_spill_recovery_actions` entrance now converts the selected reload
+victim into target-neutral epoch-two obligations. Direct traversal and an
+independently keyed replay agree on the victim action, current/reclaimed view,
+store-before-pressure-reload anchor, reload-before-first-later-rewrite anchor,
+complete later generalized-rewrite suffix, and all custody roots. The public
+dual-target fixture stores action `{0,0}` before `{1,0}` at point 14 and
+reloads it as `{2,0}` before the point-16 rewrite under exact usage
+`{1, 1, 7, 1, 1}`. It creates no selected register or instruction and grants no
+physical slot, address, memory, frame, trap, encoding, emission, or publication
+authority. Original-value victims and generalized epoch-two insertion remain
+later engineering boundaries.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

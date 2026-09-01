@@ -8,6 +8,21 @@ pub(super) struct FunctionControlFlow<'a> {
     pub(super) successors: BTreeMap<BlockId, Vec<BlockId>>,
 }
 
+#[derive(Debug, Default)]
+pub(crate) struct ControlCyclePolicy {
+    admitted_machines: BTreeSet<MachineId>,
+}
+
+impl ControlCyclePolicy {
+    pub(crate) fn admit(&mut self, machine: MachineId) {
+        self.admitted_machines.insert(machine);
+    }
+
+    pub(crate) fn admits(&self, machine: MachineId) -> bool {
+        self.admitted_machines.contains(&machine)
+    }
+}
+
 pub(super) fn index_blocks(
     function: &PsiOptimizationFunction,
 ) -> Result<
@@ -123,6 +138,7 @@ pub(crate) fn validate_total_cfg(
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &omega_optimization_unit::OptimizationBlock>,
     successors: &BTreeMap<BlockId, Vec<BlockId>>,
+    admit_cycles: bool,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![function.entry];
@@ -166,7 +182,7 @@ pub(crate) fn validate_total_cfg(
             }
         }
     }
-    if visited != blocks.len() {
+    if visited != blocks.len() && !admit_cycles {
         let block = indegree
             .iter()
             .find_map(|(block, count)| (*count != 0).then_some(*block))
