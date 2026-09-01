@@ -118,6 +118,14 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "let call = call::build(function, source, plan, layout, keys, catalog)?",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/projected_structural_call_return/mod.rs",
+        coordination_marker: "let call = constraints::call(&fragments, selection, physical, catalog)?",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/projected_structural_call_return/mod.rs",
+        coordination_marker: "target::replay(selected, constraints, physical, catalog)",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/structural_unit/mod.rs",
         coordination_marker: "pub(super) fn reconstruct_structural_unit_contract",
     },

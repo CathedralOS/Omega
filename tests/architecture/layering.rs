@@ -3889,6 +3889,42 @@ fn selected_structural_unit_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn projected_structural_selection_replay_is_independent_and_downstream_is_fenced() {
+    let root = workspace_root();
+    let selection = root.join(
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection",
+    );
+    let replay =
+        recursive_rust_source(&selection.join("validation/projected_structural_call_return"));
+    for forbidden in [
+        "selection::construction",
+        "construction::projected_structural_call_return",
+        "super::super::construction",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "projected structural replay must not call producer code; found {forbidden}",
+        );
+    }
+    for (path, fence) in [
+        (
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/compute.rs",
+            "ProjectedStructuralCallReturnUnsupported",
+        ),
+        (
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/compute.rs",
+            "ProjectedStructuralCallReturnUnsupported",
+        ),
+    ] {
+        let source = std::fs::read_to_string(root.join(path)).expect("read downstream fence");
+        assert!(
+            source.contains(fence),
+            "missing explicit downstream fence in {path}"
+        );
+    }
+}
+
+#[test]
 fn selected_construction_has_one_visible_scalar_family_catalog() {
     let root = workspace_root();
     let construction = root.join(

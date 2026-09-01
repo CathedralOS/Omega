@@ -14,6 +14,9 @@ pub(crate) fn compute_terminal_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
 ) -> Result<LivenessPlan, LivenessError> {
     let plan = selected.selected_plan();
+    if !plan.projected_structural_call_returns.is_empty() {
+        return Err(LivenessError::ProjectedStructuralCallReturnUnsupported);
+    }
     let functions = plan
         .functions
         .iter()

@@ -26,6 +26,9 @@ pub(crate) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
     catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<PreAllocationMachineEffectPlan, MachineEffectError> {
     let source = selected.selected_plan();
+    if !source.projected_structural_call_returns.is_empty() {
+        return Err(MachineEffectError::ProjectedStructuralCallReturnUnsupported);
+    }
     if source.fuel_schedule != selected.fuel_schedule_identity() {
         return Err(MachineEffectError::SelectedRootMismatch);
     }

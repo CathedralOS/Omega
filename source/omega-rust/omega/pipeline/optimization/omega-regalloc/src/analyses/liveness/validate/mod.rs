@@ -19,6 +19,13 @@ pub fn validate_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
     plan: LivenessPlan,
 ) -> Result<ValidatedLiveness, LivenessError> {
+    if !selected
+        .selected_plan()
+        .projected_structural_call_returns
+        .is_empty()
+    {
+        return Err(LivenessError::ProjectedStructuralCallReturnUnsupported);
+    }
     if plan.selected != selected.selected_identity()
         || plan.optimization_unit != selected.optimization_unit_identity()
         || plan.fuel_schedule != selected.fuel_schedule_identity()

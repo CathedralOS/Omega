@@ -195,6 +195,7 @@ pub(super) fn fixture() -> Fixture {
             }],
         }],
         structural_unit_functions: vec![],
+        projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
     let through = sorted_units(x0.units.iter().chain(&x30.units).copied());

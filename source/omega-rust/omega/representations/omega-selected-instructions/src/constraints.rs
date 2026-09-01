@@ -33,5 +33,8 @@ pub struct SelectedFixedInputConstraint {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedSelectionConstraints {
     pub keys: SelectedConstraintKeys,
+    /// Exact target-owned ordinary-call row for the bounded projected
+    /// structural closure. `None` grants no structural result-call authority.
+    pub projected_structural_call: Option<RegisterConstraintKey>,
     pub fixed_inputs: Vec<SelectedFixedInputConstraint>,
 }

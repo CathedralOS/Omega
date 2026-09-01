@@ -206,6 +206,7 @@ fn fixture() -> (
             }],
         }],
         structural_unit_functions: vec![],
+        projected_structural_call_returns: vec![],
     };
     let selected_identity = SelectedInstructionPlanIdentity::from_bytes([2; 32]);
     let physical = physical();

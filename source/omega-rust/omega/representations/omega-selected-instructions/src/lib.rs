@@ -10,6 +10,7 @@ mod identity;
 mod instruction;
 mod machine_effects;
 mod plan;
+mod projected_structural_call_return;
 mod structural_unit;
 
 pub use constraints::{
@@ -36,6 +37,13 @@ pub use machine_effects::{
     validate_machine_effect_catalog,
 };
 pub use plan::SelectedInstructionPlan;
+pub use projected_structural_call_return::{
+    SelectedProjectedStructuralCallReturn, SelectedProjectedStructuralCallReturnRecipe,
+    SelectedStructuralCallConstraint, SelectedStructuralCopyConstraint,
+    SelectedStructuralCopyOperand, SelectedStructuralFixedOperand,
+    SelectedStructuralFragmentConstraint, SelectedStructuralFragmentSite,
+    SelectedStructuralReturnConstraint, SelectedStructuralTransfer,
+};
 pub use structural_unit::{
     SelectedBoundarySettlement, SelectedMicrosoftX64OwnedIndirectPairLayout,
     SelectedStructuralUnitAbi, SelectedStructuralUnitAbiRecipe, SelectedStructuralUnitCallArgument,

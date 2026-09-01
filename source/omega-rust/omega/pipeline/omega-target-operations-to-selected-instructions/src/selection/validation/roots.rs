@@ -8,9 +8,6 @@ pub(super) fn validate_initial_roots(
     catalog: &ValidatedRegisterConstraintCatalog,
     plan: &SelectedInstructionPlan,
 ) -> Result<(), SelectedInstructionError> {
-    if !target.projected_structural_call_returns.is_empty() {
-        return Err(SelectedInstructionError::ProjectedStructuralCallReturnNotYetSelectable);
-    }
     if target.psi != plan.psi
         || target.target != plan.target
         || target.entry != plan.entry
@@ -22,6 +19,8 @@ pub(super) fn validate_initial_roots(
     }
     if target.functions.len() + target.unit_functions.len() != plan.functions.len()
         || target.structural_unit_functions.len() != plan.structural_unit_functions.len()
+        || target.projected_structural_call_returns.len()
+            != plan.projected_structural_call_returns.len()
     {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }

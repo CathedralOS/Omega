@@ -1,16 +1,24 @@
 use super::shared::*;
 
+mod primitives;
+mod projected_structural;
+
+use primitives::{encode_constraint_key, encode_machine_register};
+
 pub(super) fn receipt(
     plan: &SelectedInstructionPlan,
     legalized: &ValidatedLegalizedOperations,
 ) -> SelectedInstructionValidationReceipt {
-    let function_count = plan.functions.len() + plan.structural_unit_functions.len();
+    let function_count = plan.functions.len()
+        + plan.structural_unit_functions.len()
+        + 2 * plan.projected_structural_call_returns.len();
     let block_count = plan
         .functions
         .iter()
         .map(|function| function.blocks.len())
         .sum::<usize>()
-        + plan.structural_unit_functions.len();
+        + plan.structural_unit_functions.len()
+        + 2 * plan.projected_structural_call_returns.len();
     let virtual_register_count = plan
         .functions
         .iter()
@@ -37,17 +45,19 @@ pub(super) fn receipt(
         block_count,
         virtual_register_count,
         instruction_count,
+        projected_structural_call_return_count: plan.projected_structural_call_returns.len(),
     }
 }
 
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    selected_instruction_plan_identity_with_schema(
-        plan,
-        b"omega.terminal-selected-instructions.v12\0",
-        false,
-    )
+    let domain = if plan.projected_structural_call_returns.is_empty() {
+        b"omega.terminal-selected-instructions.v12\0".as_slice()
+    } else {
+        b"omega.terminal-selected-instructions.v13\0".as_slice()
+    };
+    selected_instruction_plan_identity_with_schema(plan, domain, false)
 }
 
 #[doc(hidden)]
@@ -165,6 +175,9 @@ fn selected_instruction_plan_identity_with_schema(
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
         encode_selected_structural_unit_function(&mut bytes, function);
+    }
+    if !plan.projected_structural_call_returns.is_empty() {
+        projected_structural::encode(&mut bytes, &plan.projected_structural_call_returns);
     }
     SelectedInstructionPlanIdentity::from_canonical_bytes(&bytes)
 }
@@ -312,32 +325,6 @@ fn encode_selected_provenance(bytes: &mut Vec<u8>, provenance: &SelectedInstruct
             .map(|obligation| obligation.get()),
     );
     encode_fuel(bytes, &provenance.fuel);
-}
-
-fn encode_machine_register(bytes: &mut Vec<u8>, register: MachineRegister) {
-    let (tag, payload) = match register {
-        MachineRegister::X86Rax => (0, 0),
-        MachineRegister::X86Rcx => (1, 0),
-        MachineRegister::X86Rdx => (2, 0),
-        MachineRegister::X86Rbx => (3, 0),
-        MachineRegister::X86Rsp => (4, 0),
-        MachineRegister::X86Rbp => (5, 0),
-        MachineRegister::X86Rsi => (6, 0),
-        MachineRegister::X86Rdi => (7, 0),
-        MachineRegister::X86R8 => (8, 0),
-        MachineRegister::X86R9 => (9, 0),
-        MachineRegister::X86R10 => (10, 0),
-        MachineRegister::X86R11 => (11, 0),
-        MachineRegister::X86R12 => (12, 0),
-        MachineRegister::X86R13 => (13, 0),
-        MachineRegister::X86R14 => (14, 0),
-        MachineRegister::X86R15 => (15, 0),
-        MachineRegister::X86Xmm(index) => (16, index),
-        MachineRegister::Aarch64X(index) => (17, index),
-        MachineRegister::Aarch64V(index) => (18, index),
-    };
-    bytes.push(tag);
-    bytes.push(payload);
 }
 
 fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
@@ -518,17 +505,6 @@ fn encode_target(bytes: &mut Vec<u8>, target: omega_target::NativeTarget) {
     });
     bytes.extend_from_slice(&(target.pointer_size as u64).to_le_bytes());
     bytes.extend_from_slice(&(target.pointer_alignment as u64).to_le_bytes());
-}
-
-fn encode_constraint_key(bytes: &mut Vec<u8>, key: RegisterConstraintKey) {
-    bytes.push(match key.family {
-        omega_register_model::RegisterConstraintFamily::Call => 0,
-        omega_register_model::RegisterConstraintFamily::Return => 1,
-        omega_register_model::RegisterConstraintFamily::SystemCall => 2,
-        omega_register_model::RegisterConstraintFamily::InlineAssembly => 3,
-        omega_register_model::RegisterConstraintFamily::Instruction => 4,
-    });
-    bytes.extend_from_slice(&key.variant.to_le_bytes());
 }
 
 fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {

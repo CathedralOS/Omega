@@ -16,13 +16,12 @@ fn unrelated_target_parameter_roster_is_not_silently_ignored() {
 }
 
 #[test]
-fn selection_remains_explicitly_unsupported() {
+fn selection_requires_the_exact_projected_closure() {
     let (source, target, unit) = projected_fixture(NativeTarget::windows_x64());
     let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
     let (physical, catalog, constraints) =
         crate::tests::fixtures::microsoft_environment::microsoft_selection_environment();
-    assert_eq!(
-        crate::select_instructions(&legalized, &constraints, &physical, &catalog),
-        Err(crate::SelectedInstructionError::ProjectedStructuralCallReturnNotYetSelectable)
-    );
+    let selected = crate::select_instructions(&legalized, &constraints, &physical, &catalog)
+        .expect("exact projected closure has bounded selection authority");
+    assert_eq!(selected.plan().projected_structural_call_returns.len(), 1);
 }
