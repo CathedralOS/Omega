@@ -547,6 +547,10 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
                 "static requirement realization identity",
                 &dispatch.realization_identity,
             )?;
+            writer.string(
+                "static requirement realization callable identity",
+                &dispatch.realization_callable_identity,
+            )?;
             writer.id(dispatch.realization);
         }
         writer.boolean(invocation.runtime_result.is_some());
@@ -631,6 +635,17 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             "closed conformance trait arguments",
             &application.trait_arguments,
         )?;
+        writer.len(
+            "closed conformance realization callables",
+            application.realization_callables.len(),
+        )?;
+        for callable in &application.realization_callables {
+            writer.string(
+                "closed conformance realization callable identity",
+                &callable.source_callable_identity,
+            )?;
+            writer.id(callable.machine);
+        }
         writer.len("closed conformance rows", application.rows.len())?;
         for row in &application.rows {
             writer.string(
@@ -649,6 +664,13 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
                 "closed conformance row realization identity",
                 &row.realization_identity,
             )?;
+            writer.boolean(row.realization_callable_identity.is_some());
+            if let Some(identity) = &row.realization_callable_identity {
+                writer.string(
+                    "closed conformance row realization callable identity",
+                    identity,
+                )?;
+            }
         }
         writer.u64(application.report_fingerprint);
         writer.bytes(&application.commitment.as_bytes());
@@ -839,6 +861,8 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                         requirement_identity: reader.string("static requirement identity")?,
                         realization_identity: reader
                             .string("static requirement realization identity")?,
+                        realization_callable_identity: reader
+                            .string("static requirement realization callable identity")?,
                         realization: reader.id("MachineId")?,
                     })
                 })
@@ -922,6 +946,13 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             trait_lifetime_arguments: reader
                 .strings("closed conformance trait lifetime arguments")?,
             trait_arguments: reader.strings("closed conformance trait arguments")?,
+            realization_callables: decode_counted(reader, |reader| {
+                Ok(psi_terminal::ClosedConformanceRealizationCallable {
+                    source_callable_identity: reader
+                        .string("closed conformance realization callable identity")?,
+                    machine: reader.id("MachineId")?,
+                })
+            })?,
             rows: decode_counted(reader, |reader| {
                 Ok(ClosedConformanceRow {
                     declaring_trait_identity: reader
@@ -932,6 +963,12 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                         .string("closed conformance row requirement identity")?,
                     realization_identity: reader
                         .string("closed conformance row realization identity")?,
+                    realization_callable_identity: reader
+                        .boolean()?
+                        .then(|| {
+                            reader.string("closed conformance row realization callable identity")
+                        })
+                        .transpose()?,
                 })
             })?,
             report_fingerprint: reader.u64()?,

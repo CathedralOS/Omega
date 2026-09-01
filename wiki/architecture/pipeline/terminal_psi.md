@@ -310,7 +310,7 @@ canonical bytes. Representation validation rejects missing, duplicate,
 reversed, surplus, role/payload-mismatched, and unknown-tag evidence before it
 independently reconstructs the theorem, correspondence, eligibility,
 fact-major/source and theorem-coordinate order, exact congruence-`P`/transport-
-`P` join, and direct-result shape. Format 49 / vocabulary 52 carry this
+`P` join, and direct-result shape. Format 50 / vocabulary 53 carry this
 strengthened source-free contract. A nonempty table is still
 rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
@@ -690,8 +690,8 @@ loan and ending at state exit. Each root-to-leaf edge is exactly
 The producer reverses the leaf's exact retired-parent path, rejects branching,
 and rejoins every resource, activation, parent-entry formation, weakening,
 captured-place, projection-remainder, and `ExclusiveSuspension` row before
-accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 49 /
-vocabulary 52 round-trip the complete lineage and restored-use publication.
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 50 /
+vocabulary 53 round-trip the complete lineage and restored-use publication.
 Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
@@ -874,7 +874,7 @@ identity to the canonical row, the row to the owner-scoped application, and
 the private realization to the ordinary `CallUnit` or scalar `Call`; it rejects missing
 dispatch, identity, commitment, or report-fingerprint drift, private
 forwarding/provenance leakage, and reuse of an input or prior output term. Codec
-format 33 / vocabulary 38 preserve this split and serialize the application
+format 50 / vocabulary 53 preserve this split and serialize the application
 and dispatch commitments. Terminal validation recomputes the application
 commitment from its complete source-free structure, selects dispatch by owner
 plus that commitment, and then replays the exact row. The compact fingerprint
@@ -885,13 +885,26 @@ realization drift reject independently.
 
 Independent Terminal replay rejoins the closed conformance row to its retained
 source realization identity and the artifact-local realization machine ID to
-the exact ordinary call. The current proof-only row does not independently
-reconstruct that source identity from the machine ID; canonical Terminal and
-artifact identity plus retained compilation custody bind the pair. Portable
-untrusted standalone replay will require an explicit source callable identity
-to machine-ID map so a coordinated identity/machine-ID retarget rejects
-independently. That is a standalone-replay engineering follow-up, not a
-language-design dependency of this bounded carrier.
+the exact ordinary call. For the bounded static Unit/exact-i32 named-witness
+cohort, the owning application additionally retains an ordered canonical map
+with exactly one entry from realization checked callable identity to exact
+Terminal `MachineId`; the sole mapped row retains only an optional
+callable-identity reference, and the dispatch retains that identity
+independently. Producer lowering derives the
+registry from the checked source-machine closure separately from the selected
+row reference. The verifier requires a global registry bijection, exact row
+resolution, no duplicate, unused, unconsumed, or plural entries/mapped rows,
+and an exact join among application, registry, row, callable identity, machine,
+operation, and runtime callee. The application report fingerprint and strong
+commitment cover registry and row reference. Nonstatic applications and rows
+remain map-free. This is standalone
+replay for the existing bounded carrier, not a module-wide callable registry or
+broader dispatch admission; broader source-callable maps remain an engineering
+extension.
+
+The registry is a canonical artifact assertion, not a value derived from
+machine bytes. Mutating the registry itself changes Terminal/artifact identity
+and rejects only when replay is rooted in an externally expected identity.
 
 Static-requirement evidence does not select the executable lowering family.
 Checked-to-Terminal dispatch first selects the exact retained structural,
@@ -3336,7 +3349,7 @@ Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-49 / vocabulary 52 carries the closed artifact descriptor: rooted-checker
+50 / vocabulary 53 carries the closed artifact descriptor: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier

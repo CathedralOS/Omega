@@ -1729,6 +1729,7 @@ fn lower_static_requirement_dispatch(
                 )?,
                 requirement_identity: checked.symbols.display_path(row.requirement, "::"),
                 realization_identity: checked.symbols.display_path(row.realization_state, "::"),
+                realization_callable_identity: None,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -1742,7 +1743,18 @@ fn lower_static_requirement_dispatch(
                 && application.subject_identity == checked_application.subject_identity
                 && application.trait_identity == trait_identity
                 && application.trait_arguments == checked_application.trait_arguments
-                && application.rows == expected_rows
+                && application.rows.len() == expected_rows.len()
+                && application
+                    .rows
+                    .iter()
+                    .zip(&expected_rows)
+                    .all(|(actual, expected)| {
+                        actual.declaring_trait_identity == expected.declaring_trait_identity
+                            && actual.public_requirement_identity
+                                == expected.public_requirement_identity
+                            && actual.requirement_identity == expected.requirement_identity
+                            && actual.realization_identity == expected.realization_identity
+                    })
         })
         .collect::<Vec<_>>();
     let [application] = terminal_applications.as_slice() else {
@@ -1771,6 +1783,30 @@ fn lower_static_requirement_dispatch(
             "static requirement proof output lost its exact closed conformance row",
         );
     }
+    let realization_callable_identity =
+        checked_evidence_machine_identity(checked, dispatch.realization_machine)?;
+    let mut bound_rows = application.rows.iter().filter(|row| {
+        row.declaring_trait_identity == declaring_trait_identity
+            && row.public_requirement_identity == public_requirement_identity
+            && row.requirement_identity == requirement_identity
+            && row.realization_identity == realization_identity
+            && row.realization_callable_identity.as_deref()
+                == Some(realization_callable_identity.as_str())
+    });
+    if bound_rows.next().is_none() || bound_rows.next().is_some() {
+        return unsupported(
+            "static requirement proof output lost its source-callable realization binding",
+        );
+    }
+    let mut callables = application.realization_callables.iter().filter(|callable| {
+        callable.source_callable_identity == realization_callable_identity
+            && callable.machine == runtime_call.callee
+    });
+    if callables.next().is_none() || callables.next().is_some() {
+        return unsupported(
+            "static requirement proof output lost its independent callable registry entry",
+        );
+    }
     Ok(Some(StaticRequirementDispatch {
         conformance_application_report_fingerprint: application.report_fingerprint,
         conformance_application_commitment: application.commitment,
@@ -1778,6 +1814,7 @@ fn lower_static_requirement_dispatch(
         declaring_trait_identity,
         requirement_identity,
         realization_identity,
+        realization_callable_identity,
         realization: runtime_call.callee,
     }))
 }
@@ -2328,7 +2365,7 @@ pub(super) fn checked_evidence_requirement_identity(
     Ok(identity)
 }
 
-fn checked_evidence_machine_identity(
+pub(super) fn checked_evidence_machine_identity(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,
 ) -> Result<String, LoweringError> {

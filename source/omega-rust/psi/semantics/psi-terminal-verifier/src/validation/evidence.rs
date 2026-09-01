@@ -712,6 +712,7 @@ fn validate_static_requirement_dispatch(
         || dispatch.declaring_trait_identity.is_empty()
         || dispatch.requirement_identity.is_empty()
         || dispatch.realization_identity.is_empty()
+        || dispatch.realization_callable_identity.is_empty()
         || invocation.outputs.is_empty()
         || !machines.contains_key(&dispatch.realization)
         || !bounded_runtime
@@ -745,8 +746,17 @@ fn validate_static_requirement_dispatch(
             && row.public_requirement_identity == invocation.target_machine_identity
             && row.requirement_identity == dispatch.requirement_identity
             && row.realization_identity == dispatch.realization_identity
+            && row.realization_callable_identity.as_deref()
+                == Some(dispatch.realization_callable_identity.as_str())
     });
     if rows.next().is_none() || rows.next().is_some() {
+        return Err(invalid());
+    }
+    let mut callables = application.realization_callables.iter().filter(|callable| {
+        callable.source_callable_identity == dispatch.realization_callable_identity
+            && callable.machine == dispatch.realization
+    });
+    if callables.next().is_none() || callables.next().is_some() {
         return Err(invalid());
     }
     let proposition_is_bounded = |id| {

@@ -2,8 +2,9 @@ use psi_checked_trees::data::TypeParameterKind;
 use psi_checked_trees::{CheckedTrees, ClosedConformanceConstArgument};
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, TerminalModule,
-    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
+    ClosedConformanceParameterKind, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    TerminalModule, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
 };
 
 use super::LoweringError;
@@ -57,6 +58,51 @@ pub(super) fn lower_closed_conformance_applications(
                     .ok_or(LoweringError::Unsupported(
                         "closed conformance application lost its normalized row map",
                     ))?;
+            let mut realization_callables = checked
+                .facts
+                .proof
+                .proof_output_calls
+                .iter()
+                .filter_map(|(_, invocation)| {
+                    (invocation.caller_machine_symbol == specialization.instance)
+                        .then_some(invocation.static_requirement_dispatch?)
+                })
+                .filter(|dispatch| {
+                    dispatch.application_report_fingerprint == application.report_fingerprint
+                        && dispatch.application_commitment == application.commitment
+                })
+                .map(|dispatch| {
+                    let selected_row = selected_rows
+                        .iter()
+                        .find(|row| {
+                            row.declaring_trait == dispatch.declaring_trait
+                                && row.requirement == dispatch.requirement
+                                && row.realization_machine == dispatch.realization_machine
+                                && row.realization_state == dispatch.realization_state
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "static conformance dispatch lost its normalized row",
+                        ))?;
+                    let machine = owners
+                        .iter()
+                        .find_map(|(source, terminal)| {
+                            (*source == selected_row.realization_machine).then_some(*terminal)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "static conformance realization is absent from the Terminal closure",
+                        ))?;
+                    Ok(ClosedConformanceRealizationCallable {
+                        source_callable_identity:
+                            super::evidence_lowering::checked_evidence_machine_identity(
+                                checked,
+                                selected_row.realization_machine,
+                            )?,
+                        machine,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            realization_callables.sort();
+            realization_callables.dedup();
             let rows = application
                 .rows
                 .iter()
@@ -71,6 +117,53 @@ pub(super) fn lower_closed_conformance_applications(
                         .ok_or(LoweringError::Unsupported(
                             "closed conformance application row no longer matches its declaration",
                         ))?;
+                    let selected_by_static_dispatch = checked
+                        .facts
+                        .proof
+                        .proof_output_calls
+                        .iter()
+                        .filter_map(|(_, invocation)| {
+                            (invocation.caller_machine_symbol == specialization.instance)
+                                .then_some(invocation.static_requirement_dispatch?)
+                        })
+                        .any(|dispatch| {
+                            dispatch.application_report_fingerprint
+                                == application.report_fingerprint
+                                && dispatch.application_commitment == application.commitment
+                                && dispatch.declaring_trait == selected_row.declaring_trait
+                                && dispatch.requirement == selected_row.requirement
+                                && dispatch.realization_machine
+                                    == selected_row.realization_machine
+                                && dispatch.realization_state == selected_row.realization_state
+                        });
+                    let realization_callable_identity = selected_by_static_dispatch
+                        .then(|| {
+                            let machine = owners
+                                .iter()
+                                .find_map(|(source, terminal)| {
+                                    (*source == selected_row.realization_machine)
+                                        .then_some(*terminal)
+                                })
+                                .ok_or(LoweringError::Unsupported(
+                                    "static conformance realization is absent from the Terminal closure",
+                                ))?;
+                            let identity =
+                                super::evidence_lowering::checked_evidence_machine_identity(
+                                    checked,
+                                    selected_row.realization_machine,
+                                )?;
+                            realization_callables
+                                .iter()
+                                .any(|callable| {
+                                    callable.source_callable_identity == identity
+                                        && callable.machine == machine
+                                })
+                                .then_some(identity)
+                                .ok_or(LoweringError::Unsupported(
+                                    "static conformance row lost its independent callable registry entry",
+                                ))
+                        })
+                        .transpose()?;
                     Ok(ClosedConformanceRow {
                         declaring_trait_identity: checked
                             .symbols
@@ -87,6 +180,7 @@ pub(super) fn lower_closed_conformance_applications(
                         realization_identity: checked
                             .symbols
                             .display_path(selected_row.realization_state, "::"),
+                        realization_callable_identity,
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -175,6 +269,7 @@ pub(super) fn lower_closed_conformance_applications(
                     .display_path(application.trait_definition, "::"),
                 trait_lifetime_arguments: application.trait_lifetime_arguments.clone(),
                 trait_arguments: application.trait_arguments.clone(),
+                realization_callables,
                 rows,
                 report_fingerprint: 0,
                 commitment: Default::default(),

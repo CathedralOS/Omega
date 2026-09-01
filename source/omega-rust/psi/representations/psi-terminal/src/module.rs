@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        52
+        53
     }
 }
 
@@ -296,6 +296,10 @@ pub struct ClosedConformanceApplication {
     pub trait_identity: String,
     pub trait_lifetime_arguments: Vec<String>,
     pub trait_arguments: Vec<String>,
+    /// Ordered standalone replay registry derived from the exact checked
+    /// source-machine closure. Rows name entries by canonical callable
+    /// identity without duplicating the artifact-local machine coordinate.
+    pub realization_callables: Vec<ClosedConformanceRealizationCallable>,
     pub rows: Vec<ClosedConformanceRow>,
     /// Historical compact report/index coordinate. It cannot authorize a
     /// dispatch or replay without the adjacent strong commitment.
@@ -345,6 +349,17 @@ pub struct ClosedConformanceRow {
     /// Declaration path retained separately for exact row-map replay.
     pub requirement_identity: String,
     pub realization_identity: String,
+    /// Reference into the owning application's standalone callable registry.
+    /// Rows outside the bounded static named-witness lane remain map-free.
+    pub realization_callable_identity: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosedConformanceRealizationCallable {
+    /// Canonical checked callable identity, not a declaration display path.
+    pub source_callable_identity: String,
+    /// Artifact-local Terminal machine emitted for that exact callable.
+    pub machine: MachineId,
 }
 
 pub fn closed_conformance_application_report_fingerprint(
@@ -387,12 +402,21 @@ pub fn closed_conformance_application_report_fingerprint(
     for argument in &application.trait_arguments {
         push(&mut bytes, argument);
     }
+    bytes.extend((application.realization_callables.len() as u64).to_le_bytes());
+    for callable in &application.realization_callables {
+        push(&mut bytes, &callable.source_callable_identity);
+        bytes.extend(callable.machine.get().to_le_bytes());
+    }
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
         push(&mut bytes, &row.declaring_trait_identity);
         push(&mut bytes, &row.public_requirement_identity);
         push(&mut bytes, &row.requirement_identity);
         push(&mut bytes, &row.realization_identity);
+        bytes.push(u8::from(row.realization_callable_identity.is_some()));
+        if let Some(identity) = &row.realization_callable_identity {
+            push(&mut bytes, identity);
+        }
     }
     bytes.into_iter().fold(OFFSET, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(PRIME)
@@ -413,7 +437,7 @@ pub fn closed_conformance_application_commitment(
     }
 
     let mut digest = Sha256::new();
-    digest.update(b"omega.psi.terminal.closed-conformance-application.v1\0");
+    digest.update(b"omega.psi.terminal.closed-conformance-application.v2\0");
     push(&mut digest, &application.declaration_identity);
     push(
         &mut digest,
@@ -442,12 +466,21 @@ pub fn closed_conformance_application_commitment(
     for argument in &application.trait_arguments {
         push(&mut digest, argument);
     }
+    digest.update((application.realization_callables.len() as u64).to_le_bytes());
+    for callable in &application.realization_callables {
+        push(&mut digest, &callable.source_callable_identity);
+        digest.update(callable.machine.get().to_le_bytes());
+    }
     digest.update((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
         push(&mut digest, &row.declaring_trait_identity);
         push(&mut digest, &row.public_requirement_identity);
         push(&mut digest, &row.requirement_identity);
         push(&mut digest, &row.realization_identity);
+        digest.update([u8::from(row.realization_callable_identity.is_some())]);
+        if let Some(identity) = &row.realization_callable_identity {
+            push(&mut digest, identity);
+        }
     }
     ClosedConformanceApplicationCommitment::from_digest(digest.finalize().into())
 }
@@ -962,6 +995,9 @@ pub struct StaticRequirementDispatch {
     pub declaring_trait_identity: String,
     pub requirement_identity: String,
     pub realization_identity: String,
+    /// Canonical source callable independently joined through the selected
+    /// closed-conformance row to `realization`.
+    pub realization_callable_identity: String,
     /// Artifact-local machine emitted for the selected realization.
     pub realization: MachineId,
 }

@@ -1656,11 +1656,147 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         application.trait_identity,
         dispatch.declaring_trait_identity
     );
-    assert!(application.rows.iter().any(|row| {
-        row.declaring_trait_identity == dispatch.declaring_trait_identity
-            && row.requirement_identity == dispatch.requirement_identity
-            && row.realization_identity == dispatch.realization_identity
-    }));
+    let bound_row = application
+        .rows
+        .iter()
+        .find(|row| {
+            row.declaring_trait_identity == dispatch.declaring_trait_identity
+                && row.requirement_identity == dispatch.requirement_identity
+                && row.realization_identity == dispatch.realization_identity
+        })
+        .expect("the exact conformance row remains present");
+    let realization_callable_identity = bound_row
+        .realization_callable_identity
+        .as_ref()
+        .expect("static dispatch references its standalone callable registry");
+    assert_eq!(
+        realization_callable_identity.as_str(),
+        dispatch.realization_callable_identity.as_str()
+    );
+    let realization_callable = application
+        .realization_callables
+        .iter()
+        .find(|callable| callable.source_callable_identity == *realization_callable_identity)
+        .expect("the row reference resolves in its application registry");
+    assert_eq!(realization_callable.machine, dispatch.realization);
+    assert_eq!(
+        lowered
+            .semantic_module
+            .closed_conformance_applications
+            .iter()
+            .flat_map(|application| &application.realization_callables)
+            .count(),
+        1,
+        "the bounded static call publishes exactly one canonical registry entry"
+    );
+    assert_eq!(
+        lowered
+            .semantic_module
+            .closed_conformance_applications
+            .iter()
+            .flat_map(|application| &application.rows)
+            .filter(|row| row.realization_callable_identity.is_some())
+            .count(),
+        1,
+        "exactly the selected row references the canonical registry"
+    );
+    assert!(
+        baseline
+            .semantic_module
+            .closed_conformance_applications
+            .iter()
+            .all(|application| {
+                application.realization_callables.is_empty()
+                    && application
+                        .rows
+                        .iter()
+                        .all(|row| row.realization_callable_identity.is_none())
+            }),
+        "the matching runtime-only conformance remains map-free"
+    );
+    let baseline_bytes =
+        encode_module(&baseline.semantic_module).expect("map-free baseline module encodes");
+    let baseline_decoded =
+        decode_module(&baseline_bytes).expect("map-free baseline module decodes");
+    assert!(
+        baseline_decoded
+            .closed_conformance_applications
+            .iter()
+            .all(|application| {
+                application.realization_callables.is_empty()
+                    && application
+                        .rows
+                        .iter()
+                        .all(|row| row.realization_callable_identity.is_none())
+            }),
+        "codec roundtrip preserves absence rather than synthesizing a map"
+    );
+    let mut spurious_runtime_registry = baseline.semantic_module.clone();
+    let spurious_application = spurious_runtime_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| !application.rows.is_empty())
+        .expect("runtime-only fixture retains its closed application");
+    let spurious_identity = "forged::runtime-only-callable".to_owned();
+    spurious_application.realization_callables =
+        vec![psi_terminal::ClosedConformanceRealizationCallable {
+            source_callable_identity: spurious_identity.clone(),
+            machine: spurious_application.owner,
+        }];
+    spurious_application.rows[0].realization_callable_identity = Some(spurious_identity);
+    spurious_application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(spurious_application);
+    spurious_application.commitment =
+        psi_terminal::closed_conformance_application_commitment(spurious_application);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&spurious_runtime_registry),
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
+    ));
+
+    let mut widened_static_registry = lowered.semantic_module.clone();
+    let widened_application = widened_static_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("entry closed application");
+    let second_identity = format!(
+        "{}::second",
+        widened_application.realization_callables[0].source_callable_identity
+    );
+    widened_application.realization_callables.push(
+        psi_terminal::ClosedConformanceRealizationCallable {
+            source_callable_identity: second_identity.clone(),
+            machine: widened_application.owner,
+        },
+    );
+    widened_application.realization_callables.sort();
+    let mut second_row = widened_application.rows[0].clone();
+    second_row.requirement_identity.push_str("::second");
+    second_row.realization_callable_identity = Some(second_identity);
+    widened_application.rows.push(second_row);
+    widened_application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(widened_application);
+    widened_application.commitment =
+        psi_terminal::closed_conformance_application_commitment(widened_application);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&widened_static_registry),
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
+    ));
+    let mut changed_binding = application.clone();
+    changed_binding
+        .realization_callables
+        .first_mut()
+        .expect("standalone callable binding")
+        .source_callable_identity
+        .push_str("::changed");
+    assert_ne!(
+        psi_terminal::closed_conformance_application_report_fingerprint(&changed_binding),
+        application.report_fingerprint
+    );
+    assert_ne!(
+        psi_terminal::closed_conformance_application_commitment(&changed_binding),
+        application.commitment
+    );
     assert!(
         lowered.proof_bundle.evidence_producers.is_empty(),
         "the satisfier's private forwarded producer must not escape"
@@ -1751,7 +1887,10 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         );
         assert!(matches!(
             psi_terminal_verifier::validate_module_representation(&module),
-            Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+            Err(
+                psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. }
+                    | psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. }
+            )
         ));
     };
     rejects(lowered.semantic_module.clone(), |dispatch| {
@@ -1778,7 +1917,10 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
     );
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&substituted_dispatch),
-        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+        Err(
+            psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. }
+                | psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. }
+        )
     ));
     rejects(lowered.semantic_module.clone(), |dispatch| {
         dispatch.public_requirement_identity.push_str("::forged");
@@ -1793,13 +1935,209 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         dispatch.realization_identity.push_str("::forged");
     });
     rejects(lowered.semantic_module.clone(), |dispatch| {
+        dispatch.realization_callable_identity.push_str("::forged");
+    });
+    rejects(lowered.semantic_module.clone(), |dispatch| {
         dispatch.realization = psi_core::MachineId::new(999).unwrap();
     });
+    let mut drifted_callable_binding = lowered.semantic_module.clone();
+    let application = drifted_callable_binding
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("entry closed application");
+    application
+        .rows
+        .iter_mut()
+        .find_map(|row| row.realization_callable_identity.as_mut())
+        .expect("standalone callable reference")
+        .push_str("::forged");
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
+    let drifted_dispatch = drifted_callable_binding.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch");
+    drifted_dispatch.conformance_application_report_fingerprint = application.report_fingerprint;
+    drifted_dispatch.conformance_application_commitment = application.commitment;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&drifted_callable_binding),
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
+    ));
+
+    let mut unused_callable_registry = lowered.semantic_module.clone();
+    let application = unused_callable_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("entry closed application");
+    application
+        .rows
+        .iter_mut()
+        .find_map(|row| row.realization_callable_identity.take())
+        .expect("selected row registry reference");
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&unused_callable_registry),
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
+    ));
+
+    let mut duplicate_callable_registry = lowered.semantic_module.clone();
+    let application = duplicate_callable_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("entry closed application");
+    application
+        .realization_callables
+        .push(application.realization_callables[0].clone());
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&duplicate_callable_registry),
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
+    ));
+
+    let mut retargeted_callable_registry = lowered.semantic_module.clone();
+    let application = retargeted_callable_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("entry closed application");
+    application.realization_callables[0].machine = application.owner;
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
+    let report_fingerprint = application.report_fingerprint;
+    let commitment = application.commitment;
+    let dispatch = retargeted_callable_registry.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch");
+    dispatch.conformance_application_report_fingerprint = report_fingerprint;
+    dispatch.conformance_application_commitment = commitment;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&retargeted_callable_registry),
+        Err(
+            psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. }
+                | psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. }
+        )
+    ));
+
+    let mut coordinated_dispatch_retarget = lowered.semantic_module.clone();
+    let original_realization = invocation.runtime_call.expect("runtime call").callee;
+    let alternate = psi_core::MachineId::new(999).expect("alternate machine identity");
+    let mut alternate_machine = coordinated_dispatch_retarget
+        .machines
+        .iter()
+        .find(|machine| machine.id == original_realization)
+        .expect("static realization machine")
+        .clone();
+    alternate_machine.id = alternate;
+    alternate_machine.contract.id = psi_core::ContractId::new(999).expect("alternate contract");
+    for (ordinal, ensure) in alternate_machine.contract.ensures.iter_mut().enumerate() {
+        ensure.obligation =
+            psi_core::ObligationId::new(9_900 + ordinal as u64).expect("alternate obligation");
+    }
+    for (ordinal, ensure) in alternate_machine
+        .contract
+        .outcome_specific_ensures
+        .iter_mut()
+        .enumerate()
+    {
+        ensure.obligation = psi_core::ObligationId::new(9_950 + ordinal as u64)
+            .expect("alternate guarded obligation");
+    }
+    coordinated_dispatch_retarget
+        .machines
+        .push(alternate_machine);
+    let runtime_operation = coordinated_dispatch_retarget.proof_output_calls[0]
+        .runtime_call
+        .expect("runtime call")
+        .operation;
+    let original_realization_identity = coordinated_dispatch_retarget.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_ref()
+        .expect("static dispatch")
+        .realization_identity
+        .clone();
+    let application = coordinated_dispatch_retarget
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("entry closed application");
+    let row = application
+        .rows
+        .iter_mut()
+        .find(|row| row.realization_identity == original_realization_identity)
+        .expect("selected static conformance row");
+    row.realization_identity.push_str("::coordinated-retarget");
+    let retargeted_realization_identity = row.realization_identity.clone();
+    let callable_identity = row
+        .realization_callable_identity
+        .clone()
+        .expect("selected row references the independent registry");
+    assert_eq!(
+        application
+            .realization_callables
+            .iter()
+            .find(|callable| callable.source_callable_identity == callable_identity)
+            .expect("standalone callable binding")
+            .machine,
+        original_realization,
+        "the independent source-callable map remains rooted at the original machine"
+    );
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
+    application.commitment = psi_terminal::closed_conformance_application_commitment(application);
+    let application_report_fingerprint = application.report_fingerprint;
+    let application_commitment = application.commitment;
+    coordinated_dispatch_retarget.proof_output_calls[0]
+        .runtime_call
+        .as_mut()
+        .expect("runtime call")
+        .callee = alternate;
+    let coordinated_dispatch = coordinated_dispatch_retarget.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch");
+    coordinated_dispatch.conformance_application_report_fingerprint =
+        application_report_fingerprint;
+    coordinated_dispatch.conformance_application_commitment = application_commitment;
+    coordinated_dispatch.realization_identity = retargeted_realization_identity;
+    coordinated_dispatch.realization = alternate;
+    let operation = coordinated_dispatch_retarget
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| operation.id == runtime_operation)
+        .expect("linked runtime operation");
+    let OperationKind::CallUnit { callee, .. } = &mut operation.kind else {
+        panic!("Unit fixture retains one ordinary Unit call")
+    };
+    *callee = alternate;
+    let coordinated_result =
+        psi_terminal_verifier::validate_module_representation(&coordinated_dispatch_retarget);
+    assert!(
+        matches!(
+            coordinated_result,
+            Err(
+                psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. }
+                    | psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. }
+            )
+        ),
+        "coordinated dispatch retarget must reject through its unchanged callable binding, got {coordinated_result:?}"
+    );
     let mut deleted_dispatch = lowered.semantic_module.clone();
     deleted_dispatch.proof_output_calls[0].static_requirement_dispatch = None;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&deleted_dispatch),
-        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
     ));
     let mut leaked_input = lowered.semantic_module.clone();
     let input_source = leaked_input.proof_output_calls[0].evidence_arguments[0].source;
@@ -1839,7 +2177,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .conformance_application_commitment = application.commitment;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&renamed_row),
-        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
     ));
     let mut deleted_row = lowered.semantic_module.clone();
     let deleted_entry = deleted_row.entry;
@@ -1864,7 +2202,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .conformance_application_commitment = application.commitment;
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&deleted_row),
-        Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
     ));
     let mut widened_application = lowered.semantic_module.clone();
     let widened_entry = widened_application.entry;
@@ -1939,6 +2277,30 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         .runtime_call
         .expect("static i32 proof output links its ordinary call");
     assert_eq!(runtime_call.callee, dispatch.realization);
+    let application = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .iter()
+        .find(|application| {
+            application.owner == invocation.caller
+                && application.commitment == dispatch.conformance_application_commitment
+        })
+        .expect("i32 dispatch retains its closed application");
+    let row_identity = application
+        .rows
+        .iter()
+        .find_map(|row| row.realization_callable_identity.as_ref())
+        .expect("i32 row references its standalone callable registry");
+    let callable = application
+        .realization_callables
+        .iter()
+        .find(|callable| callable.source_callable_identity == *row_identity)
+        .expect("i32 registry retains its standalone callable binding");
+    assert_eq!(callable.machine, dispatch.realization);
+    assert_eq!(
+        callable.source_callable_identity,
+        dispatch.realization_callable_identity
+    );
     let caller = lowered
         .semantic_module
         .machines
@@ -2071,7 +2433,10 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
     let invalid = |module: &psi_terminal::TerminalModule| {
         matches!(
             psi_terminal_verifier::validate_module_representation(module),
-            Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+            Err(
+                psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. }
+                    | psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. }
+            )
         )
     };
     let mut wrong_type = lowered.semantic_module.clone();
@@ -2405,7 +2770,7 @@ fn static_requirement_trait_default_rejoins_exact_application_and_runtime_callee
         .push_str("::forged");
     assert!(matches!(
         psi_terminal_verifier::validate_module_representation(&row_drift),
-        Err(psi_terminal_verifier::ModuleError::ClosedConformanceFingerprintMismatch { .. })
+        Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
     ));
 
     let mut runtime_drift = lowered.semantic_module.clone();
