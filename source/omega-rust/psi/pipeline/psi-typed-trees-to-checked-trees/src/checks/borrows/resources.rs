@@ -676,10 +676,12 @@ fn plan_reborrow_containment_certificates(
     Ok(certificates)
 }
 
-/// Retain the first deliberately narrow post-reactivation use shape: one direct
-/// exclusive child ends by last use immediately before one receiver-free call
-/// mutates the whole restored mutable parent carrier. Earlier fully ended
-/// sequential siblings do not invalidate that exact per-child event.
+/// Retain the first deliberately narrow post-restoration use shapes: one direct
+/// exclusive child, or the sole member of one shared-freeze cohort, ends by
+/// last use immediately before one receiver-free call mutates the whole
+/// restored mutable parent carrier. Earlier fully ended sequential exclusive
+/// siblings do not invalidate that exact per-child event; the shared form is
+/// fenced to exactly one child occurrence for the direct parent.
 /// Unsupported shapes remain unclassified rather than receiving inferred
 /// authority.
 #[allow(clippy::too_many_arguments)]
@@ -706,17 +708,25 @@ fn plan_reborrow_restored_call_uses(
         let Some(parent) = direct.get(parent_index) else {
             return Err(reborrow_restored_call_use_drift());
         };
+        let exclusive_reactivation = matches!(
+            child.access,
+            psi_checked_trees::BorrowAccessKind::Mutable
+                | psi_checked_trees::BorrowAccessKind::WriteOnly
+        ) && child.access_effect
+            == CheckedReborrowAccessEffect::ExclusiveSuspension;
+        let sole_shared_freeze = child.access == psi_checked_trees::BorrowAccessKind::Read
+            && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
+            && reborrows
+                .iter()
+                .filter(|candidate| candidate.parent_loan == parent.loan)
+                .count()
+                == 1;
         if parent.loan != child.parent_loan
             || parent.machine_symbol != child.machine_symbol
             || parent.state_symbol != child.state_symbol
             || parent.access != psi_checked_trees::BorrowAccessKind::Mutable
             || !parent.owner_path.is_empty()
-            || !matches!(
-                child.access,
-                psi_checked_trees::BorrowAccessKind::Mutable
-                    | psi_checked_trees::BorrowAccessKind::WriteOnly
-            )
-            || child.access_effect != CheckedReborrowAccessEffect::ExclusiveSuspension
+            || (!exclusive_reactivation && !sole_shared_freeze)
             || child.parent_lexical_status != ParentLexicalStatusAtChildEnd::LivePastChild
             || child.weakening_reason
                 != psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
@@ -741,13 +751,20 @@ fn plan_reborrow_restored_call_uses(
                     && disposition.boundary_source == child.weakening_source
                     && disposition.boundary_phase
                         == CheckedBorrowResourceLifecyclePhase::LastUseExpired
-                    && disposition.shared_cohort.is_empty()
                     && disposition.retired_parent_path.is_empty()
                     && disposition.final_target
                         == DispositionTargetIndex::ParentResource(ParentResourceIndex::Direct(
                             parent_index,
                         ))
-                    && disposition.disposition == CheckedReborrowResourceDisposition::Reactivate
+                    && if sole_shared_freeze {
+                        disposition.shared_cohort.as_slice() == [child_index]
+                            && disposition.disposition
+                                == CheckedReborrowResourceDisposition::RestoreSharedCohort
+                    } else {
+                        disposition.shared_cohort.is_empty()
+                            && disposition.disposition
+                                == CheckedReborrowResourceDisposition::Reactivate
+                    }
             })
             .map(|(index, _)| index)
             .collect::<Vec<_>>();
@@ -762,9 +779,16 @@ fn plan_reborrow_restored_call_uses(
                     && containment.child_loan == child.loan
                     && containment.parent_loan == parent.loan
                     && containment.parent_resource == ParentResourceIndex::Direct(parent_index)
-                    && containment.access_effect == CheckedReborrowAccessEffect::ExclusiveSuspension
-                    && containment.containment
-                        == CheckedReborrowContainmentKind::ExclusiveSuspension
+                    && if sole_shared_freeze {
+                        containment.access_effect == CheckedReborrowAccessEffect::SharedFreeze
+                            && containment.containment
+                                == CheckedReborrowContainmentKind::SharedFreeze
+                    } else {
+                        containment.access_effect
+                            == CheckedReborrowAccessEffect::ExclusiveSuspension
+                            && containment.containment
+                                == CheckedReborrowContainmentKind::ExclusiveSuspension
+                    }
             })
             .map(|(index, _)| index)
             .collect::<Vec<_>>();

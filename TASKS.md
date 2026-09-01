@@ -6826,24 +6826,32 @@ Owners:
   rebuilding either resource arena. The evidence remains non-authorizing and
   proves no completed restoration or Terminal custody.
 
-  The first checked post-reactivation use certificate is now live for one
-  direct-root `Mutable` parent and an exact `Mutable` or `WriteOnly` child.
-  Other non-overlapping sequential siblings may occur in the state without
-  widening the row beyond its one qualifying child event. That child must end by
-  `LastUseExpired` through the exact `Reactivate` disposition and
-  `ExclusiveSuspension` containment row, immediately before one runtime-
+  The first checked post-restoration use certificate is now live for one
+  direct-root `Mutable` parent and either an exact `Mutable`/`WriteOnly`
+  exclusive child or one exact `Read` child occurrence with no sibling for the
+  parent. Other non-overlapping sequential exclusive siblings may occur. The
+  exclusive form requires exact `Reactivate` and `ExclusiveSuspension`; the
+  shared form requires `RestoreSharedCohort`, exact roster `[child]`, and
+  `SharedFreeze`. Both end by `LastUseExpired` immediately before one runtime-
   receiver-free call with one exact mutable-reference parameter takes the bare
   parent carrier and mutates the complete restored referent. Nominal static
   qualification such as `Sink::mutate(parent)` is permitted and does not count
   as a runtime receiver. The certificate rejoins the exact child and parent
   resources, weakening, disposition, containment, flow and borrow call rows,
   carrier-read access, parent-loan entry constraint, captured places, restored
-  access, and target. Independent replay is transactional. Shared cohorts,
-  multihop children, concurrent siblings, state-exit closure, projected
+  access, and target. Independent replay is transactional. Multi-member or
+  sequential shared cohorts, multihop children, concurrent siblings,
+  state-exit closure, projected
   arguments, direct assignment, receiver calls, extra parameters, and
   nonmutating targets retain no such row. Terminal independently replays this
   exact join and publishes one canonical row naming the sole `CallUnit` use,
-  its direct-root lifetime, and the exclusive child interval. The row
+  canonical ordinal-zero source call coordinate, bound callee, direct-root
+  lifetime, child interval, explicit restoration class, and sole-shared cohort
+  roster. The canonical target identity is committed source custody rather than
+  a target identity reconstructed from machine bytes. The producer proves the
+  selected checked cohort complete; Terminal replays exact roster cardinality
+  and member equality, and the shared class requires exactly one compatible
+  whole-parent mutating `CallUnit` in its caller. The row
   authorizes only that call; it grants no cleanup, transfer, or discharge.
 
   Terminal root-custody publication now accepts one finite nonempty linear
@@ -6855,7 +6863,7 @@ Owners:
   resource, activation, parent-entry formation, weakening, captured-place,
   projection-remainder, and `ExclusiveSuspension` containment row before
   accepting the leaf's exact `StateExitDirectRootHandoff` and root-lifetime
-  target. Terminal format 50 / vocabulary 53 retain the complete lineage in one
+  target. Terminal format 51 / vocabulary 54 retain the complete lineage in one
   canonical row. Codec and verifier reject empty, reordered, duplicated,
   access-amplified, malformed, redirected, branched, shared, or non-state-exit
   lineages. The row grants root custody only; its vocabulary cannot express
@@ -6863,8 +6871,9 @@ Owners:
 
   Extend the settled reborrow-restoration model beyond the now-published
   one-hop whole-parent call and linear state-exit root custody only after
-  independent replay. Shared-freeze cohorts, multihop or branching restored
-  use, projected/direct-assignment use, and non-state-exit root custody remain
+  independent replay. Multi-member or sequential shared-freeze cohorts,
+  multihop or branching restored use, projected/direct-assignment use, and
+  non-state-exit root custody remain
   outside the current Terminal rung.
 
   Acceptance: every access cell has a positive or directed negative canary;
@@ -10323,7 +10332,7 @@ Remaining N6/N8 work:
   commitment, codec, or coordinated dispatch retargeting rejects while the
   canonical registry remains rooted. Nonstatic conformance applications and
   rows remain map-free, and execution, ABI, storage, operation shape, and fixed
-  fuel remain unchanged. Terminal codec format 50 / vocabulary 53 carry this
+  fuel remain unchanged. Terminal codec format 51 / vocabulary 54 carry this
   exact registry. The registry is a canonical artifact assertion, not a value
   derived from machine bytes: mutating the registry itself changes
   Terminal/artifact identity and rejects only when replay is rooted in an
@@ -10345,8 +10354,8 @@ Remaining N6/N8 work:
   requirement contract, while the runtime call still targets the private
   realization. The captured output is a fresh opaque requirement-level term:
   satisfier-local input aliases, concrete strengthening selectors, forwarding
-  identity, and producer provenance do not escape. Terminal codec format 50 /
-  vocabulary 53 retain the normalized public requirement plus an independently
+  identity, and producer provenance do not escape. Terminal codec format 51 /
+  vocabulary 54 retain the normalized public requirement plus an independently
   replayed owner-scoped closed-conformance/runtime realization link. The
   verifier rejects row, application, identity, runtime-callee, or freshness
   drift, and differential coverage keeps ABI, storage, operation shape, and
@@ -10615,7 +10624,7 @@ Remaining N6/N8 work:
   position-preserving transport lift: each public-`Q`, representative-`P`, and
   congruence-legality row preserves its Left/Right application side, authored
   source coordinate, and selected-theorem coordinate. Canonical identity,
-  format 50/vocabulary 53 bytes, decoding, and representation validation bind
+  format 51/vocabulary 54 bytes, decoding, and representation validation bind
   role order, fact-major source order, theorem-coordinate order, and the exact
   congruence-`P`/transport-`P` join. Adapted lift shapes remain outside this
   first carrier. Execution validation still rejects every retained row.
@@ -10821,7 +10830,7 @@ Remaining N6/N8 work:
   `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
   exact toolchain operator and result owners, private contract-free ordinary
   signature, source carrier, hermetic operation identity, and catalog version.
-  Checked deduplication and Terminal format 50 / vocabulary 53 retain that
+  Checked deduplication and Terminal format 51 / vocabulary 54 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
   operands to share that exact format and contract carrier. The first
@@ -10835,8 +10844,8 @@ Remaining N6/N8 work:
   the exact owner/parameter/format tuple. Exact literals remain unchanged, and
   every other nonliteral source remains
   transitional. Checked-to-Terminal deliberately erases this checked-only
-  provenance through its unchanged fallback input; Terminal format 50 /
-  vocabulary 53 does not change. Artifact-aware parameter binding remains an
+  provenance through its unchanged fallback input; Terminal format 51 /
+  vocabulary 54 does not change. Artifact-aware parameter binding remains an
   engineering prerequisite because Terminal intentionally has no general float
   scalar parameter representation. Still open are that Terminal carrier,
   artifact-aware carriers for contract results, Terminal values, and structural

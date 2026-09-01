@@ -1313,7 +1313,9 @@ fn reborrow_restored_call_alias_prefix(
                         psi_checked_trees::BorrowAccessKind::WriteOnly => {
                             psi_language_semantics::ReferenceAccess::WriteOnly
                         }
-                        psi_checked_trees::BorrowAccessKind::Read => return false,
+                        psi_checked_trees::BorrowAccessKind::Read => {
+                            psi_language_semantics::ReferenceAccess::Shared
+                        }
                     }
                 && call.statement_index == 2
                 && call.call_ordinal == 0

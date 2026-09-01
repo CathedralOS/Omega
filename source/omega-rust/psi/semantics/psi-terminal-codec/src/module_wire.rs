@@ -16,8 +16,9 @@ use psi_terminal::{
     ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
     StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
     TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
-    TerminalPlacedViewInput, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
-    TerminalReborrowRootHandoffStep, TerminalRootServiceReach, VocabularyMarker,
+    TerminalPlacedViewInput, TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse,
+    TerminalReborrowRootHandoff, TerminalReborrowRootHandoffStep,
+    TerminalReborrowSharedCohortMember, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -267,6 +268,12 @@ fn encode_reborrow_restored_call_use(
 ) -> Result<(), CodecError> {
     writer.id(use_row.machine);
     writer.id(use_row.operation);
+    writer.u8(match use_row.restoration_class {
+        TerminalReborrowRestorationClass::ExclusiveReactivation => 1,
+        TerminalReborrowRestorationClass::SoleSharedFreezeRestoration => 2,
+    });
+    encode_borrow_boundary(writer, &use_row.call_boundary)?;
+    writer.id(use_row.call_target_machine);
     writer.string(
         "restored-use machine identity",
         &use_row.source_machine_identity,
@@ -295,6 +302,18 @@ fn encode_reborrow_restored_call_use(
     encode_borrow_boundary(writer, &use_row.child_activation)?;
     encode_borrow_boundary(writer, &use_row.formation_boundary)?;
     encode_borrow_boundary(writer, &use_row.child_weakening)?;
+    writer.len("restored-use shared cohort", use_row.shared_cohort.len())?;
+    for member in &use_row.shared_cohort {
+        writer.string(
+            "restored-use cohort child owner",
+            &member.child_owner_identity,
+        )?;
+        encode_owner_path(writer, &member.child_owner_path)?;
+        encode_place(writer, &member.child_place)?;
+        encode_borrow_access(writer, member.child_access);
+        encode_borrow_boundary(writer, &member.child_activation)?;
+        encode_borrow_boundary(writer, &member.child_weakening)?;
+    }
     Ok(())
 }
 
@@ -304,6 +323,18 @@ fn decode_reborrow_restored_call_use(
     Ok(TerminalReborrowRestoredCallUse {
         machine: reader.id("MachineId")?,
         operation: reader.id("OperationId")?,
+        restoration_class: match reader.u8()? {
+            1 => TerminalReborrowRestorationClass::ExclusiveReactivation,
+            2 => TerminalReborrowRestorationClass::SoleSharedFreezeRestoration,
+            tag => {
+                return Err(CodecError::InvalidTag(
+                    "TerminalReborrowRestorationClass",
+                    tag,
+                ));
+            }
+        },
+        call_boundary: decode_borrow_boundary(reader)?,
+        call_target_machine: reader.id("MachineId")?,
         source_machine_identity: reader.string("restored-use machine identity")?,
         source_state_identity: reader.string("restored-use state identity")?,
         direct_root_owner_identity: reader.string("restored-use direct owner")?,
@@ -320,6 +351,16 @@ fn decode_reborrow_restored_call_use(
         child_activation: decode_borrow_boundary(reader)?,
         formation_boundary: decode_borrow_boundary(reader)?,
         child_weakening: decode_borrow_boundary(reader)?,
+        shared_cohort: decode_counted(reader, |reader| {
+            Ok(TerminalReborrowSharedCohortMember {
+                child_owner_identity: reader.string("restored-use cohort child owner")?,
+                child_owner_path: decode_owner_path(reader)?,
+                child_place: decode_place(reader)?,
+                child_access: decode_borrow_access(reader)?,
+                child_activation: decode_borrow_boundary(reader)?,
+                child_weakening: decode_borrow_boundary(reader)?,
+            })
+        })?,
     })
 }
 

@@ -122,6 +122,21 @@ fn reborrow_restored_call_source(child_access: &str) -> psi_checked_trees::Check
     ))
 }
 
+fn shared_reborrow_restored_call_source() -> psi_checked_trees::CheckedTrees {
+    checked_source(
+        r#"
+            data Harness {}
+            data Sink {}
+            machine Sink::mutate(value: &mut i32) { value = 2; }
+            machine Harness::exercise(root: &mut i32) {
+                let parent: &mut i32 = &mut root;
+                let child: &i32 = &parent;
+                Sink::mutate(parent);
+            }
+        "#,
+    )
+}
+
 fn multihop_reborrow_source(
     middle_access: &str,
     leaf_access: &str,
@@ -221,11 +236,30 @@ fn terminal_reborrow_root_handoff_lowers_mutable_and_write_only_children() {
 }
 
 #[test]
-fn terminal_reborrow_restored_call_use_lowers_mutable_and_write_only_children() {
-    for child_access in ["&mut", "&write"] {
-        let checked = reborrow_restored_call_source(child_access);
-        let lowered = lower_machine(&checked, "Harness::exercise")
-            .expect("restored-parent mutating call lowers to Terminal Psi");
+fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children() {
+    for (label, checked, machine_name, expected_access) in [
+        (
+            "mutable",
+            reborrow_restored_call_source("&mut"),
+            "Harness::exercise",
+            psi_terminal::StructuralAccess::MutableBorrow,
+        ),
+        (
+            "write-only",
+            reborrow_restored_call_source("&write"),
+            "Harness::exercise",
+            psi_terminal::StructuralAccess::WriteOnlyBorrow,
+        ),
+        (
+            "sole-shared",
+            shared_reborrow_restored_call_source(),
+            "Harness::exercise",
+            psi_terminal::StructuralAccess::SharedBorrow,
+        ),
+    ] {
+        let lowered = lower_machine(&checked, machine_name).unwrap_or_else(|error| {
+            panic!("{label} restored-parent mutating call lowers to Terminal Psi: {error:?}")
+        });
         let [use_row] = lowered
             .semantic_module
             .reborrow_restored_call_uses
@@ -234,13 +268,76 @@ fn terminal_reborrow_restored_call_use_lowers_mutable_and_write_only_children() 
             panic!("one exact restored-parent call use")
         };
         assert_eq!(use_row.machine, lowered.semantic_module.entry);
+        assert_eq!(use_row.child_access, expected_access);
         assert_eq!(
-            use_row.child_access,
-            if child_access == "&mut" {
-                psi_terminal::StructuralAccess::MutableBorrow
+            use_row.restoration_class,
+            if expected_access == psi_terminal::StructuralAccess::SharedBorrow {
+                psi_terminal::TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
             } else {
-                psi_terminal::StructuralAccess::WriteOnlyBorrow
+                psi_terminal::TerminalReborrowRestorationClass::ExclusiveReactivation
             }
+        );
+        if expected_access == psi_terminal::StructuralAccess::SharedBorrow {
+            let [member] = use_row.shared_cohort.as_slice() else {
+                panic!("sole shared restoration retains one cohort member")
+            };
+            assert_eq!(member.child_owner_identity, use_row.child_owner_identity);
+            assert_eq!(member.child_owner_path, use_row.child_owner_path);
+            assert_eq!(member.child_place, use_row.child_place);
+            assert_eq!(member.child_access, use_row.child_access);
+            assert_eq!(member.child_activation, use_row.child_activation);
+            assert_eq!(member.child_weakening, use_row.child_weakening);
+        } else {
+            assert!(use_row.shared_cohort.is_empty());
+        }
+        let psi_terminal::TerminalBorrowBoundarySource::Call {
+            statement_index,
+            call_ordinal,
+            target_identity,
+        } = &use_row.call_boundary
+        else {
+            panic!("restored use retains one exact source call coordinate")
+        };
+        assert_eq!(*call_ordinal, 0);
+        assert!(!target_identity.is_empty());
+        let caller = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == use_row.machine)
+            .expect("restored-use caller");
+        let operation = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == use_row.operation)
+            .expect("restored-use operation");
+        let psi_terminal::OperationKind::CallUnit { callee, .. } = operation.kind else {
+            panic!("restored-use operation is CallUnit")
+        };
+        assert_eq!(use_row.call_target_machine, callee);
+        let certificate = checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .iter()
+            .next()
+            .expect("checked restored use")
+            .1;
+        let psi_checked_trees::FlowInvalidationSource::Statement {
+            statement_index: child_end,
+        } = checked
+            .facts
+            .borrow
+            .reborrow_loan_resources
+            .get(certificate.child_resource)
+            .weakening_source
+        else {
+            panic!("restored child weakens at one statement")
+        };
+        assert_eq!(
+            *statement_index,
+            u64::try_from(child_end).expect("statement range")
         );
         assert_eq!(
             use_row.direct_root_lifetime_identity,
@@ -269,6 +366,77 @@ fn terminal_reborrow_restored_call_use_lowers_mutable_and_write_only_children() 
             lowered.semantic_module
         );
     }
+}
+
+#[test]
+fn terminal_shared_restored_call_use_rejects_checked_cohort_drift() {
+    let baseline = shared_reborrow_restored_call_source();
+    let certificate = baseline
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .next()
+        .expect("shared restored use")
+        .1
+        .clone();
+
+    let mut missing = baseline.clone();
+    missing
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get_mut(certificate.disposition)
+        .shared_cohort
+        .clear();
+    assert!(lower_machine(&missing, "Harness::exercise").is_err());
+
+    let mut wrong_disposition = baseline.clone();
+    wrong_disposition
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get_mut(certificate.disposition)
+        .disposition = psi_checked_trees::CheckedReborrowResourceDisposition::Reactivate;
+    assert!(lower_machine(&wrong_disposition, "Harness::exercise").is_err());
+
+    let mut wrong_containment = baseline;
+    wrong_containment
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .get_mut(certificate.containment)
+        .containment = psi_checked_trees::CheckedReborrowContainmentKind::ExclusiveSuspension;
+    assert!(lower_machine(&wrong_containment, "Harness::exercise").is_err());
+
+    let mut wrong_parent_status = shared_reborrow_restored_call_source();
+    wrong_parent_status
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .get_mut(certificate.child_resource)
+        .parent_end_status
+        .status = psi_checked_trees::ParentLexicalStatusAtChildEnd::RetiredWithChild;
+    assert!(lower_machine(&wrong_parent_status, "Harness::exercise").is_err());
+
+    let mut wrong_parent_weakening = shared_reborrow_restored_call_source();
+    wrong_parent_weakening
+        .facts
+        .borrow
+        .reborrow_containment_certificates
+        .get_mut(certificate.containment)
+        .parent_weakening = certificate.child_weakening;
+    assert!(lower_machine(&wrong_parent_weakening, "Harness::exercise").is_err());
+
+    let mut invalid_formation_constraint = shared_reborrow_restored_call_source();
+    invalid_formation_constraint
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .get_mut(certificate.child_resource)
+        .parent_suspension
+        .parent_entry_constraint = psi_arena::Handle::invalid();
+    assert!(lower_machine(&invalid_formation_constraint, "Harness::exercise").is_err());
 }
 
 #[test]
