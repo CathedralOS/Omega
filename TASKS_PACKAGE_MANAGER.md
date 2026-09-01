@@ -37,76 +37,24 @@ stop the item on one precise owner question before adding machinery.
   strings as identity, compiler-private IDs, or compiler-issued admission
   verdicts.
 
-  Finish D29's artifact-qualified symbolic demand/final substitution for
-  separately compiled generic artifacts, nested calls, and each remaining
-  supported operator category. Complete D32's
-  optimized-projection-to-physical-child join for verified non-identity
-  optimization and the native roles the backend does not yet lower. Each
-  physical child must bind its exact role-tagged
-  `PhysicalChildParent` and surviving optimized operation occurrence; the
-  complete child set must equal the derived surviving set. D29 parents
-  reference reconstructible operator coverage; D41 parents retain and replay
-  complete boundary-trait settlements. Lifetime, machine, proposition,
-  unsupported fixed-token shapes, external-generic, and other unsupported
-  applications remain fail-closed. D28 authorizes no universal generic
-  coverage; only
-  compiler-derived demand joined to an independently checked
-  application-specific realization may authorize a row.
+  Remaining work:
 
-  Extend the earliest coherent compiler-owned representation that owns a
-  missing fact. Do not reconstruct identity from diagnostics and do not add a
-  nominal Chi stage merely to collect private compiler state.
-  Do not create package-review work for forms the language rejects: proposition
-  parameters are trait-only, proof-static evidence cannot eliminate into an
-  executable call, and nested machine applications fail checking. A future
-  language change may add a task only with its own semantic owner and concrete
-  customer.
+  - finish D29 artifact-qualified symbolic demand/final substitution for
+    separately compiled generic artifacts, nested calls, and remaining
+    supported operator categories;
+  - complete D32 physical-child custody for verified non-identity optimization
+    and remaining native roles, with an exact bijection to surviving optimized
+    occurrences and reconstructible D29/D41 parents;
+  - enable the checked-body physical lane without weakening the existing
+    `InvalidLinuxExitGroupShape` backend rejection; and
+  - add external realization custody only when independently admitted concrete
+    authority exists. Never substitute a self-issued commitment.
 
-  D46 forbids producer-executable path-byte commitments in review rows,
-  closure commitments, conflicts, locks, or admission. Same-process review
-  compatibility uses the explicit semantic and evidence-encoding identities;
-  it never substitutes the bytes readable through `current_exe()`.
-
-  Canonical-empty checked-adapter applications now project from ordinary
-  value-machine expressions as well as the attached-`Unit` plan lane. Named
-  and fixed-token uses rejoin the exact authored selection, selected plan,
-  checked realization, and independently rederived body contract; the two
-  lanes must agree when both exist. Local fixed-token generic type and const
-  applications now use ordinary authoritative specialization and project the
-  same exact D29 row as named generic applications. Cross-artifact symbolic
-  substitution, remaining unsupported telescope categories, and D32
-  physical-child completion remain open.
-
-  The checked Terminal companion retains the complete immutable D29 demand
-  roster and derives the current empty-roster D32 eligibility from those rows;
-  a count-only proxy is not custody. Currently lowerable selected checked-body
-  and nearest-FMA applications also retain a one-to-one compiler-private join
-  from their exact roster row to the emitted Terminal operation. The compiler
-  now projects those joined occurrences into representation-owned, exact-
-  owner, source-free requirement and tagged type/const application rows bound
-  to the canonical Terminal artifact; the product rejects missing, duplicate,
-  substituted, or non-Terminal operation coordinates. A representation-owned
-  companion now covers that exact demand set with the strong selected-plan
-  digest and one closed role payload for nongeneric checked bodies,
-  authoritative generic specializations, or independently rederived compiler
-  intrinsics. The complete demand/companion pair now publishes reconstructible
-  coverage references and crosses native realization as one validated value;
-  native replay retains the full rows, rejoins every named Terminal operation,
-  binds the coverage set into artifact identity, and distinguishes exact-empty
-  custody from unavailable custody. The identity optimization projection now
-  retains separate exact D29 and D41 occurrence sets. D29 physical children
-  bind reconstructible coverage parents, exact projected occurrences, spans,
-  byte digests, and relocation disposition; nearest-FMA applications exercise
-  the direct-byte lane end to end. Checked-body call mechanics independently
-  rejoin Terminal callee, emitted call record, semantic relocation owner,
-  target, zero addend, kind, span, and final-image byte changes. End-to-end
-  checked-body physical custody remains blocked by ordinary native lowering's
-  existing `InvalidLinuxExitGroupShape` rejection for the reviewed checked-
-  operator-plus-exit canaries; do not weaken D32 to bypass that backend gap.
-  Externally admitted concrete authority remains absent rather than being
-  represented by a self-issued placeholder commitment. Cross-artifact demand
-  closure, external realization custody, checked-body backend enablement, and
-  non-identity optimization projections remain open.
+  Unsupported telescope/application forms remain fail-closed. Add a fact at
+  the earliest coherent compiler-owned representation; do not reconstruct it
+  from diagnostics or add a nominal stage only to collect private state. D46
+  continues to forbid producer-executable path bytes as review, conflict,
+  lock, or admission identity.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
@@ -141,13 +89,9 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
-  Selection admission now derives D44's transitive v1 inert closure across
-  records, arrays, and every sum payload, rejects nominal cleanup, linear debt,
-  nested opaque/external storage, and retains the explicit `Inert` lifecycle
-  even for unused selections. Complete target-ABI movement closure, bind that
-  lifecycle into the strong application commitment, and close the copyable
-  carrier receipt route. Do not publish a partial demand row from calling-
-  convention shape or size/alignment alone. Add canaries proving that
+  Complete target-ABI movement closure and the copyable inert-carrier receipt
+  route. Do not publish a partial demand row from calling-convention shape or
+  size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
   selections while one later source consumer selects its own application. The
   future `PackageInstance` composition canary must reject unequal commitments
@@ -166,14 +110,11 @@ after the complete current-version lock payload exists.
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
   certificate required by an ordinary package claim.
-  Contract-entailment stand-downs now have an exact `OpenLaterDischarge` lane:
-  fresh typed-graph rederivation, callable and contract/fact coordinates,
-  complete machine-contract commitment, readable goal/reason, canonical row,
-  transitive owner-preserving composition, and categorical rejection before
-  root policy. Remaining work is limited to concrete compiler-owned
-  certificate/discharge classes and required final-realization joins. Do not
-  persist this partial lane, cite standalone `psi-proof` as production
-  enforcement, or add an empty generic certificate framework.
+  Remaining work is concrete compiler-owned certificate/discharge classes and
+  required final-realization joins. Preserve exact `OpenLaterDischarge`
+  propagation and pre-policy rejection. Do not persist this partial lane, cite
+  standalone `psi-proof` as production enforcement, or add an empty generic
+  certificate framework.
 
 - [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
   after exact source and artifact subjects, obligation-semantics identity,
