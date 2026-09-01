@@ -219,6 +219,19 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
         Err(OptimizedSelectedFormEncodingError::X86_64MovR32Imm32(_))
     ));
 
+    let expected_rows = plan
+        .actions
+        .iter()
+        .map(|action| {
+            let canonical = encode_x86_64_mov_r32_imm32_i64_materialization(
+                physical,
+                action.destination.destination_view,
+                IntegerValue::Unsigned(action.literal_bits.into()),
+            )
+            .unwrap();
+            (action.instruction, canonical.bytes().to_vec())
+        })
+        .collect::<Vec<_>>();
     let realization =
         stage_post_allocation_machine_function_relative_realization(homes, machine, optimization)
             .unwrap();
@@ -236,6 +249,99 @@ fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody(
         FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()).unwrap(),
         *manifest
     );
+    assert_eq!(manifest.post_allocation_machine_optimization, Some(custody));
+    assert_eq!(
+        realization.exit_contract().contract().layout_custody,
+        WholeFunctionExitLayoutCustody::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+            artifact_identity: custody.artifact_identity(),
+        }
+    );
+
+    let mut emitted = stage_optimized_function_fragment_emission(
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(Box::new(realization)),
+    )
+    .unwrap();
+    assert_eq!(
+        emitted.manifest().record().source_kind,
+        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+        }
+    );
+    assert_eq!(
+        FunctionFragmentEmissionManifest::decode(&emitted.manifest().record().encode()).unwrap(),
+        *emitted.manifest().record()
+    );
+    for (instruction, expected) in &expected_rows {
+        let row = emitted
+            .fragments()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+            .find(|row| row.instruction == *instruction)
+            .unwrap();
+        assert_eq!(&row.bytes, expected);
+    }
+    assert_eq!(
+        validate_optimized_function_fragment_emission(&emitted).unwrap(),
+        emitted.custody()
+    );
+    let first_instruction = expected_rows[0].0;
+    emitted
+        .fragments_mut()
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| row.instruction == first_instruction)
+        .unwrap()
+        .bytes[0] ^= 1;
+    assert_eq!(
+        validate_optimized_function_fragment_emission(&emitted),
+        Err(FunctionFragmentEmissionError::ArtifactMismatch)
+    );
+    emitted
+        .fragments_mut()
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| row.instruction == first_instruction)
+        .unwrap()
+        .bytes[0] ^= 1;
+    validate_optimized_function_fragment_emission(&emitted).unwrap();
+    let fragment_manifest = emitted.manifest().record().identity;
+
+    let text = stage_optimized_relocation_free_text_section(emitted).unwrap();
+    assert_eq!(
+        text.manifest().record().source_kind,
+        FunctionFragmentEmissionSourceKind::PostAllocationMachineOptimizationV1 {
+            optimization: Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+        }
+    );
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&text.manifest().record().encode()).unwrap(),
+        *text.manifest().record()
+    );
+    let text_manifest = text.manifest().record().identity;
+    let object = stage_optimized_relocation_free_object_container(text).unwrap();
+    let object_manifest = object.manifest().record().identity;
+    let artifact =
+        stage_validated_optimized_object_artifact(canonical_artifact(&semantic, &proof), object)
+            .unwrap();
+    assert_eq!(
+        artifact.artifact().function_fragment_manifest,
+        fragment_manifest
+    );
+    assert_eq!(artifact.artifact().text_section_manifest, text_manifest);
+    assert_eq!(
+        artifact.artifact().object_container_manifest,
+        object_manifest
+    );
+    validate_optimized_object_artifact(&artifact).unwrap();
+    let callable = stage_validated_optimized_ordinary_callable_entry(artifact).unwrap();
+    validate_optimized_ordinary_callable_entry(&callable).unwrap();
 }
 
 #[test]
