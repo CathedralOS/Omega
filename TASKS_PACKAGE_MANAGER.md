@@ -75,6 +75,12 @@ stop the item on one precise owner question before adding machinery.
   substitution, remaining unsupported telescope categories, and D32
   physical-child completion remain open.
 
+  The checked Terminal companion retains the complete immutable D29 demand
+  roster and derives the current empty-roster D32 eligibility from those rows;
+  a count-only proxy is not custody. Source-free Terminal-operation joins,
+  role-specific semantic companions, D29 physical parents, and non-identity
+  optimization projections remain open.
+
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
   fixed native resources, or profiles requesting final-code replay. Keep

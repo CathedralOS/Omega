@@ -52,19 +52,19 @@ impl NativeRealizationInput {
             &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
         >,
     ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-        let application_count = match checked_scope {
-            Some(scope) => scope.application_count(),
-            None => usize::MAX,
-        };
-        physical_evidence_scope(matches!(self, Self::Unoptimized(_)), application_count)
+        physical_evidence_scope(matches!(self, Self::Unoptimized(_)), checked_scope)
     }
 }
 
-const fn physical_evidence_scope(
+fn physical_evidence_scope(
     unoptimized: bool,
-    boundary_operator_application_count: usize,
+    checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
 ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-    if unoptimized && boundary_operator_application_count == 0 {
+    if unoptimized
+        && checked_scope.is_some_and(
+            psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope::is_empty,
+        )
+    {
         omega_native_artifact::NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications
     } else {
         omega_native_artifact::NativePhysicalEvidenceScope::Unavailable
@@ -144,20 +144,66 @@ impl SettledNativeArtifact {
 #[cfg(test)]
 mod tests {
     use super::physical_evidence_scope;
+    use crate::tests::fixtures::checked_source::checked;
     use omega_native_artifact::NativePhysicalEvidenceScope;
 
     #[test]
     fn physical_evidence_requires_both_unoptimized_and_exact_empty_d29_scope() {
+        let empty_checked = checked(
+            r#"
+                data Main {}
+                machine Main::launch() {}
+            "#,
+        );
+        let empty =
+            psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+                &empty_checked,
+                "Main::launch",
+            )
+            .expect("empty exact D29 scope");
         assert_eq!(
-            physical_evidence_scope(true, 0),
+            physical_evidence_scope(true, Some(empty.boundary_operator_scope())),
             NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
         );
         assert_eq!(
-            physical_evidence_scope(false, 0),
+            physical_evidence_scope(false, Some(empty.boundary_operator_scope())),
+            NativePhysicalEvidenceScope::Unavailable,
+        );
+
+        let demand_checked = checked(
+            r#"
+                boundary operator == Number::equal(left: i32, right: i32) -> bool;
+
+                machine launch(left: i32, right: i32) -> bool {
+                    left == right
+                }
+            "#,
+        );
+        let [demand] = demand_checked
+            .facts
+            .operators
+            .boundary_applications
+            .as_slice()
+        else {
+            panic!("one exact checked boundary-operator demand")
+        };
+        // Source-free operation matching is not implemented yet. Retain the
+        // real checked demand beside a known-lowerable artifact to exercise
+        // only the exact-scope eligibility fence closed by this milestone.
+        let mut nonempty_checked = empty_checked.clone();
+        nonempty_checked.facts.operators.boundary_applications = vec![demand.clone()];
+        let nonempty =
+            psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+                &nonempty_checked,
+                "Main::launch",
+            )
+            .expect("nonempty exact D29 scope");
+        assert_eq!(
+            physical_evidence_scope(true, Some(nonempty.boundary_operator_scope())),
             NativePhysicalEvidenceScope::Unavailable,
         );
         assert_eq!(
-            physical_evidence_scope(true, 1),
+            physical_evidence_scope(true, None),
             NativePhysicalEvidenceScope::Unavailable,
         );
     }

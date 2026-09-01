@@ -254,12 +254,13 @@ pub struct LoweredSelectedIeeeFloatFmaOccurrence {
 /// Checked source demand scope retained beside one exact Terminal artifact.
 ///
 /// The fields are private so downstream realization cannot replace checked
-/// D29 custody with a caller-authored count. The receipt is useful only for
-/// the canonical artifact produced by the same lowering operation.
+/// D29 custody with a caller-authored count or Boolean. The receipt retains the
+/// complete checked demand roster and is useful only for the canonical artifact
+/// produced by the same lowering operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryOperatorApplicationScope {
     terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
-    application_count: usize,
+    applications: Vec<psi_checked_trees::CheckedBoundaryOperatorApplicationDemand>,
 }
 
 impl CheckedBoundaryOperatorApplicationScope {
@@ -273,8 +274,12 @@ impl CheckedBoundaryOperatorApplicationScope {
         Ok(())
     }
 
-    pub const fn application_count(&self) -> usize {
-        self.application_count
+    pub fn applications(&self) -> &[psi_checked_trees::CheckedBoundaryOperatorApplicationDemand] {
+        &self.applications
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.applications.is_empty()
     }
 }
 
@@ -1433,7 +1438,7 @@ fn checked_boundary_operator_scope(
 ) -> CheckedBoundaryOperatorApplicationScope {
     CheckedBoundaryOperatorApplicationScope {
         terminal_artifact_identity: artifact.manifest().identity(),
-        application_count: checked.facts.operators.boundary_applications.len(),
+        applications: checked.facts.operators.boundary_applications.clone(),
     }
 }
 

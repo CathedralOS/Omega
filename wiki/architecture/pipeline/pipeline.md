@@ -168,8 +168,9 @@ The implemented first slice covers the no-optimization identity projection
 when every executable boundary occurrence is the Linux ELF
 `CompilerBuiltin(LinuxExitGroupI32)` lane. The compiler positively establishes
 that its complete checked D29 boundary-operator demand roster is empty; the
-Terminal companion retains a non-caller-authored scope receipt bound to the
-exact Terminal artifact, and an explicit optimizer handoff never
+Terminal companion retains that complete immutable roster—not only its count—
+inside a non-caller-authored scope receipt bound to the exact Terminal artifact,
+and an explicit optimizer handoff never
 enters this scope. Fresh emission derives one child per occurrence on x86-64
 and AArch64; standalone artifact replay independently rederives the Terminal
 occurrence roster, exact D41 parent, selected-plan digest, scalar ABI custody,
