@@ -23,6 +23,7 @@ fn crash_source_envelope_corruption_fails_closed() {
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
                     qualifications: vec![StructuralDomainId::new(2_104).unwrap()],
+                    projected_qualifications: Vec::new(),
                 });
         }),
         StraightLineScalarCrashTranslationError::SourceStructuralParameters

@@ -143,6 +143,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: vec![pending],
+        projected_qualifications: Vec::new(),
     };
 
     let caller = TerminalMachine {
@@ -335,6 +336,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Scalar(ValueDeclaration {

@@ -156,6 +156,7 @@ mod tests {
                 multiplicity: psi_terminal::StructuralMultiplicity::Affine,
                 access: psi_terminal::StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             });
         assert_eq!(
             derive_fixed_integer_scalar_function_abi(&structural, target).unwrap(),

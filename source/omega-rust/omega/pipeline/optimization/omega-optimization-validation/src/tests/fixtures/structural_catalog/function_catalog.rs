@@ -27,6 +27,7 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
         multiplicity: psi_terminal::StructuralMultiplicity::Linear,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let entry_claim = |input| psi_terminal::EntryClaim {
         claim,

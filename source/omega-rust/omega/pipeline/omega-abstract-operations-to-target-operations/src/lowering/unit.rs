@@ -16,7 +16,7 @@ mod scalar_definitions;
 use boundary_call::lower_boundary_call;
 use preflight::validate_unit_function_shape;
 use return_unit::lower_unit_return;
-use scalar_call::{insert_known_unit_integer, lower_scalar_call, KnownUnitInteger};
+use scalar_call::{KnownUnitInteger, insert_known_unit_integer, lower_scalar_call};
 use scalar_definitions::{
     lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
     validate_unit_scalar_definitions,

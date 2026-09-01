@@ -1,7 +1,10 @@
 //! Terminal Unit-return and scalar-Crash receipts.
 
 use psi_core::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ScalarType, ServiceId};
-use psi_terminal::{CrashCause, CrashPredicateTerm, CrashRouteBucket};
+use psi_terminal::{
+    CrashCause, CrashPredicateTerm, CrashRouteBucket, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StraightLineUnitReturnTranslationReceipt {
@@ -127,6 +130,53 @@ impl StraightLineUnitCallReturnTranslationReceipt {
 
     pub fn crash_continuations(&self) -> &[CrashRouteBucket] {
         &self.crash_continuations
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StraightLineTrivialAffineLocalUnitReturnTranslationReceipt {
+    machine: MachineId,
+    establishment_operation: OperationId,
+    place: StructuralPlaceDeclaration,
+    structural_type: StructuralTypeDeclaration,
+    return_edge: EdgeId,
+}
+
+impl StraightLineTrivialAffineLocalUnitReturnTranslationReceipt {
+    pub(in crate::validation) fn new(
+        machine: MachineId,
+        establishment_operation: OperationId,
+        place: StructuralPlaceDeclaration,
+        structural_type: StructuralTypeDeclaration,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            establishment_operation,
+            place,
+            structural_type,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn establishment_operation(&self) -> OperationId {
+        self.establishment_operation
+    }
+
+    pub const fn place(&self) -> &StructuralPlaceDeclaration {
+        &self.place
+    }
+
+    pub const fn structural_type(&self) -> &StructuralTypeDeclaration {
+        &self.structural_type
     }
 
     pub const fn return_edge(&self) -> EdgeId {

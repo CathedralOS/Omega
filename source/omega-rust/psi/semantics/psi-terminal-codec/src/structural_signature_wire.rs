@@ -11,6 +11,7 @@ use psi_core::{
 use psi_terminal::{
     BoundaryMachineDeclaration, ProgramLocalRootIntroductionSchema, StructuralAccess,
     StructuralDomainRequirement, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathQualification,
 };
 
 use super::content_wire::{
@@ -18,7 +19,10 @@ use super::content_wire::{
 };
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
-use super::{CodecError, decode_counted, decode_ids, decode_optional_id, encode_optional_id};
+use super::{
+    CodecError, decode_counted, decode_ids, decode_optional_id, decode_structural_path,
+    encode_optional_id, encode_structural_path,
+};
 
 pub(super) fn encode_boundary_machine(
     writer: &mut Writer,
@@ -163,6 +167,7 @@ pub(super) fn encode_structural_parameters(
         for qualification in &parameter.qualifications {
             writer.id(*qualification);
         }
+        encode_projected_qualifications(writer, &parameter.projected_qualifications)?;
     }
     Ok(())
 }
@@ -320,6 +325,37 @@ pub(super) fn decode_structural_parameters(
             multiplicity,
             access,
             qualifications: decode_ids(reader, "StructuralDomainId")?,
+            projected_qualifications: decode_projected_qualifications(reader)?,
+        })
+    })
+}
+
+pub(super) fn encode_projected_qualifications(
+    writer: &mut Writer,
+    qualifications: &[StructuralPathQualification],
+) -> Result<(), CodecError> {
+    writer.len(
+        "projected structural parameter qualifications",
+        qualifications.len(),
+    )?;
+    for qualification in qualifications {
+        encode_structural_path(
+            writer,
+            "projected structural qualification path",
+            &qualification.path,
+        )?;
+        writer.id(qualification.domain);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_projected_qualifications(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathQualification>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(StructuralPathQualification {
+            path: decode_structural_path(reader)?,
+            domain: reader.id("StructuralDomainId")?,
         })
     })
 }

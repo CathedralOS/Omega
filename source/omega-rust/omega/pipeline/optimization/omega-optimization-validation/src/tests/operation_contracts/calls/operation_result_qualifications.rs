@@ -64,6 +64,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
                 multiplicity: psi_terminal::StructuralMultiplicity::Linear,
                 access: psi_terminal::StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             result: None,
             requires: vec![psi_terminal::StructuralDomainRequirement {

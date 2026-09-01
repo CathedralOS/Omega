@@ -8,7 +8,14 @@ use omega_target::NativeTarget;
 use omega_target_operations::{
     TargetFunction, TargetOperation, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
 };
-use psi_core::{BlockId, EdgeId, MachineId, OperationId, ScalarType, ValueId};
+use psi_core::{
+    BlockId, EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
+};
+use psi_terminal::{
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction,
+};
 
 use super::*;
 use crate::{
@@ -144,6 +151,84 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
     )
 }
 
+fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
+    let machine = MachineId::new(53_001).unwrap();
+    let entry = BlockId::new(53_002).unwrap();
+    let structural_type = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(53_003).unwrap(),
+        identity: "TrivialAffineToken".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    let place = StructuralPlaceDeclaration {
+        id: PlaceId::new(53_004).unwrap(),
+        kind: StructuralPlaceKind::TrivialAffineLocal {
+            declaration_ordinal: 0,
+            structural_type: structural_type.id,
+            construction: None,
+        },
+    };
+    let operation = OperationId::new(53_005).unwrap();
+    let edge = EdgeId::new(53_006).unwrap();
+    let cleanup = vec![TerminalAffineCleanupAction::DiscardRoot(place.id)];
+    (
+        AbstractFunction {
+            machine,
+            attachment: None,
+            entry,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: entry,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::EstablishTrivialAffineLocal {
+                    psi_operation: operation,
+                    place: place.clone(),
+                    structural_type: structural_type.clone(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge,
+                    cleanup_actions: cleanup.clone(),
+                },
+            ],
+        },
+        TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![operation],
+                edges: vec![edge],
+            },
+            operation: TargetOperation::UnitBody(TargetUnitBody {
+                structural_types: vec![structural_type.clone()],
+                call_plan: evaluate_call_plan(
+                    CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+                    &CallSignature::default(),
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                operations: vec![
+                    TargetUnitOperation::EstablishTrivialAffineLocal {
+                        psi_operation: operation,
+                        place,
+                        structural_type,
+                    },
+                    TargetUnitOperation::Return {
+                        psi_edge: edge,
+                        cleanup_actions: cleanup,
+                    },
+                ],
+            }),
+        },
+    )
+}
+
 #[test]
 fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
     let ordered = ENABLED_TRANSLATION_FAMILIES
@@ -158,6 +243,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineUnitReturn,
             AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+            AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
             AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
             AbstractToTargetTranslationFamily::StraightLineBooleanParameter,
@@ -281,6 +367,39 @@ fn unit_call_catalog_omission_and_duplicate_fail_closed() {
             AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
                 first: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
                 second: AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+                ..
+            }
+        )
+    ));
+}
+
+#[test]
+fn trivial_affine_local_catalog_omission_and_duplicate_fail_closed() {
+    let (source, target) = trivial_affine_local_pair();
+    assert_eq!(
+        selection::validate(&source, NativeTarget::linux_x64(), &target, &[]).unwrap(),
+        AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
+
+    let family = ENABLED_TRANSLATION_FAMILIES
+        .iter()
+        .find(|descriptor| {
+            descriptor.family
+                == AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn
+        })
+        .copied()
+        .unwrap();
+    assert!(matches!(
+        selection::validate(
+            &source,
+            NativeTarget::linux_x64(),
+            &target,
+            &[family, family]
+        ),
+        Err(
+            AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
+                first: AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
+                second: AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
                 ..
             }
         )

@@ -53,14 +53,14 @@ The optimizer may consume these facts only by recording their identities in
 the candidate and validation receipt. It must not erase them before the last
 dependent transformation or diagnostic boundary.
 
-Structural qualification rosters are non-recomputable authority. The current
-Terminal roster qualifies a whole parameter or operation result; it cannot be
-reinterpreted as qualifying a projected field whose carrier happens to be
-reachable beneath that root. Partial-path support must first add an exact,
-canonical path-indexed roster and retain it through Terminal verification,
-optimizer identity, independent replay, and publication custody. Until that
-carrier exists at a stage, the stage rejects rather than inferring the field
-qualification from root shape or carrier equality.
+Structural qualification rosters are non-recomputable authority. Terminal now
+supports exact canonical path-indexed rows rooted at parameters in addition to
+whole-root rosters; verification binds each nonempty path to its leaf carrier,
+and optimizer identity, independent replay, and prephysical custody retain the
+row exactly. A later stage that lacks the path carrier rejects it explicitly
+rather than inferring a field qualification from root shape or carrier
+equality. Operation-result paths and downstream target carriers remain future
+bounded extensions of the same rule.
 
 At control-flow joins, an output may retain only qualifications carried by
 every incoming occurrence through valid establishment lineage. CSE and GVN

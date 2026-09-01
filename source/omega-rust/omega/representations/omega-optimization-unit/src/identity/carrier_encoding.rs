@@ -86,6 +86,13 @@ pub(super) fn encode_structural_parameter(
     encode_multiplicity(bytes, parameter.multiplicity);
     encode_access(bytes, parameter.access);
     encode_ids(bytes, &parameter.qualifications);
+    bytes.slice(
+        &parameter.projected_qualifications,
+        |bytes, qualification| {
+            bytes.slice(&qualification.path, encode_structural_path_segment);
+            bytes.id(qualification.domain);
+        },
+    );
 }
 
 pub(super) fn encode_structural_argument(

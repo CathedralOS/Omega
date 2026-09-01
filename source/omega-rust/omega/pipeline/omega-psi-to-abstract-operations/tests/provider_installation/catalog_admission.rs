@@ -193,6 +193,7 @@ fn provider_catalog_identity_and_admission_fail_closed_on_tamper_or_reorder() {
             multiplicity: StructuralMultiplicity::Unrestricted,
             access: psi_terminal::StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     assert!(matches!(
         validate_module(&invalid),

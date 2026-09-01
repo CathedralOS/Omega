@@ -76,6 +76,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
         multiplicity: psi_terminal::StructuralMultiplicity::Affine,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {
@@ -196,6 +197,7 @@ pub(crate) fn partial_affine_quartet_unit() -> PsiOptimizationUnit {
         multiplicity: psi_terminal::StructuralMultiplicity::Affine,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let projected_call = |psi_operation, index| AbstractOperation::CallUnit {
         psi_operation,
@@ -335,6 +337,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
         multiplicity: psi_terminal::StructuralMultiplicity::Affine,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let entry_claim = psi_terminal::EntryClaim {
         claim,

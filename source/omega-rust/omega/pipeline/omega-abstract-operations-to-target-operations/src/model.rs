@@ -53,6 +53,9 @@ pub enum AdmittedBoundaryExecution<'execution> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
+    /// Parameter-rooted path qualifications are preserved through the
+    /// prephysical optimizer boundary but have no target-operation carrier yet.
+    UnsupportedProjectedStructuralQualifications,
     InvalidRankedCountdown(MachineId),
     EntryFunctionMissing(MachineId),
     ProviderInstallationIdentityMismatch,

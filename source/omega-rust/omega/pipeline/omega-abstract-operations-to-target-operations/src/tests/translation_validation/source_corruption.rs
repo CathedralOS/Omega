@@ -88,6 +88,7 @@ fn source_family_shape_and_semantic_corruption_fails_closed() {
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
                     qualifications: vec![StructuralDomainId::new(904).unwrap()],
+                    projected_qualifications: Vec::new(),
                 });
         }),
         StraightLineIntegerImmediateTranslationError::SourceStructuralParameters

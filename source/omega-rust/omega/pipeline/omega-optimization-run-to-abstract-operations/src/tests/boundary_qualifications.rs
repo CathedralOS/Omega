@@ -2,8 +2,8 @@
 
 use super::*;
 use omega_optimization_validation::{
-    validate_optimized_abstract_plan_projection, validate_transformed_psi_optimization_unit,
-    OptimizedAbstractPlanProjectionError,
+    OptimizedAbstractPlanProjectionError, validate_optimized_abstract_plan_projection,
+    validate_transformed_psi_optimization_unit,
 };
 
 #[test]
@@ -167,5 +167,112 @@ fn whole_root_boundary_requirement_consumes_carried_qualification_through_projec
             optimized.identity_bundle(),
         ),
         Err(OptimizedAbstractPlanProjectionError::ReconstructibleProjectionMismatch),
+    );
+}
+
+#[test]
+fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical_publication() {
+    let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+    let optimized = project_optimization_run(run(
+        partial_path_boundary_qualification_verified(),
+        selections,
+    ))
+    .unwrap();
+    let unit = optimized.unit();
+    let required = psi_core::StructuralDomainId::new(1_926).unwrap();
+    let unrelated = psi_core::StructuralDomainId::new(1_927).unwrap();
+    let expected_path = vec![psi_terminal::StructuralPathSegment::Field("left".into())];
+
+    assert!(optimized.commits().is_empty());
+    assert!(unit.proof_questions.is_empty(), "D47 mints no obligation");
+    assert_eq!(
+        unit.functions[0].structural_parameters[0].projected_qualifications,
+        [psi_terminal::StructuralPathQualification {
+            path: expected_path.clone(),
+            domain: required,
+        }]
+    );
+    let AbstractOperation::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &unit.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("fixture must retain one boundary call")
+    };
+    assert_eq!(structural_arguments[0].path, expected_path);
+    assert_eq!(optimized.validation().final_unit(), unit.identity);
+    assert_eq!(
+        optimized.pre_physical_manifest().record().final_unit,
+        unit.identity,
+    );
+
+    let mut missing = unit.clone();
+    missing.functions[0].structural_parameters[0]
+        .projected_qualifications
+        .clear();
+    missing.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&missing);
+    assert!(matches!(
+        validate_transformed_psi_optimization_unit(optimized.verified_input(), &missing),
+        Err(OptimizationUnitValidationError::StructuralCallContractMismatch { .. })
+    ));
+
+    let mut widened = unit.clone();
+    widened.functions[0].structural_parameters[0]
+        .projected_qualifications
+        .push(psi_terminal::StructuralPathQualification {
+            path: vec![psi_terminal::StructuralPathSegment::Field("right".into())],
+            domain: unrelated,
+        });
+    widened.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&widened);
+    assert_eq!(
+        validate_transformed_psi_optimization_unit(optimized.verified_input(), &widened),
+        Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch),
+    );
+
+    let mut wrong_path = unit.clone();
+    let AbstractOperation::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut wrong_path.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![psi_terminal::StructuralPathSegment::Field("right".into())];
+    wrong_path.identity =
+        omega_optimization_unit::recompute_psi_optimization_unit_identity(&wrong_path);
+    assert!(matches!(
+        validate_transformed_psi_optimization_unit(optimized.verified_input(), &wrong_path),
+        Err(OptimizationUnitValidationError::StructuralCallContractMismatch { .. })
+    ));
+
+    let mut detached = optimized.plan().clone();
+    detached.functions[0].structural_parameters[0]
+        .projected_qualifications
+        .clear();
+    assert_eq!(
+        validate_optimized_abstract_plan_projection(
+            optimized.verified_input(),
+            unit,
+            &detached,
+            optimized.selections(),
+            optimized.psi_selections(),
+            optimized.identity_bundle().rule_set(),
+            omega_psi_optimizer::baseline_psi_cost_model_identity(),
+            optimized.decisions(),
+            optimized.pass_manifests(),
+            optimized.transformation_ledger(),
+            optimized.identity_bundle(),
+        ),
+        Err(OptimizedAbstractPlanProjectionError::ImmutablePlanMetadataMismatch),
+    );
+
+    assert_eq!(
+        omega_abstract_operations_to_target_operations::lower_to_target_operations(
+            optimized.plan(),
+            omega_target::NativeTarget::linux_x64(),
+        ),
+        Err(
+            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications,
+        ),
     );
 }

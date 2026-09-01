@@ -39,6 +39,7 @@ fn installed_provider_plan() -> (
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let argument = StructuralArgument {
         place: caller_place,
@@ -68,6 +69,7 @@ fn installed_provider_plan() -> (
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
         },
         refinement: psi_terminal::ProviderUnitRefinement {
@@ -414,6 +416,7 @@ fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 }],
                 result: None,
                 requires: Vec::new(),

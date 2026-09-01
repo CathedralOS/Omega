@@ -7,21 +7,19 @@ use omega_target_operations::{
 use psi_core::{
     BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace,
-    MachineId, ObligationId, PlaceId, ServiceId, StructuralTypeId,
+    MachineId, ObligationId, PlaceId, StructuralTypeId,
 };
 use psi_terminal::{
-    ClaimContentProjection, CompletionReceipt, ContentEntryClaim, ProviderCandidateConformance,
-    ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, StructuralDomainRequirement, TerminalAffineCleanupAction,
+    ClaimContentProjection, CompletionReceipt, ContentEntryClaim, TerminalAffineCleanupAction,
 };
 
 use crate::FixedViewCopyDecodeError;
 
 use super::declarations::{
-    decode_access, decode_entry_claim, decode_multiplicity, decode_path, decode_semantic_argument,
-    decode_string, encode_access, encode_entry_claim, encode_multiplicity, encode_path,
-    encode_semantic_argument, encode_string,
+    decode_entry_claim, decode_path, decode_semantic_argument, decode_string, encode_entry_claim,
+    encode_path, encode_semantic_argument, encode_string,
 };
+use super::provider;
 use crate::rules::allocation_recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_ids, encode_ids, length},
     selected::provenance::{decode_fuel, encode_fuel},
@@ -92,7 +90,11 @@ pub(super) fn decode_boundary_settlement(
     })
 }
 
-pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &LegalizedCallUnitSource) {
+pub(super) fn encode_call_source(
+    bytes: &mut Vec<u8>,
+    source: &LegalizedCallUnitSource,
+    retain_projected_qualifications: bool,
+) {
     match source {
         LegalizedCallUnitSource::AuthoredCallUnit => bytes.push(1),
         LegalizedCallUnitSource::InstalledProvider {
@@ -103,7 +105,7 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &LegalizedCallUnit
         } => {
             bytes.push(2);
             bytes.extend_from_slice(&boundary.get().to_le_bytes());
-            encode_provider(bytes, provider);
+            provider::encode(bytes, provider, retain_projected_qualifications);
             length(bytes, completion_claim_sources.len());
             for source in completion_claim_sources {
                 encode_completion_claim_source(bytes, source);
@@ -118,12 +120,13 @@ pub(super) fn encode_call_source(bytes: &mut Vec<u8>, source: &LegalizedCallUnit
 
 pub(super) fn decode_call_source(
     cursor: &mut Cursor<'_>,
+    retain_projected_qualifications: bool,
 ) -> Result<LegalizedCallUnitSource, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         1 => Ok(LegalizedCallUnitSource::AuthoredCallUnit),
         2 => {
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
-            let provider = decode_provider(cursor)?;
+            let provider = provider::decode(cursor, retain_projected_qualifications)?;
             let source_count = cursor.length()?;
             let mut completion_claim_sources =
                 Vec::with_capacity(source_count.min(cursor.remaining()));
@@ -180,95 +183,6 @@ fn decode_provider_execution(
         cursor.u64()?,
     )
     .ok_or(FixedViewCopyDecodeError::InvalidProviderExecution)
-}
-
-fn encode_provider(bytes: &mut Vec<u8>, provider: &ProviderCandidateConformance) {
-    bytes.extend_from_slice(&provider.boundary.get().to_le_bytes());
-    encode_string(bytes, &provider.requirement_identity);
-    encode_string(bytes, &provider.provider_identity);
-    encode_string(bytes, &provider.candidate_identity);
-    bytes.extend_from_slice(&provider.candidate.get().to_le_bytes());
-    length(bytes, provider.signature.parameters.len());
-    for parameter in &provider.signature.parameters {
-        bytes.extend_from_slice(&parameter.position.to_le_bytes());
-        bytes.push(u8::from(parameter.is_self));
-        bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
-        encode_multiplicity(bytes, parameter.multiplicity);
-        encode_access(bytes, parameter.access);
-        encode_ids(
-            bytes,
-            parameter.qualifications.iter().map(|value| value.get()),
-        );
-    }
-    length(bytes, provider.refinement.positional_parameters.len());
-    for parameter in &provider.refinement.positional_parameters {
-        bytes.extend_from_slice(&parameter.boundary_index.to_le_bytes());
-        bytes.extend_from_slice(&parameter.candidate_index.to_le_bytes());
-    }
-    length(bytes, provider.refinement.required_domains.len());
-    for requirement in &provider.refinement.required_domains {
-        bytes.extend_from_slice(&requirement.argument_index.to_le_bytes());
-        bytes.extend_from_slice(&requirement.domain.get().to_le_bytes());
-    }
-    encode_ids(
-        bytes,
-        provider
-            .refinement
-            .realized_service_ceiling
-            .iter()
-            .map(|value| value.get()),
-    );
-}
-
-fn decode_provider(
-    cursor: &mut Cursor<'_>,
-) -> Result<ProviderCandidateConformance, FixedViewCopyDecodeError> {
-    let boundary = decode_id(cursor, BoundaryMachineId::new)?;
-    let requirement_identity = decode_string(cursor)?;
-    let provider_identity = decode_string(cursor)?;
-    let candidate_identity = decode_string(cursor)?;
-    let candidate = decode_id(cursor, MachineId::new)?;
-    let signature_count = cursor.length()?;
-    let mut parameters = Vec::with_capacity(signature_count.min(cursor.remaining()));
-    for _ in 0..signature_count {
-        parameters.push(ProviderSignatureParameter {
-            position: cursor.u32()?,
-            is_self: decode_bool(cursor)?,
-            structural_type: decode_id(cursor, StructuralTypeId::new)?,
-            multiplicity: decode_multiplicity(cursor)?,
-            access: decode_access(cursor)?,
-            qualifications: decode_ids(cursor, psi_core::StructuralDomainId::new)?,
-        });
-    }
-    let positional_count = cursor.length()?;
-    let mut positional_parameters = Vec::with_capacity(positional_count.min(cursor.remaining()));
-    for _ in 0..positional_count {
-        positional_parameters.push(ProviderParameterRefinement {
-            boundary_index: cursor.u32()?,
-            candidate_index: cursor.u32()?,
-        });
-    }
-    let requirement_count = cursor.length()?;
-    let mut required_domains = Vec::with_capacity(requirement_count.min(cursor.remaining()));
-    for _ in 0..requirement_count {
-        required_domains.push(StructuralDomainRequirement {
-            argument_index: cursor.u32()?,
-            domain: decode_id(cursor, psi_core::StructuralDomainId::new)?,
-        });
-    }
-    Ok(ProviderCandidateConformance {
-        boundary,
-        requirement_identity,
-        provider_identity,
-        candidate_identity,
-        candidate,
-        signature: ProviderUnitSignature { parameters },
-        refinement: ProviderUnitRefinement {
-            positional_parameters,
-            required_domains,
-            realized_service_ceiling: decode_ids(cursor, ServiceId::new)?,
-        },
-    })
 }
 
 fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &CompletionClaimSource) {
@@ -576,13 +490,5 @@ fn decode_cleanup(
             ))
         }
         tag => Err(FixedViewCopyDecodeError::UnknownCleanupAction(tag)),
-    }
-}
-
-fn decode_bool(cursor: &mut Cursor<'_>) -> Result<bool, FixedViewCopyDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(false),
-        1 => Ok(true),
-        tag => Err(FixedViewCopyDecodeError::UnknownBoolean(tag)),
     }
 }

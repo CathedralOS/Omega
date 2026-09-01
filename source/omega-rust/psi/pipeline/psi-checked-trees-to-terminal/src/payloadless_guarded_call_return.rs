@@ -159,6 +159,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {

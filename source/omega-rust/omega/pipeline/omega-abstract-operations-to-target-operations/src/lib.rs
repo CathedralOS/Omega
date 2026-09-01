@@ -1,8 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Abstract-operation lowering into target plans.
-//! Enter `lowering/mod.rs` for the validated settlement-to-function join, then
-//! descend by result family and semantic responsibility.
+//! Optimizer module role: crate map. Enter `lowering/mod.rs`, then descend by result family and semantic responsibility.
 
 mod lowering;
 mod model;
@@ -77,6 +75,8 @@ pub use validation::{
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineScalarCrashTranslationError, StraightLineScalarCrashTranslationReceipt,
+    StraightLineTrivialAffineLocalUnitReturnTranslationError,
+    StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,
     StraightLineUnitCallReturnTranslationError, StraightLineUnitCallReturnTranslationReceipt,
     StraightLineUnitReturnTranslationError, StraightLineUnitReturnTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationError,

@@ -110,6 +110,7 @@ fn integer_bitwise_not_shared_source_envelope_corruption_fails_closed() {
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
                     qualifications: vec![StructuralDomainId::new(42_912).unwrap()],
+                    projected_qualifications: Vec::new(),
                 });
         }),
         StraightLineIntegerBitwiseNotParameterTranslationError::SourceStructuralParameters

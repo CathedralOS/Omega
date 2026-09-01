@@ -264,6 +264,7 @@ fn nominal_affine_cleanup_composes_the_cleanup_machine_bound() {
         structural_type,
         multiplicity: StructuralMultiplicity::Affine,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
     caller.structural_places = vec![StructuralPlaceDeclaration {
         id: source,
@@ -836,6 +837,7 @@ fn structural_return_is_one_normal_edge_unit() {
             structural_type,
             multiplicity: StructuralMultiplicity::Linear,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
         StructuralParameterDeclaration {
             access: StructuralAccess::Owned,
@@ -845,6 +847,7 @@ fn structural_return_is_one_normal_edge_unit() {
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
         StructuralParameterDeclaration {
             access: StructuralAccess::Owned,
@@ -854,6 +857,7 @@ fn structural_return_is_one_normal_edge_unit() {
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
     ];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
@@ -942,6 +946,7 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
         structural_type,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
     machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
         place: result_place,
@@ -1209,6 +1214,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         structural_type: element,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
 
     let caller = &mut module.machines[0];
@@ -1220,6 +1226,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         structural_type: array,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
     caller.structural_places = vec![StructuralPlaceDeclaration {
         id: place_id(950),
@@ -1270,6 +1277,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
         structural_type: element,
         multiplicity: StructuralMultiplicity::Linear,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
     callee.structural_places = vec![StructuralPlaceDeclaration {
         id: place_id(951),
@@ -1696,6 +1704,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
             structural_type: first_type,
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
         StructuralParameterDeclaration {
             access: StructuralAccess::Owned,
@@ -1705,6 +1714,7 @@ fn ordered_empty_nominal_affine_fixture(same_target: bool) -> TerminalModule {
             structural_type: second_type,
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
     ];
     caller.structural_places = vec![
@@ -1873,6 +1883,7 @@ fn three_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
             structural_type: structural_type_id(900),
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(902),
@@ -1913,6 +1924,7 @@ fn five_ordered_shared_executable_nominal_affine_fixture() -> TerminalModule {
                 structural_type: structural_type_id(900),
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             });
         caller.structural_places.push(StructuralPlaceDeclaration {
             id: place,
@@ -1981,6 +1993,7 @@ fn executable_nominal_affine_fixture() -> TerminalModule {
         structural_type: token_type,
         multiplicity: StructuralMultiplicity::Affine,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
     caller.structural_places = vec![StructuralPlaceDeclaration {
         id: source,
@@ -2301,6 +2314,7 @@ fn write_only_primitive_store_fixture() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let structural_place = |id| StructuralPlaceDeclaration {
         id,

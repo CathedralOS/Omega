@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-eight abstract-to-target families are covered,
+  machine-rule family. Thirty-nine abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -476,8 +476,12 @@ decision. Only true language-semantic questions belong in
   independently reconstructs a separate parameterless Unit-return callee and
   retains the caller's `CallUnit; ReturnUnit` roster, callee, arbitrary exact
   requirement/crash rows, empty structural/claim/native-call-plan surfaces,
-  provenance, cleanup, and return edge across the same targets. Coverage also
-  includes proof-bearing exact parameterized fixed-integer addition,
+  provenance, cleanup, and return edge across the same targets. An exact
+  parameterless `EstablishTrivialAffineLocal; ReturnUnit` family independently
+  reconstructs its empty-record local, declaration ordinal, absent
+  construction, exact discard cleanup, provenance, and native Unit call plan
+  across all five targets. Coverage also includes proof-bearing exact
+  parameterized fixed-integer addition,
   subtraction, multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
   addition, subtraction, and multiplication, independently typed wrapping
@@ -513,9 +517,10 @@ decision. Only true language-semantic questions belong in
   structural-scalar nonempty projection/lowering tests plus identity,
   independent replay, corruption, and V5 compatibility tests pin custody.
 - [>] Apply **Boundary domain requirements consume carried qualifications**.
-  Terminal format 54 and vocabulary 57 remove the former boundary
-  `requirement_obligations` field and wire payload rather than preserving an
-  always-empty slot. Remaining work is to add optimizer/publication controls
+  Current Terminal format 56 and vocabulary 59 retain the earlier removal of
+  the boundary `requirement_obligations` field and wire payload rather than
+  preserving an always-empty slot. Remaining work is to add
+  optimizer/publication controls
   that bind the exact boundary, structural argument paths, carried
   qualification rosters, and declaration requirements; joins use at most the
   common intersection, CSE/GVN never equates unequal rosters by computation
@@ -533,20 +538,24 @@ decision. Only true language-semantic questions belong in
   separately proves that whole-root shared or mutable borrows do not consume a
   linear carrier while owned arguments still do, and rejects stale or
   partially moved borrows. The audited next prerequisite is an explicit,
-  canonical path-indexed qualification roster: current Terminal parameter and
-  operation-result rosters describe only a whole root, while a boundary domain
-  on a projected field must match that field's carrier. Relaxing only optimizer
-  validation would therefore mint authority. The first honest bounded slice is
-  parameter-rooted path custody through Terminal format/verifier, optimizer
-  identity and independent replay, and the prephysical manifest, followed by
-  an explicit target-lowering rejection until downstream carriers support it.
-  Structural-result path rosters and explicit join-intersection/CSE behavior
-  remain later engineering work, not open language semantics.
+  canonical path-indexed qualification roster. The first honest bounded slice
+  is now complete for parameter roots: Terminal format/verifier, optimizer
+  identity and independent replay, no-rewrite abstract projection, and the
+  prephysical manifest retain an exact nonempty path and leaf-domain carrier.
+  Missing, sibling, duplicate, unsorted, wrong-domain, detached, widened, and
+  root-path substitutions fail closed. Target lowering rejects the retained
+  projected roster explicitly until downstream carriers support it rather than
+  inferring authority from root shape or carrier equality. Operation-result
+  path rosters and explicit join-intersection/CSE behavior remain later
+  engineering work, not open language semantics.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
   versioned structural selected subtree; public encoding now emits v6 with
-  exact structural-call requirement and crash-continuation rows. Decoding
-  accepts v4/v5/v6, v4 bytes and rejection order remain pinned, and v5
-  reconstructs the newly absent rows as empty. The authenticated payload also
+  exact structural-call requirement and crash-continuation rows plus
+  parameter-rooted projected qualification rows. Decoding accepts v4/v5/v6;
+  the legacy v4 payload shape and rejection order remain pinned, while v4/v5
+  reconstruct fields absent from those versions as empty. The current-
+  vocabulary authenticated digest is re-pinned when Terminal identity changes.
+  The authenticated payload also
   closes caller/callee call-plan fields that independent validation checks but
   the selected semantic identity does not fully cover.
 - [ ] Add generated differential testing across interpreter/reference native
@@ -707,9 +716,9 @@ decision. Only true language-semantic questions belong in
   insertion and reload-home roots, lifetime, class, and assigned view, with
   deterministic x86-64/AArch64, cross-target corruption, exact-budget, and
   empty-pressure coverage. It still creates no real `VirtualRegisterId` or
-  instruction and grants no downstream authority. Recursive recovery still
-  needs a bounded epoch/worklist artifact. Its honest fixture prerequisite is
-  now public and independently replayed. Mandatory legalization admits the
+  instruction and grants no downstream authority. Its honest recursive-
+  recovery fixture prerequisite is now public and independently replayed.
+  Mandatory legalization admits the
   versioned exact graph
   `r + (b + (r + (a + b)))`, retaining `b` across the first use of `r`, on
   x86-64 and AArch64. It appends a distinct recipe/carrier identity without
@@ -721,8 +730,14 @@ decision. Only true language-semantic questions belong in
   exact typed `ReloadPressure { function: 0, result: 0 }` branch on x86-64 and
   AArch64. The fixture retains the pressure point, incoming/victim values,
   store, reload, and complete rewrite suffix; it fabricates no `Validated*`
-  receipt and publishes no epoch-one seed. Remaining work begins at that
-  reachable failure with the bounded recursive epoch/worklist artifact.
+  receipt. A sixth independently replayed V1 artifact now begins exactly at
+  that failure and creates one bounded epoch-one work item. It retains the
+  source reload, machine, block, half-open lifetime, class, complete canonical
+  candidate domain, and separate reload-trigger/worklist budgets. It grants no
+  victim choice, assigned view, selected virtual register, rewrite, memory,
+  frame, trap, unwind, encoding, emission, or publication authority. Remaining
+  work consumes that item by choosing the next victim and generalizing logical
+  insertion/reanalysis.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

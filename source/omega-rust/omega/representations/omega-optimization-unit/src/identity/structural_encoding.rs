@@ -213,6 +213,13 @@ pub(super) fn encode_provider_candidate(
         bytes.id(parameter.structural_type);
         encode_multiplicity(bytes, parameter.multiplicity);
         encode_ids(bytes, &parameter.qualifications);
+        bytes.slice(
+            &parameter.projected_qualifications,
+            |bytes, qualification| {
+                bytes.slice(&qualification.path, encode_structural_path_segment);
+                bytes.id(qualification.domain);
+            },
+        );
     });
     bytes.slice(
         &candidate.refinement.positional_parameters,

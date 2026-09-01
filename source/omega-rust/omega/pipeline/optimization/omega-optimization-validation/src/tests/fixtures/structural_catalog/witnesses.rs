@@ -37,6 +37,7 @@ pub(crate) fn compressed_trivial_affine_return_unit_with_prefix(
         multiplicity,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let local = |place, declaration_ordinal| psi_terminal::StructuralPlaceDeclaration {
         id: place,

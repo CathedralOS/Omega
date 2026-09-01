@@ -884,7 +884,13 @@ fn validate_structural_arguments(
         });
     }
     for (index, (argument, expected)) in arguments.iter().zip(expected).enumerate() {
-        let Some((actual_type, actual_multiplicity, actual_access, actual_qualifications)) = caller
+        let Some((
+            actual_type,
+            actual_multiplicity,
+            actual_access,
+            actual_qualifications,
+            actual_projected_qualifications,
+        )) = caller
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == argument.place)
@@ -894,6 +900,7 @@ fn validate_structural_arguments(
                     parameter.multiplicity,
                     parameter.access,
                     parameter.qualifications.as_slice(),
+                    parameter.projected_qualifications.as_slice(),
                 )
             })
             .or_else(|| {
@@ -911,6 +918,7 @@ fn validate_structural_arguments(
                             structural_type,
                             StructuralMultiplicity::Unrestricted,
                             StructuralAccess::Owned,
+                            &[][..],
                             &[][..],
                         )),
                         _ => None,
@@ -984,11 +992,32 @@ fn validate_structural_arguments(
             });
         }
         for qualification in &expected.qualifications {
-            if !argument.path.is_empty() || !actual_qualifications.contains(qualification) {
+            if !structural_occurrence_carries_qualification(
+                actual_qualifications,
+                actual_projected_qualifications,
+                &argument.path,
+                *qualification,
+            ) {
                 return Err(ModuleError::StructuralArgumentMissingQualification {
                     operation,
                     argument_index: index as u32,
                     domain: *qualification,
+                });
+            }
+        }
+        for qualification in &expected.projected_qualifications {
+            let mut source_path = argument.path.clone();
+            source_path.extend(qualification.path.iter().cloned());
+            if !structural_occurrence_carries_qualification(
+                actual_qualifications,
+                actual_projected_qualifications,
+                &source_path,
+                qualification.domain,
+            ) {
+                return Err(ModuleError::StructuralArgumentMissingQualification {
+                    operation,
+                    argument_index: index as u32,
+                    domain: qualification.domain,
                 });
             }
         }
@@ -1011,6 +1040,21 @@ fn validate_structural_arguments(
         }
     }
     Ok(())
+}
+
+fn structural_occurrence_carries_qualification(
+    root: &[StructuralDomainId],
+    projected: &[psi_terminal::StructuralPathQualification],
+    path: &[StructuralPathSegment],
+    domain: StructuralDomainId,
+) -> bool {
+    if path.is_empty() {
+        root.contains(&domain)
+    } else {
+        projected
+            .iter()
+            .any(|qualification| qualification.path == path && qualification.domain == domain)
+    }
 }
 
 fn structural_access_can_supply(source: StructuralAccess, presented: StructuralAccess) -> bool {
@@ -1530,7 +1574,12 @@ fn validate_boundary_requirements(
             .iter()
             .find(|parameter| parameter.place == argument.place)
             .expect("structural arguments were validated before requirements");
-        if !actual.qualifications.contains(&requirement.domain) {
+        if !structural_occurrence_carries_qualification(
+            &actual.qualifications,
+            &actual.projected_qualifications,
+            &argument.path,
+            requirement.domain,
+        ) {
             return Err(ModuleError::BoundaryArgumentMissingQualification {
                 operation,
                 argument_index: requirement.argument_index,

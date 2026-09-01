@@ -40,6 +40,7 @@ fn restored_call_use_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::MutableBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let contract = |raw| MachineContract {
         id: id(raw, ContractId::new),
@@ -273,6 +274,7 @@ fn exact_two_member_shared_freeze_cohort_validates_and_fences_roster_drift() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::SharedBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     module.machines.push(TerminalMachine {
         id: observer,

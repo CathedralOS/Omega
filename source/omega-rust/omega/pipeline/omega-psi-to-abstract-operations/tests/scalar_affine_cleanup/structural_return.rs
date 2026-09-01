@@ -73,6 +73,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
                 structural_type,
                 multiplicity: StructuralMultiplicity::Linear,
                 qualifications: vec![structural_domain],
+                projected_qualifications: Vec::new(),
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
@@ -199,6 +200,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     wider_cleanup.machines[0]
         .structural_places
@@ -243,6 +245,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
             structural_type,
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     wider_cleanup.machines[0]
         .structural_places

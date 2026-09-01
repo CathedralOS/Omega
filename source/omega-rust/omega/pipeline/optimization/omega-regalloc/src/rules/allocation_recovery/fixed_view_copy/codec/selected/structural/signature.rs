@@ -28,7 +28,11 @@ pub(super) struct DecodedSignature {
     pub(super) source_entry_block: BlockId,
 }
 
-pub(super) fn encode_signature(bytes: &mut Vec<u8>, function: &SelectedStructuralUnitFunction) {
+pub(super) fn encode_signature(
+    bytes: &mut Vec<u8>,
+    function: &SelectedStructuralUnitFunction,
+    retain_projected_qualifications: bool,
+) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());
     encode_option_u64(bytes, function.attachment.map(|value| value.get()));
     encode_ids(
@@ -47,7 +51,7 @@ pub(super) fn encode_signature(bytes: &mut Vec<u8>, function: &SelectedStructura
     for declaration in &function.structural_types {
         encode_type(bytes, declaration);
     }
-    encode_abi(bytes, &function.abi);
+    encode_abi(bytes, &function.abi, retain_projected_qualifications);
     length(bytes, function.structural_places.len());
     for place in &function.structural_places {
         encode_place(bytes, *place);
@@ -69,6 +73,7 @@ pub(super) fn encode_signature(bytes: &mut Vec<u8>, function: &SelectedStructura
 
 pub(super) fn decode_signature(
     cursor: &mut Cursor<'_>,
+    retain_projected_qualifications: bool,
 ) -> Result<DecodedSignature, FixedViewCopyDecodeError> {
     let machine = decode_id(cursor, MachineId::new)?;
     let attachment = match decode_option_u64(cursor)? {
@@ -86,7 +91,7 @@ pub(super) fn decode_signature(
     for _ in 0..type_count {
         structural_types.push(decode_type(cursor)?);
     }
-    let abi = decode_abi(cursor)?;
+    let abi = decode_abi(cursor, retain_projected_qualifications)?;
     let place_count = cursor.length()?;
     let mut structural_places = Vec::with_capacity(place_count.min(cursor.remaining()));
     for _ in 0..place_count {

@@ -2966,6 +2966,149 @@ fn boundary_call_checks_qualification_and_settlement() {
     );
 }
 
+fn projected_boundary_qualification_module() -> TerminalModule {
+    let mut module = write_only_primitive_store_module();
+    let leaf = StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "QualifiedLeaf".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    let root = StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "QualifiedRoot".into(),
+        shape: StructuralTypeShape::Record {
+            fields: ["left", "right"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, identity)| StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(index as u64 + 1).unwrap(),
+                    identity: identity.into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(leaf.id),
+                })
+                .collect(),
+        },
+    };
+    let domain = StructuralDomainDeclaration {
+        id: domain_id(1),
+        semantic_domain: psi_core::DomainSemanticId::new(1).unwrap(),
+        identity: "QualifiedLeaf::Ready".into(),
+        carrier: leaf.id,
+        content_projection: None,
+    };
+    module.structural_types = vec![leaf.clone(), root.clone()];
+    module.structural_domains = vec![domain.clone()];
+    module.boundary_machines = vec![BoundaryMachineDeclaration {
+        id: boundary_id(1),
+        identity: "consume_ready_leaf".into(),
+        attachment: None,
+        scalar_parameters: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: place_id(2),
+            position: 0,
+            is_self: false,
+            structural_type: leaf.id,
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        result: None,
+        requires: vec![StructuralDomainRequirement {
+            argument_index: 0,
+            domain: domain.id,
+        }],
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        published_service_ceiling: Vec::new(),
+    }];
+    let machine = &mut module.machines[0];
+    machine.parameters.clear();
+    machine.structural_parameters[0].structural_type = root.id;
+    machine.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    machine.structural_parameters[0].access = StructuralAccess::Owned;
+    machine.structural_parameters[0].projected_qualifications =
+        vec![psi_terminal::StructuralPathQualification {
+            path: vec![StructuralPathSegment::Field("left".into())],
+            domain: domain.id,
+        }];
+    machine.blocks[0].operations = vec![Operation {
+        id: operation_id(1),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary: boundary_id(1),
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(1),
+                path: vec![StructuralPathSegment::Field("left".into())],
+                access: StructuralAccess::SharedBorrow,
+            }],
+            completion_receipts: Vec::new(),
+        },
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: edge_id(1),
+        trivial_affine_discards: vec![place_id(1)],
+    };
+    module
+}
+
+#[test]
+fn boundary_requirement_consumes_only_the_exact_projected_qualification() {
+    let module = projected_boundary_qualification_module();
+    validate_module(&module).expect("exact parameter-rooted field qualification");
+
+    let mut missing = module.clone();
+    missing.machines[0].structural_parameters[0]
+        .projected_qualifications
+        .clear();
+    assert_eq!(
+        validate_module(&missing).unwrap_err(),
+        ModuleError::BoundaryArgumentMissingQualification {
+            operation: operation_id(1),
+            argument_index: 0,
+            domain: domain_id(1),
+        }
+    );
+
+    let mut sibling = module.clone();
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut sibling.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![StructuralPathSegment::Field("right".into())];
+    assert_eq!(
+        validate_module(&sibling).unwrap_err(),
+        ModuleError::BoundaryArgumentMissingQualification {
+            operation: operation_id(1),
+            argument_index: 0,
+            domain: domain_id(1),
+        }
+    );
+
+    let mut empty = module.clone();
+    empty.machines[0].structural_parameters[0].projected_qualifications[0]
+        .path
+        .clear();
+    assert!(matches!(
+        validate_module(&empty),
+        Err(ModuleError::InvalidProjectedStructuralQualificationPath { .. })
+    ));
+
+    let mut duplicate = module;
+    let row = duplicate.machines[0].structural_parameters[0].projected_qualifications[0].clone();
+    duplicate.machines[0].structural_parameters[0]
+        .projected_qualifications
+        .push(row);
+    assert_eq!(
+        validate_module(&duplicate).unwrap_err(),
+        ModuleError::NonCanonicalProjectedStructuralQualifications(place_id(1)),
+    );
+}
+
 #[test]
 fn claims_are_linear_across_unit_operations_and_return() {
     let mut reused = hard_root_module();
@@ -3694,6 +3837,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let destination = parameter.place;
     let store = |raw| Operation {
@@ -4032,6 +4176,7 @@ fn partial_affine_field_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Affine,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let callee_parameter = StructuralParameterDeclaration {
         place: place_id(2),
@@ -4041,6 +4186,7 @@ fn partial_affine_field_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Affine,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let caller = TerminalMachine {
         id: machine_id(1),
@@ -4325,6 +4471,7 @@ fn nominal_affine_module() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
@@ -4497,6 +4644,7 @@ fn two_root_shared_contextual_nominal_affine_module() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(2),
@@ -4579,6 +4727,7 @@ fn two_root_nominal_affine_module() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(2),
@@ -4619,6 +4768,7 @@ fn five_root_nominal_affine_module() -> TerminalModule {
                 multiplicity: StructuralMultiplicity::Affine,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             });
         caller.structural_places.push(StructuralPlaceDeclaration {
             id: place,
@@ -4837,6 +4987,7 @@ fn structural_parameter(place: PlaceId) -> StructuralParameterDeclaration {
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: vec![domain_id(1)],
+        projected_qualifications: Vec::new(),
     }
 }
 

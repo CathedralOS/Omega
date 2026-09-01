@@ -58,6 +58,7 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                         multiplicity: psi_terminal::StructuralMultiplicity::Affine,
                         access: psi_terminal::StructuralAccess::Owned,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     }],
                     result: AbstractFunctionResult::Scalar(AbstractResult {
                         value: result,

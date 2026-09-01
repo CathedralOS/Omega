@@ -1770,6 +1770,7 @@ pub(super) fn lower_attached_unit_closure_including(
                             multiplicity: parameter.multiplicity,
                             access: parameter.access,
                             qualifications: parameter.qualifications.clone(),
+                            projected_qualifications: parameter.projected_qualifications.clone(),
                         })
                         .collect(),
                 },

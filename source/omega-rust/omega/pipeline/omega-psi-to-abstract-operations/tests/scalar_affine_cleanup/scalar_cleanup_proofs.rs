@@ -303,6 +303,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                         structural_type: token_type,
                         multiplicity: StructuralMultiplicity::Affine,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     },
                     StructuralParameterDeclaration {
                         access: StructuralAccess::Owned,
@@ -312,6 +313,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                         structural_type: no_code_type,
                         multiplicity: StructuralMultiplicity::Affine,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     },
                 ],
                 ranked_scc: None,

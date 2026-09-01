@@ -11,7 +11,8 @@ use psi_terminal::{
 };
 
 use super::structural_signature_wire::{
-    decode_structural_access, encode_service_ceiling, encode_structural_access,
+    decode_projected_qualifications, decode_structural_access, encode_projected_qualifications,
+    encode_service_ceiling, encode_structural_access,
 };
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_ids};
@@ -49,6 +50,7 @@ pub(super) fn encode_provider_candidate(
         for qualification in &parameter.qualifications {
             writer.id(*qualification);
         }
+        encode_projected_qualifications(writer, &parameter.projected_qualifications)?;
     }
     writer.len(
         "provider positional refinements",
@@ -94,6 +96,7 @@ pub(super) fn decode_provider_candidate(
             multiplicity,
             access: decode_structural_access(reader)?,
             qualifications: decode_ids(reader, "StructuralDomainId")?,
+            projected_qualifications: decode_projected_qualifications(reader)?,
         })
     })?;
     let positional_parameters = decode_counted(reader, |reader| {
