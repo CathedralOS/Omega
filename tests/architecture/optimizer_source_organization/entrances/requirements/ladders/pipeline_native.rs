@@ -94,6 +94,16 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "hosted post-allocation publication matrix",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/cases.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/realization.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/artifacts.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/artifacts/output_artifacts/function_fragment_emission/post_allocation_machine/refusals.rs",
+        ],
+    },
+    SemanticLadder {
         family: "ProgramStorage wrapper manifest mutation tests",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/mod.rs",

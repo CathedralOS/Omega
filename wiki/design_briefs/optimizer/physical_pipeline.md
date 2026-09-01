@@ -1078,6 +1078,17 @@ container. UEFI and unwind are not implied by this matrix. The former lacks
 publication authority, while physical frames and unwind carriers remain P5
 prerequisites.
 
+Post-allocation publication coverage crosses all seven exact machine rules
+with both applicable hosted operating systems: three x86-64 rules on Linux and
+Windows, and four AArch64 rules on Linux and macOS. The 14 rows run twice and
+compare authenticated realization, fragment, text, object, artifact, and
+callable records plus final text and ELF/COFF/Mach-O container bytes. Applied
+materialization and fusion fixtures require nonzero actions; the two copy-
+elision fixtures retain honest zero-action custody because current lowering
+does not emit their exact candidates. Every rule also has one typed wrong-
+architecture refusal before execution. This matrix grants no UEFI publication
+or unwind claim.
+
 Ranked countdown coverage proves ordinary executable-image and installation
 custody on Linux x64 and Linux Arm64, including exact final bytes and semantic-
 code attribution.
