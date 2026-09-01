@@ -36,6 +36,8 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary,
             identity: "Console::write_byte(u8,bool)->Unit".into(),

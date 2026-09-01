@@ -136,7 +136,10 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     );
     let settlement = AdmittedBoundarySettlement {
         boundary,
-        provider_execution: &execution,
+        execution:
+            omega_abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(
+                &execution,
+            ),
         realization: BoundaryRealization::DirectPortReadU8(DirectPortReadU8Realization {
             service: *service,
             port: 0x60,

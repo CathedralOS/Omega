@@ -189,6 +189,8 @@ fn stage_terminal_component(
             target,
             subsystem,
             profile,
+            terminal_authority_policy:
+                omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
             program_entry: omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry
@@ -199,6 +201,7 @@ fn stage_terminal_component(
             selected_provider_plans: checked.selected_provider_plans(),
             external_binding_rows: checked.external_binding_rows(),
             settlements,
+            compiler_builtins: &[],
         },
     )?;
     let stack_demand = omega_image_emission::derive_stack_demand(
