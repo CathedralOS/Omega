@@ -15,6 +15,7 @@ pub(super) enum OwnerMemberTarget {
 enum InferredType {
     TypeReference(TypeReferenceHandle),
     Nominal(SymbolHandle),
+    CollectionView(TypeReferenceHandle),
     CompilerString,
 }
 
@@ -972,7 +973,17 @@ fn infer_expression_type(
         ExpressionNode::Indexed(indexed) => {
             let collection =
                 infer_expression_type(program, indexed.collection, environment, visited)?;
-            collection_element_type(program, collection).map(InferredType::TypeReference)
+            let element_type = collection_element_type(program, collection)?;
+            Some(
+                if matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) {
+                    InferredType::CollectionView(element_type)
+                } else {
+                    InferredType::TypeReference(element_type)
+                },
+            )
         }
         ExpressionNode::StructLiteral(literal) => literal
             .type_symbol
@@ -1045,6 +1056,7 @@ fn inferred_nominal_symbol(program: &TypedTrees, inferred: InferredType) -> Opti
             let symbol = program.type_reference_table.type_symbol(type_reference);
             symbol.is_valid().then_some(symbol)
         }
+        InferredType::CollectionView(_) => None,
         InferredType::CompilerString => None,
     }
 }
@@ -1055,6 +1067,7 @@ fn inferred_type_is_collection(program: &TypedTrees, inferred: InferredType) -> 
         InferredType::TypeReference(type_reference) => {
             super::type_reference_is_collection(program, type_reference)
         }
+        InferredType::CollectionView(_) => true,
         InferredType::CompilerString => false,
     }
 }
@@ -1103,8 +1116,10 @@ fn collection_element_type(
     program: &TypedTrees,
     inferred: InferredType,
 ) -> Option<TypeReferenceHandle> {
-    let InferredType::TypeReference(type_reference) = inferred else {
-        return None;
+    let type_reference = match inferred {
+        InferredType::TypeReference(type_reference) => type_reference,
+        InferredType::CollectionView(element_type) => return Some(element_type),
+        InferredType::Nominal(_) | InferredType::CompilerString => return None,
     };
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. }

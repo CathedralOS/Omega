@@ -293,9 +293,10 @@ explicitly.
     identity now survives normalized float-builtin settlement, but three
     arithmetic float helper roots retain compatibility because their scalar
     setup and control roots have no Terminal composed-Unit plan;
-    three call roots retain compatibility for transition-argument operator
-    finalization, inline subslice-member finalization, and borrow-liveness
-    across an owned receiver call;
+    three call roots retain compatibility: one for transition-argument operator
+    finalization, the now-exact inline subslice-member root because its
+    multi-state application has no Terminal composed-Unit plan, and one for
+    borrow-liveness across an owned receiver call;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived
