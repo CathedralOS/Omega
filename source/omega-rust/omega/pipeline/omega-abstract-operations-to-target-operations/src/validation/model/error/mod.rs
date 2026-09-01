@@ -11,6 +11,7 @@ pub use immediate::{
     StraightLineBooleanEqualImmediateTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
+    StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,

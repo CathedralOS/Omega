@@ -26,6 +26,7 @@ mod boolean_equal_immediate;
 mod boolean_not_immediate;
 mod enabled_families;
 mod integer_bitwise_not_immediate;
+mod integer_equal_immediate;
 mod integer_exact_cast_immediate_operand;
 mod integer_ieee_float_literal_sequence;
 mod integer_widen_immediate;

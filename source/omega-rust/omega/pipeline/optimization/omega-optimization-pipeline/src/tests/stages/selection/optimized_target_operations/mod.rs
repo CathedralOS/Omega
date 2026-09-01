@@ -14,6 +14,7 @@ mod boolean_equal_immediate;
 mod comparison;
 mod direct;
 mod immediate;
+mod integer_equal_immediate;
 mod locations;
 mod shift;
 mod structural_projected;

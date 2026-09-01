@@ -8,6 +8,7 @@ use super::immediate::{
     StraightLineBooleanImmediateTranslationReceipt,
     StraightLineBooleanNotImmediateTranslationReceipt,
     StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
+    StraightLineIntegerEqualImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
@@ -61,6 +62,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerBitwiseNotImmediate(
         StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
     ),
+    StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationReceipt),
     StraightLineIntegerExactCastImmediateOperand(
         StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     ),

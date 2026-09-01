@@ -13,6 +13,7 @@ pub use immediate::{
     StraightLineBooleanImmediateTranslationReceipt,
     StraightLineBooleanNotImmediateTranslationReceipt,
     StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
+    StraightLineIntegerEqualImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,

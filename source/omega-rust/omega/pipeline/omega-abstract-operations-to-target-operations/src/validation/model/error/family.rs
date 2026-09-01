@@ -7,6 +7,7 @@ use super::immediate::{
     StraightLineBooleanEqualImmediateTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
+    StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
@@ -53,6 +54,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
     StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
+    StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),
     StraightLineIntegerExactCastImmediateOperand(
         StraightLineIntegerExactCastImmediateOperandTranslationError,
     ),

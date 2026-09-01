@@ -13,6 +13,7 @@ pub(crate) mod straight_line_byte_sequence_literal_unit_return;
 pub(crate) mod straight_line_ieee_float_literal_sequence_unit_return;
 pub(crate) mod straight_line_ieee_float_literal_unit_return;
 pub(crate) mod straight_line_integer_bitwise_not_immediate;
+pub(crate) mod straight_line_integer_equal_immediate;
 pub(crate) mod straight_line_integer_exact_cast_immediate_operand;
 pub(crate) mod straight_line_integer_ieee_float_literal_sequence_unit_return;
 pub(crate) mod straight_line_integer_immediate;
