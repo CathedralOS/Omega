@@ -1209,9 +1209,9 @@ fn compile_to_checked_inner_with_replay(
             selected_target_profile,
             selected_provider_provenance,
             opaque_representation_selections: &opaque_representation_selections,
-            accepted_linux_console_binding: package_inputs.and_then(|inputs| {
+            accepted_console_binding: package_inputs.and_then(|inputs| {
                 inputs.accepted_semantic_binding(
-                    omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                    omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                 )
             }),
         },

@@ -2207,6 +2207,13 @@ again with the proposed row; compiler settlement must consume the exact
 package, declaration, normalized schema, complete selected plan, target, and
 intrinsic ABI. Only this final bound review can enter root-policy handling.
 
+The accepted `Console::exit_process(i32) -> Unit` semantic role is target-
+independent: once exact settlement consumes it, package review classifies the
+resolved declaration as Process authority on every target. This does not widen
+physical compiler support. Only Linux x86-64 and AArch64 currently close the
+separate `LinuxExitGroupI32` execution identity; other targets retain no such
+lowering evidence.
+
 Accepted-lock implementation starts only after the supported authority-bearing
 evidence classes are complete and joined into `PackageInstance`. The present
 in-memory gate is deliberately not a serializable subset of `omega.lock`:

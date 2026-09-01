@@ -3908,7 +3908,7 @@ machine build(builder: &mut Build) {
         (
             "nominal declaration",
             AcceptedSemanticBinding::new(
-                AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                 console_package,
                 "OtherConsole",
                 schema_digest,
@@ -3919,7 +3919,7 @@ machine build(builder: &mut Build) {
         (
             "service schema",
             AcceptedSemanticBinding::new(
-                AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                 console_package,
                 declaration_path.clone(),
                 omega_effects::provider_plan::ServiceSchemaDigest::from_digest([91; 32]),
@@ -3930,7 +3930,7 @@ machine build(builder: &mut Build) {
         (
             "provider plan",
             AcceptedSemanticBinding::new(
-                AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                 console_package,
                 declaration_path.clone(),
                 schema_digest,
@@ -3956,7 +3956,7 @@ machine build(builder: &mut Build) {
         );
     }
     let accepted = AcceptedSemanticBinding::new(
-        AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         console_package,
         declaration_path,
         schema_digest,

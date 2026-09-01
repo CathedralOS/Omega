@@ -44,7 +44,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
     selected_target: Option<&str>,
-    accepted_linux_console_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+    accepted_console_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<ResolvedAcceptedSemanticBinding>, Vec<Diagnostic>> {
     let plans = selected_provider_plans.plans();
     if plans.len() != provenance.len() {
@@ -92,10 +92,10 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 *requirement_symbol,
                 *realization_symbol,
                 selected_target,
-                accepted_linux_console_binding,
+                accepted_console_binding,
             ) {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
-                    if accepted_linux_console_binding.is_some_and(|binding| {
+                    if accepted_console_binding.is_some_and(|binding| {
                         crate::compiler_intrinsic::accepted_binding_matches_selected_row_identity(
                             checked,
                             plan,
@@ -109,9 +109,25 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                     }
                     rows.push(Some(identity))
                 }
-                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported)) | Ok(None) => {
+                Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Unsupported)) => {
+                    if let Some(binding) = accepted_console_binding {
+                        match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(
+                            checked,
+                            plan,
+                            row,
+                            retained.provider.schema.symbol(),
+                            *requirement_symbol,
+                            *realization_symbol,
+                            binding,
+                        ) {
+                            Ok(true) => accepted_matches.push(retained.provider.schema.symbol()),
+                            Ok(false) => {}
+                            Err(diagnostic) => diagnostics.push(diagnostic),
+                        }
+                    }
                     rows.push(None)
                 }
+                Ok(None) => rows.push(None),
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
                     rows.push(None);
@@ -121,7 +137,7 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
         retained_rows.push(rows);
     }
 
-    let resolved = match (accepted_linux_console_binding, accepted_matches.as_slice()) {
+    let resolved = match (accepted_console_binding, accepted_matches.as_slice()) {
         (None, _) => None,
         (Some(binding), [declaration_symbol]) => Some(ResolvedAcceptedSemanticBinding {
             accepted: binding.clone(),

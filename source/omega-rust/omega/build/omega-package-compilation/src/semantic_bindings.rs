@@ -5,7 +5,9 @@ use psi_core::PackageKeyIdentity;
 /// accepted explicitly rather than inferred from a package or source name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AcceptedSemanticBindingRole {
-    LinuxConsoleExitGroupI32,
+    /// Target-independent recognition of the exact process-exit Console
+    /// declaration. Physical lowering support remains a separate target fact.
+    ConsoleExitProcessI32,
 }
 
 /// Consumer-policy acceptance of one exact package-owned semantic surface.

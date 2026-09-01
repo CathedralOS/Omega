@@ -36,7 +36,7 @@ fn identity(marker: u8) -> PackageKeyIdentity {
 
 fn accepted_console_binding(package: PackageKeyIdentity, marker: u8) -> AcceptedSemanticBinding {
     AcceptedSemanticBinding::new(
-        AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         package,
         "Console",
         omega_effects::provider_plan::ServiceSchemaDigest::from_digest([marker; 32]),
@@ -62,7 +62,7 @@ fn accepted_semantic_bindings_are_unique_and_closed_over_the_package_graph() {
         .expect("binding to the exact root package should attach");
     assert_eq!(
         accepted
-            .accepted_semantic_binding(AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32)
+            .accepted_semantic_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32)
             .expect("accepted Console binding")
             .package(),
         identity(1),
@@ -78,7 +78,7 @@ fn accepted_semantic_bindings_are_unique_and_closed_over_the_package_graph() {
     assert!(matches!(
         duplicate.as_slice(),
         [PackageCompilationInputError::DuplicateSemanticBindingRole {
-            role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+            role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         }]
     ));
 
@@ -88,7 +88,7 @@ fn accepted_semantic_bindings_are_unique_and_closed_over_the_package_graph() {
     assert!(matches!(
         foreign.as_slice(),
         [PackageCompilationInputError::ForeignSemanticBindingPackage {
-            role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+            role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             package,
         }] if *package == identity(2)
     ));

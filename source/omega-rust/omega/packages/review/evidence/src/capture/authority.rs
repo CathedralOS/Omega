@@ -173,7 +173,7 @@ pub(crate) fn dangerous_authority_class(
 ) -> Option<PackageReviewDangerousAuthorityClass> {
     if compilation
         .resolved_semantic_binding(
-            omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+            omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         )
         .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
     {

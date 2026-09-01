@@ -72,13 +72,6 @@ pub(super) fn candidate_semantic_binding_inputs(
 ) -> Result<Vec<ConsumerScopedSemanticBindingReviewInput>, CompileResolvedPackageReviewsError> {
     let mut inputs = Vec::new();
     for review in preliminary.reviews() {
-        if !matches!(
-            review.projection().target(),
-            omega_target::TargetProfile::LinuxArm64 | omega_target::TargetProfile::LinuxX64
-        ) {
-            continue;
-        }
-
         let candidates = review
             .projection()
             .selected_providers()
@@ -92,7 +85,7 @@ pub(super) fn candidate_semantic_binding_inputs(
                 return Err(
                     CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
                         consumer: review.key().clone(),
-                        role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                        role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
                         candidate_count: candidates.len(),
                     },
                 );
@@ -103,7 +96,7 @@ pub(super) fn candidate_semantic_binding_inputs(
             unreachable!("candidate predicate admits only package-owned schemas")
         };
         let binding = AcceptedSemanticBinding::new(
-            AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+            AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             package,
             provider.schema_declaration().path(),
             provider.schema().identity_digest(),
@@ -112,7 +105,7 @@ pub(super) fn candidate_semantic_binding_inputs(
         .map_err(|_| {
             CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                 consumer: review.key().clone(),
-                role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             }
         })?;
         inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
