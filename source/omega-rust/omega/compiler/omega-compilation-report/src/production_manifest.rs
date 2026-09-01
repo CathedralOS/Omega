@@ -1,7 +1,7 @@
 use omega_build_evaluation::{
     BuildEvaluationUsage, BuildObservationIdentity, BuildObservationSummary,
 };
-use omega_native_artifact::{NativeArtifact, NativeArtifactIdentity};
+use omega_native_artifact::{NativeArtifact, NativeArtifactIdentity, NativePhysicalEvidence};
 use omega_package_compilation::PackageCompilationSubject;
 use psi_terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 use sha2::{Digest, Sha256};
@@ -22,6 +22,49 @@ pub enum ProductionArtifactIdentity {
     Terminal(TerminalArtifactIdentity),
     Native(NativeArtifactIdentity),
 }
+
+/// Fail-closed rejection from the narrow package/native physical-evidence
+/// join. This does not claim that a package was audited or that the complete
+/// executable is correct; it only admits the exact native physical evidence
+/// already carried by the matching artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FinalRealizationEvidenceError {
+    InvalidReportCustody,
+    RetainedNativeArtifactRequired,
+    PackageProductionManifestRequired,
+    InvalidProductionManifest,
+    InvalidNativeArtifact,
+    NativeTargetMismatch,
+    NativeArtifactMismatch,
+    NativePhysicalEvidenceUnavailable,
+}
+
+impl std::fmt::Display for FinalRealizationEvidenceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidReportCustody => "compiler report has inconsistent production custody",
+            Self::RetainedNativeArtifactRequired => {
+                "final-realization evidence requires a retained native artifact"
+            }
+            Self::PackageProductionManifestRequired => {
+                "final-realization evidence requires package-aware production"
+            }
+            Self::InvalidProductionManifest => "production compilation manifest is invalid",
+            Self::InvalidNativeArtifact => "native artifact is invalid",
+            Self::NativeTargetMismatch => {
+                "production compilation manifest and native artifact target disagree"
+            }
+            Self::NativeArtifactMismatch => {
+                "production compilation manifest and native artifact identity disagree"
+            }
+            Self::NativePhysicalEvidenceUnavailable => {
+                "native artifact carries no physical evidence for this realization"
+            }
+        })
+    }
+}
+
+impl std::error::Error for FinalRealizationEvidenceError {}
 
 /// Exact artifact-free compilation custody captured before checked state is
 /// consumed by Terminal/native production.
@@ -338,6 +381,33 @@ impl ProductionCompilationManifest {
             self.artifact,
             ProductionArtifactIdentity::Native(identity) if identity == artifact.identity()
         ) && self.subject.native_target == artifact.target()
+    }
+
+    /// Borrow the exact physical evidence already owned by this manifest's
+    /// native artifact. No receipt, digest proxy, or blanket Terminal-complete
+    /// bit is minted here.
+    pub fn require_native_physical_evidence<'artifact>(
+        &self,
+        artifact: &'artifact NativeArtifact,
+    ) -> Result<&'artifact NativePhysicalEvidence, FinalRealizationEvidenceError> {
+        if !self.validate() {
+            return Err(FinalRealizationEvidenceError::InvalidProductionManifest);
+        }
+        artifact
+            .validate()
+            .map_err(|_| FinalRealizationEvidenceError::InvalidNativeArtifact)?;
+        if self.subject.native_target != artifact.target() {
+            return Err(FinalRealizationEvidenceError::NativeTargetMismatch);
+        }
+        if !matches!(
+            self.artifact,
+            ProductionArtifactIdentity::Native(identity) if identity == artifact.identity()
+        ) {
+            return Err(FinalRealizationEvidenceError::NativeArtifactMismatch);
+        }
+        artifact
+            .physical_evidence()
+            .ok_or(FinalRealizationEvidenceError::NativePhysicalEvidenceUnavailable)
     }
 }
 
