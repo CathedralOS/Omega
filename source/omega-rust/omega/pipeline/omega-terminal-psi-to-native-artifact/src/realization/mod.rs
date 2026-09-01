@@ -8,7 +8,7 @@ mod machine_code;
 mod model;
 mod output;
 mod program_entry;
-mod providers;
+pub(crate) mod providers;
 mod terminal_authority_policy;
 
 pub use callback_custody::{
@@ -97,5 +97,3 @@ fn realize_native_artifact_with_optional_checked_scope(
         &request,
     )
 }
-#[cfg(test)]
-pub(crate) use providers::project_selected_provider_adapters_for_requirements;
