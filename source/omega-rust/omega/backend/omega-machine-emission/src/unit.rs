@@ -1,14 +1,15 @@
 use omega_assigned_target_operations::{
-    AssignedAggregateCopy, AssignedFunction, AssignedNormalizedForeignScalarArgument,
-    AssignedUnitBody, AssignedUnitOperation, AssignedUnitScalarArgumentSource,
-    AssignedUnitScalarHome,
+    AssignedAggregateCopy, AssignedFunction, AssignedNativeCallbackArgument,
+    AssignedNormalizedForeignScalarArgument, AssignedUnitBody, AssignedUnitOperation,
+    AssignedUnitScalarArgumentSource, AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
     IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_machine_code::{
     Aarch64ForeignCallFloatingControlRecord, Aarch64ReturnLinkEvidence,
-    BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord, ForeignCallRelocation,
+    BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord, CallbackAddressDestination,
+    CallbackAddressEncoding, CallbackAddressMaterialization, ForeignCallRelocation,
     ForeignCallScalarArgumentRecord, InternalCallRelocation, InternalUnitCallArgumentRecord,
     InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord,
     PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
@@ -376,6 +377,133 @@ fn foreign_integer_shape(
     Ok(ValueShape::integer(byte_size, byte_size))
 }
 
+fn emit_callback_address(
+    bytes: &mut Vec<u8>,
+    target: NativeTarget,
+    callback: &AssignedNativeCallbackArgument,
+) -> Result<CallbackAddressMaterialization, EmissionError> {
+    let pointer_size = u16::try_from(target.pointer_size)
+        .map_err(|_| EmissionError::InvalidNativeCallbackCustody)?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment)
+        .map_err(|_| EmissionError::InvalidNativeCallbackCustody)?;
+    if callback.target.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
+        || callback.target.application.placement.shape != callback.target.application.shape
+        || callback
+            .target
+            .callback_function
+            .callback_thunk_placement_index()
+            != Some(callback.target.placement_index)
+    {
+        return Err(EmissionError::InvalidNativeCallbackCustody);
+    }
+    let code_offset = bytes.len();
+    let (destination, encoding) = match (target.architecture, callback.destination) {
+        (
+            Architecture::X86_64,
+            omega_assigned_target_operations::AssignedCallDestination::Register(register),
+        ) => {
+            let register = x86_unit_register(register)?;
+            if register == 4 {
+                return Err(EmissionError::InvalidNativeCallbackCustody);
+            }
+            bytes.extend_from_slice(&[
+                0x48 | (((register >> 3) & 1) << 2),
+                0x8d,
+                0x05 | ((register & 7) << 3),
+            ]);
+            let relocation_offset = bytes.len();
+            bytes.extend_from_slice(&0_i32.to_le_bytes());
+            (
+                CallbackAddressDestination::Register(
+                    callback
+                        .target
+                        .application
+                        .placement
+                        .locations
+                        .first()
+                        .and_then(|location| match location {
+                            ValueLocation::Register { register, .. } => Some(*register),
+                            _ => None,
+                        })
+                        .ok_or(EmissionError::InvalidNativeCallbackCustody)?,
+                ),
+                CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
+            )
+        }
+        (
+            Architecture::X86_64,
+            omega_assigned_target_operations::AssignedCallDestination::OutgoingStack {
+                byte_offset,
+            },
+        ) => {
+            let register = 11;
+            bytes.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
+            let relocation_offset = bytes.len();
+            bytes.extend_from_slice(&0_i32.to_le_bytes());
+            emit_x86_64_stack_store_width(bytes, register, byte_offset, pointer_size)?;
+            (
+                CallbackAddressDestination::OutgoingStack { byte_offset },
+                CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
+            )
+        }
+        (
+            Architecture::Aarch64,
+            omega_assigned_target_operations::AssignedCallDestination::Register(register),
+        ) => {
+            let register_code = aarch64_unit_register(register)?;
+            let page_relocation_offset = bytes.len();
+            bytes.extend_from_slice(&(0x9000_0000 | u32::from(register_code)).to_le_bytes());
+            let page_offset_relocation_offset = bytes.len();
+            bytes.extend_from_slice(
+                &(0x9100_0000 | (u32::from(register_code) << 5) | u32::from(register_code))
+                    .to_le_bytes(),
+            );
+            (
+                CallbackAddressDestination::Register(register),
+                CallbackAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                },
+            )
+        }
+        (
+            Architecture::Aarch64,
+            omega_assigned_target_operations::AssignedCallDestination::OutgoingStack {
+                byte_offset,
+            },
+        ) => {
+            let register = 9u8;
+            let page_relocation_offset = bytes.len();
+            bytes.extend_from_slice(&(0x9000_0000 | u32::from(register)).to_le_bytes());
+            let page_offset_relocation_offset = bytes.len();
+            bytes.extend_from_slice(
+                &(0x9100_0000 | (u32::from(register) << 5) | u32::from(register)).to_le_bytes(),
+            );
+            let store = aarch64_unit_stack_access(
+                aarch64_store_base(pointer_size)?,
+                register,
+                byte_offset,
+                pointer_size,
+            )?;
+            bytes.extend_from_slice(&store.to_le_bytes());
+            (
+                CallbackAddressDestination::OutgoingStack { byte_offset },
+                CallbackAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                },
+            )
+        }
+    };
+    Ok(CallbackAddressMaterialization {
+        target: callback.target.clone(),
+        destination,
+        code_offset,
+        byte_count: bytes.len() - code_offset,
+        encoding,
+    })
+}
+
 fn emit_foreign_integer_argument(
     bytes: &mut Vec<u8>,
     target: NativeTarget,
@@ -534,6 +662,7 @@ pub(super) fn emit_unit_body(
     body: &AssignedUnitBody,
     target: NativeTarget,
     functions: &[AssignedFunction],
+    native_callbacks: &[AssignedNativeCallbackArgument],
 ) -> Result<UnitEmission, EmissionError> {
     let mut bytes = Vec::new();
     let mut internal_calls = Vec::new();
@@ -1000,6 +1129,15 @@ pub(super) fn emit_unit_body(
                 result_home,
             } => {
                 operation_site = Some(*psi_operation);
+                let matching_callbacks = native_callbacks
+                    .iter()
+                    .filter(|callback| callback.target.terminal_operation == *psi_operation)
+                    .collect::<Vec<_>>();
+                let native_callback = match matching_callbacks.as_slice() {
+                    [] => None,
+                    [callback] => Some(*callback),
+                    _ => return Err(EmissionError::InvalidNativeCallbackCustody),
+                };
                 let result_shape = result_home
                     .map(|home| {
                         let shape = unit_scalar_shape(home.source_value, home.scalar_type)?;
@@ -1009,37 +1147,110 @@ pub(super) fn emit_unit_body(
                         Ok(shape)
                     })
                     .transpose()?;
+                let call_plan = &foreign.boundary_entry_plan.call;
+                let scalar_shapes = scalar_arguments
+                    .iter()
+                    .map(|argument| {
+                        foreign_integer_shape(
+                            argument.source.source_value(),
+                            argument.source.scalar_type(),
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let signature = omega_calling_conventions::CallSignature {
-                    parameters: scalar_arguments
-                        .iter()
-                        .map(|argument| {
-                            foreign_integer_shape(
-                                argument.source.source_value(),
-                                argument.source.scalar_type(),
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
+                    parameters: native_callback.map_or_else(
+                        || scalar_shapes.clone(),
+                        |_| {
+                            call_plan
+                                .parameters
+                                .iter()
+                                .map(|placed| placed.shape)
+                                .collect()
+                        },
+                    ),
                     result: result_shape,
                 };
-                let validated = omega_calling_conventions::validate_boundary_entry_plan(
-                    foreign.boundary_entry_plan.clone(),
-                    &signature,
-                )
+                let validated = match native_callback {
+                    Some(callback) => {
+                        if callback.target.registrar_boundary_entry_plan
+                            != foreign.boundary_entry_plan
+                            || callback.target.application.placement
+                                != match callback.destination {
+                                    omega_assigned_target_operations::AssignedCallDestination::Register(
+                                        register,
+                                    ) => omega_calling_conventions::ValuePlacement {
+                                        shape: callback.target.application.shape,
+                                        locations: vec![ValueLocation::Register {
+                                            register,
+                                            value_byte_offset: 0,
+                                            byte_size: callback.target.application.shape.byte_size,
+                                        }],
+                                    },
+                                    omega_assigned_target_operations::AssignedCallDestination::OutgoingStack {
+                                        byte_offset,
+                                    } => omega_calling_conventions::ValuePlacement {
+                                        shape: callback.target.application.shape,
+                                        locations: vec![ValueLocation::Stack {
+                                            stack_byte_offset: byte_offset,
+                                            value_byte_offset: 0,
+                                            byte_size: callback.target.application.shape.byte_size,
+                                            alignment: callback.target.application.shape.alignment,
+                                        }],
+                                    },
+                                }
+                        {
+                            return Err(EmissionError::InvalidNativeCallbackCustody);
+                        }
+                        omega_calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                            foreign.boundary_entry_plan.clone(),
+                            &signature,
+                            &callback.target.registrar_context,
+                        )
+                    }
+                    None => omega_calling_conventions::validate_boundary_entry_plan(
+                        foreign.boundary_entry_plan.clone(),
+                        &signature,
+                    ),
+                }
                 .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
-                let call_plan = &foreign.boundary_entry_plan.call;
+                let mut canonicalized_boundary = foreign.boundary_entry_plan.clone();
+                canonicalized_boundary
+                    .call
+                    .callback_materializations
+                    .clear();
                 let canonical = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
                     omega_calling_conventions::CallingPolicy::native_for_target(target),
                     &signature,
                 )
                 .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
                 if validated.plan() != &foreign.boundary_entry_plan
-                    || canonical.plan() != &foreign.boundary_entry_plan
+                    || canonical.plan() != &canonicalized_boundary
                     || foreign.locator.target().native_target() != target
                     || call_plan.policy
                         != omega_calling_conventions::CallingPolicy::native_for_target(target)
                     || call_plan.entry_control
                         != omega_calling_conventions::EntryControl::CallReturn
                     || call_plan.stack_alignment != 16
+                    || call_plan.parameters.len()
+                        != scalar_arguments.len() + usize::from(native_callback.is_some())
+                    || scalar_arguments
+                        .iter()
+                        .enumerate()
+                        .any(|(semantic_index, argument)| {
+                            let callback_ordinal = native_callback.and_then(|callback| {
+                                usize::try_from(callback.target.application.native_ordinal).ok()
+                            });
+                            let physical_index = semantic_index
+                                + usize::from(
+                                    callback_ordinal
+                                        .is_some_and(|ordinal| semantic_index >= ordinal),
+                                );
+                            argument.parameter_index != physical_index as u32
+                                || call_plan.parameters.get(physical_index)
+                                    != Some(&argument.placement)
+                                || scalar_shapes.get(semantic_index)
+                                    != Some(&argument.placement.shape)
+                        })
                 {
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                 }
@@ -1103,8 +1314,24 @@ pub(super) fn emit_unit_body(
                     }
                 }
                 let mut emitted_scalar_arguments = Vec::new();
-                for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
-                    let parameter_index = u32::try_from(parameter_index)
+                let callback_ordinal = native_callback
+                    .map(|callback| usize::try_from(callback.target.application.native_ordinal))
+                    .transpose()
+                    .map_err(|_| EmissionError::InvalidNativeCallbackCustody)?;
+                let mut callback_address = None;
+                let mut scalar_index = 0usize;
+                for native_index in 0..call_plan.parameters.len() {
+                    if callback_ordinal == Some(native_index) {
+                        let callback =
+                            native_callback.ok_or(EmissionError::InvalidNativeCallbackCustody)?;
+                        callback_address =
+                            Some(emit_callback_address(&mut bytes, target, callback)?);
+                        continue;
+                    }
+                    let argument = scalar_arguments
+                        .get(scalar_index)
+                        .ok_or(EmissionError::InvalidNormalizedForeignCallCustody)?;
+                    let parameter_index = u32::try_from(native_index)
                         .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
                     let Some(placement) = call_plan.parameters.get(parameter_index as usize) else {
                         return Err(EmissionError::InvalidNormalizedForeignCallCustody);
@@ -1162,6 +1389,12 @@ pub(super) fn emit_unit_body(
                         code_offset,
                         byte_count: bytes.len() - code_offset,
                     });
+                    scalar_index += 1;
+                }
+                if scalar_index != scalar_arguments.len()
+                    || callback_address.is_some() != native_callback.is_some()
+                {
+                    return Err(EmissionError::InvalidNativeCallbackCustody);
                 }
                 let mut release = None;
                 let relocation_offset = match target.architecture {
@@ -1226,6 +1459,7 @@ pub(super) fn emit_unit_body(
                     provider_execution: (*provider_execution).into(),
                     call_plan: call_plan.clone(),
                     scalar_arguments: emitted_scalar_arguments,
+                    callback_address,
                     scalar_result,
                     x86_floating_control: x86_call_floating_control,
                     aarch64_floating_control: aarch64_call_floating_control,

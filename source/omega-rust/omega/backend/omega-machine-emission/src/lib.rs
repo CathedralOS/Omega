@@ -6,7 +6,8 @@
 #[cfg(test)]
 use omega_assigned_target_operations::AssignedBooleanControl;
 use omega_assigned_target_operations::{
-    AssignedFunction, AssignedOperation, AssignedOperationPlan,
+    AssignedFunction, AssignedNativeCallbackArgument, AssignedOperation, AssignedOperationPlan,
+    AssignedOperationPlanWithNativeCallbacks,
 };
 #[cfg(test)]
 use omega_calling_conventions::ValueShape;
@@ -72,6 +73,24 @@ use scalar::{
 };
 
 pub fn emit_machine_code(plan: &AssignedOperationPlan) -> Result<MachineCodePlan, EmissionError> {
+    emit_machine_code_with_callback_rows(plan, &[])
+}
+
+/// Emit the canonical ordinary plan while preserving one native-only callback
+/// address materialization beside its exact registrar operation.
+pub fn emit_machine_code_with_native_callbacks(
+    plan: &AssignedOperationPlanWithNativeCallbacks,
+) -> Result<MachineCodePlan, EmissionError> {
+    emit_machine_code_with_callback_rows(&plan.plan, &plan.native_callback_arguments)
+}
+
+fn emit_machine_code_with_callback_rows(
+    plan: &AssignedOperationPlan,
+    native_callbacks: &[AssignedNativeCallbackArgument],
+) -> Result<MachineCodePlan, EmissionError> {
+    if native_callbacks.len() > 1 {
+        return Err(EmissionError::InvalidNativeCallbackCustody);
+    }
     if !plan
         .functions
         .iter()
@@ -79,16 +98,58 @@ pub fn emit_machine_code(plan: &AssignedOperationPlan) -> Result<MachineCodePlan
     {
         return Err(EmissionError::EntryFunctionMissing(plan.entry));
     }
-    Ok(MachineCodePlan {
+    let emitted = MachineCodePlan {
         psi: plan.psi,
         target: plan.target,
         entry: plan.entry,
         functions: plan
             .functions
             .iter()
-            .map(|function| emit_function(function, plan.psi, plan.target, &plan.functions))
+            .map(|function| {
+                emit_function(
+                    function,
+                    plan.psi,
+                    plan.target,
+                    &plan.functions,
+                    native_callbacks,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?,
-    })
+    };
+    let callback_addresses = emitted
+        .functions
+        .iter()
+        .flat_map(|function| &function.foreign_calls)
+        .filter_map(|call| call.callback_address.as_ref())
+        .collect::<Vec<_>>();
+    if callback_addresses.len() != native_callbacks.len()
+        || native_callbacks.iter().any(|assigned| {
+            callback_addresses
+                .iter()
+                .filter(|materialization| {
+                    materialization.target == assigned.target
+                        && materialization.destination == callback_destination(assigned.destination)
+                })
+                .count()
+                != 1
+        })
+    {
+        return Err(EmissionError::InvalidNativeCallbackCustody);
+    }
+    Ok(emitted)
+}
+
+fn callback_destination(
+    destination: omega_assigned_target_operations::AssignedCallDestination,
+) -> omega_machine_code::CallbackAddressDestination {
+    match destination {
+        omega_assigned_target_operations::AssignedCallDestination::Register(register) => {
+            omega_machine_code::CallbackAddressDestination::Register(register)
+        }
+        omega_assigned_target_operations::AssignedCallDestination::OutgoingStack {
+            byte_offset,
+        } => omega_machine_code::CallbackAddressDestination::OutgoingStack { byte_offset },
+    }
 }
 
 fn emit_function(
@@ -96,6 +157,7 @@ fn emit_function(
     psi: psi_terminal::TerminalPsiIdentity,
     target: NativeTarget,
     functions: &[AssignedFunction],
+    native_callbacks: &[AssignedNativeCallbackArgument],
 ) -> Result<MachineCodeFunction, EmissionError> {
     if let AssignedOperation::ScalarReturnWithCleanup {
         scalar,
@@ -386,7 +448,7 @@ fn emit_function(
             bytes
         }
         AssignedOperation::UnitBody(body) => {
-            let emitted = emit_unit_body(body, target, functions)?;
+            let emitted = emit_unit_body(body, target, functions, native_callbacks)?;
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
@@ -1038,6 +1100,7 @@ pub enum EmissionError {
     InvalidClaimCompletionOnlyCustody,
     InvalidCompletionProviderCustody,
     InvalidNormalizedForeignCallCustody,
+    InvalidNativeCallbackCustody,
     InvalidIeeeFloatFmaCustody(psi_core::OperationId),
     IeeeFloatFmaUnsupported(NativeTarget),
     IeeeFloatControlFrameNotEncodable,

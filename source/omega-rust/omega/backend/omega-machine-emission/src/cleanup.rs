@@ -69,6 +69,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
         psi,
         target,
         functions,
+        &[],
     )?;
     let scalar_control_flow = emitted
         .scalar_stack
