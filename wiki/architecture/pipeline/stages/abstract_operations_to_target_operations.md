@@ -76,7 +76,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `lowering/coordination.rs` consumes one exact admitted nearest-FMA settlement
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
-  in target operations without choosing physical registers.
+  in target operations without choosing physical registers. The bounded
+  attached-Unit lane may preserve ordinary receiver-attached zero-result internal Unit calls
+  after those FMA definitions; their existing call custody remains distinct.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
 - `tests.rs` owns exact stage-boundary and rejection canaries.
 
@@ -104,6 +106,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   not choose its byte offset; assignment owns the ordered physical layout.
 - Nearest-FMA legalization must retain exact occurrence/plan/admission custody,
   but assignment—not target legalization—owns its XMM register choices.
+- Internal Unit calls in an FMA-bearing body remain in source order inside the
+  function-level canonical floating-control envelope; later object replay
+  checks their complete emitted intervals against that envelope.
 
 ## Known Gaps
 

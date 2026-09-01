@@ -1,7 +1,7 @@
 //! Scalar-definition lowering for attached Unit bodies.
 
 use super::super::shared::*;
-use super::scalar_call::{insert_known_unit_integer, KnownUnitInteger};
+use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
 pub(super) fn validate_unit_scalar_definitions(
     function: &AbstractFunction,
@@ -18,6 +18,7 @@ pub(super) fn validate_unit_scalar_definitions(
                 operation,
                 AbstractOperation::IeeeFloatConstant { .. }
                     | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
+                    | AbstractOperation::CallUnit { .. }
                     | AbstractOperation::ReturnUnit { .. }
             )
         })
