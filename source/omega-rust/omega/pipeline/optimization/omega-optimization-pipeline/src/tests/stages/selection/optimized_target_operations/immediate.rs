@@ -151,3 +151,64 @@ fn optimized_target_lowering_retains_constant_widen_immediate_custody() {
         ));
     }
 }
+
+#[test]
+fn optimized_target_lowering_retains_proof_bearing_exact_cast_immediate_operand_custody() {
+    let source_type = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+    let target_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = integer_exact_cast_immediate_operand_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerExactCastImmediateOperand(row),
+        ) = target.translation_validation().function_roster()[0].translation()
+        else {
+            panic!("optimized constant exact cast must retain its proof-bearing immediate-operand family")
+        };
+        assert_eq!(row.constant_operation(), OperationId::new(66_003).unwrap());
+        assert_eq!(row.cast_operation(), OperationId::new(66_005).unwrap());
+        assert_eq!(row.obligation(), ObligationId::new(66_009).unwrap());
+        assert_eq!(row.constant_result(), ValueId::new(66_004).unwrap());
+        assert_eq!(row.cast_result(), ValueId::new(66_006).unwrap());
+        assert_eq!(row.source_type(), source_type);
+        assert_eq!(row.target_type(), target_type);
+        assert_eq!(row.source_value(), IntegerValue::Unsigned(255));
+        assert_eq!(row.cast_value(), IntegerValue::Unsigned(255));
+        assert!(matches!(
+            &target.target_operations().functions[0].operation,
+            TargetOperation::ReturnIntegerExpression {
+                source_value,
+                scalar_type,
+                expression: TargetIntegerExpression::IntegerExactCast {
+                    obligation,
+                    source_type: target_source_type,
+                    operand,
+                    ..
+                },
+                ..
+            } if *source_value == ValueId::new(66_006).unwrap()
+                && *scalar_type == target_type
+                && *obligation == ObligationId::new(66_009).unwrap()
+                && *target_source_type == source_type
+                && matches!(
+                    operand.as_ref(),
+                    TargetIntegerExpression::Immediate { source_value, value }
+                        if *source_value == ValueId::new(66_004).unwrap()
+                            && *value == IntegerValue::Unsigned(255)
+                )
+        ));
+    }
+}

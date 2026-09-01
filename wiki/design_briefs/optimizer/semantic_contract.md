@@ -94,9 +94,13 @@ that function. Current ownership reaches its fixed point only when all incoming
 and backedge states are equal. A canonical `CycleComponentId` now binds machine
 and internal edges, with derived member, entry, and exit rosters; Terminal and
 current graphs must independently produce the same structural component before
-analysis custody is issued. Ranking certificates, productive unranked
-components, finite-work failures, and transforms that invalidate SCC evidence
-remain closed.
+analysis custody is issued. An adjacent exact countdown-ranking certificate
+binds the positive guard, unsigned rank carrier, minus-one backedge transfer,
+and subtract obligation to that component. Its first revision-bound consumer
+independently reconstructs the single preheader and exit and exposes the
+preheader argument as the symbolic exact trip count. General ranking
+certificates, productive unranked components, finite-work failures, and
+transforms that invalidate SCC evidence remain closed.
 
 ## Provenance
 

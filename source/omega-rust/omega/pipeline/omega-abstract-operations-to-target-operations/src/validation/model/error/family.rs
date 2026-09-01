@@ -4,7 +4,9 @@ mod arithmetic;
 mod shift;
 
 use super::immediate::{
-    StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
+    StraightLineBooleanImmediateTranslationError,
+    StraightLineIntegerExactCastImmediateOperandTranslationError,
+    StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
 };
 use super::parameter::{
@@ -47,6 +49,9 @@ use shift::{
 pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
+    StraightLineIntegerExactCastImmediateOperand(
+        StraightLineIntegerExactCastImmediateOperandTranslationError,
+    ),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationError),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationError),

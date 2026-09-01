@@ -2,13 +2,14 @@ use omega_optimization_core::{
     OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };
 use omega_register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use omega_selected_instructions::SelectedBlockId;
+use omega_selected_instructions::{SelectedBlockId, SelectedInstructionPlanIdentity};
 use psi_core::{FuelScheduleIdentity, MachineId};
 
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, GeneralizedReloadCoexistingValue,
     GeneralizedReloadValueHomeIdentity, GeneralizedSpillActionId,
-    GeneralizedSpillRecoveryWorkItemId, GeneralizedSpillRecoveryWorklistIdentity, LiveRangePoint,
+    GeneralizedSpillRecoveryWorkItemId, GeneralizedSpillRecoveryWorklistIdentity,
+    LiveRangeIdentity, LiveRangePoint,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,6 +28,9 @@ impl GeneralizedSpillRecoveryChoiceIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GeneralizedSpillRecoveryChoicePolicy {
     EpochTwoFarthestEndThenHighestValueV1,
+    /// Original VRegs participate in ranking only after their exact selected
+    /// role and flexible post-pressure use suffix are independently proven.
+    EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
 }
 
 /// Victim-choice evidence only. No field authorizes eviction or a new spill.
@@ -34,6 +38,8 @@ pub enum GeneralizedSpillRecoveryChoicePolicy {
 pub struct GeneralizedSpillRecoveryChoicePlan {
     pub worklist: GeneralizedSpillRecoveryWorklistIdentity,
     pub reload_value_homes: GeneralizedReloadValueHomeIdentity,
+    pub selected: SelectedInstructionPlanIdentity,
+    pub ranges: LiveRangeIdentity,
     pub legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
@@ -84,6 +90,8 @@ pub struct GeneralizedSpillRecoveryChoiceReceipt {
     pub(crate) identity: GeneralizedSpillRecoveryChoiceIdentity,
     pub(crate) worklist: GeneralizedSpillRecoveryWorklistIdentity,
     pub(crate) reload_value_homes: GeneralizedReloadValueHomeIdentity,
+    pub(crate) selected: SelectedInstructionPlanIdentity,
+    pub(crate) ranges: LiveRangeIdentity,
     pub(crate) legality: AllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
@@ -103,6 +111,12 @@ impl GeneralizedSpillRecoveryChoiceReceipt {
     }
     pub const fn reload_value_homes(self) -> GeneralizedReloadValueHomeIdentity {
         self.reload_value_homes
+    }
+    pub const fn selected(self) -> SelectedInstructionPlanIdentity {
+        self.selected
+    }
+    pub const fn ranges(self) -> LiveRangeIdentity {
+        self.ranges
     }
     pub const fn legality(self) -> AllocationLegalityIdentity {
         self.legality

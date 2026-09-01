@@ -78,6 +78,101 @@ fn exact_epoch_two_choice_retains_complete_blockers_and_selects_farthest_end() {
 }
 
 #[test]
+fn original_first_policy_rejects_the_current_use_original_before_ranking() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (sources, homes, worklist) = sources(target);
+        let legacy = sources
+            .choose_generalized_victim(&homes, &worklist, selected_lowering_budget())
+            .unwrap();
+        let guarded = sources
+            .choose_generalized_victim_with_policy(
+                &homes,
+                &worklist,
+                omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+        assert_ne!(legacy.receipt().identity(), guarded.receipt().identity());
+        assert_eq!(guarded.receipt().selected(), homes.receipt().selected());
+        assert_eq!(guarded.receipt().ranges(), homes.receipt().ranges());
+        let choice = &guarded.plan().choices[0];
+        assert!(choice.contenders.iter().any(|contender| {
+            contender.value
+                == omega_regalloc::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(5))
+        }));
+        assert_eq!(
+            choice.selected_victim,
+            omega_regalloc::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
+        );
+        assert_eq!(guarded.receipt().usage(), guarded_exact_usage());
+
+        let original = choice
+            .contenders
+            .iter()
+            .find(|contender| {
+                contender.value
+                    == omega_regalloc::GeneralizedReloadCoexistingValue::Original(
+                        VirtualRegisterId(5),
+                    )
+            })
+            .unwrap();
+        let mut forged = guarded.plan().clone();
+        forged.choices[0].selected_victim = original.value;
+        forged.choices[0].selected_victim_view = original.resident_view;
+        forged.choices[0].reclaimed_view = original.reclaimed_view;
+        assert_eq!(
+            sources.validate_generalized_victim(&homes, &worklist, forged),
+            Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
+        );
+    }
+}
+
+#[test]
+fn original_eligibility_policy_has_exact_budget_and_cross_target_custody() {
+    let exact = OptimizationWorkBudget::new(4, 2, 43, 1, 1).unwrap();
+    let insufficient = [
+        OptimizationWorkBudget::new(3, 2, 43, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(4, 1, 43, 1, 1).unwrap(),
+        OptimizationWorkBudget::new(4, 2, 42, 1, 1).unwrap(),
+    ];
+    let policy = omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1;
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let (sources, homes, worklist) = sources(target);
+        assert!(
+            sources
+                .choose_generalized_victim_with_policy(&homes, &worklist, policy, exact)
+                .is_ok()
+        );
+        for budget in insufficient {
+            assert!(matches!(
+                sources.choose_generalized_victim_with_policy(
+                    &homes,
+                    &worklist,
+                    policy,
+                    budget,
+                ),
+                Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::BudgetExceeded {
+                    required,
+                    budget: actual,
+                }) if required == guarded_exact_usage() && actual == budget
+            ));
+        }
+    }
+
+    let (x86, x86_homes, x86_worklist) = sources(NativeTarget::linux_x64());
+    let foreign = x86
+        .choose_generalized_victim_with_policy(&x86_homes, &x86_worklist, policy, exact)
+        .unwrap()
+        .plan()
+        .clone();
+    let (arm, arm_homes, arm_worklist) = sources(NativeTarget::linux_arm64());
+    assert_eq!(
+        arm.validate_generalized_victim(&arm_homes, &arm_worklist, foreign),
+        Err(omega_regalloc::GeneralizedSpillRecoveryChoiceError::RootMismatch)
+    );
+}
+
+#[test]
 fn independent_replay_rejects_every_choice_surface_and_source_root_corruption() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (sources, homes, worklist) = sources(target);
@@ -97,6 +192,15 @@ fn independent_replay_rejects_every_choice_surface_and_source_root_corruption() 
             |plan: &mut omega_regalloc::GeneralizedSpillRecoveryChoicePlan| {
                 plan.reload_value_homes =
                     omega_regalloc::GeneralizedReloadValueHomeIdentity::from_bytes([0xc2; 32]);
+            },
+            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryChoicePlan| {
+                plan.selected =
+                    omega_selected_instructions::SelectedInstructionPlanIdentity::from_bytes(
+                        [0xc7; 32],
+                    );
+            },
+            |plan: &mut omega_regalloc::GeneralizedSpillRecoveryChoicePlan| {
+                plan.ranges = omega_regalloc::LiveRangeIdentity::from_bytes([0xc8; 32]);
             },
             |plan: &mut omega_regalloc::GeneralizedSpillRecoveryChoicePlan| {
                 plan.legality = omega_regalloc::AllocationLegalityIdentity::from_bytes([0xc3; 32]);
@@ -243,6 +347,16 @@ const fn exact_usage() -> OptimizationWorkUsage {
         rule_evaluations: 2,
         candidates: 2,
         validation_steps: 13,
+        commits: 1,
+        iterations: 1,
+    }
+}
+
+const fn guarded_exact_usage() -> OptimizationWorkUsage {
+    OptimizationWorkUsage {
+        rule_evaluations: 4,
+        candidates: 2,
+        validation_steps: 43,
         commits: 1,
         iterations: 1,
     }

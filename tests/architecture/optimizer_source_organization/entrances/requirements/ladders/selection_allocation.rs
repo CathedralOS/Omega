@@ -147,7 +147,9 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/model.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/identity.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/compute/original_eligibility.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/replay/original_eligibility.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_choice/validate.rs",
         ],
     },
@@ -182,6 +184,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/compute.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/replay.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/validate.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "post-allocation manifest mutation custody tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/fields.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/wire.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/wire_offsets.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/custody.rs",
         ],
     },
     SemanticLadder {

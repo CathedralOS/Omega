@@ -4,12 +4,18 @@ use psi_core::{BlockId, MachineId};
 
 mod call_graph;
 mod components;
+mod countdown_induction;
 mod dominance;
 mod graph;
 mod loops;
 
 pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
+pub use countdown_induction::{
+    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount,
+    UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
+};
+pub(crate) use countdown_induction::{analyze_counted_loops, validate_counted_loop_analysis};
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;

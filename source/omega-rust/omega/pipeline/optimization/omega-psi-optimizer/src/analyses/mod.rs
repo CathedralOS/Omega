@@ -6,9 +6,12 @@ mod semantic;
 
 pub use catalog::{AnalysisProduct, analysis_dependencies, compute_analysis};
 pub use control_flow::{
-    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, DominatorAnalysis, ExitKind,
+    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, CountedLoopAnalysisError,
+    CountedLoopAnalysisSnapshot, DominatorAnalysis, ExactUnsignedTripCount, ExitKind,
     FunctionControlFlow, LoopAnalysis, LoopRegion, StronglyConnectedComponentAnalysis,
+    UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
+pub(crate) use control_flow::{analyze_counted_loops, validate_counted_loop_analysis};
 pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit};
 pub use omega_optimization_unit::{
     ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,

@@ -267,10 +267,13 @@ not a selectable rule or physical spill realization.
 
 Epoch-two victim choice continues at
 `omega-regalloc/src/allocation/generalized_spill_recovery_choice/mod.rs`. Its
-50-line executable entrance joins direct blocker traversal to independently
+56-line executable entrance joins direct blocker traversal to independently
 keyed replay. `model.rs`, `identity.rs`, and `validate.rs` retain the closed
 resident/contender/choice vocabulary and admission receipt, while `compute.rs`
-and `replay.rs` own separate reconstruction mechanics. The mirrored pipeline
+and `replay.rs` own separate reconstruction mechanics. Their sibling
+`original_eligibility.rs` leaves separately prove an original resident's
+selected role and post-pressure use suffix for the guarded-original policy;
+neither direction calls the other's mechanics. The mirrored pipeline
 leaf is `register_allocation/generalized_spill_recovery_choice.rs`; architecture
 guards register the full ladder and prohibit validator reentry into proposal.
 This is compiler-private choice evidence, not an optimization catalog or

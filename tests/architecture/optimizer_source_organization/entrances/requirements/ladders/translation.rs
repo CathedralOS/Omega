@@ -33,6 +33,22 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "proof-bearing exact-cast immediate-operand translation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_exact_cast_immediate_operand/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_exact_cast_immediate_operand/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_exact_cast_immediate_operand/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/tests/integer_exact_cast_immediate_operand.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_exact_cast_immediate_operand/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_exact_cast_immediate_operand/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_exact_cast_immediate_operand/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_exact_cast_immediate_operand/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_exact_cast_immediate_operand/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/immediate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/immediate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "Terminal operation lowering",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",
