@@ -11,6 +11,8 @@ pub(super) use omega_effects::provider_plan::{
 mod exact_evidence;
 mod fixtures;
 mod literal_arguments;
+mod runtime_scalar_home_plan;
 mod zero_argument_import;
 
 use fixtures::*;
+use runtime_scalar_home_plan::runtime_argument_abstract_plan;
