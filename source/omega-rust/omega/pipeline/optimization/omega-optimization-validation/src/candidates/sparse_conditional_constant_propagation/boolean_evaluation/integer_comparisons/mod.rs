@@ -1,8 +1,18 @@
 //! Optimizer module role: stage group. Integer-comparison validation by exact evidence family.
-
 mod constant;
 mod range_against_constant;
 mod range_against_range;
+
+#[cfg(test)]
+pub(crate) use range_against_constant::{
+    ValidatedIntegerRangeComparisonKind, independently_evaluate_integer_range_comparison,
+    independently_validated_integer_range_comparison_kind,
+};
+#[cfg(test)]
+pub(crate) use range_against_range::{
+    ValidatedIntegerRangePairComparisonKind, independently_evaluate_integer_range_pair_comparison,
+    independently_validated_integer_range_pair_comparison_kind,
+};
 
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_unit::{

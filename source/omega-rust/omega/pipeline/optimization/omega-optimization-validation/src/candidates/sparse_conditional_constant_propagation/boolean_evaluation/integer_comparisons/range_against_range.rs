@@ -1,5 +1,15 @@
 //! Range-against-range integer-comparison reconstruction.
 
+mod semantics;
+
+#[cfg(test)]
+pub(crate) use semantics::ValidatedIntegerRangePairComparisonKind;
+#[cfg(test)]
+pub(crate) use semantics::{
+    classify as independently_validated_integer_range_pair_comparison_kind,
+    evaluate as independently_evaluate_integer_range_pair_comparison,
+};
+
 use omega_optimization_core::{AnalysisKind, OptimizationSafetyClass, ValueRangeFactIdentity};
 use omega_optimization_unit::{
     NodeLocation, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
@@ -10,11 +20,8 @@ use crate::{OptimizationUnitValidationError, current_value_ranges};
 
 use super::super::BooleanEvaluation;
 use super::IntegerComparisonShape;
-use crate::candidates::sparse_conditional_constant_propagation::range_comparisons::{
-    independently_evaluate_integer_range_pair_comparison,
-    independently_validated_integer_range_pair_comparison_kind,
-};
 use crate::candidates::sparse_conditional_constant_propagation::snapshot_reconstruction::validator_integer_value_type;
+use semantics::{classify, evaluate as evaluate_semantics};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate(
@@ -33,11 +40,8 @@ pub(super) fn evaluate(
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let kind = independently_validated_integer_range_pair_comparison_kind(
-        candidate.rule(),
-        &node.operation,
-    )
-    .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    let kind = classify(candidate.rule(), &node.operation)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let left_range = current_value_ranges::independently_reconstruct_value_range_fact_at(
         input,
         left_range_fact,
@@ -62,7 +66,7 @@ pub(super) fn evaluate(
     {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     }
-    let constant = independently_evaluate_integer_range_pair_comparison(
+    let constant = evaluate_semantics(
         kind,
         left_range.scalar_type,
         shape.left == shape.right,

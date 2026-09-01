@@ -10,19 +10,19 @@ pub fn validate_boolean_evaluation_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    let has_required_evaluation_analysis = match candidate.scalar_evaluation_witness() {
-        Some(IntegerEvaluationWitness::RangeAgainstRange { .. }) => candidate
-            .required_analyses()
-            .contains(AnalysisKind::ValueRanges),
-        Some(_) => candidate
-            .required_analyses()
-            .contains(AnalysisKind::ScalarConstants),
-        None => false,
+    let expected_analyses = match candidate.scalar_evaluation_witness() {
+        Some(IntegerEvaluationWitness::RangeAgainstRange { .. }) => {
+            AnalysisSet::new([AnalysisKind::ValueRanges])
+        }
+        Some(IntegerEvaluationWitness::RangeAgainstConstant { .. }) => {
+            AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges])
+        }
+        Some(_) => AnalysisSet::new([AnalysisKind::ScalarConstants]),
+        None => return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch),
     };
-    if !has_required_evaluation_analysis
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
+    if candidate.required_analyses() != expected_analyses
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([AnalysisKind::UseDefinition])
         || !candidate.substitutions().is_empty()
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);

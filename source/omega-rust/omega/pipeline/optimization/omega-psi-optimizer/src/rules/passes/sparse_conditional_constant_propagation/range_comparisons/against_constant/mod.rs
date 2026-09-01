@@ -9,8 +9,6 @@ mod integer_less_than_constant_range;
 mod integer_less_than_range_constant;
 mod proposal;
 
-#[cfg(test)]
-pub(in crate::rules::passes) use evaluation::evaluate;
 pub use integer_equal_constant_range::IntegerEqualConstantRangeRule;
 pub use integer_equal_range_constant::IntegerEqualRangeConstantRule;
 pub use integer_less_or_equal_constant_range::IntegerLessOrEqualConstantRangeRule;

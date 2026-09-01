@@ -11,12 +11,9 @@ pub fn validate_integer_evaluation_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ScalarConstants)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
+    if candidate.required_analyses() != AnalysisSet::new([AnalysisKind::ScalarConstants])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([AnalysisKind::UseDefinition])
         || !candidate.substitutions().is_empty()
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);

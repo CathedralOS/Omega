@@ -1,5 +1,14 @@
 //! Range-against-literal integer-comparison reconstruction.
 
+mod semantics;
+
+pub(crate) use semantics::ValidatedIntegerRangeComparisonKind;
+#[cfg(test)]
+pub(crate) use semantics::{
+    classify as independently_validated_integer_range_comparison_kind,
+    evaluate as independently_evaluate_integer_range_comparison,
+};
+
 use omega_optimization_core::{
     AnalysisKind, OptimizationSafetyClass, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
@@ -13,11 +22,8 @@ use crate::{OptimizationUnitValidationError, current_value_ranges};
 use super::super::BooleanEvaluation;
 use super::IntegerComparisonShape;
 use crate::candidates::sparse_conditional_constant_propagation::integer_evaluation::direct_literal_integer_fact;
-use crate::candidates::sparse_conditional_constant_propagation::range_comparisons::{
-    ValidatedIntegerRangeComparisonKind, independently_evaluate_integer_range_comparison,
-    independently_validated_integer_range_comparison_kind,
-};
 use crate::candidates::sparse_conditional_constant_propagation::snapshot_reconstruction::validator_integer_value_type;
+use semantics::{classify, evaluate as evaluate_semantics};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate(
@@ -36,9 +42,8 @@ pub(super) fn evaluate(
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
-    let kind =
-        independently_validated_integer_range_comparison_kind(candidate.rule(), &node.operation)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    let kind = classify(candidate.rule(), &node.operation)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let (range_operand, constant_operand) = match kind {
         ValidatedIntegerRangeComparisonKind::RangeEqualConstant
         | ValidatedIntegerRangeComparisonKind::RangeLessThanConstant
@@ -66,7 +71,7 @@ pub(super) fn evaluate(
     if validator_integer_value_type(function, constant_operand) != Some(range.scalar_type) {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     }
-    let constant = independently_evaluate_integer_range_comparison(
+    let constant = evaluate_semantics(
         kind,
         range.scalar_type,
         range.minimum,

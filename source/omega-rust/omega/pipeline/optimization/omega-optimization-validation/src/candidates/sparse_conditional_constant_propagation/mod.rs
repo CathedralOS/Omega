@@ -11,22 +11,21 @@ mod boolean_evaluation;
 mod integer_candidate;
 mod integer_evaluation;
 mod observation;
-mod range_comparisons;
 mod snapshot_reconstruction;
 
 pub use boolean_candidate::validate_boolean_evaluation_candidate;
 pub use integer_candidate::validate_integer_evaluation_candidate;
 
-pub(crate) use integer_evaluation::literal_boolean_fact;
-pub(crate) use observation::{observation_at, same_closed_scalar_observation};
 #[cfg(test)]
-pub(crate) use range_comparisons::{
+pub(crate) use boolean_evaluation::{
     ValidatedIntegerRangeComparisonKind, ValidatedIntegerRangePairComparisonKind,
     independently_evaluate_integer_range_comparison,
     independently_evaluate_integer_range_pair_comparison,
     independently_validated_integer_range_comparison_kind,
     independently_validated_integer_range_pair_comparison_kind,
 };
+pub(crate) use integer_evaluation::literal_boolean_fact;
+pub(crate) use observation::{observation_at, same_closed_scalar_observation};
 pub(crate) use snapshot_reconstruction::{
     scalar_value_definition, validator_scalar_constant_facts,
 };

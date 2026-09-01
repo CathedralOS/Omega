@@ -6,8 +6,6 @@ mod integer_less_or_equal_range_range;
 mod integer_less_than_range_range;
 mod proposal;
 
-#[cfg(test)]
-pub(in crate::rules::passes) use evaluation::evaluate;
 pub use integer_equal_range_range::IntegerEqualRangeRangeRule;
 pub use integer_less_or_equal_range_range::IntegerLessOrEqualRangeRangeRule;
 pub use integer_less_than_range_range::IntegerLessThanRangeRangeRule;

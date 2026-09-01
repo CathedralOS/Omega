@@ -213,6 +213,11 @@ range/range reconstruction, while literal constant evaluation first replays
 the exact operation-to-rule identity. A same-safety contract therefore cannot
 be relabelled across the five literal rules; the architecture guard pins the
 entire validation descent and retires the former mixed comparison leaf.
+Independent interval classification and evaluation descend one rung further
+under the matching `range_against_constant/` or `range_against_range/`
+evidence family. The former flat validation-side `range_comparisons.rs` path is
+retired, and candidate admission requires the exact analysis and invalidation
+sets carried by that evidence shape rather than accepting contract supersets.
 
 Integer-result SCCP constant evaluation now gives exact cast, widen, and
 bitwise-not their own executable entrances. The proof-certified cast keeps its

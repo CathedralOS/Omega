@@ -37,8 +37,7 @@ use support::node_elision_accounting;
 
 #[cfg(test)]
 use sparse_conditional_constant_propagation::range_comparisons::{
-    IntegerRangeComparisonKind, IntegerRangePairComparisonKind, evaluate_integer_range_comparison,
-    evaluate_integer_range_pair_comparison,
+    IntegerRangeComparisonKind, IntegerRangePairComparisonKind,
 };
 
 #[cfg(test)]

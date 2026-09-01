@@ -16,8 +16,3 @@ pub use against_range::{
 pub(in crate::rules::passes) use model::{
     IntegerRangeComparisonKind, IntegerRangePairComparisonKind,
 };
-
-#[cfg(test)]
-pub(in crate::rules::passes) use against_constant::evaluate as evaluate_integer_range_comparison;
-#[cfg(test)]
-pub(in crate::rules::passes) use against_range::evaluate as evaluate_integer_range_pair_comparison;
