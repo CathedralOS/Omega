@@ -184,6 +184,14 @@ three source operations retained in order. Signed/unsigned fixed 8/16/32/64
 and address64 cross four ordered boundary pairs at direct and public optimized
 custody on all five targets. Its catalog row is disjoint from bitwise-not,
 bitwise-OR/XOR, plain immediate, and parameter AND.
+Constant wrapping integer add is a separate exact four-operation family. It
+validates two ordered same-type constants, `WrappingIntegerAdd`, and `Return`,
+computes modulo the declared width through `IntegerType::wrapping_add`, and
+requires one exact `ReturnIntegerImmediate` with ordered provenance. Signed/
+unsigned fixed 8/16/32/64 and address64 each cross four ordered wrap boundaries
+at direct and optimized custody on all five targets. Exact/saturating policy,
+subtraction/multiplication, plain-immediate, and parameter-family substitution
+fail closed.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -644,6 +652,16 @@ pressured reload at point 14, and the new reload/rewrite occur at point 16.
 This remains target-neutral logical scheduling and grants no physical slot,
 address, instruction, memory, frame, trap, unwind, encoding, emission, or
 publication authority.
+
+The adjacent final recursive-home boundary independently allocates every reload
+segment introduced by that schedule. It preserves prior generalized homes,
+cuts the spilled original or reload lifetime at each store, reconstructs later
+segments and their complete candidate/coexistence rosters, and chooses the
+lowest compatible physical view. Sorted production and a separate point-indexed
+timeline replay agree for reload- and original-victim chains on x86-64 and
+AArch64. This is physical-view custody only: it creates no instruction, stack
+address, memory effect, frame, fault claim, encoding, emission, or publication
+authority.
 
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is

@@ -208,6 +208,16 @@ remains outside the generic analysis manager and cannot bypass frozen ranked
 blocks; a later relocation boundary must invalidate and reconstruct this
 custody before LICM may exist.
 
+Current ranking reconstruction no longer assumes those two constants remain in
+their original component blocks. A private resolver accepts each exact
+certificate constant either at its original role location or in the sole
+preheader's canonical constant suffix before the entry jump, and current/
+Terminal ranking comparison remains the admission seam. Reconstruction runs
+before the unchanged ranked-block freeze, so relocation-shaped fixtures prove
+the ranking evidence survives and then still fail at the correct freeze. This
+changes no certificate identity, public carrier, rewrite API, or execution
+authority.
+
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
 rematerialization proof custody; common encoding, layout, whole-function exit,
@@ -343,6 +353,17 @@ original selected VRegs. The public original-victim schedule retains three
 slots, eleven events, offsets `0, 8, 0`, and a 16-byte abstract spill area; its
 existing pseudo lowering preserves `Original(v5)`. The result still grants no
 physical slot/address, instruction, memory effect, frame, trap, unwind,
+encoding, emission, or publication authority.
+
+The following `recursive_reload_value_homes` entrance closes the allocator
+question for every recursive reload without crossing into memory semantics. It
+joins the recursive schedule, recovery actions, prior generalized homes,
+selected ranges/legality, and register environment. A sorted producer and
+independent point-indexed replay treat stores as lifetime cuts, retain typed
+source lineage, reconstruct complete candidate and coexisting-home rosters, and
+select the lowest compatible view for each later segment. Both reload- and
+original-victim chains close without residual pressure on x86-64 and AArch64.
+The artifact grants no instruction, memory effect, frame address, fault,
 encoding, emission, or publication authority.
 
 Fixed-view-copy insertion has two visible executable boundaries:

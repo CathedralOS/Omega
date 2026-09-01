@@ -162,6 +162,14 @@ and `validate.rs` alone seals the result. The mirrored cyclic-Psi leaf covers
 the exact zero/one destinations, 31 retained corruption axes, stale revision,
 empty acyclic behavior, and the unchanged ranked-block freeze. No rewrite or
 generic-analysis-manager path is introduced.
+The ranking validator's current-IR side descends through the private
+`countdown_ranking/current/invariant_constants.rs` resolver. The existing
+`current.rs` coordinator still derives the complete certificate, while the new
+leaf owns only unique zero/one lookup in the original role block or canonical
+preheader suffix. Ranked-cycle validation reconstructs current/Terminal
+ranking before the unchanged freeze. The mirrored relocation-shaped cyclic-Psi
+leaf and layering guard prove this is reconstruction mechanics, not an import
+from optimizer placement analyses or a rewrite entrance.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -347,6 +355,16 @@ guards register the complete ladder and forbid validation from calling producer
 mechanics. This is still an abstract spill-area schedule, not physical
 memory/frame or publication authority.
 
+Final recursive home closure enters through the 60-line
+`recursive_reload_value_homes/mod.rs` coordination file. `model.rs`,
+`identity.rs`, and `validate.rs` own its closed carrier and receipt boundary.
+Production descends through `compute/{roots,sources,schedule,homes,work}`;
+independent validation mirrors the questions through
+`replay/{roots,sources,timeline,homes,work}` without calling compute. No leaf
+exceeds 200 lines. The mirrored `register_allocation/recursive_reload_value_homes.rs`
+test owns both victim paths, exact rosters, corruption, budget, and cross-target
+custody; architecture guards register the entrance and full ladder.
+
 Function-relative V9 mutation coverage enters through the five-line
 `function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
 into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,
@@ -531,6 +549,14 @@ replay. Dedicated fixture, positive, source-corruption, target-corruption,
 catalog, and optimized-custody leaves cover signed/unsigned fixed 8/16/32/64
 and address64 across all five native targets. The catalog row remains visibly
 disjoint from plain immediate, bitwise-not, bitwise-OR/XOR, and parameter AND.
+Constant wrapping integer-add immediate translation is its exact arithmetic
+sibling under `straight_line_wrapping_integer_add_immediate/`. Its 27-line
+entrance joins the ordered two-constant grammar to independent
+`ReturnIntegerImmediate` replay using `IntegerType::wrapping_add`. Dedicated
+fixture, corruption, catalog, and optimized-custody leaves cover signed/
+unsigned fixed 8/16/32/64 and address64 on all five targets while remaining
+disjoint from exact/saturating add, subtract/multiply, plain immediate, and the
+parameter wrapping-add family.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line

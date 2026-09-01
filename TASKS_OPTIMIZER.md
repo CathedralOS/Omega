@@ -850,6 +850,13 @@ decision. Only true language-semantic questions belong in
   calling prior graph or fact producers. Thirty-one retained corruption axes,
   typed stale revision, empty acyclic behavior, and the unchanged ranked-block
   freeze fail closed. This is placement analysis, not relocation authority.
+  Current ranking reconstruction now resolves each exact zero/one definition
+  either at its authenticated role block or in the sole preheader's canonical
+  constant suffix before the entry jump. It reconstructs ranking before the
+  unchanged freeze, so relocation-shaped tests retain the same certificate and
+  then fail at `RankedCycleFrozenBlockMismatch`; malformed location, order,
+  provenance, definition, value/type/result, or consumer operands fail earlier
+  as ranking-evidence mismatch. No public carrier or rewrite API is added.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
@@ -961,6 +968,13 @@ decision. Only true language-semantic questions belong in
     unsigned fixed 8/16/32/64 and address64. Direct and optimized custody each
     cover 180 type/pair/target cases, while catalog ambiguity, corruption, and
     bitwise-not/OR/XOR/plain/parameter-family substitution fail closed.
+  - [x] Add constant wrapping-integer-add-to-immediate as its own exact
+    abstract-to-target family. Its four-operation grammar and independent
+    replay retain both ordered constants, all definitions, return/provenance,
+    and the exact `IntegerType::wrapping_add` result for signed/unsigned fixed
+    8/16/32/64 and address64. Direct and optimized custody each cover 180
+    type/pair/target cases; catalog ambiguity, corruption, exact/saturating
+    policy, subtract/multiply/plain/parameter substitution fail closed.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both
@@ -1219,12 +1233,24 @@ decision. Only true language-semantic questions belong in
   `{1, 6, 23, 10, 14}`, and every representable budget axis on x86-64 and
   AArch64. The entrance creates no
   selected or machine instruction, address, memory effect, frame, trap, unwind,
-  encoding, emission, or publication authority. Abstract spill memory effects
-  and ISA lowering, final frame offsets,
-  unwind/probing, and downstream realization remain engineering work. Real
-  memory insertion is owner-blocked only on the spill-access fault semantics
-  recorded in `OWNER_QUESTIONS.md`; the abstract schedule, reload-home
-  analysis, and synthetic namespace are not blocked.
+  encoding, emission, or publication authority.
+  A sixteenth independently replayed artifact now closes every recursive reload
+  segment against the selected plan, live ranges, legality, prior generalized
+  homes, recursive schedule/actions, and register environment. Stores cut the
+  spilled original or prior reload lifetime; later reloads receive a fresh
+  block-local interval, complete candidate-view domain, lowest compatible view,
+  typed lineage, and complete coexisting-home roster. Sorted production and a
+  separate point-indexed replay close both reload- and original-victim chains on
+  x86-64/AArch64 without residual pressure. Determinism, all roots, lineage,
+  intervals, domains, views, rosters, ordering, usage, every exact/first-over
+  budget axis, and cross-target custody fail closed. Its 60-line entrance over
+  named compute/replay leaves grants no instruction, memory, frame, fault,
+  encoding, emission, or publication authority.
+  Abstract spill memory effects and ISA lowering, final frame offsets, unwind/
+  probing, and downstream realization remain engineering work. Real memory
+  insertion is owner-blocked only on the spill-access fault semantics recorded
+  in `OWNER_QUESTIONS.md`; the abstract schedules, reload-home analyses, and
+  synthetic namespaces are not blocked.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,
