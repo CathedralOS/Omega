@@ -14,17 +14,17 @@ use omega_psi_optimizer::{
 };
 
 #[derive(Clone, Copy)]
-enum Relocation {
+pub(super) enum Relocation {
     Zero,
     One,
     Both,
 }
 
-struct RelocatedCountdown {
-    input: VerifiedPsiOptimizationInput,
-    unit: PsiOptimizationUnit,
-    certificate: OptimizerUnsignedCountdownRankingCertificate,
-    preheader: psi_core::BlockId,
+pub(super) struct RelocatedCountdown {
+    pub(super) input: VerifiedPsiOptimizationInput,
+    pub(super) unit: PsiOptimizationUnit,
+    pub(super) certificate: OptimizerUnsignedCountdownRankingCertificate,
+    pub(super) preheader: psi_core::BlockId,
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn fuel_mutation_still_reaches_the_unchanged_frozen_block_fence() {
     );
 }
 
-fn relocated_countdown(relocation: Relocation) -> RelocatedCountdown {
+pub(super) fn relocated_countdown(relocation: Relocation) -> RelocatedCountdown {
     let (_, verified) = countdown_unit();
     let session = VerifiedPsiOptimizationSession::new(verified).expect("verified countdown");
     let certificate = session.ranking_certificates().certificates()[0].clone();
