@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        51
+        52
     }
 }
 

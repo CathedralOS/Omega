@@ -297,18 +297,26 @@ selection to interpret its meaning. It contains:
 
 The first quotient correspondence carrier is proof-only. `TerminalModule`
 retains a strictly identity-ordered table for the narrow monomorphic, total,
-direct faithful `define` certificate. The codec serializes the complete
+direct faithful `define` certificate and the position-preserving direct
+`lift` certificate backed by explicit `Congruence` and
+`ForwardPreconditionTransport` evidence. The transport payload retains every
+public-`Q`, representative-`P`, and congruence-legality fact's Left/Right
+application side, authored source coordinate, and selected-theorem coordinate.
+The codec serializes the complete
 source-free certificate, including its canonically role-ordered theorem
 evidence, and rederives its retained identity on decode. The role discriminant
 precedes the selected application and role-specific payload in identity and
 canonical bytes. Representation validation rejects missing, duplicate,
 reversed, surplus, role/payload-mismatched, and unknown-tag evidence before it
-independently reconstructs the theorem, correspondence, eligibility, and
-direct-result shape. A nonempty table is still
+independently reconstructs the theorem, correspondence, eligibility,
+fact-major/source and theorem-coordinate order, exact congruence-`P`/transport-
+`P` join, and direct-result shape. Format 49 / vocabulary 52 carry this
+strengthened source-free contract. A nonempty table is still
 rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
 therefore a canonical-retention prerequisite, not executable quotient
-lowering.
+lowering. Package review still has no quotient-operation record and blanket-
+rejects quotient contract calls; that migration remains open.
 
 Nominal static-machine callback bindings survive as explicit call-use rows.
 Each row names the registration call and operation, static-machine argument
@@ -682,8 +690,8 @@ loan and ending at state exit. Each root-to-leaf edge is exactly
 The producer reverses the leaf's exact retired-parent path, rejects branching,
 and rejoins every resource, activation, parent-entry formation, weakening,
 captured-place, projection-remainder, and `ExclusiveSuspension` row before
-accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 48 /
-vocabulary 51 round-trip the complete lineage and restored-use publication.
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 49 /
+vocabulary 52 round-trip the complete lineage and restored-use publication.
 Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
@@ -3324,7 +3332,7 @@ Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-48 / vocabulary 51 carries the closed artifact descriptor: rooted-checker
+49 / vocabulary 52 carries the closed artifact descriptor: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier

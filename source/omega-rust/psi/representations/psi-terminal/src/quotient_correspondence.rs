@@ -5,8 +5,9 @@
 
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
-    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientTheoremCorrespondence,
-    QuotientTheoremParameterRole, QuotientTheoremRole,
+    QuotientCorrespondenceOperationKind, QuotientPositionalRelation,
+    QuotientTheoremApplicationSide, QuotientTheoremCorrespondence, QuotientTheoremParameterRole,
+    QuotientTheoremRole,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -34,7 +35,7 @@ fn quotient_correspondence_identity(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> QuotientCorrespondenceIdentity {
     let mut writer = IdentityWriter::new();
-    writer.string("omega.quotient-correspondence.theorem-roles.v2");
+    writer.string("omega.quotient-correspondence.transport-coordinates.v3");
     writer.byte(match certificate.operation_kind {
         QuotientCorrespondenceOperationKind::Lift => 1,
         QuotientCorrespondenceOperationKind::Define => 2,
@@ -80,12 +81,12 @@ fn quotient_correspondence_identity(
             QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) => {
                 writer.byte(2);
                 writer.len(transport.public_premises.len());
-                for coordinate in &transport.public_premises {
-                    writer.coordinate(*coordinate);
+                for fact in &transport.public_premises {
+                    writer.transport_fact(*fact);
                 }
                 writer.len(transport.representative_conclusions.len());
-                for coordinate in &transport.representative_conclusions {
-                    writer.coordinate(*coordinate);
+                for fact in &transport.representative_conclusions {
+                    writer.transport_fact(*fact);
                 }
             }
         }
@@ -132,7 +133,7 @@ fn write_congruence(
     }
     writer.len(congruence.legality_premises.len());
     for premise in &congruence.legality_premises {
-        writer.coordinate(*premise);
+        writer.transport_fact(*premise);
     }
     writer.coordinate(congruence.conclusion.actual);
     writer.string(&congruence.conclusion.relation);
@@ -216,5 +217,17 @@ impl IdentityWriter {
         });
         self.u32(coordinate.contract_position);
         self.u32(coordinate.fact_position);
+    }
+
+    fn transport_fact(
+        &mut self,
+        fact: psi_language_semantics::quotient_correspondence::QuotientForwardPreconditionTransportFact,
+    ) {
+        self.byte(match fact.application {
+            QuotientTheoremApplicationSide::Left => 1,
+            QuotientTheoremApplicationSide::Right => 2,
+        });
+        self.coordinate(fact.source);
+        self.coordinate(fact.actual);
     }
 }

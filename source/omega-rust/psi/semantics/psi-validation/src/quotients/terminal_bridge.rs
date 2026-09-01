@@ -87,9 +87,6 @@ fn extract_one(
         .quotient_operation
         .as_ref()
         .ok_or_else(|| "the retained call lost its quotient request".to_owned())?;
-    if request.kind != QuotientOperationKind::Define {
-        return Err("the proof-only bridge admits faithful `define` only".to_owned());
-    }
     let plan =
         super::relation_plan::derive_direct_terminal_plan(program, machine, state, call, request)
             .map_err(|error| format!("direct faithful plan is unresolved: {error}"))?;
@@ -103,13 +100,43 @@ fn extract_one(
         super::relation_plan::complete_single_state_result_flow(program, machine, state, *root)
             .ok_or_else(|| "result flow is not complete direct single-state flow".to_owned())?;
 
-    super::relation_plan::canonical_total_define_correspondence(
-        program,
-        machine,
-        state,
-        request_expression,
-        &plan,
-        representative_purity,
-        result_flow,
-    )
+    match (request.kind, request.theorem_evidence.as_ref()) {
+        (QuotientOperationKind::Define, [_]) => {
+            super::relation_plan::canonical_total_define_correspondence(
+                program,
+                machine,
+                state,
+                request_expression,
+                &plan,
+                representative_purity,
+                result_flow,
+            )
+        }
+        (
+            QuotientOperationKind::Lift,
+            [
+                psi_typed_trees::expression::QuotientTheoremSelection {
+                    role: psi_typed_trees::expression::QuotientTheoremRole::Congruence,
+                    ..
+                },
+                psi_typed_trees::expression::QuotientTheoremSelection {
+                    role:
+                        psi_typed_trees::expression::QuotientTheoremRole::ForwardPreconditionTransport,
+                    ..
+                },
+            ],
+        ) => super::relation_plan::canonical_transport_lift_correspondence(
+            program,
+            machine,
+            state,
+            request_expression,
+            &plan,
+            representative_purity,
+            result_flow,
+        ),
+        _ => Err(
+            "the proof-only bridge admits faithful `define` or direct transport-backed `lift` only"
+                .to_owned(),
+        ),
+    }
 }

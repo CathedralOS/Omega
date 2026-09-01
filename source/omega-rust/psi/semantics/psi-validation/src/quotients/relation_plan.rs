@@ -80,7 +80,9 @@ pub(super) use result_flow::{
 use static_application::{
     derive_exact_representative_static_application, substituted_type_matches,
 };
-pub(super) use terminal_bridge::canonical_total_define_correspondence;
+pub(super) use terminal_bridge::{
+    canonical_total_define_correspondence, canonical_transport_lift_correspondence,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ExactQuotientRelation {

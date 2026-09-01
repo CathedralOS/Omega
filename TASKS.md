@@ -6843,7 +6843,7 @@ Owners:
   resource, activation, parent-entry formation, weakening, captured-place,
   projection-remainder, and `ExclusiveSuspension` containment row before
   accepting the leaf's exact `StateExitDirectRootHandoff` and root-lifetime
-  target. Terminal format 48 / vocabulary 51 retain the complete lineage in one
+  target. Terminal format 49 / vocabulary 52 retain the complete lineage in one
   canonical row. Codec and verifier reject empty, reordered, duplicated,
   access-amplified, malformed, redirected, branched, shared, or non-state-exit
   lineages. The row grants root custody only; its vocabulary cannot express
@@ -10518,11 +10518,19 @@ Remaining N6/N8 work:
   checked-body, pure-closure, unconditional-termination, and crash-free
   eligibility. It produces a distinct non-executable transport-backed lift
   certificate with no automatic implication or fixed-call rows; dependent and
-  fixed `P` are both covered by the complete theorem roster. Terminal still
-  does not replay that checked transport certificate, and package review still
-  has no quotient operation record because quotient contract calls remain
-  blanket-rejected, so those representation and admission migrations remain
-  open.
+  fixed `P` are both covered by the complete theorem roster. The bounded
+  non-executable Terminal seam now retains and independently replays the exact
+  position-preserving transport lift: each public-`Q`, representative-`P`, and
+  congruence-legality row preserves its Left/Right application side, authored
+  source coordinate, and selected-theorem coordinate. Canonical identity,
+  format 49/vocabulary 52 bytes, decoding, and representation validation bind
+  role order, fact-major source order, theorem-coordinate order, and the exact
+  congruence-`P`/transport-`P` join. Adapted lift shapes remain outside this
+  first carrier. Execution validation still rejects every retained row.
+  Package review still has no quotient operation record because quotient
+  contract calls remain blanket-rejected, so package-review representation and
+  executable admission remain open; this does not close the full stage-4
+  migration.
 
   A failed built-in implication diagnostic must print the expected public and
   representative fact coordinates and point directly to
@@ -10707,7 +10715,7 @@ Remaining N6/N8 work:
   `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
   exact toolchain operator and result owners, private contract-free ordinary
   signature, source carrier, hermetic operation identity, and catalog version.
-  Checked deduplication and Terminal format 48 / vocabulary 51 retain that
+  Checked deduplication and Terminal format 49 / vocabulary 52 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
   operands to share that exact format and contract carrier. Resolved symbols
