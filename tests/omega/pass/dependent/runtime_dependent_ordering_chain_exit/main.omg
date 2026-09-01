@@ -8,7 +8,7 @@
 // index (via_ordering). Widening the guard to `< 9` refuses (probed).
 // Staleness rides the existing forget-on-reassignment machinery on both
 // pair ends; positive offsets do not mint (would over-claim).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; items: [u8; 5]; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 4;

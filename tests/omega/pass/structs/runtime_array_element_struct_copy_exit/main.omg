@@ -5,7 +5,7 @@
 // pattern: pull an element out, work on it, leave the array untouched). The check
 // discriminates both ways: the array element keeps its original (5, 6) AND the copy holds the
 // mutated values (50, 60). Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point {
     x: i32 in Wrapping;

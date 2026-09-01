@@ -9,7 +9,7 @@
 // with NO guard. Unguarded callers and unknown/non-slice sibling names
 // refuse (fail siblings). Slice views are immutable, so the length
 // needs no write fence.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; buf: [u8; 8]; j: u64; out: i32; }
 machine Main::main(&mut self) {
     self.buf[5] = 7;

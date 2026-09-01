@@ -16,7 +16,7 @@
 // read pinned the hole; the interp declined). The DIRECT spelling
 // `pixels[y * self.cols + x]` (R3b) rides the same rule mirrored at the
 // hoist-temp range synthesis -- no explicit ranged temp needed.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.rows = 3;

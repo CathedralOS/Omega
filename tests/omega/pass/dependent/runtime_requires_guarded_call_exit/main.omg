@@ -10,7 +10,7 @@
 // (probed), as does the unguarded caller
 // (fail/dependent/requires_call_unproven_rejected).
 // exits: 9 - 3 = 6.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main { console: Console; a: u32; b: u32; out: i32; }
 machine Main::main(&mut self) {

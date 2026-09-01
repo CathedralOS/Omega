@@ -11,7 +11,7 @@
 // field range that breaks the product ([0..=4] cols -> top 12) refuses
 // with the clean cannot-prove error (probed).
 // exits: 71 = the composed read delivered the wrong element.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     pixels: [u8; 12];

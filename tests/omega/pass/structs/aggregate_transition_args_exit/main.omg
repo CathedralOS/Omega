@@ -9,7 +9,7 @@
 // boundary guard compares (`n <= 99` at n == 100).
 // exits: 71 = struct arg field wrong/bled; 72 = sum arg dispatch wrong;
 // 73 = sum arg payload wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }

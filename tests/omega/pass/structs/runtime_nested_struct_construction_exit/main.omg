@@ -11,7 +11,7 @@
 // Constructs a Rect from two Points, reads the nested fields, and computes the width
 // and height -- all correct -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point {
     x: i32 in Trapping;

@@ -409,8 +409,10 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("borrow", 3),
         ("comptime", 4),
         ("constants", 2),
+        ("dependent", 11),
         ("errors", 1),
         ("storage", 10),
+        ("structs", 12),
     ] {
         assert_canaries_declare_ordinary_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),

@@ -3,7 +3,7 @@
 // in one run -- classify(7)=Pos, classify(-4)=Neg, classify(0)=Zero -- so a wrong classify arm
 // or a wrong match arm takes the false path. Combines value-call enum return + multi-arm dispatch.
 // Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Sign { case Neg; case Zero; case Pos; }
 data Main { console: Console; }
 machine Main::classify(&self, n: i32) -> Sign {

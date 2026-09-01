@@ -10,7 +10,7 @@
 // dependent_subtract_after_write_rejected), and the FLIPPED direction
 // (`i - self.count`) stays refused (probed -- underflow is real there).
 // exits: 8 - 6 = 2.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;
