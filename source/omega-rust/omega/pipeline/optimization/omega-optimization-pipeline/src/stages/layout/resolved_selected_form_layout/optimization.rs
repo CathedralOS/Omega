@@ -86,6 +86,19 @@ pub(super) fn validate_optimization_custody(
                 && normalized.baseline_bytes() == receipt.baseline_bytes()
                 && normalized.selected_bytes() == receipt.selected_bytes()
         }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(staged) => {
+            let receipt = staged.custody();
+            normalized.optimization()
+                == Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1
+                && normalized.artifact_identity() == receipt.materialization().bytes()
+                && normalized.selections() == receipt.selections()
+                && normalized.post_allocation_machine_selections()
+                    == receipt.post_allocation_machine_selections()
+                && normalized.source() == receipt.source()
+                && normalized.action_count() == receipt.action_count()
+                && normalized.baseline_bytes() == receipt.baseline_bytes()
+                && normalized.selected_bytes() == receipt.selected_bytes()
+        }
     };
     if !paired || normalized.source() != source {
         return Err(OptimizedResolvedSelectedFormLayoutError::OptimizationCustodyMismatch);

@@ -2,7 +2,9 @@ use omega_optimization_core::{Optimization, OptimizationSelectionIdentity};
 
 use super::{
     StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnMaterialization,
-    StagedOptimizedX86MovR32Imm32Materialization, StagedOptimizedX86XorZeroMaterialization,
+    StagedOptimizedX86MovR32Imm32Materialization,
+    StagedOptimizedX86MovR64Imm32SignExtendedMaterialization,
+    StagedOptimizedX86XorZeroMaterialization,
 };
 
 /// Rule-independent evidence retained by later physical stages.
@@ -90,6 +92,7 @@ pub enum StagedOptimizedPostAllocationMachineOptimization {
     Aarch64Cbnz(StagedOptimizedAarch64CbnzFusion),
     Aarch64Movn(StagedOptimizedAarch64MovnMaterialization),
     X86MovR32Imm32(StagedOptimizedX86MovR32Imm32Materialization),
+    X86MovR64Imm32SignExtended(StagedOptimizedX86MovR64Imm32SignExtendedMaterialization),
     X86XorZero(StagedOptimizedX86XorZeroMaterialization),
 }
 
@@ -153,6 +156,18 @@ impl StagedOptimizedPostAllocationMachineOptimization {
                     receipt.selected_bytes(),
                 )
             }
+            Self::X86MovR64Imm32SignExtended(staged) => {
+                let receipt = staged.custody();
+                (
+                    receipt.materialization().bytes(),
+                    receipt.selections(),
+                    receipt.post_allocation_machine_selections(),
+                    receipt.source(),
+                    receipt.action_count(),
+                    receipt.baseline_bytes(),
+                    receipt.selected_bytes(),
+                )
+            }
         };
         Some(PostAllocationMachineOptimizationCustody {
             optimization: self.optimization(),
@@ -176,6 +191,9 @@ impl StagedOptimizedPostAllocationMachineOptimization {
             Self::X86MovR32Imm32(_) => {
                 Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1
             }
+            Self::X86MovR64Imm32SignExtended(_) => {
+                Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1
+            }
         }
     }
 
@@ -185,6 +203,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
             Self::Aarch64Movn(staged) => staged.custody().selections(),
             Self::X86XorZero(staged) => staged.custody().selections(),
             Self::X86MovR32Imm32(staged) => staged.custody().selections(),
+            Self::X86MovR64Imm32SignExtended(staged) => staged.custody().selections(),
         }
     }
 
@@ -194,6 +213,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
             Self::Aarch64Movn(staged) => staged.custody().source(),
             Self::X86XorZero(staged) => staged.custody().source(),
             Self::X86MovR32Imm32(staged) => staged.custody().source(),
+            Self::X86MovR64Imm32SignExtended(staged) => staged.custody().source(),
         }
     }
 
@@ -203,6 +223,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
             Self::Aarch64Movn(staged) => staged.custody().action_count(),
             Self::X86XorZero(staged) => staged.custody().action_count(),
             Self::X86MovR32Imm32(staged) => staged.custody().action_count(),
+            Self::X86MovR64Imm32SignExtended(staged) => staged.custody().action_count(),
         }
     }
 }

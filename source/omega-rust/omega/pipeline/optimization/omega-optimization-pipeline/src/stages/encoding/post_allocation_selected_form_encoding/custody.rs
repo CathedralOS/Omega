@@ -69,6 +69,21 @@ pub(super) fn validate_optimization_roots<S: ValidatedSelectedAnalysis>(
                 && plan.target == selected.selected_plan().target
                 && plan.physical_register_model == physical.identity()
         }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(
+            materialization,
+        ) => {
+            let receipt = materialization.materialization().receipt();
+            let plan = materialization.materialization().plan();
+            selected.selected_plan().target.architecture == Architecture::X86_64
+                && receipt.selected() == selected.selected_identity()
+                && receipt.source() == machine.machine().receipt().identity()
+                && receipt.identity() == materialization.custody().materialization()
+                && receipt.action_count() == materialization.custody().action_count()
+                && receipt.baseline_bytes() == materialization.custody().baseline_bytes()
+                && receipt.selected_bytes() == materialization.custody().selected_bytes()
+                && plan.target == selected.selected_plan().target
+                && plan.physical_register_model == physical.identity()
+        }
     };
     if !roots_match
         || normalized.source() != machine.machine().receipt().identity()

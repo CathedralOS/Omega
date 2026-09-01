@@ -8,6 +8,7 @@ mod fma;
 mod ieee_float;
 mod machine_effects;
 mod mov_r32_imm32_i64_materialization;
+mod mov_r64_imm32_sign_extended_i64_materialization;
 mod post_handoff_writer;
 mod ranked_u32_countdown;
 mod register_model;
@@ -33,6 +34,15 @@ pub use mov_r32_imm32_i64_materialization::{
     decode_x86_64_mov_r32_imm32_i64_materialization,
     encode_x86_64_mov_r32_imm32_i64_materialization,
     validate_x86_64_mov_r32_imm32_i64_materialization,
+};
+pub use mov_r64_imm32_sign_extended_i64_materialization::{
+    ValidatedX86_64MovR64Imm32SignExtendedI64Materialization,
+    X86_64DecodedMovR64Imm32SignExtendedI64Materialization,
+    X86_64MovR64Imm32SignExtendedI64MaterializationError,
+    X86_64MovR64Imm32SignExtendedI64MaterializationFootprint,
+    decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+    encode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+    validate_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
 };
 pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,

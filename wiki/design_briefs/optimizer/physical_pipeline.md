@@ -340,7 +340,10 @@ such as:
   RFLAGS unit is dead-out; and
 - x86-64 `0..=u32::MAX` i64 materialization via the canonical five- or
   six-byte `MOV r32, imm32` form. Its 32-bit write zero-extends the retained
-  semantic 64-bit destination and preserves RFLAGS.
+  semantic 64-bit destination and preserves RFLAGS; and
+- x86-64 i64 materialization whose exact bits round-trip through signed i32
+  via the canonical seven-byte `REX.W + C7 /0 r64, imm32` form. Its 64-bit
+  write sign-extends the immediate and preserves RFLAGS.
 
 All produce variants of one validated post-allocation stage result. The result
 contains the original source identity, exact rule identity, validated symbolic
@@ -368,8 +371,8 @@ organization audit enforces that dependency boundary.
 
 Direct homes and homes after selected lowering enter one
 `StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN,
-XOR-zero, and MOV-r32-imm32 therefore share the same encoding, layout, exit,
-realization, and fragment source route. The former named CBNZ/MOVN
+XOR-zero, MOV-r32-imm32, and MOV-r64-imm32 therefore share the same encoding,
+layout, exit, realization, and fragment source route. The former named CBNZ/MOVN
 complete-route carriers have been removed; rule-specific values remain typed
 leaves borrowed from the shared result.
 
@@ -388,7 +391,8 @@ not call the producer's transformation helpers; an architecture dependency
 guard enforces that separation.
 
 The adjacent machine catalog is also the architecture-admission point. CBNZ
-and MOVN require AArch64; XOR-zero and MOV-r32-imm32 require x86-64.
+and MOVN require AArch64; XOR-zero, MOV-r32-imm32, and MOV-r64-imm32 require
+x86-64.
 Each row joins the exact optimization name, required architecture, and closed
 execution kind. The selected row survives physical composition intact; both
 source lineages dispatch on its typed kind instead of reconstructing a second
@@ -413,8 +417,8 @@ The encoding entrance joins construction to a separate `validation/` rung.
 That rung checks roots and normalized optimization custody, then descends
 independently through ordinary rows, structural rows, and aggregate
 counts/identity. Row validation consumes candidate bytes only through the
-target-owned baseline, MOVN, XOR-zero, MOV-r32-imm32, and structural-call
-decoders; an
+target-owned baseline, MOVN, XOR-zero, MOV-r32-imm32, MOV-r64-imm32, and
+structural-call decoders; an
 architecture guard forbids imports of producer row/structural encoders. CBNZ
 dispositions are reconstructed from the typed optimization plan while its
 unresolved branch remains explicit deferred control.
@@ -510,8 +514,9 @@ admits baseline, selected lowering, one allocation-recovery rule alone, one
 post-allocation rule with optional selected lowering, function-relative layout
 with optional selected lowering, and one exact cross-phase pair:
 active-resident immediate-U64 multi-use rematerialization followed by x86
-MOV-r32-imm32 selection. Multiple recovery or machine rules, every other
-recovery-machine pair, and machine plus layout reject before route execution.
+MOV-r32-imm32 or sign-extending MOV-r64-imm32 selection. Multiple recovery or
+machine rules, every other recovery-machine pair, and machine plus layout
+reject before route execution.
 The canonical post-allocation catalog entry survives composition and its closed
 execution kind selects the named leaf; lower leaves independently validate
 transformation and custody.

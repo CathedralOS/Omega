@@ -6,6 +6,9 @@ use super::super::{
     validate_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering_custody,
     validate_optimized_x86_mov_r32_imm32_materialization_custody,
+    validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_active_resident_rematerialization_custody,
+    validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_selected_lowering_custody,
+    validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_custody,
     validate_optimized_x86_xor_zero_materialization_after_selected_lowering_custody,
     validate_optimized_x86_xor_zero_materialization_custody,
     OptimizedPostAllocationMachineOptimizationError,
@@ -36,6 +39,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_custody(
         StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(staged) => {
             validate_optimized_x86_mov_r32_imm32_materialization_custody(source, machine, staged)
                 .map(drop)
+        }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(staged) => {
+            validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_custody(
+                source, machine, staged,
+            )
+            .map(drop)
         }
     }
 }
@@ -70,6 +79,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_after_selected_lo
             )
             .map(drop)
         }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(staged) => {
+            validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_selected_lowering_custody(
+                source, machine, staged,
+            )
+            .map(drop)
+        }
     }
 }
 
@@ -81,6 +96,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_after_active_resi
     match staged {
         StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(staged) => {
             validate_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization_custody(
+                source, machine, staged,
+            )
+            .map(drop)
+        }
+        StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(staged) => {
+            validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_active_resident_rematerialization_custody(
                 source, machine, staged,
             )
             .map(drop)

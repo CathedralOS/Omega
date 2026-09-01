@@ -34,6 +34,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn optimize_x86_materialize_i64_with_mov_r32_imm32",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64/materialize_i64_mov_r64_imm32_sign_extended/mod.rs",
+        coordination_marker: "pub fn optimize_x86_materialize_i64_with_mov_r64_imm32_sign_extended",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/x86_64/materialize_i64_xor_zero/mod.rs",
         coordination_marker: "pub fn optimize_x86_materialize_i64_zero_with_xor",
     },

@@ -10,6 +10,9 @@ use super::super::{
     stage_optimized_x86_mov_r32_imm32_materialization,
     stage_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization,
     stage_optimized_x86_mov_r32_imm32_materialization_after_selected_lowering,
+    stage_optimized_x86_mov_r64_imm32_sign_extended_materialization,
+    stage_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_active_resident_rematerialization,
+    stage_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_selected_lowering,
     stage_optimized_x86_xor_zero_materialization,
     stage_optimized_x86_xor_zero_materialization_after_selected_lowering,
     OptimizedPostAllocationMachineOptimizationError,
@@ -45,6 +48,10 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_for_catalog_e
             stage_optimized_x86_mov_r32_imm32_materialization(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32)
         }
+        PostAllocationMachineRuleKind::X86MovR64Imm32SignExtended => {
+            stage_optimized_x86_mov_r64_imm32_sign_extended_materialization(source, machine)
+                .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended)
+        }
     }
 }
 
@@ -75,6 +82,12 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_selecte
             )
             .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32)
         }
+        PostAllocationMachineRuleKind::X86MovR64Imm32SignExtended => {
+            stage_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_selected_lowering(
+                source, machine,
+            )
+            .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended)
+        }
     }
 }
 
@@ -92,6 +105,14 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_active_
                 source, machine,
             )
             .map(StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32)
+        }
+        PostAllocationMachineRuleKind::X86MovR64Imm32SignExtended => {
+            stage_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_active_resident_rematerialization(
+                source, machine,
+            )
+            .map(
+                StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended,
+            )
         }
         _ => Err(
             OptimizedPostAllocationMachineOptimizationError::UnsupportedPostAllocationMachineOptimization(

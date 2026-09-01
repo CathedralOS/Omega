@@ -1,6 +1,9 @@
 use omega_abstract_operations::AbstractOperation;
 use omega_isa_aarch64::validate_aarch64_shortest_movn_materialization;
-use omega_isa_x86_64::decode_x86_64_mov_r32_imm32_i64_materialization;
+use omega_isa_x86_64::{
+    decode_x86_64_mov_r32_imm32_i64_materialization,
+    decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization,
+};
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use omega_optimization_pipeline::*;
 use omega_optimization_unit::PsiRewritePatch;
@@ -34,6 +37,27 @@ pub(super) fn exercise_x86(case: &CorpusCase, artifact: &CorpusArtifact) {
     );
     assert_eq!(first, second, "x86 corpus case drifted: {case:?}");
     assert_x86_oracle(&first, artifact.expected);
+
+    let sign_extended_expected = i64::from(artifact.expected as u32 as i32) as u64;
+    let sign_extended_artifact =
+        super::psi::immediate_artifact(case.ordinal, sign_extended_expected, 35_000);
+    let first = run_machine(
+        case,
+        &sign_extended_artifact,
+        NativeTarget::linux_x64(),
+        Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
+    );
+    let second = run_machine(
+        case,
+        &sign_extended_artifact,
+        NativeTarget::linux_x64(),
+        Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
+    );
+    assert_eq!(
+        first, second,
+        "x86 sign-extended corpus case drifted: {case:?}"
+    );
+    assert_x86_sign_extended_oracle(&first, sign_extended_expected);
 }
 
 pub(super) fn exercise_aarch64(case: &CorpusCase, artifact: &CorpusArtifact) {
@@ -250,6 +274,32 @@ fn assert_x86_oracle(run: &MachineEvidence, expected: u64) {
         };
         let decoded =
             decode_x86_64_mov_r32_imm32_i64_materialization(&run.physical, bytes).unwrap();
+        assert_eq!(decoded.value_bits(), expected);
+        assert_eq!(action.literal_bits, expected);
+    }
+}
+
+fn assert_x86_sign_extended_oracle(run: &MachineEvidence, expected: u64) {
+    let StagedOptimizedPostAllocationMachineOptimization::X86MovR64Imm32SignExtended(
+        materialization,
+    ) = &run.optimization
+    else {
+        panic!("x86 sign-extended lane did not select MOV-r64-imm32")
+    };
+    assert_eq!(materialization.materialization().plan().actions.len(), 2);
+    for action in &materialization.materialization().plan().actions {
+        let row = run
+            .encoding
+            .rows()
+            .iter()
+            .find(|row| row.instruction == action.instruction)
+            .unwrap();
+        let SelectedFormEncodingState::Encoded { bytes, .. } = &row.state else {
+            panic!("x86 sign-extended materialization must own encoded bytes")
+        };
+        let decoded =
+            decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(&run.physical, bytes)
+                .unwrap();
         assert_eq!(decoded.value_bits(), expected);
         assert_eq!(action.literal_bits, expected);
     }
