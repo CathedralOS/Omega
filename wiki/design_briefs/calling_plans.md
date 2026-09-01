@@ -1312,12 +1312,16 @@ live-registration capacity, callback code/component leases, or a source-level
 The current direct-parameter path stops at canonical installation custody.
 Installation format 50 retains the exact compiler-private thunk identity,
 source-Psi identity, artifact-local machine, fixed-integer ABI, and final text
-interval and rejoins that row to the executable image after encode/decode. The
-next deployment rung must publish that private function as an installed entry,
-join it to an admitted external root and exact provider result, and preserve
-complete retry custody through failure, unregister, and quiescence. Capacity
-still means simultaneous live registrations, not emitted thunk count or a
-consumable lifetime budget.
+interval and rejoins that row to the executable image after encode/decode. A
+first deployment prerequisite now accepts a caller-supplied, already-admitted
+entry identity and binds it to that unique row's exact final-text start, bytes,
+and opaque installed occurrence. It does not derive an entry identity, expose
+an executable address, publish code, admit an external root, or establish
+registrar success. The next deployment rung must join that pinned entry to an
+admitted external root and exact provider result, then preserve complete retry
+custody through failure, unregister, and quiescence. Capacity still means
+simultaneous live registrations, not emitted thunk count or a consumable
+lifetime budget.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained

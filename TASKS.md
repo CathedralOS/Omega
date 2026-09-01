@@ -8920,11 +8920,18 @@ Owners:
   callback registration modules were removed. Generic installed-code and
   external-root primitives survive, including opaque callback replacement,
   but they do not establish registrar success, live-registration capacity,
-  callback lease custody, or a source `Registration`. The next implementation
-  must join the format-50 private-function installation row to one published
-  entry and an admitted root, then preserve exact retry custody across provider
-  success/failure, unregister, and quiescence. This is engineering work under
-  the settled protocol, not evidence that the deleted carrier is still live.
+  callback lease custody, or a source `Registration`. The first installed-entry
+  attribution prerequisite is live: a caller-supplied, already-admitted
+  `EntryStubId` can be joined to the unique exact format-50 private-function
+  row, its final text offset and bytes, and the opaque installed-code
+  occurrence. Identity, process-entry, absent-entry, interior-offset, and
+  cross-occurrence substitution reject. This carrier does not derive an entry,
+  resolve an address, publish code, admit an external root, or grant registrar,
+  capacity, lease, unregister, or quiescence authority. The next implementation
+  must join that pinned entry to an admitted root and exact provider result,
+  then preserve complete retry custody across provider success/failure,
+  unregister, and quiescence. This is engineering work under the settled
+  protocol, not evidence that the deleted carrier is still live.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public

@@ -9,13 +9,14 @@ name = "omega_image_emission"
 path = "src/lib.rs"
 
 [features]
-installed-artifact = ["dep:omega-executable-installation"]
+installed-artifact = ["dep:omega-executable-installation", "dep:psi-layout-plans"]
 
 [dependencies]
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
 omega-abstract-operations = { path = "../../../representations/omega-abstract-operations" }
 omega-executable-installation = { path = "../../runtime/omega-executable-installation", optional = true }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
+psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans", optional = true }
 omega-image = { path = "../omega-image" }
 omega-image-elf = { path = "../omega-image-elf" }
 omega-image-macho = { path = "../omega-image-macho" }
@@ -45,3 +46,5 @@ iced-x86 = { version = "1.21", default-features = false, features = ["std", "dec
 omega-abstract-operations-to-target-operations = { path = "../../../pipeline/omega-abstract-operations-to-target-operations" }
 omega-machine-emission = { path = "../../omega-machine-emission" }
 omega-target-operations-to-assigned-target-operations = { path = "../../../pipeline/omega-target-operations-to-assigned-target-operations" }
+psi-extents = { path = "../../../../psi/foundation/psi-extents" }
+psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
