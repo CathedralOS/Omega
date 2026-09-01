@@ -444,6 +444,12 @@ source-corruption, and target-corruption leaves mirror that production split.
 Its own catalog adapter, catalog canary, and optimized-custody leaf keep the
 family visibly separate from plain Boolean immediate, constant Boolean-not,
 and parameter Boolean equality.
+Constant integer-equality immediate translation is independently rooted under
+`straight_line_integer_equal_immediate/`. Its 27-line entrance joins only the
+same-type four-operation grammar and independent Boolean-immediate replay.
+Mirrored fixture, positive, source-corruption, and target-corruption leaves,
+plus a dedicated catalog adapter/canary and optimized-custody leaf, keep it
+separate from parameter integer equality and every plain immediate family.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line

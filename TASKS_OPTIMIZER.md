@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Fifty-three abstract-to-target families are covered,
+  machine-rule family. Fifty-four abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -545,6 +545,16 @@ decision. Only true language-semantic questions belong in
   public optimized-target custody on all five native targets (20 cases at each
   boundary); the family remains disjoint from plain Boolean-immediate,
   constant Boolean-not, and parameter Boolean-equality shapes.
+  The adjacent constant integer-equality-to-Boolean-immediate family admits
+  only `[IntegerConstant, IntegerConstant, IntegerEqual, Return]` with two
+  same-type native integer constants. Independent source grammar and target
+  replay retain both ordered constants, all three definition identities, the
+  exact integer carrier and mathematical values, provenance, return link, and
+  materialized Boolean result. Signed and unsigned fixed 8/16/32/64 plus
+  address64 cross four ordered boundary pairs and all five native targets at
+  both direct translation and public optimized-target custody (180 cases at
+  each boundary). Source/target corruption and adjacent-family substitution
+  fail closed.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -909,6 +919,12 @@ decision. Only true language-semantic questions belong in
     and target replay cover all four ordered truth pairs across all five
     targets, retain both constants and the equality operation in provenance,
     and prove the target contains only the exact Boolean result.
+  - [x] Add constant integer-equality-to-Boolean-immediate as its own exact
+    abstract-to-target family. Its independently reconstructed four-operation
+    grammar and target replay cover signed/unsigned fixed 8/16/32/64 and
+    address64 across four ordered boundary pairs on all five targets, retain
+    both constants and the equality operation in provenance, and prove the
+    target contains only the exact Boolean result.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
