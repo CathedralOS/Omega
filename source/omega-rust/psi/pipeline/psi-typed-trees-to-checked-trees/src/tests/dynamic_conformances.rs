@@ -29,6 +29,43 @@ const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
     }
 "#;
 
+const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Shape {
+        machine code(&self) -> i32;
+    }
+
+    data Item [copy] {
+        value: i32;
+    }
+
+    Primary: Item satisfies Shape {
+        machine code(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        console: Console;
+        item: Item;
+    }
+
+    machine Main::run(&mut self) reaches Console {
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        let result: i32 = erased.code();
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+"#;
+
 fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -331,6 +368,37 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
             if matches!(
                 expression.as_ref(),
                 psi_checked_trees::CheckedBooleanExpression::Constant(true)
+            )
+    ));
+}
+
+#[test]
+fn direct_dynamic_plan_retains_result_control_and_effect_leaves() {
+    let checked = check_dynamic_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let plan = sole_direct_dynamic_plan(&checked);
+    assert!(plan.caller_structural_scalar_field_store.is_none());
+    let continuation = plan
+        .unit_continuation
+        .as_ref()
+        .expect("checked dynamic result continuation");
+    assert_eq!(continuation.when_true.statement_ordinal, 2);
+    assert_eq!(continuation.when_false.statement_ordinal, 3);
+    assert_eq!(continuation.leaves.len(), 2);
+    assert_eq!(continuation.provider_attachment_requirements.len(), 1);
+    assert_eq!(
+        checked.facts.values.scalar_expressions.expression_at(
+            plan.caller_state,
+            continuation.when_true.statement_ordinal,
+            psi_checked_trees::CheckedScalarExpressionRole::Guard,
+        ),
+        Some(&continuation.guard)
+    );
+    assert!(matches!(
+        &continuation.guard,
+        psi_checked_trees::CheckedScalarExpression::Boolean(expression)
+            if matches!(
+                expression.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
             )
     ));
 }

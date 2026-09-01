@@ -312,3 +312,24 @@ fn rejects_integer_field_result_and_read_authority_corruption() {
         "unexpected error: {error:?}"
     );
 }
+
+#[test]
+fn admits_affine_shared_integer_field_observation_but_rejects_linear_custody() {
+    let mut affine = structural_scalar_field_module();
+    affine.entry = id::<MachineId>(2);
+    affine.machines.remove(0);
+    affine.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    validate_module(&affine).expect("an affine shared parameter licenses scalar observation");
+
+    let mut linear = affine;
+    linear.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Linear;
+    let error = validate_module(&linear).expect_err("linear field observation rejects");
+    assert!(
+        matches!(
+            error,
+            ModuleError::LinearParameterHasNoEntryClaim { machine, place }
+                if machine == id::<MachineId>(2) && place == id::<PlaceId>(2)
+        ),
+        "unexpected error: {error:?}"
+    );
+}

@@ -41,7 +41,7 @@ pub(super) fn validate_provider_attachment_requirements(
     Ok(())
 }
 
-pub(super) fn lower_provider_attachment_places(
+pub(crate) fn lower_provider_attachment_places(
     attachment: StructuralTypeId,
     declaration: &StructuralTypeDeclaration,
     requirements: &[psi_checked_trees::CheckedProviderAttachmentRequirementPlan],

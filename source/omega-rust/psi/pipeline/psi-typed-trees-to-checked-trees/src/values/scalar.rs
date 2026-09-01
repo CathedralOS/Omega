@@ -2588,7 +2588,7 @@ fn lower_boolean_expression(
             ) && operator_is_builtin(operators, expression) =>
         {
             let integer_operands = (|| {
-                let (left, _) = lower_scalar_expression(
+                let (mut left, _) = lower_scalar_expression(
                     program,
                     operators,
                     binary.left,
@@ -2597,7 +2597,7 @@ fn lower_boolean_expression(
                     locals,
                     exact_integer_casts,
                 )?;
-                let (right, _) = lower_scalar_expression(
+                let (mut right, _) = lower_scalar_expression(
                     program,
                     operators,
                     binary.right,
@@ -2606,6 +2606,19 @@ fn lower_boolean_expression(
                     locals,
                     exact_integer_casts,
                 )?;
+                match (
+                    scalar_expression_type(&left),
+                    scalar_expression_type(&right),
+                ) {
+                    (Some(primitive_type), None) => {
+                        right = land_contextual_integer_literal(right, primitive_type)?;
+                    }
+                    (None, Some(primitive_type)) => {
+                        left = land_contextual_integer_literal(left, primitive_type)?;
+                    }
+                    (Some(_), Some(_)) => {}
+                    (None, None) => return None,
+                }
                 let left_type = scalar_expression_type(&left)?;
                 (is_integer(left_type) && scalar_expression_type(&right)? == left_type)
                     .then_some((left, right))

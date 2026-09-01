@@ -11,10 +11,11 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
+    boundaries: &[CheckedBoundaryMachinePlan],
 ) -> psi_checked_trees::CheckedDynamicDispatchPlans {
     psi_checked_trees::CheckedDynamicDispatchPlans {
         direct_scalar_calls: build_checked_direct_dynamic_scalar_call_transaction(
-            program, facts, shapes,
+            program, facts, shapes, boundaries,
         )
         .unwrap_or_default(),
     }
@@ -24,6 +25,7 @@ fn build_checked_direct_dynamic_scalar_call_transaction(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
+    boundaries: &[CheckedBoundaryMachinePlan],
 ) -> Option<Vec<psi_checked_trees::CheckedDirectDynamicScalarCallPlan>> {
     let binding_facts = facts.dynamic_conformances.binding_facts();
     let mut plans = Vec::new();
@@ -61,6 +63,7 @@ fn build_checked_direct_dynamic_scalar_call_transaction(
                     flow_call,
                     call_site,
                     shapes,
+                    boundaries,
                 )?);
             }
         }
@@ -104,6 +107,7 @@ fn build_checked_direct_dynamic_scalar_call(
     flow_call: &psi_checked_trees::FlowCallFact,
     call_site: crate::CallSite<'_>,
     shapes: &mut ShapeCollector<'_>,
+    boundaries: &[CheckedBoundaryMachinePlan],
 ) -> Option<psi_checked_trees::CheckedDirectDynamicScalarCallPlan> {
     let crate::CallSite::Expression { expression, call } = call_site else {
         return None;
@@ -391,7 +395,7 @@ fn build_checked_direct_dynamic_scalar_call(
         transitive: caller_reach_fact.inferred_transitive,
     };
 
-    Some(psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
+    let mut plan = psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
         caller_machine: machine.symbol,
         caller_state: state.symbol,
         caller_attachment_type_identity,
@@ -424,7 +428,24 @@ fn build_checked_direct_dynamic_scalar_call(
         realization_contract_commitment: contract.commitment,
         checked_call_service_reach,
         caller_structural_scalar_field_store,
-    })
+        unit_continuation: None,
+    };
+    plan.unit_continuation = super::composed_control::build_direct_dynamic_unit_continuation(
+        program, facts, shapes, boundaries, machine, state, &plan,
+    );
+    let retained_statement_count = usize::try_from(plan.coordinate.statement_index)
+        .ok()?
+        .checked_add(1)?;
+    if plan.unit_continuation.is_none()
+        && program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+            != retained_statement_count
+    {
+        return None;
+    }
+    Some(plan)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -447,7 +468,7 @@ fn checked_caller_structural_scalar_field_store_plan(
         StatementNode::Assignment(assignment),
         StatementNode::LocalData(selection_local),
         StatementNode::LocalData(result_local),
-    ] = statements
+    ] = statements.get(..3)?
     else {
         return None;
     };

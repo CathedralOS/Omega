@@ -35,7 +35,10 @@ use catalog::{
     require_valid_service_row,
 };
 use claims::lower_unit_entry_claims;
-pub(super) use composed_control::lower_composed_unit_control_machine;
+pub(super) use composed_control::{
+    emit_direct_dynamic_boundary_leaf, lower_composed_unit_control_machine,
+    lower_direct_dynamic_control_catalogs,
+};
 #[cfg(test)]
 pub(super) use parameters::lower_contract_service_ceiling;
 pub(super) use parameters::{
@@ -43,9 +46,8 @@ pub(super) use parameters::{
     lower_structural_arguments, lower_structural_path, lower_unit_parameters,
     validate_transfer_shape,
 };
-use provider_attachments::{
-    lower_provider_attachment_places, validate_provider_attachment_requirements,
-};
+pub(super) use provider_attachments::lower_provider_attachment_places;
+use provider_attachments::validate_provider_attachment_requirements;
 use providers::checked_unit_provider_candidates;
 use selected_operator::validate_selected_operator_scalar_call;
 

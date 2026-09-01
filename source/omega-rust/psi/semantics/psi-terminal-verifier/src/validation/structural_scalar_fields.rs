@@ -111,8 +111,10 @@ pub(super) fn validate_integer_structural_field(
         field,
     };
     let parameter = parameter_for(machine, source).ok_or_else(invalid)?;
-    if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || parameter.access != StructuralAccess::SharedBorrow
+    if !matches!(
+        parameter.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || parameter.access != StructuralAccess::SharedBorrow
         || !has_empty_structural_custody(machine, source)
         || machine
             .blocks

@@ -72,9 +72,104 @@ pub(super) fn admit_composed_unit_control<'a>(
     })
 }
 
+pub(crate) fn admit_direct_dynamic_continuation<'a>(
+    checked: &'a CheckedTrees,
+    plan: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
+    continuation: &'a psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
+    let [when_true, when_false] = continuation.leaves.as_slice() else {
+        return unsupported("direct dynamic continuation requires exactly two effect leaves");
+    };
+    validate_leaf(when_true)?;
+    validate_leaf(when_false)?;
+    let true_ordinal =
+        plan.coordinate
+            .statement_index
+            .checked_add(1)
+            .ok_or(LoweringError::Unsupported(
+                "direct dynamic continuation coordinate overflowed",
+            ))?;
+    let false_ordinal = true_ordinal
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "direct dynamic continuation coordinate overflowed",
+        ))?;
+    if checked.facts.values.scalar_expressions.expression_at(
+        plan.caller_state,
+        true_ordinal,
+        CheckedScalarExpressionRole::Guard,
+    ) != Some(&continuation.guard)
+    {
+        return unsupported("direct dynamic continuation guard drifted from checked scalar facts");
+    }
+    if continuation.when_true.statement_ordinal != true_ordinal
+        || continuation.when_false.statement_ordinal != false_ordinal
+        || continuation.when_true.target_state != when_true.state
+        || continuation.when_false.target_state != when_false.state
+        || plan.caller_state == when_true.state
+        || plan.caller_state == when_false.state
+        || when_true.state == when_false.state
+        || !continuation.when_true.transfers.is_empty()
+        || !continuation.when_false.transfers.is_empty()
+        || !continuation.when_true.scalar_arguments.is_empty()
+        || !continuation.when_false.scalar_arguments.is_empty()
+        || !continuation
+            .when_true
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+        || !continuation
+            .when_false
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+    {
+        return unsupported("direct dynamic continuation drifted from its checked control graph");
+    }
+    for edge in [&continuation.when_true, &continuation.when_false] {
+        let cleanup = checked
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .for_edge(
+                plan.caller_machine,
+                plan.caller_state,
+                edge.statement_ordinal,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "direct dynamic continuation lost its checked cleanup edge",
+            ))?;
+        if cleanup.target_state != edge.target_state
+            || !cleanup
+                .trivial_affine_discard_parameter_positions
+                .is_empty()
+        {
+            return unsupported("direct dynamic continuation cleanup edge drifted after checking");
+        }
+    }
+    let attachment = exact_attachment_identity(checked, &plan.caller_attachment_type_identity)?;
+    let (boundaries, internal_targets) = admit_call_targets(
+        checked,
+        plan.caller_machine,
+        &[when_true, when_false],
+        custody::ComposedCustody::Empty,
+        attachment,
+        &continuation.provider_attachment_requirements,
+    )?;
+    if !internal_targets.is_empty() {
+        return unsupported("direct dynamic continuation retained a non-boundary effect leaf");
+    }
+    Ok(boundaries)
+}
+
 pub(super) fn exact_attachment<'a>(
     checked: &'a CheckedTrees,
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
+) -> Result<&'a psi_checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
+    exact_attachment_identity(checked, &plan.attachment_type_identity)
+}
+
+fn exact_attachment_identity<'a>(
+    checked: &'a CheckedTrees,
+    identity: &str,
 ) -> Result<&'a psi_checked_trees::CheckedUnitStructuralTypePlan, LoweringError> {
     let attachments = checked
         .facts
@@ -82,7 +177,7 @@ pub(super) fn exact_attachment<'a>(
         .terminal_unit_effects
         .structural_types
         .iter()
-        .filter(|candidate| candidate.identity == plan.attachment_type_identity)
+        .filter(|candidate| candidate.identity == identity)
         .collect::<Vec<_>>();
     let [attachment] = attachments.as_slice() else {
         return unsupported("composed Unit attachment type is missing or duplicated");
