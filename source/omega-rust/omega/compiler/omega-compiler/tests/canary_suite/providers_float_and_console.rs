@@ -16,15 +16,22 @@ fn checked_adapter_identity(
 }
 
 fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
-    let report = omega_compiler::compile(
-        CompileRequest::new(CompilerOptions {
-            root_path: canary.join("main.omg"),
-            build_dir: None,
-            target_name: Some("linux_x86_64".into()),
-        })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
-    )
-    .unwrap_or_else(|diagnostics| {
+    let root_path = canary.join("main.omg");
+    let package_inputs =
+        reviewed_repository_fixture_package_inputs(&root_path, Some("linux_x86_64"))
+            .unwrap_or_else(|diagnostics| {
+                panic!("{label} should derive reviewed package inputs: {diagnostics:#?}")
+            });
+    let mut request = CompileRequest::new(CompilerOptions {
+        root_path,
+        build_dir: None,
+        target_name: Some("linux_x86_64".into()),
+    })
+    .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report = omega_compiler::compile(request).unwrap_or_else(|diagnostics| {
         panic!("{label} should produce a canonical Terminal artifact: {diagnostics:#?}")
     });
     let retained = report
@@ -35,6 +42,12 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
         .unwrap_or_else(|error| panic!("{label} Terminal artifact should replay: {error}"));
     let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
         .unwrap_or_else(|error| panic!("{label} Terminal semantics should decode: {error:?}"));
+    let proposal = retained
+        .native_realization_proposal()
+        .unwrap_or_else(|| panic!("{label} should retain its native proposal"));
+    let [operator_occurrence] = proposal.checked_boundary_operator_scope().occurrences() else {
+        panic!("{label} should retain one exact checked-to-Terminal operator occurrence")
+    };
     assert!(
         module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
@@ -43,6 +56,9 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
                     .iter()
                     .enumerate()
                     .any(|(call_index, operation)| {
+                        if operation.id != operator_occurrence.terminal_operation() {
+                            return false;
+                        }
                         let psi_terminal::OperationKind::Call { .. } = &operation.kind else {
                             return false;
                         };

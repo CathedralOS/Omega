@@ -826,6 +826,7 @@ fn checked_boundary_operator_scope_retains_the_complete_exact_demand_roster() {
         produced.boundary_operator_scope().applications(),
         std::slice::from_ref(&expected)
     );
+    assert!(produced.boundary_operator_scope().occurrences().is_empty());
     assert!(!produced.boundary_operator_scope().is_empty());
 }
 
