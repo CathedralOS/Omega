@@ -141,6 +141,7 @@ pub(super) fn validate_machine(
                 operation.kind,
                 OperationKind::CallUnit { .. }
                     | OperationKind::WriteOnlyPrimitiveStore { .. }
+                    | OperationKind::StructuralScalarFieldStore { .. }
                     | OperationKind::PortWrite { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -204,6 +205,7 @@ pub(super) fn validate_machine(
             match operation.kind.clone() {
                 OperationKind::CallUnit { .. }
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
+                | OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallStructural { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
@@ -379,6 +381,16 @@ pub(super) fn validate_machine(
                         operation.id,
                         source,
                         field,
+                    )?;
+                }
+                OperationKind::IntegerStructuralField { source, field } => {
+                    super::structural_scalar_fields::validate_integer_structural_field(
+                        module,
+                        machine,
+                        operation.id,
+                        source,
+                        field,
+                        operation.result.expect_scalar().scalar_type,
                     )?;
                 }
                 OperationKind::BooleanNot { .. } => {

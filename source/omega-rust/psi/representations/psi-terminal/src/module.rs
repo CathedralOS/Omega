@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        63
+        64
     }
 }
 
@@ -1758,6 +1758,16 @@ pub enum OperationKind {
         destination: PlaceId,
         value: ValueId,
     },
+    /// Store one already-defined scalar into one exact relevant field beneath
+    /// a structural parameter. `path` resolves from the parameter root to the
+    /// record containing `field`; authority remains on the parameter
+    /// declaration rather than being repeated by the operation.
+    StructuralScalarFieldStore {
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        value: ValueId,
+    },
     /// Establish one exact payloadless case of a declared structural sum. The
     /// destination and structural type are carried by the structural operation
     /// result; this row contributes the exact case-membership fact without
@@ -1868,6 +1878,13 @@ pub enum OperationKind {
     /// or native byte offset, is part of terminal-Psi semantics; Omega selects
     /// and validates the target ABI load.
     BooleanStructuralField {
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
+    /// Read one direct relevant integer field from a structural parameter.
+    /// The exact integer type is carried by the scalar result declaration;
+    /// the field identity remains type-local Terminal custody.
+    IntegerStructuralField {
         source: PlaceId,
         field: StructuralFieldId,
     },

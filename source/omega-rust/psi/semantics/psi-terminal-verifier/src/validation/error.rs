@@ -414,6 +414,17 @@ pub enum ModuleError {
         expected: ScalarType,
         actual: ScalarType,
     },
+    InvalidStructuralScalarFieldStore {
+        operation: OperationId,
+        destination: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+    },
+    StructuralScalarFieldStoreValueTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     TrivialAffineLocalAlreadyLive {
         operation: OperationId,
         place: PlaceId,
@@ -915,6 +926,12 @@ pub enum ModuleError {
     },
     BooleanStructuralFieldRequiresBooleanResult(OperationId),
     InvalidBooleanStructuralField {
+        operation: OperationId,
+        source: PlaceId,
+        field: StructuralFieldId,
+    },
+    IntegerStructuralFieldRequiresIntegerResult(OperationId),
+    InvalidIntegerStructuralField {
         operation: OperationId,
         source: PlaceId,
         field: StructuralFieldId,

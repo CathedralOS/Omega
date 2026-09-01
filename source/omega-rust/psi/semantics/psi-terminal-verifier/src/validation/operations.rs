@@ -67,6 +67,32 @@ pub(super) fn validate_operation_operands(
         }
         return Ok(());
     }
+    if let OperationKind::StructuralScalarFieldStore {
+        destination,
+        ref path,
+        field,
+        value,
+    } = operation.kind
+    {
+        require_defined(value, value_types, defined)?;
+        let expected = super::structural_scalar_fields::structural_scalar_field_store_type(
+            module,
+            machine,
+            operation.id,
+            destination,
+            path,
+            field,
+        )?;
+        let actual = value_types[&value];
+        if actual != expected {
+            return Err(ModuleError::StructuralScalarFieldStoreValueTypeMismatch {
+                operation: operation.id,
+                expected,
+                actual,
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::Call {
         callee, arguments, ..
     } = &operation.kind
@@ -477,6 +503,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::IntegerStructuralField { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }
@@ -503,6 +530,7 @@ pub(super) fn validate_operation_operands(
         OperationKind::SaturatingIntegerRemainder { .. } => None,
         OperationKind::Call { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallStructural { .. }

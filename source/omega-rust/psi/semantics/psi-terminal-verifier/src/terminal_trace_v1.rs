@@ -196,6 +196,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::BoundaryCall { .. } => TerminalTraceV1OperationClassification::BoundaryCall,
         OperationKind::PortWrite { .. } => TerminalTraceV1OperationClassification::PortWrite,
         OperationKind::WriteOnlyPrimitiveStore { .. }
+        | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -208,6 +209,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::IntegerStructuralField { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }

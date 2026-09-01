@@ -44,6 +44,7 @@ impl TerminalFuelSchedule {
             | OperationKind::CallStructuralScalar { .. }
             | OperationKind::CallStructural { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
+            | OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }
@@ -51,6 +52,7 @@ impl TerminalFuelSchedule {
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
+            | OperationKind::IntegerStructuralField { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }
             | OperationKind::IntegerEqual { .. }

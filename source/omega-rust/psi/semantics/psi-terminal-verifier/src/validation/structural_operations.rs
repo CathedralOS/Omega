@@ -212,6 +212,21 @@ pub(super) fn validate_unit_operation_static(
                 );
             }
         }
+        OperationKind::StructuralScalarFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        } => {
+            super::structural_scalar_fields::structural_scalar_field_store_type(
+                module,
+                machine,
+                operation.id,
+                *destination,
+                path,
+                *field,
+            )?;
+        }
         OperationKind::EstablishPayloadlessCase { result_case } => {
             let Some(result) = operation.result.structural() else {
                 return Err(ModuleError::PayloadlessCaseResultMismatch(operation.id));
