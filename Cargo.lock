@@ -376,6 +376,7 @@ dependencies = [
  "omega-effects",
  "omega-optimization-core",
  "omega-optimization-pipeline",
+ "omega-package-compilation",
  "omega-program-entry-plan",
  "omega-provider-planning",
  "omega-representation-planning",

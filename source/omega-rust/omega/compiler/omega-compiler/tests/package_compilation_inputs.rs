@@ -4271,6 +4271,145 @@ invokes filesystem;
 }
 
 #[test]
+fn accepted_package_uefi_binding_selects_exact_ordinary_schema() {
+    let tree = TempTree::new();
+    let root = tree.package("uefi-application");
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("repository root");
+    let standard_library = repository.join("source/library/std");
+    let root_package = identity(53);
+    let standard_library_package = identity(54);
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use omega::language::core::extent;
+use ordinary_std::targets::uefi_x86_64;
+
+data Boot { launch_count: u64; }
+machine Boot::launch(
+    &mut self,
+    image: Extent in Granted,
+    initial_storage: Extent in Granted
+) {
+    transition { _ -> retain(image as Extent, initial_storage as Extent) }
+    state retain(&mut self, image: Extent, initial_storage: Extent) {
+        transition { _ -> retain(image, initial_storage) }
+    }
+}
+"#,
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"target uefi_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("uefi-application");
+    builder.subsystem = Subsystem::EfiApplication;
+    builder.freestanding = true;
+    builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);
+}
+"#,
+    );
+    let base_inputs = || {
+        PackageCompilationInputs::new(
+            root_package,
+            BuildDeclarationKind::Application,
+            vec![
+                PackageSourceBinding::new(root_package, "uefi-application", root.clone()),
+                PackageSourceBinding::new(
+                    standard_library_package,
+                    "ordinary-std",
+                    standard_library.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_package,
+                "ordinary_std",
+                standard_library_package,
+            )],
+        )
+        .expect("ordinary application and std dependency graph")
+    };
+
+    let candidate = compile_to_checked_with_packages(&root.join("main.omg"), None, base_inputs())
+        .expect("semantic-only compilation can derive the exact UEFI schema candidate");
+    let binding = candidate
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::UefiX64ProgramEntry,
+            standard_library_package,
+            "UefiApplication",
+        )
+        .expect("compiler should derive exact package-owned UEFI coordinates");
+
+    let diagnostics = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        Some("uefi_x86_64"),
+        base_inputs(),
+    )
+    .expect_err("ordinary UEFI source requires exact consumer acceptance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("accepted package-owned UEFI binding")),
+        "unexpected missing-binding diagnostics: {diagnostics:#?}",
+    );
+
+    let stale = AcceptedSemanticBinding::new_service(
+        AcceptedSemanticBindingRole::UefiX64ProgramEntry,
+        standard_library_package,
+        binding.declaration_path(),
+        omega_effects::provider_plan::ServiceSchemaDigest::from_digest([94; 32]),
+    )
+    .expect("stale row remains structurally valid input");
+    let diagnostics = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        Some("uefi_x86_64"),
+        base_inputs()
+            .with_accepted_semantic_bindings(vec![stale])
+            .expect("stale binding still names a package in the closure"),
+    )
+    .expect_err("stale UEFI schema identity must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not match the exact accepted")),
+        "unexpected stale-binding diagnostics: {diagnostics:#?}",
+    );
+
+    let accepted = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        Some("uefi_x86_64"),
+        base_inputs()
+            .with_accepted_semantic_bindings(vec![binding.clone()])
+            .expect("exact UEFI binding names the ordinary dependency"),
+    )
+    .expect("exact ordinary-package UEFI schema should settle");
+    assert_eq!(
+        accepted
+            .resolved_semantic_binding(AcceptedSemanticBindingRole::UefiX64ProgramEntry)
+            .expect("exact UEFI binding was consumed")
+            .accepted(),
+        &binding,
+    );
+    assert!(
+        accepted
+            .selected_program_entry()
+            .and_then(|entry| entry.calling_plans())
+            .and_then(|plans| plans.storage_entry.physical_contract())
+            .is_some(),
+        "accepted UEFI binding must retain the target-fixed physical contract",
+    );
+    let uefi_source = accepted
+        .typed
+        .symbols
+        .source_files()
+        .find(|source| source.path.ends_with("targets/uefi_x86_64/entry.omg"))
+        .expect("ordinary UEFI package source remains loaded");
+    assert_eq!(uefi_source.origin, psi_source::SourceOrigin::User);
+    assert_eq!(uefi_source.package_identity, Some(standard_library_package),);
+}
+
+#[test]
 fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

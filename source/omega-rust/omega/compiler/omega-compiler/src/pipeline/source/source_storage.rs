@@ -118,23 +118,43 @@ impl SourceStorage {
         if let Some(toolchain_root) = &self.toolchain_root
             && path.starts_with(toolchain_root)
         {
-            // The bundled packages now live directly under `source/library`.
-            // Retain the former `language/<package>` recognition while
-            // migrated trees and cached fixtures drain, but always choose the
-            // deepest matching package root so exact toolchain provenance is
-            // independent of the surrounding library directory.
-            let package_root = ["core", "std", "alloc"]
+            let toolchain_is_core =
+                toolchain_root.file_name().and_then(|name| name.to_str()) == Some("core");
+            let core_roots = if toolchain_is_core {
+                vec![toolchain_root.clone()]
+            } else {
+                vec![
+                    toolchain_root.join("core"),
+                    toolchain_root.join("language").join("core"),
+                ]
+            };
+            if let Some(core_root) = core_roots
                 .into_iter()
-                .flat_map(|name| {
-                    [
-                        toolchain_root.join(name),
-                        toolchain_root.join("language").join(name),
-                    ]
-                })
                 .filter(|root| path.starts_with(root))
                 .max_by_key(|root| root.components().count())
-                .unwrap_or_else(|| toolchain_root.clone());
-            return (package_root, None, SourceOrigin::Toolchain);
+            {
+                return (core_root, None, SourceOrigin::Toolchain);
+            }
+
+            // Standalone compilation retains the legacy compiler-bundle lane
+            // until every std/alloc consumer has an exact source-role
+            // compatibility check. Package-aware compilation supplies only
+            // the core root here, so ordinary std/alloc dependencies never
+            // inherit this compatibility provenance.
+            if !toolchain_is_core
+                && let Some(package_root) = ["std", "alloc"]
+                    .into_iter()
+                    .flat_map(|name| {
+                        [
+                            toolchain_root.join(name),
+                            toolchain_root.join("language").join(name),
+                        ]
+                    })
+                    .filter(|root| path.starts_with(root))
+                    .max_by_key(|root| root.components().count())
+            {
+                return (package_root, None, SourceOrigin::Toolchain);
+            }
         }
 
         let package = self
@@ -161,27 +181,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn direct_and_legacy_toolchain_packages_keep_their_deepest_roots() {
+    fn standalone_bundle_keeps_deepest_legacy_toolchain_roots() {
         let storage = SourceStorage::for_compilation(
             PathBuf::from("workspace/application"),
             PathBuf::from("toolchain"),
         );
-        for (source, expected_root) in [
+        for (source, expected_root, expected_origin) in [
             (
                 "toolchain/std/targets/uefi_x86_64/entry.omg",
                 "toolchain/std",
+                SourceOrigin::Toolchain,
             ),
-            ("toolchain/core/targets/common.omg", "toolchain/core"),
+            (
+                "toolchain/core/targets/common.omg",
+                "toolchain/core",
+                SourceOrigin::Toolchain,
+            ),
             (
                 "toolchain/language/std/targets/legacy.omg",
                 "toolchain/language/std",
+                SourceOrigin::Toolchain,
             ),
-            ("toolchain/shared/prelude.omg", "toolchain"),
         ] {
             let (root, package, origin) = storage.source_metadata(Path::new(source), None);
             assert_eq!(root, PathBuf::from(expected_root));
             assert_eq!(package, None);
-            assert_eq!(origin, SourceOrigin::Toolchain);
+            assert_eq!(origin, expected_origin);
         }
+    }
+
+    #[test]
+    fn package_mode_core_root_remains_exact_toolchain_source() {
+        let storage = SourceStorage::for_package_compilation(
+            PathBuf::from("workspace/application"),
+            PackageKeyIdentity::from_digest([1; 32]).expect("nonzero package identity"),
+            PathBuf::from("toolchain/core"),
+        );
+        let (root, package, origin) =
+            storage.source_metadata(Path::new("toolchain/core/extent.omg"), None);
+        assert_eq!(root, PathBuf::from("toolchain/core"));
+        assert_eq!(package, None);
+        assert_eq!(origin, SourceOrigin::Toolchain);
     }
 }

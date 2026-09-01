@@ -1,7 +1,11 @@
 use omega_compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-    compile_to_checked,
+    compile_to_checked_with_packages,
 };
+use omega_package_compilation::{
+    BuildDeclarationKind, PackageCompilationInputs, PackageSourceBinding,
+};
+use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,6 +33,7 @@ machine Main::main() { }
 struct Fixture {
     root: PathBuf,
     main: PathBuf,
+    package: PackageKeyIdentity,
 }
 
 impl Fixture {
@@ -37,12 +42,17 @@ impl Fixture {
             .ancestors()
             .nth(5)
             .expect("Omega repository root");
-        let root = repository.join(format!(
-            "source/library/std/tests/.callback-terminal-custody-{}",
-            std::process::id()
+        let root = std::env::temp_dir().join(format!(
+            "omega-callback-terminal-custody-{}",
+            std::process::id(),
         ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create callback-custody fixture");
+        fs::copy(
+            repository.join("source/library/std/calling.omg"),
+            root.join("calling.omg"),
+        )
+        .expect("copy package-local calling vocabulary");
 
         let source = fs::read_to_string(
             repository.join("source/library/std/tests/callback_materialization_closure.omg"),
@@ -77,7 +87,12 @@ impl Fixture {
         )
         .expect("write callback-custody build policy");
 
-        Self { root, main }
+        Self {
+            root,
+            main,
+            package: PackageKeyIdentity::from_digest([71; 32])
+                .expect("nonzero fixture package identity"),
+        }
     }
 
     fn direct() -> Self {
@@ -85,18 +100,23 @@ impl Fixture {
             .ancestors()
             .nth(5)
             .expect("Omega repository root");
-        let root = repository.join(format!(
-            "source/library/std/tests/.direct-callback-terminal-custody-{}",
-            std::process::id()
+        let root = std::env::temp_dir().join(format!(
+            "omega-direct-callback-terminal-custody-{}",
+            std::process::id(),
         ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create direct callback-custody fixture");
-        let main = root.join("main.omg");
         fs::copy(
-            repository.join("source/library/std/tests/direct_callback_parameter.omg"),
-            &main,
+            repository.join("source/library/std/calling.omg"),
+            root.join("calling.omg"),
         )
-        .expect("copy direct callback source canary");
+        .expect("copy package-local calling vocabulary");
+        let main = root.join("main.omg");
+        let source = fs::read_to_string(
+            repository.join("source/library/std/tests/direct_callback_parameter.omg"),
+        )
+        .expect("read direct callback source canary");
+        fs::write(&main, source).expect("write package-aware direct callback source canary");
         fs::write(
             root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
@@ -106,7 +126,26 @@ impl Fixture {
 "#,
         )
         .expect("write direct callback-custody build policy");
-        Self { root, main }
+        Self {
+            root,
+            main,
+            package: PackageKeyIdentity::from_digest([72; 32])
+                .expect("nonzero direct fixture package identity"),
+        }
+    }
+
+    fn package_inputs(&self) -> PackageCompilationInputs {
+        PackageCompilationInputs::new(
+            self.package,
+            BuildDeclarationKind::Application,
+            vec![PackageSourceBinding::new(
+                self.package,
+                "callback-terminal-custody",
+                self.root.clone(),
+            )],
+            Vec::new(),
+        )
+        .expect("callback fixture package graph")
     }
 
     fn request(&self, product: RequestedCompileProduct, tag: &str) -> CompileRequest {
@@ -115,6 +154,7 @@ impl Fixture {
             build_dir: Some(self.root.join(format!("build-{tag}"))),
             target_name: Some("windows_x86_64".to_owned()),
         })
+        .with_package_inputs(self.package_inputs())
         .with_requested_product(product)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
     }
@@ -175,8 +215,12 @@ fn assert_custody_diagnostic(
 #[test]
 fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
     let fixture = Fixture::new();
-    let checked = compile_to_checked(&fixture.main, Some("windows_x86_64"))
-        .expect("callback program should reach checked compilation");
+    let checked = compile_to_checked_with_packages(
+        &fixture.main,
+        Some("windows_x86_64"),
+        fixture.package_inputs(),
+    )
+    .expect("callback program should reach checked compilation");
     assert_eq!(checked.callback_placements().len(), 2);
     compile(fixture.request(RequestedCompileProduct::Check, "check"))
         .expect("check-only compilation retains callback placements without executing them");

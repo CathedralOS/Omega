@@ -154,11 +154,13 @@ fn linux_console_exit_row(
         return Ok(false);
     }
     let typed = &checked.typed;
-    let legacy_toolchain_binding = [trait_symbol, requirement_symbol, realization_symbol]
-        .into_iter()
-        .all(|symbol| {
-            typed.symbols.symbol_source_origin(symbol) == Some(psi_source::SourceOrigin::Toolchain)
-        });
+    let legacy_bundled_binding = exact_bundled_console_binding(
+        typed,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+    );
     let accepted_package_binding = accepted_binding.is_some_and(|binding| {
         accepted_binding_matches_selected_row_identity(
             checked,
@@ -169,7 +171,7 @@ fn linux_console_exit_row(
             binding,
         ) && accepted_declaration_symbol.is_none_or(|symbol| symbol == trait_symbol)
     });
-    if !legacy_toolchain_binding && !accepted_package_binding {
+    if !legacy_bundled_binding && !accepted_package_binding {
         return Ok(false);
     }
 
@@ -181,6 +183,58 @@ fn linux_console_exit_row(
         requirement_symbol,
         realization_symbol,
     )
+}
+
+fn exact_bundled_console_binding(
+    typed: &psi_typed_trees::TypedTrees,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: &str,
+) -> bool {
+    const CONSOLE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../library/std/console.omg"
+    ));
+    const LINUX_X64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../library/std/targets/linux_x86_64/console_impl.omg"
+    ));
+    const LINUX_ARM64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../library/std/targets/linux_arm64/console_impl.omg"
+    ));
+    let (realization_path, realization_source) = match selected_target {
+        "linux_x86_64" => ("targets/linux_x86_64/console_impl.omg", LINUX_X64),
+        "linux_arm64" => ("targets/linux_arm64/console_impl.omg", LINUX_ARM64),
+        _ => return false,
+    };
+    exact_bundled_standalone_source(typed, trait_symbol, "console.omg", CONSOLE)
+        && exact_bundled_standalone_source(typed, requirement_symbol, "console.omg", CONSOLE)
+        && exact_bundled_standalone_source(
+            typed,
+            realization_symbol,
+            realization_path,
+            realization_source,
+        )
+}
+
+fn exact_bundled_standalone_source(
+    typed: &psi_typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+    expected_relative_path: &str,
+    expected_source: &[u8],
+) -> bool {
+    typed
+        .symbols
+        .symbol_source_span(symbol)
+        .and_then(|span| typed.symbols.source_file(span))
+        .is_some_and(|source| {
+            source.package_identity.is_none()
+                && source.path.strip_prefix(&source.package_root).ok()
+                    == Some(std::path::Path::new(expected_relative_path))
+                && source.source.as_bytes() == expected_source
+        })
 }
 
 /// Rejoin the target-independent Console semantic role to one exact package-

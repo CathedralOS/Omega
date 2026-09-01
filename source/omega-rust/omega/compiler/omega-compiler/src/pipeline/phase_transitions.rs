@@ -57,6 +57,8 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
         Option<&'a omega_package_compilation::AcceptedSemanticBinding>,
     pub(super) accepted_filesystem_binding:
         Option<&'a omega_package_compilation::AcceptedSemanticBinding>,
+    pub(super) accepted_uefi_binding:
+        Option<&'a omega_package_compilation::AcceptedSemanticBinding>,
 }
 
 /// Final typed settlements that must finish inside the phase transition that
@@ -304,6 +306,22 @@ pub(super) fn settle_selected_execution(
         })
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
+    let resolved_uefi_binding = match (
+        settlement.accepted_uefi_binding,
+        settlement.selected_target_profile,
+    ) {
+        (None, _) => None,
+        (Some(binding), Some(omega_target::TargetProfile::UefiX64)) => Some(
+            omega_selected_dispatch::resolve_accepted_service_binding(&checked.program, binding)
+                .map_err(|diagnostic| vec![diagnostic])?,
+        ),
+        (Some(binding), _) => {
+            return Err(vec![Diagnostic::error(format!(
+                "accepted semantic binding {:?} was not consumed by the UEFI x86-64 target",
+                binding.role(),
+            ))]);
+        }
+    };
     omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked.program,
         &checked.selected_provider_plan_facts,
@@ -326,6 +344,7 @@ pub(super) fn settle_selected_execution(
         resolved_semantic_bindings: resolved_console_binding
             .into_iter()
             .chain(resolved_filesystem_binding)
+            .chain(resolved_uefi_binding)
             .collect(),
         component_progress,
         task_activations,

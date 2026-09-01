@@ -12,6 +12,11 @@ pub enum AcceptedSemanticBindingRole {
     /// filesystem authority. This role binds the complete service schema but
     /// does not invent a provider for a requirement-only boundary.
     FilesystemHostService,
+    /// Exact package-owned UEFI x86-64 application schema selected by the
+    /// target's physical-entry consumer. The target still fixes the physical
+    /// ABI; this binding chooses the ordinary package nominal that realizes
+    /// that schema without granting the package general toolchain provenance.
+    UefiX64ProgramEntry,
 }
 
 /// Consumer-policy acceptance of one exact package-owned semantic surface.
@@ -63,7 +68,11 @@ impl AcceptedSemanticBinding {
         declaration_path: impl Into<String>,
         normalized_schema_digest: ServiceSchemaDigest,
     ) -> Result<Self, &'static str> {
-        if role != AcceptedSemanticBindingRole::FilesystemHostService {
+        if !matches!(
+            role,
+            AcceptedSemanticBindingRole::FilesystemHostService
+                | AcceptedSemanticBindingRole::UefiX64ProgramEntry
+        ) {
             return Err("accepted semantic role requires a selected provider plan");
         }
         let declaration_path = declaration_path.into();
@@ -98,4 +107,26 @@ impl AcceptedSemanticBinding {
     pub const fn selected_provider_plan_digest(&self) -> Option<ProviderPlanDigest> {
         self.selected_provider_plan_digest
     }
+}
+
+/// Derive the exact schema commitment owned by one accepted semantic role.
+///
+/// UEFI target calling-plan applications are independently selected, replayed,
+/// and retained by the target entry contract. Omitting those two derived
+/// fields here lets semantic-only candidate review and target compilation bind
+/// the same authored nominal/schema without creating a second ABI authority.
+#[doc(hidden)]
+pub fn accepted_service_schema_digest(
+    role: AcceptedSemanticBindingRole,
+    schema: &omega_effects::provider_plan::ServiceSchema,
+) -> ServiceSchemaDigest {
+    if role != AcceptedSemanticBindingRole::UefiX64ProgramEntry {
+        return schema.identity_digest();
+    }
+    let mut semantic = schema.clone();
+    for method in &mut semantic.methods {
+        method.calling_plan_report_fingerprint = None;
+        method.calling_plan_commitment = None;
+    }
+    semantic.identity_digest()
 }
