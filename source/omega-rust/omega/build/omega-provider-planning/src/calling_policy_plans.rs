@@ -1835,6 +1835,15 @@ fn call_signature_from_typed(
                 direct.name, direct.binder,
             ));
         };
+        if direct_callback_parameters
+            .iter()
+            .any(|prior: &BoundaryDirectCallbackParameter| prior.binder == binder.binder)
+        {
+            return Err(format!(
+                "native callback binder `{}` is assigned to more than one declared native callback parameter",
+                direct.binder,
+            ));
+        }
         direct_callback_parameters.push(BoundaryDirectCallbackParameter {
             name: direct.name.as_str().to_owned(),
             identity: nominal_callback_native_parameter_id(

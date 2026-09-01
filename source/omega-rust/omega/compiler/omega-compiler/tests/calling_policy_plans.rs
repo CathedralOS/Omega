@@ -420,6 +420,62 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
         omega_backend_plan::validate_bound_nominal_callback_placement(&placement_drift).is_err(),
         "physical placement substitution must reject independently",
     );
+
+    let requirement_identity = checked
+        .typed
+        .normalized_hermetic_symbol_identity(install.symbol)
+        .expect("exact registrar requirement identity");
+    let mut stale_v1_parameter = placement.clone();
+    stale_v1_parameter
+        .private_materialization
+        .as_mut()
+        .unwrap()
+        .direct_registrar_parameter_application
+        .as_mut()
+        .unwrap()
+        .parameter = omega_calling_conventions::callback_native_parameter_id(
+            &requirement_identity,
+            1,
+        );
+    assert!(
+        omega_backend_plan::validate_bound_nominal_callback_placement(&stale_v1_parameter)
+            .is_err(),
+        "the retired ordinal-derived v1 parameter identity must not substitute for v2",
+    );
+
+    let mut invented_parameter = placement.clone();
+    let invented = omega_calling_conventions::NativeParameterId::new(0xbeef).unwrap();
+    let materialization = invented_parameter.private_materialization.as_mut().unwrap();
+    materialization.destination = omega_calling_conventions::NativePlace::Parameter(invented);
+    materialization
+        .direct_registrar_parameter_application
+        .as_mut()
+        .unwrap()
+        .parameter = invented;
+    assert!(
+        omega_backend_plan::validate_bound_nominal_callback_placement(&invented_parameter)
+            .is_err(),
+        "a locally coherent policy-created parameter must not enter the declared telescope",
+    );
+
+    let mut wrong_binder = placement.clone();
+    wrong_binder.private_materialization.as_mut().unwrap().binder =
+        omega_calling_conventions::StaticMachineBinderId::new(0xcafe).unwrap();
+    assert!(
+        omega_backend_plan::validate_bound_nominal_callback_placement(&wrong_binder).is_err(),
+        "a different binder identity must not retain the direct application",
+    );
+
+    let mut wrong_requirement = placement.clone();
+    wrong_requirement
+        .private_materialization
+        .as_mut()
+        .unwrap()
+        .requirement = omega_calling_conventions::CallbackRequirementId::new(0xfade).unwrap();
+    assert!(
+        omega_backend_plan::validate_bound_nominal_callback_placement(&wrong_requirement).is_err(),
+        "a different callback requirement must not retain the direct application",
+    );
 }
 
 #[test]
@@ -465,6 +521,79 @@ fn direct_callback_parameter_requires_its_exact_nominal_binder() {
             .message
             .contains("unknown machine binder `Missing`")
     }));
+}
+
+#[test]
+fn direct_callback_parameter_rejects_inferred_duplicate_and_unconstrained_binders() {
+    let source = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(5)
+            .unwrap()
+            .join("source/library/std/tests/direct_callback_parameter.omg"),
+    )
+    .unwrap();
+    for (name, mutated, expected) in [
+        (
+            "inferred-binder",
+            source.replace(
+                "native callback procedure from Handler",
+                "native callback procedure",
+            ),
+            "from",
+        ),
+        (
+            "duplicate-name",
+            source.replace(
+                "native callback procedure from Handler,\n        module",
+                "native callback procedure from Handler,\n        native callback procedure from Handler,\n        module",
+            ),
+            "native callback parameter `procedure` is declared more than once",
+        ),
+        (
+            "duplicate-binder",
+            source.replace(
+                "native callback procedure from Handler,\n        module",
+                "native callback procedure from Handler,\n        native callback backup from Handler,\n        module",
+            ),
+            "is assigned to more than one declared native callback parameter",
+        ),
+        (
+            "unconstrained-binder",
+            source.replace(
+                "    )\n    where machine Handler satisfies HookProcedure::call;",
+                "    );",
+            ),
+            "requires an authored declaration-site contract",
+        ),
+    ] {
+        let rendered = compile_std_negative(name, &mutated);
+        assert!(
+            rendered.contains(expected),
+            "{name} produced unexpected diagnostics:\n{rendered}",
+        );
+    }
+}
+
+#[test]
+fn authored_addr_parameter_cannot_substitute_for_a_native_callback_declaration() {
+    let source = fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(5)
+            .unwrap()
+            .join("source/library/std/tests/direct_callback_parameter.omg"),
+    )
+    .unwrap()
+    .replace(
+        "native callback procedure from Handler",
+        "procedure: addr",
+    );
+    let rendered = compile_std_negative("authored-addr", &source);
+    assert!(
+        rendered.contains("invalid direct callback telescope"),
+        "authored addr substitution produced unexpected diagnostics:\n{rendered}",
+    );
 }
 
 #[test]
