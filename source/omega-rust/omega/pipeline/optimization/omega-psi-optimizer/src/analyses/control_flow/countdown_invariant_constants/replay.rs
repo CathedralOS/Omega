@@ -52,36 +52,29 @@ pub(super) fn reconstruct(
         {
             return Err(CountdownInvariantConstantAnalysisError::ComponentRosterMismatch);
         }
+        let constants = [
+            reconstruct_row(
+                function,
+                certificate.rank_type,
+                CountdownInvariantConstantRole::PositiveGuardZero,
+                certificate.guard.zero_operation,
+                certificate.guard.zero,
+                IntegerValue::Unsigned(0),
+            )?,
+            reconstruct_row(
+                function,
+                certificate.rank_type,
+                CountdownInvariantConstantRole::BackedgeDecrementOne,
+                certificate.descent.one_operation,
+                certificate.descent.one,
+                IntegerValue::Unsigned(1),
+            )?,
+        ];
+        validate_locations(function, component, certificate, &constants)?;
         loops.push(UnsignedCountdownInvariantConstants {
             counted_loop: summary.clone(),
             prospective_preheader: summary.preheader_edge.source,
-            constants: [
-                (
-                    CountdownInvariantConstantRole::PositiveGuardZero,
-                    certificate.guard.zero_operation,
-                    certificate.guard.zero,
-                    IntegerValue::Unsigned(0),
-                ),
-                (
-                    CountdownInvariantConstantRole::BackedgeDecrementOne,
-                    certificate.descent.one_operation,
-                    certificate.descent.one,
-                    IntegerValue::Unsigned(1),
-                ),
-            ]
-            .into_iter()
-            .map(|(role, operation, result, value)| {
-                reconstruct_row(
-                    function,
-                    &component.members,
-                    certificate.rank_type,
-                    role,
-                    operation,
-                    result,
-                    value,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?,
+            constants: constants.into(),
         });
     }
     Ok(CountdownInvariantConstantAnalysisSnapshot {
@@ -94,7 +87,6 @@ pub(super) fn reconstruct(
 #[allow(clippy::too_many_arguments)]
 fn reconstruct_row(
     function: &PsiOptimizationFunction,
-    members: &[BlockId],
     rank_type: IntegerType,
     role: CountdownInvariantConstantRole,
     operation: OperationId,
@@ -104,7 +96,6 @@ fn reconstruct_row(
     let mut occurrences = function
         .blocks
         .iter()
-        .filter(|block| members.binary_search(&block.id).is_ok())
         .flat_map(|block| {
             block
                 .nodes
@@ -170,6 +161,80 @@ fn reconstruct_row(
         fuel: node.fuel.clone(),
         effect: node.effect,
     })
+}
+
+fn validate_locations(
+    function: &PsiOptimizationFunction,
+    component: &omega_optimization_validation::OptimizerCycleComponent,
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    constants: &[CountdownInvariantIntegerConstant; 2],
+) -> Result<(), CountdownInvariantConstantAnalysisError> {
+    let original_blocks = [certificate.header, certificate.descent.backedge.source];
+    if constants
+        .iter()
+        .zip(original_blocks)
+        .all(|(constant, original)| constant.location.block == original)
+    {
+        return Ok(());
+    }
+    let [entry] = component.entries.as_slice() else {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    };
+    if component.members.contains(&entry.source) || entry.target != certificate.header {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    }
+    let preheader = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.source)
+        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    let jump_index = preheader
+        .nodes
+        .len()
+        .checked_sub(1)
+        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    let O::Jump {
+        psi_edge, target, ..
+    } = preheader.nodes[jump_index].operation
+    else {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    };
+    if psi_edge != entry.edge || target != certificate.header {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    }
+    let moved = constants
+        .iter()
+        .zip(original_blocks)
+        .filter_map(|(constant, original)| {
+            (constant.location.block != original).then_some(constant)
+        })
+        .collect::<Vec<_>>();
+    let suffix_start = jump_index
+        .checked_sub(moved.len())
+        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    if moved.iter().enumerate().any(|(offset, constant)| {
+        constant.location.machine != function.machine
+            || constant.location.block != preheader.id
+            || usize::try_from(constant.location.node).ok() != Some(suffix_start + offset)
+    }) {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    }
+    Ok(())
 }
 
 fn validate_roots(

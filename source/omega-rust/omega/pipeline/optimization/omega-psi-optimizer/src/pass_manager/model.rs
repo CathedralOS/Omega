@@ -14,7 +14,8 @@ use omega_optimization_unit::{
 };
 use omega_optimization_validation::{
     OptimizationUnitValidationError, ValidatedOptimizerCycleComponents,
-    ValidatedOptimizerRankingCertificates, validate_verified_psi_cycle_components,
+    ValidatedOptimizerRankingCertificates, validate_transformed_psi_cycle_components,
+    validate_verified_psi_cycle_components,
 };
 use omega_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit};
 
@@ -43,6 +44,20 @@ impl VerifiedPsiOptimizationSession {
     ) -> Result<Self, OptimizationUnitValidationError> {
         let cycle_components = validate_verified_psi_cycle_components(&verified)?;
         let (input, unit) = verified.into_parts();
+        Ok(Self {
+            input,
+            unit,
+            cycle_components,
+        })
+    }
+
+    /// Rebinds analysis custody to an independently validated transformed
+    /// revision. This grants no transformation authority.
+    pub fn from_transformed(
+        input: VerifiedPsiOptimizationInput,
+        unit: PsiOptimizationUnit,
+    ) -> Result<Self, OptimizationUnitValidationError> {
+        let cycle_components = validate_transformed_psi_cycle_components(&input, &unit)?;
         Ok(Self {
             input,
             unit,
