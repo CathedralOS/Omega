@@ -78,8 +78,8 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
-fn compiler_owned_source_and_output_facets_publish_generated_source() {
-    let profile = omega_target::TargetProfile::host();
+fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
+    let profile = omega_target::TargetProfile::WindowsX64;
     let project = Project::new("generated-source");
     project.write("main.omg", "data Main { value: u8; }\n");
     project.write("input.txt", "input\n");
@@ -90,6 +90,7 @@ fn compiler_owned_source_and_output_facets_publish_generated_source() {
 
 machine build(builder: &mut Build) {{
     builder.application("build-facet-generated-source");
+    builder.subsystem = Subsystem::Gui;
     let input: BuildPath = builder.source.resolve("input.txt");
     let input_descriptor: i32 = builder.source.open(input, 0);
     let mut input_bytes: [u8; 6];
@@ -150,6 +151,28 @@ machine build(builder: &mut Build) {{
         .iter()
         .find(|definition| definition.name.as_str() == "Main")
         .expect("authored source remains in final checked program");
+    let build = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("selected build machine remains in the final checked program");
+    assert_eq!(checked.selected_build_machine_symbol(), Some(build.symbol));
+    let build_identity = checked
+        .typed
+        .normalized_machine_overload_identity(build)
+        .expect("selected build machine retains a normalized callable identity")
+        .identity();
+    assert_eq!(
+        checked.selected_build_machine_identity(),
+        Some(build_identity.as_str()),
+    );
+    assert_eq!(checked.selected_target_profile(), Some(profile));
+    assert_eq!(
+        checked.selected_native_target(),
+        Some(omega_target::NativeTarget::windows_x64()),
+    );
+    assert_eq!(checked.subsystem(), 2, "Gui is the non-default subsystem");
     let [psi_typed_trees::data::DataMember::Field(base)] = checked.typed.data_members(generated)
     else {
         panic!("Generated has one nominal field")
@@ -162,14 +185,68 @@ machine build(builder: &mut Build) {{
         panic!("Generated.base remains nominal")
     };
     assert_eq!(*symbol, main.symbol);
+    let usage = checked
+        .build_evaluation_usage()
+        .expect("selected build execution retains deterministic usage");
+    assert_eq!(usage.filesystem_operation_attempts, 6);
+    assert_eq!(usage.replay_filesystem_operation_attempts, 6);
+    assert_eq!(usage.fuel_units, usage.replay_fuel_units);
+    assert!(usage.fuel_units > 0);
+    assert_eq!(usage.sponsor_schema_version, None);
+    assert_eq!(usage.session_filesystem_attempt_ceiling, None);
+
+    let observation = checked
+        .build_observation_summary()
+        .expect("facet execution retains observations");
     assert_eq!(
-        checked
-            .build_observation_summary()
-            .expect("facet execution retains observations")
-            .filesystem_operation_attempts()
-            .len(),
+        observation.filesystem_operation_attempts().len(),
         6,
         "open/read/close and create/write/close execute once; handoff is separate custody"
+    );
+    assert_eq!(
+        observation.realized(),
+        omega_build_evaluation::BuildObservationClass::Receipted,
+    );
+    assert!(observation.filesystem_replay_verdict().is_complete());
+    assert!(observation.canonical_source_metadata_identity().is_some());
+    let [handoff] = observation.included_source_handoffs() else {
+        panic!("one exact generated-source handoff must remain in observation evidence")
+    };
+    assert_eq!(handoff.relative_path(), b"generated.omg");
+    assert_eq!(handoff.filesystem_attempt_ordinal(), 6);
+    let staged = observation
+        .staged_output_tree()
+        .expect("complete replay retains the staged output tree");
+    assert_eq!(staged.entry_count(), 1);
+    assert_eq!(staged.file_bytes(), 31);
+
+    assert_eq!(
+        checked.source_file_count(),
+        4,
+        "authored, generated, and compiler-injected source custody remains exact",
+    );
+    assert_ne!(
+        checked.base_source_consumption_commitment(),
+        checked.source_consumption_commitment(),
+        "generated source must advance the final source commitment",
+    );
+    let generated_bundle = checked
+        .package_generated_source_bundle()
+        .expect("checked package retains its generated-source custody");
+    assert_eq!(generated_bundle.target(), profile);
+    assert_eq!(
+        generated_bundle.source_consumption_commitment(),
+        checked
+            .source_consumption_commitment()
+            .expect("package-aware source commitment"),
+    );
+    let [generated_source] = generated_bundle.sources() else {
+        panic!("one generated source must remain in the checked bundle")
+    };
+    assert_eq!(generated_source.relative_path(), b"generated.omg");
+    assert_eq!(
+        generated_source.bytes(),
+        b"data Generated { base: Main; }\n"
     );
     checked
         .verify_current_source_consumption()
