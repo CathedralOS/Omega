@@ -109,7 +109,10 @@ noting its trust-architecture framing is superseded by the
 
 - Keep D23's `AlphaBootstrapV2` coherent across seeds, compilers, generated
   memory maps, checker capacity, boundary outcome tables, and exact limit gates;
-  no owner may retain or silently reintroduce the former V1 extent.
+  no owner may retain or silently reintroduce the former V1 extent. D58 may
+  revise the Beta compiler's private count tables only through its measured,
+  atomic source/tape/admission publication; it does not revise Alpha semantics
+  or the V2 tape extent.
 - Fixed-width vs variable-width instruction encoding (canonical-parsing
   simplicity vs density).
 - Complete the memory-fault/`OutOfMemory` event surface when bounds checks land.

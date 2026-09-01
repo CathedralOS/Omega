@@ -86,7 +86,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | --- | --- | --- |
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment, resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
+| Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment and production adapters, measure and publish D58's conjunctive Beta profile, publish the standalone tape, and close refinement |
 | Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56/D57, complete the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
@@ -627,7 +627,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     for codes 19/20/21, apply D33's total ordering, add the remaining
     internal classes 1/5/6 when their producers exist, check each code against
     the selected profile, and gate the four embedded TSV projections. This is
-    implementation work independent of Q2's adapter-call capacity ruling.
+    This work is part of the complete canonical source measured by D58; a roomy
+    staging compiler does not authorize omitting it from the final profile.
     - [x] Retain ordinary Gamma rejection codes 4 through 18 at their decisive
       source coordinate. Parsing records syntax and integer-range failures;
       declaration resolution distinguishes duplicate type, constructor, and
@@ -662,17 +663,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     neither resource path commits `r254` or a partial descriptor. Exact and
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
-  - [ ] **OWNER-BLOCKED — Q2 Beta call-row profile for the complete Gamma
-    compiler.** The retained source consumes exactly 965 of D23's 1,024
-    non-builtin call rows before a production entry or either adapter. A focused
-    adjacent probe admits fifty-nine further calls and refuses the sixtieth as
-    canonical `Incomplete(call_rows, 1024, 1025)`. Do not hide the required
-    total-`Bytes` preflight or adapters in a host-generated table/blob, weaken
-    publication, or silently revise the Alpha-written compiler profile.
-    Two ordinary Beta immediate-branch helpers now centralize thirty
-    repeated `imm`/conditional-jump pairs while preserving each emitted opcode,
-    scratch register, immediate, and target exactly; that audit-visible refactor
-    removes twenty-six retained call rows without changing Alpha or Beta.
+  - [ ] **IMPLEMENTATION — D58 MEASURED BETA COMPILER PROFILE.** Use a roomy
+    noncanonical Beta compiler to complete the Gamma entry, returned-`Bytes`
+    preflight, both D19 adapters, failure framing, and publication as ordinary
+    Beta source. Measure procedures, global calls, global/per-procedure states
+    and edges, derived initialization rows, labels, fixups, tape, and maximum
+    work. Select each independently provisioned authored-structure count as the
+    least power of two with at most 75% measured occupancy; keep tape under D23
+    and derived guards bound to their owners. Relocate every changed and derived
+    table into one new aligned region above `FIXUP_TABLE`, retain maximum-work plus exact/adjacent
+    `Incomplete` gates, and atomically rebuild the Beta tape and admission
+    subject. The current 1,024-row call probe remains the pre-completion baseline
+    until that publication. Source-visible emitter consolidation is independent
+    quality work, never a hidden table/blob or a condition for preserving 1,024.
   - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,

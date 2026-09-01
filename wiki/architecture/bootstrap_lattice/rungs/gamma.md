@@ -84,6 +84,17 @@ that differential agreement cannot establish a rule both sides omit. The former
 Beta-written Delta-to-Gamma route was outside Gamma ownership and is deleted
 rather than retained as the Delta edge or a compatibility layer.
 
+D58 settles how the complete Gamma compiler revises the Beta compiler's private
+resource profile. The current incomplete source's 965 calls, 739 states, and 586
+edges are a baseline, not a final projection. A roomy noncanonical Beta compiler
+stages the complete source; final procedures, calls, states, edges, derived
+initialization storage, fixups, tape, and maximum work are then measured
+conjunctively. Each independently provisioned authored-structure count receives
+the least power-of-two provision with at most 75 percent occupancy; derived
+guards remain bound to their owners and tape capacity remains D23-owned. Changed
+tables move above the fixup table in the same atomic publication as the rebuilt
+Beta tape and admission subject.
+
 ## Must not contain
 
 No mutable host memory, hardware boundary, package manager, product optimizer,
@@ -93,7 +104,8 @@ the universal checker remains Alpha-owned and outside the language rung.
 ## Implementation frontiers
 
 - retain D23's coherent `AlphaBootstrapV2` profile and the consolidated adjacent
-  conformance gate through publication;
+  conformance gate until D58 atomically publishes its measured private-table
+  revision;
 - implement D30's exact physical profiles, complete the two D19-selected
   adapters and remaining lowering in the exact Gamma compiler source, then
   publish its artifact closure;
