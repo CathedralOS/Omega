@@ -61,7 +61,12 @@ linux_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -
     state other(&mut self) -> i32 { self.err_code }
 }
 
-linux_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+pub linux_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.open_options = options;
     self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
@@ -85,7 +90,12 @@ linux_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, optio
 // terminal or error path. A malformed record fails as `Other` instead of making
 // the state loop stall. "." and ".." are the first two records of every real
 // directory, so the child count is `records - 2` after the complete drain.
-linux_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
+pub linux_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
@@ -506,7 +516,12 @@ linux_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) 
 // re-read-first-child drain dodges the shared `dir_buf`-vs-recursion clobber: each
 // step re-reads the fd fresh, and the entry NAME rides a by-value `DirEntry` param
 // so a nested drain cannot overwrite it.
-linux_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+pub linux_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.read_flags = 0;
     let dfd: i32 = self.host.open(path, self.read_flags);
     transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path, dfd) }

@@ -32,18 +32,18 @@
 use time_host;
 use omega::language::core::numeric_conversion;
 
-data Ordering [copy] {
+pub data Ordering [copy] {
     case Less;
     case Equal;
     case Greater;
 }
 
-data Duration [copy] {
+pub data Duration [copy] {
     seconds: u64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
-data DurationResult [copy] {
+pub data DurationResult [copy] {
     case Overflow;
     case Ok(duration: Duration);
 }
@@ -52,7 +52,7 @@ data DurationResult [copy] {
 // units. (The scoping sketch spelled this `NanosecondsResult { Ok(nanoseconds) }`;
 // one payload field cannot be unit-accurate for nanoseconds AND milliseconds,
 // so the field is the neutral `total` -- noted in TASKS_TIME.md.)
-data TotalResult [copy] {
+pub data TotalResult [copy] {
     case Overflow;
     case Ok(total: u64);
 }
@@ -63,11 +63,11 @@ const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0
 const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
 
 // Unit constructors (receiverless type-scoped machines).
-machine Duration::from_seconds(seconds: u64) -> Duration {
+pub machine Duration::from_seconds(seconds: u64) -> Duration {
     Duration { seconds: seconds, subsecond_nanoseconds: 0 }
 }
 
-machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
+pub machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
     // Flow-sensitive LETS carry the proofs (`% 1000` bounds the remainder,
     // the narrowing cast and `* 1000000` prove under it); constructing from
     // the lets keeps each construction check on a named, ranged local.
@@ -81,7 +81,7 @@ machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
     }
 }
 
-machine Duration::from_microseconds(microseconds: u64) -> Duration {
+pub machine Duration::from_microseconds(microseconds: u64) -> Duration {
     // Same construct-from-lets + ranged-let discipline as from_milliseconds.
     let scaled_wide: u64 [0..=999999000] = (microseconds % 1000000) * 1000;
     let scaled: u32 = narrow_u64_to_u32_exact(scaled_wide);
@@ -93,7 +93,7 @@ machine Duration::from_microseconds(microseconds: u64) -> Duration {
     }
 }
 
-machine Duration::from_nanoseconds(nanoseconds: u64) -> Duration {
+pub machine Duration::from_nanoseconds(nanoseconds: u64) -> Duration {
     let remainder_wide: u64 [0..=999999999] = nanoseconds % 1000000000;
     let remainder: u32 = narrow_u64_to_u32_exact(remainder_wide);
     let whole_seconds: u64 = nanoseconds / 1000000000;
@@ -105,15 +105,15 @@ machine Duration::from_nanoseconds(nanoseconds: u64) -> Duration {
 }
 
 // Whole seconds, truncating the subsecond part (Rust `as_secs`).
-machine Duration::as_seconds(&self) -> u64 {
+pub machine Duration::as_seconds(&self) -> u64 {
     self.seconds
 }
 
-machine Duration::subsecond_milliseconds(&self) -> u32 {
+pub machine Duration::subsecond_milliseconds(&self) -> u32 {
     self.subsecond_nanoseconds / 1000000
 }
 
-machine Duration::subsecond_microseconds(&self) -> u32 {
+pub machine Duration::subsecond_microseconds(&self) -> u32 {
     self.subsecond_nanoseconds / 1000
 }
 
@@ -121,7 +121,7 @@ machine Duration::subsecond_microseconds(&self) -> u32 {
 // ~584 years: seconds above 18_446_744_073 (u64::MAX / 1e9) overflow, and at
 // exactly that threshold only subseconds up to 709_551_615 still fit
 // (18_446_744_073 * 1e9 + 709_551_615 == u64::MAX).
-machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
+pub machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
     let seconds_small: bool = self.seconds < 18446744073;
     let seconds_edge: bool = self.seconds == 18446744073;
     let subsecond_fits: bool = self.subsecond_nanoseconds <= 709551615;
@@ -148,7 +148,7 @@ machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
 // The whole duration as a microsecond count (subseconds truncate to the
 // microsecond). Threshold 18_446_744_073_709 = u64::MAX / 1e6; at the edge
 // only microsecond parts up to 551_615 still fit.
-machine Duration::checked_as_microseconds(&self) -> TotalResult {
+pub machine Duration::checked_as_microseconds(&self) -> TotalResult {
     let seconds_small: bool = self.seconds < 18446744073709;
     let seconds_edge: bool = self.seconds == 18446744073709;
     let subsecond_part: u32 = self.subsecond_nanoseconds / 1000;
@@ -176,7 +176,7 @@ machine Duration::checked_as_microseconds(&self) -> TotalResult {
 // The whole duration as a millisecond count (subseconds truncate to the
 // millisecond). Threshold 18_446_744_073_709_551 = u64::MAX / 1e3; at the
 // edge only millisecond parts up to 615 still fit.
-machine Duration::checked_as_milliseconds(&self) -> TotalResult {
+pub machine Duration::checked_as_milliseconds(&self) -> TotalResult {
     let seconds_small: bool = self.seconds < 18446744073709551;
     let seconds_edge: bool = self.seconds == 18446744073709551;
     let subsecond_part: u32 = self.subsecond_nanoseconds / 1000000;
@@ -201,12 +201,12 @@ machine Duration::checked_as_milliseconds(&self) -> TotalResult {
     }
 }
 
-machine Duration::is_zero(&self) -> bool {
+pub machine Duration::is_zero(&self) -> bool {
     self.seconds == 0 && self.subsecond_nanoseconds == 0
 }
 
 // self + other; `Overflow` when the true sum exceeds the representable range.
-machine Duration::checked_add(&self, other: Duration) -> DurationResult {
+pub machine Duration::checked_add(&self, other: Duration) -> DurationResult {
     // EXACT-provable straight from the field ranges:
     // [0..=999_999_999] + [0..=999_999_999] = [0..=1_999_999_998] fits u32.
     let nanoseconds_total: u32 = self.subsecond_nanoseconds + other.subsecond_nanoseconds;
@@ -271,7 +271,7 @@ machine Duration::checked_add(&self, other: Duration) -> DurationResult {
 // tests/omega/pending/time/value_machine_receiver_field_postentry. Until the
 // backend lowers (or fences) it, every machine here reads fields ONLY in its
 // entry and threads scalars/booleans; post-entry states consume params only.
-machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
+pub machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
     let seconds_bigger: bool = self.seconds > other.seconds;
     let seconds_equal: bool = self.seconds == other.seconds;
     let nanoseconds_fit: bool = self.subsecond_nanoseconds >= other.subsecond_nanoseconds;
@@ -321,7 +321,7 @@ machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
 }
 
 // self * factor; `Overflow` when the true product exceeds the range.
-machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
+pub machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
     let factor_wide: u64 = widen_u32_to_u64(factor);
     // Subsecond product fits u64 by math ([0..=999_999_999] * [0..=u32::MAX])
     // but the interval fold cannot multiply variable bounds -- Wrapping
@@ -386,7 +386,7 @@ machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
 // self / divisor; the `Overflow` case doubles as the divisor-0 signal (a
 // guard, never a runtime fault -- per the settled surface). The subsecond
 // remainder of the seconds division redistributes into the nanoseconds.
-machine Duration::divide(&self, divisor: u32) -> DurationResult {
+pub machine Duration::divide(&self, divisor: u32) -> DurationResult {
     // ENTRY-ONLY discipline: entry lets evaluate eagerly, so a zero divisor
     // is clamped to 1 and the real zero case routes to the Overflow arm,
     // ignoring the harmlessly-computed values.
@@ -423,7 +423,7 @@ machine Duration::divide(&self, divisor: u32) -> DurationResult {
 }
 
 // self + other, clamping at MAX instead of reporting overflow (total).
-machine Duration::saturating_add(&self, other: Duration) -> Duration {
+pub machine Duration::saturating_add(&self, other: Duration) -> Duration {
     let sum: DurationResult = self.checked_add(other);
     transition sum {
         DurationResult::Ok { duration } -> saturate_add_value(duration)
@@ -435,7 +435,7 @@ machine Duration::saturating_add(&self, other: Duration) -> Duration {
 
 // self - other, clamping at ZERO instead of reporting underflow (total, the
 // ZII-friendly default the wrapper types lean on).
-machine Duration::saturating_subtract(&self, other: Duration) -> Duration {
+pub machine Duration::saturating_subtract(&self, other: Duration) -> Duration {
     let difference: DurationResult = self.checked_subtract(other);
     transition difference {
         DurationResult::Ok { duration } -> saturate_value(duration)
@@ -445,7 +445,7 @@ machine Duration::saturating_subtract(&self, other: Duration) -> Duration {
     state saturate_zero(&self) -> Duration { Duration::ZERO }
 }
 
-machine Duration::compare(&self, other: Duration) -> Ordering {
+pub machine Duration::compare(&self, other: Duration) -> Ordering {
     // Entry-only field reads (see checked_subtract's authoring rule).
     let seconds_greater: bool = self.seconds > other.seconds;
     let seconds_less: bool = self.seconds < other.seconds;
@@ -478,7 +478,7 @@ machine Duration::compare(&self, other: Duration) -> Ordering {
     state compare_greater(&self) -> Ordering { Ordering::Greater }
 }
 
-machine Duration::is_less_than(&self, other: Duration) -> bool {
+pub machine Duration::is_less_than(&self, other: Duration) -> bool {
     let order: Ordering = self.compare(other);
     transition order {
         Ordering::Less -> less_yes()
@@ -489,7 +489,7 @@ machine Duration::is_less_than(&self, other: Duration) -> bool {
     state less_no(&self) -> bool { false }
 }
 
-machine Duration::is_greater_than(&self, other: Duration) -> bool {
+pub machine Duration::is_greater_than(&self, other: Duration) -> bool {
     let order: Ordering = self.compare(other);
     transition order {
         Ordering::Greater -> greater_yes()
@@ -504,12 +504,12 @@ machine Duration::is_greater_than(&self, other: Duration) -> bool {
 // subsecond nanoseconds since an UNSPECIFIED epoch. Opaque-by-convention --
 // only differences between two Instants from the same process are meaningful.
 // Same field shapes as Duration, so the subtraction machinery mirrors it.
-data Instant [copy] {
+pub data Instant [copy] {
     seconds: u64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
-data InstantResult [copy] {
+pub data InstantResult [copy] {
     case Overflow;
     case Ok(instant: Instant);
 }
@@ -523,7 +523,7 @@ const Instant::MAX: Instant = Instant { seconds: 18446744073709551615, subsecond
 // self + duration as a later Instant; `Overflow` past the representable
 // range. Mirrors Duration::checked_add -- identical field shapes, identical
 // carry idiom (wrapped-compare overflow detection).
-machine Instant::checked_add(&self, duration: Duration) -> InstantResult {
+pub machine Instant::checked_add(&self, duration: Duration) -> InstantResult {
     let nanoseconds_total: u32 = self.subsecond_nanoseconds + duration.subsecond_nanoseconds;
     let seconds_sum: u64 in Wrapping =
         (self.seconds as u64 in Wrapping) + (duration.seconds as u64 in Wrapping);
@@ -566,7 +566,7 @@ machine Instant::checked_add(&self, duration: Duration) -> InstantResult {
 
 // self - duration as an earlier Instant; `Overflow` on underflow below the
 // monotonic epoch. Mirrors Duration::checked_subtract's borrow idiom.
-machine Instant::checked_subtract(&self, duration: Duration) -> InstantResult {
+pub machine Instant::checked_subtract(&self, duration: Duration) -> InstantResult {
     let seconds_bigger: bool = self.seconds > duration.seconds;
     let seconds_equal: bool = self.seconds == duration.seconds;
     let nanoseconds_fit: bool = self.subsecond_nanoseconds >= duration.subsecond_nanoseconds;
@@ -609,7 +609,7 @@ machine Instant::checked_subtract(&self, duration: Duration) -> InstantResult {
 // (the monotonic clock cannot run backwards, so this means the caller swapped
 // the operands or mixed instants across processes). Mirrors
 // Duration::checked_subtract -- same borrow idiom, same authoring rules.
-machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResult {
+pub machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResult {
     let seconds_bigger: bool = self.seconds > earlier.seconds;
     let seconds_equal: bool = self.seconds == earlier.seconds;
     let nanoseconds_fit: bool = self.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
@@ -653,7 +653,7 @@ machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResu
 // self + duration, clamping at Instant::MAX instead of reporting overflow
 // (total). Mirrors Duration::saturating_add exactly; unblocked by D14
 // fires E+F (the MAX const's u64 seconds literal is fire D).
-machine Instant::saturating_add(&self, duration: Duration) -> Instant {
+pub machine Instant::saturating_add(&self, duration: Duration) -> Instant {
     let sum: InstantResult = self.checked_add(duration);
     transition sum {
         InstantResult::Ok { instant } -> saturate_add_value(instant)
@@ -665,7 +665,7 @@ machine Instant::saturating_add(&self, duration: Duration) -> Instant {
 
 // self - duration, clamping at the monotonic EPOCH instead of reporting
 // underflow (total). Mirrors Duration::saturating_subtract.
-machine Instant::saturating_subtract(&self, duration: Duration) -> Instant {
+pub machine Instant::saturating_subtract(&self, duration: Duration) -> Instant {
     let difference: InstantResult = self.checked_subtract(duration);
     transition difference {
         InstantResult::Ok { instant } -> saturate_value(instant)
@@ -680,7 +680,7 @@ machine Instant::saturating_subtract(&self, duration: Duration) -> Instant {
 // Mirrors Duration::saturating_subtract (transitioning on a nested sibling
 // call's result is safe again since the guard-ZII slot-naming fix,
 // 2026-07-08 -- pinned by calls/runtime_nested_value_call_guard_exit).
-machine Instant::duration_since(&self, earlier: Instant) -> Duration {
+pub machine Instant::duration_since(&self, earlier: Instant) -> Duration {
     let since: DurationResult = self.checked_duration_since(earlier);
     transition since {
         DurationResult::Ok { duration } -> since_value(duration)
@@ -693,7 +693,7 @@ machine Instant::duration_since(&self, earlier: Instant) -> Duration {
 // A point on the WALL clock (D7): signed Unix-epoch seconds (pre-1970
 // timestamps exist -- filesystem metadata bridges here) + subsecond
 // nanoseconds. ZII zero IS the Unix epoch.
-data SystemTime [copy] {
+pub data SystemTime [copy] {
     seconds_since_unix_epoch: i64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
@@ -711,7 +711,7 @@ const SystemTime::MIN: SystemTime = SystemTime { seconds_since_unix_epoch: -9223
 // result: never a fake Ok, never a fabricated Backwards(ZERO) measurement.
 // (Deviation from the TASKS_TIME.md sketch, which had no zero case -- noted
 // there.) `duration_since` itself never produces Unmeasured.
-data SystemTimeDifference [copy] {
+pub data SystemTimeDifference [copy] {
     case Unmeasured;
     case Backwards(amount: Duration);
     case Ok(duration: Duration);
@@ -719,7 +719,7 @@ data SystemTimeDifference [copy] {
 
 // Bridge from filesystem `Metadata` timestamps (and any other i64 Unix
 // source): whole seconds, zero subseconds.
-machine SystemTime::from_unix_seconds(seconds: i64) -> SystemTime {
+pub machine SystemTime::from_unix_seconds(seconds: i64) -> SystemTime {
     SystemTime { seconds_since_unix_epoch: seconds, subsecond_nanoseconds: 0 }
 }
 
@@ -729,7 +729,7 @@ machine SystemTime::from_unix_seconds(seconds: i64) -> SystemTime {
 // subtraction -- two's complement makes it the true difference whenever the
 // dominating compare proves the sign. Same borrow idiom as
 // Duration::checked_subtract, both directions precomputed in entry lets.
-machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDifference {
+pub machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDifference {
     let seconds_bigger: bool = self.seconds_since_unix_epoch > earlier.seconds_since_unix_epoch;
     let seconds_equal: bool = self.seconds_since_unix_epoch == earlier.seconds_since_unix_epoch;
     let nanoseconds_fit: bool = self.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
@@ -799,7 +799,7 @@ machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDiff
     }
 }
 
-data SystemTimeResult [copy] {
+pub data SystemTimeResult [copy] {
     case Overflow;
     case Ok(time: SystemTime);
 }
@@ -811,7 +811,7 @@ data SystemTimeResult [copy] {
 // unsigned wrapped-compare idiom, uniformly for duration seconds above
 // i64::MAX too. The RESULT seconds compute in i64-domained Wrapping
 // bit-arithmetic (probe-verified incl. above-i64::MAX operands).
-machine SystemTime::checked_add(&self, duration: Duration) -> SystemTimeResult {
+pub machine SystemTime::checked_add(&self, duration: Duration) -> SystemTimeResult {
     let nanoseconds_total: u32 = self.subsecond_nanoseconds + duration.subsecond_nanoseconds;
     let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
     let seconds_biased: u64 in Wrapping =
@@ -863,7 +863,7 @@ machine SystemTime::checked_add(&self, duration: Duration) -> SystemTimeResult {
 // self - duration; `Overflow` below i64::MIN seconds. Same biased-space
 // idiom, subtraction direction: underflow iff the biased difference wrapped
 // UPWARD (difference > minuend, unsigned).
-machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeResult {
+pub machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeResult {
     let nanoseconds_fit: bool = self.subsecond_nanoseconds >= duration.subsecond_nanoseconds;
     let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
     let seconds_biased: u64 in Wrapping =
@@ -918,7 +918,7 @@ machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeRes
 
 // self + duration, clamping at SystemTime::MAX instead of reporting
 // overflow (total). Mirrors Duration::saturating_add.
-machine SystemTime::saturating_add(&self, duration: Duration) -> SystemTime {
+pub machine SystemTime::saturating_add(&self, duration: Duration) -> SystemTime {
     let sum: SystemTimeResult = self.checked_add(duration);
     transition sum {
         SystemTimeResult::Ok { time } -> saturate_add_value(time)
@@ -931,7 +931,7 @@ machine SystemTime::saturating_add(&self, duration: Duration) -> SystemTime {
 // self - duration, clamping at SystemTime::MIN instead of reporting
 // underflow (total; wall time is signed, so the floor is i64::MIN seconds,
 // not the epoch). Mirrors Duration::saturating_subtract.
-machine SystemTime::saturating_subtract(&self, duration: Duration) -> SystemTime {
+pub machine SystemTime::saturating_subtract(&self, duration: Duration) -> SystemTime {
     let difference: SystemTimeResult = self.checked_subtract(duration);
     transition difference {
         SystemTimeResult::Ok { time } -> saturate_value(time)
@@ -945,7 +945,7 @@ machine SystemTime::saturating_subtract(&self, duration: Duration) -> SystemTime
 // The clock-read CAPABILITY (D9): reads live here, never ambiently on the
 // value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
 // have no equivalent (the Cathedral no-ambient-authority stance).
-data Time {
+pub data Time {
     host: TimeHost;
 }
 
@@ -960,7 +960,12 @@ data Time {
 // the interpreter's virtual 1000); a host reporting 0 or an absurd frequency
 // measures degraded instead of faulting. Re-read per call: Time stays
 // stateless (no capture-once field machinery) until a profile says otherwise.
-machine Time::now(&mut self) -> Instant {
+pub machine Time::now(&mut self) -> Instant
+reaches
+    TimeHost
+invokes
+    TimeHost;
+{
     let ticks: u64 = self.host.monotonic_ticks();
     let frequency_raw: u64 = self.host.monotonic_ticks_per_second();
     let frequency: u64 = clamp(frequency_raw, 1, 18446744073);
@@ -985,7 +990,12 @@ machine Time::now(&mut self) -> Instant {
 // (the checked_subtract idiom); `% i64::MAX` is the ranged witness for the
 // i64 narrowing (real clocks sit ~1.7e9, the bound only tames the prover).
 // A host clock before 1970 reads as UNIX_EPOCH (degraded, never faulting).
-machine Time::system_time_now(&mut self) -> SystemTime {
+pub machine Time::system_time_now(&mut self) -> SystemTime
+reaches
+    TimeHost
+invokes
+    TimeHost;
+{
     let raw: u64 = self.host.wall_clock_raw();
     let units_raw: u64 = self.host.wall_clock_units_per_second();
     let offset: u64 = self.host.wall_clock_epoch_offset_seconds();
@@ -1029,7 +1039,12 @@ machine Time::system_time_now(&mut self) -> SystemTime {
 // Shares let names with `now()` deliberately: two same-named-let callees
 // from one caller state pinned the cross-callee collision (both flavors now
 // FIXED -- runtime_time_elapsed_since_exit is the live std tripwire).
-machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
+pub machine Time::elapsed_since(&mut self, start: Instant) -> Duration
+reaches
+    TimeHost
+invokes
+    TimeHost;
+{
     let ticks: u64 = self.host.monotonic_ticks();
     let frequency_raw: u64 = self.host.monotonic_ticks_per_second();
     let frequency: u64 = clamp(frequency_raw, 1, 18446744073);
@@ -1085,7 +1100,12 @@ machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
 // is RETURNED so the caller can observe it. All-entry lets; the clamps
 // carry the narrowing proofs (4294968 * 1000 + 999 just exceeds u32::MAX,
 // hence the second clamp).
-machine Time::sleep_for(&mut self, duration: Duration) -> u32 {
+pub machine Time::sleep_for(&mut self, duration: Duration) -> u32
+reaches
+    TimeHost
+invokes
+    TimeHost;
+{
     let seconds_capped: u64 = clamp(duration.seconds, 0, 4294968);
     let seconds_scaled: u64 in Wrapping = (seconds_capped as u64 in Wrapping) * 1000;
     let subsecond_milliseconds: u32 = duration.subsecond_nanoseconds / 1000000;

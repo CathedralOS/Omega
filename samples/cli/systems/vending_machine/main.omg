@@ -14,7 +14,7 @@
 //   35 + 50 - 65 + 1*40 + 10 - 20 + sales_count(3) + 17 = 70
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Change {
     quarters: i32 in Wrapping;

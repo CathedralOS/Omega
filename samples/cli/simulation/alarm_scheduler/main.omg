@@ -43,7 +43,7 @@
 // the RUN canary control_flow/no_payload_case_variant_after_payload_dispatch_exit.
 // ====================================================================
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);

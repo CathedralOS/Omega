@@ -15,7 +15,7 @@
 // increment ALWAYS overflows, and an unconditional trap is worth flagging --
 // but only flagging (owner: no compelling reason to forbid it). The warning
 // appearing in this sample's compile output is expected and correct.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; x: i32 in Trapping; }
 machine Main::main(&mut self) {
     self.x = 2147483647;

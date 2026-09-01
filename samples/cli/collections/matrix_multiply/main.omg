@@ -13,7 +13,7 @@
 // exit = (C[0][0] + C[1][1] + C[2][2]) % 256 = (30 + 69 + 90) % 256 = 189
 //
 // Expected exit: 189
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: [[i32 in Wrapping; 3]; 3];

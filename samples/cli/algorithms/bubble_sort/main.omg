@@ -15,7 +15,7 @@
 // Sorting [29, 10, 14, 37, 13] ascending puts the minimum, 10, at index 0.
 // Expected exit: 10.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

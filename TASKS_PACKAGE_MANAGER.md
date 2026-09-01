@@ -385,9 +385,13 @@ explicitly.
 
   Remaining work:
 
-  - migrate remaining package-aware sample and fixture consumers to explicit
-    std dependency edges; the compiler product and parser package already
-    declare and compile through their ordinary `omega-language-std` edges;
+  - migrate remaining package-aware fixtures to explicit std dependency edges;
+    the compiler product, parser package, and all 140 std-consuming sample
+    packages already declare ordinary `omega-language-std` edges and import
+    through its derived alias; the package-aware sample sweep introduces no
+    failures beyond the seven independently reproduced on the prior standalone
+    baseline; the freestanding UEFI package remains dependency-free, while two
+    proof-only source fixtures remain standalone;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

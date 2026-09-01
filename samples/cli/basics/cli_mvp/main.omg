@@ -6,7 +6,7 @@
 // Expected exit: 0.
 // Expected output contains: Hello, Omega.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 256]::Utf8
 requires

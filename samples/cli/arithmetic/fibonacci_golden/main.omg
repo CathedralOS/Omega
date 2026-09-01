@@ -10,7 +10,7 @@
 // local, the same idiom euclid_gcd documents. Expected exit: 161.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Fib [copy] {
     a: i32 in Wrapping;

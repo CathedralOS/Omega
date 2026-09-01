@@ -59,7 +59,12 @@ windows_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64)
     state other(&mut self) -> i32 { self.err_code }
 }
 
-windows_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+pub windows_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.open_options = options;
     self.encode_open_options();
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
@@ -95,7 +100,12 @@ windows_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, opt
 // w_scan_step), which tallies every non-dot record. Unlike the posix walk's
 // single 512-byte fill (which undercounts a large directory), the fueled
 // enumeration counts up to 4096 records -- the fuel budget is the only cap.
-windows_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
+pub windows_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.w_scan_count = 0;
     self.w_scan_dirs = 0;
     self.w_scan_files = 0;
@@ -276,7 +286,12 @@ windows_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64
 // ascend = pop + truncate). Same drain discipline as posix (D-rda): a single
 // fuel budget (4096) bounds TOTAL operations; each step re-enumerates the
 // current directory fresh, so removal never races an open enumeration.
-windows_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+pub windows_x86_64 machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.w_path_copy(path, 0);
     transition path.len < 509 { true -> rda_init(path) _ -> rda_err(path) }
     state rda_init(&mut self, path: &[u8] in Path) -> UnitResult {

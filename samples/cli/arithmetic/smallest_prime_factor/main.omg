@@ -9,7 +9,7 @@
 // algorithm rather than a canary.
 // Expected exit: 13.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // FULLY EXACT -- no overflow domain: `n` and `d` carry ranges, so the guard
 // arithmetic `d * d` (<= 40000) and `n % d` are verifiably bounded, and the

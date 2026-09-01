@@ -5,7 +5,7 @@
 // membership: 5 present, 4 absent, 7 present. A real data structure over the bitwise ops -- the same
 // primitives a flag set or a Bloom-filter word uses. Exits 70 iff all three checks pass.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

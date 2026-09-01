@@ -12,7 +12,7 @@
 // divisors; the parity branch reads the exponent's low bit.
 // Expected exit: 87.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // The modulus is the CONSTANT 100 at each `%` site (a constant divisor is
 // provably nonzero). A `modulus: i32 [1..=100]` FIELD would be rejected: this

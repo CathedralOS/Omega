@@ -66,23 +66,97 @@
 //!    that text — exit code alone passes even when a RENDERER silently draws
 //!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
-use omega_compiler::{CompileOptions, compile_to_checked};
+use omega_build_declarations::{BuildDeclaration, extract_build_declaration};
+use omega_compiler::{CompileOptions, compile_to_checked, compile_to_checked_with_packages};
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
+use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+fn sample_package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32]).expect("sample package identity is nonzero")
+}
+
+fn sample_package_inputs(root_path: &Path) -> PackageCompilationInputs {
+    let project_root = root_path
+        .parent()
+        .expect("sample main source should have a project root");
+    let declaration = extract_build_declaration(project_root)
+        .unwrap_or_else(|error| panic!("project {}: {error}", project_root.display()));
+    let root_role = declaration.kind();
+    let root_name = match declaration {
+        BuildDeclaration::Application(application) => application.name,
+        BuildDeclaration::Package(package) => package.name,
+        BuildDeclaration::Workspace(_) => {
+            panic!(
+                "sample {} cannot be a workspace root",
+                project_root.display()
+            )
+        }
+    };
+    let root_identity = sample_package_identity(1);
+    let standard_library_identity = sample_package_identity(2);
+    let mut packages = vec![PackageSourceBinding::new(
+        root_identity,
+        root_name.into_string(),
+        project_root.to_path_buf(),
+    )];
+    let mut dependencies = Vec::new();
+
+    // The freestanding UEFI package uses only compiler-owned core vocabulary.
+    // Every std-consuming package declares the ordinary dependency in its
+    // build.omg; repository_build_declarations checks that edge independently.
+    let dependency_free = project_root.ends_with("samples/uefi/uefi_hello");
+    if !dependency_free {
+        packages.push(PackageSourceBinding::new(
+            standard_library_identity,
+            "omega-language-std",
+            repo_root().join("source/library/std"),
+        ));
+        dependencies.push(PackageDependencyBinding::new(
+            root_identity,
+            "omega_language_std",
+            standard_library_identity,
+        ));
+    }
+
+    PackageCompilationInputs::new(root_identity, root_role, packages, dependencies)
+        .unwrap_or_else(|errors| panic!("project {}: {errors:#?}", project_root.display()))
+}
+
+fn compile_sample_to_checked(
+    root_path: &Path,
+    target_name: Option<&str>,
+) -> Result<omega_compiler::CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
+    if !root_path
+        .parent()
+        .is_some_and(|project_root| project_root.join("build.omg").is_file())
+    {
+        return compile_to_checked(root_path, target_name);
+    }
+    compile_to_checked_with_packages(root_path, target_name, sample_package_inputs(root_path))
+}
+
 fn compile_check(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    let package_inputs = sample_package_inputs(&options.root_path);
+    omega_compiler::compile(
+        omega_compiler::CompileRequest::new(options).with_package_inputs(package_inputs),
+    )
 }
 
 fn compile_native_and_publish(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
     let build_dir = options.build_dir();
+    let package_inputs = sample_package_inputs(&options.root_path);
     let report = omega_compiler::compile(
         omega_compiler::CompileRequest::new(options)
+            .with_package_inputs(package_inputs)
             .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
     )?;
     report
@@ -424,7 +498,7 @@ fn assert_authored_entry_samples(
     for sample in samples {
         let main_path = base.join(sample).join("main.omg");
         for target in targets {
-            let checked = match compile_to_checked(&main_path, Some(target)) {
+            let checked = match compile_sample_to_checked(&main_path, Some(target)) {
                 Ok(checked) => checked,
                 Err(diagnostics) => {
                     failures.push(format!(
@@ -458,7 +532,7 @@ fn assert_authored_entry_samples(
             let _ = fs::remove_dir_all(build_dir);
         }
         if check_entry_agnostic {
-            match compile_to_checked(&main_path, None) {
+            match compile_sample_to_checked(&main_path, None) {
                 Ok(checked) if checked.selected_program_entry_machine().is_none() => {}
                 Ok(checked) => failures.push(format!(
                     "{sample}/checked-only: unexpectedly selected {:?}",
@@ -497,7 +571,7 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
             .join("main.omg");
         for target in HOSTED_SAMPLE_TARGETS {
             let checked =
-                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
+                compile_sample_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
                     panic!(
                         "basic sample {sample} should select its authored {target} entry: \
                      {diagnostics:#?}"
@@ -509,7 +583,7 @@ fn basics_samples_compile_from_authored_program_entry_bindings() {
                 "basic sample {sample} must select its authored Main::main binding for {target}"
             );
         }
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        let checked = compile_sample_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
             panic!(
                 "basic sample {sample} should remain entry-agnostic when checked: {diagnostics:#?}"
             )
@@ -566,7 +640,7 @@ fn probe_samples_compile_from_authored_program_entry_bindings() {
     assert_authored_entry_cohort("probes", EXPLICIT_ENTRY_PROBE_SAMPLES);
 
     let main_path = repo_root().join("samples/cli/probes/trapping_probe/main.omg");
-    let checked = compile_to_checked(&main_path, None)
+    let checked = compile_sample_to_checked(&main_path, None)
         .expect("the deliberate trapping probe should remain a checked-only fixture");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -632,7 +706,7 @@ fn simulation_samples_compile_from_authored_program_entry_bindings() {
 #[test]
 fn temperature_sample_retains_exact_float_operator_evidence() {
     let main_path = repo_root().join("samples/cli/basics/temperature_convert/main.omg");
-    let checked = compile_to_checked(&main_path, Some(host_target_name()))
+    let checked = compile_sample_to_checked(&main_path, Some(host_target_name()))
         .expect("temperature sample should reach checked trees");
     let uses = checked
         .facts
@@ -686,7 +760,7 @@ fn proof_samples_compile_from_authored_program_entry_bindings() {
             .join("main.omg");
         for target in HOSTED_SAMPLE_TARGETS {
             let checked =
-                compile_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
+                compile_sample_to_checked(&main_path, Some(target)).unwrap_or_else(|diagnostics| {
                     panic!(
                         "proof sample {sample} should select its authored {target} entry: \
                          {diagnostics:#?}"
@@ -698,7 +772,7 @@ fn proof_samples_compile_from_authored_program_entry_bindings() {
                 "proof sample {sample} must select its authored Main::main binding for {target}"
             );
         }
-        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        let checked = compile_sample_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
             panic!(
                 "proof sample {sample} should remain entry-agnostic when checked: \
                  {diagnostics:#?}"
@@ -755,7 +829,7 @@ fn all_samples_reach_checked_trees() {
         } else {
             None
         };
-        let result = compile_to_checked(main_path, target_name.as_deref());
+        let result = compile_sample_to_checked(main_path, target_name.as_deref());
         if let Err(error) = result {
             failures.push(format!("{name}: {error:?}"));
         }
@@ -798,7 +872,7 @@ fn named_integer_conversion_samples_reach_checked_trees() {
         "cli/basics/print_squares",
     ] {
         let main_path = repo_root().join("samples").join(relative).join("main.omg");
-        compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        compile_sample_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
             panic!(
                 "named integer-conversion sample {relative} should reach checked trees: \
                  {diagnostics:#?}"

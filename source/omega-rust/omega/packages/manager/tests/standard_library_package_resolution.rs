@@ -212,6 +212,16 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
         console.identity().owner(),
         PackageReviewNominalOwner::Package(closure.graph().root().identity()),
     );
+    for boundary_trait in ["FilesystemHost", "TimeHost"] {
+        assert!(
+            review
+                .projection()
+                .public_traits()
+                .iter()
+                .any(|shape| shape.identity().path() == boundary_trait),
+            "ordinary review entry must expose the dangerous {boundary_trait} capability",
+        );
+    }
     assert!(
         review
             .projection()

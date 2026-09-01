@@ -17,7 +17,7 @@
 // main issues `SetLevel { level: 65 }`, so the controller settles at 65.
 // Expected exit: 65.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case SetLevel(level: i32 [0..=100]);

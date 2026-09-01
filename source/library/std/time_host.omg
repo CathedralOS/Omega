@@ -22,20 +22,20 @@
 //            reads never advance it, so interpreter canaries assert EXACT
 //            values. Wall clock = 2026-01-01T00:00:00Z + elapsed, already in
 //            Unix units (epoch offset 0, units 1000).
-boundary trait TimeHost {
+pub boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
     // Only differences are meaningful.
-    machine monotonic_ticks() -> u64;
+    machine monotonic_ticks() -> u64 reaches TimeHost;
     // Ticks per second for monotonic_ticks. Stable for the process lifetime.
-    machine monotonic_ticks_per_second() -> u64;
+    machine monotonic_ticks_per_second() -> u64 reaches TimeHost;
     // Wall clock: ONE non-tearing read, raw platform units since the
     // platform epoch.
-    machine wall_clock_raw() -> u64;
+    machine wall_clock_raw() -> u64 reaches TimeHost;
     // Units per second for wall_clock_raw (constant per target).
-    machine wall_clock_units_per_second() -> u64;
+    machine wall_clock_units_per_second() -> u64 reaches TimeHost;
     // Platform-epoch -> Unix-epoch shift, in seconds (constant per target).
-    machine wall_clock_epoch_offset_seconds() -> u64;
+    machine wall_clock_epoch_offset_seconds() -> u64 reaches TimeHost;
     // Millisecond sleep (already bound natively: windows Kernel32 Sleep,
     // darwin poll; the interpreter advances the virtual clock).
-    machine sleep(milliseconds: u32);
+    machine sleep(milliseconds: u32) reaches TimeHost;
 }

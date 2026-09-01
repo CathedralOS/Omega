@@ -7,7 +7,7 @@
 // on a stored enum field, payload-field extraction, and per-variant computation.
 // Expected exit: 42.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // FULLY EXACT -- no overflow domain: each match arm passes its payload through a
 // guard hop (`radius < 101` etc.) into a compute state with a RANGED parameter, so

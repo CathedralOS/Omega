@@ -7,7 +7,7 @@
 // carrier byte writes at a runtime index, per-frame host output, and Wrapping u64 tick math.
 // Expected exit: 0.
 // Expected output contains: #
-use omega::language::std::console;
+use omega_language_std::console;
 domain [u8; 12]::Utf8
 requires
     valid_utf8(self);

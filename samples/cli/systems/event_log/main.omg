@@ -28,7 +28,7 @@
 //
 // Expected exit: 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Event {
     case Deposit(amount: i32 in Saturating);

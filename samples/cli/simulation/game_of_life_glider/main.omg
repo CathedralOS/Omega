@@ -13,7 +13,7 @@
 // (a direct grid[c] = next[c] is a dual-indexed gap). Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

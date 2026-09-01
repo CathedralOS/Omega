@@ -16,12 +16,12 @@
 // compiled but never auto-run (it waits for a human to close the window).
 // (The annotation parser substring-matches, so: no exit phrase here.)
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Clock { machine sleep(milliseconds: u32); }
 boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 boundary trait Gui {

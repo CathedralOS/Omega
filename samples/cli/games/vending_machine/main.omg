@@ -7,7 +7,7 @@
 // calls. The exit code reports the final dispensed total so the run is
 // verifiable end to end (expected: 70).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // A coin or a button press. `Insert` carries how many cents arrived; `Press`
 // carries which slot was chosen. Tag zero selects the first case, so a zeroed

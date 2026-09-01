@@ -1,6 +1,7 @@
 use omega_package_manager::declarations::PackageName;
 use omega_package_manager::declarations::{
-    BuildDeclaration, BuildDeclarationError, WorkspaceMemberPath, extract_build_declaration,
+    BuildDeclaration, BuildDeclarationError, DependencySourceRequest, WorkspaceMemberPath,
+    extract_build_declaration, extract_build_dependency_projection,
 };
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure_with_storage,
@@ -218,27 +219,50 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
 }
 
 #[test]
-fn executable_samples_declare_canonical_application_roles() {
+fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edges() {
     let samples = repository_root().join("samples");
     let mut roots = Vec::new();
     collect_build_roots(&samples, &mut roots);
-    assert_eq!(roots.len(), 140, "unexpected executable sample population");
+    assert_eq!(roots.len(), 141, "unexpected executable sample population");
 
     for root in roots {
         let expected_name = expected_sample_application_name(&root);
+        let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
+            panic!(
+                "project role/dependency projection failed for {}: {error}",
+                root.display()
+            )
+        });
         assert_eq!(
-            extract_build_declaration(&root).unwrap_or_else(|error| {
-                panic!(
-                    "project role projection failed for {}: {error}",
-                    root.display()
-                )
-            }),
-            BuildDeclaration::Application(
+            projection.declaration(),
+            &BuildDeclaration::Application(
                 omega_package_manager::declarations::ApplicationDeclaration {
                     name: PackageName::parse(&expected_name).unwrap(),
                 }
             ),
             "unexpected sample application declaration in {}",
+            root.display()
+        );
+
+        let expected_dependencies = if root.ends_with("samples/uefi/uefi_hello") {
+            Vec::new()
+        } else {
+            let location = if root.starts_with(samples.join("cli")) {
+                "../../../../source/library/std"
+            } else if root.starts_with(samples.join("gui")) {
+                "../../../source/library/std"
+            } else {
+                "../../source/library/std"
+            };
+            vec![DependencySourceRequest::Path {
+                explicit_alias: None,
+                location: location.to_owned(),
+            }]
+        };
+        assert_eq!(
+            projection.dependencies(),
+            expected_dependencies,
+            "unexpected sample dependency declaration in {}",
             root.display()
         );
     }

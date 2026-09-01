@@ -31,7 +31,7 @@
 // Guarded by calls/value_call_embedded_in_binary_exit and
 // calls/transition_arg_local_from_embedded_call_exit.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Calc {}
 

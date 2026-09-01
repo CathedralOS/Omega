@@ -4041,10 +4041,20 @@ to the actual bundled core root, allowing the repository's std directory to
 enter as an ordinary package. The compiler product and parser package now
 declare their own std edges, import through `omega_language_std`, reconcile one
 exact std package in the compiler/psi diamond, and pass the package-aware
-command route from resolver snapshot through checked compilation. Remaining
-sample/fixture migration, standalone consumer migration, accepted-lock replay,
-and macOS GUI injection remain explicit seams to remove. Only
-`omega::language::core` has a magic mount in package-aware compilation.
+command route from resolver snapshot through checked compilation. All 140
+std-consuming sample packages likewise declare ordinary std edges and import
+through `omega_language_std`; the compiler sample harness supplies an explicit
+package graph, and `omega refresh-samples` now uses full resolver custody. The
+freestanding UEFI package remains dependency-free; two proof-only source
+fixtures remain standalone. The package-aware sample sweep adds no failures to
+the seven independently reproduced on its prior standalone baseline. Ordinary
+visibility is now explicit on the documented time and ergonomic filesystem
+surfaces; public boundary-reaching methods publish exact `TimeHost` or
+`FilesystemHost` reaches and synchronous-invocation ceilings, while their
+implementation helpers remain private. Remaining fixture migration,
+standalone consumer migration, accepted-lock replay, and macOS GUI injection
+remain explicit seams to remove. Only `omega::language::core` has a magic mount
+in package-aware compilation.
 
 Making std ordinary also makes core's package boundary concrete. Source-facing
 float namespaces, formats, meanings, semantic operators, and boundary

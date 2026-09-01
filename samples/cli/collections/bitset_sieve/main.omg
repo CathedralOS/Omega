@@ -6,7 +6,7 @@
 // count is 10. A real algorithm over the bitset, using OR / shift / AND with runtime shift amounts
 // across nested loops, with no array indexing.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

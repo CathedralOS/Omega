@@ -7,7 +7,7 @@
 // walks the payload with the shrinking-window recursion.
 // Expected exit: 60.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 // Wrapping DECLARED: the checksum sums slice elements, which carry no range
 // facts yet (the elements share the domain so the accumulation is single-domain).

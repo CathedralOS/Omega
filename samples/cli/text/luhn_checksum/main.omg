@@ -9,7 +9,7 @@
 // (here n = 11, so right-position parity matches r parity). The sum comes to 70, and 70 % 10 == 0,
 // so the number is valid. Exits 70 on valid, 71 on invalid.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

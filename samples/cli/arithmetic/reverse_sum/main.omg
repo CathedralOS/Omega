@@ -10,7 +10,7 @@
 // [5, 10, 15, 20, 25] the reverse sum is 75.
 // Expected exit: 75.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

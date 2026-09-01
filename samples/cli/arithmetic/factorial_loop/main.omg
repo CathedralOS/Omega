@@ -8,7 +8,7 @@
 //   fact(5, 1) = 120
 //
 // Expected exit: 120
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main {
     console: Console;
