@@ -1,0 +1,43 @@
+// F7: exact x86 source FMA demand joined to explicit AVX+FMA3 admission.
+// Repeated F64 demand must deduplicate; multiply-then-add remains a separate
+// semantic operation and must not enter the FMA association set.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    result32: f32;
+    result64: f64;
+}
+
+machine Main::main(&mut self) {
+    let next32: f32 = 1.00000011920928955078125;
+    let cancel32: f32 = 0.0f32 - 1.0000002384185791015625;
+    let unfused32: f32 =
+        F32::multiply_then_add(next32, next32, cancel32);
+    self.result32 =
+        F32::fused_multiply_add(next32, next32, cancel32) + unfused32;
+
+    let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
+    let cancel64: f64 =
+        0.0 - 1.000000000000000444089209850062616169452667236328125;
+    let repeated64: f64 =
+        F64::fused_multiply_add(next64, next64, cancel64);
+    self.result64 = F64::fused_multiply_add(repeated64, 1.0, 0.0);
+
+    transition self.result32 > 0.0f32 {
+        true -> check64()
+        _ -> fail(71)
+    }
+
+    state check64(&mut self) {
+        transition self.result64 > 0.0 {
+            true -> good()
+            _ -> fail(72)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+}

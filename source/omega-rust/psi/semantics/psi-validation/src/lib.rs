@@ -87,6 +87,7 @@ pub use effects::{validate_asm_discharge, validate_behavior_plan};
 pub use expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
+    is_exact_toolchain_float_meaning_type,
 };
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the

@@ -443,6 +443,22 @@ windows_x86_64 machine FloatNativeProvider::multiply_then_add64(
     satisfies F64::multiply_then_add
     via Binding::CompilerIntrinsic;
 
+windows_x86_64 machine FloatNativeProvider::fused_multiply_add32_windows_x86_64(
+    left: f32,
+    right: f32,
+    addend: f32
+) -> f32
+    satisfies F32::fused_multiply_add
+    via Binding::CompilerIntrinsic;
+
+windows_x86_64 machine FloatNativeProvider::fused_multiply_add64_windows_x86_64(
+    left: f64,
+    right: f64,
+    addend: f64
+) -> f64
+    satisfies F64::fused_multiply_add
+    via Binding::CompilerIntrinsic;
+
 windows_x86_64 machine FloatNativeProvider::add_toward_zero32(
     left: f32,
     right: f32

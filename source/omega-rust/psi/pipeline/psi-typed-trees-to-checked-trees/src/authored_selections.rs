@@ -5,10 +5,11 @@ use psi_language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
 };
-use psi_symbols::SymbolHandle;
+use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::{TypedTrees, expression::ExpressionNode};
 
 mod contexts;
+mod contract_resolution;
 mod review;
 
 pub(crate) use review::derive_checked_collection_view_intrinsic;
@@ -266,7 +267,11 @@ fn finalize_checked_authored_selections_with_policy(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralType,
                     ExpressionNode::StructLiteral(literal),
-                ) => declaration_target(literal.type_symbol),
+                ) => declaration_target(checked_struct_literal_type_symbol(
+                    program,
+                    literal,
+                    selection.source_span(),
+                )),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStructLiteralCase,
                     ExpressionNode::StructLiteral(literal),
@@ -282,7 +287,22 @@ fn finalize_checked_authored_selections_with_policy(
                             &occurrences[..occurrence_offset],
                             binding,
                         ))
-                        .map(|field| field.field_symbol)
+                        .map(|field| {
+                            if field.field_symbol.is_valid() {
+                                field.field_symbol
+                            } else {
+                                crate::flow::resolve_member_symbol_from_type_symbol(
+                                    program,
+                                    checked_struct_literal_type_symbol(
+                                        program,
+                                        literal,
+                                        selection.source_span(),
+                                    ),
+                                    field.name.as_str(),
+                                )
+                                .unwrap_or_else(SymbolHandle::invalid)
+                            }
+                        })
                         .unwrap_or_else(SymbolHandle::invalid),
                 ),
                 (AuthoredDeclarationSelectionLateBinding::CheckedOperator, _)
@@ -293,7 +313,20 @@ fn finalize_checked_authored_selections_with_policy(
                             | ExpressionNode::Unary(_)
                     ) =>
                 {
-                    checked_operator_target(program, facts, expression, node)
+                    checked_operator_target_for_occurrence(
+                        program,
+                        facts,
+                        expression,
+                        node,
+                        occurrence,
+                    )
+                    .or_else(|| {
+                        typed_operator_has_no_authored_selection(program, expression).then_some(
+                            CheckedResolutionTarget::Intrinsic(
+                                AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                            ),
+                        )
+                    })
                 }
                 // Primitive constant folding can replace a successfully checked
                 // builtin operator with its literal result while retaining the
@@ -406,6 +439,29 @@ fn finalize_checked_authored_selections_with_policy(
     }
     program.retain_authored_declaration_selections(selections);
     Ok(())
+}
+
+fn checked_struct_literal_type_symbol(
+    program: &TypedTrees,
+    literal: &psi_typed_trees::expression::TableStructLiteral,
+    source_span: psi_source::SourceSpan,
+) -> SymbolHandle {
+    if literal.type_symbol.is_valid() {
+        return literal.type_symbol;
+    }
+
+    // This selection was deliberately retained as late-bound. At the checked
+    // boundary the complete symbol table can resolve the authored head in its
+    // exact source/package visibility context. The ledger stores the resulting
+    // symbol; downstream consumers never repeat this lookup.
+    program
+        .symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            literal.type_name.as_str(),
+            &[SymbolKind::Data],
+            source_span,
+        )
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn collect_checked_proof_membership_selections(
@@ -1053,6 +1109,17 @@ fn checked_call_target(
         return operator.symbol;
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
+        && let Some(operator) = contract_resolution::checked_named_operator_call(
+            program,
+            facts,
+            expression,
+            call,
+            authored_source_span,
+        )
+    {
+        return operator.symbol;
+    }
+    if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
         && let Some(target) =
             contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call)
     {
@@ -1365,6 +1432,19 @@ fn checked_operator_target(
                 ))
         })
         .or_else(|| {
+            contract_resolution::checked_operator_resolution(program, facts, expression, node)
+                .and_then(|resolution| match resolution {
+                    contract_resolution::CheckedContractOperatorResolution::Declaration(symbol) => {
+                        declaration_target(symbol)
+                    }
+                    contract_resolution::CheckedContractOperatorResolution::Builtin => {
+                        Some(CheckedResolutionTarget::Intrinsic(
+                            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        ))
+                    }
+                })
+        })
+        .or_else(|| {
             resolve_authored_operator_without_use_fact(program, node)
                 .and_then(|operator| declaration_target(operator.symbol))
         })
@@ -1374,7 +1454,10 @@ fn checked_operator_target(
                 ExpressionNode::Unary(unary) => unary.operand,
                 _ => return None,
             };
-            (expression_is_intrinsic_primitive_without_origin(program, operand)
+            (contract_resolution::checked_operand_type(program, facts, expression, operand)
+                .and_then(|type_reference| program.primitive_type_reference(type_reference))
+                .is_some()
+                || expression_is_intrinsic_primitive_without_origin(program, operand)
                 || checked_operator_expression_is_intrinsic_primitive(facts, operand)
                 || expression_is_contextual_domain_primitive(program, expression, operand)
                 || expression_is_contextual_statement_primitive(program, expression, operand))
@@ -1389,6 +1472,30 @@ fn checked_operator_target(
                 ),
             )
         })
+}
+
+fn checked_operator_target_for_occurrence(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    node: &ExpressionNode,
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
+) -> Option<CheckedResolutionTarget> {
+    checked_operator_target(program, facts, expression, node).or_else(|| {
+        program
+            .expression_table
+            .iter_expressions()
+            .filter(|(candidate, _)| *candidate != expression)
+            .filter(|(candidate, _)| {
+                program
+                    .expression_table
+                    .authored_selection_occurrences(*candidate)
+                    .any(|retained| retained == occurrence)
+            })
+            .find_map(|(candidate, candidate_node)| {
+                checked_operator_target(program, facts, candidate, candidate_node)
+            })
+    })
 }
 
 fn checked_operator_expression_is_intrinsic_primitive(
@@ -1556,13 +1663,16 @@ fn authored_operand_type(
             program,
             crate::flow::effective_member_symbol(program, member.receiver, member),
         ),
+        ExpressionNode::Call(call) => {
+            exact_named_operator_call(program, call).map(|operator| operator.return_type)
+        }
         ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol)
-            .or_else(|| operator_contract_parameter_type(program, expression, path)),
+            .or_else(|| operator_contract_value_type(program, expression, path)),
         _ => None,
     }
 }
 
-fn operator_contract_parameter_type(
+fn operator_contract_value_type(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
     path: &psi_typed_trees::expression::TableNamePath,
@@ -1599,6 +1709,9 @@ fn operator_contract_parameter_type(
             })
         })
         .filter_map(|operator| {
+            if name == "result" {
+                return Some(operator.return_type);
+            }
             program
                 .operator_parameters(operator)
                 .iter()
@@ -2252,6 +2365,13 @@ fn type_reference_for_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    if let Some(type_reference) = program
+        .const_declarations()
+        .iter()
+        .find_map(|declaration| (declaration.symbol == symbol).then_some(declaration.declared_type))
+    {
+        return Some(type_reference);
+    }
     for data in program.data_definitions() {
         for member in program.data_members(data) {
             match member {

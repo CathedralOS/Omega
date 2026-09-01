@@ -68,6 +68,80 @@ fn successful_checking_finalizes_authored_call_occurrences() {
 }
 
 #[test]
+fn checked_operator_contract_context_disambiguates_named_overloads() {
+    let source = r#"
+        data Token { case First; case Second; }
+        data Convert { }
+        data Wrap { }
+
+        operator Convert::from(value: i32) -> Token;
+        operator Convert::from(value: u32) -> Token;
+        boundary operator Wrap::from(value: i32) -> Token
+        ensures result == Convert::from(value);
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    let selected = checked
+        .authored_declaration_selections()
+        .iter()
+        .find_map(|selection| match selection.target() {
+            AuthoredDeclarationSelectionTarget::Resolved(target)
+                if selection.kind() == AuthoredDeclarationSelectionKind::Call =>
+            {
+                Some(target.selected_symbol())
+            }
+            _ => None,
+        })
+        .expect("contract call selects one exact overload");
+    let operator = psi_typed_trees::operator::declaration_by_symbol(&checked, selected)
+        .expect("selected call target remains an operator declaration");
+    let [parameter] = checked.operator_parameters(operator) else {
+        panic!("selected overload retains one parameter")
+    };
+    assert_eq!(
+        checked
+            .type_reference_table
+            .primitive_type(parameter.type_reference),
+        Some(psi_typed_trees::types::PrimitiveType::I32)
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
+fn resultless_trait_law_equality_is_proposition_equality() {
+    let source = r#"
+        trait Commutative {
+            machine combine(left: Self, right: Self) -> Self terminates;
+            machine commutes(left: Self, right: Self)
+            ensures combine(left, right) == combine(right, left);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    let law_equalities = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Operator)
+        .collect::<Vec<_>>();
+    assert_eq!(law_equalities.len(), 1);
+    assert_eq!(
+        law_equalities[0].target(),
+        AuthoredDeclarationSelectionTarget::Intrinsic(
+            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        )
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
 fn successful_checking_finalizes_wire_codec_calls_as_exact_intrinsics() {
     let source = r#"
         data CounterMessage { #0 counter: u32; }

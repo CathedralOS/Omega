@@ -11346,11 +11346,17 @@ selection, validates the compiler-owned field and enum identities, binds the
 selection to the invocation's exact x86 profile, and retains the admitted
 provider on `CheckedCompilation`; targetless, non-x86, and cross-profile paths
 fail closed. This selection replays only the fixed semantic cancellation
-vectors and is not native execution evidence. Source ProviderPlan selection,
-ordinary compiler lowering into the retained admission, and native differential
-execution receipts remain engineering work; generic Linux/Windows x86-64
-semantics remain SSE2 baseline unless that explicit deployment input is
-selected.
+vectors and is not native execution evidence. Ordinary Linux/Windows x86-64
+target sources now publish nearest binary32/binary64 FMA satisfiers. Each
+actual checked source use rejoins its complete selected `ProviderPlan` and
+compiler-intrinsic provenance to the exact-profile admitted provider; repeated
+uses deduplicate, F32/F64 stay distinct, multiply-then-add and non-x86
+realizations remain outside the join, and an exact-profile x86 FMA demand
+without explicit AVX+FMA3 admission fails closed. The resulting immutable
+association is checked custody only: ordinary compiler/native lowering that
+consumes it and native differential execution receipts remain engineering
+work. Generic Linux/Windows x86-64 semantics remain SSE2 baseline unless that
+explicit deployment input is selected.
 
 The generic Linux and Windows x86-64 baselines now retain target-specific
 semantic-edge suites. Each checked half pins the exact 36 nearest arithmetic,
