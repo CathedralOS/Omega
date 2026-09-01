@@ -66,7 +66,7 @@ fn declared_catalog() -> Vec<(
             (
                 entry.optimization(),
                 OptimizationExecutionPhase::PostAllocationMachine,
-                TestTargetDisposition::Architecture(*entry.payload()),
+                TestTargetDisposition::Architecture(entry.payload().architecture()),
             )
         }))
         .chain(FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG.iter().map(|entry| {
@@ -161,7 +161,10 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
                         selected_post_allocation_machine_rule(&selections, target.architecture)
                             .unwrap()
                             .0,
-                        optimization
+                        *POST_ALLOCATION_MACHINE_RULE_CATALOG
+                            .iter()
+                            .find(|entry| entry.optimization() == optimization)
+                            .unwrap()
                     );
                 }
                 (OptimizationExecutionPhase::FunctionRelativeLayout, true) => {

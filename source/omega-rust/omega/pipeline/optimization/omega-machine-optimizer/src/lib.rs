@@ -19,5 +19,6 @@ pub use rules::x86_64::materialize_i64_xor_zero::*;
 pub use rules::{
     ORDERED_POST_ALLOCATION_MACHINE_RULES, POST_ALLOCATION_MACHINE_RULE_CATALOG,
     PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleCatalogError,
+    PostAllocationMachineRuleCatalogPayload, PostAllocationMachineRuleKind,
     require_post_allocation_machine_rule, selected_post_allocation_machine_rule,
 };

@@ -286,6 +286,10 @@ guard enforces that separation.
 
 The adjacent machine catalog is also the architecture-admission point. CBNZ
 and MOVN require AArch64; XOR-zero and MOV-r32-imm32 require x86-64.
+Each row joins the exact optimization name, required architecture, and closed
+execution kind. The selected row survives physical composition intact; both
+source lineages dispatch on its typed kind instead of reconstructing a second
+name-to-implementation switch.
 Function-relative rel8 relaxation declares x86-64 in its adjacent layout
 catalog. Unsupported target selection is rejected with the exact optimization,
 required architecture, and actual architecture before rule dispatch; custody
@@ -403,8 +407,9 @@ admits baseline, selected lowering, one allocation-recovery rule alone, one
 post-allocation rule with optional selected lowering, or function-relative
 layout with optional selected lowering. Multiple recovery or machine rules,
 recovery mixed with another physical phase, and machine plus layout reject
-before route execution. The resolved post-allocation rule drives dispatch;
-lower leaves independently validate transformation and custody.
+before route execution. The canonical post-allocation catalog entry survives
+composition and its closed execution kind selects the named leaf; lower leaves
+independently validate transformation and custody.
 
 ## Required tests
 

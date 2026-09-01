@@ -18,6 +18,7 @@ use omega_target::Architecture;
 pub use catalog::{
     ORDERED_POST_ALLOCATION_MACHINE_RULES, POST_ALLOCATION_MACHINE_RULE_CATALOG,
     PostAllocationMachineRuleCatalogEntry, PostAllocationMachineRuleCatalogError,
+    PostAllocationMachineRuleCatalogPayload, PostAllocationMachineRuleKind,
 };
 
 /// Select the single post-allocation machine rule currently admitted by the
@@ -25,7 +26,13 @@ pub use catalog::{
 pub fn selected_post_allocation_machine_rule(
     selections: &OptimizationSelections,
     architecture: Architecture,
-) -> Result<(Optimization, OptimizationSelections), PostAllocationMachineRuleCatalogError> {
+) -> Result<
+    (
+        PostAllocationMachineRuleCatalogEntry,
+        OptimizationSelections,
+    ),
+    PostAllocationMachineRuleCatalogError,
+> {
     let phase = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
     match phase.as_slice() {
         [selected] => {
@@ -37,7 +44,7 @@ pub fn selected_post_allocation_machine_rule(
                     *selected,
                 ));
             };
-            let required = *descriptor.payload();
+            let required = descriptor.payload().architecture();
             if required != architecture {
                 return Err(PostAllocationMachineRuleCatalogError::UnsupportedTarget {
                     optimization: *selected,
@@ -45,7 +52,7 @@ pub fn selected_post_allocation_machine_rule(
                     actual: architecture,
                 });
             }
-            Ok((*selected, phase))
+            Ok((*descriptor, phase))
         }
         [] => Err(PostAllocationMachineRuleCatalogError::MissingSelection),
         selected => Err(PostAllocationMachineRuleCatalogError::UnsupportedComposition(selected[0])),
@@ -58,10 +65,10 @@ pub fn require_post_allocation_machine_rule(
     expected: Optimization,
     architecture: Architecture,
 ) -> Result<OptimizationSelections, PostAllocationMachineRuleCatalogError> {
-    let (selected, phase) = selected_post_allocation_machine_rule(selections, architecture)?;
-    if selected != expected {
+    let (entry, phase) = selected_post_allocation_machine_rule(selections, architecture)?;
+    if entry.optimization() != expected {
         return Err(PostAllocationMachineRuleCatalogError::UnsupportedSelection(
-            selected,
+            entry.optimization(),
         ));
     }
     Ok(phase)

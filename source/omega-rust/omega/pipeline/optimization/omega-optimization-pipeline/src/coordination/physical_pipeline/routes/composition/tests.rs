@@ -1,4 +1,7 @@
-use omega_machine_optimizer::PostAllocationMachineRuleCatalogError;
+use omega_machine_optimizer::{
+    POST_ALLOCATION_MACHINE_RULE_CATALOG, PostAllocationMachineRuleCatalogEntry,
+    PostAllocationMachineRuleCatalogError,
+};
 use omega_optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 use omega_psi_optimizer::built_in_psi_registries;
 use omega_regalloc::AllocationRecoveryRuleCatalogError;
@@ -24,6 +27,13 @@ enum ExpectedDisposition {
         required: Architecture,
         actual: Architecture,
     },
+}
+
+fn post_allocation_entry(optimization: Optimization) -> PostAllocationMachineRuleCatalogEntry {
+    *POST_ALLOCATION_MACHINE_RULE_CATALOG
+        .iter()
+        .find(|entry| entry.optimization() == optimization)
+        .expect("every post-allocation rule has one canonical catalog row")
 }
 
 fn expected_pair(
@@ -59,17 +69,8 @@ fn expected_pair(
         optimization.execution_phase() == OptimizationExecutionPhase::PostAllocationMachine
     });
     if let Some(optimization) = physical {
-        let required = match optimization {
-            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
-            | Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1 => {
-                Architecture::Aarch64
-            }
-            Optimization::X86SelectXorZeroI64MaterializationV1
-            | Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 => {
-                Architecture::X86_64
-            }
-            _ => unreachable!("closed post-allocation vocabulary"),
-        };
+        let entry = post_allocation_entry(optimization);
+        let required = entry.payload().architecture();
         if required != architecture {
             return ExpectedDisposition::PostAllocationTarget {
                 optimization,
@@ -79,7 +80,7 @@ fn expected_pair(
         }
         return ExpectedDisposition::Route(ResolvedPhysicalPhaseComposition::NonAllocation(
             ResolvedNonAllocationComposition::PostAllocationMachine {
-                rule: optimization,
+                entry,
                 after_selected_lowering: selected_lowering != 0,
             },
         ));
@@ -249,7 +250,7 @@ fn selected_lowering_triples_have_explicit_supported_and_rejected_routes() {
             resolve_physical_phase_composition(&selections, architecture).unwrap(),
             ResolvedPhysicalPhaseComposition::NonAllocation(
                 ResolvedNonAllocationComposition::PostAllocationMachine {
-                    rule: machine,
+                    entry: post_allocation_entry(machine),
                     after_selected_lowering: true,
                 }
             )

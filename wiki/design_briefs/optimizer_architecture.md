@@ -91,7 +91,10 @@ A cross-stage custody boundary also has one small entrance, but it consumes the
 rule owner's catalog; it never creates a proxy enable/order table. Thus the
 human path is always rule entrance -> adjacent catalog -> named family -> exact
 rule leaf, while the pipeline path is custody entrance -> typed dispatch ->
-validated stage result.
+validated stage result. The post-allocation machine route enforces this
+literally: composition retains the canonical catalog entry, and execution
+dispatches on that entry's closed implementation kind. No downstream file
+repeats the `Optimization`-name schedule.
 
 An entrance answers: what enters, which exact rules can run, where their sole
 order is declared, what proposal/validation join executes, and what validated

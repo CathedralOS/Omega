@@ -155,7 +155,10 @@ enablement and order.
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create
-a proxy schedule or repeat the rule-name match.
+a proxy schedule or repeat the rule-name match. Post-allocation machine
+composition therefore carries `PostAllocationMachineRuleCatalogEntry`; the
+execution rung switches on its closed rule kind and contains no exact
+`Optimization` names.
 
 Psi has one additional local rung. `rules/catalog.rs` orders the selected
 passes, while `passes/<exact-pass>/mod.rs` visibly orders that pass's local

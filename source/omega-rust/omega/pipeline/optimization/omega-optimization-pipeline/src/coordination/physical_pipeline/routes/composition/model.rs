@@ -1,3 +1,4 @@
+use omega_machine_optimizer::PostAllocationMachineRuleCatalogEntry;
 use omega_optimization_core::Optimization;
 
 /// Exact physical route admitted for one canonical optimization selection.
@@ -14,7 +15,7 @@ pub(crate) enum ResolvedNonAllocationComposition {
     SelectedLowering,
     SelectedLoweringWithFunctionRelativeLayout,
     PostAllocationMachine {
-        rule: Optimization,
+        entry: PostAllocationMachineRuleCatalogEntry,
         after_selected_lowering: bool,
     },
     FunctionRelativeLayout,

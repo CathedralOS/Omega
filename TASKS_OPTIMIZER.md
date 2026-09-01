@@ -569,6 +569,9 @@ decision. Only true language-semantic questions belong in
   MOV-r32-imm32 materialization; x86 rel8 layout relaxation.
 - [x] Generic encoding/layout/realization carriers let a new substitution add
   one rule leaf and catalog row rather than a new vertical pipeline.
+- [x] Retain the canonical post-allocation catalog entry through physical
+  composition and dispatch both source lineages on its closed typed rule kind;
+  the pipeline contains no duplicate exact-name schedule.
 - [ ] Add declarative peephole matching over symbolic instructions, physical
   register units, effects, traps, memory, stack, and control flow.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
