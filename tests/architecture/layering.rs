@@ -3452,6 +3452,54 @@ fn spill_pseudo_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn homed_spill_pseudo_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/homed",
+    );
+    let entrance =
+        std::fs::read_to_string(stage.join("mod.rs")).expect("read homed spill-pseudo entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_homed_spill_pseudo_instructions("),
+        "the homed spill-pseudo entrance must visibly join direct production to independent replay",
+    );
+
+    let mut producer = recursive_rust_source(&stage.join("compute"));
+    producer.push_str(
+        &std::fs::read_to_string(stage.join("compute.rs"))
+            .expect("read homed spill-pseudo producer"),
+    );
+    let mut replay = recursive_rust_source(&stage.join("replay"));
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("replay.rs"))
+            .expect("read homed spill-pseudo replay"),
+    );
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read homed spill-pseudo validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::usage"] {
+        assert!(
+            !replay.contains(forbidden),
+            "homed spill-pseudo replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "BTreeSet", "fn reconstruct("] {
+        assert!(
+            replay.contains(required),
+            "homed spill-pseudo replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["BTreeMap", "BTreeSet", "fn reconstruct("] {
+        assert!(
+            !producer.contains(forbidden),
+            "homed spill-pseudo producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
@@ -5101,6 +5149,44 @@ fn countdown_ranking_constant_resolution_is_internal_and_independent() {
         .expect("ranked-component freeze remains coordinated");
     assert!(
         ranking < freeze,
-        "current ranking must be reconstructed before the unchanged frozen-block authority fence",
+        "current ranking must be reconstructed before the preservation-aware frozen-block authority fence",
     );
+}
+
+#[test]
+fn countdown_ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
+    let root = workspace_root();
+    let freeze_root = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/freeze",
+    );
+    let normalization = std::fs::read_to_string(freeze_root.join("normalized_component.rs"))
+        .expect("read ranked-component normalization leaf");
+    for forbidden in [
+        "countdown_invariant_constant_placement",
+        "countdown_invariant_constants",
+        "invariant_constants::",
+        "compute::",
+        "PsiRewrite",
+        "ValidatedPsiRewrite",
+    ] {
+        assert!(
+            !normalization.contains(forbidden),
+            "ranked freeze normalization must not call producer `{forbidden}`",
+        );
+    }
+    for required in [
+        "component.entries.as_slice()",
+        "O::Jump",
+        "unique_operation",
+        "validate_exact_blocks",
+        "same_position_normalized_node",
+        "expected.provenance == current.provenance",
+        "expected.fuel == current.fuel",
+        "RankedCycleFrozenBlockMismatch",
+    ] {
+        assert!(
+            normalization.contains(required),
+            "ranked freeze normalization must retain independent check `{required}`",
+        );
+    }
 }

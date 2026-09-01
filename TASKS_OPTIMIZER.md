@@ -45,8 +45,9 @@ decision. Only true language-semantic questions belong in
    tagged boundary-execution carrier and is green 1/1, so it no longer blocks
    compilation of the remaining workspace gate. The runnable Terminal Psi
    differential target now uses the same tagged carrier for all six provider
-   settlements and is green 7/7 across O0/O1 realization, deterministic image
-   replay, and provider-requirement rejection.
+   settlements and is green 7/7 across baseline and projected realization,
+   deterministic image replay, and provider-requirement rejection. Those are
+   pipeline routes, not user-visible optimization levels.
    The latest excluded-target continuation after upstream movement identifies
    14 failing targets. The broad 1,258-case language canary is 114 pass / 1,144
    fail and native-filesystem is 0/89; repeated-runtime, recast-view, sample,
@@ -465,7 +466,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Fifty-six abstract-to-target families are covered,
+  machine-rule family. Fifty-nine abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -840,23 +841,25 @@ decision. Only true language-semantic questions belong in
   nodes by canonical provenance, and reconstructs each constant, definition,
   provenance, fuel, and effect row. The snapshot binds revision, Terminal,
   component/region/preheader custody, and the exact guard-zero and decrement-one
-  rows. Twenty-four corruption axes, an empty acyclic session, and the existing
-  ranked-cycle frozen-block rejection prove that this is loop-invariant
-  analysis authority only, not a hoist or cyclic rewrite. A third consumer now
+  rows. Twenty-four corruption axes and an empty acyclic session prove that
+  this is loop-invariant analysis authority only, not a hoist or cyclic
+  rewrite. A third consumer now
   binds each authenticated invariant to the exact insertion coordinate before
   the unique preheader jump and to its sole comparison/subtract consumer. Its
   opaque revision/Terminal snapshot is independently replayed from current
   provenance, definitions, uses, jump shape, and consumer operations without
   calling prior graph or fact producers. Thirty-one retained corruption axes,
-  typed stale revision, empty acyclic behavior, and the unchanged ranked-block
-  freeze fail closed. This is placement analysis, not relocation authority.
+  typed stale revision, and empty acyclic behavior fail closed. This is
+  placement analysis, not relocation authority.
   Current ranking reconstruction now resolves each exact zero/one definition
   either at its authenticated role block or in the sole preheader's canonical
-  constant suffix before the entry jump. It reconstructs ranking before the
-  unchanged freeze, so relocation-shaped tests retain the same certificate and
-  then fail at `RankedCycleFrozenBlockMismatch`; malformed location, order,
-  provenance, definition, value/type/result, or consumer operands fail earlier
-  as ranking-evidence mismatch. No public carrier or rewrite API is added.
+  constant suffix before the entry jump. It reconstructs ranking before a
+  preservation-aware freeze. That freeze independently compares a normalized
+  source component, admits only the certificate-owned zero/one constants in
+  the canonical preheader suffix, requires their source provenance and fuel to
+  remain exact, and reissues identical ranking custody. Malformed location,
+  order, provenance, fuel, definition, value/type/result, consumer operands,
+  or any other ranked-node change fail closed. No public rewrite API is added.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
@@ -975,6 +978,14 @@ decision. Only true language-semantic questions belong in
     8/16/32/64 and address64. Direct and optimized custody each cover 180
     type/pair/target cases; catalog ambiguity, corruption, exact/saturating
     policy, subtract/multiply/plain/parameter substitution fail closed.
+  - [x] Add constant wrapping-integer-subtract-to-immediate as its own exact
+    abstract-to-target family. Its four-operation grammar and independent
+    replay retain both ordered constants, all definitions, return/provenance,
+    and the exact `IntegerType::wrapping_subtract` result for signed/unsigned
+    fixed 8/16/32/64 and address64. Direct and optimized custody each cover
+    180 type/pair/target cases; catalog ambiguity, corruption,
+    exact/saturating policy, add/multiply/plain/parameter substitution fail
+    closed.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both
@@ -1246,6 +1257,18 @@ decision. Only true language-semantic questions belong in
   budget axis, and cross-target custody fail closed. Its 60-line entrance over
   named compute/replay leaves grants no instruction, memory, frame, fault,
   encoding, emission, or publication authority.
+  A seventeenth independently replayed V2 boundary now joins the byte-stable V1
+  spill pseudos to those final recursive homes. It preserves every V1 storage,
+  source, ordering, rewrite, signature, and identity field while adding the
+  mandatory physical `destination_view` for each reload under a distinct
+  closed policy and identity domain. Direct traversal and independently keyed
+  replay retain all roots and split work accounting across reload- and
+  original-victim paths on x86-64/AArch64. A V1 golden plus root, source,
+  class, destination-view, ordering, usage, exact/first-under five-axis budget,
+  mixed-input, and cross-target corruption prove that V1 was not widened. This
+  remains compiler-private pseudo custody: it creates no real instruction,
+  address, memory effect, frame, trap, encoding, emission, or publication
+  authority.
   Abstract spill memory effects and ISA lowering, final frame offsets, unwind/
   probing, and downstream realization remain engineering work. Real memory
   insertion is owner-blocked only on the spill-access fault semantics recorded

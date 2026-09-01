@@ -29,6 +29,14 @@ realization site; it does not synthesize loop-iteration charges in mutable IR.
 Any future evaluator that executes optimized IR would require its own explicit
 accounting contract before activation.
 
+A ranked countdown component is frozen except for the exact authenticated
+guard-zero and decrement-one constants. Validation may normalize only their
+move from the certificate-owned role blocks to the canonical preheader suffix;
+their source provenance and `FuelSettlement` rows remain byte-identical, every
+other ranked node remains positionally identical, and ordinary core validation
+reconstructs the moved definitions, uses, and effects. This preservation seam
+does not itself grant proposal, application, or LICM rewrite authority.
+
 ## Arithmetic and floats
 
 The operation identity includes width, signedness, domain/provider, and policy:

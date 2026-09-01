@@ -192,6 +192,15 @@ unsigned fixed 8/16/32/64 and address64 each cross four ordered wrap boundaries
 at direct and optimized custody on all five targets. Exact/saturating policy,
 subtraction/multiplication, plain-immediate, and parameter-family substitution
 fail closed.
+Constant wrapping integer subtract is the ordered arithmetic sibling. It
+validates two same-type constants, `WrappingIntegerSubtract`, and `Return`,
+computes modulo the declared width through `IntegerType::wrapping_subtract`,
+and requires one exact `ReturnIntegerImmediate` with ordered provenance.
+Signed/unsigned fixed 8/16/32/64 and address64 each cross four ordered wrap
+boundaries at direct and optimized custody on all five targets. Exact or
+saturating policy, addition/multiplication, plain-immediate, and parameter-
+family substitution fail closed; operand order is never treated as
+commutative.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -662,6 +671,14 @@ timeline replay agree for reload- and original-victim chains on x86-64 and
 AArch64. This is physical-view custody only: it creates no instruction, stack
 address, memory effect, frame, fault claim, encoding, emission, or publication
 authority.
+
+Homed spill-pseudo V2 is the next separate boundary. It consumes the validated
+V1 pseudo schedule and final recursive homes, preserves every V1 row, and adds
+the mandatory physical `destination_view` to reload pseudos. The V2 producer
+and independently keyed replay bind the V1, home, register-environment,
+allocator-availability, optimization-unit, fuel, budget, and usage roots while
+a golden pins V1 identity bytes. It grants no ISA opcode, stack address, memory
+effect, frame, fault, encoding, emission, or publication authority.
 
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is
