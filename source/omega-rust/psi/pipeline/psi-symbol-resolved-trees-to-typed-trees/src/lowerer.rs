@@ -344,15 +344,23 @@ fn plain_type_is_supported(
                     source.child_type_reference(array.element_type),
                 )
         }
-        TypeReference::Generic(generic) => seeded_type_application::is_supported(
-            source,
-            data_frontier,
-            local_instances,
-            owner,
-            owner_lifetimes,
-            owner_type_parameters,
-            generic,
-        ),
+        TypeReference::Generic(generic) => {
+            seeded_local_instances::template_application_is_supported(
+                source,
+                data_frontier,
+                owner,
+                owner_type_parameters,
+                generic,
+            ) || seeded_type_application::is_supported(
+                source,
+                data_frontier,
+                local_instances,
+                owner,
+                owner_lifetimes,
+                owner_type_parameters,
+                generic,
+            )
+        }
         TypeReference::Constrained(_)
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. } => false,
