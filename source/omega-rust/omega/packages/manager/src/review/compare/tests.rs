@@ -1,5 +1,7 @@
 use super::commitments::{derive_candidate_closure_commitment, derive_candidate_graph_commitment};
-use super::format::{source_location_role_tag, source_location_role_token};
+use super::format::{
+    row_kind_tag, row_kind_token, source_location_role_tag, source_location_role_token,
+};
 use super::*;
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
@@ -9,7 +11,9 @@ use crate::resolution::graph::{
 };
 use crate::review::candidate::PackageReviewEvidence;
 use crate::review::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
-use omega_package_evidence::record::PackageReviewSourceLocationRole;
+use omega_package_evidence::record::{
+    PackageReviewCanonicalRowKind, PackageReviewSourceLocationRole,
+};
 use omega_package_source::{ExternalSourceContext, ImmutableSourceResolution, LocalSourceLimits};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -23,6 +27,26 @@ fn provider_grant_source_role_has_stable_review_rendering_identity() {
     assert_eq!(
         source_location_role_token(PackageReviewSourceLocationRole::ProviderGrant),
         "provider_grant"
+    );
+}
+
+#[test]
+fn proof_only_quotient_review_rows_have_stable_comparison_identities() {
+    assert_eq!(
+        row_kind_tag(PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence),
+        17
+    );
+    assert_eq!(
+        row_kind_token(PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence),
+        "non_executable_quotient_correspondence"
+    );
+    assert_eq!(
+        source_location_role_tag(PackageReviewSourceLocationRole::QuotientOperationDeclaration),
+        27
+    );
+    assert_eq!(
+        source_location_role_token(PackageReviewSourceLocationRole::QuotientOperationDeclaration),
+        "quotient_operation_declaration"
     );
 }
 

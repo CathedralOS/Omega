@@ -49,3 +49,16 @@ pub(in crate::validation::straight_line_parameter) struct ReconstructedExactInte
         ReconstructedIntegerArithmeticParameters,
     pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
 }
+
+pub(in crate::validation::straight_line_parameter) struct ExactIntegerMultiplyParametersSource {
+    pub(in crate::validation::straight_line_parameter) arithmetic:
+        IntegerArithmeticParametersSource,
+    pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
+}
+
+pub(in crate::validation::straight_line_parameter) struct ReconstructedExactIntegerMultiplyParameters
+{
+    pub(in crate::validation::straight_line_parameter) arithmetic:
+        ReconstructedIntegerArithmeticParameters,
+    pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
+}

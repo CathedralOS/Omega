@@ -13,6 +13,7 @@ pub use parameter::{
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
     StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerMultiplyParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
@@ -63,6 +64,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineExactIntegerAddParameters(StraightLineExactIntegerAddParametersTranslationError),
     StraightLineExactIntegerSubtractParameters(
         StraightLineExactIntegerSubtractParametersTranslationError,
+    ),
+    StraightLineExactIntegerMultiplyParameters(
+        StraightLineExactIntegerMultiplyParametersTranslationError,
     ),
     StraightLineSaturatingIntegerAddParameters(
         StraightLineSaturatingIntegerAddParametersTranslationError,

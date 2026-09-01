@@ -97,6 +97,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters,
             AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineExactIntegerSubtractParameters,
+            AbstractToTargetTranslationFamily::StraightLineExactIntegerMultiplyParameters,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractParameters,
@@ -124,13 +125,13 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
     let source = &source;
     let target = &target;
     assert_eq!(
-        validate_function_with_catalog(source, NativeTarget::linux_x64(), target, &[]).unwrap(),
+        selection::validate(source, NativeTarget::linux_x64(), target, &[]).unwrap(),
         AbstractToTargetFunctionTranslationDisposition::Uncovered
     );
 
     let boolean = ENABLED_TRANSLATION_FAMILIES[1];
     assert!(matches!(
-        validate_function_with_catalog(
+        selection::validate(
             source,
             NativeTarget::linux_x64(),
             target,
@@ -151,7 +152,7 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
         boolean.validate,
     );
     assert!(matches!(
-        validate_function_with_catalog(
+        selection::validate(
             source,
             NativeTarget::linux_x64(),
             target,
