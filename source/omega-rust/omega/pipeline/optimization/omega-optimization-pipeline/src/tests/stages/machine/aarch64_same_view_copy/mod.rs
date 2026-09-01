@@ -1,7 +1,9 @@
 //! Optimizer module role: stage group. Same-view-copy admission and publication custody.
 
+mod before_compare_zero;
+mod before_return;
 mod custody_corruption;
-mod operational;
+mod publication;
 
 use crate::tests::*;
 
@@ -29,11 +31,10 @@ fn fixture(selection: Optimization, target: NativeTarget) -> Fixture {
     Fixture { homes, machine }
 }
 
-fn staged_realization() -> StagedPostAllocationMachineFunctionRelativeRealization {
-    let fixture = fixture(
-        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
-        NativeTarget::linux_arm64(),
-    );
+fn staged_realization(
+    selection: Optimization,
+) -> StagedPostAllocationMachineFunctionRelativeRealization {
+    let fixture = fixture(selection, NativeTarget::linux_arm64());
     let optimization =
         stage_optimized_post_allocation_machine_optimization(&fixture.homes, &fixture.machine)
             .unwrap();

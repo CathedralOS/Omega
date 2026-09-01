@@ -850,6 +850,12 @@ an authenticated V2 policy tag, while the sole new catalog row and exact build
 selection use the generic composition, layout, realization, manifest, object,
 and callable route. The topology enum admits only body-tail/terminator and
 adjacent-body pairs; it grants no generic or arbitrary-length matcher.
+Rule-local coverage pins the exact nonzero five-axis work vector and every
+representable first-over boundary, independently replayed action corruption,
+and authenticated codec failures. Compiler-facing coverage retains the exact
+policy through deterministic zero-action selection, all generic publication
+custody fields, and Linux/macOS AArch64 object and callable publication. It
+does not relabel that honest no-candidate fixture as an applied deletion.
 
 The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
 binds the complete native target and model version into a stable identity, and
