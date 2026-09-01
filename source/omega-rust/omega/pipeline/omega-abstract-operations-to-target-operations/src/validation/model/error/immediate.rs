@@ -72,3 +72,23 @@ pub enum StraightLineIntegerExactCastImmediateOperandTranslationError {
     TargetProvenance,
     TargetOperation,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerBitwiseNotImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceConstantOutsideType,
+    SourceBitwiseNotOperand,
+    SourceBitwiseNotType,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}

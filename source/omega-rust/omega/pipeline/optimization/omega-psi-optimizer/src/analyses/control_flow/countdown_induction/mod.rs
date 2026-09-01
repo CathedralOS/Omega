@@ -11,6 +11,8 @@ use omega_optimization_validation::{
 };
 use psi_core::{BlockId, IntegerType, MachineId, ScalarType, ValueId};
 
+use super::{LoopRegion, loops as compute_loop_forest};
+
 mod compute;
 mod model;
 mod replay;

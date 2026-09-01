@@ -247,3 +247,71 @@ impl StraightLineIntegerExactCastImmediateOperandTranslationReceipt {
         self.cast_value
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineIntegerBitwiseNotImmediateTranslationReceipt {
+    machine: MachineId,
+    constant_operation: OperationId,
+    bitwise_not_operation: OperationId,
+    return_edge: EdgeId,
+    constant_result: ValueId,
+    bitwise_not_result: ValueId,
+    scalar_type: IntegerType,
+    source_value: IntegerValue,
+    materialized_value: IntegerValue,
+}
+
+impl StraightLineIntegerBitwiseNotImmediateTranslationReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        constant_operation: OperationId,
+        bitwise_not_operation: OperationId,
+        return_edge: EdgeId,
+        constant_result: ValueId,
+        bitwise_not_result: ValueId,
+        scalar_type: IntegerType,
+        source_value: IntegerValue,
+        materialized_value: IntegerValue,
+    ) -> Self {
+        Self {
+            machine,
+            constant_operation,
+            bitwise_not_operation,
+            return_edge,
+            constant_result,
+            bitwise_not_result,
+            scalar_type,
+            source_value,
+            materialized_value,
+        }
+    }
+
+    pub const fn machine(self) -> MachineId {
+        self.machine
+    }
+    pub const fn constant_operation(self) -> OperationId {
+        self.constant_operation
+    }
+    pub const fn bitwise_not_operation(self) -> OperationId {
+        self.bitwise_not_operation
+    }
+    pub const fn return_edge(self) -> EdgeId {
+        self.return_edge
+    }
+    pub const fn constant_result(self) -> ValueId {
+        self.constant_result
+    }
+    pub const fn bitwise_not_result(self) -> ValueId {
+        self.bitwise_not_result
+    }
+    pub const fn scalar_type(self) -> IntegerType {
+        self.scalar_type
+    }
+    pub const fn source_value(self) -> IntegerValue {
+        self.source_value
+    }
+    pub const fn materialized_value(self) -> IntegerValue {
+        self.materialized_value
+    }
+}

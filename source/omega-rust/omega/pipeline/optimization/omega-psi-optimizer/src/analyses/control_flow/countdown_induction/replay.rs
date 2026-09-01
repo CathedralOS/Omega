@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 
 use super::*;
 
+mod region;
+
 pub(super) fn reconstruct(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
@@ -98,9 +100,10 @@ fn reconstruct_one(
     if binding.scalar_type != ScalarType::Integer(certificate.rank_type) {
         return Err(shape(function.machine));
     }
+    let region = region::reconstruct(function, component, certificate)?;
     Ok(UnsignedCountdownLoopSummary {
         certificate: certificate.clone(),
-        members: component.members.clone(),
+        region,
         preheader_edge,
         exit_edge,
         trip_count: ExactUnsignedTripCount {

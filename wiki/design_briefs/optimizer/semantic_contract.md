@@ -97,8 +97,11 @@ current graphs must independently produce the same structural component before
 analysis custody is issued. An adjacent exact countdown-ranking certificate
 binds the positive guard, unsigned rank carrier, minus-one backedge transfer,
 and subtract obligation to that component. Its first revision-bound consumer
-independently reconstructs the single preheader and exit and exposes the
-preheader argument as the symbolic exact trip count. General ranking
+consumes the ordinary `LoopForest`, authenticates the exact reducible region
+against component and ranking custody, and exposes the preheader argument as
+the symbolic exact trip count. Independent replay reconstructs current edges,
+boundaries, reachability, and header dominance without reusing CFG, dominator,
+SCC, or loop producers. General ranking
 certificates, productive unranked components, finite-work failures, and
 transforms that invalidate SCC evidence remain closed.
 

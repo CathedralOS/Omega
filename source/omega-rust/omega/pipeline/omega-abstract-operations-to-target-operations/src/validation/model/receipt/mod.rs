@@ -10,6 +10,7 @@ mod terminal;
 pub use function_translation::AbstractToTargetFunctionTranslationReceipt;
 pub use immediate::{
     StraightLineBooleanImmediateTranslationReceipt,
+    StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,

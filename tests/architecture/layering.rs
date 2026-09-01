@@ -3356,6 +3356,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_integer_immediate::validate",
         "straight_line_integer_widen_immediate::is_candidate",
         "straight_line_integer_widen_immediate::validate",
+        "straight_line_integer_bitwise_not_immediate::is_candidate",
+        "straight_line_integer_bitwise_not_immediate::validate",
         "straight_line_integer_exact_cast_immediate_operand::is_candidate",
         "straight_line_integer_exact_cast_immediate_operand::validate",
         "straight_line_integer_literal_unit_return::is_candidate",
@@ -4714,4 +4716,46 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
         )
     );
     assert!(!fragment_source.contains("ActiveResidentRematerialization("));
+}
+
+#[test]
+fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
+    let root = workspace_root();
+    let replay_root = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction",
+    );
+    for relative in ["replay.rs", "replay/region.rs"] {
+        let path = replay_root.join(relative);
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        for forbidden in [
+            "compute::",
+            "compute_loop_forest",
+            "strongly_connected_components",
+            "fixed_point_dominators",
+            "control_flow(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "countdown {relative} must independently reconstruct its region, not call `{forbidden}`",
+            );
+        }
+    }
+
+    let region = std::fs::read_to_string(replay_root.join("replay/region.rs"))
+        .expect("read countdown region replay leaf");
+    for required in [
+        "fn current_edges",
+        "internal != component.id.internal_edges",
+        "entries != component.entries",
+        "exits != component.exits",
+        "fn reachable",
+        "Some(certificate.header)",
+        "irreducible: false",
+    ] {
+        assert!(
+            region.contains(required),
+            "countdown region replay must retain independent check `{required}`",
+        );
+    }
 }

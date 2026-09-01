@@ -20,6 +20,8 @@ use psi_core::FuelScheduleIdentity;
 use psi_language_semantics::{CarryPolicy, DomainPredicateBody};
 use psi_symbols::SymbolHandle;
 
+mod manifest_mutation_matrix;
+
 const EXTENT_SHAPE: ValueShape = ValueShape::integer(16, 8);
 const WORD_SHAPE: ValueShape = ValueShape::integer(8, 8);
 

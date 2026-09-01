@@ -9,6 +9,7 @@ mod validation;
 pub use family::AbstractToTargetTranslationFamilyError;
 pub use immediate::{
     StraightLineBooleanImmediateTranslationError,
+    StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,

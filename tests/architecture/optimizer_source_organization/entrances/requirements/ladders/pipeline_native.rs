@@ -57,4 +57,14 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/function_relative_manifest_mutation_matrix/custody.rs",
         ],
     },
+    SemanticLadder {
+        family: "ProgramStorage wrapper manifest mutation tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/fields.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/wire.rs",
+            "source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/wire_offsets.rs",
+        ],
+    },
 ];

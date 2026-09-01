@@ -15,7 +15,7 @@ use super::codec::{
 use super::custody::custody;
 use super::error::OptimizedProgramStorageSemanticWrapperObjectError;
 use super::model::*;
-use super::object::{construct_manifest, construct_object, validate_object};
+use super::object::{construct_object, validate_manifest, validate_object};
 use super::shared::*;
 
 pub fn validate_optimized_program_storage_semantic_wrapper_object(
@@ -43,16 +43,8 @@ pub fn validate_optimized_program_storage_semantic_wrapper_object(
     if decoded != expected || staged.container != container {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::ContainerMismatch);
     }
-    let manifest = construct_manifest(&expected, &container)?;
-    if OptimizedProgramStorageSemanticWrapperObjectManifest::decode(
-        &staged.manifest.record.encode(),
-    )
-    .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch)?
-        != staged.manifest.record
-        || staged.manifest.record != manifest
-    {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch);
-    }
+    validate_manifest(&expected, &container, &staged.manifest.record)?;
+    let manifest = staged.manifest.record.clone();
     let expected_custody = custody(&expected, &container, &manifest);
     if staged.custody != expected_custody {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::ReceiptMismatch);
