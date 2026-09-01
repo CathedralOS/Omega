@@ -72,6 +72,18 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "optimizer exact countdown invariant-constant relocation boundary",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/propose.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/validate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/apply.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/apply/realize.rs",
+        ],
+    },
+    SemanticLadder {
         family: "SCCP validation",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_candidate.rs",

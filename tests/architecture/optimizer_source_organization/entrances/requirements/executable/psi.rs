@@ -26,6 +26,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn validated_candidate_features",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation/mod.rs",
+        coordination_marker: "apply::validated(session, validated)",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/representations/omega-optimization-unit/src/model.rs",
         coordination_marker: "pub struct PsiOptimizationUnit",
     },
