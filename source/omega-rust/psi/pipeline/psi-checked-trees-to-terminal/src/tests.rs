@@ -1578,12 +1578,26 @@ fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
     assert_eq!(projections.len(), 2);
     assert_eq!(projections[0].result.id, psi_terminal::ProofValueId(0));
     assert_eq!(
+        projections[0].source,
+        psi_terminal::FloatMeaningSource::TransitionalInput(psi_terminal::FloatProjectionInput {
+            id: psi_terminal::FloatProjectionInputId(0),
+            format: psi_core::IeeeFloatFormat::Binary32,
+        })
+    );
+    assert_eq!(
         projections[0].operation,
         psi_terminal::FloatMeaningProjectionOperation::Meaning32
     );
     assert_eq!(
         projections[1].operation,
         psi_terminal::FloatMeaningProjectionOperation::Meaning64
+    );
+    assert_eq!(
+        projections[1].source,
+        psi_terminal::FloatMeaningSource::TransitionalInput(psi_terminal::FloatProjectionInput {
+            id: psi_terminal::FloatProjectionInputId(1),
+            format: psi_core::IeeeFloatFormat::Binary64,
+        })
     );
     assert_eq!(
         lowered.semantic_module.float_meaning_equalities,

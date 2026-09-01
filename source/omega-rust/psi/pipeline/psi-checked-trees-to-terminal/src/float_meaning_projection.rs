@@ -30,7 +30,12 @@ pub fn lower_float_meaning_projection(
         .validate()
         .map_err(FloatMeaningProjectionLoweringError::InvalidCheckedProjection)?;
     let source = match checked.source {
-        CheckedFloatProjectionSource::TransitionalInput(input) => {
+        CheckedFloatProjectionSource::TransitionalInput(input)
+        | CheckedFloatProjectionSource::DirectMachineParameter(
+            psi_checked_trees::CheckedDirectMachineFloatParameter {
+                fallback: input, ..
+            },
+        ) => {
             let format = match input.primitive {
                 PrimitiveType::F32 => IeeeFloatFormat::Binary32,
                 PrimitiveType::F64 => IeeeFloatFormat::Binary64,
@@ -85,8 +90,8 @@ pub enum FloatMeaningProjectionLoweringError {
 #[cfg(test)]
 mod tests {
     use psi_checked_trees::{
-        CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedProofValueDeclaration,
-        CheckedProofValueId,
+        CheckedDirectMachineFloatParameter, CheckedFloatProjectionInput,
+        CheckedFloatProjectionInputId, CheckedProofValueDeclaration, CheckedProofValueId,
     };
     use psi_numerics::float_projection::FloatProjectionOperation;
 
@@ -127,6 +132,29 @@ mod tests {
         assert_eq!(lowered.contract.declaration, expected.declaration);
         assert_eq!(lowered.contract.catalog_version, expected.catalog_version);
         assert_eq!(lowered.contract.commitment, expected.commitment);
+    }
+
+    #[test]
+    fn direct_machine_parameter_deliberately_lowers_through_its_transitional_fallback() {
+        let mut checked = checked_projection();
+        checked.source = CheckedFloatProjectionSource::DirectMachineParameter(
+            CheckedDirectMachineFloatParameter {
+                owner_machine: psi_symbols::SymbolHandle::from_arena_index(3),
+                parameter: psi_symbols::SymbolHandle::from_arena_index(5),
+                fallback: CheckedFloatProjectionInput {
+                    id: CheckedFloatProjectionInputId(9),
+                    primitive: PrimitiveType::F64,
+                },
+            },
+        );
+        let lowered = lower_float_meaning_projection(checked).unwrap();
+        assert_eq!(
+            lowered.source,
+            FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                id: FloatProjectionInputId(9),
+                format: IeeeFloatFormat::Binary64,
+            })
+        );
     }
 
     #[test]

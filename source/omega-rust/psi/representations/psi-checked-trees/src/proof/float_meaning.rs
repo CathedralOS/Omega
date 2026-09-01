@@ -1,4 +1,4 @@
-//! Source-handle-free checked plans for proof-only float meaning projection.
+//! Checked plans for proof-only float meaning projection.
 //!
 //! Canonical rows retain unique plan-local source identities, landed formats,
 //! and closed projection-catalog operations. Authored occurrences and spans
@@ -44,6 +44,17 @@ pub struct CheckedFloatProjectionInput {
     pub primitive: PrimitiveType,
 }
 
+/// Exact checked provenance for a direct primitive parameter referenced by a
+/// top-level machine contract. The source handles remain checked-only custody:
+/// Terminal Psi deliberately receives `fallback` until it can represent an
+/// IEEE scalar parameter without claiming general float execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedDirectMachineFloatParameter {
+    pub owner_machine: psi_symbols::SymbolHandle,
+    pub parameter: psi_symbols::SymbolHandle,
+    pub fallback: CheckedFloatProjectionInput,
+}
+
 /// The semantic source retained for one checked float projection.
 ///
 /// Exact literals carry their landed raw bits directly. The transitional
@@ -52,6 +63,7 @@ pub struct CheckedFloatProjectionInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedFloatProjectionSource {
     TransitionalInput(CheckedFloatProjectionInput),
+    DirectMachineParameter(CheckedDirectMachineFloatParameter),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
@@ -60,6 +72,7 @@ impl CheckedFloatProjectionSource {
     pub const fn primitive(self) -> PrimitiveType {
         match self {
             Self::TransitionalInput(input) => input.primitive,
+            Self::DirectMachineParameter(parameter) => parameter.fallback.primitive,
             Self::ExactBinary32Literal(_) => PrimitiveType::F32,
             Self::ExactBinary64Literal(_) => PrimitiveType::F64,
         }
@@ -108,6 +121,11 @@ impl CheckedFloatMeaningProjection {
         if self.source.primitive() != expected {
             return Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch);
         }
+        if let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = self.source
+            && (!parameter.owner_machine.is_valid() || !parameter.parameter.is_valid())
+        {
+            return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+        }
         if self.contract != self.operation.contract_identity() {
             return Err(CheckedFloatMeaningProjectionError::ContractIdentityMismatch);
         }
@@ -119,6 +137,7 @@ impl CheckedFloatMeaningProjection {
 pub enum CheckedFloatMeaningProjectionError {
     ResultTypeMismatch,
     SourceFormatMismatch,
+    InvalidSourceProvenance,
     ContractIdentityMismatch,
 }
 
@@ -178,6 +197,45 @@ mod tests {
         assert_eq!(
             plan.validate(),
             Err(CheckedFloatMeaningProjectionError::ContractIdentityMismatch)
+        );
+    }
+
+    #[test]
+    fn checked_direct_parameter_requires_nonempty_owner_and_parameter_handles() {
+        let mut plan = projection();
+        plan.source = CheckedFloatProjectionSource::DirectMachineParameter(
+            CheckedDirectMachineFloatParameter {
+                owner_machine: psi_symbols::SymbolHandle::from_arena_index(3),
+                parameter: psi_symbols::SymbolHandle::from_arena_index(5),
+                fallback: CheckedFloatProjectionInput {
+                    id: CheckedFloatProjectionInputId(7),
+                    primitive: PrimitiveType::F32,
+                },
+            },
+        );
+        assert_eq!(plan.validate(), Ok(()));
+        if let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = &mut plan.source {
+            parameter.owner_machine = psi_symbols::SymbolHandle::invalid();
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance)
+        );
+        if let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = &mut plan.source {
+            parameter.owner_machine = psi_symbols::SymbolHandle::from_arena_index(3);
+            parameter.parameter = psi_symbols::SymbolHandle::invalid();
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance)
+        );
+        if let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = &mut plan.source {
+            parameter.parameter = psi_symbols::SymbolHandle::from_arena_index(5);
+            parameter.fallback.primitive = PrimitiveType::I32;
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch)
         );
     }
 }

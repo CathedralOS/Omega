@@ -1,11 +1,11 @@
 //! Erase validated source float-projection invocations into checked proof rows.
 
 use psi_checked_trees::{
-    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
-    CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
-    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
-    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
-    CheckedProofValueId, ProofFacts,
+    CheckedDirectMachineFloatParameter, CheckedFloatMeaningEqualityProposition,
+    CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionOccurrence,
+    CheckedFloatMeaningProjectionOccurrenceId, CheckedFloatProjectionInput,
+    CheckedFloatProjectionInputId, CheckedFloatProjectionSource, CheckedProofOnlyValueType,
+    CheckedProofPropositionId, CheckedProofValueDeclaration, CheckedProofValueId, ProofFacts,
 };
 use psi_diagnostics::Diagnostic;
 use psi_numerics::float_projection::FloatProjectionOperation;
@@ -19,6 +19,10 @@ use psi_validation::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CheckedFloatProjectionSourceKey {
+    DirectMachineParameter {
+        owner_machine: psi_symbols::SymbolHandle,
+        parameter: psi_symbols::SymbolHandle,
+    },
     ResolvedSymbol(psi_symbols::SymbolHandle),
     Binary32Literal(u32),
     Binary64Literal(u64),
@@ -29,11 +33,19 @@ enum CheckedFloatProjectionSourceKey {
 
 fn projection_source_key(
     program: &TypedTrees,
+    proof: &ProofFacts,
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> CheckedFloatProjectionSourceKey {
     match program.expression_table.expression(fact.source) {
         ExpressionNode::Name(path) if path.symbol.is_valid() => {
-            CheckedFloatProjectionSourceKey::ResolvedSymbol(path.symbol)
+            direct_machine_parameter_source(program, proof, fact)
+                .map(|(owner_machine, parameter)| {
+                    CheckedFloatProjectionSourceKey::DirectMachineParameter {
+                        owner_machine,
+                        parameter,
+                    }
+                })
+                .unwrap_or(CheckedFloatProjectionSourceKey::ResolvedSymbol(path.symbol))
         }
         ExpressionNode::Float(literal) => match fact.source_primitive {
             PrimitiveType::F32 => {
@@ -46,6 +58,136 @@ fn projection_source_key(
         },
         _ => CheckedFloatProjectionSourceKey::TypedExpression(fact.source),
     }
+}
+
+fn direct_machine_parameter_source(
+    program: &TypedTrees,
+    proof: &ProofFacts,
+    fact: ValidatedFloatMeaningProjectionInvocation,
+) -> Option<(psi_symbols::SymbolHandle, psi_symbols::SymbolHandle)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
+        return None;
+    };
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+    {
+        return None;
+    }
+    let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
+        let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = contract.owner
+        else {
+            return None;
+        };
+        proof_fact_contains_expression(program, contract.fact, fact.invocation)
+            .then_some(machine_symbol)
+    });
+    let owner_machine = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner_machine)?;
+    let entry = program.machine_states(machine).first()?;
+    let parameter = program
+        .state_parameters(entry)
+        .iter()
+        .find(|parameter| parameter.symbol == path.symbol)?;
+    if parameter.is_const || parameter.is_self {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(parameter.type_reference)?;
+    if primitive != fact.source_primitive
+        || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+    {
+        return None;
+    }
+    Some((owner_machine, parameter.symbol))
+}
+
+fn proof_fact_contains_expression(
+    program: &TypedTrees,
+    fact: psi_arena::Handle<psi_typed_trees::domain::ProofFact>,
+    target: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let roots: &[psi_typed_trees::expression::ExpressionHandle] =
+        match program.proof_facts.get(fact) {
+            psi_typed_trees::domain::ProofFact::Expression(expression) => {
+                std::slice::from_ref(expression)
+            }
+            psi_typed_trees::domain::ProofFact::Membership(membership) => {
+                std::slice::from_ref(&membership.value)
+            }
+            psi_typed_trees::domain::ProofFact::Proposition(application) => program
+                .expression_table
+                .expression_handles(application.arguments),
+        };
+    roots
+        .iter()
+        .any(|root| expression_contains(program, *root, target, &mut Vec::new()))
+}
+
+fn expression_contains(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    target: psi_typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<psi_typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    if expression == target {
+        return true;
+    }
+    if !expression.is_valid() || visited.contains(&expression) {
+        return false;
+    }
+    visited.push(expression);
+    let mut children = Vec::new();
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => children.extend(
+            program
+                .expression_table
+                .expression_handles(*values)
+                .iter()
+                .copied(),
+        ),
+        ExpressionNode::Atomic(atomic) => children.extend([atomic.value, atomic.result]),
+        ExpressionNode::Binary(binary) => children.extend([binary.left, binary.right]),
+        ExpressionNode::Borrow(borrow) => children.push(borrow.target),
+        ExpressionNode::Call(call) => {
+            children.push(call.receiver);
+            children.extend(
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        }
+        ExpressionNode::Cast(cast) => children.push(cast.value),
+        ExpressionNode::Indexed(indexed) => children.extend([indexed.collection, indexed.index]),
+        ExpressionNode::Member(member) => children.push(member.receiver),
+        ExpressionNode::Range(range) => children.extend([range.start, range.end]),
+        ExpressionNode::StructLiteral(literal) => children.extend(
+            program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .map(|field| field.value),
+        ),
+        ExpressionNode::Unary(unary) => children.push(unary.operand),
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => {}
+    }
+    children
+        .into_iter()
+        .any(|child| expression_contains(program, child, target, visited))
 }
 
 fn replay_invocation(
@@ -169,7 +311,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
     let mut occurrences = Vec::with_capacity(facts.len());
     for (index, fact) in facts.iter().copied().enumerate() {
         let contract = replay_invocation(program, fact).map_err(|diagnostic| vec![diagnostic])?;
-        let source_key = projection_source_key(program, fact);
+        let source_key = projection_source_key(program, proof, fact);
         let source = match source_key {
             CheckedFloatProjectionSourceKey::Binary32Literal(bits) => {
                 CheckedFloatProjectionSource::ExactBinary32Literal(bits)
@@ -194,10 +336,30 @@ pub(crate) fn bind_float_meaning_projection_facts(
                             "float-meaning projection sources exceed their dense identity space",
                         )]
                     })?);
-                CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+                let fallback = CheckedFloatProjectionInput {
                     id: source_id,
                     primitive: fact.source_primitive,
-                })
+                };
+                match transitional {
+                    CheckedFloatProjectionSourceKey::DirectMachineParameter {
+                        owner_machine,
+                        parameter,
+                    } => CheckedFloatProjectionSource::DirectMachineParameter(
+                        CheckedDirectMachineFloatParameter {
+                            owner_machine,
+                            parameter,
+                            fallback,
+                        },
+                    ),
+                    CheckedFloatProjectionSourceKey::ResolvedSymbol(_)
+                    | CheckedFloatProjectionSourceKey::TypedExpression(_) => {
+                        CheckedFloatProjectionSource::TransitionalInput(fallback)
+                    }
+                    CheckedFloatProjectionSourceKey::Binary32Literal(_)
+                    | CheckedFloatProjectionSourceKey::Binary64Literal(_) => {
+                        unreachable!("exact literals were handled before transitional allocation")
+                    }
+                }
             }
         };
         let projection_key = (source, fact.operation, contract);
@@ -457,34 +619,88 @@ mod tests {
         lower_projection_fixture(source)
     }
 
+    fn transitional_source(input: CheckedFloatProjectionInput) -> CheckedFloatProjectionSource {
+        CheckedFloatProjectionSource::TransitionalInput(input)
+    }
+
+    fn bind_projection_facts_without_exit_proof(program: &TypedTrees) -> ProofFacts {
+        let validation =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(program)
+                .expect("validate projection facts");
+        let proof_plan = psi_proof::obligations::build_proof_plan(program);
+        let borrow = crate::build_borrow_facts(program);
+        let mut proof = crate::build_proof_facts(program, &proof_plan, &borrow);
+        bind_float_meaning_projection_facts(
+            program,
+            &mut proof,
+            &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
+        )
+        .expect("bind projection facts");
+        proof
+    }
+
     #[test]
     fn actual_checked_projection_invocations_deduplicate_values_and_retain_occurrences() {
         let checked = crate::lower_typed_trees(typed_projection_program()).expect("checked");
         let projections = &checked.facts.proof.float_meaning_projections;
         assert_eq!(projections.len(), 2);
         assert_eq!(projections[0].result.id, CheckedProofValueId(0));
+        let CheckedFloatProjectionSource::DirectMachineParameter(narrow) = projections[0].source
+        else {
+            panic!("direct f32 parameter should retain checked provenance")
+        };
+        assert_eq!(checked.symbols.name(narrow.owner_machine), "prove");
+        assert_eq!(checked.symbols.name(narrow.parameter), "value32");
         assert_eq!(
-            projections[0].source,
-            CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+            narrow.fallback,
+            CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(0),
                 primitive: PrimitiveType::F32,
-            })
+            }
         );
         assert_eq!(
             projections[0].operation,
             FloatProjectionOperation::Meaning32
         );
         assert_eq!(projections[1].result.id, CheckedProofValueId(1));
+        let CheckedFloatProjectionSource::DirectMachineParameter(wide) = projections[1].source
+        else {
+            panic!("direct f64 parameter should retain checked provenance")
+        };
+        assert_eq!(wide.owner_machine, narrow.owner_machine);
+        assert_ne!(wide.parameter, narrow.parameter);
+        assert_eq!(checked.symbols.name(wide.parameter), "value64");
         assert_eq!(
-            projections[1].source,
-            CheckedFloatProjectionSource::TransitionalInput(CheckedFloatProjectionInput {
+            wide.fallback,
+            CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(1),
                 primitive: PrimitiveType::F64,
-            })
+            }
         );
         assert_eq!(
             projections[1].operation,
             FloatProjectionOperation::Meaning64
+        );
+        let owner = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == narrow.owner_machine)
+            .expect("retained owner machine");
+        let entry = checked
+            .machine_states(owner)
+            .first()
+            .expect("machine entry state");
+        let parameters = checked.state_parameters(entry);
+        assert_eq!(parameters[0].symbol, narrow.parameter);
+        assert_eq!(parameters[1].symbol, wide.parameter);
+        assert_eq!(
+            checked.primitive_type_reference(parameters[0].type_reference),
+            Some(PrimitiveType::F32)
+        );
+        assert_eq!(
+            checked.primitive_type_reference(parameters[1].type_reference),
+            Some(PrimitiveType::F64)
         );
         let occurrences = &checked.facts.proof.float_meaning_projection_occurrences;
         assert_eq!(occurrences.len(), 4);
@@ -502,6 +718,124 @@ mod tests {
                 left: CheckedProofValueId(0),
                 right: CheckedProofValueId(0),
             }
+        );
+    }
+
+    #[test]
+    fn direct_parameter_identity_includes_its_exact_machine_owner() {
+        let checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                machine narrow(value: f32)
+                requires Float::meaning32(value) == Float::meaning32(value);
+                {}
+
+                machine wide(value: f32)
+                requires Float::meaning32(value) == Float::meaning32(value);
+                {}
+            "#,
+        ))
+        .expect("checked");
+        let [narrow, wide] = checked.facts.proof.float_meaning_projections.as_slice() else {
+            panic!("one projection for each exact machine parameter")
+        };
+        let CheckedFloatProjectionSource::DirectMachineParameter(narrow) = narrow.source else {
+            panic!("narrow source should retain direct parameter provenance")
+        };
+        let CheckedFloatProjectionSource::DirectMachineParameter(wide) = wide.source else {
+            panic!("wide source should retain direct parameter provenance")
+        };
+        assert_eq!(checked.symbols.name(narrow.owner_machine), "narrow");
+        assert_eq!(checked.symbols.name(wide.owner_machine), "wide");
+        assert_ne!(narrow.owner_machine, wide.owner_machine);
+        assert_ne!(narrow.parameter, wide.parameter);
+        assert_eq!(narrow.fallback.id, CheckedFloatProjectionInputId(0));
+        assert_eq!(wide.fallback.id, CheckedFloatProjectionInputId(1));
+    }
+
+    #[test]
+    fn result_member_cast_and_state_owned_sources_remain_transitional() {
+        let result_program = lower_projection_fixture(
+            r#"
+                machine result_source(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { value }
+            "#,
+        );
+        let result_proof = bind_projection_facts_without_exit_proof(&result_program);
+        assert_eq!(
+            result_proof.float_meaning_projections[0].source,
+            transitional_source(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(0),
+                primitive: PrimitiveType::F32,
+            })
+        );
+
+        let member_checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                data Sample { value: f32; }
+                machine member_source(sample: Sample)
+                requires Float::meaning32(sample.value) == Float::meaning32(sample.value);
+                {}
+            "#,
+        ))
+        .expect("checked member source");
+        assert_eq!(
+            member_checked.facts.proof.float_meaning_projections[0].source,
+            transitional_source(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(0),
+                primitive: PrimitiveType::F32,
+            })
+        );
+
+        let cast_checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                machine cast_source(value: f32)
+                requires
+                    Float::meaning64(value as f64) == Float::meaning64(value as f64);
+                {}
+            "#,
+        ))
+        .expect("checked cast source");
+        assert_eq!(
+            cast_checked.facts.proof.float_meaning_projections[0].source,
+            transitional_source(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(0),
+                primitive: PrimitiveType::F64,
+            })
+        );
+
+        let state_checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                machine state_source() {
+                    state inspect(value: f64)
+                    requires Float::meaning64(value) == Float::meaning64(value);
+                    {}
+                }
+            "#,
+        ))
+        .expect("checked state-owned source");
+        assert_eq!(
+            state_checked.facts.proof.float_meaning_projections[0].source,
+            transitional_source(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(0),
+                primitive: PrimitiveType::F64,
+            })
+        );
+
+        let const_checked = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                machine const_source<const Value: f32>()
+                requires Float::meaning32(Value) == Float::meaning32(Value);
+                {}
+            "#,
+        ))
+        .expect("checked const-parameter source");
+        assert_eq!(
+            const_checked.facts.proof.float_meaning_projections[0].source,
+            transitional_source(CheckedFloatProjectionInput {
+                id: CheckedFloatProjectionInputId(0),
+                primitive: PrimitiveType::F32,
+            })
         );
     }
 
