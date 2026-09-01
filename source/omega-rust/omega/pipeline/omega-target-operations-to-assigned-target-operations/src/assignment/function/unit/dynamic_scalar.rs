@@ -71,10 +71,17 @@ pub(super) fn assign(
     {
         return Err(invalid());
     }
-    let descriptor_abi =
+    let runtime_descriptor =
         omega_runtime_abi::build_runtime_abi_plan(target).dynamic_trait_descriptor();
-    let alignment = u32::try_from(descriptor_abi.align()).map_err(|_| invalid())?;
-    let size = u32::try_from(descriptor_abi.total_size()).map_err(|_| invalid())?;
+    let descriptor_abi = AssignedDynamicTraitDescriptorAbi::new(
+        u32::try_from(runtime_descriptor.instance_offset()).map_err(|_| invalid())?,
+        u32::try_from(runtime_descriptor.table_offset()).map_err(|_| invalid())?,
+        u32::try_from(runtime_descriptor.word_size()).map_err(|_| invalid())?,
+        u32::try_from(runtime_descriptor.total_size()).map_err(|_| invalid())?,
+        u32::try_from(runtime_descriptor.align()).map_err(|_| invalid())?,
+    );
+    let alignment = descriptor_abi.align();
+    let size = descriptor_abi.total_size();
     *next_scalar_home = next_scalar_home
         .checked_add(alignment.saturating_sub(1))
         .map(|value| value / alignment * alignment)

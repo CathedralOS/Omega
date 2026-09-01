@@ -76,6 +76,57 @@ pub struct AssignedUnitScalarHome {
     pub byte_offset: u32,
 }
 
+/// Target-resolved coordinates copied from the owning runtime ABI plan.
+///
+/// This assigned carrier records the exact result of ABI planning without
+/// giving a representations crate an upward dependency on the backend owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssignedDynamicTraitDescriptorAbi {
+    instance_byte_offset: u32,
+    table_byte_offset: u32,
+    word_byte_size: u32,
+    total_byte_size: u32,
+    byte_alignment: u32,
+}
+
+impl AssignedDynamicTraitDescriptorAbi {
+    pub const fn new(
+        instance_byte_offset: u32,
+        table_byte_offset: u32,
+        word_byte_size: u32,
+        total_byte_size: u32,
+        byte_alignment: u32,
+    ) -> Self {
+        Self {
+            instance_byte_offset,
+            table_byte_offset,
+            word_byte_size,
+            total_byte_size,
+            byte_alignment,
+        }
+    }
+
+    pub const fn instance_offset(self) -> u32 {
+        self.instance_byte_offset
+    }
+
+    pub const fn table_offset(self) -> u32 {
+        self.table_byte_offset
+    }
+
+    pub const fn word_size(self) -> u32 {
+        self.word_byte_size
+    }
+
+    pub const fn total_size(self) -> u32 {
+        self.total_byte_size
+    }
+
+    pub const fn align(self) -> u32 {
+        self.byte_alignment
+    }
+}
+
 /// Exact physical source of one attached-Unit scalar-call argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssignedUnitScalarArgumentSource {
@@ -204,7 +255,7 @@ pub enum AssignedUnitOperation {
         dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
         call_plan: CallPlan,
         result_home: AssignedUnitScalarHome,
-        descriptor_abi: omega_runtime_abi::DynamicTraitDescriptorAbi,
+        descriptor_abi: AssignedDynamicTraitDescriptorAbi,
         descriptor_home_byte_offset: u32,
         initial_copy: AssignedAggregateCopy,
         rebound_copy: AssignedAggregateCopy,
