@@ -18,6 +18,7 @@ pub use parameter::{
     StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
     StraightLineExactIntegerRemainderParametersTranslationError,
+    StraightLineExactIntegerShiftLeftParametersTranslationError,
     StraightLineExactIntegerShiftRightParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
