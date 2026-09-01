@@ -3500,6 +3500,61 @@ fn homed_spill_pseudo_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn abstract_spill_memory_effects_are_independent_and_non_executable() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_memory_effects",
+    );
+    let entrance =
+        std::fs::read_to_string(stage.join("mod.rs")).expect("read abstract spill-effect entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_abstract_spill_memory_effects("),
+        "the abstract spill-effect entrance must visibly join production to independent replay",
+    );
+    let mut producer = recursive_rust_source(&stage.join("compute"));
+    producer.push_str(
+        &std::fs::read_to_string(stage.join("compute.rs"))
+            .expect("read abstract spill-effect producer"),
+    );
+    let mut replay = recursive_rust_source(&stage.join("replay"));
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("replay.rs"))
+            .expect("read abstract spill-effect replay"),
+    );
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read abstract spill-effect validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::storage"] {
+        assert!(
+            !replay.contains(forbidden),
+            "abstract spill-effect replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "BTreeSet", "fn reconstruct("] {
+        assert!(
+            replay.contains(required),
+            "abstract spill-effect replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    let all_source = recursive_rust_source(&stage);
+    for forbidden in [
+        "omega_machine_optimizer",
+        "MachineEncoded",
+        "PostAllocationMachineInstruction",
+        "StackPointer",
+        "FrameOffset",
+        "TrapBehavior",
+    ] {
+        assert!(
+            !all_source.contains(forbidden),
+            "abstract spill effects must not acquire executable authority `{forbidden}`",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
@@ -5009,6 +5064,9 @@ fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
         "strongly_connected_components",
         "fixed_point_dominators",
         "control_flow(",
+        "invariant_constants::resolve",
+        "validate_canonical_preheader_suffix",
+        "normalized_component",
     ] {
         assert!(
             !replay.contains(forbidden),
@@ -5024,10 +5082,40 @@ fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
         "node.uses.is_empty()",
         "node.successors.is_empty()",
         "node.ownership.is_empty()",
+        "component.entries.as_slice()",
+        "certificate.descent.backedge.source",
+        "constant.location.block != original",
+        "checked_sub(moved.len())",
+        "O::Jump",
     ] {
         assert!(
             replay.contains(required),
             "countdown invariant replay must independently retain `{required}`",
+        );
+    }
+    let compute = std::fs::read_to_string(analysis_root.join("compute.rs"))
+        .expect("read countdown invariant-constant compute leaf");
+    for forbidden in [
+        "invariant_constants::resolve",
+        "validate_canonical_preheader_suffix",
+        "normalized_component",
+    ] {
+        assert!(
+            !compute.contains(forbidden),
+            "countdown invariant compute must not consume preservation validator `{forbidden}`",
+        );
+    }
+    for required in [
+        "validate_locations",
+        "component.entries.as_slice()",
+        "certificate.descent.backedge.source",
+        "constant.location.block != original",
+        "checked_sub(moved.len())",
+        "O::Jump",
+    ] {
+        assert!(
+            compute.contains(required),
+            "countdown invariant compute must retain relocation boundary `{required}`",
         );
     }
 
@@ -5057,6 +5145,9 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
         "control_flow(",
         "use_definitions(",
         "effect_summaries(",
+        "invariant_constants::resolve",
+        "validate_canonical_preheader_suffix",
+        "normalized_component",
     ] {
         assert!(
             !replay.contains(forbidden),
@@ -5073,6 +5164,10 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
         "node.uses",
         "O::IntegerLessThan",
         "O::ExactIntegerSubtract",
+        "validate_constant_locations",
+        "component.entries.as_slice()",
+        "constant.location.block != original",
+        "checked_sub(moved.len())",
     ] {
         assert!(
             replay.contains(required),
