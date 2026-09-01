@@ -222,6 +222,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn schedule_recursive_spill_insertion",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/recursive_reload_value_homes/mod.rs",
+        coordination_marker: "pub fn assign_recursive_reload_value_homes",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/spill_pseudo_instructions/mod.rs",
         coordination_marker: "pub fn lower_recursive_spill_pseudos",
     },

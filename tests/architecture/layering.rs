@@ -3352,6 +3352,60 @@ fn recursive_spill_insertion_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn recursive_reload_home_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/recursive_reload_value_homes",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read recursive reload-home entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_recursive_reload_value_homes("),
+        "the recursive reload-home entrance must visibly join production to independent replay",
+    );
+
+    let mut producer = recursive_rust_source(&stage.join("compute"));
+    producer.push_str(
+        &std::fs::read_to_string(stage.join("compute.rs"))
+            .expect("read recursive reload-home producer entrance"),
+    );
+    let mut replay = recursive_rust_source(&stage.join("replay"));
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("replay.rs"))
+            .expect("read recursive reload-home replay entrance"),
+    );
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read recursive reload-home validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "schedule::assign"] {
+        assert!(
+            !replay.contains(forbidden),
+            "recursive reload-home replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["struct ReplaySpec", "let mut points = BTreeMap", "fn reconstruct("] {
+        assert!(
+            replay.contains(required),
+            "recursive reload-home replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["ReplaySpec", "let mut points = BTreeMap"] {
+        assert!(
+            !producer.contains(forbidden),
+            "recursive reload-home producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+    for required in ["struct ReloadSpec", "later.sort_by_key", "fn assign("] {
+        assert!(
+            producer.contains(required),
+            "recursive reload-home producer must visibly own sorted `{required}` coordination",
+        );
+    }
+}
+
+#[test]
 fn spill_pseudo_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
