@@ -9231,7 +9231,11 @@ compiler concept is introduced.
   service/schema permissions plus binding-derived containment. Native
   settlement of source-evaluated imports still separately requires externally
   admitted provider execution and task-stack custody; classification must not
-  manufacture either.
+  manufacture either. The first consumer seam is now live: the compiler can
+  consume those two external inputs for each demanded import, derive the exact
+  retained plan internally, and realize a zero-argument `MachODylibSymbol`
+  call through ordinary object and Mach-O image emission. This is not an
+  admission owner and does not close the D45 policy work above.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,
@@ -11118,8 +11122,9 @@ boundary without its corresponding checked law.
   dynamic-ELF driver; stripped, reordered, or drifted source/type/value/index/
   register/byte/plan/stack custody rejects. Runtime-derived arguments, the first
   stack-resident argument and beyond, result-bearing signatures, complete task-
-  stack-budget composition, optional `.gnu.hash`, and admitted native
-  settlement of source-evaluated imports remain engineering work.
+  stack-budget composition, optional `.gnu.hash`, and general admission-owner
+  integration remain engineering work. A first externally admitted, zero-
+  argument Mach-O source-evaluated lane is complete below.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
@@ -11136,9 +11141,20 @@ boundary without its corresponding checked law.
   `StringBackedImportBootstrap` remains only as an explicit compatibility
   carrier for legacy test/source surfaces and specialized string-only adapters;
   no production library source uses the old `Binding::DllImport("...", "...")`
-  form. Remaining work is native provider settlement with admitted task-stack
-  custody, runtime and stack-resident arguments, result-bearing signatures,
-  specialized adapter migration, and any optional dynamic-ELF extensions.
+  form. The compiler now exposes one consuming re-entry coordinator for
+  retained Terminal products. It accepts only externally supplied provider-
+  execution evidence and admitted same-stack custody, derives the demanded
+  import's complete selected plan without a caller plan/index/locator operand,
+  and rejects missing, extra, duplicate, wrong-plan, or callback-bearing input.
+  A real structured `MachODylibSymbol` source fixture reaches a validated
+  import-bearing AArch64 Mach-O `NativeArtifact`; object and image custody
+  retain the exact semantic call owner, locator, provider-execution record, and
+  relocation offset. The local test evidence is an input assumption, not a
+  deployment admission claim. Remaining work is the real external admission
+  owner and automatic native-request integration, complete task-stack-budget
+  composition, runtime and stack-resident arguments, result-bearing
+  signatures, callback-native replay, specialized adapter migration, and any
+  optional dynamic-ELF extensions.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no

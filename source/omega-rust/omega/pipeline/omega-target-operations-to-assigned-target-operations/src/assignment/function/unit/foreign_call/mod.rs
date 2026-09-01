@@ -11,10 +11,15 @@ pub(super) fn assign(
     preceding_operations: &[TargetUnitOperation],
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, AssignmentError> {
     if binding.locator.target().native_target() != target
-        || target.object_format != omega_target::ObjectFormat::Elf
         || !matches!(
-            binding.locator.locator(),
-            omega_target::ForeignLocatorCandidate::ElfVersioned { .. }
+            (target.object_format, binding.locator.locator()),
+            (
+                omega_target::ObjectFormat::Elf,
+                omega_target::ForeignLocatorCandidate::ElfVersioned { .. }
+            ) | (
+                omega_target::ObjectFormat::MachO,
+                omega_target::ForeignLocatorCandidate::MachODylibSymbol { .. }
+            )
         )
     {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);

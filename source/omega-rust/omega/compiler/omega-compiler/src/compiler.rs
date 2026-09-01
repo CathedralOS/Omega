@@ -14,6 +14,7 @@ mod optimization;
 mod options;
 pub(crate) use omega_compilation_report as report;
 mod request;
+mod terminal_native_realization;
 mod terminal_product;
 
 pub(crate) use native_checked::NativeCompilationWithCheckedReceipt;
@@ -27,6 +28,10 @@ pub use report::{
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedNativeArtifact,
 };
 pub use request::{CompileRequest, RequestedCompileProduct};
+pub use terminal_native_realization::{
+    SourceEvaluatedImportSettlement,
+    realize_retained_terminal_artifact_with_source_evaluated_imports,
+};
 
 /// The reusable production compiler coordinator.
 #[derive(Debug, Default, Clone, Copy)]

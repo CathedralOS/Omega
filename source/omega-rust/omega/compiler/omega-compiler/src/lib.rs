@@ -12,7 +12,9 @@ pub use compiler::{
     FinalRealizationEvidenceError, OptimizationRollback, OptimizationRollbackInputError,
     OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RequestedCompileProduct,
-    RetainedNativeArtifact, TrustAdmission, TrustAdmissionSettlement, compile,
+    RetainedNativeArtifact, SourceEvaluatedImportSettlement, TrustAdmission,
+    TrustAdmissionSettlement, compile,
+    realize_retained_terminal_artifact_with_source_evaluated_imports,
 };
 pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,
