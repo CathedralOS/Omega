@@ -9,6 +9,278 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_typed_trees::TypedTrees;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SeededPlainDataContinuationError {
+    UnsupportedExtensionShape,
+    CrossPairedResolvedBase,
+    RetainedTypedBaseChanged,
+    ResolvedSemanticTablesChanged,
+    AuthoredSelectionPrefixChanged,
+    AuthoredSelectionPrefixChangedDuringLowering,
+    Lowering(Diagnostic),
+}
+
+impl SeededPlainDataContinuationError {
+    pub fn is_rebuild_fallback(&self) -> bool {
+        matches!(
+            self,
+            Self::UnsupportedExtensionShape | Self::RetainedTypedBaseChanged
+        )
+    }
+}
+
+/// Opaque ownership of one exact resolved/typed base pair. Capturing fails
+/// when typing has minted symbols or lost the resolved selection prefix; those
+/// bases require a future, broader continuation cohort.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SeededPlainDataTypingBase {
+    resolved: Box<SymbolResolvedTrees>,
+    typed: TypedTrees,
+}
+
+impl SeededPlainDataTypingBase {
+    /// Clone the exact retained predecessor for the append-only seeded
+    /// resolver. The continuation later compares the resolver carrier's
+    /// retained snapshot back to this owned snapshot before any mutation.
+    pub fn resolved_base_for_extension(&self) -> SymbolResolvedTrees {
+        (*self.resolved).clone()
+    }
+
+    pub fn typed(&self) -> &TypedTrees {
+        &self.typed
+    }
+
+    pub fn typed_mut(&mut self) -> &mut TypedTrees {
+        &mut self.typed
+    }
+
+    pub fn into_typed(self) -> TypedTrees {
+        self.typed
+    }
+}
+
+/// Run the ordinary complete resolved-to-typed lowering while retaining the
+/// exact resolved predecessor inside an opaque continuation carrier.
+pub fn lower_symbol_resolved_trees_to_seeded_plain_data_base(
+    resolved: SymbolResolvedTrees,
+) -> Result<SeededPlainDataTypingBase, Diagnostic> {
+    let mut typed = lower_symbol_resolved_trees(&resolved)?;
+    typed.symbols = resolved.symbols.clone();
+    Ok(SeededPlainDataTypingBase {
+        resolved: Box::new(resolved),
+        typed,
+    })
+}
+
+/// Append the first bounded generated-source cohort to one exact retained
+/// typed base. Mutation occurs on a clone, so every error returns the input
+/// base byte-for-byte for either rejection or the explicit rebuild fallback.
+pub fn lower_seeded_plain_data_extension(
+    source: psi_syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
+    retained: SeededPlainDataTypingBase,
+) -> Result<TypedTrees, (SeededPlainDataTypingBase, SeededPlainDataContinuationError)> {
+    let (source, resolved_base) = source.into_typing_continuation_parts();
+    if resolved_base != *retained.resolved {
+        return Err((
+            retained,
+            SeededPlainDataContinuationError::CrossPairedResolvedBase,
+        ));
+    }
+    if retained.typed.symbols != retained.resolved.symbols
+        || !retained
+            .typed
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(
+                retained
+                    .resolved
+                    .authored_declaration_selections()
+                    .as_slice(),
+            )
+    {
+        return Err((
+            retained,
+            SeededPlainDataContinuationError::RetainedTypedBaseChanged,
+        ));
+    }
+    let data_frontier = resolved_base.data_definitions.len();
+    if !resolved_root_shape_is_supported(&source, &resolved_base)
+        || !plain_data_extension_shape_is_supported(&source, data_frontier)
+    {
+        return Err((
+            retained,
+            SeededPlainDataContinuationError::UnsupportedExtensionShape,
+        ));
+    }
+    if source.service_reaches != resolved_base.service_reaches
+        || source.service_reach_rows != resolved_base.service_reach_rows
+        || source.authored_service_reach_rows != resolved_base.authored_service_reach_rows
+        || source.semantic_domains != resolved_base.semantic_domains
+        || source.external_bindings != resolved_base.external_bindings
+        || source.evidence_forwardings != resolved_base.evidence_forwardings
+    {
+        return Err((
+            retained,
+            SeededPlainDataContinuationError::ResolvedSemanticTablesChanged,
+        ));
+    }
+    let destination_ledger = retained.typed.authored_declaration_selections();
+    if !source
+        .authored_declaration_selections()
+        .as_slice()
+        .starts_with(destination_ledger.as_slice())
+    {
+        return Err((
+            retained,
+            SeededPlainDataContinuationError::AuthoredSelectionPrefixChanged,
+        ));
+    }
+
+    let resolved_ledger = source.authored_declaration_selections().clone();
+    let mut candidate = retained.typed.clone();
+    candidate.retain_authored_declaration_selections(resolved_ledger.clone());
+    candidate.symbols = source.symbols.clone();
+    let mut lowerer = Lowerer {
+        typed_trees: candidate,
+        source_trees: &source,
+        equality_scope: None,
+        type_reference_exposure:
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+    };
+    for data_definition in source.data_definitions.iter().skip(data_frontier) {
+        let lowered = match lowerer.with_type_reference_exposure(
+            declaration_exposure(data_definition.is_public),
+            |lowerer| lower_data_definition(lowerer, data_definition),
+        ) {
+            Ok(lowered) => lowered,
+            Err(error) => {
+                return Err((retained, SeededPlainDataContinuationError::Lowering(error)));
+            }
+        };
+        lowerer.typed_trees.push_data_definition(lowered);
+    }
+    if !lowerer
+        .typed_trees
+        .authored_declaration_selections()
+        .as_slice()
+        .starts_with(resolved_ledger.as_slice())
+    {
+        return Err((
+            retained,
+            SeededPlainDataContinuationError::AuthoredSelectionPrefixChangedDuringLowering,
+        ));
+    }
+    Ok(lowerer.typed_trees)
+}
+
+fn resolved_root_shape_is_supported(
+    source: &SymbolResolvedTrees,
+    base: &SymbolResolvedTrees,
+) -> bool {
+    source.const_declarations == base.const_declarations
+        && source
+            .data_definitions
+            .iter()
+            .take(base.data_definitions.len())
+            .eq(base.data_definitions.iter())
+        && source.data_definitions.len() >= base.data_definitions.len()
+        && source.domain_definitions == base.domain_definitions
+        && source.machines == base.machines
+        && source.measures == base.measures
+        && source.operators == base.operators
+        && source.propositions == base.propositions
+        && source.traits == base.traits
+        && source.conformances == base.conformances
+        && source.wire_schemas == base.wire_schemas
+}
+
+fn plain_data_extension_shape_is_supported(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+) -> bool {
+    source.data_definitions.len() > data_frontier
+        && source
+            .data_definitions
+            .iter()
+            .skip(data_frontier)
+            .all(|definition| {
+                definition.lifetime_parameters.is_empty()
+                    && definition.type_parameters.is_empty()
+                    && definition.generic_instance.is_none()
+                    && definition.quotient.is_none()
+                    && definition.where_facts.is_empty()
+                    && !definition.zero_gated
+                    && source
+                        .data_members(definition.members)
+                        .iter()
+                        .all(|member| {
+                            let fields = match member {
+                                psi_symbol_resolved_trees::data::DataMember::Field(field) => {
+                                    std::slice::from_ref(field)
+                                }
+                                psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                                    source.data_payload_fields(variant.payload)
+                                }
+                            };
+                            fields.iter().all(|field| {
+                                plain_type_is_supported(
+                                    source,
+                                    definition.symbol,
+                                    &field.type_reference,
+                                )
+                            })
+                        })
+            })
+}
+
+fn plain_type_is_supported(
+    source: &SymbolResolvedTrees,
+    owner: psi_symbols::SymbolHandle,
+    type_reference: &psi_symbol_resolved_trees::types::TypeReference,
+) -> bool {
+    use psi_symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
+    match type_reference {
+        TypeReference::Named { symbol, .. } if !symbol.is_valid() => false,
+        TypeReference::Named { symbol, .. } => match source.symbols.get(*symbol).kind {
+            psi_symbols::SymbolKind::BuiltinType => true,
+            psi_symbols::SymbolKind::Data => source.data_definitions.iter().any(|definition| {
+                definition.symbol == *symbol
+                    && definition.lifetime_parameters.is_empty()
+                    && definition.type_parameters.is_empty()
+                    && definition.generic_instance.is_none()
+            }),
+            _ => false,
+        },
+        TypeReference::SelfType { symbol } => *symbol == owner,
+        TypeReference::Unit => true,
+        TypeReference::Reference(reference) => {
+            reference.lifetime.is_none()
+                && plain_type_is_supported(
+                    source,
+                    owner,
+                    source.child_type_reference(reference.referee),
+                )
+        }
+        TypeReference::Slice(slice) => plain_type_is_supported(
+            source,
+            owner,
+            source.child_type_reference(slice.element_type),
+        ),
+        TypeReference::FixedArray(array) => {
+            matches!(array.length, FixedArrayLength::Literal(_))
+                && plain_type_is_supported(
+                    source,
+                    owner,
+                    source.child_type_reference(array.element_type),
+                )
+        }
+        TypeReference::Constrained(_)
+        | TypeReference::Generic(_)
+        | TypeReference::ConstExpression(_)
+        | TypeReference::DynamicTrait { .. } => false,
+    }
+}
+
 pub fn lower_symbol_resolved_trees(
     symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {

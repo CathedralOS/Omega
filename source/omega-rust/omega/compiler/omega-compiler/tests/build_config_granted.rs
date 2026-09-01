@@ -4870,12 +4870,12 @@ fn canonical_build_roots_reject_host_absolute_path_results() {
 }
 
 #[test]
-fn generated_source_handoff_requires_custody_and_enters_one_frozen_final_pass() {
+fn generated_plain_data_handoff_reuses_the_retained_typed_base() {
     let (project, profile) = rooted_build_probe_project(
         "included-source",
         r#"    let generated: &[u8] in Path = builder.output.resolve("generated.omg");
     self.descriptor = self.filesystem.create(generated, 438);
-    self.result = self.filesystem.write(self.descriptor, "data Generated {}\n");
+    self.result = self.filesystem.write(self.descriptor, "data Generated { base: Main; }\n");
     self.descriptor = self.filesystem.close(self.descriptor);
     builder.output.include_source(generated);"#,
     );
@@ -4900,7 +4900,52 @@ fn generated_source_handoff_requires_custody_and_enters_one_frozen_final_pass() 
         .source_files()
         .find(|source| source.path.ends_with(".omega/generated/generated.omg"))
         .expect("final checked program retains generated-source custody");
-    assert_eq!(generated.source.as_ref(), "data Generated {}\n");
+    assert_eq!(
+        generated.source.as_ref(),
+        "data Generated { base: Main; }\n"
+    );
+    let main = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .expect("authored Main data");
+    let generated_data = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Generated")
+        .expect("seeded generated data reaches final typing");
+    let [psi_typed_trees::data::DataMember::Field(base_field)] =
+        checked.typed.data_members(generated_data)
+    else {
+        panic!("Generated has one base field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(base_field.type_reference)
+    else {
+        panic!("Generated.base remains nominal")
+    };
+    assert_eq!(*symbol, main.symbol);
+    let selected_build = checked
+        .selected_build_machine_symbol()
+        .expect("generated-source build retains its exact selected symbol");
+    assert!(checked.typed.machines().iter().any(|machine| {
+        machine.symbol == selected_build
+            && checked
+                .typed
+                .symbols
+                .source_file(
+                    checked
+                        .typed
+                        .symbols
+                        .symbol_source_span(machine.symbol)
+                        .expect("selected build source span"),
+                )
+                .is_some_and(|source| source.path.ends_with("build.omg"))
+    }));
     assert_eq!(
         checked
             .build_observation_summary()
@@ -4918,11 +4963,50 @@ fn generated_source_handoff_requires_custody_and_enters_one_frozen_final_pass() 
             rooted_build_session(&project, "sponsored-review").join("output/generated.omg"),
         )
         .unwrap(),
-        "data Generated {}\n"
+        "data Generated { base: Main; }\n"
     );
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(&project, "sponsored-review"));
+}
+
+#[test]
+fn unsupported_generic_generated_data_uses_the_whole_program_rebuild_fallback() {
+    let (project, profile) = rooted_build_probe_project(
+        "generated-generic-data-fallback",
+        r#"    let generated: &[u8] in Path = builder.output.resolve("generated.omg");
+    self.descriptor = self.filesystem.create(generated, 438);
+    self.result = self.filesystem.write(self.descriptor, "data Generated<T> { value: T; }\n");
+    self.descriptor = self.filesystem.close(self.descriptor);
+    builder.output.include_source(generated);"#,
+    );
+
+    let checked = compile_rooted_probe_with_sponsored_output(
+        &project,
+        profile,
+        "generated-generic-data-fallback-review",
+    )
+    .expect("unsupported seeded shape must retain the whole-program rebuild path");
+    assert!(checked.typed.data_definitions().iter().any(|definition| {
+        definition.name.as_str() == "Generated"
+            && checked.typed.data_type_parameters(definition).len() == 1
+    }));
+    let selected_build = checked
+        .selected_build_machine_symbol()
+        .expect("fallback compilation rebinds the selected build machine");
+    assert!(
+        checked
+            .typed
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == selected_build)
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(
+        &project,
+        "generated-generic-data-fallback-review",
+    ));
 }
 
 #[test]

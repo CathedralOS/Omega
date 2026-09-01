@@ -110,6 +110,7 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
         )]);
     }
     let authored_selection_frontier = base.authored_selection_extension_frontier();
+    let retained_base = base.clone();
     let roots = RootWatermarks::capture(&base);
     let retained_service_reaches = base.service_reaches.clone();
     let retained_service_reach_rows = base.service_reach_rows.clone();
@@ -137,6 +138,7 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
         .map(|trees| SeededSymbolResolvedTrees {
             trees,
             authored_selection_frontier,
+            retained_base: Box::new(retained_base),
         })
 }
 
@@ -144,6 +146,16 @@ pub fn lower_syntax_extension_with_authored_selection_frontier(
 pub struct SeededSymbolResolvedTrees {
     trees: SymbolResolvedTrees,
     authored_selection_frontier: AuthoredSelectionExtensionFrontier,
+    retained_base: Box<SymbolResolvedTrees>,
+}
+
+/// A seeded resolved extension whose authored-selection suffix has been
+/// joined to the destination typed base ledger. The exact resolved base stays
+/// inside the carrier so the next phase can reject cross-paired continuations.
+#[derive(Debug, PartialEq, Eq)]
+pub struct RebasedSeededSymbolResolvedTrees {
+    trees: SymbolResolvedTrees,
+    retained_base: Box<SymbolResolvedTrees>,
 }
 
 impl SeededSymbolResolvedTrees {
@@ -155,6 +167,15 @@ impl SeededSymbolResolvedTrees {
         self,
         destination_base: &AuthoredDeclarationSelections,
     ) -> Result<SymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)> {
+        self.rebase_authored_selections_for_typed_continuation(destination_base)
+            .map(RebasedSeededSymbolResolvedTrees::into_trees)
+    }
+
+    pub fn rebase_authored_selections_for_typed_continuation(
+        self,
+        destination_base: &AuthoredDeclarationSelections,
+    ) -> Result<RebasedSeededSymbolResolvedTrees, (Self, AuthoredSelectionExtensionRebaseError)>
+    {
         // This is a representation join, not an authority boundary. The
         // seeded typed continuation must supply the ledger owned by its exact
         // retained base rather than accepting one from compilation input.
@@ -162,13 +183,30 @@ impl SeededSymbolResolvedTrees {
             .trees
             .rebase_authored_selection_extension(self.authored_selection_frontier, destination_base)
         {
-            Ok(trees) => Ok(trees),
+            Ok(trees) => Ok(RebasedSeededSymbolResolvedTrees {
+                trees,
+                retained_base: self.retained_base,
+            }),
             Err((trees, error)) => Err((Self { trees, ..self }, error)),
         }
     }
 
     fn into_unrebased_trees(self) -> SymbolResolvedTrees {
         self.trees
+    }
+}
+
+impl RebasedSeededSymbolResolvedTrees {
+    pub fn trees(&self) -> &SymbolResolvedTrees {
+        &self.trees
+    }
+
+    pub fn into_trees(self) -> SymbolResolvedTrees {
+        self.trees
+    }
+
+    pub fn into_typing_continuation_parts(self) -> (SymbolResolvedTrees, SymbolResolvedTrees) {
+        (self.trees, *self.retained_base)
     }
 }
 

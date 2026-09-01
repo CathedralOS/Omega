@@ -1,8 +1,9 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::phase_transitions::{
-    SelectedExecutionSettlementInput, TypedToCheckedSettlementInput, settle_selected_execution,
-    symbol_resolved_trees_to_typed_trees, syntax_trees_to_symbol_resolved_trees,
-    typed_trees_to_checked_trees,
+    SelectedExecutionSettlementInput, TypedToCheckedSettlementInput,
+    resolve_seeded_syntax_extension, settle_selected_execution,
+    symbol_resolved_trees_to_seeded_plain_data_base, syntax_trees_to_symbol_resolved_trees,
+    type_seeded_plain_data_extension, typed_trees_to_checked_trees,
 };
 use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
@@ -586,10 +587,37 @@ pub(crate) fn compile_to_checked_for_terminal(
 }
 
 struct CheckedFrontend {
-    typed: psi_typed_trees::TypedTrees,
+    typing: CheckedFrontendTyping,
     selected_target_machine_declarations:
         crate::pipeline::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<psi_source::SourceId>,
+}
+
+enum CheckedFrontendTyping {
+    Continuable(psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase),
+    Complete(psi_typed_trees::TypedTrees),
+}
+
+impl CheckedFrontendTyping {
+    fn typed(&self) -> &psi_typed_trees::TypedTrees {
+        match self {
+            Self::Continuable(base) => base.typed(),
+            Self::Complete(typed) => typed,
+        }
+    }
+
+    fn into_typed(self) -> psi_typed_trees::TypedTrees {
+        match self {
+            Self::Continuable(base) => base.into_typed(),
+            Self::Complete(typed) => typed,
+        }
+    }
+}
+
+impl CheckedFrontend {
+    fn typed(&self) -> &psi_typed_trees::TypedTrees {
+        self.typing.typed()
+    }
 }
 
 /// One activation-local D18 checkpoint admitted before any authored build code
@@ -597,7 +625,8 @@ struct CheckedFrontend {
 ///
 /// The coherent base frontend, exact prepared build projection, reach and
 /// authority verdicts, package declaration verdict, and transitional syntax
-/// needed by the still-open extension lowerer stay coupled across execution.
+/// needed by the bounded seeded continuation or its whole-program fallback
+/// stay coupled across execution.
 struct AdmittedBuildCheckpoint {
     frontend: CheckedFrontend,
     admitted_build: crate::pipeline::build_config::AdmittedBuildProgram,
@@ -622,7 +651,7 @@ impl AdmittedBuildCheckpoint {
             .map(|symbol| -> Result<_, Vec<Diagnostic>> {
                 let source_span = self
                     .frontend
-                    .typed
+                    .typed()
                     .symbols
                     .symbol_source_span(symbol)
                     .ok_or_else(|| {
@@ -686,18 +715,62 @@ fn lower_checked_frontend(
         )?;
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
-    let mut typed = symbol_resolved_trees_to_typed_trees(resolved, timings)?;
-    pre_check.evaluate(&mut typed)?;
+    let mut typing_base = symbol_resolved_trees_to_seeded_plain_data_base(resolved, timings)?;
+    pre_check.evaluate(typing_base.typed_mut())?;
     // Build evaluation consumes this coherent private typed stage before the
     // final checked-tree lowering. Bind trait-valued parameter-field calls now
     // so the evaluator receives the same exact requirement identity that the
     // checker will subsequently validate and retain.
-    psi_validation::resolve_dynamic_call_targets(&mut typed)?;
+    psi_validation::resolve_dynamic_call_targets(typing_base.typed_mut())?;
     Ok(CheckedFrontend {
-        typed,
+        typing: CheckedFrontendTyping::Continuable(typing_base),
         selected_target_machine_declarations,
         build_source_id,
     })
+}
+
+enum SeededPlainDataAttempt {
+    Complete(psi_typed_trees::TypedTrees),
+    Rebuild(psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase),
+}
+
+fn try_seeded_plain_data_extension(
+    base: psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase,
+    assembled: &crate::pipeline::source_assembly::AssembledSyntax,
+    extension: &crate::pipeline::source_assembly::RetainedGeneratedSyntaxExtension,
+    timings: &mut CompileTimings,
+) -> Result<SeededPlainDataAttempt, Vec<Diagnostic>> {
+    let (extension_syntax, sources) = extension.seeded_inputs(assembled)?;
+    let seeded = resolve_seeded_syntax_extension(
+        base.resolved_base_for_extension(),
+        extension_syntax,
+        sources,
+        timings,
+    )?;
+    let rebased = seeded
+        .rebase_authored_selections_for_typed_continuation(
+            base.typed().authored_declaration_selections(),
+        )
+        .map_err(|(_, error)| {
+            vec![Diagnostic::error(format!(
+                "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
+            ))]
+        })?;
+    match type_seeded_plain_data_extension(rebased, base, timings) {
+        Ok(typed) => Ok(SeededPlainDataAttempt::Complete(typed)),
+        Err((base, error)) if error.is_rebuild_fallback() => {
+            Ok(SeededPlainDataAttempt::Rebuild(base))
+        }
+        Err((
+            _,
+            psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataContinuationError::Lowering(
+                diagnostic,
+            ),
+        )) => Err(vec![diagnostic]),
+        Err((_, error)) => Err(vec![Diagnostic::error(format!(
+            "generated-source seeded typing violated its retained-base invariant: {error:?}"
+        ))]),
+    }
 }
 
 fn compile_to_checked_inner(
@@ -748,7 +821,7 @@ fn compile_to_checked_inner_with_replay(
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, &mut timings)?;
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
         Some(crate::pipeline::package_declaration_admission::validate_authored_declaration_selections_before_build(
-            &frontend.typed,
+            frontend.typed(),
             package_inputs,
             &generated_source_custody,
             &mut timings,
@@ -825,7 +898,7 @@ fn compile_to_checked_inner_with_replay(
             build_machine_filesystem_scope.with_replay(filesystem_replay);
     }
     let admitted_build = crate::pipeline::build_config::admit_build_program(
-        &frontend.typed,
+        frontend.typed(),
         frontend.build_source_id,
         &build_machine_filesystem_scope,
         evaluation_sponsor.as_ref(),
@@ -872,43 +945,83 @@ fn compile_to_checked_inner_with_replay(
                 )]
             })?;
         generated_source_custody.extend(extension.generated_source_custody().iter().cloned());
-        extension.append_to(&mut final_syntax)?;
-        frontend = lower_checked_frontend(
-            final_syntax,
-            target_name,
-            Some(package_inputs),
-            &mut timings,
-        )?;
-        let Some((source_span, callable_identity)) = prepass_build_identity else {
-            return Err(vec![Diagnostic::error(
-                "generated-source handoff has no selected build machine to rebind",
-            )]);
-        };
-        let matching = frontend
-            .typed
-            .machines()
-            .iter()
-            .filter(|machine| {
-                frontend.typed.symbols.symbol_source_span(machine.symbol) == Some(source_span)
-                    && frontend
-                        .typed
-                        .normalized_machine_overload_identity(machine)
-                        .is_some_and(|identity| identity.identity() == callable_identity)
-            })
-            .map(|machine| machine.symbol)
-            .collect::<Vec<_>>();
-        let [selected] = matching.as_slice() else {
-            return Err(vec![Diagnostic::error(
-                "final compilation could not exactly rebind the build machine executed by the frozen prepass",
-            )]);
-        };
-        Some(*selected)
+        let mut use_rebuild = true;
+        if extension.is_nonempty_data_only() {
+            let CheckedFrontend {
+                typing,
+                selected_target_machine_declarations,
+                build_source_id,
+            } = frontend;
+            let CheckedFrontendTyping::Continuable(typing_base) = typing else {
+                return Err(vec![Diagnostic::error(
+                    "generated-source seeded typing lost its retained frontend base",
+                )]);
+            };
+            match try_seeded_plain_data_extension(
+                typing_base,
+                &final_syntax,
+                &extension,
+                &mut timings,
+            )? {
+                SeededPlainDataAttempt::Complete(typed) => {
+                    frontend = CheckedFrontend {
+                        typing: CheckedFrontendTyping::Complete(typed),
+                        selected_target_machine_declarations,
+                        build_source_id,
+                    };
+                    use_rebuild = false;
+                }
+                SeededPlainDataAttempt::Rebuild(typing_base) => {
+                    frontend = CheckedFrontend {
+                        typing: CheckedFrontendTyping::Continuable(typing_base),
+                        selected_target_machine_declarations,
+                        build_source_id,
+                    };
+                }
+            }
+        }
+        if use_rebuild {
+            extension.append_to(&mut final_syntax)?;
+            frontend = lower_checked_frontend(
+                final_syntax,
+                target_name,
+                Some(package_inputs),
+                &mut timings,
+            )?;
+            let Some((source_span, callable_identity)) = prepass_build_identity else {
+                return Err(vec![Diagnostic::error(
+                    "generated-source handoff has no selected build machine to rebind",
+                )]);
+            };
+            let matching = frontend
+                .typed()
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    frontend.typed().symbols.symbol_source_span(machine.symbol) == Some(source_span)
+                        && frontend
+                            .typed()
+                            .normalized_machine_overload_identity(machine)
+                            .is_some_and(|identity| identity.identity() == callable_identity)
+                })
+                .map(|machine| machine.symbol)
+                .collect::<Vec<_>>();
+            let [selected] = matching.as_slice() else {
+                return Err(vec![Diagnostic::error(
+                    "final compilation could not exactly rebind the build machine executed by the frozen prepass",
+                )]);
+            };
+            Some(*selected)
+        } else {
+            computed_build_config.selected_build_machine_symbol
+        }
     };
     let CheckedFrontend {
-        mut typed,
+        typing,
         selected_target_machine_declarations,
         ..
     } = frontend;
+    let mut typed = typing.into_typed();
     let selected_build_machine_identity = selected_build_machine_symbol
         .map(|selected| {
             let machine = typed

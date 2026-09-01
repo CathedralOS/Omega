@@ -81,13 +81,47 @@ pub(super) fn syntax_trees_to_symbol_resolved_trees(
     })
 }
 
-pub(super) fn symbol_resolved_trees_to_typed_trees(
+pub(super) fn symbol_resolved_trees_to_seeded_plain_data_base(
     resolved: SymbolResolvedTrees,
     timings: &mut CompileTimings,
-) -> Result<TypedTrees, Vec<Diagnostic>> {
+) -> Result<psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase, Vec<Diagnostic>> {
     timings.record(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
-        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned(resolved)
-            .map_err(|diagnostic| vec![diagnostic])
+        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_plain_data_base(
+            resolved,
+        )
+        .map_err(|diagnostic| vec![diagnostic])
+    })
+}
+
+pub(super) fn resolve_seeded_syntax_extension(
+    base: SymbolResolvedTrees,
+    extension: &psi_syntax_trees::SyntaxTrees,
+    sources: Arc<psi_source::SourceMap>,
+    timings: &mut CompileTimings,
+) -> Result<psi_syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees, Vec<Diagnostic>> {
+    timings.record(SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES, || {
+        psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_extension_with_authored_selection_frontier(
+            base,
+            extension,
+            sources,
+            Vec::new(),
+        )
+    })
+}
+
+pub(super) fn type_seeded_plain_data_extension(
+    source: psi_syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
+    base: psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase,
+    timings: &mut CompileTimings,
+) -> Result<
+    TypedTrees,
+    (
+        psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataTypingBase,
+        psi_symbol_resolved_trees_to_typed_trees::SeededPlainDataContinuationError,
+    ),
+> {
+    timings.record_result(SYMBOL_RESOLVED_TREES_TO_TYPED_TREES, || {
+        psi_symbol_resolved_trees_to_typed_trees::lower_seeded_plain_data_extension(source, base)
     })
 }
 
