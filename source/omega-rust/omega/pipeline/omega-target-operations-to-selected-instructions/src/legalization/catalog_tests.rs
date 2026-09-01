@@ -3,7 +3,7 @@ use omega_legalized_operations::{
     LegalizationRecipe, StructuralUnitLegalizationRecipe, UnitLegalizationRecipe,
 };
 
-const EXPECTED_RECIPES: [LegalizationFormRecipe; 13] = [
+const EXPECTED_RECIPES: [LegalizationFormRecipe; 14] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ImmediateConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EntryParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1),
@@ -21,6 +21,9 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 13] = [
     ),
     LegalizationFormRecipe::Scalar(
         LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
+    ),
+    LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
     ),
     LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
     LegalizationFormRecipe::StructuralUnit(StructuralUnitLegalizationRecipe::ReturnUnitV1),
@@ -95,7 +98,7 @@ fn ambiguous_catalog_recipe_fails_closed() {
 
 #[test]
 fn planning_cost_is_present_for_all_families_but_not_a_legality_key() {
-    assert_eq!(LEGALIZATION_FORMS.len(), 13);
+    assert_eq!(LEGALIZATION_FORMS.len(), 14);
     assert!(LEGALIZATION_FORMS.iter().all(|row| {
         row.cost.projected_selected_instruction_count > 0
             && row.cost.introduced_temporary_count <= 4

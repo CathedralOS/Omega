@@ -32,10 +32,19 @@ pub(crate) fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>
 }
 
 pub(crate) fn conditional_active_resident_exact_add_bridge_chain_artifact() -> (Vec<u8>, Vec<u8>) {
-    conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge(
+    conditional_active_resident_exact_add_chain_artifact_with_graph(
         IntegerValue::Unsigned(3),
         IntegerValue::Unsigned(11),
-        true,
+        ActiveResidentGraph::Bridge,
+    )
+}
+
+pub(crate) fn conditional_active_resident_exact_add_original_victim_chain_artifact()
+-> (Vec<u8>, Vec<u8>) {
+    conditional_active_resident_exact_add_chain_artifact_with_graph(
+        IntegerValue::Unsigned(3),
+        IntegerValue::Unsigned(11),
+        ActiveResidentGraph::OriginalVictim,
     )
 }
 
@@ -61,17 +70,24 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals(
     resident_literal: IntegerValue,
     false_literal: IntegerValue,
 ) -> (Vec<u8>, Vec<u8>) {
-    conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge(
+    conditional_active_resident_exact_add_chain_artifact_with_graph(
         resident_literal,
         false_literal,
-        false,
+        ActiveResidentGraph::Chain,
     )
 }
 
-fn conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge(
+#[derive(Clone, Copy)]
+enum ActiveResidentGraph {
+    Chain,
+    Bridge,
+    OriginalVictim,
+}
+
+fn conditional_active_resident_exact_add_chain_artifact_with_graph(
     resident_literal: IntegerValue,
     false_literal: IntegerValue,
-    retain_right_across_first_resident_use: bool,
+    graph: ActiveResidentGraph,
 ) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(5_201).unwrap();
     let entry = BlockId::new(5_202).unwrap();
@@ -87,6 +103,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge
     let false_value = ValueId::new(5_212).unwrap();
     let machine_result = ValueId::new(5_213).unwrap();
     let bridge = ValueId::new(5_214).unwrap();
+    let join = ValueId::new(5_215).unwrap();
     let resident_operation = OperationId::new(5_221).unwrap();
     let left_operation = OperationId::new(5_222).unwrap();
     let right_operation = OperationId::new(5_223).unwrap();
@@ -95,10 +112,12 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge
     let result_operation = OperationId::new(5_226).unwrap();
     let false_operation = OperationId::new(5_227).unwrap();
     let bridge_operation = OperationId::new(5_228).unwrap();
+    let join_operation = OperationId::new(5_229).unwrap();
     let inner_obligation = ObligationId::new(5_231).unwrap();
     let middle_obligation = ObligationId::new(5_232).unwrap();
     let result_obligation = ObligationId::new(5_233).unwrap();
     let bridge_obligation = ObligationId::new(5_234).unwrap();
+    let join_obligation = ObligationId::new(5_235).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
     let operation = |id, result, kind| Operation {
@@ -209,19 +228,41 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge
                                 },
                             ),
                         ];
-                        let result_right = if retain_right_across_first_resident_use {
-                            operations.push(operation(
-                                bridge_operation,
-                                bridge,
-                                OperationKind::ExactIntegerAdd {
-                                    left: right,
-                                    right: middle,
-                                    obligation: bridge_obligation,
-                                },
-                            ));
-                            bridge
-                        } else {
-                            middle
+                        let result_right = match graph {
+                            ActiveResidentGraph::Chain => middle,
+                            ActiveResidentGraph::Bridge => {
+                                operations.push(operation(
+                                    bridge_operation,
+                                    bridge,
+                                    OperationKind::ExactIntegerAdd {
+                                        left: right,
+                                        right: middle,
+                                        obligation: bridge_obligation,
+                                    },
+                                ));
+                                bridge
+                            }
+                            ActiveResidentGraph::OriginalVictim => {
+                                operations.push(operation(
+                                    bridge_operation,
+                                    bridge,
+                                    OperationKind::ExactIntegerAdd {
+                                        left: right,
+                                        right: resident,
+                                        obligation: bridge_obligation,
+                                    },
+                                ));
+                                operations.push(operation(
+                                    join_operation,
+                                    join,
+                                    OperationKind::ExactIntegerAdd {
+                                        left: middle,
+                                        right: bridge,
+                                        obligation: join_obligation,
+                                    },
+                                ));
+                                join
+                            }
                         };
                         operations.push(operation(
                             result_operation,
@@ -305,6 +346,26 @@ pub(crate) fn staged_active_resident_exact_add_bridge_chain(
     stage_optimized_instruction_selection(target).unwrap()
 }
 
+pub(crate) fn staged_active_resident_exact_add_original_victim_chain(
+    target: NativeTarget,
+) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = conditional_active_resident_exact_add_original_victim_chain_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        request(
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(optimized, target).unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
+}
+
 pub(crate) fn staged_active_resident_exact_add_chain_with_selections(
     target: NativeTarget,
     selections: OptimizationSelections,
@@ -338,6 +399,20 @@ pub(crate) fn staged_active_resident_bridge_chain_two_view_legality(
 ) -> StagedOptimizedAllocationLegality {
     let ranges = stage_optimized_live_ranges(
         stage_optimized_liveness(staged_active_resident_exact_add_bridge_chain(target)).unwrap(),
+    )
+    .unwrap();
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+        .unwrap()
+}
+
+pub(crate) fn staged_active_resident_original_victim_chain_two_view_legality(
+    target: NativeTarget,
+) -> StagedOptimizedAllocationLegality {
+    let ranges = stage_optimized_live_ranges(
+        stage_optimized_liveness(staged_active_resident_exact_add_original_victim_chain(
+            target,
+        ))
+        .unwrap(),
     )
     .unwrap();
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)

@@ -17,7 +17,14 @@ pub(super) struct Sources {
 
 impl Sources {
     pub(super) fn new(target: NativeTarget) -> Self {
-        let reloads = pressure_sources(target);
+        Self::from_reload_sources(pressure_sources(target))
+    }
+
+    pub(super) fn from_legality(legality: StagedOptimizedAllocationLegality) -> Self {
+        Self::from_reload_sources(ReloadSources::from_legality(legality))
+    }
+
+    fn from_reload_sources(reloads: ReloadSources) -> Self {
         let recovery = plan_recovery(&reloads, selected_lowering_budget()).unwrap();
         let generalized = omega_regalloc::schedule_generalized_spill_insertion(
             reloads.insertion(),

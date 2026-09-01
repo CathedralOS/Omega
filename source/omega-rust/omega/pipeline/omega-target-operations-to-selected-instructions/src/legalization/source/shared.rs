@@ -4,6 +4,7 @@ pub(super) use omega_legalized_operations::{
     LegalizationTheorem,
     LegalizedActiveResidentExactAddBridgeChain as SourceActiveResidentExactAddBridgeChain,
     LegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
+    LegalizedActiveResidentExactAddOriginalVictimChain as SourceActiveResidentExactAddOriginalVictimChain,
     LegalizedBoundarySettlement, LegalizedCallUnit, LegalizedCallUnitArgument,
     LegalizedCallUnitParameter, LegalizedExactAdd as SourceExactAdd,
     LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,

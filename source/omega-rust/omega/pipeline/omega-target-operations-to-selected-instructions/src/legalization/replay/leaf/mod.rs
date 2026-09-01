@@ -4,8 +4,9 @@ mod bridge_chain;
 mod exact_arithmetic;
 mod fuel;
 mod immediate;
+mod original_victim_chain;
 mod recipe;
-
+use super::shared::*;
 use bridge_chain::replay_active_resident_bridge_chain;
 pub(super) use exact_arithmetic::{
     replay_active_resident_bridge_chain_shape, replay_active_resident_chain_shape,
@@ -14,9 +15,9 @@ use exact_arithmetic::{replay_exact_add_node, replay_exact_binary, replay_widene
 pub(super) use fuel::replay_edge_fuel;
 use fuel::replay_operation_fuel;
 use immediate::{replay_constant, replay_immediate};
+pub(super) use original_victim_chain::is_shape as replay_active_resident_original_victim_chain_shape;
+use original_victim_chain::replay as replay_active_resident_original_victim_chain;
 use recipe::replay_leaf_value;
-
-use super::shared::*;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_leaf(

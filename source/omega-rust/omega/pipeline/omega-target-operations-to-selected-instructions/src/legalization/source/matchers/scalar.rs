@@ -5,6 +5,7 @@ use crate::legalization::catalog::{
 
 use super::super::leaves::{
     is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
+    is_active_resident_exact_add_original_victim_chain,
 };
 use super::super::shared::*;
 
@@ -95,6 +96,16 @@ fn matcher_accepts(
                     ..
                 }
             ) if is_active_resident_exact_add_bridge_chain(expression)
+        ),
+        ScalarLegalizationMatcherKind::ActiveResidentExactAddOriginalVictimChain => matches!(
+            (when_true, when_false),
+            (
+                TargetIntegerControl::Return { expression, .. },
+                TargetIntegerControl::Return {
+                    expression: TargetIntegerExpression::Immediate { .. },
+                    ..
+                }
+            ) if is_active_resident_exact_add_original_victim_chain(expression)
         ),
     }
 }

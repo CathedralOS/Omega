@@ -6,6 +6,7 @@
 
 mod active_resident_exact_add_bridge_chain;
 mod active_resident_exact_add_chain;
+mod active_resident_exact_add_original_victim_chain;
 mod blocks;
 mod catalog;
 mod context;
