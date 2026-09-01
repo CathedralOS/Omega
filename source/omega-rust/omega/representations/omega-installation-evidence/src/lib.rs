@@ -100,4 +100,10 @@ pub trait StackDemandEvidence {
     fn ceiling_bytes(&self) -> u64;
     fn stack_alignment(&self) -> u32;
     fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId>;
+    /// Non-authoritative compact report coordinates for every admitted opaque
+    /// same-stack leaf contributing to this exact closure.
+    fn admitted_stack_contribution_report_identities(&self) -> BTreeSet<u64>;
+    /// Strong commitments to the complete admitted opaque same-stack claims.
+    /// These remain distinct from the compact report coordinates above.
+    fn admitted_stack_contribution_commitments(&self) -> BTreeSet<[u8; 32]>;
 }

@@ -469,8 +469,12 @@ admission report and the strong contribution commitment. Native replay also
 rejoins the semantic requirement and exact selected-provider-plan digest.
 Because the current emitted call lane proves only 16-byte alignment, stronger
 admitted alignment rejects until lowering emits and validates the necessary
-padding. This precursor still excludes the external-root entry epochs, stack
-lease, and final `StackPlan` join.
+padding. Exact installation binding retains the admitted report coordinates and
+strong commitments in terminal-entry evidence; bound epoch composition hashes
+that evidence, provider execution retains it, and the canonical root report
+publishes it. This closes custody into external-root entry epochs, but does not
+construct the final `StackPlan`, provision or validate a stack lease, or admit
+the resulting resource contract.
 
 The bounded shared-cleanup native rung applies the same maximum rule to one
 finite nested Boolean tree with immediate-value leaves and a uniform affine

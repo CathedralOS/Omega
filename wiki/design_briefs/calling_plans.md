@@ -1497,8 +1497,12 @@ but may not remain unresolved. The external-root resource column, provider
 execution, installation ledger, and canonical artifact report consume that
 bound epoch composition directly and retain its exact inputs behind the compact
 fingerprint; the earlier scalar admitted composer is no longer an admission
-path. The report includes per-domain demand, body-domain closure, and complete
-normalized context/epoch rows without exposing code addresses. Hardware arrival
+path. Emitter-derived body evidence also retains the compact report coordinates
+and strong commitments for admitted same-stack leaves; those premises enter the
+bound fingerprint and canonical report, so a strong substitution cannot hide
+behind equal numeric demand or an equal compact report. The report includes
+per-domain demand, body-domain closure, and complete normalized context/epoch
+rows without exposing code addresses. Hardware arrival
 and its domain closure still need derivation from sealed target facts, generated
 adapter coverage still needs widening beyond the first receiver-free x86
 semantic ProgramStorage wrapper, and admitted context sets still need a

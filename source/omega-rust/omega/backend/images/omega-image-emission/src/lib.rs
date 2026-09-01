@@ -363,6 +363,20 @@ impl omega_installation_evidence::StackDemandEvidence for StackDemand {
     fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
         &self.contributing_machines
     }
+
+    fn admitted_stack_contribution_report_identities(&self) -> std::collections::BTreeSet<u64> {
+        self.admitted_contribution_report_identities
+            .iter()
+            .map(|identity| identity.normalized_identity())
+            .collect()
+    }
+
+    fn admitted_stack_contribution_commitments(&self) -> std::collections::BTreeSet<[u8; 32]> {
+        self.admitted_contribution_commitments
+            .iter()
+            .map(|commitment| commitment.as_bytes())
+            .collect()
+    }
 }
 
 /// Compatibility name for the original Unit-only demand entry point. New

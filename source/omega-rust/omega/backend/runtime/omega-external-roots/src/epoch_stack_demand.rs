@@ -24,6 +24,7 @@ use omega_isa_x86_64::{
 };
 use psi_layout_plans::EntryStubId;
 
+use super::stack_demand::fingerprint_stack_local_evidence;
 use super::{
     ExternalRootDiagnostic, ExternalRootId, Fnv1a, ProviderStackSummary, RootProviderId,
     StackDomain, StackLocalEvidence, StackNestingRelation, StackValidationReceiptId,
@@ -1033,6 +1034,7 @@ pub fn compose_bound_entry_stack_epochs<'a>(
     report_fingerprint.u64(composition.report_fingerprint());
     report_fingerprint.u64(bound.len() as u64);
     for input in bound.values() {
+        fingerprint_stack_local_evidence(&mut report_fingerprint, input.body_evidence());
         let evidence = input.realization_evidence();
         report_fingerprint.u64(match evidence.arrival_origin() {
             ArrivalStackRealizationOrigin::NoHardwareArrival => 0,
