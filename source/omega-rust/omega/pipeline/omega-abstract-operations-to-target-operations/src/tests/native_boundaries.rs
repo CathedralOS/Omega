@@ -641,4 +641,21 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             } if scalar_arguments[0].immediate == IntegerValue::Signed(37)
         )));
     }
+
+    let mut multi_block = plan;
+    multi_block.functions[0]
+        .block_entries
+        .push(AbstractBlockEntry {
+            block: BlockId::new(970).unwrap(),
+            parameters: Vec::new(),
+            operation_offset: 3,
+        });
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &multi_block,
+            NativeTarget::linux_x64(),
+            std::slice::from_ref(&settlement),
+        ),
+        Err(LoweringError::InvalidLinuxExitGroupShape(multi_block.entry)),
+    );
 }

@@ -68,14 +68,18 @@ pub(super) fn lower_linux_exit_group_i32(
             matches!(
                 operation,
                 AbstractOperation::EstablishByteSequenceLiteral { .. }
-                    | AbstractOperation::Call { .. }
             )
-        }) || function
-            .operations
-            .iter()
-            .filter(|operation| matches!(operation, AbstractOperation::BoundaryCall { .. }))
-            .count()
-            > 1
+        }) || (function.block_entries.len() == 1
+            && function
+                .operations
+                .iter()
+                .any(|operation| matches!(operation, AbstractOperation::Call { .. })))
+            || function
+                .operations
+                .iter()
+                .filter(|operation| matches!(operation, AbstractOperation::BoundaryCall { .. }))
+                .count()
+                > 1
         {
             Ok(None)
         } else {
