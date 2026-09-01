@@ -106,7 +106,7 @@ fn lowers_runtime_parameter_arithmetic_to_a_typed_target_expression() {
     let sum = ValueId::new(50).expect("sum");
     let scalar_type = match scalar_result(function).scalar_type {
         ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean => unreachable!("fixture is integer"),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
     };
     function.operations.insert(
         0,
@@ -164,7 +164,7 @@ fn folds_closed_wrapping_subtraction_at_the_declared_width() {
     let difference = ValueId::new(52).expect("difference");
     let scalar_type = match scalar_result(function).scalar_type {
         ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean => unreachable!("fixture is integer"),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
     };
     function.operations.splice(
         0..0,
@@ -217,7 +217,7 @@ fn folds_closed_saturating_subtraction_at_zero() {
     let difference = ValueId::new(52).expect("difference");
     let scalar_type = match scalar_result(function).scalar_type {
         ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean => unreachable!("fixture is integer"),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
     };
     function.operations.splice(
         0..0,
@@ -270,7 +270,7 @@ fn folds_closed_wrapping_multiplication_at_the_declared_width() {
     let product = ValueId::new(52).expect("product");
     let scalar_type = match scalar_result(function).scalar_type {
         ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean => unreachable!("fixture is integer"),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
     };
     function.operations.splice(
         0..0,
@@ -323,7 +323,7 @@ fn folds_closed_saturating_multiplication_at_the_declared_width() {
     let product = ValueId::new(52).expect("product");
     let scalar_type = match scalar_result(function).scalar_type {
         ScalarType::Integer(integer) => integer,
-        ScalarType::Boolean => unreachable!("fixture is integer"),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!("fixture is integer"),
     };
     function.operations.splice(
         0..0,
@@ -446,7 +446,9 @@ fn lowers_runtime_integer_equality_to_a_typed_target_expression() {
     let function = &mut plan.functions[0];
     let integer_type = match function.parameters[0].scalar_type {
         ScalarType::Integer(integer_type) => integer_type,
-        ScalarType::Boolean => unreachable!("fixture has integer parameters"),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+            unreachable!("fixture has integer parameters")
+        }
     };
     scalar_result_mut(function).scalar_type = ScalarType::Boolean;
     let result = ValueId::new(51).expect("integer-equality result");

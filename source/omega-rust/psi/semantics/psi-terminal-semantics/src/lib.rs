@@ -709,14 +709,14 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 43);
-        assert_eq!(OperationSemanticRow::ALL.len(), 43);
+        assert_eq!(OperationSemanticTag::ALL.len(), 45);
+        assert_eq!(OperationSemanticRow::ALL.len(), 45);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            38,
+            40,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -738,7 +738,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            43,
+            45,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -746,7 +746,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            43,
+            45,
         );
         assert!(
             OperationSemanticRow::ALL
@@ -795,7 +795,7 @@ mod tests {
             .unwrap();
         let integer_type = match i8_type() {
             ScalarType::Integer(integer_type) => integer_type,
-            ScalarType::Boolean => unreachable!(),
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) => unreachable!(),
         };
         assert_eq!(
             actual,
