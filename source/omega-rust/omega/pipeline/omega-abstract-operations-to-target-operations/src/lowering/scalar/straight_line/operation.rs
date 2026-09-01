@@ -21,6 +21,12 @@ pub(super) fn lower_operation(
                 operation: *psi_operation,
             });
         }
+        AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } => {
+            return Err(LoweringError::UnitOperationInScalarFunction {
+                machine: function.machine,
+                operation: *psi_operation,
+            });
+        }
         AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
             return Err(LoweringError::UnitOperationInScalarFunction {
@@ -101,11 +107,38 @@ pub(super) fn lower_operation(
             insert_value(&mut values, *result, KnownScalar::Boolean(*value))?;
             provenance.operations.push(*psi_operation);
         }
-        AbstractOperation::BooleanStructuralField { psi_operation, .. } => {
-            return Err(LoweringError::UnitOperationInScalarFunction {
-                machine: function.machine,
-                operation: *psi_operation,
-            });
+        AbstractOperation::BooleanStructuralField {
+            psi_operation,
+            result,
+            source,
+            field,
+        } => {
+            let parameter = target_structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+                .ok_or(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ))?;
+            let field_byte_offset =
+                direct_boolean_field_offset(parameter.structural_type, *field, structural_types)?;
+            insert_value(
+                &mut values,
+                *result,
+                KnownScalar::BooleanRuntime(TargetBooleanExpression::StructuralField {
+                    psi_operation: *psi_operation,
+                    source_value: *result,
+                    source: *source,
+                    field: *field,
+                    source_placement: parameter.placement.clone(),
+                    field_byte_offset,
+                }),
+            )?;
+            provenance.operations.push(*psi_operation);
+        }
+        AbstractOperation::IntegerStructuralField { .. } => {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                function.machine,
+            ));
         }
         AbstractOperation::BooleanNot {
             psi_operation,
