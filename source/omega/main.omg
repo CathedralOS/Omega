@@ -1,7 +1,7 @@
 // Product compiler phase driver. Gate protocol serialization lives outside
 // this closure in the parser gate package.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use psi::lex::lexer;
 use psi::parse::parser;
 

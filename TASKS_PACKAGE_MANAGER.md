@@ -385,14 +385,18 @@ explicitly.
 
   Remaining work:
 
-  - migrate package-aware product, parser, sample, and fixture consumers to
-    explicit std dependency edges;
+  - migrate remaining package-aware sample and fixture consumers to explicit
+    std dependency edges; the compiler product and parser package already
+    declare and compile through their ordinary `omega-language-std` edges;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived
     from directory location is not a security boundary;
   - feed accepted Filesystem and UEFI bindings through lock replay into normal
-    package-aware compilation.
+    package-aware compilation;
+    **Blocked on:** `ACCEPTED-LOCK-SCHEMA`, `LOCK-BASELINE-RECOVERY`, and
+    `LOCK-CLOSURE-VALIDATION`. The current in-memory accepted evidence already
+    retains the bindings; do not create a partial lock codec to move them.
 
   Do not substitute a package name, alias, repository, path, filename, or bare
   `PackageKeyIdentity` for an exact accepted binding. Do not expand Build facets
