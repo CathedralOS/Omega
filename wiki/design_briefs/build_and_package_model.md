@@ -2188,6 +2188,14 @@ result lanes remain explicitly open root admissions, so no empty generic
 certificate framework is invented before a concrete compiler-owned certificate
 route exists.
 
+Accepted-lock implementation starts only after the supported authority-bearing
+evidence classes are complete and joined into `PackageInstance`. The present
+in-memory gate is deliberately not a serializable subset of `omega.lock`:
+adding lock magic, an outer frame, or a codec around it would turn incomplete
+evidence into durable accepted state. Lock recovery and closure validation
+therefore depend on the complete current-version payload rather than growing
+beside this partial gate.
+
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
 cleanup requirements, and contract guarantees; each row retains exact owner,
