@@ -4,6 +4,7 @@ mod arithmetic;
 mod boolean;
 mod calls;
 mod effects;
+mod ieee_float;
 mod integer_bitwise;
 mod integer_constants_and_relations;
 mod integer_conversion;
@@ -55,6 +56,8 @@ pub(super) fn lower_operation(
         }
         OperationKind::Call { .. } => calls::lower(operation, machine),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
+        OperationKind::IeeeFloatConstant { .. }
+        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => ieee_float::lower(operation),
         OperationKind::BooleanConstant { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::BooleanNot { .. }

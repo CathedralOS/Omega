@@ -11,6 +11,8 @@ pub(crate) fn operation_scalar_types_match(
     let integer = |value: ValueId, expected: IntegerType| {
         scalar(value) == Some(ScalarType::Integer(expected))
     };
+    let ieee_float =
+        |value: ValueId, expected| scalar(value) == Some(ScalarType::IeeeFloat(expected));
     let fixed = |integer: IntegerType| integer.carrier() == IntegerCarrier::Fixed;
     let binary = |left: ValueId, right: ValueId, expected: IntegerType| {
         integer(left, expected) && integer(right, expected)
@@ -30,7 +32,20 @@ pub(crate) fn operation_scalar_types_match(
         } => match scalar_type {
             ScalarType::Integer(integer) => integer.admits(*value),
             ScalarType::Boolean => false,
+            ScalarType::IeeeFloat(_) => false,
         },
+        O::IeeeFloatConstant { .. } => true,
+        O::NearestIeeeFloatFusedMultiplyAdd {
+            format,
+            left,
+            right,
+            addend,
+            ..
+        } => {
+            ieee_float(*left, *format)
+                && ieee_float(*right, *format)
+                && ieee_float(*addend, *format)
+        }
         O::BooleanConstant { .. } => true,
         O::BooleanNot { operand, .. } => scalar(*operand) == Some(ScalarType::Boolean),
         O::BooleanEqual { left, right, .. } => {

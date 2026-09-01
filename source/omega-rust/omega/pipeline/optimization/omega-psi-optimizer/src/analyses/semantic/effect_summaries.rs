@@ -262,6 +262,8 @@ fn operation_effect(
     use EffectKnowledge::{May, No, Yes};
     match operation {
         O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

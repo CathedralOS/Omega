@@ -37,8 +37,13 @@ pub(super) fn produce_retained_terminal_artifact(
             error.error(),
         ))]
     })?;
-    let (artifact, checked_boundary_operator_scope, callback_placements, source_call_occurrences) =
-        produced.into_parts_with_source_calls();
+    let (
+        artifact,
+        checked_boundary_operator_scope,
+        callback_placements,
+        source_call_occurrences,
+        selected_ieee_float_fma_occurrences,
+    ) = produced.into_parts_with_source_calls();
     verify_terminal_artifact(&artifact, profile)?;
     let native_realization_proposal = project_terminal_native_realization_proposal(
         checked,
@@ -46,6 +51,7 @@ pub(super) fn produce_retained_terminal_artifact(
         checked_boundary_operator_scope,
         &callback_placements,
         &source_call_occurrences,
+        &selected_ieee_float_fma_occurrences,
     )?;
     omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
         artifact,
@@ -61,6 +67,7 @@ fn project_terminal_native_realization_proposal(
     checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[psi_checked_trees_to_terminal::LoweredSourceCallOccurrence],
+    selected_ieee_float_fma_occurrences: &[psi_checked_trees_to_terminal::LoweredSelectedIeeeFloatFmaOccurrence],
 ) -> Result<omega_compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -131,6 +138,72 @@ fn project_terminal_native_realization_proposal(
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let ieee_float_fma_occurrences = selected_ieee_float_fma_occurrences
+        .iter()
+        .map(|occurrence| {
+            let matching_plan_indices = checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .enumerate()
+                .filter(|(_, plan)| {
+                    plan.report_fingerprint() == occurrence.provider_plan_report_fingerprint
+                        && plan.identity_digest().as_bytes()
+                            == occurrence.provider_plan_commitment.as_bytes()
+                })
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            let [provider_plan_index] = matching_plan_indices.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "Terminal nearest-FMA operation {} rejoins {} exact selected plans; expected one",
+                    occurrence.terminal_operation.get(),
+                    matching_plan_indices.len(),
+                ))]);
+            };
+            let x86_admission = if native_target.architecture
+                == omega_target::Architecture::X86_64
+            {
+                let Some(provider) = checked.x86_scalar_fma_provider() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "Terminal nearest-FMA operation {} lacks an admitted x86 deployment provider",
+                        occurrence.terminal_operation.get(),
+                    ))]);
+                };
+                let matching = checked
+                    .x86_scalar_fma_plan_associations()
+                    .iter()
+                    .filter(|association| {
+                        association.matches_lowered_occurrence(
+                            occurrence,
+                            checked.selected_provider_plans(),
+                            provider,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let [association] = matching.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "Terminal nearest-FMA operation {} rejoins {} admitted x86 plan associations; expected one",
+                        occurrence.terminal_operation.get(),
+                        matching.len(),
+                    ))]);
+                };
+                Some(omega_compilation_report::TerminalX86ScalarFmaAdmission::new(
+                    association.slot(),
+                    association.admitted_provider(),
+                ))
+            } else {
+                None
+            };
+            Ok(
+                omega_compilation_report::TerminalIeeeFloatFmaOccurrenceProposal::new(
+                    occurrence.terminal_operation,
+                    *provider_plan_index,
+                    occurrence.format,
+                    x86_admission,
+                ),
+            )
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -141,6 +214,7 @@ fn project_terminal_native_realization_proposal(
         checked.external_binding_rows().to_vec(),
         builtin_proposals,
         callback_occurrences,
+        ieee_float_fma_occurrences,
         checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])

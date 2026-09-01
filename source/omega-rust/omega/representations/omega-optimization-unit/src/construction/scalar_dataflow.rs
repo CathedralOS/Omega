@@ -13,6 +13,12 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
             scalar_type,
             ..
         } => Some((*result, *scalar_type)),
+        O::IeeeFloatConstant { result, value, .. } => {
+            Some((*result, ScalarType::IeeeFloat(value.format())))
+        }
+        O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
+            Some((*result, ScalarType::IeeeFloat(*format)))
+        }
         O::CallStructuralScalar { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: Some(result),
@@ -177,6 +183,12 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::SaturatingIntegerDivide { left, right, .. }
         | O::SaturatingIntegerRemainder { left, right, .. }
         | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        O::NearestIeeeFloatFusedMultiplyAdd {
+            left,
+            right,
+            addend,
+            ..
+        } => vec![*left, *right, *addend],
         O::WrappingIntegerShiftLeft { value, count, .. }
         | O::WrappingIntegerShiftRight { value, count, .. }
         | O::ExactIntegerShiftLeft { value, count, .. }

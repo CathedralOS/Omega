@@ -38,6 +38,8 @@ pub(crate) fn expected_provenance(
         | O::PortWrite { psi_operation, .. }
         | O::Call { psi_operation, .. }
         | O::IntegerConstant { psi_operation, .. }
+        | O::IeeeFloatConstant { psi_operation, .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
         | O::BooleanStructuralField { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }

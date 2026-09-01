@@ -737,7 +737,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
             .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
-    let (_, _, returned) = produced.into_parts();
+    let (_, _, returned, _) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];
@@ -2132,7 +2132,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &50_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &52_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -2213,7 +2213,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &50_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &52_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

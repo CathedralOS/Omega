@@ -377,6 +377,8 @@ fn operation_observations(
     };
     match operation {
         O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

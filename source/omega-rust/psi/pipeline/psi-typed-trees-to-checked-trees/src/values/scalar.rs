@@ -2161,6 +2161,18 @@ fn lower_return_expression(
         )
         .map(|expression| CheckedScalarExpression::Boolean(Box::new(expression)));
     }
+    if let ExpressionNode::Float(literal) = program.expression_table.expression(expression) {
+        let value = match (result_type, literal.landing()) {
+            (PrimitiveType::F32, Some(psi_numerics::literals::FloatFormat::F32)) => {
+                psi_core::IeeeFloatValue::Binary32(literal.f32_bits())
+            }
+            (PrimitiveType::F64, Some(psi_numerics::literals::FloatFormat::F64)) => {
+                psi_core::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
+            }
+            _ => return None,
+        };
+        return Some(CheckedScalarExpression::IeeeFloatLiteral { value });
+    }
     let (expression, _) = lower_scalar_expression(
         program,
         operators,
@@ -2777,6 +2789,10 @@ pub(crate) fn scalar_expression_type(
         CheckedScalarExpression::IntegerLiteral { literal } => {
             primitive_for_landed(literal.landing()?.landed_type)
         }
+        CheckedScalarExpression::IeeeFloatLiteral { value } => Some(match value {
+            psi_core::IeeeFloatValue::Binary32(_) => PrimitiveType::F32,
+            psi_core::IeeeFloatValue::Binary64(_) => PrimitiveType::F64,
+        }),
         CheckedScalarExpression::Boolean(_) => Some(PrimitiveType::Bool),
     }
 }

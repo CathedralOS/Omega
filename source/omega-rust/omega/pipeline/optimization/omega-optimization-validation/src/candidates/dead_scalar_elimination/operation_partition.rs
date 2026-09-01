@@ -49,6 +49,8 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
         | O::Call { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanStructuralField { .. }
         | O::Jump { .. }
         | O::Conditional { .. }

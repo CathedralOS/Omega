@@ -284,6 +284,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
     let OperationBuffer {
         operations,
         source_calls: source_call_occurrences,
+        selected_ieee_float_fmas: selected_ieee_float_fma_occurrences,
         ..
     } = operations;
     let machine = TerminalMachine {
@@ -360,6 +361,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences,
+        selected_ieee_float_fma_occurrences,
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

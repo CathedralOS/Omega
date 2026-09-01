@@ -538,6 +538,8 @@ pub(super) fn lower_unit_function(
             | AbstractOperation::IntegerEqual { .. }
             | AbstractOperation::IntegerLessThan { .. }
             | AbstractOperation::IntegerLessOrEqual { .. }
+            | AbstractOperation::IeeeFloatConstant { .. }
+            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
             | AbstractOperation::IntegerBitwiseNot { .. }
             | AbstractOperation::IntegerWiden { .. }
             | AbstractOperation::IntegerExactCast { .. }

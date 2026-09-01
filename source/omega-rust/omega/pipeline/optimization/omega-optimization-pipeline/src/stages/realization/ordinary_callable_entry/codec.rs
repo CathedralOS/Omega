@@ -284,6 +284,13 @@ pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) {
             });
             bytes.extend_from_slice(&integer.bits().to_le_bytes());
         }
+        ScalarType::IeeeFloat(format) => {
+            bytes.push(3);
+            bytes.push(match format {
+                psi_core::IeeeFloatFormat::Binary32 => 1,
+                psi_core::IeeeFloatFormat::Binary64 => 2,
+            });
+        }
     }
 }
 pub(super) fn decode_scalar(
@@ -311,6 +318,11 @@ pub(super) fn decode_scalar(
             .map_err(|_| OptimizedOrdinaryCallableEntryDecodeError::InvalidIntegerType)?;
             Ok(ScalarType::Integer(integer))
         }
+        3 => match cursor.byte()? {
+            1 => Ok(ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32)),
+            2 => Ok(ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64)),
+            _ => Err(OptimizedOrdinaryCallableEntryDecodeError::InvalidScalarType),
+        },
         _ => Err(OptimizedOrdinaryCallableEntryDecodeError::InvalidScalarType),
     }
 }

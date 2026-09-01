@@ -30,6 +30,14 @@ pub(super) fn encode_structural_field(
             bytes.push(u8::from(matches!(integer.sign(), IntegerSign::Signed)));
             push_u16(bytes, integer.bits());
         }
+        StructuralFieldType::Scalar(ScalarType::IeeeFloat(format)) => {
+            bytes.push(7);
+            bytes.push(match format {
+                IeeeFloatFormat::Binary32 => 1,
+                IeeeFloatFormat::Binary64 => 2,
+            });
+            bytes.push(0);
+        }
         StructuralFieldType::IeeeFloat(format) => {
             bytes.push(5);
             bytes.push(match format {
@@ -144,6 +152,17 @@ pub(super) fn decode_structural_field(
                 _ => return Err(InstallationError::InvalidStructuralTypeShape),
             };
             StructuralFieldType::ByteSequence(carrier)
+        }
+        7 => {
+            let format = match reader.u8()? {
+                1 => IeeeFloatFormat::Binary32,
+                2 => IeeeFloatFormat::Binary64,
+                _ => return Err(InstallationError::InvalidStructuralTypeShape),
+            };
+            if reader.u8()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            StructuralFieldType::Scalar(ScalarType::IeeeFloat(format))
         }
         tag => {
             return Err(InstallationError::InvalidStructuralFieldTypeTag(tag));

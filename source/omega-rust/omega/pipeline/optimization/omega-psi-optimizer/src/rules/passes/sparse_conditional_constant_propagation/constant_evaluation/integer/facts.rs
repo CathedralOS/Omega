@@ -38,7 +38,7 @@ pub(in crate::rules::passes::sparse_conditional_constant_propagation) fn integer
                 .then_some(definition.scalar_type)
                 .and_then(|scalar_type| match scalar_type {
                     psi_core::ScalarType::Integer(integer) => Some(integer),
-                    psi_core::ScalarType::Boolean => None,
+                    psi_core::ScalarType::Boolean | psi_core::ScalarType::IeeeFloat(_) => None,
                 })
         })
 }

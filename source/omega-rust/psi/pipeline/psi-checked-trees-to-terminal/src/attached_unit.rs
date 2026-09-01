@@ -372,6 +372,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }
@@ -586,6 +587,7 @@ pub(super) fn lower_attached_unit_closure_including(
     let mut call_evidence = Vec::new();
     let mut machines = Vec::with_capacity(closure.len() + scalar_closure.len());
     let mut source_call_occurrences = Vec::new();
+    let mut selected_ieee_float_fma_occurrences = Vec::new();
 
     for machine_symbol in &closure {
         let plan = unique_unit_machine(plans, *machine_symbol)?;
@@ -1050,6 +1052,106 @@ pub(super) fn lower_attached_unit_closure_including(
                             arguments: arguments.iter().map(|argument| argument.id).collect(),
                             requirement_obligations,
                             crash_continuations,
+                        },
+                    });
+                    scalar_result_values.push(value);
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                    coordinate,
+                    result,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    format,
+                    operands,
+                } => {
+                    if usize::try_from(result.binding_ordinal).ok()
+                        != Some(scalar_result_values.len())
+                    {
+                        return unsupported(
+                            "selected IEEE FMA result binding ordinal drifted from source order",
+                        );
+                    }
+                    let result_type = terminal_scalar_type(result.primitive_type)?;
+                    if result_type != ScalarType::IeeeFloat(*format) {
+                        return unsupported(
+                            "selected IEEE FMA result type disagrees with its exact format",
+                        );
+                    }
+                    let [left, right, addend] = operands.as_slice() else {
+                        return unsupported("selected IEEE FMA must retain exactly three operands");
+                    };
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let mut lower_operand = |operand: &CheckedScalarExpression| {
+                        let operand = lower_checked_scalar_expression(operand)?;
+                        if direct_expression_contains_short_circuit(&operand) {
+                            return unsupported(
+                                "selected IEEE FMA operands do not admit short-circuit control",
+                            );
+                        }
+                        if operand.scalar_type() != result_type {
+                            return unsupported(
+                                "selected IEEE FMA operand type disagrees with its result",
+                            );
+                        }
+                        validate_direct_parameter_types(&operand, &source_types)?;
+                        Ok(emit_direct_expression(
+                            &operand,
+                            &scalar_result_values,
+                            &mut next_value_identity,
+                            &mut operations,
+                        ))
+                    };
+                    let left = lower_operand(left)?;
+                    let right = lower_operand(right)?;
+                    let addend = lower_operand(addend)?;
+                    drop(lower_operand);
+                    let value = ValueDeclaration {
+                        id: value_id(next_value_identity),
+                        scalar_type: result_type,
+                    };
+                    next_value_identity =
+                        next_value_identity
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "selected IEEE FMA result value identity space is exhausted",
+                            ))?;
+                    let operation = operations.allocate();
+                    operations.record_selected_ieee_float_fma(
+                        SourceCallCoordinate {
+                            state: plan.state,
+                            statement_index: usize::try_from(coordinate.statement_index).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "selected IEEE FMA statement coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "selected IEEE FMA call ordinal exceeds usize",
+                                    )
+                                },
+                            )?,
+                        },
+                        operation,
+                        *requirement_operator,
+                        *provider_plan_report_fingerprint,
+                        *provider_plan_commitment,
+                        *format,
+                    )?;
+                    operations.push(Operation {
+                        id: operation,
+                        result: psi_terminal::OperationResult::Scalar(value),
+                        kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                            left,
+                            right,
+                            addend,
                         },
                     });
                     scalar_result_values.push(value);
@@ -1529,9 +1631,11 @@ pub(super) fn lower_attached_unit_closure_including(
         let OperationBuffer {
             operations,
             source_calls,
+            selected_ieee_float_fmas,
             ..
         } = operations;
         source_call_occurrences.extend(source_calls);
+        selected_ieee_float_fma_occurrences.extend(selected_ieee_float_fmas);
         machines.push(TerminalMachine {
             id: terminal_machine,
             attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
@@ -1750,6 +1854,7 @@ pub(super) fn lower_attached_unit_closure_including(
         },
         debug_map: None,
         source_call_occurrences,
+        selected_ieee_float_fma_occurrences,
     };
     if requires_operation_proofs {
         finalize_operation_proofs(&mut lowered)?;

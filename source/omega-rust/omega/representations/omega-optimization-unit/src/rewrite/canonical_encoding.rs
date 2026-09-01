@@ -36,6 +36,13 @@ pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
             bytes.push(2);
             encode_integer_type(bytes, integer);
         }
+        ScalarType::IeeeFloat(format) => {
+            bytes.push(3);
+            bytes.push(match format {
+                psi_core::IeeeFloatFormat::Binary32 => 1,
+                psi_core::IeeeFloatFormat::Binary64 => 2,
+            });
+        }
     }
 }
 

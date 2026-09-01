@@ -8,10 +8,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralCaseId,
+    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
+use psi_numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, CrashCause, EntryClaim,
     NominalAffineCleanup, OperationKind, StructuralAccess, StructuralAffineDiscard,
@@ -181,6 +182,7 @@ pub enum TerminalScalarValue {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    IeeeFloat(IeeeFloatValue),
 }
 
 /// Opaque target-neutral runtime carrier for one structural argument.
@@ -398,6 +400,7 @@ impl TerminalScalarValue {
         match self {
             Self::Boolean(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
         }
     }
 }
@@ -1504,6 +1507,64 @@ impl TerminalExecution {
                         self.values.insert(
                             operation.result.expect_scalar().id,
                             TerminalScalarValue::Integer { scalar_type, value },
+                        );
+                    }
+                    OperationKind::IeeeFloatConstant { value } => {
+                        if operation.result.expect_scalar().scalar_type
+                            != ScalarType::IeeeFloat(value.format())
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::IeeeFloat(value),
+                        );
+                    }
+                    OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                        left,
+                        right,
+                        addend,
+                    } => {
+                        let ScalarType::IeeeFloat(format) =
+                            operation.result.expect_scalar().scalar_type
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::IeeeFloat(left) = self
+                            .values
+                            .get(&left)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::IeeeFloat(right) = self
+                            .values
+                            .get(&right)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        let TerminalScalarValue::IeeeFloat(addend) = self
+                            .values
+                            .get(&addend)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedValueMissing(addend))?
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if left.format() != format
+                            || right.format() != format
+                            || addend.format() != format
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let result =
+                            nearest_ieee_float_fused_multiply_add(format, left, right, addend);
+                        self.values.insert(
+                            operation.result.expect_scalar().id,
+                            TerminalScalarValue::IeeeFloat(result),
                         );
                     }
                     OperationKind::BooleanConstant { value } => {
@@ -3026,6 +3087,48 @@ fn terminal_scalar_belongs_to_type(value: TerminalScalarValue) -> bool {
     match value {
         TerminalScalarValue::Boolean(_) => true,
         TerminalScalarValue::Integer { scalar_type, value } => scalar_type.admits(value),
+        TerminalScalarValue::IeeeFloat(_) => true,
+    }
+}
+
+fn nearest_ieee_float_fused_multiply_add(
+    format: IeeeFloatFormat,
+    left: IeeeFloatValue,
+    right: IeeeFloatValue,
+    addend: IeeeFloatValue,
+) -> IeeeFloatValue {
+    match (format, left, right, addend) {
+        (
+            IeeeFloatFormat::Binary32,
+            IeeeFloatValue::Binary32(left),
+            IeeeFloatValue::Binary32(right),
+            IeeeFloatValue::Binary32(addend),
+        ) => IeeeFloatValue::Binary32(
+            FloatSemantics::fused_multiply_add(
+                FloatFormat::BINARY32,
+                &FloatMeaning::from_f32(f32::from_bits(left)),
+                &FloatMeaning::from_f32(f32::from_bits(right)),
+                &FloatMeaning::from_f32(f32::from_bits(addend)),
+            )
+            .to_f32()
+            .to_bits(),
+        ),
+        (
+            IeeeFloatFormat::Binary64,
+            IeeeFloatValue::Binary64(left),
+            IeeeFloatValue::Binary64(right),
+            IeeeFloatValue::Binary64(addend),
+        ) => IeeeFloatValue::Binary64(
+            FloatSemantics::fused_multiply_add(
+                FloatFormat::BINARY64,
+                &FloatMeaning::from_f64(f64::from_bits(left)),
+                &FloatMeaning::from_f64(f64::from_bits(right)),
+                &FloatMeaning::from_f64(f64::from_bits(addend)),
+            )
+            .to_f64()
+            .to_bits(),
+        ),
+        _ => unreachable!("verified IEEE FMA operands have one exact format"),
     }
 }
 

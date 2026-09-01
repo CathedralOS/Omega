@@ -191,6 +191,9 @@ pub enum CheckedScalarExpression {
     IntegerLiteral {
         literal: psi_numerics::literals::IntegerLiteral,
     },
+    IeeeFloatLiteral {
+        value: psi_core::IeeeFloatValue,
+    },
     IntegerBinary {
         kind: CheckedIntegerBinaryKind,
         primitive_type: psi_typed_trees::types::PrimitiveType,

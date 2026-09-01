@@ -1059,6 +1059,10 @@ fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
             writer.u8(2);
             encode_integer_type(writer, integer_type);
         }
+        ScalarType::IeeeFloat(format) => {
+            writer.u8(3);
+            encode_ieee_float_format(writer, format);
+        }
     }
 }
 
@@ -1791,6 +1795,7 @@ fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, ProofCodecE
     Ok(match reader.u8()? {
         1 => ScalarType::Boolean,
         2 => ScalarType::Integer(decode_integer_type(reader)?),
+        3 => ScalarType::IeeeFloat(decode_ieee_float_format(reader)?),
         tag => return Err(ProofCodecError::InvalidTag("ScalarType", tag)),
     })
 }

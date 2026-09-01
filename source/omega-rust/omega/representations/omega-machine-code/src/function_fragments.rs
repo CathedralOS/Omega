@@ -352,6 +352,13 @@ fn encode_successor(hasher: &mut Sha256, successor: &FunctionFragmentSuccessorPr
                 }]);
                 hasher.update(integer.bits().to_le_bytes());
             }
+            ScalarType::IeeeFloat(format) => {
+                hasher.update([2]);
+                hasher.update([match format {
+                    psi_core::IeeeFloatFormat::Binary32 => 0,
+                    psi_core::IeeeFloatFormat::Binary64 => 1,
+                }]);
+            }
         }
     }
     encode_fuel(hasher, &successor.fuel);

@@ -281,11 +281,7 @@ pub(super) fn settle_selected_execution(
             settlement.exact_component_progress_root,
             None,
         )?;
-    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
-        &mut checked.program,
-        &checked.selected_provider_plan_facts,
-    )?;
-    omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
+    omega_selected_dispatch::settle_selected_execution_dispatch(
         &mut checked.program,
         &checked.selected_provider_plan_facts,
     )?;

@@ -606,6 +606,9 @@ pub(super) fn lower_checked_scalar_expression(
                 scalar_type,
             })
         }
+        CheckedScalarExpression::IeeeFloatLiteral { value } => {
+            Ok(LoweredDirectExpression::IeeeFloatLiteral { value: *value })
+        }
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,
@@ -821,7 +824,8 @@ pub(super) fn validate_direct_parameter_types(
                 unsupported("scalar graph integer guard parameter type does not match")
             }
         }
-        LoweredDirectExpression::IntegerLiteral { .. } => Ok(()),
+        LoweredDirectExpression::IntegerLiteral { .. }
+        | LoweredDirectExpression::IeeeFloatLiteral { .. } => Ok(()),
         LoweredDirectExpression::IntegerBinary { left, right, .. } => {
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
@@ -957,6 +961,7 @@ fn evaluate_direct_expression(
         LoweredDirectExpression::IntegerLiteral { value, .. } => {
             Some(KnownDirectScalar::Integer(*value))
         }
+        LoweredDirectExpression::IeeeFloatLiteral { .. } => None,
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,
@@ -1256,6 +1261,9 @@ fn validate_closed_scalar_contract(
             ScalarType::Integer(_) => {
                 unsupported("contract literals must equal the executed literal")
             }
+            ScalarType::IeeeFloat(_) => {
+                unsupported("closed scalar contract evaluation does not carry IEEE float literals")
+            }
         };
     }
     Ok(requires)
@@ -1289,6 +1297,8 @@ pub(super) fn integer_scalar_type(primitive: PrimitiveType) -> Result<ScalarType
 pub(super) fn terminal_scalar_type(primitive: PrimitiveType) -> Result<ScalarType, LoweringError> {
     match primitive {
         PrimitiveType::Bool => Ok(ScalarType::Boolean),
+        PrimitiveType::F32 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
+        PrimitiveType::F64 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
         primitive => integer_scalar_type(primitive),
     }
 }

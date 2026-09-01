@@ -207,7 +207,7 @@ pub fn validate_selected_operator_terminal_custody(
     }
 }
 
-fn plan_selected_operator_adapter_rewrites(
+pub(super) fn plan_selected_operator_adapter_rewrites(
     checked: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<OperatorAdapterRewrite>, Vec<Diagnostic>> {
@@ -283,7 +283,7 @@ fn stage_operator_adapter_rewrite(
     rewrites.push(rewrite);
 }
 
-fn apply_selected_operator_adapter_rewrites(
+pub(super) fn apply_selected_operator_adapter_rewrites(
     checked: &mut CheckedTrees,
     rewrites: &[OperatorAdapterRewrite],
 ) {
@@ -332,6 +332,26 @@ fn apply_selected_operator_adapter_rewrites(
             .expression_table
             .expression_mut(rewrite.expression) = replacement;
     }
+}
+
+pub(super) fn selected_unit_applications(
+    checked: &CheckedTrees,
+    rewrites: &[OperatorAdapterRewrite],
+) -> Result<Vec<psi_typed_trees_to_checked_trees::SelectedOperatorUnitApplication>, Diagnostic> {
+    rewrites
+        .iter()
+        .map(|rewrite| unit::selected_unit_application(checked, rewrite))
+        .collect()
+}
+
+pub(super) fn validate_selected_unit_applications(
+    checked: &CheckedTrees,
+    rewrites: &[OperatorAdapterRewrite],
+) -> Result<(), Diagnostic> {
+    for rewrite in rewrites {
+        unit::validate_selected_unit_application(checked, rewrite)?;
+    }
+    Ok(())
 }
 
 fn resolve_selected_operator_adapter_call(

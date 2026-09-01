@@ -25,6 +25,6 @@ pub(in crate::validation::straight_line_parameter::source) fn parameter(
             ScalarType::Integer(integer_type) if candidate.value == value => {
                 Some((index, integer_type))
             }
-            ScalarType::Integer(_) | ScalarType::Boolean => None,
+            ScalarType::Integer(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
         })
 }

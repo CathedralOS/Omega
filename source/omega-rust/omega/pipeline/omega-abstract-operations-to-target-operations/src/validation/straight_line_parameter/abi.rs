@@ -53,8 +53,15 @@ fn scalar_shape(scalar_type: ScalarType) -> ValueShape {
     let bytes = match scalar_type {
         ScalarType::Boolean => 1,
         ScalarType::Integer(integer_type) => integer_type.bits().div_ceil(8),
+        ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => 4,
+        ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => 8,
     };
-    ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+    match scalar_type {
+        ScalarType::IeeeFloat(_) => ValueShape::float(bytes),
+        ScalarType::Boolean | ScalarType::Integer(_) => {
+            ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+        }
+    }
 }
 
 fn parameter_location(

@@ -1333,6 +1333,7 @@ dependencies = [
  "omega-provider-planning",
  "psi-arena",
  "psi-checked-trees",
+ "psi-core",
  "psi-diagnostics",
  "psi-language-core",
  "psi-language-semantics",
@@ -1898,6 +1899,7 @@ name = "psi-terminal-interpreter"
 version = "0.1.0"
 dependencies = [
  "psi-core",
+ "psi-numerics",
  "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",

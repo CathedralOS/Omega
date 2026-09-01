@@ -855,6 +855,18 @@ pub enum ModuleError {
     IntegerConstantRequiresIntegerResult(OperationId),
     IntegerConstantOutsideResultType(OperationId),
     BooleanConstantRequiresBooleanResult(OperationId),
+    IeeeFloatConstantResultTypeMismatch {
+        operation: OperationId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
+    IeeeFloatFusedMultiplyAddRequiresFloatResult(OperationId),
+    IeeeFloatFusedMultiplyAddOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        expected: ScalarType,
+        actual: ScalarType,
+    },
     BooleanStructuralFieldRequiresBooleanResult(OperationId),
     InvalidBooleanStructuralField {
         operation: OperationId,

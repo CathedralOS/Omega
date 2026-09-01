@@ -399,6 +399,9 @@ fn substitute_checked_scalar_expression(
                 literal: literal.clone(),
             }
         }
+        CheckedScalarExpression::IeeeFloatLiteral { value } => {
+            CheckedScalarExpression::IeeeFloatLiteral { value: *value }
+        }
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,

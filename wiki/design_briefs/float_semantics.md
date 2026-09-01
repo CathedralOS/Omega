@@ -60,8 +60,24 @@ complete selected `ProviderPlan` and exact compiler-intrinsic provenance to the
 matching admitted provider. Repeated uses deduplicate, F32/F64 remain separate,
 and multiply-then-add or non-x86 plans cannot borrow the admission. This is
 checked custody, not native execution evidence, and does not widen the generic
-SSE2 x86-64 targets: compiler/native lowering that consumes the association
-remains pending.
+SSE2 x86-64 targets.
+
+Terminal Psi now owns exact binary32/binary64 scalar types, raw interchange-bit
+constants, and a distinct nearest-even fused-multiply-add operation. Its codec,
+verifier, fuel schedule, and reference interpreter preserve the bits and use
+one rounding. The first bounded source lane accepts a first immutable local in
+an attached Unit machine whose selected FMA has three landed literal operands.
+Checked lowering emits exact Terminal constants/FMA and retains a per-occurrence
+sidecar containing the source coordinate, full selected-plan commitment,
+requirement symbol, format, and emitted Terminal operation. The compiler
+consumes that ephemeral row into a source-free Terminal realization proposal,
+rejoins the exact selected plan, and, for x86 profiles, requires exactly one
+admitted profile/slot provider. Proposal replay requires one-to-one coverage of
+every canonical Terminal FMA operation. Abstract IR and optimizer identities
+also preserve the operation. Target/assigned/machine lowering, canonical x86
+floating-control establishment, and final instruction emission still remain
+pending; unsupported and optimized-direct paths fail closed rather than losing
+the occurrence custody.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A
@@ -225,8 +241,11 @@ feature-qualified x86 FMA carrier supports source-free custody and final-image
 replay, and ordinary exact-target build selection retains that carrier on the
 checked compilation. Linux and Windows target sources now select nearest-FMA
 plans, and each actual checked use is associated with the exact admitted
-provider by full-plan/profile/slot replay. Compiler/native lowering that
-consumes this association is still pending.
+provider by full-plan/profile/slot replay. A bounded first immutable-local lane
+now carries the selected use through exact Terminal constants/FMA, canonical
+verification/reference execution, Abstract IR, and a retained source-free
+native-realization proposal. Target/assigned/machine lowering that consumes
+this proposal is still pending.
 Multiply-then-add and FMA stay distinct through lowering and result-policy
 adaptation.
 

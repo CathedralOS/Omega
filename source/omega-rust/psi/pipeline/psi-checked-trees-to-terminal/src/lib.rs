@@ -35,10 +35,10 @@ use psi_core::{
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
     ContractId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId, IeeeFloatFormat,
-    IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, Proposition, PropositionContext, PropositionError, PropositionId,
-    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralCaseSubject, StructuralDomainId,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    IeeeFloatStructuralField, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, PlaceId, Proposition, PropositionContext, PropositionError,
+    PropositionId, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralCaseSubject,
+    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_semantics::content::{
     ContentAlgebraIdentity as CheckedContentAlgebraIdentity, ContentArithmeticOperator,
@@ -213,6 +213,11 @@ pub struct LoweredTerminalPsi {
     /// encoded into Terminal Psi; the Omega product consumes them while both
     /// representations are available and retains only target-owned evidence.
     pub source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
+    /// Ephemeral exact joins from selected checked IEEE FMA uses to the
+    /// target-neutral Terminal operations they produced. Source and selected-
+    /// plan handles remain outside the canonical Terminal artifact; Omega must
+    /// consume these rows while both representations are alive.
+    pub selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
 
 /// One exact checked source call joined to its emitted Terminal operation.
@@ -226,6 +231,22 @@ pub struct LoweredSourceCallOccurrence {
     pub call_ordinal: usize,
     pub terminal_operation: OperationId,
     pub source_target: psi_symbols::SymbolHandle,
+}
+
+/// One exact selected checked IEEE FMA use joined to its emitted Terminal
+/// operation. This sidecar is target-neutral custody, not hardware admission:
+/// native realization must independently rejoin its plan evidence to an
+/// admitted target provider before selecting an instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoweredSelectedIeeeFloatFmaOccurrence {
+    pub source_state: psi_symbols::SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub terminal_operation: OperationId,
+    pub requirement_operator: psi_symbols::SymbolHandle,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    pub format: psi_core::IeeeFloatFormat,
 }
 
 /// Checked source demand scope retained beside one exact Terminal artifact.
@@ -262,6 +283,7 @@ impl CheckedBoundaryOperatorApplicationScope {
 pub struct ProducedTerminalArtifact {
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
+    selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
 
 impl ProducedTerminalArtifact {
@@ -273,13 +295,22 @@ impl ProducedTerminalArtifact {
         &self.boundary_operator_scope
     }
 
+    pub fn selected_ieee_float_fma_occurrences(&self) -> &[LoweredSelectedIeeeFloatFmaOccurrence] {
+        &self.selected_ieee_float_fma_occurrences
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         psi_terminal_codec::CanonicalTerminalArtifact,
         CheckedBoundaryOperatorApplicationScope,
+        Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     ) {
-        (self.artifact, self.boundary_operator_scope)
+        (
+            self.artifact,
+            self.boundary_operator_scope,
+            self.selected_ieee_float_fma_occurrences,
+        )
     }
 }
 
@@ -297,6 +328,7 @@ pub struct ProducedTerminalArtifactWithCallbackCustody<C> {
     boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     callback_custody: C,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
+    selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
 
 impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
@@ -316,17 +348,23 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         &self.source_call_occurrences
     }
 
+    pub fn selected_ieee_float_fma_occurrences(&self) -> &[LoweredSelectedIeeeFloatFmaOccurrence] {
+        &self.selected_ieee_float_fma_occurrences
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         psi_terminal_codec::CanonicalTerminalArtifact,
         CheckedBoundaryOperatorApplicationScope,
         C,
+        Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     ) {
         (
             self.artifact,
             self.boundary_operator_scope,
             self.callback_custody,
+            self.selected_ieee_float_fma_occurrences,
         )
     }
 
@@ -337,12 +375,14 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         CheckedBoundaryOperatorApplicationScope,
         C,
         Vec<LoweredSourceCallOccurrence>,
+        Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
     ) {
         (
             self.artifact,
             self.boundary_operator_scope,
             self.callback_custody,
             self.source_call_occurrences,
+            self.selected_ieee_float_fma_occurrences,
         )
     }
 }
@@ -454,6 +494,9 @@ enum LoweredDirectExpression {
         value: IntegerValue,
         scalar_type: ScalarType,
     },
+    IeeeFloatLiteral {
+        value: IeeeFloatValue,
+    },
     IntegerBinary {
         kind: LoweredIntegerBinaryKind,
         scalar_type: ScalarType,
@@ -487,6 +530,7 @@ impl LoweredDirectExpression {
             | Self::IntegerBitwiseNot { scalar_type, .. }
             | Self::IntegerWiden { scalar_type, .. }
             | Self::IntegerExactCast { scalar_type, .. } => *scalar_type,
+            Self::IeeeFloatLiteral { value } => ScalarType::IeeeFloat(value.format()),
             Self::Boolean { .. } => ScalarType::Boolean,
         }
     }
@@ -697,6 +741,7 @@ struct OperationBuffer {
     next_identity: u64,
     operations: Vec<Operation>,
     source_calls: Vec<LoweredSourceCallOccurrence>,
+    selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
 
 impl OperationBuffer {
@@ -707,6 +752,7 @@ impl OperationBuffer {
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
             source_calls: Vec::new(),
+            selected_ieee_float_fmas: Vec::new(),
         }
     }
 
@@ -741,6 +787,42 @@ impl OperationBuffer {
             terminal_operation: operation,
             source_target: target,
         });
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn record_selected_ieee_float_fma(
+        &mut self,
+        coordinate: SourceCallCoordinate,
+        operation: OperationId,
+        requirement_operator: psi_symbols::SymbolHandle,
+        provider_plan_report_fingerprint: u64,
+        provider_plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+        format: psi_core::IeeeFloatFormat,
+    ) -> Result<(), LoweringError> {
+        if provider_plan_report_fingerprint == 0 || provider_plan_commitment.is_empty() {
+            return unsupported(
+                "selected IEEE FMA occurrence lacks complete ProviderPlan evidence",
+            );
+        }
+        if self.selected_ieee_float_fmas.iter().any(|existing| {
+            existing.source_state == coordinate.state
+                && existing.statement_index == coordinate.statement_index
+                && existing.call_ordinal == coordinate.call_ordinal
+        }) {
+            return unsupported("selected IEEE FMA occurrence coordinate is duplicated");
+        }
+        self.selected_ieee_float_fmas
+            .push(LoweredSelectedIeeeFloatFmaOccurrence {
+                source_state: coordinate.state,
+                statement_index: coordinate.statement_index,
+                call_ordinal: coordinate.call_ordinal,
+                terminal_operation: operation,
+                requirement_operator,
+                provider_plan_report_fingerprint,
+                provider_plan_commitment,
+                format,
+            });
         Ok(())
     }
 }
@@ -1321,11 +1403,19 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
-    let artifact = produce_terminal_artifact(checked, machine_name)?;
+    let lowered =
+        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
+    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        lowered.debug_map.as_ref(),
+    )
+    .map_err(TerminalArtifactProductionError::Artifact)?;
     let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact);
     Ok(ProducedTerminalArtifact {
         artifact,
         boundary_operator_scope,
+        selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
     })
 }
 
@@ -1380,6 +1470,7 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
         artifact,
         callback_custody,
         source_call_occurrences: lowered.source_call_occurrences,
+        selected_ieee_float_fma_occurrences: lowered.selected_ieee_float_fma_occurrences,
     })
 }
 

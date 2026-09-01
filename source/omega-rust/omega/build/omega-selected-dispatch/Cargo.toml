@@ -14,6 +14,7 @@ omega-package-compilation = { path = "../omega-package-compilation" }
 omega-provider-planning = { path = "../omega-provider-planning" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }

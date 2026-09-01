@@ -19,7 +19,13 @@ pub(super) fn realize(
                 ))]
             },
         )?;
-    let (artifact, checked_boundary_operator_scope) = produced.into_parts();
+    let (artifact, checked_boundary_operator_scope, selected_ieee_float_fma_occurrences) =
+        produced.into_parts();
+    if !selected_ieee_float_fma_occurrences.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "optimized direct native realization does not yet consume retained IEEE-FMA occurrence custody",
+        )]);
+    }
     let terminal_module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
         |error| {
             vec![Diagnostic::error(format!(

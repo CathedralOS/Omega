@@ -4,7 +4,7 @@
 //! remain in the installation parent. This child owns only the six-byte scalar
 //! type row and its established validation errors.
 
-use psi_core::{IntegerSign, IntegerType, ScalarType};
+use psi_core::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
 
 use super::{InstallationError, Reader, decode_boolean, push_u16};
 
@@ -17,6 +17,16 @@ pub(super) fn encode_boundary_result_scalar_type(bytes: &mut Vec<u8>, scalar_typ
             bytes.push(u8::from(matches!(integer.sign(), IntegerSign::Signed)));
             bytes.push(0);
             push_u16(bytes, integer.bits());
+        }
+        ScalarType::IeeeFloat(format) => {
+            bytes.extend_from_slice(&[3, 0, 0, 0]);
+            push_u16(
+                bytes,
+                match format {
+                    IeeeFloatFormat::Binary32 => 32,
+                    IeeeFloatFormat::Binary64 => 64,
+                },
+            );
         }
     }
 }
@@ -46,6 +56,12 @@ pub(super) fn decode_boundary_result_scalar_type(
         )
         .map(ScalarType::Integer)
         .map_err(|_| InstallationError::InvalidBoundaryResult),
+        3 if !is_address && !signed && bits == 32 => {
+            Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
+        }
+        3 if !is_address && !signed && bits == 64 => {
+            Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
+        }
         _ => Err(InstallationError::InvalidBoundaryResult),
     }
 }

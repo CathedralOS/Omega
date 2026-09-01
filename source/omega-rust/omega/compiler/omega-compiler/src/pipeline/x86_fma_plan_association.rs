@@ -15,7 +15,7 @@ use omega_target::{
 };
 use psi_checked_trees::{CheckedNamedOperatorUseFact, CheckedTrees};
 use psi_diagnostics::Diagnostic;
-use psi_symbols::BuiltinFunction;
+use psi_symbols::{BuiltinFunction, SymbolHandle};
 
 /// One exact checked association from a source-selected `ProviderPlan` to the
 /// build-admitted x86 scalar FMA provider.
@@ -26,6 +26,7 @@ use psi_symbols::BuiltinFunction;
 pub struct CheckedX86ScalarFmaPlanAssociation {
     selected_plan: ProviderPlan,
     selected_builtin: BuiltinFunction,
+    requirement_operator: SymbolHandle,
     slot: X86ScalarFmaSlot,
     admitted_provider: AdmittedX86ScalarFmaProvider,
 }
@@ -45,6 +46,10 @@ impl CheckedX86ScalarFmaPlanAssociation {
 
     pub const fn selected_builtin(&self) -> BuiltinFunction {
         self.selected_builtin
+    }
+
+    pub const fn requirement_operator(&self) -> SymbolHandle {
+        self.requirement_operator
     }
 
     pub const fn slot(&self) -> X86ScalarFmaSlot {
@@ -80,6 +85,25 @@ impl CheckedX86ScalarFmaPlanAssociation {
                     &self.selected_plan,
                 )
                 .is_some()
+    }
+
+    pub fn matches_lowered_occurrence(
+        &self,
+        occurrence: &psi_checked_trees_to_terminal::LoweredSelectedIeeeFloatFmaOccurrence,
+        selected: &omega_effects::SelectedProviderPlanFacts,
+        admitted_provider: AdmittedX86ScalarFmaProvider,
+    ) -> bool {
+        self.matches_checked_inputs(selected, admitted_provider)
+            && occurrence.requirement_operator == self.requirement_operator
+            && occurrence.provider_plan_report_fingerprint
+                == self.selected_plan.report_fingerprint()
+            && occurrence.provider_plan_commitment.as_bytes()
+                == self.selected_plan.identity_digest().as_bytes()
+            && occurrence.format
+                == match self.slot {
+                    X86ScalarFmaSlot::Binary32 => psi_core::IeeeFloatFormat::Binary32,
+                    X86ScalarFmaSlot::Binary64 => psi_core::IeeeFloatFormat::Binary64,
+                }
     }
 }
 
@@ -154,7 +178,13 @@ pub(super) fn bind_checked_x86_scalar_fma_plan_associations(
                     // FMA realizations are not x86 deployment demands.
                     continue;
                 }
-                demands.push((plan_index, *row_index, *builtin, *slot));
+                demands.push((
+                    plan_index,
+                    *row_index,
+                    *builtin,
+                    operator_use.selected_operator_symbol,
+                    *slot,
+                ));
             }
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
@@ -175,7 +205,7 @@ pub(super) fn bind_checked_x86_scalar_fma_plan_associations(
     let Some(admitted_provider) = admitted_provider else {
         return Err(demands
             .iter()
-            .map(|(plan_index, _, _, slot)| {
+            .map(|(plan_index, _, _, _, slot)| {
                 Diagnostic::error(format!(
                     "selected x86 scalar FMA ProviderPlan `{}` requires explicit AVX+FMA3 admission for slot `{}`",
                     selected.plans()[*plan_index].name,
@@ -197,7 +227,7 @@ pub(super) fn bind_checked_x86_scalar_fma_plan_associations(
     let mut exact_demands = BTreeSet::new();
     let mut plan_by_slot = BTreeMap::new();
     let mut associations = Vec::new();
-    for (plan_index, row_index, builtin, slot) in demands {
+    for (plan_index, row_index, builtin, requirement_operator, slot) in demands {
         let plan = &selected.plans()[plan_index];
         let retained = &provenance[plan_index];
         let row = &plan.rows[row_index];
@@ -239,6 +269,7 @@ pub(super) fn bind_checked_x86_scalar_fma_plan_associations(
         associations.push(CheckedX86ScalarFmaPlanAssociation {
             selected_plan: plan.clone(),
             selected_builtin: builtin,
+            requirement_operator,
             slot,
             admitted_provider,
         });

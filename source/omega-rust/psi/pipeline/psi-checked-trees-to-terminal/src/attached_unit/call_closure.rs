@@ -219,6 +219,11 @@ pub(super) fn validate_unit_operation_sequence(
                 coordinate,
                 result,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                coordinate,
+                result,
+                ..
             } => {
                 if result.statement_index != coordinate.statement_index
                     || coordinate.call_ordinal != 0

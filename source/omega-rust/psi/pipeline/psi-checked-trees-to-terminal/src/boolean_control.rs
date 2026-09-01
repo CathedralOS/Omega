@@ -612,6 +612,7 @@ pub(super) fn build_scalar_conditional_target(
                 _ => None,
             },
             LoweredDirectExpression::IntegerLiteral { .. }
+            | LoweredDirectExpression::IeeeFloatLiteral { .. }
             | LoweredDirectExpression::IntegerBinary { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }
             | LoweredDirectExpression::IntegerWiden { .. }

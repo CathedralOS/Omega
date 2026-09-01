@@ -87,6 +87,12 @@ pub(super) fn lower_operation(
             )?;
             provenance.operations.push(*psi_operation);
         }
+        AbstractOperation::IeeeFloatConstant { .. }
+        | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                function.machine,
+            ));
+        }
         AbstractOperation::BooleanConstant {
             psi_operation,
             result,

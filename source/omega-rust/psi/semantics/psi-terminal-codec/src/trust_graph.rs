@@ -448,7 +448,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            32
+            34
         );
         assert_eq!(
             graph
@@ -474,7 +474,7 @@ mod tests {
                 .count(),
             5
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 43);
+        assert_eq!(OperationSemanticRow::ALL.len(), 45);
         let store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::WriteOnlyPrimitiveStore)
@@ -492,7 +492,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            38
+            40
         );
         assert_eq!(
             OperationSemanticRow::ALL

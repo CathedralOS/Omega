@@ -1,4 +1,7 @@
-use omega_compiler::compile_to_checked;
+use omega_compiler::{
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    compile_to_checked,
+};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -328,6 +331,88 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
         );
         assert_eq!(provider.profile(), profile);
     }
+}
+
+#[test]
+fn terminal_product_retains_exact_fma_operation_plan_and_x86_admission() {
+    let project = TempProject::with_main(
+        r#"use omega::language::core::float_operations;
+
+data Main { }
+
+machine Main::main(&mut self) {
+    let fused: f32 = F32::fused_multiply_add(
+        1.00000011920928955078125f32,
+        0.99999988079071044921875f32,
+        -1.0f32,
+    );
+}
+"#,
+        &exact_profile_build(
+            "linux_x86_64",
+            r#"    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;"#,
+        ),
+    );
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+    )
+    .unwrap_or_else(|diagnostics| panic!("FMA Terminal custody failed: {diagnostics:#?}"));
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("Terminal report retains canonical artifact custody");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("Terminal report retains native proposal");
+    let occurrences = proposal.ieee_float_fma_occurrences();
+    assert!(
+        !occurrences.is_empty(),
+        "selected FMA custody must not disappear"
+    );
+    let module = psi_terminal_codec::decode_module(retained.artifact().semantic_bytes())
+        .expect("canonical Terminal semantics decode");
+
+    for occurrence in occurrences {
+        let plan = &proposal.selected_provider_plans().plans()[occurrence.provider_plan_index()];
+        assert_eq!(plan.target, "linux_x86_64");
+        let admission = occurrence
+            .x86_admission()
+            .expect("x86 occurrence retains admitted deployment provider");
+        assert_eq!(
+            admission.provider().profile(),
+            omega_target::TargetProfile::LinuxX64
+        );
+        assert_eq!(
+            admission.slot(),
+            match occurrence.format() {
+                psi_core::IeeeFloatFormat::Binary32 => omega_target::X86ScalarFmaSlot::Binary32,
+                psi_core::IeeeFloatFormat::Binary64 => omega_target::X86ScalarFmaSlot::Binary64,
+            }
+        );
+        let matching = module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|operation| operation.id == occurrence.terminal_operation())
+            .collect::<Vec<_>>();
+        let [operation] = matching.as_slice() else {
+            panic!("occurrence must name one exact Terminal operation")
+        };
+        assert!(matches!(
+            operation.kind,
+            psi_terminal::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+        ));
+    }
+    retained
+        .validate()
+        .expect("FMA occurrence proposal replays against canonical artifact");
 }
 
 #[test]

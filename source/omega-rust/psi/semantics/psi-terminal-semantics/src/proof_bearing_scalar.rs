@@ -538,7 +538,9 @@ fn require_integer_type(
 ) -> Result<IntegerType, OperationSemanticError> {
     match scalar_type {
         ScalarType::Integer(integer_type) => Ok(integer_type),
-        ScalarType::Boolean => Err(OperationSemanticError::OperandShapeMismatch(tag)),
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+            Err(OperationSemanticError::OperandShapeMismatch(tag))
+        }
     }
 }
 
