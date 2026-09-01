@@ -3783,13 +3783,16 @@ audit-recommended selected copy receipt owned by the selecting package, even
 when the opaque declaration is dependency-owned or the selection is unused.
 Its versioned strong commitment binds the named conformance application, inert
 lifecycle, and copy disposition; selecting source remains provenance. This is
-neither target ABI movement nor D26 consumer demand. Package review separately publishes exact
-public opaque/conformance/carrier candidates as producer availability without
-accepting any selection. `Unbound` may coexist because it means only that this
-compilation has no active consumer demand. Consumer demand remains absent until
-the complete D26 row can rejoin canonical nominal identity and the retained use
-with the independent shape, movement, and boundary-plan commitments described
-above.
+neither target ABI movement nor D26 consumer demand. Package review separately
+publishes exact public opaque/conformance/carrier candidates as producer
+availability without accepting any selection. `Unbound` may coexist because it
+reports the declaration independently of use. For each actual by-value use,
+package review now emits the complete D26 consumer row from the retained use,
+its exact carrier shape root, the complete checked shape graph, the semantic
+parameter/result path, replay-validated physical placement, and strong
+selection and boundary-plan commitments. Equal-looking layouts are never used
+to infer an occurrence. Immutable foreign-source agreement remains a later
+`PackageInstance` composition check.
 
 Accepted propositions, boundary/provider guarantees, authority establishment,
 executable mechanisms, and derived dangerous reach remain independent

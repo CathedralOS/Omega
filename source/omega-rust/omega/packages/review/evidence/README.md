@@ -26,11 +26,14 @@ The representation projection records package-owned opaque data as `Unbound`
 and separately records each public producer candidate as exact
 opaque/conformance/carrier availability. Availability accepts no consumer
 choice and may coexist with `Unbound`; it says only what the producer exposes.
-D26's remaining consumer-demand row is owned by the selecting consumer and
-exists only for an actual runtime by-value crossing. Checked compilation
-retains the validated calling-plan realizations and their structured opaque
-uses; demand capture must consume that custody rather than recover declarations
-or carrier identity from the aggregate calling-plan commitment.
+D26 consumer demand is owned by the selecting consumer and exists only for an
+actual runtime by-value crossing. It retains the exact boundary requirement
+application, complete checked shape graph, every opaque carrier occurrence and
+its semantic path, replay-validated physical placement, target and calling
+policy, and strong selection and boundary-plan commitments. Checked compilation
+records the exact carrier shape root while materializing each opaque; capture
+does not infer occurrences from equal layouts or an aggregate digest. Future
+`PackageInstance` composition still owns the immutable foreign-source join.
 
 ## Capture
 
@@ -70,7 +73,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 122, row schema version 80, and
-canonical-row recovery envelope version 18. Exact vocabulary and revision
+The canonical review schema is version 123, row schema version 81, and
+canonical-row recovery envelope version 19. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

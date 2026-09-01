@@ -6,7 +6,10 @@
 
 mod opaque_representations;
 
-pub use opaque_representations::BoundaryOpaqueRepresentationUse;
+pub use opaque_representations::{
+    BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
+    BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
+};
 
 use omega_calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallbackBinderRequirement,
@@ -49,7 +52,7 @@ struct BoundarySignatureInstance<'a> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BoundaryValueClass {
+pub enum BoundaryValueClass {
     Integer,
     Float,
     Reference,
@@ -58,14 +61,14 @@ enum BoundaryValueClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BoundaryValueShape {
+pub struct BoundaryValueShape {
     class: BoundaryValueClass,
     byte_size: u16,
     alignment: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BoundaryValueField {
+pub struct BoundaryValueField {
     shape: u16,
     byte_offset: u16,
 }
@@ -99,6 +102,210 @@ impl MaterializedBoundarySignature {
     /// is deliberately absent.
     pub fn opaque_representation_uses(&self) -> &[BoundaryOpaqueRepresentationUse] {
         &self.opaque_representations
+    }
+
+    pub fn shapes(&self) -> &[BoundaryValueShape] {
+        &self.shapes
+    }
+
+    pub fn fields(&self) -> &[BoundaryValueField] {
+        &self.fields
+    }
+
+    pub fn parameters(&self) -> &[u16] {
+        &self.parameters
+    }
+
+    pub const fn result(&self) -> Option<u16> {
+        self.result
+    }
+
+    /// Rejoin one exact opaque shape node to the top-level semantic occurrence
+    /// and target placement that carries it. This consumes a replay-validated
+    /// plan; equal-looking layouts or an aggregate plan digest are not enough.
+    pub fn opaque_representation_movement(
+        &self,
+        representation: &BoundaryOpaqueRepresentationUse,
+        validated: &ValidatedBoundaryEntryPlan,
+    ) -> Result<BoundaryOpaqueRepresentationMovement, String> {
+        if self
+            .opaque_representations
+            .iter()
+            .filter(|candidate| *candidate == representation)
+            .count()
+            != 1
+        {
+            return Err(
+                "opaque representation use is not one exact materialized-signature occurrence"
+                    .to_owned(),
+            );
+        }
+        let mut carrying_parameters = Vec::new();
+        for (formal_ordinal, root) in self.parameters.iter().copied().enumerate() {
+            if let Some(path) =
+                boundary_shape_path(&self.shapes, &self.fields, root, representation.shape_root)?
+            {
+                carrying_parameters.push((formal_ordinal, root, path));
+            }
+        }
+        let result_path = match self.result {
+            Some(root) => {
+                boundary_shape_path(&self.shapes, &self.fields, root, representation.shape_root)?
+            }
+            None => None,
+        };
+        if carrying_parameters.len() + usize::from(result_path.is_some()) != 1 {
+            return Err(format!(
+                "opaque representation shape node belongs to {} top-level boundary occurrences; expected one",
+                carrying_parameters.len() + usize::from(result_path.is_some()),
+            ));
+        }
+        if let Some((formal_ordinal, root, path)) = carrying_parameters.into_iter().next() {
+            let formal_ordinal = u32::try_from(formal_ordinal)
+                .map_err(|_| "opaque representation formal ordinal exceeds u32".to_owned())?;
+            let matching = self
+                .native_parameters
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.origin,
+                        BoundaryNativeParameterOrigin::SemanticFormal {
+                            formal_ordinal: candidate,
+                        } if candidate == formal_ordinal
+                    ) && matches!(
+                        parameter.shape,
+                        BoundaryNativeParameterShape::Semantic(candidate) if candidate == root
+                    )
+                })
+                .collect::<Vec<_>>();
+            let [native] = matching.as_slice() else {
+                return Err(format!(
+                    "opaque representation formal parameter maps to {} native parameters; expected one",
+                    matching.len(),
+                ));
+            };
+            let placement = validated
+                .plan()
+                .call
+                .parameters
+                .get(
+                    usize::try_from(native.native_ordinal).map_err(|_| {
+                        "opaque representation native ordinal exceeds usize".to_owned()
+                    })?,
+                )
+                .ok_or_else(|| {
+                    "opaque representation native parameter has no validated placement".to_owned()
+                })?
+                .clone();
+            return Ok(BoundaryOpaqueRepresentationMovement {
+                role: BoundaryOpaqueRepresentationMovementRole::Parameter {
+                    formal_ordinal,
+                    native_ordinal: native.native_ordinal,
+                },
+                path,
+                placement,
+            });
+        }
+        let placement =
+            validated.plan().call.result.clone().ok_or_else(|| {
+                "opaque representation result has no validated placement".to_owned()
+            })?;
+        Ok(BoundaryOpaqueRepresentationMovement {
+            role: BoundaryOpaqueRepresentationMovementRole::Result,
+            path: result_path.expect("one validated result occurrence has a path"),
+            placement,
+        })
+    }
+}
+
+fn boundary_shape_path(
+    shapes: &[BoundaryValueShape],
+    fields: &[BoundaryValueField],
+    root: u16,
+    target: u16,
+) -> Result<Option<Vec<BoundaryOpaqueRepresentationPathElement>>, String> {
+    let shape = shapes
+        .get(usize::from(root))
+        .ok_or_else(|| "boundary shape graph contains an out-of-range node".to_owned())?;
+    if root == target {
+        return Ok(Some(Vec::new()));
+    }
+    match shape.class {
+        BoundaryValueClass::Integer | BoundaryValueClass::Float | BoundaryValueClass::Reference => {
+            Ok(None)
+        }
+        BoundaryValueClass::FixedArray { element, .. } => {
+            if element >= root {
+                return Err("boundary fixed-array shape graph is not acyclic postorder".to_owned());
+            }
+            let Some(mut path) = boundary_shape_path(shapes, fields, element, target)? else {
+                return Ok(None);
+            };
+            path.insert(
+                0,
+                BoundaryOpaqueRepresentationPathElement::FixedArrayElement,
+            );
+            Ok(Some(path))
+        }
+        BoundaryValueClass::Record {
+            first_field,
+            field_count,
+        } => {
+            let start = usize::from(first_field);
+            let end = start
+                .checked_add(usize::from(field_count))
+                .ok_or_else(|| "boundary record field range overflowed".to_owned())?;
+            let children = fields
+                .get(start..end)
+                .ok_or_else(|| "boundary record shape has an out-of-range field span".to_owned())?;
+            let mut found = None;
+            for (ordinal, child) in children.iter().enumerate() {
+                if child.shape >= root {
+                    return Err("boundary record shape graph is not acyclic postorder".to_owned());
+                }
+                if let Some(mut path) = boundary_shape_path(shapes, fields, child.shape, target)? {
+                    path.insert(
+                        0,
+                        BoundaryOpaqueRepresentationPathElement::RecordField {
+                            ordinal: u16::try_from(ordinal).map_err(|_| {
+                                "boundary record field ordinal exceeds u16".to_owned()
+                            })?,
+                        },
+                    );
+                    if found.replace(path).is_some() {
+                        return Err(
+                            "opaque representation shape node is reachable through multiple record fields"
+                                .to_owned(),
+                        );
+                    }
+                }
+            }
+            Ok(found)
+        }
+    }
+}
+
+impl BoundaryValueShape {
+    pub const fn class(self) -> BoundaryValueClass {
+        self.class
+    }
+
+    pub const fn byte_size(self) -> u16 {
+        self.byte_size
+    }
+
+    pub const fn alignment(self) -> u16 {
+        self.alignment
+    }
+}
+
+impl BoundaryValueField {
+    pub const fn shape(self) -> u16 {
+        self.shape
+    }
+
+    pub const fn byte_offset(self) -> u16 {
+        self.byte_offset
     }
 }
 
@@ -582,7 +789,12 @@ impl BoundaryCallingPlanRealization {
             .opaque_representations
             .iter()
             .any(|use_| {
-                use_.representation_schema_version
+                !use_.opaque.is_valid()
+                    || !use_.conformance.is_valid()
+                    || !use_.carrier.is_valid()
+                    || usize::from(use_.shape_root)
+                        >= self.materialized_signature.shapes.len()
+                    || use_.representation_schema_version
                     != omega_representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
                     || use_.selected_application_commitment
                         != use_.rederived_selected_application_commitment()
@@ -594,6 +806,15 @@ impl BoundaryCallingPlanRealization {
             ));
         }
         let validated = self.replayed_validated_plan()?;
+        for representation in &self.materialized_signature.opaque_representations {
+            self.materialized_signature
+                .opaque_representation_movement(representation, &validated)
+                .map_err(|reason| {
+                    omega_calling_conventions::PlanDiagnostic(format!(
+                        "boundary calling plan cannot rejoin opaque-representation movement: {reason}"
+                    ))
+                })?;
+        }
         let (report_fingerprint, commitment) =
             boundary_plan_application_identity(&self.materialized_signature, &validated);
         Ok((
@@ -2234,20 +2455,6 @@ fn opaque_representation_value_shape(
         )
     })?;
     let application = selection.application();
-    let use_identity = BoundaryOpaqueRepresentationUse {
-        opaque,
-        carrier: selection.carrier(),
-        application_report_fingerprint: application.report_fingerprint,
-        conformance_application_commitment: application.commitment.as_bytes(),
-        representation_schema_version: selection.schema_version(),
-        origin: selection.origin(),
-        lifecycle: selection.lifecycle(),
-        copy_disposition: selection.copy_disposition(),
-        selected_application_commitment: selection.selected_application_commitment(),
-    };
-    if !uses.contains(&use_identity) {
-        uses.push(use_identity);
-    }
     let carrier = typed
         .data_definitions()
         .iter()
@@ -2271,12 +2478,29 @@ fn opaque_representation_value_shape(
         uses,
     );
     visiting.pop();
-    shape.map_err(|reason| {
+    let (abi, shape_root) = shape.map_err(|reason| {
         format!(
             "selected carrier `{}` cannot represent boundary-opaque `{opaque_name}` by value: {reason}",
             carrier.name,
         )
-    })
+    })?;
+    let use_identity = BoundaryOpaqueRepresentationUse {
+        opaque,
+        conformance: application.declaration,
+        carrier: selection.carrier(),
+        shape_root,
+        application_report_fingerprint: application.report_fingerprint,
+        conformance_application_commitment: application.commitment.as_bytes(),
+        representation_schema_version: selection.schema_version(),
+        origin: selection.origin(),
+        lifecycle: selection.lifecycle(),
+        copy_disposition: selection.copy_disposition(),
+        selected_application_commitment: selection.selected_application_commitment(),
+    };
+    if !uses.contains(&use_identity) {
+        uses.push(use_identity);
+    }
+    Ok((abi, shape_root))
 }
 
 /// Derive the exact address-free `Extent` graph for the currently admitted
@@ -3146,7 +3370,7 @@ fn boundary_plan_application_identity(
     validated: &ValidatedBoundaryEntryPlan,
 ) -> (u64, [u8; 32]) {
     let mut strong = Sha256::new();
-    strong.update(b"omega.boundary-plan-application.v3");
+    strong.update(b"omega.boundary-plan-application.v4");
     strong.update((signature.owner_requirement_identity.len() as u64).to_le_bytes());
     strong.update(signature.owner_requirement_identity.as_bytes());
     strong.update([match signature.native_target.architecture {
@@ -3162,6 +3386,7 @@ fn boundary_plan_application_identity(
     strong.update((signature.native_target.pointer_alignment as u64).to_le_bytes());
     strong.update((signature.opaque_representations.len() as u64).to_le_bytes());
     for representation in &signature.opaque_representations {
+        strong.update(representation.shape_root.to_le_bytes());
         strong.update(representation.application_report_fingerprint.to_le_bytes());
         strong.update(representation.conformance_application_commitment);
         strong.update(representation.representation_schema_version.to_le_bytes());
@@ -3985,6 +4210,39 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opaque_shape_path_rejects_one_marker_reused_by_multiple_record_fields() {
+        let shapes = vec![
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Record {
+                    first_field: 0,
+                    field_count: 2,
+                },
+                byte_size: 16,
+                alignment: 8,
+            },
+        ];
+        let fields = vec![
+            BoundaryValueField {
+                shape: 0,
+                byte_offset: 0,
+            },
+            BoundaryValueField {
+                shape: 0,
+                byte_offset: 8,
+            },
+        ];
+
+        let error = boundary_shape_path(&shapes, &fields, 1, 0)
+            .expect_err("one opaque shape marker cannot name two record occurrences");
+        assert!(error.contains("multiple record fields"), "{error}");
+    }
 
     fn legacy_boundary_plan_application_v2_identity(
         signature: &MaterializedBoundarySignature,

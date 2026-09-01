@@ -289,7 +289,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
                 carrier,
             } => Some((conformance, carrier)),
             PackageReviewRepresentationTcbKind::Unbound
-            | PackageReviewRepresentationTcbKind::SelectedCopyReceipt { .. } => None,
+            | PackageReviewRepresentationTcbKind::SelectedCopyReceipt { .. }
+            | PackageReviewRepresentationTcbKind::ConsumerDemand { .. } => None,
         })
         .expect("one producer-availability row");
     assert_eq!(availability.0.path(), "PublicTokenRepresentation");
@@ -399,7 +400,8 @@ machine build(builder: &mut Build) {
                 selected_application_commitment,
             )),
             PackageReviewRepresentationTcbKind::Unbound
-            | PackageReviewRepresentationTcbKind::ProducerAvailability { .. } => None,
+            | PackageReviewRepresentationTcbKind::ProducerAvailability { .. }
+            | PackageReviewRepresentationTcbKind::ConsumerDemand { .. } => None,
         })
         .expect("one selected opaque copy receipt row");
     assert_eq!(receipt.0.path(), "CopyTokenRepresentation");
@@ -460,6 +462,169 @@ machine build(builder: &mut Build) {
                 })
             })
     );
+}
+
+#[test]
+fn by_value_opaque_use_retains_exact_consumer_demand() {
+    let package = TempPackage::new();
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(6)
+        .expect("Omega repository root");
+    package.write(
+        "calling.omg",
+        &fs::read_to_string(repository.join("source/library/std/calling.omg"))
+            .expect("read package-local calling vocabulary"),
+    );
+    package.write(
+        "main.omg",
+        r#"use calling;
+use omega::language::core::representation;
+
+pub boundary data TransferToken [copy];
+pub data TransferCarrier [copy] { value: u64; }
+pub TransferTokenRepresentation:
+    TransferCarrier satisfies OpaqueRepresentation<TransferToken>;
+
+data OneParameterPolicy { }
+OneParameterPolicyCallingPolicy: OneParameterPolicy satisfies CallingPolicy;
+
+machine OneParameterPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    let mut output: BoundaryEntryPlan;
+    output.call.convention = CallingConvention::MicrosoftX64;
+    output.call.parameter_count = 1;
+    output.call.parameters[0].shape.class = AbiValueClass::Integer;
+    output.call.parameters[0].shape.byte_size = signature.shapes[1].byte_size;
+    output.call.parameters[0].shape.alignment = signature.shapes[1].alignment;
+    output.call.parameters[0].location_count = 1;
+    output.call.parameters[0].locations[0] = ValueLocation::Register {
+        register: MachineRegister::X86Rcx,
+        value_byte_offset: 0,
+        byte_size: signature.shapes[1].byte_size,
+    };
+    output.call.stack_alignment = 16;
+    output.call.shadow_bytes = 32;
+    output.call.entry_control = EntryControl::CallReturn;
+    BoundaryPlanResult::Accepted { plan: output }
+}
+
+boundary trait TransferEntry: Calling<OneParameterPolicy> {
+    machine transfer(value: TransferToken);
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.package("review-fixture");
+    builder.select_representation<TransferToken, TransferTokenRepresentation>();
+}
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x86_64"),
+        package_inputs(&package.0),
+    )
+    .expect("by-value opaque representation fixture should check");
+    let review = project_checked_package_review(&checked)
+        .expect("by-value opaque representation demand should project");
+    let demand = review
+        .representation_tcb()
+        .iter()
+        .find_map(|row| match row.kind() {
+            PackageReviewRepresentationTcbKind::ConsumerDemand {
+                target,
+                conformance,
+                carrier,
+                shape_graph,
+                occurrences,
+                calling_policy,
+                conformance_application_commitment,
+                selected_application_commitment,
+                boundary_plan_commitment,
+                ..
+            } if row.declaration().path() == "TransferToken" => Some((
+                target,
+                conformance,
+                carrier,
+                shape_graph,
+                occurrences,
+                calling_policy,
+                conformance_application_commitment,
+                selected_application_commitment,
+                boundary_plan_commitment,
+            )),
+            _ => None,
+        })
+        .expect("one actual consumer-demand row");
+    assert_eq!(
+        demand.0.profile(),
+        PackageReviewRepresentationTargetProfile::WindowsX64
+    );
+    assert_eq!(demand.1.path(), "TransferTokenRepresentation");
+    assert_eq!(demand.2.path(), "TransferCarrier");
+    assert!(!demand.3.shapes().is_empty());
+    let [occurrence] = demand.4.as_slice() else {
+        panic!("one opaque occurrence in one boundary parameter")
+    };
+    assert!(usize::from(occurrence.carrier_shape_root()) < demand.3.shapes().len());
+    assert!(matches!(
+        occurrence.role(),
+        PackageReviewOpaqueRepresentationMovementRole::Parameter {
+            formal_ordinal: 0,
+            native_ordinal: 0,
+        }
+    ));
+    assert_eq!(
+        occurrence.placement().locations(),
+        &[
+            omega_package_evidence::record::PackageReviewBoundaryValueLocation::Register {
+                register: PackageReviewMachineRegister::X86Rcx,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }
+        ]
+    );
+    assert_eq!(*demand.5, PackageReviewBoundaryCallingPolicy::MicrosoftX64);
+    assert_ne!(*demand.6, [0; 32]);
+    assert_ne!(*demand.7, [0; 32]);
+    assert_ne!(*demand.8, [0; 32]);
+
+    let canonical = review
+        .canonical_rows()
+        .expect("consumer-demand canonical rows");
+    let demand_row = canonical
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::RepresentationTcb
+                && row.source().authored_locations().is_some_and(|locations| {
+                    locations.iter().any(|location| {
+                        location.role() == PackageReviewSourceLocationRole::RepresentationSelection
+                    }) && locations.iter().any(|location| {
+                        location.role() == PackageReviewSourceLocationRole::TraitParent
+                    })
+                })
+                && row
+                    .canonical_bytes()
+                    .windows(32)
+                    .any(|window| window == demand.8)
+        })
+        .expect("consumer-demand canonical row with selection and boundary source custody");
+    assert_eq!(
+        demand_row.risk(),
+        PackageReviewCanonicalRowRisk::AuditRecommended
+    );
+    let envelope =
+        encode_package_review_canonical_row(demand_row).expect("consumer-demand row should encode");
+    let recovered =
+        decode_package_review_canonical_row(&envelope).expect("consumer-demand row should recover");
+    assert_eq!(recovered.key_bytes(), demand_row.key_bytes());
+    assert_eq!(recovered.canonical_bytes(), demand_row.canonical_bytes());
 }
 
 #[test]

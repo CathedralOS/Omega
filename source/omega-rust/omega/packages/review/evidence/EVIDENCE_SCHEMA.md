@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 122 and row schema version 80. This file
+The canonical review schema is version 123 and row schema version 81. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -9,6 +9,19 @@ vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
 and external executable supplies open for root admission, and compiler-retained
 contract-entailment stand-downs open for later discharge. The outer ledger
 encoding remains version 2; no new persistence authority is introduced.
+
+Schema v123 / row v81 / recovery v19 adds D26 consumer-demand evidence only
+for opaque representations actually materialized by value. One row per target-
+closed boundary requirement application and opaque declaration retains the
+complete compiler-derived shape graph, every exact opaque carrier occurrence,
+its semantic parameter/result path and replay-validated register/stack/indirect
+placement, calling policy, selected target, closed conformance and selection
+commitments, and the strong boundary-plan application commitment. The compiler
+records each carrier shape root while materializing the opaque; equal-looking
+ordinary or opaque layouts cannot be inferred as occurrences afterward. The
+selecting package owns the row, including for a dependency-owned opaque. An
+unused or reference-only selection emits no consumer demand. Introduction or
+change remains audit-recommended.
 
 Schema v122 / row v80 / recovery v18 adds D44's target-independent selected
 copy receipt for opaque representation applications. The compiler reharvests

@@ -8,7 +8,9 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BoundaryOpaqueRepresentationUse {
     pub(super) opaque: psi_symbols::SymbolHandle,
+    pub(super) conformance: psi_symbols::SymbolHandle,
     pub(super) carrier: psi_symbols::SymbolHandle,
+    pub(super) shape_root: u16,
     pub(super) application_report_fingerprint: u64,
     pub(super) conformance_application_commitment: [u8; 32],
     pub(super) representation_schema_version: u16,
@@ -25,6 +27,18 @@ impl BoundaryOpaqueRepresentationUse {
 
     pub const fn carrier(&self) -> psi_symbols::SymbolHandle {
         self.carrier
+    }
+
+    pub const fn conformance(&self) -> psi_symbols::SymbolHandle {
+        self.conformance
+    }
+
+    /// Exact node where the selected carrier entered the materialized
+    /// boundary shape graph. Shape construction does not intern nodes, so this
+    /// coordinate identifies one structural occurrence rather than one merely
+    /// equal layout.
+    pub const fn shape_root(&self) -> u16 {
+        self.shape_root
     }
 
     pub const fn application_report_fingerprint(&self) -> u64 {
@@ -71,6 +85,44 @@ impl BoundaryOpaqueRepresentationUse {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryOpaqueRepresentationMovementRole {
+    Parameter {
+        formal_ordinal: u32,
+        native_ordinal: u32,
+    },
+    Result,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundaryOpaqueRepresentationPathElement {
+    FixedArrayElement,
+    RecordField { ordinal: u16 },
+}
+
+/// Exact target movement assigned to one opaque occurrence by the
+/// replay-validated boundary entry plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundaryOpaqueRepresentationMovement {
+    pub(super) role: BoundaryOpaqueRepresentationMovementRole,
+    pub(super) path: Vec<BoundaryOpaqueRepresentationPathElement>,
+    pub(super) placement: omega_calling_conventions::ValuePlacement,
+}
+
+impl BoundaryOpaqueRepresentationMovement {
+    pub const fn role(&self) -> BoundaryOpaqueRepresentationMovementRole {
+        self.role
+    }
+
+    pub const fn placement(&self) -> &omega_calling_conventions::ValuePlacement {
+        &self.placement
+    }
+
+    pub fn path(&self) -> &[BoundaryOpaqueRepresentationPathElement] {
+        &self.path
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,7 +137,9 @@ mod tests {
         let conformance = [0x21; 32];
         let mut use_ = BoundaryOpaqueRepresentationUse {
             opaque: psi_symbols::SymbolHandle::invalid(),
+            conformance: psi_symbols::SymbolHandle::invalid(),
             carrier: psi_symbols::SymbolHandle::invalid(),
+            shape_root: 0,
             application_report_fingerprint: 7,
             conformance_application_commitment: conformance,
             representation_schema_version: OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION,

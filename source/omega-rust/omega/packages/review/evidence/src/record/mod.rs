@@ -76,10 +76,19 @@ pub use package::{
 };
 pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{
-    PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
+    PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
+    PackageReviewBoundaryShapeGraph, PackageReviewBoundaryValueClass,
+    PackageReviewBoundaryValueLocation, PackageReviewBoundaryValuePlacement,
+    PackageReviewBoundaryValueShape, PackageReviewIndirectPointerLocation,
+    PackageReviewMachineRegister, PackageReviewOpaqueRepresentationApplicationOrigin,
     PackageReviewOpaqueRepresentationCopyDisposition,
-    PackageReviewOpaqueRepresentationLifecycleDisposition, PackageReviewRepresentationTcb,
-    PackageReviewRepresentationTcbKind,
+    PackageReviewOpaqueRepresentationLifecycleDisposition,
+    PackageReviewOpaqueRepresentationMovementRole, PackageReviewOpaqueRepresentationOccurrence,
+    PackageReviewOpaqueRepresentationPathElement, PackageReviewRepresentationArchitecture,
+    PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
+    PackageReviewRepresentationTargetProfile, PackageReviewRepresentationTcb,
+    PackageReviewRepresentationTcbKind, PackageReviewSystemVEightbyteClass,
 };
 pub use rows::{
     PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,

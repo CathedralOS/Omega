@@ -431,7 +431,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render transparent proposition conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V18\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V19\n"));
     assert!(rendered.contains("baseline_location proposition_formula package "));
     assert!(rendered.contains("candidate_location proposition_formula package "));
 
@@ -509,7 +509,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render public domain proof-fact conflict");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V18\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V19\n"));
     assert!(rendered.contains("baseline_location proof_fact package "));
     assert!(rendered.contains("candidate_location proof_fact package "));
 

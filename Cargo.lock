@@ -1110,6 +1110,7 @@ name = "omega-package-evidence"
 version = "0.1.0"
 dependencies = [
  "omega-build-evaluation",
+ "omega-calling-conventions",
  "omega-compiler",
  "omega-effects",
  "omega-package-compilation",
