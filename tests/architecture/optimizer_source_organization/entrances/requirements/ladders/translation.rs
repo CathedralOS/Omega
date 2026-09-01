@@ -319,6 +319,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "Terminal operation lowering",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/routing.rs",
             "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/structural_establishment.rs",
             "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/calls.rs",
             "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs",

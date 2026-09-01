@@ -1,0 +1,96 @@
+//! Exhaustive Terminal operation-kind dispatch to exact lowering families.
+
+use std::collections::BTreeMap;
+
+use omega_abstract_operations::AbstractOperation;
+use psi_terminal::{OperationKind, TerminalMachine};
+
+use super::{
+    LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, boolean, calls, effects,
+    ieee_float, integer_bitwise, integer_constants_and_relations, integer_conversion, shifts,
+    structural_establishment, structural_scalar_fields,
+};
+use crate::lowering::LoweringError;
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower(
+    operation: &psi_terminal::Operation,
+    block: &psi_terminal::Block,
+    machine: &TerminalMachine,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    retain_payloadless_for_optimization: bool,
+    value_types: &BTreeMap<psi_core::ValueId, ScalarType>,
+    byte_sequence_literals: &[StructuralLiteral<'_>],
+    unit_affine_locals: &[StructuralLiteral<'_>],
+    lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
+    lowered_byte_sequence_literals: &mut usize,
+) -> Result<AbstractOperation, LoweringError> {
+    match &operation.kind {
+        OperationKind::EstablishPayloadlessCase { .. }
+        | OperationKind::EstablishByteSequenceLiteral { .. }
+        | OperationKind::EstablishTrivialAffineLocal { .. } => structural_establishment::lower(
+            operation,
+            block,
+            machine,
+            structural_types,
+            retain_payloadless_for_optimization,
+            byte_sequence_literals,
+            unit_affine_locals,
+            lowered_unit_affine_locals,
+            lowered_byte_sequence_literals,
+        ),
+        OperationKind::CallUnit { .. }
+        | OperationKind::CallStructuralScalar { .. }
+        | OperationKind::CallStructural { .. }
+        | OperationKind::BoundaryCall { .. } => calls::lower(operation, machine),
+        OperationKind::CallDynamicScalar { .. } => {
+            Err(LoweringError::UnsupportedDynamicScalarCall(operation.id))
+        }
+        OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
+            effects::lower(operation, machine, structural_types, value_types)
+        }
+        OperationKind::StructuralScalarFieldStore { .. }
+        | OperationKind::IntegerStructuralField { .. } => {
+            structural_scalar_fields::lower(operation, block, machine, structural_types)
+        }
+        OperationKind::Call { .. } => calls::lower(operation, machine),
+        OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
+        OperationKind::IeeeFloatConstant { .. }
+        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => ieee_float::lower(operation),
+        OperationKind::BooleanConstant { .. }
+        | OperationKind::BooleanStructuralField { .. }
+        | OperationKind::BooleanNot { .. }
+        | OperationKind::BooleanEqual { .. } => boolean::lower(operation),
+        OperationKind::IntegerEqual { .. }
+        | OperationKind::IntegerLessThan { .. }
+        | OperationKind::IntegerLessOrEqual { .. } => {
+            integer_constants_and_relations::lower(operation)
+        }
+        OperationKind::IntegerBitwiseNot { .. } => integer_bitwise::lower(operation),
+        OperationKind::IntegerWiden { .. } | OperationKind::IntegerExactCast { .. } => {
+            integer_conversion::lower(operation, value_types)
+        }
+        OperationKind::IntegerBitwiseAnd { .. }
+        | OperationKind::IntegerBitwiseOr { .. }
+        | OperationKind::IntegerBitwiseXor { .. } => integer_bitwise::lower(operation),
+        OperationKind::WrappingIntegerShiftLeft { .. }
+        | OperationKind::WrappingIntegerShiftRight { .. }
+        | OperationKind::ExactIntegerShiftLeft { .. }
+        | OperationKind::ExactIntegerShiftRight { .. } => shifts::lower(operation, value_types),
+        OperationKind::ExactIntegerAdd { .. }
+        | OperationKind::WrappingIntegerAdd { .. }
+        | OperationKind::ExactIntegerSubtract { .. }
+        | OperationKind::WrappingIntegerSubtract { .. }
+        | OperationKind::ExactIntegerMultiply { .. }
+        | OperationKind::WrappingIntegerMultiply { .. }
+        | OperationKind::ExactIntegerDivide { .. }
+        | OperationKind::ExactIntegerRemainder { .. }
+        | OperationKind::WrappingIntegerDivide { .. }
+        | OperationKind::WrappingIntegerRemainder { .. }
+        | OperationKind::SaturatingIntegerDivide { .. }
+        | OperationKind::SaturatingIntegerRemainder { .. }
+        | OperationKind::SaturatingIntegerAdd { .. }
+        | OperationKind::SaturatingIntegerSubtract { .. }
+        | OperationKind::SaturatingIntegerMultiply { .. } => arithmetic::lower(operation),
+    }
+}
