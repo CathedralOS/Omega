@@ -22,7 +22,8 @@ pub use fma::{
 };
 pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
-    encode_ldmxcsr_rsp_disp8, encode_stmxcsr_rsp_disp8, encode_store_mxcsr_constant_rsp_disp8,
+    encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement,
+    encode_store_mxcsr_constant_rsp_displacement,
 };
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,

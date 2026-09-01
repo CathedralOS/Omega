@@ -12,8 +12,8 @@ use omega_machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord,
     InternalUnitScalarCallRecord, PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite,
     StackAdjustmentPair, UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
-    X86FloatingControlRecord, X86ScalarFmaFormat, X86ScalarFmaOccurrenceRecord,
-    X86ScalarFmaOperandRecord, derive_completion_provider_custody,
+    X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
+    X86ScalarFmaOccurrenceRecord, X86ScalarFmaOperandRecord, derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
@@ -546,6 +546,7 @@ pub(super) fn emit_unit_body(
     let mut boundary_settlements = Vec::new();
     let mut x86_homes = Vec::new();
     let mut x86_frame_bytes = 0;
+    let mut x86_foreign_floating_control_slot = None;
     let mut aarch64_homes = Vec::new();
     let mut aarch64_frame_bytes = 0;
     let mut aarch64_lr_offset = 0;
@@ -560,6 +561,12 @@ pub(super) fn emit_unit_body(
             AssignedUnitOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         )
     });
+    let has_normalized_foreign_call = body.operations.iter().any(|operation| {
+        matches!(
+            operation,
+            AssignedUnitOperation::NormalizedForeignCall { .. }
+        )
+    });
     if has_ieee_float_fma && target.architecture != Architecture::X86_64 {
         return Err(EmissionError::IeeeFloatFmaUnsupported(target));
     }
@@ -572,19 +579,28 @@ pub(super) fn emit_unit_body(
     match target.architecture {
         Architecture::X86_64 => {
             (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body, &assigned_scalar_homes)?;
-            let floating_control_offsets = has_ieee_float_fma
-                .then(|| {
-                    let saved = u8::try_from(x86_frame_bytes)
-                        .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+            let floating_control_base =
+                (has_ieee_float_fma || has_normalized_foreign_call).then_some(x86_frame_bytes);
+            let floating_control_offsets = floating_control_base
+                .filter(|_| has_ieee_float_fma)
+                .map(|saved| {
                     let canonical = saved
                         .checked_add(4)
-                        .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
-                    x86_frame_bytes = x86_frame_bytes
-                        .checked_add(16)
                         .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
                     Ok::<_, EmissionError>((saved, canonical))
                 })
                 .transpose()?;
+            if let Some(base) = floating_control_base {
+                x86_foreign_floating_control_slot = has_normalized_foreign_call
+                    .then(|| {
+                        base.checked_add(if has_ieee_float_fma { 8 } else { 0 })
+                            .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)
+                    })
+                    .transpose()?;
+                x86_frame_bytes = x86_frame_bytes
+                    .checked_add(16)
+                    .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
+            }
             parameter_homes = body
                 .parameters
                 .iter()
@@ -609,25 +625,32 @@ pub(super) fn emit_unit_body(
             }
             if let Some((saved, canonical)) = floating_control_offsets {
                 let save_offset = bytes.len();
-                bytes.extend_from_slice(&omega_isa_x86_64::encode_stmxcsr_rsp_disp8(saved));
+                let save = omega_isa_x86_64::encode_stmxcsr_rsp_displacement(saved)
+                    .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                bytes.extend_from_slice(&save);
                 let canonical_store_offset = bytes.len();
-                bytes.extend_from_slice(&omega_isa_x86_64::encode_store_mxcsr_constant_rsp_disp8(
-                    canonical,
-                    omega_isa_x86_64::OMEGA_CANONICAL_MXCSR,
-                ));
+                let canonical_store =
+                    omega_isa_x86_64::encode_store_mxcsr_constant_rsp_displacement(
+                        canonical,
+                        omega_isa_x86_64::OMEGA_CANONICAL_MXCSR,
+                    )
+                    .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                bytes.extend_from_slice(&canonical_store);
                 let install_offset = bytes.len();
-                bytes.extend_from_slice(&omega_isa_x86_64::encode_ldmxcsr_rsp_disp8(canonical));
+                let install = omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(canonical)
+                    .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                bytes.extend_from_slice(&install);
                 x86_floating_control = Some(X86FloatingControlRecord {
                     target,
                     canonical_mxcsr: omega_isa_x86_64::OMEGA_CANONICAL_MXCSR,
-                    canonical_slot_byte_offset: u32::from(canonical),
-                    saved_slot_byte_offset: u32::from(saved),
+                    canonical_slot_byte_offset: canonical,
+                    saved_slot_byte_offset: saved,
                     save_offset,
-                    save_byte_count: 5,
+                    save_byte_count: save.len(),
                     canonical_store_offset,
-                    canonical_store_byte_count: 8,
+                    canonical_store_byte_count: canonical_store.len(),
                     install_offset,
-                    install_byte_count: 5,
+                    install_byte_count: install.len(),
                     restore_offset: 0,
                     restore_byte_count: 0,
                 });
@@ -1016,6 +1039,27 @@ pub(super) fn emit_unit_body(
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                 }
                 let outbound = normalized_foreign_call_stack_bytes(call_plan, target.architecture)?;
+                let mut x86_call_floating_control = match target.architecture {
+                    Architecture::X86_64 => {
+                        let saved_slot_byte_offset = x86_foreign_floating_control_slot
+                            .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                        let save_offset = bytes.len();
+                        let save = omega_isa_x86_64::encode_stmxcsr_rsp_displacement(
+                            saved_slot_byte_offset,
+                        )
+                        .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                        bytes.extend_from_slice(&save);
+                        Some(X86ForeignCallFloatingControlRecord {
+                            target,
+                            saved_slot_byte_offset,
+                            save_offset,
+                            save_byte_count: save.len(),
+                            restore_offset: 0,
+                            restore_byte_count: 0,
+                        })
+                    }
+                    Architecture::Aarch64 => None,
+                };
                 let mut allocation = None;
                 if outbound != 0 {
                     match target.architecture {
@@ -1118,6 +1162,15 @@ pub(super) fn emit_unit_body(
                         relocation_offset
                     }
                 };
+                if let Some(control) = &mut x86_call_floating_control {
+                    control.restore_offset = bytes.len();
+                    let restore = omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(
+                        control.saved_slot_byte_offset,
+                    )
+                    .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                    bytes.extend_from_slice(&restore);
+                    control.restore_byte_count = restore.len();
+                }
                 let scalar_result = result_home
                     .map(|home| {
                         scalar_call::emit_unit_scalar_result(
@@ -1139,6 +1192,7 @@ pub(super) fn emit_unit_body(
                     call_plan: call_plan.clone(),
                     scalar_arguments: emitted_scalar_arguments,
                     scalar_result,
+                    x86_floating_control: x86_call_floating_control,
                     unit_stack: UnitCallStackEvidence {
                         outbound: stack_adjustment_pair(outbound, allocation, release),
                     },
@@ -1527,12 +1581,12 @@ pub(super) fn emit_unit_body(
                     Architecture::X86_64 => {
                         if let Some(control) = &mut x86_floating_control {
                             control.restore_offset = bytes.len();
-                            let saved = u8::try_from(control.saved_slot_byte_offset)
-                                .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
-                            bytes.extend_from_slice(&omega_isa_x86_64::encode_ldmxcsr_rsp_disp8(
-                                saved,
-                            ));
-                            control.restore_byte_count = 5;
+                            let restore = omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(
+                                control.saved_slot_byte_offset,
+                            )
+                            .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                            bytes.extend_from_slice(&restore);
+                            control.restore_byte_count = restore.len();
                         }
                         if x86_frame_bytes != 0 {
                             let offset = bytes.len();

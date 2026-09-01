@@ -409,6 +409,9 @@ pub struct ObjectForeignCall {
     /// Result custody retained from machine emission. Its code offset is
     /// rebased to absolute object `.text`, like `text_offset` below.
     pub scalar_result: Option<omega_machine_code::ForeignCallScalarResultRecord>,
+    /// Absolute object-text intervals proving complete MXCSR preservation for
+    /// this returning x86 foreign call.
+    pub x86_floating_control: Option<omega_machine_code::X86ForeignCallFloatingControlRecord>,
     /// Absolute offset of the mutable relocation field in object `.text`.
     pub text_offset: usize,
 }
@@ -594,6 +597,8 @@ fn build_object_artifact_with_x86_feature_profile(
             return Err(ObjectError::NonCanonicalForeignCallOrder(function.machine));
         }
         let mut foreign_owners = std::collections::BTreeSet::new();
+        let mut foreign_floating_control_slot = None;
+        let mut prior_foreign_floating_control_end = None;
         for call in &function.foreign_calls {
             let owner_in_provenance = match call.owner {
                 CallSiteOwner::Operation(operation) => {
@@ -645,6 +650,29 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.bytes,
                 call,
             )?;
+            validate_foreign_call_floating_control(plan.target, function, call)?;
+            if let Some(control) = call.x86_floating_control {
+                if foreign_floating_control_slot
+                    .replace(control.saved_slot_byte_offset)
+                    .is_some_and(|slot| slot != control.saved_slot_byte_offset)
+                    || prior_foreign_floating_control_end
+                        .is_some_and(|end| end > control.save_offset)
+                {
+                    return Err(ObjectError::InvalidForeignCallFloatingControl {
+                        caller: function.machine,
+                        owner: call.owner,
+                    });
+                }
+                prior_foreign_floating_control_end = Some(
+                    control
+                        .restore_offset
+                        .checked_add(control.restore_byte_count)
+                        .ok_or(ObjectError::InvalidForeignCallFloatingControl {
+                            caller: function.machine,
+                            owner: call.owner,
+                        })?,
+                );
+            }
             validate_foreign_scalar_arguments(plan.target, function, call)?;
         }
         let mut validated_function_stack = function
@@ -1554,6 +1582,18 @@ fn build_object_artifact_with_x86_feature_profile(
                     Ok(result)
                 })
                 .transpose()?;
+            let x86_floating_control = call
+                .x86_floating_control
+                .map(|mut control| {
+                    control.save_offset = text_offset
+                        .checked_add(control.save_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    control.restore_offset = text_offset
+                        .checked_add(control.restore_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    Ok(control)
+                })
+                .transpose()?;
             foreign_calls.push(ObjectForeignCall {
                 machine: function.machine,
                 owner: call.owner,
@@ -1562,6 +1602,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 caller_live_bytes,
                 same_stack_contribution: call.same_stack_contribution.clone(),
                 scalar_result,
+                x86_floating_control,
                 text_offset: text_offset
                     .checked_add(call.offset)
                     .ok_or(ObjectError::TextSizeOverflow)?,
@@ -1813,6 +1854,88 @@ fn validate_foreign_call_site(
     })
 }
 
+fn validate_foreign_call_floating_control(
+    target: NativeTarget,
+    function: &omega_machine_code::MachineCodeFunction,
+    call: &omega_machine_code::ForeignCallRelocation,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidForeignCallFloatingControl {
+        caller: function.machine,
+        owner: call.owner,
+    };
+    let Some(control) = call.x86_floating_control else {
+        return (target.architecture != Architecture::X86_64)
+            .then_some(())
+            .ok_or_else(invalid);
+    };
+    if target.architecture != Architecture::X86_64 || control.target != target {
+        return Err(invalid());
+    }
+    let frame = function
+        .unit_stack
+        .and_then(|stack| stack.frame)
+        .ok_or_else(invalid)?;
+    if control
+        .saved_slot_byte_offset
+        .checked_add(4)
+        .is_none_or(|end| end > frame.byte_size)
+        || function.x86_floating_control.is_some_and(|outer| {
+            control.saved_slot_byte_offset == outer.saved_slot_byte_offset
+                || control.saved_slot_byte_offset == outer.canonical_slot_byte_offset
+        })
+    {
+        return Err(invalid());
+    }
+    let expected_save =
+        omega_isa_x86_64::encode_stmxcsr_rsp_displacement(control.saved_slot_byte_offset)
+            .map_err(|_| invalid())?;
+    let expected_restore =
+        omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(control.saved_slot_byte_offset)
+            .map_err(|_| invalid())?;
+    let save_end = control
+        .save_offset
+        .checked_add(control.save_byte_count)
+        .ok_or_else(invalid)?;
+    let restore_end = control
+        .restore_offset
+        .checked_add(control.restore_byte_count)
+        .ok_or_else(invalid)?;
+    let call_start = call.offset.checked_sub(1).ok_or_else(invalid)?;
+    let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
+    let pre_call_start = call.unit_stack.outbound.map_or_else(
+        || {
+            call.scalar_arguments
+                .first()
+                .map_or(call_start, |argument| argument.code_offset)
+        },
+        |outbound| outbound.allocation_offset,
+    );
+    let post_call_end = match call.unit_stack.outbound {
+        Some(outbound) => outbound
+            .release_offset
+            .checked_add(outbound.release_byte_count)
+            .ok_or_else(invalid)?,
+        None => call_end,
+    };
+    if control.save_byte_count != expected_save.len()
+        || control.restore_byte_count != expected_restore.len()
+        || function.bytes.get(control.save_offset..save_end) != Some(expected_save.as_slice())
+        || function.bytes.get(control.restore_offset..restore_end)
+            != Some(expected_restore.as_slice())
+        || save_end != pre_call_start
+        || control.save_offset >= call_start
+        || control.restore_offset != post_call_end
+        || control.restore_offset < call_end
+        || call
+            .scalar_result
+            .as_ref()
+            .is_some_and(|result| result.code_offset != restore_end)
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 fn validate_foreign_scalar_arguments(
     target: NativeTarget,
     function: &omega_machine_code::MachineCodeFunction,
@@ -1899,13 +2022,18 @@ fn validate_foreign_scalar_arguments(
         return Err(invalid());
     };
     let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
-    let operation_start = call.unit_stack.outbound.map_or_else(
+    let operation_start = call.x86_floating_control.map_or_else(
         || {
-            call.scalar_arguments
-                .first()
-                .map_or(call_start, |argument| argument.code_offset)
+            call.unit_stack.outbound.map_or_else(
+                || {
+                    call.scalar_arguments
+                        .first()
+                        .map_or(call_start, |argument| argument.code_offset)
+                },
+                |outbound| outbound.allocation_offset,
+            )
         },
-        |outbound| outbound.allocation_offset,
+        |control| control.save_offset,
     );
     let mut argument_cursor = if let Some(outbound) = call.unit_stack.outbound {
         outbound
@@ -1926,9 +2054,16 @@ fn validate_foreign_scalar_arguments(
     } else {
         call_end
     };
+    let post_control = match call.x86_floating_control {
+        Some(control) => control
+            .restore_offset
+            .checked_add(control.restore_byte_count)
+            .ok_or_else(invalid)?,
+        None => post_call,
+    };
     let operation_end = if let Some(result) = &call.scalar_result {
         let expected_shape = result.home.shape;
-        if result.code_offset != post_call
+        if result.code_offset != post_control
             || call.call_plan.result.as_ref() != Some(&result.source)
             || !matches!(
                 result.source.locations.as_slice(),
@@ -1957,7 +2092,7 @@ fn validate_foreign_scalar_arguments(
         if call.call_plan.result.is_some() {
             return Err(invalid());
         }
-        post_call
+        post_control
     };
     let attributions = function
         .semantic_code_attribution
@@ -2270,6 +2405,10 @@ pub enum ObjectError {
         offset: usize,
     },
     InvalidForeignCallArgument {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    InvalidForeignCallFloatingControl {
         caller: MachineId,
         owner: CallSiteOwner,
     },
