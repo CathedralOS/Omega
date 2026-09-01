@@ -3,7 +3,7 @@
 // exits 70/71. Asserted by the native-only test
 // arithmetic_domain_trapping_mul_overflow_aborts.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

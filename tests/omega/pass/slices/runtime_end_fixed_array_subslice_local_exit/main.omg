@@ -6,7 +6,7 @@
 // runtime-descriptor subslice). Previously this shape was fenced ("subslice
 // descriptor construction ... not lowered"); a machine-field START remains
 // fenced (the indexed-address op's index is frame-only). hi=4 -> len 3 -> 3.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

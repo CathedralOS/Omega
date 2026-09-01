@@ -1,7 +1,7 @@
 // A frame-held slice descriptor indexed by a MACHINE field exercises the
 // AArch64 cross-region binary-write and copy address recipes and their second
 // base relocations.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

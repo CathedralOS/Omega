@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // Before the fix: native exited 71 (wrong XMM result, the guard failed); the
 // interpreter always exited 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

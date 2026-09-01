@@ -2,7 +2,7 @@
 // default. Match desugars to arithmetic over comparisons (`s == p` is 0/1), so
 // `match s { p1 -> v1, p2 -> v2, _ -> d }` evaluates the matched arm exactly.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case Quit;

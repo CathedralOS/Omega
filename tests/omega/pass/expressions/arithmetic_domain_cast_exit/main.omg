@@ -4,7 +4,7 @@
 // the saturating field `b` -- without the cast this would be a mixed-domain
 // compile error. 200 + 100 saturates to the u8 max 255.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

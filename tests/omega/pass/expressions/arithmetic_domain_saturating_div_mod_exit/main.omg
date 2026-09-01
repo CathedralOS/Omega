@@ -10,7 +10,7 @@
 // append_saturating_signed_divide_modulo. The interpreter computes the division
 // in i64 and clamps to the i32 range, so the differential oracle agrees.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data State {
     divisor: i32 in Saturating;

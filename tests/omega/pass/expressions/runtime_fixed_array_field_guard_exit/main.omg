@@ -9,7 +9,7 @@
 // each is guarded, so a dropped index (element 1 reading element 0) or a wrong
 // offset exits non-70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     value: i32;

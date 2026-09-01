@@ -8,7 +8,7 @@
 // compare (the rejected bug) would read `44 == (300 & 0xFF == 44)` -> TRUE; the
 // correct widened compare reads `44 == 300` -> FALSE. A second check confirms the
 // widen still matches a genuinely equal value (44 == 44). Both correct -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

@@ -7,7 +7,7 @@
 // carry-flag check + `cmov` to the unsigned max; the interpreter clamps to the
 // same range so the differential oracle agrees.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

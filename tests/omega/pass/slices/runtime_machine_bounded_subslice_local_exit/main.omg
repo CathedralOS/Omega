@@ -4,7 +4,7 @@
 // had a frame-only index. The op is region-tagged since 2026-07-10 -- a
 // machine-resident START loads off the machine base (its own relocation).
 // lo=1, hi=4 -> len 3 -> exit 3.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

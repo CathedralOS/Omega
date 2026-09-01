@@ -7,7 +7,7 @@
 // rejected bug) would read `(256 & 0xFF == 0) | 1` -> 1; the correct widened op
 // reads `256 | 1` -> 257 (the u8 zero-extends, the u32's high bits survive).
 // combined == 257 -> exit 70, else the wider operand was truncated -> exit 71.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

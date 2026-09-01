@@ -7,7 +7,7 @@
 //
 // self.cell.value = 70 -> m.body -> read_cell derefs c.value -> 70 -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell { value: i32; }
 data Msg { body: &Cell; }

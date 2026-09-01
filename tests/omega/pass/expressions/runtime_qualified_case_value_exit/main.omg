@@ -5,7 +5,7 @@
 // before validation, so the new both-symbols-unresolved reject never fires
 // on it. Discriminating: the bound case must equal Signal::Green (a missed
 // resolution would read ZII = the first case, Red, and fall to exit 71).
-use omega::language::std::console;
+use omega_language_std::console;
 data Signal { case Red; case Green; }
 data Main { console: Console; }
 machine Main::main(&mut self) {

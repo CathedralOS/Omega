@@ -17,7 +17,7 @@ use omega::language::core::float_operations;
 // Every result is guarded against its exact value, so a double-precision mis-encode,
 // an integer op over the bits, or a missing narrow exits non-70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

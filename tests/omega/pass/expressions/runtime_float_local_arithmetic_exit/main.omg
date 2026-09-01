@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // and prior local results; the final guard compares the exact value so a wrong
 // (integer) op fails the comparison instead of silently exiting 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

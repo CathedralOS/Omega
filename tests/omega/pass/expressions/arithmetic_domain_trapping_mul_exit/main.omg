@@ -2,7 +2,7 @@
 // fits u8, so `u8 in Trapping` produces 100 and does NOT trap (exercises the
 // no-overflow path of the trapping-multiply check). c == 100 -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

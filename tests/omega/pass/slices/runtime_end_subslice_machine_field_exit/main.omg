@@ -7,7 +7,7 @@
 // indexed-address instruction has no index region). Undomained here to isolate
 // the Machine-region-END mechanism from the domain guard. Exits 70 (len == 3).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Entry {
     value: i32;

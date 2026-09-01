@@ -12,7 +12,7 @@
 // (a non-first field) is read into a local and guarded against 33; a dropped
 // index reads element 0's `depth` (11) and exits 71.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     id: i32;

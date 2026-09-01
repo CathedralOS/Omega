@@ -3,7 +3,7 @@
 // on x86_64 -- the ptr write silently dropped and the descriptor kept the
 // whole-array base (len was right, the POINTER was wrong; a len-only check
 // could not see it). arr[1]=10, lo=1 -> s[0]==10 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 5];

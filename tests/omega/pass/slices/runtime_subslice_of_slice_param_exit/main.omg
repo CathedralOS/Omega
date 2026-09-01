@@ -5,7 +5,7 @@
 // slice. This is the materialization that makes `terminates by … -> Slice::Length`
 // recursion (self.walk(entries[1..])) actually shrink and terminate.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Entry {
     value: i32;

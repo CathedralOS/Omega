@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // negative operand where an integer bit-compare would order incorrectly. Exits
 // 70 only if every field-to-field comparison evaluates correctly.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

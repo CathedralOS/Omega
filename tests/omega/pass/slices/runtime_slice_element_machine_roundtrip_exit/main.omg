@@ -2,7 +2,7 @@
 // read `self.got = s[1]` (was WIDTH-0 on x86_64 -- the copy silently dropped
 // and the machine field kept ZII 0), write `s[2] = self.put`, and RMW
 // `s[0] = s[0] + 5`. Exact values distinguish every wrong-op face. -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

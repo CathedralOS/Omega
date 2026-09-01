@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // int->float, float->int, and integer widening; each result is guarded against the
 // exact value so a dropped or wrong conversion exits non-70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -5,7 +5,7 @@
 // past the overflow (a Trapping local that never traps defeats the safety domain).
 // (Named without `_canary_runs` so the differential drift guard does not treat it
 // as a clean-exit run canary -- a trap aborts, it does not exit cleanly.)
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: i32 in Trapping = 2000000000;

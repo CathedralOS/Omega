@@ -8,7 +8,7 @@
 // params (kept as-is even though the struct-literal ARG gap this exposed is
 // now FIXED -- pass/calls/struct_literal_transition_arg_exit pins delivery --
 // so this canary keeps a single face: the indexed element write).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Exit {
     destination: u32;

@@ -9,7 +9,7 @@
 // 2026-07-10i by parameterizing the helpers' index/scale scratch; operand
 // arms pick from their scratch list. Distinct exits per direction (72
 // value-call arg, 73 forwarded); differential-pinned at 70/70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; idx: u64; }
 machine Main::double(&mut self, v: i32 [0..=100]) -> i32 { v + v }
 machine Main::main(&mut self) {

@@ -11,7 +11,7 @@
 // as a frame source even when nested inside a binary accumulator, so the
 // argument-overlap detector stages the call. Interpreter was always correct.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Summer {}
 

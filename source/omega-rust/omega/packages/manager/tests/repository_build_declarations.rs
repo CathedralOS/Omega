@@ -450,6 +450,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("data", 20),
         ("dependent", 11),
         ("errors", 1),
+        ("expressions", 49),
         ("generics", 23),
         ("layouts", 19),
         ("recast", 23),
@@ -461,6 +462,15 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
             expected_count,
         );
     }
+}
+
+#[test]
+fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/slices"),
+        69,
+        41,
+    );
 }
 
 #[test]

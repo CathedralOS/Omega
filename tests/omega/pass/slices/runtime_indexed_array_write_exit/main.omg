@@ -5,7 +5,7 @@
 // i in 0..5 -- the index AND the value are both runtime fields -- then reads
 // nums[3] back to confirm it holds 103. Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

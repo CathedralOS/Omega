@@ -11,7 +11,7 @@ use omega::language::core::float_operations;
 // (f32 with a float-LITERAL operand, e.g. `x + 2.5`, is a separate remaining gap:
 // the literal still resolves to f64 bits. Field/var arithmetic is covered here.)
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

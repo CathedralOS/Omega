@@ -5,7 +5,7 @@
 // emission ("operand did not resolve to storage"). The fold rewrites it to the
 // literal 5 -> a plain CompareStaticValue. hi=4 -> true arm -> exit 7. (The
 // false arm is exercised by the same shape with hi=9 in the probe family.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -9,7 +9,7 @@
 // possible overflow. The companion ENFORCEMENT (a callee that returns outside its
 // declared range is a compile error) is what makes trusting the range sound.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

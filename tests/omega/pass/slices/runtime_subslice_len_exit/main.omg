@@ -5,7 +5,7 @@
 // (2) -- not fall through to a place read with no descriptor slot. Exits 70
 // when `s.len == 2`.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

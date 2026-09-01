@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // constants (including 0.0 and a negative value) and exits 70 to confirm the
 // stores execute without faulting and codegen is clean (no stub/NoOp).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

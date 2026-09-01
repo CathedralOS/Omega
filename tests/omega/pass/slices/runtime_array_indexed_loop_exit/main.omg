@@ -7,7 +7,7 @@
 //     across the state edge (the body is the loop head's only predecessor).
 // Self-checks the sum and exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

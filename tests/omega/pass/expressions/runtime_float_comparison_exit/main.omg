@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // (where an integer bit-compare would be wrong) are also exercised. Exits 70
 // only if every comparison evaluates correctly.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
