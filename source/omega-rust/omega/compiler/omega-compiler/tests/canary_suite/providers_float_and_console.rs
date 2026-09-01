@@ -741,7 +741,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             .unwrap_or_else(|| panic!("{target} exit_group must retain complete D32 evidence"));
         assert_eq!(
             artifact.physical_evidence_scope(),
-            native::NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
+            native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
         );
         assert!(
             artifact
@@ -762,7 +762,9 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         );
         assert_eq!(child.object_span().offset(), settlement.text_offset);
         assert_eq!(child.final_image_span(), child.object_span());
-        let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent();
+        let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent() else {
+            panic!("exit_group child must retain its D41 parent")
+        };
         assert_eq!(parent.target(), artifact.target());
         assert_eq!(
             parent.execution(),
@@ -851,7 +853,10 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
                 omega_optimization_core::NativeOptimizationProjectionIdentity::from_bytes([7; 32]);
         });
         mutate_child(|child| {
-            let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent.clone();
+            let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent.clone()
+            else {
+                panic!("exit_group child must retain its D41 parent")
+            };
             let mut parent = parent.into_parts();
             parent.selected_plan_digest =
                 native::NativeSelectedProviderPlanDigest::from_digest([11; 32]);

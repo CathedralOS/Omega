@@ -1,9 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
+use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
 use omega_machine_code::BoundaryExecutionRecord;
 use omega_object_file::SectionKind;
 use omega_optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
+    OptimizedOperatorOccurrenceIdentity,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::{
@@ -13,7 +15,7 @@ use psi_core::{IntegerSign, IntegerType, ScalarType};
 use psi_terminal::OperationKind;
 use sha2::{Digest, Sha256};
 
-use super::model::*;
+use super::{model::*, operator_applications::derive_operator_physical_span};
 use crate::{
     NativePhysicalEvidenceScope, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
 };
@@ -25,8 +27,9 @@ pub(crate) fn derive_physical_evidence(
     object: &omega_image_emission::ObjectArtifact,
     image: &omega_image_emission::ExecutableImage,
     selected_provider_plans: &[NativeSelectedProviderPlan],
+    boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<Option<NativePhysicalEvidence>, &'static str> {
-    if scope != NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications {
+    if scope != NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence {
         return Ok(None);
     }
     let module = psi_terminal_codec::decode_module(terminal_artifact.semantic_bytes())
@@ -36,13 +39,19 @@ pub(crate) fn derive_physical_evidence(
         .iter()
         .any(|machine| machine.ranked_scc.is_some())
         || !object.port_effects().is_empty()
-        || object.x86_scalar_fma_provider().is_some()
         || !object.object().layout.normalized_imports.is_empty()
     {
         return Ok(None);
     }
 
-    let projection = derive_identity_projection(terminal_artifact.manifest().semantic(), &module)?;
+    let boundary_application_coverage = boundary_application_coverage
+        .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
+
+    let projection = derive_identity_projection(
+        terminal_artifact.manifest().semantic(),
+        &module,
+        boundary_application_coverage,
+    )?;
     let mut settlements = BTreeMap::new();
     for installed in object.boundary_settlements() {
         let key = (
@@ -135,12 +144,83 @@ pub(crate) fn derive_physical_evidence(
             installed,
         )?);
     }
+    for occurrence in projection.operator_occurrences() {
+        let matching_references = boundary_application_coverage
+            .references()
+            .iter()
+            .filter(|reference| reference.terminal_operation() == occurrence.operation())
+            .collect::<Vec<_>>();
+        let [reference] = matching_references.as_slice() else {
+            return Err("D29 physical occurrence does not rejoin one coverage reference");
+        };
+        let matching_realizations = boundary_application_coverage
+            .realizations()
+            .rows()
+            .iter()
+            .filter(|realization| realization.terminal_operation() == occurrence.operation())
+            .collect::<Vec<_>>();
+        let [realization] = matching_realizations.as_slice() else {
+            return Err("D29 physical occurrence does not rejoin one realization companion");
+        };
+        let Some(span) = derive_operator_physical_span(
+            occurrence,
+            realization.realization(),
+            &module,
+            target,
+            object,
+            image,
+        )?
+        else {
+            // Unsupported compiler-intrinsic or call mechanics leave the
+            // artifact valid without claiming complete physical coverage.
+            return Ok(None);
+        };
+        let parent = PhysicalChildParent::OperatorApplicationCoverage(**reference);
+        let physical_occurrence = NativePhysicalOccurrence::Operator(occurrence.identity());
+        let identity = physical_child_identity(
+            &parent,
+            projection.identity(),
+            physical_occurrence,
+            span.machine,
+            span.object,
+            span.final_image,
+            span.machine_bytes_digest,
+            span.object_bytes_digest,
+            span.final_image_bytes_digest,
+            span.relocation,
+        );
+        children.push(
+            NativePhysicalChildParts {
+                parent,
+                projection: projection.identity(),
+                occurrence: physical_occurrence,
+                machine_span: span.machine,
+                object_span: span.object,
+                final_image_span: span.final_image,
+                machine_bytes_digest: span.machine_bytes_digest,
+                object_bytes_digest: span.object_bytes_digest,
+                final_image_bytes_digest: span.final_image_bytes_digest,
+                relocation: span.relocation,
+                identity,
+            }
+            .into(),
+        );
+    }
     children.sort_by_key(|child| child.occurrence());
     if children
         .windows(2)
         .any(|pair| pair[0].occurrence() >= pair[1].occurrence())
     {
         return Err("native physical evidence contains duplicate optimized occurrences");
+    }
+    if children.len()
+        != projection
+            .operator_occurrences()
+            .len()
+            .checked_add(projection.boundary_occurrences().len())
+            .ok_or("native physical evidence occurrence count overflow")?
+    {
+        return Err("native physical evidence does not cover the exact surviving occurrence set");
     }
     let identity = physical_evidence_identity(projection.identity(), &children);
     Ok(Some(native_physical_evidence(
@@ -151,12 +231,37 @@ pub(crate) fn derive_physical_evidence(
 fn derive_identity_projection(
     terminal: psi_terminal::TerminalPsiIdentity,
     module: &psi_terminal::TerminalModule,
+    boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
 ) -> Result<NativeIdentityOptimizationProjection, &'static str> {
-    let mut occurrences = Vec::new();
+    let operator_operations = boundary_application_coverage
+        .references()
+        .iter()
+        .map(|reference| reference.terminal_operation())
+        .collect::<BTreeSet<_>>();
+    if operator_operations.len() != boundary_application_coverage.references().len() {
+        return Err("native optimization projection contains duplicate D29 operations");
+    }
+    let mut operator_occurrences = Vec::with_capacity(operator_operations.len());
+    let mut boundary_occurrences = Vec::new();
     for machine in &module.machines {
         let mut operation_ordinal = 0_usize;
         for block in &machine.blocks {
             for operation in &block.operations {
+                if operator_operations.contains(&operation.id) {
+                    let identity = operator_occurrence_identity(
+                        terminal,
+                        machine.id,
+                        operation.id,
+                        operation_ordinal,
+                    );
+                    operator_occurrences.push(optimized_operator_occurrence(
+                        terminal,
+                        machine.id,
+                        operation.id,
+                        operation_ordinal,
+                        identity,
+                    ));
+                }
                 if let OperationKind::BoundaryCall { boundary, .. } = operation.kind {
                     let identity = boundary_occurrence_identity(
                         terminal,
@@ -165,7 +270,7 @@ fn derive_identity_projection(
                         boundary,
                         operation_ordinal,
                     );
-                    occurrences.push(optimized_boundary_occurrence(
+                    boundary_occurrences.push(optimized_boundary_occurrence(
                         terminal,
                         machine.id,
                         operation.id,
@@ -183,13 +288,40 @@ fn derive_identity_projection(
                 .ok_or("native optimization projection terminator ordinal overflow")?;
         }
     }
+    if operator_occurrences.len() != operator_operations.len() {
+        return Err("native optimization projection cannot rejoin every D29 operation");
+    }
     let mut canonical = terminal_identity_bytes(terminal);
-    canonical.extend_from_slice(&canonical_usize(occurrences.len()));
-    for occurrence in &occurrences {
+    canonical.push(1); // D29 operator-application occurrences.
+    canonical.extend_from_slice(&canonical_usize(operator_occurrences.len()));
+    for occurrence in &operator_occurrences {
+        canonical.extend_from_slice(&occurrence.identity().bytes());
+    }
+    canonical.push(2); // D41 ordinary boundary-trait occurrences.
+    canonical.extend_from_slice(&canonical_usize(boundary_occurrences.len()));
+    for occurrence in &boundary_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
     let identity = NativeOptimizationProjectionIdentity::from_canonical_bytes(&canonical);
-    Ok(identity_projection(terminal, occurrences, identity))
+    Ok(identity_projection(
+        terminal,
+        operator_occurrences,
+        boundary_occurrences,
+        identity,
+    ))
+}
+
+fn operator_occurrence_identity(
+    terminal: psi_terminal::TerminalPsiIdentity,
+    machine: psi_core::MachineId,
+    operation: psi_core::OperationId,
+    operation_ordinal: usize,
+) -> OptimizedOperatorOccurrenceIdentity {
+    let mut canonical = terminal_identity_bytes(terminal);
+    canonical.extend_from_slice(&machine.get().to_le_bytes());
+    canonical.extend_from_slice(&operation.get().to_le_bytes());
+    canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+    OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
 fn boundary_occurrence_identity(
@@ -314,7 +446,7 @@ fn derive_exit_group_child(
     let identity = physical_child_identity(
         &parent,
         projection,
-        occurrence.identity(),
+        NativePhysicalOccurrence::Boundary(occurrence.identity()),
         machine_span,
         object_span,
         final_image_span,
@@ -326,7 +458,7 @@ fn derive_exit_group_child(
     Ok(NativePhysicalChildParts {
         parent,
         projection,
-        occurrence: occurrence.identity(),
+        occurrence: NativePhysicalOccurrence::Boundary(occurrence.identity()),
         machine_span,
         object_span,
         final_image_span,
@@ -370,7 +502,7 @@ fn boundary_trait_settlement_identity(
 fn physical_child_identity(
     parent: &PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,
-    occurrence: OptimizedBoundaryOccurrenceIdentity,
+    occurrence: NativePhysicalOccurrence,
     machine_span: NativeByteSpan,
     object_span: NativeByteSpan,
     final_image_span: NativeByteSpan,
@@ -380,11 +512,12 @@ fn physical_child_identity(
     relocation: PhysicalRelocationDisposition,
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.native-physical-child.sha256.v1\0");
-    digest.update([1]); // BoundaryTraitSettlement parent role.
+    digest.update(b"omega.native-physical-child.sha256.v2\0");
+    digest.update([parent.role_tag()]);
     digest.update(parent.identity());
     digest.update(projection.bytes());
-    digest.update(occurrence.bytes());
+    digest.update([occurrence.role_tag()]);
+    digest.update(occurrence.identity());
     for span in [machine_span, object_span, final_image_span] {
         digest.update(canonical_usize(span.offset()));
         digest.update(canonical_usize(span.byte_count()));
@@ -394,6 +527,7 @@ fn physical_child_identity(
     digest.update(final_image_bytes_digest);
     digest.update([match relocation {
         PhysicalRelocationDisposition::DirectInstructionBytes => 1,
+        PhysicalRelocationDisposition::ResolvedInternalCall => 2,
     }]);
     digest.finalize().into()
 }
@@ -403,7 +537,7 @@ fn physical_evidence_identity(
     children: &[NativePhysicalChild],
 ) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.native-physical-evidence.sha256.v1\0");
+    digest.update(b"omega.native-physical-evidence.sha256.v2\0");
     digest.update(projection.bytes());
     digest.update(canonical_usize(children.len()));
     for child in children {
@@ -492,6 +626,29 @@ mod tests {
             machine,
             psi_core::OperationId::new(4).expect("second operation"),
             boundary,
+            1,
+        );
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn operator_occurrence_identity_binds_exact_terminal_operation() {
+        let terminal = psi_terminal::TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([11; 32]),
+        };
+        let machine = psi_core::MachineId::new(1).expect("machine");
+        let first = operator_occurrence_identity(
+            terminal,
+            machine,
+            psi_core::OperationId::new(3).expect("first operation"),
+            0,
+        );
+        let second = operator_occurrence_identity(
+            terminal,
+            machine,
+            psi_core::OperationId::new(4).expect("second operation"),
             1,
         );
 

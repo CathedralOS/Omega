@@ -92,8 +92,8 @@ pub use rules_and_facts::{
 pub use stages::{
     FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    OptimizedOperatorOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 
 #[cfg(test)]

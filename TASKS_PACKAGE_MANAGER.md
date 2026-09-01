@@ -38,9 +38,11 @@ stop the item on one precise owner question before adding machinery.
   verdicts.
 
   Finish D29's artifact-qualified symbolic demand/final substitution for
-  separately compiled generic artifacts, nested calls, and each supported
-  operator category, then D32's exact optimized-projection-to-physical-child
-  join. Each physical child must bind its exact role-tagged
+  separately compiled generic artifacts, nested calls, and each remaining
+  supported operator category. Complete D32's
+  optimized-projection-to-physical-child join for verified non-identity
+  optimization and the native roles the backend does not yet lower. Each
+  physical child must bind its exact role-tagged
   `PhysicalChildParent` and surviving optimized operation occurrence; the
   complete child set must equal the derived surviving set. D29 parents
   reference reconstructible operator coverage; D41 parents retain and replay
@@ -91,10 +93,20 @@ stop the item on one precise owner question before adding machinery.
   coverage references and crosses native realization as one validated value;
   native replay retains the full rows, rejoins every named Terminal operation,
   binds the coverage set into artifact identity, and distinguishes exact-empty
-  custody from unavailable custody. Externally admitted concrete authority
-  remains absent rather than being represented by a self-issued placeholder
-  commitment. Cross-artifact demand closure, external realization custody,
-  D29 physical parents, and non-identity optimization projections remain open.
+  custody from unavailable custody. The identity optimization projection now
+  retains separate exact D29 and D41 occurrence sets. D29 physical children
+  bind reconstructible coverage parents, exact projected occurrences, spans,
+  byte digests, and relocation disposition; nearest-FMA applications exercise
+  the direct-byte lane end to end. Checked-body call mechanics independently
+  rejoin Terminal callee, emitted call record, semantic relocation owner,
+  target, zero addend, kind, span, and final-image byte changes. End-to-end
+  checked-body physical custody remains blocked by ordinary native lowering's
+  existing `InvalidLinuxExitGroupShape` rejection for the reviewed checked-
+  operator-plus-exit canaries; do not weaken D32 to bypass that backend gap.
+  Externally admitted concrete authority remains absent rather than being
+  represented by a self-issued placeholder commitment. Cross-artifact demand
+  closure, external realization custody, checked-body backend enablement, and
+  non-identity optimization projections remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
@@ -103,9 +115,10 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Complete the D29 parent, admitted-provider parent, and verified non-identity
-  optimization-projection lanes. Extend `CompilerBuiltinExecution` only for a
-  demanded local target mechanism and keep planner conversion exhaustive.
+  Complete the remaining checked-body D29 physical lane, admitted-provider
+  parent, and verified non-identity optimization-projection lanes. Extend
+  `CompilerBuiltinExecution` only for a demanded local target mechanism and
+  keep planner conversion exhaustive.
   Retain complete standalone-product structures as additional native proposal
   classes land; do not regress to hidden `CheckedCompilation` state or replace
   those structures with compact report fingerprints. The accepted package

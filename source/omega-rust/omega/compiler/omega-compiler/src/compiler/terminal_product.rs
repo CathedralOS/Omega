@@ -212,16 +212,13 @@ fn project_terminal_native_realization_proposal(
             )
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let boundary_application_demands = project_terminal_boundary_application_demands(
+    let boundary_application_coverage = project_terminal_boundary_application_coverage(
         checked,
         artifact,
         &checked_boundary_operator_scope,
     )?;
-    let boundary_application_realizations = project_terminal_boundary_application_realizations(
-        checked,
-        &checked_boundary_operator_scope,
-        &boundary_application_demands,
-    )?;
+    let (boundary_application_demands, boundary_application_realizations) =
+        boundary_application_coverage.into_parts();
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -238,6 +235,18 @@ fn project_terminal_native_realization_proposal(
         checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+pub(super) fn project_terminal_boundary_application_coverage(
+    checked: &crate::pipeline::CheckedCompilation,
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+) -> Result<omega_boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
+    let demands = project_terminal_boundary_application_demands(checked, artifact, checked_scope)?;
+    let realizations =
+        project_terminal_boundary_application_realizations(checked, checked_scope, &demands)?;
+    omega_boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
+        .map_err(|message| vec![Diagnostic::error(message)])
 }
 
 fn project_terminal_boundary_application_realizations(

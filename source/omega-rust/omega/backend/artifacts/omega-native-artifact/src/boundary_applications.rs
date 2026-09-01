@@ -13,7 +13,7 @@ pub(super) fn validate_boundary_application_coverage(
 ) -> Result<(), &'static str> {
     let Some(coverage) = coverage else {
         if physical_evidence_scope
-            == NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications
+            == NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
         {
             return Err(
                 "native artifact claims an exact empty D29 scope without retained coverage",
@@ -22,12 +22,6 @@ pub(super) fn validate_boundary_application_coverage(
         return Ok(());
     };
     coverage.validate_for_terminal(terminal)?;
-    if physical_evidence_scope
-        == NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications
-        && !coverage.references().is_empty()
-    {
-        return Err("native artifact empty-D29 physical scope contains operator applications");
-    }
     for reference in coverage.references() {
         let matching_operations = module
             .machines

@@ -26,8 +26,8 @@ pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeByteSpan,
     NativeCompilerBuiltinCatalogIdentity, NativeIdentityOptimizationProjection,
     NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceParts, OptimizedBoundaryOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition,
+    NativePhysicalEvidenceParts, NativePhysicalOccurrence, OptimizedBoundaryOccurrence,
+    OptimizedOperatorOccurrence, PhysicalChildParent, PhysicalRelocationDisposition,
 };
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v4\0";
@@ -100,13 +100,13 @@ impl NativeSelectedProviderPlanDigest {
 /// Exact upstream scope under which this artifact may derive D32 evidence.
 ///
 /// The positive variant means the compiler supplied an unoptimized Terminal
-/// handoff whose complete checked boundary-operator demand roster was empty.
-/// It does not make unsupported boundary/provider mechanisms disappear: those
-/// still produce no evidence during native replay.
+/// handoff with complete checked D29 coverage custody. It does not make
+/// unsupported boundary/provider mechanisms disappear: those still produce
+/// no evidence during native replay.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceScope {
     Unavailable,
-    UnoptimizedNoBoundaryOperatorApplications,
+    UnoptimizedCompleteBoundaryEvidence,
 }
 
 /// One selected provider plan projected into source-free native-artifact
@@ -388,6 +388,7 @@ impl NativeArtifact {
             &parts.object,
             &parts.image,
             &parts.selected_provider_plans,
+            parts.boundary_application_coverage.as_ref(),
         )?;
         Self::from_replayed_parts(NativeArtifactParts {
             target: parts.target,
@@ -540,6 +541,7 @@ impl NativeArtifact {
             &self.object,
             &self.image,
             &self.selected_provider_plans,
+            self.boundary_application_coverage.as_ref(),
         )?;
         if self.physical_evidence != expected_physical_evidence {
             return Err(
@@ -969,7 +971,7 @@ fn derive_native_artifact_identity(
     hash_optional_digest(&mut digest, fields.boundary_application_coverage_identity);
     digest.update([match fields.physical_evidence_scope {
         NativePhysicalEvidenceScope::Unavailable => 0,
-        NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications => 1,
+        NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => 1,
     }]);
     hash_optional_digest(&mut digest, fields.physical_evidence_identity);
     NativeArtifactIdentity(digest.finalize().into())
@@ -1142,7 +1144,7 @@ mod tests {
                 terminal_policy_marker: 67,
                 boundary_application_marker: Some(73),
                 physical_evidence_scope:
-                    NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
+                    NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
                 physical_evidence_marker: 61,
                 with_validation_evidence: true,
             }

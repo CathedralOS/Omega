@@ -1,5 +1,7 @@
+use omega_boundary_applications::OperatorApplicationCoverageRef;
 use omega_optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
+    OptimizedOperatorOccurrenceIdentity,
 };
 use omega_target::NativeTarget;
 use omega_target_operations::BoundaryScalarArgument;
@@ -69,9 +71,41 @@ impl OptimizedBoundaryOccurrence {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptimizedOperatorOccurrence {
+    terminal: TerminalPsiIdentity,
+    machine: MachineId,
+    operation: OperationId,
+    operation_ordinal: usize,
+    identity: OptimizedOperatorOccurrenceIdentity,
+}
+
+impl OptimizedOperatorOccurrence {
+    pub const fn terminal(&self) -> TerminalPsiIdentity {
+        self.terminal
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn operation(&self) -> OperationId {
+        self.operation
+    }
+
+    pub const fn operation_ordinal(&self) -> usize {
+        self.operation_ordinal
+    }
+
+    pub const fn identity(&self) -> OptimizedOperatorOccurrenceIdentity {
+        self.identity
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeIdentityOptimizationProjection {
     terminal: TerminalPsiIdentity,
+    operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 }
@@ -83,6 +117,10 @@ impl NativeIdentityOptimizationProjection {
 
     pub fn boundary_occurrences(&self) -> &[OptimizedBoundaryOccurrence] {
         &self.boundary_occurrences
+    }
+
+    pub fn operator_occurrences(&self) -> &[OptimizedOperatorOccurrence] {
+        &self.operator_occurrences
     }
 
     pub const fn identity(&self) -> NativeOptimizationProjectionIdentity {
@@ -161,13 +199,22 @@ impl BoundaryTraitSettlement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhysicalChildParent {
+    OperatorApplicationCoverage(OperatorApplicationCoverageRef),
     BoundaryTraitSettlement(BoundaryTraitSettlement),
 }
 
 impl PhysicalChildParent {
-    pub const fn identity(&self) -> &[u8; 32] {
+    pub const fn identity(&self) -> [u8; 32] {
         match self {
-            Self::BoundaryTraitSettlement(settlement) => settlement.identity(),
+            Self::OperatorApplicationCoverage(reference) => *reference.coverage().as_bytes(),
+            Self::BoundaryTraitSettlement(settlement) => *settlement.identity(),
+        }
+    }
+
+    pub const fn role_tag(&self) -> u8 {
+        match self {
+            Self::OperatorApplicationCoverage(_) => 1,
+            Self::BoundaryTraitSettlement(_) => 2,
         }
     }
 }
@@ -175,13 +222,36 @@ impl PhysicalChildParent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
+    ResolvedInternalCall,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NativePhysicalOccurrence {
+    Operator(OptimizedOperatorOccurrenceIdentity),
+    Boundary(OptimizedBoundaryOccurrenceIdentity),
+}
+
+impl NativePhysicalOccurrence {
+    pub const fn identity(self) -> [u8; 32] {
+        match self {
+            Self::Operator(identity) => identity.bytes(),
+            Self::Boundary(identity) => identity.bytes(),
+        }
+    }
+
+    pub const fn role_tag(self) -> u8 {
+        match self {
+            Self::Operator(_) => 1,
+            Self::Boundary(_) => 2,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePhysicalChild {
     parent: PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,
-    occurrence: OptimizedBoundaryOccurrenceIdentity,
+    occurrence: NativePhysicalOccurrence,
     machine_span: NativeByteSpan,
     object_span: NativeByteSpan,
     final_image_span: NativeByteSpan,
@@ -201,7 +271,7 @@ impl NativePhysicalChild {
         self.projection
     }
 
-    pub const fn occurrence(&self) -> OptimizedBoundaryOccurrenceIdentity {
+    pub const fn occurrence(&self) -> NativePhysicalOccurrence {
         self.occurrence
     }
 
@@ -316,7 +386,7 @@ impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
 pub struct NativePhysicalChildParts {
     pub parent: PhysicalChildParent,
     pub projection: NativeOptimizationProjectionIdentity,
-    pub occurrence: OptimizedBoundaryOccurrenceIdentity,
+    pub occurrence: NativePhysicalOccurrence,
     pub machine_span: NativeByteSpan,
     pub object_span: NativeByteSpan,
     pub final_image_span: NativeByteSpan,
@@ -374,13 +444,31 @@ pub(super) fn optimized_boundary_occurrence(
     }
 }
 
+pub(super) fn optimized_operator_occurrence(
+    terminal: TerminalPsiIdentity,
+    machine: MachineId,
+    operation: OperationId,
+    operation_ordinal: usize,
+    identity: OptimizedOperatorOccurrenceIdentity,
+) -> OptimizedOperatorOccurrence {
+    OptimizedOperatorOccurrence {
+        terminal,
+        machine,
+        operation,
+        operation_ordinal,
+        identity,
+    }
+}
+
 pub(super) fn identity_projection(
     terminal: TerminalPsiIdentity,
+    operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 ) -> NativeIdentityOptimizationProjection {
     NativeIdentityOptimizationProjection {
         terminal,
+        operator_occurrences,
         boundary_occurrences,
         identity,
     }

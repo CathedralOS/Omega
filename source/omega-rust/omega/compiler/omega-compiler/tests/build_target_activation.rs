@@ -462,6 +462,23 @@ machine Main::main(&mut self) {
     native
         .validate()
         .expect("FMA native artifact independently replays");
+    let physical = native
+        .physical_evidence()
+        .expect("FMA native artifact retains complete D32 evidence");
+    assert_eq!(physical.projection().operator_occurrences().len(), 2);
+    assert_eq!(physical.children().len(), 2);
+    assert!(physical.children().iter().all(|child| {
+        matches!(
+            child.parent(),
+            omega_terminal_psi_to_native_artifact::PhysicalChildParent::OperatorApplicationCoverage(
+                _
+            )
+        ) && matches!(
+            child.occurrence(),
+            omega_terminal_psi_to_native_artifact::NativePhysicalOccurrence::Operator(_)
+        ) && child.relocation()
+            == omega_terminal_psi_to_native_artifact::PhysicalRelocationDisposition::DirectInstructionBytes
+    }));
     let fma_functions = native
         .object()
         .functions()

@@ -60,12 +60,8 @@ fn physical_evidence_scope(
     unoptimized: bool,
     checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
 ) -> omega_native_artifact::NativePhysicalEvidenceScope {
-    if unoptimized
-        && checked_scope.is_some_and(
-            psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope::is_empty,
-        )
-    {
-        omega_native_artifact::NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications
+    if unoptimized && checked_scope.is_some() {
+        omega_native_artifact::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
     } else {
         omega_native_artifact::NativePhysicalEvidenceScope::Unavailable
     }
@@ -153,7 +149,7 @@ mod tests {
     use omega_native_artifact::NativePhysicalEvidenceScope;
 
     #[test]
-    fn physical_evidence_requires_both_unoptimized_and_exact_empty_d29_scope() {
+    fn physical_evidence_requires_unoptimized_input_and_exact_d29_custody() {
         let empty_checked = checked(
             r#"
                 data Main {}
@@ -168,7 +164,7 @@ mod tests {
             .expect("empty exact D29 scope");
         assert_eq!(
             physical_evidence_scope(true, Some(empty.boundary_operator_scope())),
-            NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
+            NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
         );
         assert_eq!(
             physical_evidence_scope(false, Some(empty.boundary_operator_scope())),
@@ -192,9 +188,6 @@ mod tests {
         else {
             panic!("one exact checked boundary-operator demand")
         };
-        // Source-free operation matching is not implemented yet. Retain the
-        // real checked demand beside a known-lowerable artifact to exercise
-        // only the exact-scope eligibility fence closed by this milestone.
         let mut nonempty_checked = empty_checked.clone();
         nonempty_checked.facts.operators.boundary_applications = vec![demand.clone()];
         let nonempty =
@@ -205,7 +198,7 @@ mod tests {
             .expect("nonempty exact D29 scope");
         assert_eq!(
             physical_evidence_scope(true, Some(nonempty.boundary_operator_scope())),
-            NativePhysicalEvidenceScope::Unavailable,
+            NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
         );
         assert_eq!(
             physical_evidence_scope(true, None),
