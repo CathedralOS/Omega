@@ -7631,8 +7631,23 @@ Owners:
   proof production fell from approximately 174s to 101s for the 74-parameter
   mixed-shift owner and from 253s to 157s for the mixed nominal owner. Candidate
   and citation order, serialized proof shape, and kernel replay are unchanged.
-  The remaining repeated add/subtract/cast endpoint search is still
-  unforgivably slow and remains an open implementation target.
+  The remaining repeated add/subtract/cast endpoint-search target is now
+  closed. Phase timing isolated the cost in checked-to-Terminal certificate
+  finalization (96.67s of a 100.59s compile for the mixed-shift owner), not in
+  lexing, parsing, resolution, checking, report emission, or Rust test startup.
+  Exact add/subtract selection now prioritizes operand-owned endpoints and
+  complementary sibling endpoints, but only when they belong to the original
+  global candidate set; the complete original set remains the fallback, so the
+  accepted source frontier does not expand. Cast/affine selection uses the
+  existing indexed definition words to reject roots that cannot cross the
+  required before/after-cast fences, and targeted multiply reconstruction uses
+  an exact output-definition index instead of rescanning every prior semantic
+  axiom at every recursive step. Source order, prefix custody, witness shape,
+  kernel checking, and the intentional ten-definition source rejection remain
+  intact. The unchanged filtered mixed-shift owner now completes in 17.8s wall
+  and the unchanged mixed-nominal owner in 34.6s wall on the same debug product;
+  the full checked-to-Terminal integration suite passes. This repair neither
+  weakens a canary nor justifies an arena rewrite or report-viewer deletion.
   The default-stack failure exposed by the nominal owner is independently
   repaired at both recursive frontend boundaries. Syntax-to-resolved and
   resolved-to-typed binary expression recursion now cross thin

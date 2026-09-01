@@ -63,6 +63,19 @@ pub(super) fn find_target_before<T>(
     )
 }
 
+pub(in crate::nonzero_divisor_certificate) fn has_target_before(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    root: &ScalarTerm,
+    target: &ScalarTerm,
+    maximum_axiom: usize,
+) -> bool {
+    frontier::definition_words_to_target(context, semantic_axioms, definitions, root, target)
+        .iter()
+        .any(|word| word.last().is_some_and(|&index| index < maximum_axiom))
+}
+
 pub(super) fn find_after<T>(
     context: &PropositionContext,
     goal: &Proposition,
@@ -95,4 +108,19 @@ pub(super) fn find_after<T>(
                 &mut complete,
             )
         })
+}
+
+pub(in crate::nonzero_divisor_certificate) fn has_target_after(
+    context: &PropositionContext,
+    goal: &Proposition,
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    root: &ScalarTerm,
+    minimum_axiom: usize,
+) -> bool {
+    targets::values(goal).any(|target| {
+        frontier::definition_words_to_target(context, semantic_axioms, definitions, root, target)
+            .iter()
+            .any(|word| word.first().is_some_and(|&index| index > minimum_axiom))
+    })
 }

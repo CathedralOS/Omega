@@ -202,11 +202,41 @@ fn prove_direct_subtract_relation(
     ) {
         return Some(proof);
     }
-    let mut candidates =
+    let mut global_candidates =
         add_endpoint_candidates(integer_type, &left, lower, assumptions, semantic_axioms);
     for candidate in
         add_endpoint_candidates(integer_type, &right, !lower, assumptions, semantic_axioms)
     {
+        if !global_candidates.contains(&candidate) {
+            global_candidates.push(candidate);
+        }
+    }
+    // Prefer operand-owned endpoints without admitting values outside the
+    // original global candidate frontier.
+    let mut candidates =
+        direct_add_endpoint_candidates(integer_type, &left, assumptions, semantic_axioms)
+            .into_iter()
+            .filter(|candidate| global_candidates.contains(candidate))
+            .collect::<Vec<_>>();
+    for candidate in
+        direct_add_endpoint_candidates(integer_type, &right, assumptions, semantic_axioms)
+    {
+        let Some(candidate) = subtract_left_bound_for_right(integer_type, candidate, lower) else {
+            continue;
+        };
+        if global_candidates.contains(&candidate) && !candidates.contains(&candidate) {
+            candidates.push(candidate);
+        }
+    }
+    let carrier = if lower {
+        integer_type.minimum_value()
+    } else {
+        integer_type.maximum_value()
+    };
+    if global_candidates.contains(&carrier) && !candidates.contains(&carrier) {
+        candidates.push(carrier);
+    }
+    for candidate in global_candidates {
         if !candidates.contains(&candidate) {
             candidates.push(candidate);
         }
@@ -623,25 +653,41 @@ fn prove_direct_add_relation(
     ) {
         return Some(proof);
     }
-    let mut candidates =
-        direct_add_endpoint_candidates(integer_type, &left, assumptions, semantic_axioms);
-    for candidate in
-        direct_add_endpoint_candidates(integer_type, &right, assumptions, semantic_axioms)
-    {
-        if !candidates.contains(&candidate) {
-            candidates.push(candidate);
-        }
-    }
-    for candidate in
-        add_endpoint_candidates(integer_type, &left, lower, assumptions, semantic_axioms)
-    {
-        if !candidates.contains(&candidate) {
-            candidates.push(candidate);
-        }
-    }
+    let mut global_candidates =
+        add_endpoint_candidates(integer_type, &left, lower, assumptions, semantic_axioms);
     for candidate in
         add_endpoint_candidates(integer_type, &right, lower, assumptions, semantic_axioms)
     {
+        if !global_candidates.contains(&candidate) {
+            global_candidates.push(candidate);
+        }
+    }
+    // Prefer operand-owned endpoints without admitting values outside the
+    // original global candidate frontier.
+    let mut candidates =
+        direct_add_endpoint_candidates(integer_type, &left, assumptions, semantic_axioms)
+            .into_iter()
+            .filter(|candidate| global_candidates.contains(candidate))
+            .collect::<Vec<_>>();
+    for candidate in
+        direct_add_endpoint_candidates(integer_type, &right, assumptions, semantic_axioms)
+    {
+        let Some(candidate) = add_complement(integer_type, candidate, lower) else {
+            continue;
+        };
+        if global_candidates.contains(&candidate) && !candidates.contains(&candidate) {
+            candidates.push(candidate);
+        }
+    }
+    let carrier = if lower {
+        integer_type.minimum_value()
+    } else {
+        integer_type.maximum_value()
+    };
+    if global_candidates.contains(&carrier) && !candidates.contains(&carrier) {
+        candidates.push(carrier);
+    }
+    for candidate in global_candidates {
         if !candidates.contains(&candidate) {
             candidates.push(candidate);
         }
@@ -1196,6 +1242,31 @@ fn subtract_complement(
         }
         (IntegerSign::Unsigned, IntegerValue::Unsigned(left)) if lower => {
             Some(IntegerValue::Unsigned(left))
+        }
+        _ => None,
+    }
+}
+
+fn subtract_left_bound_for_right(
+    integer_type: IntegerType,
+    right_bound: IntegerValue,
+    lower: bool,
+) -> Option<IntegerValue> {
+    match (integer_type.sign(), right_bound) {
+        (IntegerSign::Signed, IntegerValue::Signed(right)) => {
+            let carrier = match if lower {
+                integer_type.minimum_value()
+            } else {
+                integer_type.maximum_value()
+            } {
+                IntegerValue::Signed(carrier) => carrier,
+                IntegerValue::Unsigned(_) => unreachable!("signed carrier has signed endpoints"),
+            };
+            let value = IntegerValue::Signed(carrier.checked_add(right)?);
+            integer_type.admits(value).then_some(value)
+        }
+        (IntegerSign::Unsigned, IntegerValue::Unsigned(right)) if lower => {
+            Some(IntegerValue::Unsigned(right))
         }
         _ => None,
     }

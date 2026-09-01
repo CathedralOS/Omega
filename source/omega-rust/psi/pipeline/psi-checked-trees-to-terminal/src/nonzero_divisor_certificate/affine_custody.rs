@@ -16,6 +16,7 @@ mod mapped;
 mod relaxation;
 
 pub(super) use boundary::prove_from_root_after;
+pub(super) use candidates::{has_target_after, has_target_before};
 pub(super) use definition_index::DefinitionIndex;
 pub(super) use mapped::prove_mapped_to_target_before;
 

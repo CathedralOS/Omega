@@ -548,6 +548,7 @@ pub(super) fn targeted_operand_endpoints(
         lower,
         assumptions,
         semantic_axioms,
+        definitions,
     ) {
         if !proofs
             .iter()
@@ -563,12 +564,20 @@ pub(super) fn targeted_operand_endpoints(
         lower,
         assumptions,
         semantic_axioms,
+        definitions,
     );
     let candidates =
         add_endpoint_candidates(integer_type, operand, lower, assumptions, semantic_axioms);
     let prefix_witnesses = affine_proofs
         .is_empty()
-        .then(|| targeted_multiply_operand_prefix_witnesses(context, semantic_axioms, operand))
+        .then(|| {
+            targeted_multiply_operand_prefix_witnesses(
+                context,
+                semantic_axioms,
+                definitions,
+                operand,
+            )
+        })
         .unwrap_or_default();
     for affine_proof in affine_proofs {
         if !proofs
@@ -587,6 +596,7 @@ pub(super) fn targeted_operand_endpoints(
             lower,
             assumptions,
             semantic_axioms,
+            definitions,
         ) {
             if !proofs
                 .iter()
@@ -631,6 +641,7 @@ fn prove_targeted_cast_prefix_endpoints(
     lower: bool,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Vec<ProofNode> {
     let first_definition = witness
         .definition_axioms
@@ -674,9 +685,13 @@ fn prove_targeted_cast_prefix_endpoints(
             let source_proof = if root == &source {
                 root_proof
             } else {
-                let Some(source_witness) =
-                    targeted_multiply_operand_witness(context, semantic_axioms, root, &source)
-                else {
+                let Some(source_witness) = targeted_multiply_operand_witness(
+                    context,
+                    semantic_axioms,
+                    definitions,
+                    root,
+                    &source,
+                ) else {
                     continue;
                 };
                 let Ok(checked_source) =
@@ -770,6 +785,7 @@ fn direct_cast_operand_endpoints(
     lower: bool,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Vec<ProofNode> {
     if !semantic_axioms.iter().any(|axiom| {
         matches!(
@@ -795,6 +811,7 @@ fn direct_cast_operand_endpoints(
         lower,
         assumptions,
         semantic_axioms,
+        definitions,
     );
     for root_proof in root_proofs {
         let endpoint = match &root_proof.conclusion {
@@ -892,6 +909,7 @@ fn prove_direct_computed_multiply_endpoints(
     lower: bool,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Vec<ProofNode> {
     let mut proofs = Vec::new();
     for (definition_index, axiom) in semantic_axioms.iter().enumerate() {
@@ -904,9 +922,13 @@ fn prove_direct_computed_multiply_endpoints(
             continue;
         }
         for (predecessor, sibling) in targeted_affine_predecessors(expression) {
-            let Some(literal_axiom) =
-                targeted_literal_axiom(context, semantic_axioms, definition_index, sibling)
-            else {
+            let Some(literal_axiom) = targeted_literal_axiom(
+                context,
+                semantic_axioms,
+                definitions,
+                definition_index,
+                sibling,
+            ) else {
                 continue;
             };
             let witness = IntegerAffineWitness {
@@ -1050,6 +1072,7 @@ fn prove_multiply_affine_operand_endpoints(
     lower: bool,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
 ) -> Vec<ProofNode> {
     if operand.scalar_type() != ScalarType::Integer(integer_type) {
         return Vec::new();
@@ -1063,9 +1086,13 @@ fn prove_multiply_affine_operand_endpoints(
             if !matches!(root, ScalarTerm::Value { .. }) {
                 continue;
             }
-            let Some(witness) =
-                targeted_multiply_operand_witness(context, semantic_axioms, root, operand)
-            else {
+            let Some(witness) = targeted_multiply_operand_witness(
+                context,
+                semantic_axioms,
+                definitions,
+                root,
+                operand,
+            ) else {
                 continue;
             };
             let Some(checked) =
@@ -1102,12 +1129,14 @@ fn prove_multiply_affine_operand_endpoints(
 fn targeted_multiply_operand_witness(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     root: &ScalarTerm,
     target: &ScalarTerm,
 ) -> Option<IntegerAffineWitness> {
     fn visit(
         context: &PropositionContext,
         semantic_axioms: &[Proposition],
+        definitions: &DefinitionIndex,
         root: &ScalarTerm,
         target: &ScalarTerm,
         current: &ScalarTerm,
@@ -1133,7 +1162,11 @@ fn targeted_multiply_operand_witness(
         if reverse_definitions.len() == MAX_TARGETED_OPERAND_WITNESS_DEFINITIONS {
             return None;
         }
-        for index in (0..before).rev() {
+        for &index in definitions
+            .output_definitions_before(current, before)
+            .iter()
+            .rev()
+        {
             let Proposition::Equal(equal_left, equal_right) = &semantic_axioms[index] else {
                 continue;
             };
@@ -1142,9 +1175,13 @@ fn targeted_multiply_operand_witness(
                     continue;
                 }
                 for (predecessor, sibling) in targeted_affine_predecessors(expression) {
-                    let Some(literal_axiom) =
-                        targeted_literal_axiom(context, semantic_axioms, index, sibling)
-                    else {
+                    let Some(literal_axiom) = targeted_literal_axiom(
+                        context,
+                        semantic_axioms,
+                        definitions,
+                        index,
+                        sibling,
+                    ) else {
                         continue;
                     };
                     reverse_definitions.push(index);
@@ -1152,6 +1189,7 @@ fn targeted_multiply_operand_witness(
                     if let Some(witness) = visit(
                         context,
                         semantic_axioms,
+                        definitions,
                         root,
                         target,
                         predecessor,
@@ -1172,6 +1210,7 @@ fn targeted_multiply_operand_witness(
     visit(
         context,
         semantic_axioms,
+        definitions,
         root,
         target,
         target,
@@ -1287,11 +1326,13 @@ fn prove_targeted_remainder_prefix_endpoint(
 fn targeted_multiply_operand_prefix_witnesses(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     target: &ScalarTerm,
 ) -> Vec<IntegerAffineWitness> {
     fn visit(
         context: &PropositionContext,
         semantic_axioms: &[Proposition],
+        definitions: &DefinitionIndex,
         target: &ScalarTerm,
         current: &ScalarTerm,
         before: usize,
@@ -1302,7 +1343,11 @@ fn targeted_multiply_operand_prefix_witnesses(
         if reverse_definitions.len() == 5 {
             return false;
         }
-        for index in (0..before).rev() {
+        for &index in definitions
+            .output_definitions_before(current, before)
+            .iter()
+            .rev()
+        {
             let Proposition::Equal(equal_left, equal_right) = &semantic_axioms[index] else {
                 continue;
             };
@@ -1311,9 +1356,13 @@ fn targeted_multiply_operand_prefix_witnesses(
                     continue;
                 }
                 for (predecessor, sibling) in targeted_affine_predecessors(expression) {
-                    let Some(literal_axiom) =
-                        targeted_literal_axiom(context, semantic_axioms, index, sibling)
-                    else {
+                    let Some(literal_axiom) = targeted_literal_axiom(
+                        context,
+                        semantic_axioms,
+                        definitions,
+                        index,
+                        sibling,
+                    ) else {
                         continue;
                     };
                     reverse_definitions.push(index);
@@ -1346,6 +1395,7 @@ fn targeted_multiply_operand_prefix_witnesses(
                         if visit(
                             context,
                             semantic_axioms,
+                            definitions,
                             target,
                             predecessor,
                             index,
@@ -1370,6 +1420,7 @@ fn targeted_multiply_operand_prefix_witnesses(
     let _ = visit(
         context,
         semantic_axioms,
+        definitions,
         target,
         target,
         semantic_axioms.len(),
@@ -1523,6 +1574,7 @@ fn targeted_affine_predecessors(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &S
 fn targeted_literal_axiom(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     definition_index: usize,
     sibling: &ScalarTerm,
 ) -> Option<Option<usize>> {
@@ -1530,11 +1582,12 @@ fn targeted_literal_axiom(
         return Some(None);
     }
     matches!(sibling, ScalarTerm::Value { .. }).then_some(())?;
-    semantic_axioms[..definition_index]
+    definitions
+        .output_definitions_before(sibling, definition_index)
         .iter()
-        .enumerate()
         .rev()
-        .find_map(|(index, proposition)| {
+        .find_map(|&index| {
+            let proposition = &semantic_axioms[index];
             context.validate(proposition).ok()?;
             let Proposition::Equal(left, right) = proposition else {
                 return None;
