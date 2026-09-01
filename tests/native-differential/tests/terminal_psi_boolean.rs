@@ -96,6 +96,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -265,6 +266,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -462,6 +464,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -657,6 +660,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -817,6 +821,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -984,6 +989,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -1151,6 +1157,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -1321,6 +1328,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -1476,6 +1484,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -1618,6 +1627,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,

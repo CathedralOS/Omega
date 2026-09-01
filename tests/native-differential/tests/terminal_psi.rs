@@ -116,6 +116,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     };
@@ -409,6 +410,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     };
@@ -520,6 +522,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     };
