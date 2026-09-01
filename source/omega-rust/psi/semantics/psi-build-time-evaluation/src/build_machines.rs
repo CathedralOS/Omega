@@ -182,6 +182,7 @@ pub fn evaluate_build_machine_entry_arguments_measured(
             psi_checked_interpreter::InterpretOptions {
                 filesystem,
                 filesystem_metadata_layout,
+                ..Default::default()
             },
         )
         .map_err(BuildMachineEvaluationError::Granted),
@@ -217,6 +218,7 @@ pub fn evaluate_build_machine_entry_arguments_measured_with_sponsor(
             psi_checked_interpreter::InterpretOptions {
                 filesystem,
                 filesystem_metadata_layout,
+                ..Default::default()
             },
             sponsor,
         )
@@ -251,6 +253,7 @@ pub fn evaluate_build_machine_arguments_measured(
             psi_checked_interpreter::InterpretOptions {
                 filesystem,
                 filesystem_metadata_layout,
+                ..Default::default()
             },
         )
         .map_err(BuildMachineEvaluationError::Granted),
@@ -287,6 +290,7 @@ pub fn evaluate_build_machine_arguments_measured_with_sponsor(
             psi_checked_interpreter::InterpretOptions {
                 filesystem,
                 filesystem_metadata_layout,
+                ..Default::default()
             },
             sponsor,
         )

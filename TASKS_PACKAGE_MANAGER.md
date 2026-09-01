@@ -387,15 +387,11 @@ explicitly.
 
   - migrate package-aware product, parser, sample, and fixture consumers to
     explicit std dependency edges;
-  - replace UEFI physical-entry recognition, checked-interpreter
-    FilesystemHost dispatch, and standalone std/alloc source classification
-    with consumer-approved exact nominal/schema bindings where recognition is
-    actually required;
+  - replace UEFI physical-entry recognition and standalone std/alloc source
+    classification with consumer-approved exact nominal/schema bindings where
+    recognition is actually required;
   - feed accepted Filesystem and UEFI bindings through lock replay into normal
-    package-aware compilation; and
-  - replace Windows `find_first`/`find_next`/`find_close`'s unrooted,
-    working-directory-dependent pattern with the root-aware Build facet before
-    admission.
+    package-aware compilation.
 
   Do not substitute a package name, alias, repository, path, filename, or bare
   `PackageKeyIdentity` for an exact accepted binding. Do not expand Build facets

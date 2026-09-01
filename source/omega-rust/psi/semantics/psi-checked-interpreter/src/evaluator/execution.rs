@@ -19,6 +19,7 @@ impl<'program> Evaluator<'program> {
             virtual_next_fd: 3,
             virtual_dirs: std::collections::BTreeSet::new(),
             filesystem_metadata_layout: FilesystemMetadataLayout::default(),
+            filesystem_service_symbol: None,
             virtual_finds: BTreeMap::new(),
             virtual_next_find: 1,
             virtual_perms: BTreeMap::new(),

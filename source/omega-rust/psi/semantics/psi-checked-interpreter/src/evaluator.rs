@@ -621,6 +621,12 @@ fn run_granted_build_machine_arguments_with_optional_sponsor(
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
+                if options.filesystem_service_binding.is_some() {
+                    return Err(BuildMachineEvaluationFailure::without_evidence(
+                        BuildMachineEvaluationFailureKind::Unsupported,
+                        "a checked-program filesystem service binding cannot enter typed build evaluation".to_owned(),
+                    ));
+                }
                 let replaying = matches!(
                     &options.filesystem,
                     FilesystemAccess::ReplayFilesystem(_)
@@ -804,6 +810,20 @@ fn run_on_current_thread(
         );
     }
     evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
+    evaluator.filesystem_service_symbol = match options.filesystem_service_binding {
+        Some(binding) => match binding.declaration_symbol_for(checked) {
+            Ok(symbol) => Some(symbol),
+            Err(message) => {
+                return InterpretOutcome::error(
+                    message,
+                    evaluator.stdout,
+                    evaluator.stderr,
+                    evaluator.usage,
+                );
+            }
+        },
+        None => None,
+    };
     match options.filesystem {
         FilesystemAccess::Virtual => {}
         FilesystemAccess::RealUnscoped => {
@@ -1171,6 +1191,9 @@ struct Evaluator<'program> {
     /// Omega supplies this closed descriptor; Psi never receives target names
     /// or programmable-layout source.
     filesystem_metadata_layout: FilesystemMetadataLayout,
+    /// Exact package-owned boundary selected by Omega consumer policy. `None`
+    /// retains standalone bundled-std compatibility only.
+    filesystem_service_symbol: Option<SymbolHandle>,
     /// Open find-enumeration cursors (`find_first`/`find_next`/`find_close`,
     /// the windows dir-walk seam ops, fs rung 3a): handle -> the REMAINING
     /// entries (name bytes, is_dir), snapshotted at `find_first` exactly like

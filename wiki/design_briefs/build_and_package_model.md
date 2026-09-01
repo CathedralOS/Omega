@@ -1866,11 +1866,14 @@ handle custody, Windows error-state custody, or an operating-system security
 claim.
 
 The Windows `find_first`/`find_next`/`find_close` family remains outside this
-receipt. Its existing plain-byte `directory/*` input embeds a physical Source
-root, which is neither relocation-stable identity nor safe to ignore during
-prepared-input matching. Its receipted form is ordered after the compiler-owned
-root-aware Build path facet and must bind a Source root plus relative pattern
-coordinate.
+receipt and is unsupported in rooted package builds. Its existing plain-byte
+`directory/*` input embeds a physical Source root, which is neither
+relocation-stable identity nor safe to ignore during prepared-input matching.
+No authored package build requires directory-cursor semantics, while ordinary
+runtime std use remains a runtime boundary concern. Omega therefore adds no
+hypothetical Build facet for this family. A future concrete package-build
+consumer may propose the smallest rooted operation it needs; it does not
+inherit this runtime-shaped trio by default.
 
 Byte-valued inputs are evaluated once by the shared preparer and reject above
 the evaluator's current 16 MiB sponsor ceiling before provider cloning/
@@ -3954,8 +3957,8 @@ binds the exact `PackageKeyIdentity`, canonical nominal declaration path,
 collision-resistant normalized `ServiceSchema` digest, and collision-resistant
 complete selected `ProviderPlan` digest. Compilation first requires the package
 to be in the reconciled closure, then independently rejoins the selected exact
-symbols, package owners, schema, and complete plan. A supplied row must settle exactly once;
-foreign, stale, ambiguous, and unused authority rejects. Downstream review
+symbols, package owners, schema, and complete plan. A supplied row must settle
+exactly once; foreign, stale, ambiguous, and unmatched authority rejects. Downstream review
 rederives against the compiler-resolved declaration symbol rather than
 searching by path, and only that exact symbol receives the existing Process
 dangerous-authority classification on every target. Physical lowering remains
@@ -3970,7 +3973,14 @@ candidate review currently nominates package-owned reached declarations named
 `FilesystemHost` for this role, but that readable name grants nothing. The
 bound compiler replay must consume exactly one declaration matching all
 accepted coordinates before review classifies that exact resolved symbol as
-Filesystem authority. Foreign, stale, ambiguous, and unused bindings reject.
+Filesystem authority. Foreign, stale, ambiguous, and unmatched bindings reject.
+Package-aware checked interpretation receives an opaque routing token for that
+same compiler-resolved declaration symbol. Readable service or operation names
+cannot select filesystem dispatch, and the token rejects if substituted into a
+different checked-program instance. The token grants no filesystem access and
+proves no admission; interpreter options still supply provider authority
+separately. Standalone interpretation retains only the exact bundled
+`filesystem_host.omg` source fallback.
 The deliberately non-std `host-services` fixture exercises both Console and
 Filesystem roles so package, repository, alias, and bundled-library identity
 cannot accidentally become the authority test.
@@ -3992,10 +4002,9 @@ non-core `omega::language::*` path with ordinary-dependency guidance, admits
 only the exact bundled core directory into its toolchain source frontier, and
 classifies ordinary std sources as package-owned. Standalone compilation keeps
 a compatibility route over the bundled library root while remaining consumers
-migrate. Remaining target/provider bindings, checked-interpreter dispatch,
-standalone source classification, and macOS GUI injection remain explicit
-seams to remove. Only `omega::language::core` has a magic mount in package-aware
-compilation.
+migrate. Remaining target/provider bindings, standalone source classification,
+and macOS GUI injection remain explicit seams to remove. Only
+`omega::language::core` has a magic mount in package-aware compilation.
 
 Making std ordinary also makes core's package boundary concrete. Source-facing
 float namespaces, formats, meanings, semantic operators, and boundary
