@@ -277,6 +277,15 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "dead scalar elimination producer tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/dead_scalar_elimination/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/dead_scalar_elimination/contract_custody.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/dead_scalar_elimination/literal.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/dead_scalar_elimination/unconditionally_total.rs",
+        ],
+    },
+    SemanticLadder {
         family: "proof-check identity rules",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/proof_check_elision/mod.rs",

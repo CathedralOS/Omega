@@ -180,11 +180,8 @@ pub(super) fn validate_dead_scalar_node_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(if obligation.is_some() {
-            b"omega.validator.dead-unused-proof-certified-scalar-node.v1"
-        } else {
-            b"omega.validator.dead-unused-total-scalar-node.v1"
-        }),
+        validator: super::rule_catalog::validator_identity(candidate.rule())
+            .expect("the entrance rejects unknown dead-scalar rules"),
         provenance: accepted_provenance,
     })
 }

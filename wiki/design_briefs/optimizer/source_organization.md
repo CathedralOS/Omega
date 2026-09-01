@@ -231,6 +231,19 @@ identity, then publishes the matching validator identity. Its 26-law positive
 matrix and seven-family corruption matrix prevent a semantically valid patch
 from being relabelled across same-shaped contracts.
 
+Dead-scalar tests enter through
+`tests/dead_scalar_elimination/mod.rs` and descend immediately to literal,
+unconditionally-total, and exact contract-custody leaves. The custody matrix
+spans the two-rule dead-pure-scalar roster and the proof-check roster's
+proof-certified dead-node row because the independent dead-node validator is
+shared by those three exact semantic families. It binds each rule to complete
+required and invalidated analysis sets, safety, `-1` cost, and a distinct
+validator identity, then rejects every directed cross-rule relabelling and
+each contract-axis corruption. A pass-manager matrix separately proves that
+both opt-in suites are disabled by default, deterministic under repeated
+execution and budget exhaustion, custody-preserving in their manifests and
+ledgers, and idempotent at the resulting fixed point.
+
 SCCP range comparisons follow the same descent. The pass entrance retains the
 sole 39-row local order, while `range_comparisons/` first separates
 range-against-constant from range-against-range evidence. Each of the nine
