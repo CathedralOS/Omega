@@ -99,11 +99,7 @@ pub(crate) fn report_local_receiver_value_call(
     // source place. Invalid, missing, or ambiguous conformance selection is
     // rejected independently by `collect_dynamic_conformance_selections`.
     if type_reference_contains_dynamic_trait(program, local.type_reference)
-        && matches!(
-            program.expression_table.expression(local.initial_value),
-            ExpressionNode::Cast(cast)
-                if type_reference_contains_dynamic_trait(program, cast.target_type)
-        )
+        && crate::traits::normalized_dynamic_coercion(program, local.initial_value).is_some()
     {
         return;
     }

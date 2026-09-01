@@ -1,0 +1,156 @@
+use psi_source_files_to_tokens::Lexer;
+use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_typed_trees::TypedTrees;
+use psi_typed_trees::expression::ExpressionNode;
+use psi_typed_trees::statement::StatementNode;
+use psi_validation::{collect_dynamic_conformance_selections, validate_program};
+
+fn typed(source: &str) -> Result<TypedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax)?;
+    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
+}
+
+fn validate(source: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    validate_program(&typed(source)?)
+}
+
+#[test]
+fn admits_borrow_wrapped_exact_dynamic_coercion_receiver() {
+    let program = typed(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 {
+                transition {
+                    _ -> self.value
+                }
+            }
+        }
+
+        data Reader {
+            item: Item;
+        }
+
+        machine Reader::read(&self) -> i32 {
+            let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+            let result: i32 = erased.code();
+            result
+        }
+        "#,
+    )
+    .expect("dynamic coercion source should type-check");
+
+    let initializer = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .flat_map(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+        })
+        .find_map(|statement| {
+            let StatementNode::LocalData(local) = statement else {
+                return None;
+            };
+            (local.name.as_str() == "erased").then_some(local.initial_value)
+        })
+        .expect("fixture should contain the erased local");
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initializer) else {
+        panic!("the typed initializer must retain its outer Borrow");
+    };
+    assert!(matches!(
+        program.expression_table.expression(borrow.target),
+        ExpressionNode::Cast(_)
+    ));
+
+    validate_program(&program)
+        .expect("a Borrow(Cast(..)) exact dynamic coercion is not an ordinary LET receiver");
+}
+
+#[test]
+fn rejects_ordinary_let_bound_receiver() {
+    let diagnostics = validate(
+        r#"
+        data Pair [copy] {
+            left: u64;
+            right: u64;
+        }
+
+        machine Pair::total(&self) -> u64 {
+            self.left + self.right
+        }
+
+        data Reader {}
+
+        machine Reader::read(&self) -> u64 {
+            let pair: Pair = Pair { left: 40, right: 2 };
+            let result: u64 = pair.total();
+            result
+        }
+        "#,
+    )
+    .expect_err("an ordinary LET-bound receiver must remain fail-closed");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("uses a LET-bound") && diagnostic.message.contains("pair.total")
+    }));
+}
+
+#[test]
+fn records_initializer_and_reassignment_selections_in_statement_order() {
+    let program = typed(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 {
+                transition {
+                    _ -> self.value
+                }
+            }
+        }
+
+        data Reader {
+            first: Item;
+            second: Item;
+        }
+
+        machine Reader::read(&self) -> i32 {
+            let mut erased: &dyn Shape = &self.first as &dyn Item::Primary;
+            erased = &self.second as &dyn Item::Primary;
+            let result: i32 = erased.code();
+            result
+        }
+        "#,
+    )
+    .expect("dynamic selection source should type-check");
+
+    let selections = collect_dynamic_conformance_selections(&program)
+        .expect("initializer and reassignment should both select the exact conformance");
+
+    assert_eq!(selections.len(), 2);
+    assert_eq!(selections[0].source_name.as_str(), "first");
+    assert_eq!(selections[1].source_name.as_str(), "second");
+    assert!(selections[0].statement_index < selections[1].statement_index);
+    assert_eq!(selections[0].binding, selections[1].binding);
+    assert_eq!(selections[0].conformance, selections[1].conformance);
+}
