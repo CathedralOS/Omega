@@ -4,10 +4,12 @@ use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
 use super::super::super::super::model::{
-    ExactIntegerAddParametersSource, IntegerArithmeticParametersSource,
+    ExactIntegerAddParametersSource, ExactIntegerSubtractParametersSource,
+    IntegerArithmeticParametersSource,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
@@ -27,6 +29,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_add(
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::exact_add::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_subtract(
+    function: &AbstractFunction,
+) -> Result<
+    ExactIntegerSubtractParametersSource,
+    StraightLineExactIntegerSubtractParametersTranslationError,
+> {
+    let Some(AbstractOperation::ExactIntegerSubtract { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineExactIntegerSubtractParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::exact_subtract::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(

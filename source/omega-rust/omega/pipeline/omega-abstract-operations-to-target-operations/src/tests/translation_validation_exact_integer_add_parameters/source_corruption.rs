@@ -71,6 +71,10 @@ fn exact_integer_add_source_identity_type_and_obligation_corruption_fails_closed
         leaf_error(|function| set_integer_type(function, integer_type(IntegerSign::Signed, 24))),
         StraightLineExactIntegerAddParametersTranslationError::SourceParameterShape
     );
+    assert_eq!(
+        leaf_error(|function| set_integer_type(function, IntegerType::address(64).unwrap())),
+        StraightLineExactIntegerAddParametersTranslationError::SourceOperandTypeMismatch
+    );
 }
 
 #[test]

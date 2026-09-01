@@ -1,5 +1,4 @@
 //! Optimizer module role: executable entrance. Ordered inventory and exact-zero-or-one classification of replay families.
-//!
 //! Adding or disabling a family happens only in `ENABLED_TRANSLATION_FAMILIES`.
 //! Every row visibly joins one source classifier to one typed replay adapter.
 
@@ -33,6 +32,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::parameter::bitwise::INTEGER_OR,
     dispatch::parameter::bitwise::INTEGER_XOR,
     dispatch::parameter::arithmetic::EXACT_INTEGER_ADD,
+    dispatch::parameter::arithmetic::EXACT_INTEGER_SUBTRACT,
     dispatch::parameter::arithmetic::SATURATING_INTEGER_ADD,
     dispatch::parameter::arithmetic::WRAPPING_INTEGER_ADD,
     dispatch::parameter::arithmetic::SATURATING_INTEGER_SUBTRACT,

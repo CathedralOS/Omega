@@ -1,7 +1,7 @@
 //! Exact `[ExactIntegerAdd(parameter, parameter), Return]` source replay.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
-use psi_core::ScalarType;
+use psi_core::{IntegerCarrier, ScalarType};
 
 use super::super::super::super::model::{
     ExactIntegerAddParametersSource, IntegerArithmeticParametersSource, ParameterResultKind,
@@ -70,7 +70,10 @@ pub(super) fn reconstruct(
         .ok_or(StraightLineExactIntegerAddParametersTranslationError::SourceLeftOperandLink)?;
     let (right_parameter_index, right_type) = super::super::parameter(envelope, *right)
         .ok_or(StraightLineExactIntegerAddParametersTranslationError::SourceRightOperandLink)?;
-    if left_type != *scalar_type || right_type != *scalar_type {
+    if scalar_type.carrier() != IntegerCarrier::Fixed
+        || left_type != *scalar_type
+        || right_type != *scalar_type
+    {
         return Err(
             StraightLineExactIntegerAddParametersTranslationError::SourceOperandTypeMismatch,
         );

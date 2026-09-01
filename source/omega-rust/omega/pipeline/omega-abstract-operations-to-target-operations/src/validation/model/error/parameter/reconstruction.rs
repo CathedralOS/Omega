@@ -4,6 +4,7 @@ use super::{
     StraightLineBooleanEqualParametersTranslationError,
     StraightLineBooleanNotParameterTranslationError, StraightLineBooleanParameterTranslationError,
     StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
     StraightLineIntegerBitwiseOrParametersTranslationError,
@@ -101,6 +102,7 @@ map_parameter_reconstruction_error!(StraightLineIntegerBitwiseAndParametersTrans
 map_parameter_reconstruction_error!(StraightLineIntegerBitwiseOrParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineIntegerBitwiseXorParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineExactIntegerAddParametersTranslationError);
+map_parameter_reconstruction_error!(StraightLineExactIntegerSubtractParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineSaturatingIntegerAddParametersTranslationError);
 map_parameter_reconstruction_error!(
     StraightLineSaturatingIntegerMultiplyParametersTranslationError

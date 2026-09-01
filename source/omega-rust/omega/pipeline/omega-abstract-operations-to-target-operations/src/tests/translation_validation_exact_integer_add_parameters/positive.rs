@@ -4,10 +4,10 @@ use crate::{
     lower_to_target_operations, validate_abstract_to_target_translation,
 };
 use omega_target::NativeTarget;
-use psi_core::{EdgeId, IntegerSign, IntegerType, ObligationId, OperationId, ScalarType, ValueId};
+use psi_core::{EdgeId, IntegerSign, ObligationId, OperationId, ScalarType, ValueId};
 
 #[test]
-fn validates_all_exact_integer_add_types_and_operand_placements_on_every_target() {
+fn validates_all_fixed_exact_integer_add_types_and_operand_placements_on_every_target() {
     let targets = [
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
@@ -18,7 +18,6 @@ fn validates_all_exact_integer_add_types_and_operand_placements_on_every_target(
     let integers = [IntegerSign::Signed, IntegerSign::Unsigned]
         .into_iter()
         .flat_map(|sign| [8, 16, 32, 64].map(|bits| integer_type(sign, bits)))
-        .chain([IntegerType::address(64).unwrap()])
         .collect::<Vec<_>>();
     let operand_pairs = [
         (0, 1), // register/register
