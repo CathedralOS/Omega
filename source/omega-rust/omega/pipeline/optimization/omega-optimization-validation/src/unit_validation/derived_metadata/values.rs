@@ -19,6 +19,12 @@ pub(crate) fn expected_definitions(
             scalar_type,
             ..
         } => Some((*result, *scalar_type)),
+        O::IeeeFloatConstant { result, value, .. } => {
+            Some((*result, ScalarType::IeeeFloat(value.format())))
+        }
+        O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
+            Some((*result, ScalarType::IeeeFloat(*format)))
+        }
         O::CallStructuralScalar { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: Some(result),

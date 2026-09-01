@@ -2,4 +2,5 @@
 
 mod aarch64_cbnz_zero_span;
 mod function_order;
+mod manifest_mutation_matrix;
 mod x86_rel8_replay_and_corruption;

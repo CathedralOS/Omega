@@ -51,6 +51,7 @@ pub use roster::{
 };
 pub use terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
+    StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt,
     StraightLineIntegerLiteralUnitReturnTranslationReceipt,
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
     StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,

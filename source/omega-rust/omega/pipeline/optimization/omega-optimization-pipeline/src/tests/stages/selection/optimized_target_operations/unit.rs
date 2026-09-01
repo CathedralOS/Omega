@@ -63,6 +63,56 @@ fn optimized_target_lowering_retains_byte_sequence_literal_custody() {
 }
 
 #[test]
+fn optimized_target_lowering_retains_exact_ieee_literal_custody() {
+    let expected_value = psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc);
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = ieee_float_literal_unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let receipt = target.translation_validation();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIeeeFloatLiteralUnitReturn(row),
+        ) = receipt.function_roster()[0].translation()
+        else {
+            panic!("optimized IEEE literal must retain its validated Unit family row")
+        };
+        assert_eq!(row.literal_operation(), OperationId::new(3_518).unwrap());
+        assert_eq!(row.literal_result(), ValueId::new(3_519).unwrap());
+        assert_eq!(row.value(), expected_value);
+        let TargetOperation::UnitBody(body) = &target.target_operations().functions[0].operation
+        else {
+            panic!("optimized IEEE literal must remain in the Unit body carrier")
+        };
+        assert!(matches!(
+            body.operations.as_slice(),
+            [
+                TargetUnitOperation::IeeeFloatConstant {
+                    psi_operation,
+                    result,
+                    value,
+                },
+                TargetUnitOperation::Return { cleanup_actions, .. },
+            ] if *psi_operation == OperationId::new(3_518).unwrap()
+                && *result == ValueId::new(3_519).unwrap()
+                && *value == expected_value
+                && cleanup_actions.is_empty()
+        ));
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_trivial_affine_local_cleanup_custody() {
     for target_profile in [
         NativeTarget::linux_x64(),

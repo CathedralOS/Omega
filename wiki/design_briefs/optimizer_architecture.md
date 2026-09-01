@@ -238,7 +238,15 @@ direct production and independently keyed replay, then publishes one canonical
 store/reload/rewrite event schedule relative to an abstract spill-area origin.
 Closed endpoint conflicts, both source identities, environment/availability,
 optimization-unit/fuel roots, and exact work usage are retained. It grants no
-additional physical or semantic authority; both-reload reanalysis remains next.
+additional physical or semantic authority. The adjacent
+`generalized_reload_value_homes` entrance then independently replays both
+generalized actions. It retains the successful epoch-zero home and the exact
+epoch-one pressure outcome together, including the complete candidate domain
+and blocker roster, rather than discarding partial evidence or inventing a
+view. Producer and replay use separate sorted-schedule and point-indexed
+mechanics. The result still grants no selected VReg, instruction, memory,
+frame, trap, unwind, encoding, emission, or publication authority; the retained
+pressure is the sole input to a later bounded recovery epoch.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

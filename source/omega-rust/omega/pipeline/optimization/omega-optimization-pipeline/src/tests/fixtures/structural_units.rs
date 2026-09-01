@@ -151,6 +151,22 @@ pub(crate) fn byte_sequence_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>)
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn ieee_float_literal_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(3_518).unwrap(),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(3_519).unwrap(),
+            scalar_type: ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64),
+        }),
+        kind: OperationKind::IeeeFloatConstant {
+            value: psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+        },
+    });
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     let (semantic, proof) = unit_return_artifact();
     let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();

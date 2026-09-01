@@ -15,11 +15,12 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-nine families reconstruct parameterless straight-line
+replay. Its first forty-two families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
-by Unit return and its discard cleanup, integer and Boolean
-literal returns, scalar `Crash`, direct integer
+by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
+IEEE literal establishment followed by Unit return, integer and Boolean literal
+returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
 ordering of two same-type integer parameters, plus integer bitwise-not and
@@ -62,6 +63,15 @@ return. Its independent replay reconstructs the establishment, local/type
 identity, native Unit call plan, return edge, cleanup, and provenance on every
 native target; its two-operation roster keeps it disjoint from the other Unit
 families.
+The three literal-plus-Unit siblings retain their distinct source and target
+operation grammars. Byte-sequence establishment binds the borrowed-view place,
+structural type, and exact bytes. Integer establishment binds the scalar type
+and admitted mathematical value. IEEE establishment binds raw Binary32 or
+Binary64 bits directly, including signed zero and NaN payloads, without a host
+float conversion. All three independently replay their identities,
+provenance, empty native Unit call plan, return edge, cleanup, and global
+structural roster across every native target; deleting an unused literal sends
+the transformed plan through the separate return-only family.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -428,8 +438,18 @@ reload it precedes. The current fixture's `[9,12]` and `[12,14]` closed
 lifetimes conflict at point 12, so they occupy offsets 0 and 8 in a 16-byte
 abstract spill area. This remains target-neutral scheduling: it grants no real
 register, instruction, memory, frame, trap, unwind, encoding, emission, or
-publication authority. Reanalysis of both synthetic reloads is the next
-boundary.
+publication authority. Generalized reload-home reanalysis is the adjacent
+65-line join. Its producer walks a sorted allocation schedule while independent
+replay reconstructs a point-indexed event timeline. The carrier retains one
+canonical outcome per generalized action, stopping after the first pressure
+because later homes depend on resolving it. In the public two-view fixture,
+epoch zero receives a home for `[12,17)`, then epoch one retains exact pressure
+at point 14 for `[14,15)`, its complete two-view domain, and both blocking
+homes: the epoch-zero reload and original `v5`. The artifact binds every source
+root and exact work usage `{3, 4, 18, 1, 3}` but creates no selected VReg,
+instruction, memory, frame, trap, unwind, encoding, emission, or publication
+authority. Turning that retained pressure into the next bounded recovery item
+is the next allocation boundary.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

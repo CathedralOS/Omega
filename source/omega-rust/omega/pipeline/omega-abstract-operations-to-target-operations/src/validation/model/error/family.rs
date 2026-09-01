@@ -22,6 +22,7 @@ use super::parameter::{
 };
 use super::terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationError,
+    StraightLineIeeeFloatLiteralUnitReturnTranslationError,
     StraightLineIntegerLiteralUnitReturnTranslationError,
     StraightLinePortWriteUnitReturnTranslationError, StraightLineScalarCrashTranslationError,
     StraightLineTrivialAffineLocalUnitReturnTranslationError,
@@ -48,6 +49,7 @@ pub enum AbstractToTargetTranslationFamilyError {
         StraightLineByteSequenceLiteralUnitReturnTranslationError,
     ),
     StraightLineIntegerLiteralUnitReturn(StraightLineIntegerLiteralUnitReturnTranslationError),
+    StraightLineIeeeFloatLiteralUnitReturn(StraightLineIeeeFloatLiteralUnitReturnTranslationError),
     StraightLineTrivialAffineLocalUnitReturn(
         StraightLineTrivialAffineLocalUnitReturnTranslationError,
     ),
