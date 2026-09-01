@@ -331,12 +331,10 @@ pub(super) fn project_callable_conformances(
                     ))]);
                 }
                 if !operator.lifetime_parameters.is_empty()
-                    || !compilation.operator_type_parameters(operator).is_empty()
                     || !machine.lifetime_parameters.is_empty()
-                    || !machine.type_parameters.is_empty()
                 {
                     return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes generic or lifetime-parameterized fixed-token boundary operator `{}::{}` not represented by checked-adapter token dispatch",
+                        "reviewed callable `{}` realizes lifetime-parameterized fixed-token boundary operator `{}::{}` not represented by checked-adapter token dispatch",
                         machine.name, conformance.name, requirement_name
                     ))]);
                 }
