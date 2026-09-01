@@ -9,7 +9,7 @@ mod unary;
 
 pub(crate) use binary::*;
 pub(crate) use boolean::*;
-pub(in crate::rules::passes) use range::*;
+pub(crate) use range::*;
 pub(crate) use unary::*;
 
 pub(crate) fn policy_add_unit(saturating: bool) -> PsiOptimizationUnit {

@@ -484,7 +484,10 @@ decision. Only true language-semantic questions belong in
   sign-extending `MOV r64, imm32` family now independently selects the exact
   i32 round-trip bit domain, validates canonical seven-byte ISA forms and
   exact-view writes, and crosses the same generic direct and active-resident
-  publication routes with corruption coverage.
+  publication routes with corruption coverage. AArch64 MOVN materialization
+  now also composes after active-resident rematerialization on a high-ones
+  exact-add fixture, retaining independently decoded replacement bytes and
+  both phase roots through fragment, object, and callable publication.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
@@ -664,8 +667,9 @@ decision. Only true language-semantic questions belong in
   composition and dispatch both source lineages on its closed typed rule kind;
   the pipeline contains no duplicate exact-name schedule.
 - [x] Admit the first allocation-recovery plus post-allocation-machine pairs:
-  active-resident immediate-U64 multi-use rematerialization followed by x86
-  MOV-r32-imm32 or sign-extending MOV-r64-imm32 selection. One generic
+  active-resident immediate-U64 multi-use rematerialization followed by
+  AArch64 MOVN, x86 MOV-r32-imm32, or x86 sign-extending MOV-r64-imm32
+  selection. One generic
   realization retains both phase roots, exact baseline/final bytes,
   whole-function exit custody, and final fragment/object/callable publication;
   every other recovery-machine pair remains a typed rejection.
@@ -777,8 +781,13 @@ unchecked rewrite or opt into lossy floating-point semantics.
   closed. A twelve-fixture engine matrix pins default-disabled behavior, exact
   roster evaluation counts, repeated-run and budget determinism, exact
   manifest/fact and ledger/commit custody, accepted-proof retention,
-  source-obligation pruning, and fixed-point idempotence for every row. The
-  remaining operational axes and other rule families are not yet complete.
+  source-obligation pruning, and fixed-point idempotence for every row. A
+  three-leaf SCCP engine matrix now gives all 39 exact roster rows isolated
+  fixtures and pins default-disabled behavior, exact roster evaluation counts,
+  repeated-run and iteration-budget determinism, typed fact custody through
+  declarations and manifests, exact validator/commit/ledger joins, and
+  fixed-point idempotence. The remaining operational axes and other rule
+  families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The

@@ -36,7 +36,7 @@ use support::{accepted_obligation_fact, boolean_constant, literal_integer_consta
 use support::node_elision_accounting;
 
 #[cfg(test)]
-use sparse_conditional_constant_propagation::range_comparisons::{
+pub(crate) use sparse_conditional_constant_propagation::range_comparisons::{
     IntegerRangeComparisonKind, IntegerRangePairComparisonKind,
 };
 
