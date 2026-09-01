@@ -34,8 +34,8 @@ pub use optimized_semantic_wrapper_object::*;
 pub use realization::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CallbackCustodyNativeRealizationError,
     CompilerIntrinsicTerminalAuthorityPolicy, NativeBoundaryRealization,
-    NativeCompilerBuiltinSettlement, NativeProviderSettlement, NativeRealizationRequest,
-    RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
+    NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+    NativeRealizationRequest, RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
     TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
     TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
     UnclassifiedTerminalMechanism, current_compiler_intrinsic_terminal_authority_policy,

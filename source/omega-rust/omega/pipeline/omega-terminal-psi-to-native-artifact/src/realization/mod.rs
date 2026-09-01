@@ -16,8 +16,8 @@ pub use callback_custody::{
     realize_native_artifact_with_callback_custody,
 };
 pub use model::{
-    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-    NativeRealizationRequest, SettledNativeArtifact,
+    NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
+    NativeProviderSettlement, NativeRealizationRequest, SettledNativeArtifact,
 };
 pub use program_entry::realize_program_entry_native_artifact;
 pub use terminal_authority_policy::{

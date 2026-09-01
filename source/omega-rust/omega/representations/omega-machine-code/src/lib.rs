@@ -35,6 +35,25 @@ pub struct MachineCodePlan {
     pub functions: Vec<MachineCodeFunction>,
 }
 
+/// One emitted compiler-private function whose Terminal machine identity lives
+/// in a separate artifact namespace from the program plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompilerPrivateMachineCodeFunction {
+    pub identity: omega_function_identity::MachineFunctionIdentity,
+    pub private_symbol: std::sync::Arc<str>,
+    pub source_psi: TerminalPsiIdentity,
+    pub function: MachineCodeFunction,
+}
+
+/// Compatibility wrapper for plans that also own compiler-private functions.
+/// Keeping these rows separate prevents an artifact-local `MachineId` from
+/// impersonating a semantic program function with the same numeric identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineCodePlanWithPrivateFunctions {
+    pub plan: MachineCodePlan,
+    pub private_functions: Vec<CompilerPrivateMachineCodeFunction>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineCodeFunction {
     pub machine: MachineId,
