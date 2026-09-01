@@ -24,6 +24,7 @@ pub use sum_materialization::{
     project_conventional_record_with_depth_ten_nested_sums_materialization_layout,
     project_conventional_record_with_depth_three_nested_sum_materialization_layout,
     project_conventional_record_with_depth_three_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_twelve_nested_sums_materialization_layout,
     project_conventional_record_with_depth_two_nested_sum_materialization_layout,
     project_conventional_record_with_depth_two_nested_sums_materialization_layout,
     project_conventional_record_with_nested_sum_record_materialization_layout,
