@@ -9,13 +9,13 @@ after PCC at a canonical Terminal Psi product, which a later interpreter or
 native lowerer consumes under its own realization authority.
 
 ```text
-Delta-written Epsilon compiler ─▶ epsilon_compiler.tape
+Delta-written Epsilon compiler ─▶ epsilon_compiler_bytecode.tape
 
 Epsilon-written Omega D
-  └─ epsilon_compiler.tape ─────▶ omega₀.tape
+  └─ epsilon_compiler_bytecode.tape ─▶ omega0_compiler_bytecode.tape
 
 Omega-written Omega C
-  └─ omega₀.tape ─────────────▶ omega.tape
+  └─ omega0_compiler_bytecode.tape ─▶ omega_compiler_bytecode.tape
 ```
 
 `omega₀` and `omega` are full Omega compilers represented canonically as Alpha
@@ -101,7 +101,8 @@ to those artifacts. That product target machinery does not require Gamma, Delta,
 or Epsilon to emit native code.
 
 An optional general Alpha AOT realization can accelerate execution of
-`omega₀.tape` or `omega.tape`, but it is checked against Alpha semantics and may
+`omega0_compiler_bytecode.tape` or `omega_compiler_bytecode.tape`, but it is
+checked against Alpha semantics and may
 not specialize recognized compiler functions.
 
 ## Assurance

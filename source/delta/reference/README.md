@@ -12,9 +12,9 @@ completed offline bootstrap.
 | --- | --- | --- |
 | `delta_ref.py` | Independently execute the bounded ADT, match, recursion, arithmetic, and trap surface. | Delete when a stronger checked Delta semantic relation subsumes it. |
 | `delta-fuzz-gen.py` | Deterministically generate terminating discriminator programs for the reference comparison. | Delete with the diamond or when fixed spec-derived cases fully subsume its shapes. |
-| `delta-diamond-py.sh` | Compare the reference and canonical Gamma interpreter over the bounded corpus. | Delete when the compiler's direct checked semantics covers the same observations. |
+| `delta-diamond-py.sh` | Compare the reference and canonical Gamma-written Delta interpreter over the bounded corpus. | Delete when the compiler's direct checked semantics covers the same observations. |
 
 The evaluator has no authority and must not become an external runtime stage of
 the future Delta compiler. While retained, it consumes raw bytes and implements
 the same textual-ASCII envelope, explicit identifier classes, and CR/LF comment
-termination as the Gamma oracle it diagnoses.
+termination as the Gamma-written oracle it diagnoses.

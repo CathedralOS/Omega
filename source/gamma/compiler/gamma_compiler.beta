@@ -1,6 +1,6 @@
 ; gamma_compiler.beta - canonical Beta-written compiler for Gamma.
 ;
-; Normative source (BETA-FLATTENED-CFG-INITIALIZATION):
+; Normative source (GAMMA-FLATTENED-CFG-INITIALIZATION):
 ;   proc IDENT(PARAMS) BLOCK
 ;   BLOCK := '{' ORDINARY* STATE* '}'
 ;   STATE := 'state' IDENT BLOCK

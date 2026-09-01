@@ -13,7 +13,7 @@ or implicit host services.
 
 ## 1. Source and judgments
 
-A Epsilon source closure is presented to the compiler as one finite byte string.
+An Epsilon source closure is presented to the compiler as one finite byte string.
 Package resolution and closure membership happen before Epsilon checking. The
 closure owner records every member by stable source identity, byte length, and
 SHA-256 digest, then packs the members in stable source-identity order. Member
@@ -172,7 +172,7 @@ within nonnegative `i32` range. Binary levels associate left. Postfix and unary
 bind more tightly than every binary level.
 
 Every owner-qualified data machine begins with `&mut self`; a receiverless
-owner-qualified machine is not a Epsilon declaration. An unqualified declaration
+owner-qualified machine is not an Epsilon declaration. An unqualified declaration
 accepts ordinary parameters only, so `&` in its input list is
 `UnexpectedToken` at that byte. Conversely, `)` or an ordinary parameter where
 a qualified declaration requires its receiver is `UnexpectedToken` at that

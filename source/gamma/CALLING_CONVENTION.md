@@ -1,10 +1,11 @@
 # The Alpha calling convention
 
 > The foundation of Gamma-the-language. This is the one thing that turns "an
-> assembler" into "a language you can write a compiler in." The historically
-> Gamma-named Beta assembler does not use it: every value that must survive a
+> assembler" into "a language you can write a compiler in." The Beta assembler
+> itself does not use it: every value that must survive a
 > `call` lives at a *fixed global
-> address* (see the `524288+` block in `assembler.beta`), so there are no locals,
+> address* (see the `524288+` block in
+> [`assembler.beta`](../beta/compiler/assembler.beta)), so there are no locals,
 > no parameters, and **no recursion**. A real procedure needs a per-call *frame*.
 > This document is that frame discipline.
 

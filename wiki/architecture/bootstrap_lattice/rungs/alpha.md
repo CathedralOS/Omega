@@ -70,7 +70,7 @@ accelerate tapes; special higher-level substitutions are not part of Alpha.
 **The two seeds provide a cross-platform conformance check.** They are separate
 realizations (different ISA, OS, and format), so the *same source* through both
 must yield *byte-identical tapes*—verified: the arm64 macOS VM reproduces the
-x64 VM's assembler bytecode from `../beta/compiler/assembler.beta` byte-for-byte
+x64 VM's assembler bytecode from `source/beta/compiler/assembler.beta` byte-for-byte
 (sha256 `15e75e68…`), the assembler self-hosts on macOS, and the example corpus
 (`.beta` and `.gamma`) runs to identical answers on both. This is the
 executable companion to the written Alpha semantics. Agreement is useful

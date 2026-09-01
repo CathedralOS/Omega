@@ -118,13 +118,13 @@ assembly programs and produce no `assemble(P) = T` judgment. Tool-level failure
 carriers and private resource profiles are specified separately; accepting a
 malformed input does not extend this language.
 
-## Canonical Beta-compiler subject
+## Canonical Gamma-compiler encoding subject
 
 The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 104,572 |
+| Source bytes | 104,878 |
 | Instructions | 3,760 |
 | Label definitions | 457 |
 | `db` rows | 12 |

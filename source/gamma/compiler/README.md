@@ -44,7 +44,7 @@ pass-one and pass-two equalities rather than require one compiler-scale
 conversion.
 
 The committed artifact is 27,087 bytes with SHA-256
-`2e41027179e615ba1e532ad5f5d20157d67bf6cec38e2c74f98bf355af9aa06e`.
+`c03ec97d15e1e2b92876d101e54f47efd110cfc5f25fb6e5d8a148798a6704e5`.
 The byte comparison, not the convenient digest, governs repository identity.
 
 ## Compiler boundary outcome
