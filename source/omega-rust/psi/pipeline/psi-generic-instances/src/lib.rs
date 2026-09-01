@@ -3,9 +3,9 @@
 //! downstream semantic and native phase sees one exact closed definition
 //! rather than a generic definition plus ambient instance bindings.
 //!
-//! The executable cohort includes fully substitutable records and pure sums.
-//! Records and pure sums may have multiple distinct closed instances. Sum
-//! constructors selected by an exact destination type, agreeing free-call
+//! The executable cohort includes fully substitutable records, pure sums, and
+//! mixed field/case data. Those shapes may have multiple distinct closed
+//! instances. Sum constructors selected by an exact destination type, agreeing free-call
 //! parameters, or agreeing exact-owner attached-call parameters and destructure
 //! paths selected by an exact local subject are relabeled to that closed
 //! identity; a sole closed instance remains an unambiguous fallback for other
@@ -14,10 +14,11 @@
 //! `Named` carrying only nameable domain constraints (`Box<i32 in Wrapping>`,
 //! `Store<u8 in Utf8>`), or a recursively nonzero literal fixed array of a
 //! sluggable type. The substitution rides the argument's own type reference,
-//! so its exact closed shape follows the field for free. What it skips: mixed
-//! record/case data, other composite ARGUMENTS (`Box<&T>`, a range-bounded
-//! arg), and a field that nests the parameter under a
-//! NON-generic composite (`[T; N]`, `&T`). A field nesting the parameter under
+//! so its exact closed shape follows the field for free. What it skips: other
+//! composite ARGUMENTS (`Box<&T>`, a range-bounded arg), and constrained or
+//! dynamic parameter-bearing composites. References,
+//! slices, and literal/const fixed arrays recursively substitute their element
+//! or referee. A field nesting the parameter under
 //! ANOTHER generic (`Pair<T> { a: Box<T> }`) IS handled (Phase 3): the desugar
 //! runs to a FIXPOINT, synthesizing the concrete `Box<i32>` a `Pair<i32>`
 //! produces. Scans every TYPE-REFERENCE position a generic-data spelling reaches:
@@ -1937,11 +1938,23 @@ fn type_reference_is_substitutable(
     field: &psi_syntax_trees::item::DataField,
     parameters: &HashMap<String, TypeReferenceHandle>,
 ) -> bool {
-    match syntax
-        .tables
-        .type_references
-        .type_reference(field.type_reference)
-    {
+    type_reference_handle_is_substitutable(
+        syntax,
+        generic_data,
+        base_info,
+        field.type_reference,
+        parameters,
+    )
+}
+
+fn type_reference_handle_is_substitutable(
+    syntax: &SyntaxTrees,
+    generic_data: &HashMap<String, GenericData>,
+    base_info: &GenericData,
+    type_reference: TypeReferenceHandle,
+    parameters: &HashMap<String, TypeReferenceHandle>,
+) -> bool {
+    match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Named(_) => true,
         TypeReferenceNode::Generic {
             base_name,
@@ -1965,11 +1978,13 @@ fn type_reference_is_substitutable(
             element_type,
             length,
         } => {
-            let element_is_substitutable =
-                matches!(
-                    syntax.tables.type_references.type_reference(*element_type),
-                    TypeReferenceNode::Named(_)
-                ) || !type_reference_mentions_parameter(syntax, *element_type, parameters);
+            let element_is_substitutable = type_reference_handle_is_substitutable(
+                syntax,
+                generic_data,
+                base_info,
+                *element_type,
+                parameters,
+            );
             let length_is_substitutable = match length {
                 FixedArrayLength::Literal(_) | FixedArrayLength::ConstCall(_) => true,
                 FixedArrayLength::ConstParameter(name) => base_info
@@ -1982,7 +1997,21 @@ fn type_reference_is_substitutable(
             };
             element_is_substitutable && length_is_substitutable
         }
-        _ => !type_reference_mentions_parameter(syntax, field.type_reference, parameters),
+        TypeReferenceNode::Reference { referee, .. } => type_reference_handle_is_substitutable(
+            syntax,
+            generic_data,
+            base_info,
+            *referee,
+            parameters,
+        ),
+        TypeReferenceNode::Slice { element_type } => type_reference_handle_is_substitutable(
+            syntax,
+            generic_data,
+            base_info,
+            *element_type,
+            parameters,
+        ),
+        _ => !type_reference_mentions_parameter(syntax, type_reference, parameters),
     }
 }
 
@@ -2035,19 +2064,27 @@ fn substitute_data_field(
     substitution: &HashMap<String, TypeReferenceHandle>,
     const_values: &HashMap<String, i128>,
 ) -> psi_syntax_trees::item::DataField {
+    field.type_reference =
+        substitute_type_reference(syntax, field.type_reference, substitution, const_values);
+    field
+}
+
+fn substitute_type_reference(
+    syntax: &mut SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    substitution: &HashMap<String, TypeReferenceHandle>,
+    const_values: &HashMap<String, i128>,
+) -> TypeReferenceHandle {
     let node = syntax
         .tables
         .type_references
-        .type_reference(field.type_reference)
+        .type_reference(type_reference)
         .clone();
     match node {
-        TypeReferenceNode::Named(name) => {
-            if let Some(&argument) = substitution.get(name.as_str()) {
-                // The field IS the parameter: point it at the argument's type
-                // reference (already a concrete type in the same table).
-                field.type_reference = argument;
-            }
-        }
+        TypeReferenceNode::Named(name) => substitution
+            .get(name.as_str())
+            .copied()
+            .unwrap_or(type_reference),
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -2099,7 +2136,7 @@ fn substitute_data_field(
                             Err(_) => argument,
                         }
                     }
-                    _ => argument,
+                    _ => substitute_type_reference(syntax, argument, substitution, const_values),
                 };
                 substituted_arguments.push(substituted);
             }
@@ -2107,28 +2144,21 @@ fn substitute_data_field(
                 .tables
                 .type_references
                 .insert_type_reference_handles(substituted_arguments);
-            field.type_reference =
-                syntax
-                    .tables
-                    .type_references
-                    .insert(TypeReferenceNode::Generic {
-                        base_name,
-                        lifetime_arguments,
-                        arguments: new_span,
-                    });
+            syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::Generic {
+                    base_name,
+                    lifetime_arguments,
+                    arguments: new_span,
+                })
         }
         TypeReferenceNode::FixedArray {
             element_type,
             length,
         } => {
             let substituted_element =
-                match syntax.tables.type_references.type_reference(element_type) {
-                    TypeReferenceNode::Named(name) => substitution
-                        .get(name.as_str())
-                        .copied()
-                        .unwrap_or(element_type),
-                    _ => element_type,
-                };
+                substitute_type_reference(syntax, element_type, substitution, const_values);
             let substituted_length = match length {
                 FixedArrayLength::ConstParameter(name) => substitution
                     .get(name.as_str())
@@ -2142,18 +2172,39 @@ fn substitute_data_field(
                     .unwrap_or(FixedArrayLength::ConstParameter(name)),
                 length => length,
             };
-            field.type_reference =
-                syntax
-                    .tables
-                    .type_references
-                    .insert(TypeReferenceNode::FixedArray {
-                        element_type: substituted_element,
-                        length: substituted_length,
-                    });
+            syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type: substituted_element,
+                    length: substituted_length,
+                })
         }
-        _ => {} // parameter-free composite: shared unchanged
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime,
+        } => {
+            let referee = substitute_type_reference(syntax, referee, substitution, const_values);
+            syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::Reference {
+                    referee,
+                    access,
+                    lifetime,
+                })
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            let element_type =
+                substitute_type_reference(syntax, element_type, substitution, const_values);
+            syntax
+                .tables
+                .type_references
+                .insert(TypeReferenceNode::Slice { element_type })
+        }
+        _ => type_reference,
     }
-    field
 }
 
 /// Whether a type reference mentions any of the substituted parameter names

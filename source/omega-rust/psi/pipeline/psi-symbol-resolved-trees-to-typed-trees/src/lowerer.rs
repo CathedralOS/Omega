@@ -343,7 +343,12 @@ fn plain_type_is_supported(
                 )
         }
         TypeReference::Generic(generic) => {
-            seeded_local_instances::template_application_is_supported(
+            seeded_local_instances::instance_application_is_supported(
+                source,
+                local_instances,
+                owner_lifetimes,
+                generic,
+            ) || seeded_local_instances::template_application_is_supported(
                 source,
                 data_frontier,
                 owner,

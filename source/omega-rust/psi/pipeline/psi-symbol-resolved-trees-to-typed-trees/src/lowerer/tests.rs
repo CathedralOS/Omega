@@ -4469,6 +4469,101 @@ fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
 }
 
 #[test]
+fn seeded_lifetime_instance_gate_rejects_binder_and_application_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Borrowed<'scope, T> { value: &'scope T; } data Generated<'scope> { value: Borrowed<'scope, u32>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let instance_index = index("Borrowed<u32>");
+    let wrapper_index = index("Generated");
+    let instance_members = resolved.data_definitions[instance_index].members;
+    let wrapper_members = resolved.data_definitions[wrapper_index].members;
+
+    let mut wrong_instance_binder = resolved.clone();
+    wrong_instance_binder.data_definitions[instance_index].lifetime_parameters[0] =
+        psi_symbol_resolved_trees::name::DiagnosticName::generated("other");
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_instance_binder, frontier),
+        "the instance must retain the template's exact erased lifetime binder"
+    );
+
+    let mut missing_application_lifetime = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(wrapper_field) =
+        &mut missing_application_lifetime
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(wrapper_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut wrapper_field.type_reference
+    else {
+        unreachable!()
+    };
+    application.lifetime_arguments.clear();
+    assert!(
+        !plain_data_extension_shape_is_supported(&missing_application_lifetime, frontier),
+        "the selected local instance requires its complete erased lifetime arity"
+    );
+
+    let mut unknown_application_lifetime = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(wrapper_field) =
+        &mut unknown_application_lifetime
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(wrapper_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut wrapper_field.type_reference
+    else {
+        unreachable!()
+    };
+    application.lifetime_arguments[0] =
+        psi_symbol_resolved_trees::name::DiagnosticName::generated("other");
+    assert!(
+        !plain_data_extension_shape_is_supported(&unknown_application_lifetime, frontier),
+        "a local instance application can name only an owning lifetime binder"
+    );
+
+    let mut wrong_reference_lifetime = resolved;
+    let psi_symbol_resolved_trees::data::DataMember::Field(instance_field) =
+        &mut wrong_reference_lifetime
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Reference(reference) =
+        &mut instance_field.type_reference
+    else {
+        unreachable!()
+    };
+    reference.lifetime = Some(psi_symbol_resolved_trees::name::DiagnosticName::generated(
+        "other",
+    ));
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_reference_lifetime, frontier),
+        "the substituted reference must retain the template lifetime exactly"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -4539,6 +4634,14 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             "nested_generic_sum_instances",
             "data Maybe<T> { case None; case Some(values: [T; 2]); } data Outer<T> { case Empty; case Nested(value: Maybe<T>); } data Generated { value: Outer<u32>; }",
         ),
+        (
+            "reference_and_slice_parameter_shells",
+            "data Shell<T> { shared: &T; values: [T]; nested: &[T; 2]; } data Generated { value: Shell<u32>; }",
+        ),
+        (
+            "lifetime_bearing_reference_instance",
+            "data Borrowed<'scope, T> { value: &'scope T; } data Generated<'scope> { value: Borrowed<'scope, u32>; }",
+        ),
     ] {
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
@@ -4555,10 +4658,6 @@ fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instance
         (
             "cyclic_instances",
             "data Left<T> { right: Right<T>; } data Right<T> { left: Left<T>; } data Generated { value: Left<u32>; }",
-        ),
-        (
-            "lifetime_instance",
-            "data Cell<'scope, T> { value: &'scope T; } data Generated<'scope> { value: Cell<'scope, u32>; }",
         ),
         (
             "const_instance",

@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -265,7 +265,7 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 5, "five deduplicated closed instances");
+    assert_eq!(instances.len(), 6, "six deduplicated closed instances");
     let instance = instances
         .iter()
         .copied()
@@ -303,6 +303,71 @@ machine build(builder: &mut Build) {{
         psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
             if name.as_str() == "u32"
     ));
+    let borrowed_instance = instances
+        .iter()
+        .copied()
+        .find(|definition| definition.name.as_str() == "Borrowed<u32>")
+        .expect("selected Borrowed<u32> instance");
+    assert_eq!(
+        borrowed_instance
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["scope"]
+    );
+    let [psi_typed_trees::data::DataMember::Field(borrowed_value)] =
+        checked.typed.data_members(borrowed_instance)
+    else {
+        panic!("Borrowed<u32> retains its reference field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Reference {
+        referee, lifetime, ..
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(borrowed_value.type_reference)
+    else {
+        panic!("Borrowed<u32>.value remains a reference")
+    };
+    assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("scope"));
+    assert!(matches!(
+        checked.typed.type_reference_table.type_reference(*referee),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "u32"
+    ));
+    let with_borrow = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "WithBorrow")
+        .expect("generated lifetime wrapper");
+    let [psi_typed_trees::data::DataMember::Field(with_borrow_value)] =
+        checked.typed.data_members(with_borrow)
+    else {
+        panic!("WithBorrow retains its one field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(with_borrow_value.type_reference)
+    else {
+        panic!("WithBorrow retains the erased-lifetime instance application")
+    };
+    assert_eq!(*base_symbol, borrowed_instance.symbol);
+    assert_eq!(
+        lifetime_arguments
+            .iter()
+            .map(|argument| argument.as_str())
+            .collect::<Vec<_>>(),
+        ["scope"]
+    );
+    assert!(arguments.is_empty());
     let wrapper = checked
         .typed
         .data_definitions()

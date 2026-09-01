@@ -7,6 +7,37 @@ use psi_symbols::SymbolHandle;
 mod reachability;
 mod substitution;
 
+pub(super) fn instance_application_is_supported(
+    source: &SymbolResolvedTrees,
+    validated_instances: &[SymbolHandle],
+    owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
+    application: &psi_symbol_resolved_trees::types::GenericTypeReference,
+) -> bool {
+    if !validated_instances.contains(&application.base_symbol)
+        || application.base_name.as_str() != source.symbols.name(application.base_symbol)
+        || !source
+            .child_type_references(application.arguments)
+            .is_empty()
+    {
+        return false;
+    }
+    source
+        .data_definitions
+        .iter()
+        .find(|definition| definition.symbol == application.base_symbol)
+        .is_some_and(|definition| {
+            definition.generic_instance.is_some()
+                && exact_top_level_data_symbol(source, definition)
+                && !definition.lifetime_parameters.is_empty()
+                && definition.lifetime_parameters.len() == application.lifetime_arguments.len()
+                && application.lifetime_arguments.iter().all(|argument| {
+                    owner_lifetimes
+                        .iter()
+                        .any(|parameter| parameter.as_str() == argument.as_str())
+                })
+        })
+}
+
 pub(super) fn template_application_is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
@@ -146,8 +177,7 @@ fn validate_instance(
         || origin.base_name.as_str() != template.name.as_str()
         || !origin.lifetime_arguments.is_empty()
         || template.name.source_span().source_id != instance.name.source_span().source_id
-        || !template.lifetime_parameters.is_empty()
-        || !instance.lifetime_parameters.is_empty()
+        || template.lifetime_parameters != instance.lifetime_parameters
         || template.generic_instance.is_some()
         || !instance.type_parameters.is_empty()
         || template.quotient.is_some()
