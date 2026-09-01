@@ -49,6 +49,21 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "SCCP binary integer constant-evaluation rules",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/evaluation.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/proposal.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/witness.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shapes/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shapes/arithmetic.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shapes/quotient.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shapes/shifts.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/binary/shapes/bitwise.rs",
+        ],
+    },
+    SemanticLadder {
         family: "SCCP unary integer constant-evaluation rules",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/sparse_conditional_constant_propagation/constant_evaluation/integer/unary/mod.rs",

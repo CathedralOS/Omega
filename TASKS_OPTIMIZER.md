@@ -186,7 +186,7 @@ decision. Only true language-semantic questions belong in
    Repair the Unit plan lane first, then authored checked selections, then the
    isolated fixtures and docs. Run the full gate again only after that coherent
    repair batch; no result here permits implicit optimizer enablement.
-6. [>] Finish the exact-rule navigation refactor across Psi passes. Copy
+6. [x] Finish the exact-rule navigation refactor across Psi passes. Copy
    propagation and dead-scalar elimination now use exact named leaves, the
    dead-scalar entrance is a 31-line ordered roster, and the guard rejects new
    production `rule.rs`/`rules.rs` catch-alls. Proof-check elision now has a
@@ -217,9 +217,11 @@ decision. Only true language-semantic questions belong in
    bitwise-not now own three more executable entrances: cast retains an
    adjacent proof-evidence join, while the two unary rules share only a closed
    operation model and proposal traversal under a small group map. The guard
-   pins all three entrances and retires the former mixed flat leaves. The
-   remaining 22 binary integer constant-evaluation identities still need the
-   same exact-rule treatment and exact roster-position canaries.
+   pins all three entrances and retires the former mixed flat leaves. All 22
+   binary integer identities now have exact executable entrances over shared
+   closed shape, typed-evaluation, proposal, and witness rungs. A roster canary
+   pins their identities and safety classes at positions 0–18 and 22–24, and
+   the guard retires the former aggregate definition leaves.
 
 ## P0 — Source navigation and taxonomy
 

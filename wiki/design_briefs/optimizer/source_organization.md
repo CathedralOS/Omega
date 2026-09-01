@@ -214,8 +214,14 @@ obligation join beside its proposal traversal. Widen and bitwise-not descend
 through a small `unary/` group map to a closed operation model and shared
 single-operand proposal builder. The guard pins all three proposal joins and
 the supporting ladders, retires the former mixed `cast.rs` and `unary.rs`
-leaves, and continues to forbid inherited parent-glob dependencies. The 22
-binary integer identities remain the next exact-rule split.
+leaves, and continues to forbid inherited parent-glob dependencies. All 22
+binary integer identities likewise own exact executable entrances. Their
+group retains only the closed operation-shape model, typed evaluator,
+constant-fact proposal traversal, and proof/exact witness builder. The sole
+39-row pass roster remains authoritative; a separate canary pins every binary
+identity and safety class to positions 0–18 and 22–24. The guard pins each
+proposal join and retires the former aggregate arithmetic, quotient, shift,
+and bitwise definition leaves.
 
 ## Semantic folder templates
 
