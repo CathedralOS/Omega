@@ -958,11 +958,19 @@ Current ownership is:
   machine retains exact owner-machine and parameter symbols plus its primitive
   format and fallback transitional input. Binding rejoins the symbol to the
   owner's entry-state parameter table and keys deduplication by owner,
-  parameter, and format. Results, nested state-contract parameters, locals,
-  members, casts, const parameters, non-floats, and foreign owners remain
-  transitional. The next lowering intentionally emits the retained fallback
-  rather than exporting source handles. Other source forms remain explicitly
-  transitional pending artifact-relative carriers.
+  parameter, and format. A bare reserved `result` in the owning machine's
+  top-level `ensures` has a separate direct-result carrier keyed by that exact
+  owner and primitive format; a real entry parameter named `result` shadows the
+  pseudo binder. The exit checker retains the validated equality's source
+  expression only long enough to rejoin the current contract occurrence. It
+  admits structural reflexivity only when both checked operands canonicalize to
+  the same proof value and that value is the exiting owner's direct result.
+  This does not make raw IEEE equality reflexive and does not prove a distinct
+  result/parameter pair. Checked-to-Terminal lowering erases the source handle
+  and, when the owner is emitted with an exact scalar result, binds the carrier
+  to source-free `(MachineId, result ValueId, format)` identity. Nested state,
+  call, and operation results, locals, members, casts, const parameters,
+  non-floats, structural leaves, and foreign owners remain transitional.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

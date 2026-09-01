@@ -4,6 +4,43 @@ use psi_diagnostics::Diagnostic;
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::labels::{machine_name, semantic_fact_requirement_label};
 
+fn direct_result_float_meaning_reflexivity_proves_exit(
+    facts: &CheckFacts,
+    machine_symbol: psi_symbols::SymbolHandle,
+    fact: &psi_facts::Fact,
+) -> bool {
+    let psi_facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+        return false;
+    };
+    let mut equalities = facts
+        .proof
+        .float_meaning_equalities
+        .iter()
+        .filter(|equality| equality.source_expression == expression);
+    let Some(equality) = equalities.next() else {
+        return false;
+    };
+    if equalities.next().is_some() || equality.left != equality.right {
+        return false;
+    }
+    let mut projections = facts
+        .proof
+        .float_meaning_projections
+        .iter()
+        .filter(|projection| projection.result.id == equality.left);
+    let Some(projection) = projections.next() else {
+        return false;
+    };
+    if projections.next().is_some() {
+        return false;
+    }
+    matches!(
+        projection.source,
+        psi_checked_trees::CheckedFloatProjectionSource::DirectMachineResult(result)
+            if result.owner_machine == machine_symbol
+    )
+}
+
 pub(super) fn check_exit_ensures(
     program: &psi_typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -73,8 +110,15 @@ pub(super) fn check_exit_ensures(
                 }),
                 _ => false,
             };
-            let satisfied =
-                proved || evidence_assignment || (authorized_route && route_predicates_satisfied);
+            let float_meaning_reflexivity = direct_result_float_meaning_reflexivity_proves_exit(
+                facts,
+                state_flow.machine_symbol,
+                fact,
+            );
+            let satisfied = proved
+                || evidence_assignment
+                || float_meaning_reflexivity
+                || (authorized_route && route_predicates_satisfied);
 
             if !satisfied {
                 diagnostics.push(Diagnostic::error(format!(

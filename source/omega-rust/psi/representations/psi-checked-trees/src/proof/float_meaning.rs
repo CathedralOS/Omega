@@ -117,6 +117,10 @@ pub struct CheckedFloatMeaningEqualityProposition {
     pub id: CheckedProofPropositionId,
     pub left: CheckedProofValueId,
     pub right: CheckedProofValueId,
+    /// Exact typed contract expression that authored this checked equality.
+    /// This coordinate is used only to join exit checking back to the
+    /// validated occurrence and is erased before Terminal Psi.
+    pub source_expression: psi_typed_trees::expression::ExpressionHandle,
 }
 
 impl CheckedFloatMeaningProjection {
