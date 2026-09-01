@@ -37,36 +37,18 @@ stop the item on one precise owner question before adding machinery.
   strings as identity, compiler-private IDs, or compiler-issued admission
   verdicts.
 
-  Remaining projection work includes:
-
-  - finish D29's artifact-qualified symbolic demand/final substitution for
-    separately compiled generic artifacts and unsupported operator categories,
-    then D32's exact optimized-projection-to-physical-child join. Each physical
-    child must bind its exact
-    role-tagged `PhysicalChildParent` and surviving optimized operation
-    occurrence; the complete child set must equal the derived surviving set.
-    D29 parents reference reconstructible operator coverage; D41 parents retain
-    and replay complete boundary-trait settlements. Lifetime, machine, and
-    proposition operator applications remain fail-closed. D28 authorizes no
-    universal generic coverage; only compiler-derived demand joined to an
-    independently checked application-specific realization may authorize a
-    row.
-
-  D29's actual monomorphic compiler-intrinsic role is complete: package review
-  rejoins each package-owned checked use to its strong selected plan, exact
-  requirement row, row-aligned compiler provenance, and independently
-  rederived closed execution identity. It carries no checked-body fields and
-  makes no Terminal/native or generic-coverage claim.
-
-  Selected direct named type/const-generic checked-body call roots now complete
-  the local semantic D29 join, including unit statements normalized to those
-  roots. Omega supplies the selected requirement/provider symbols; Psi derives
-  closed applications from authored operands, preserves the public generic
-  template, clones one private authoritative specialization per distinct
-  application, and package review replays exact application, plan,
-  specialization, and machine-contract custody. Nested calls, lifetime,
-  static-machine, proposition, fixed-token generic, external generic, symbolic
-  cross-artifact, Terminal, and D32 physical realization remain fail-closed.
+  Finish D29's artifact-qualified symbolic demand/final substitution for
+  separately compiled generic artifacts, nested calls, and each supported
+  operator category, then D32's exact optimized-projection-to-physical-child
+  join. Each physical child must bind its exact role-tagged
+  `PhysicalChildParent` and surviving optimized operation occurrence; the
+  complete child set must equal the derived surviving set. D29 parents
+  reference reconstructible operator coverage; D41 parents retain and replay
+  complete boundary-trait settlements. Lifetime, machine, proposition,
+  fixed-token, external-generic, and other unsupported applications remain
+  fail-closed. D28 authorizes no universal generic coverage; only
+  compiler-derived demand joined to an independently checked
+  application-specific realization may authorize a row.
 
   Extend the earliest coherent compiler-owned representation that owns a
   missing fact. Do not reconstruct identity from diagnostics and do not add a
@@ -89,52 +71,14 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  D41's first consuming-lowerer TCB lane is complete for Linux
-  `exit_group(i32)`: the exact Terminal requirement and selected structural
-  proposal rejoin the local target catalog, propagate as the role-tagged
-  `CompilerBuiltin(LinuxExitGroupI32)` physical record, and mint no provider
-  execution or installation receipt. Installed and foreign implementations
-  retain their disjoint admitted execution custody. Extend the closed builtin
-  sum only with another demanded local target mechanism. Convert planner
-  classifications to `CompilerBuiltinExecution` with one exhaustive
-  `match -> Option`.
-
-  D32's first physical child is also complete for this lane on Linux x86-64
-  and AArch64. Eligibility is positive rather than a mechanism denylist: the
-  compiler must retain an exact empty checked D29 boundary-operator demand
-  roster and an unoptimized handoff, and the standalone Terminal companion
-  preserves a non-caller-authored scope receipt bound to the exact Terminal
-  artifact after frontend custody is destroyed.
-  `NativeArtifact` binds this scope and independently derives the identity
-  projection from canonical Terminal semantics, retaining the exact occurrence
-  and complete D41 parent (strong selected-plan digest,
-  requirement, target/catalog, structural execution role, realization, and
-  scalar ABI custody), and binds machine-relative, object, and final-image
-  spans under a direct-no-relocation disposition. Fresh emission derives the
-  evidence; standalone replay rederives it and rejects removal, duplication,
-  stale projection identity, plan substitution, span drift, and padding.
-  A nonempty D29 roster, explicit optimization, port effect, admitted native
-  provider, normalized foreign call, or another executable evidence role
-  retains no D32 evidence rather than publishing partial coverage or rejecting
-  an otherwise valid artifact. The first package-aware consumer is complete:
-  `ProductionCompilationManifest` validates itself and the exact retained
-  `NativeArtifact`, rejoins target and artifact identity, requires physical
-  evidence, and returns the artifact-owned evidence by reference. The report
-  gate rejects standalone or already-published custody; it mints no receipt and
-  does not contaminate ordinary package review. The eventual accepted package
-  assembler consumes this gate under
-  `PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION`. Remaining producer work is the
-  D29 parent, admitted-provider parent, and verified non-identity optimization
-  projection lanes.
-
-  The first standalone-product lane now retains the selected provider-plan
-  facts, external-binding requirements, target/profile, ProgramEntry, and
-  compiler-builtin proposals as one exact companion to the canonical Terminal
-  artifact. Its reload canary destroys frontend custody and realizes Linux ELF
-  using only that retained product plus independently supplied proof admission
-  and optimization inputs. Keep this carrier complete as additional native
-  proposal classes land; do not regress to hidden `CheckedCompilation` state
-  or replace its full structures with compact report fingerprints.
+  Complete the D29 parent, admitted-provider parent, and verified non-identity
+  optimization-projection lanes. Extend `CompilerBuiltinExecution` only for a
+  demanded local target mechanism and keep planner conversion exhaustive.
+  Retain complete standalone-product structures as additional native proposal
+  classes land; do not regress to hidden `CheckedCompilation` state or replace
+  those structures with compact report fingerprints. The accepted package
+  assembler consumes the resulting gate under
+  `PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION`.
 
 - [ ] **REPRESENTATION-TCB-EVIDENCE.** Add D26 consumer demand only for an
   actual runtime by-value use, consuming the exact retained
@@ -172,33 +116,7 @@ after the complete current-version lock payload exists.
 
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
-  certificate required by an ordinary package claim. The first concrete result
-  classes are complete in memory: bodyless accepted claims, dangerous
-  authorities, and opaque external executable supplies rejoin their typed
-  compiler facts and canonical obligation rows, remain explicitly
-  `OpenRootAdmission`, and propagate through the exact
-  dependency closure without producer decisions. Fresh admission rederives
-  that obligation closure and the empty-baseline conflict set together,
-  requires separate bijections from dependency-owned claims, dangerous
-  authorities, and external supplies to their exact added conflicts, and
-  replays a complete candidate-bound root policy before exposing the in-memory
-  acceptance. A rejected, missing, stale, foreign, or row-substituted policy
-  fails; a closure with no blockers gets no synthetic policy record. This still
-  issues no certificate, accepted lock, package instance, or mutation
-  authority. The first consumer-owned promotion gate is now complete for these
-  implemented ordinary lanes: `AcceptedOrdinaryClosureEvidence` revalidates
-  live resolver custody, reruns the complete reconstruction and root-policy
-  replay, and binds each exact resolution, source-consumption commitment,
-  ordinary ledger artifact, local result set, build derivation, and generated-
-  source bundle under accepted-evidence schema v2. It also retains every exact
-  consumer-scoped semantic binding that the compiler resolved and consumed.
-  Review compilation rejects absent consumers and duplicate consumer-role
-  inputs and gives each re-rooted package only its own bindings. Resulting
-  dangerous-authority and provider rows still require fresh root policy; a
-  binding is not an audit receipt or admission by itself. Its types have no
-  public constructor and accept no decoded question, review capsule,
-  fingerprint, or preassembled acceptance as authority. The result remains
-  in-memory and has no codec or mutation route.
+  certificate required by an ordinary package claim.
   Add another result class only with a concrete compiler-owned obligation and
   certificate route or explicit open status. Do not persist this partial lane,
   cite the standalone `psi-proof` ledger as production enforcement, or invent
@@ -215,12 +133,11 @@ after the complete current-version lock payload exists.
   produced artifact, obligation schema and locally reconstructed obligation
   set, certificate bundle, derivation provenance, discharge result, and open
   obligations. Compose dependency results and open obligations transitively;
-  never compose producer admission decisions. The in-memory promotion gate now
-  performs this join for the current explicitly open ordinary obligation lanes.
-  Remaining work is concrete certificate-bearing result classes when the
-  compiler owns them, final-realization artifact joins where required, and the
-  persistable complete evidence form; do not add an empty generic certificate
-  framework in anticipation of those lanes.
+  never compose producer admission decisions. Implement concrete
+  certificate-bearing result classes when the compiler owns them,
+  final-realization artifact joins where required, and the persistable complete
+  evidence form; do not add an empty generic certificate framework in
+  anticipation of those lanes.
 
   Apply **Accepted locks are current-version generated artifacts**. Require
   exact semantic-schema identity; a mismatch receives complete local
@@ -268,14 +185,8 @@ after the complete current-version lock payload exists.
   transaction. Reopen and revalidate the accepted lock, candidate closure,
   policy file, and every decision immediately before mutation. Governance
   metadata may be deployment policy; it must not become proof that an audit
-  occurred. The review-only primitive already emits exact added conflicts for
-  fresh accepted claims, dangerous authority, and external executable supply
-  against an explicit empty admission baseline; it does not synthesize old
-  resolution or evidence. The in-memory fresh-admission gate now requires every
-  blocking row to have an exact accepted root decision and binds open accepted
-  claims, dangerous authorities, and external executable supplies to their own
-  package rows. The remaining work is accepted-lock reopen/revalidation and
-  the atomic install/update transaction, not another review receipt.
+  occurred. Do not add another review receipt in place of accepted-lock
+  reopen/revalidation and the atomic install/update transaction.
 
 - [ ] **AUDIT-RESULT-INTEGRATION.** Carry the existing deterministic states—
   no review blocker, no review blocker with audit recommended, blocked
@@ -325,7 +236,6 @@ compiler, and runtime owners. A task that still needs an owner decision says so
 explicitly.
 
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
-  - [x] carry the same application into general target layout;
   - [ ] complete physical movement/lifecycle planning, including D44's
     transitive inert-carrier proof and multiplicity checks;
   - **IMPLEMENTATION — D26 representation application attribution:** publish
@@ -385,69 +295,30 @@ explicitly.
 
   Remaining work:
 
-  - migrate remaining package-aware fixtures to explicit std dependency edges;
-    the compiler product, parser package, all 140 std-consuming sample
-    packages, all 14 packaged time canaries, all 24 packaged filesystem
-    canaries, eight packaged backend/borrow/constants/error canaries, all 17
-    packaged operator/type canaries, and 12 packaged ownership/reference
-    canaries already
-    declare ordinary `omega-language-std` edges and import through its derived
-    alias; the
-    package-aware sample sweep introduces no failures beyond the seven
-    independently reproduced on the prior standalone baseline, and the time
-    and filesystem cohorts reach checked semantics through package
-    compilation; the filesystem fixture harness admits the exact
-    compiler-derived `FilesystemHostService` binding solely as explicit test
-    policy, without claiming an audit or supplying production lock recovery;
-    the comptime cohort remains on standalone compatibility because real
-    package compilation still leaves the successfully checked parenthesized
-    bare call in `runtime_const_array_length_bare_call_arm_exit` as a late-bound
-    authored `CheckedCall`; finish that compiler-owned selection finalization
-    before migrating the cohort; the
-    freestanding UEFI package roots remain dependency-free, the two proof-only
-    sample sources remain standalone, and other standalone source fixtures stay
-    on the compatibility path until they acquire real package roots;
+  - finish compiler-owned selection finalization for the late-bound authored
+    `CheckedCall` in
+    `comptime/runtime_const_array_length_bare_call_arm_exit`, then migrate the
+    comptime cohort and remaining package-aware fixtures to explicit std
+    dependency edges; freestanding UEFI package roots remain dependency-free,
+    and standalone source fixtures stay on the compatibility path until they
+    acquire real package roots;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived
     from directory location is not a security boundary;
-  - feed accepted Filesystem and UEFI bindings through lock replay into normal
-    package-aware compilation;
+  - feed every accepted semantic binding, including Console, Filesystem, and
+    UEFI, through lock replay into normal package-aware compilation;
     **Blocked on:** `ACCEPTED-LOCK-SCHEMA`, `LOCK-BASELINE-RECOVERY`, and
-    `LOCK-CLOSURE-VALIDATION`. The current in-memory accepted evidence already
-    retains the bindings; do not create a partial lock codec to move them.
+    `LOCK-CLOSURE-VALIDATION`. Do not create a partial lock codec to move them.
 
   Do not substitute a package name, alias, repository, path, filename, or bare
   `PackageKeyIdentity` for an exact accepted binding. Do not expand Build facets
   without a concrete package-build consumer.
 
-- [ ] Complete the remaining generic exact-application work for
-  **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic
-  demands during final composition; specialize nested named calls; add explicit
-  replay for any admitted lifetime, static-machine, proposition,
-  fixed-token-generic, or external-generic role; and carry the complete
-  semantic companion into Terminal.
-  Then implement D32's exact
-  native physical children over the validated optimized projection, including
-  the role-tagged D29/D41 `PhysicalChildParent`, complete D41 settlement
-  retention and replay, per-occurrence parent bindings, and
-  missing/duplicate/stale/substituted/padded/role-swapped rejection. Exercise
-  distinct and equivalent const values.
-  Keep compatibility failure when a public family gains an uncovered
-  coordinate. Universal generic coverage remains deliberately unimplemented
-  under D28; package evidence must never substitute declaration order, display
-  signatures, ordinals, authored assertions, bootstrap lowering, or
-  reach-selected subsets.
-
-- [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md`: publish the
-  explicit requirement declaration separately from every checked/external
-  satisfier and selected provider. Retain visibility, exact operation/static
-  telescope/signature/contract, authored selection custody, bounded reach,
-  installed execution and era, and disclosed admissions. Neither equal reach,
-  bodylessness, catalog presence, nor build policy may synthesize a requirement
-  or satisfier edge. Package disclosure and payload-bearing external ABI-row
-  extraction are complete for the current nongeneric lane; selected invocation
-  must still replay the installed execution and era before this item closes.
+- [ ] Consume **TOP-LEVEL-BOUNDARY-REQUIREMENTS** from `TASKS.md` after its
+  canonical compiler work lands: make selected package invocation replay the
+  installed execution and era. Do not synthesize a requirement or satisfier
+  edge from equal reach, bodylessness, catalog presence, or build policy.
 
 ## P8 — Final release gate
 
