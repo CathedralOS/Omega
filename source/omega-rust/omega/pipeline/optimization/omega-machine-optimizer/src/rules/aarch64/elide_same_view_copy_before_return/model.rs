@@ -42,13 +42,14 @@ impl Aarch64SameViewCopyElisionRevisionIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Aarch64SameViewCopyElisionPolicy {
     Aarch64ElideSameViewCopyI64BeforeReturnV1,
+    Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Aarch64SameViewCopyElisionAttemptOutcome {
     AlreadyElided,
     DifferentPhysicalStorage,
-    DestinationNotReturned,
+    DestinationNotConsumed,
     SemanticProvenance,
     SelectedForElision,
 }
@@ -60,7 +61,7 @@ pub struct Aarch64SameViewCopyElisionAttempt {
     pub machine: MachineId,
     pub block: SelectedBlockId,
     pub copy: SelectedInstructionId,
-    pub return_instruction: SelectedInstructionId,
+    pub consumer: SelectedInstructionId,
     pub outcome: Aarch64SameViewCopyElisionAttemptOutcome,
 }
 
@@ -82,10 +83,10 @@ pub struct Aarch64SameViewCopyElisionAction {
     pub machine: MachineId,
     pub block: SelectedBlockId,
     pub copy: SelectedInstructionId,
-    pub return_instruction: SelectedInstructionId,
+    pub consumer: SelectedInstructionId,
     pub source: QualifiedPhysicalOperand,
     pub destination: QualifiedPhysicalOperand,
-    pub returned: QualifiedPhysicalOperand,
+    pub consumed: QualifiedPhysicalOperand,
     pub source_value: ValueId,
 }
 
@@ -210,6 +211,7 @@ pub enum Aarch64SameViewCopyElisionError {
     LivenessRosterMismatch(SelectedInstructionId),
     InvalidCopyFootprint(SelectedInstructionId),
     InvalidReturnFootprint(SelectedInstructionId),
+    InvalidCompareFootprint(SelectedInstructionId),
     InvalidPhysicalOperand(SelectedInstructionId),
     BudgetExceeded(Aarch64SameViewCopyElisionWorkAxis),
     ArtifactMismatch,

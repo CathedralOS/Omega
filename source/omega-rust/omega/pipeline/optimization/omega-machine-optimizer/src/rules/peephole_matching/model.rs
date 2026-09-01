@@ -8,14 +8,22 @@ use omega_selected_instructions::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TerminalPairPatternId {
+pub(crate) enum InstructionPairPatternId {
     Aarch64CompareI64ZeroBranchNonZeroV1,
     Aarch64SameViewCopyI64BeforeReturnV1,
+    Aarch64SameViewCopyI64BeforeCompareZeroV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TerminalPairPattern {
-    pub(crate) id: TerminalPairPatternId,
+pub(crate) enum InstructionPairTopology {
+    BodyTailAndTerminatorV1,
+    AdjacentBodyInstructionsV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct InstructionPairPattern {
+    pub(crate) id: InstructionPairPatternId,
+    topology: InstructionPairTopology,
     first: InstructionPattern,
     second: InstructionPattern,
     live_through: UnitSetPattern,
@@ -24,9 +32,10 @@ pub(crate) struct TerminalPairPattern {
     live_through_operands: &'static [OperandCoordinate],
 }
 
-impl TerminalPairPattern {
+impl InstructionPairPattern {
     pub(crate) const fn new(
-        id: TerminalPairPatternId,
+        id: InstructionPairPatternId,
+        topology: InstructionPairTopology,
         first: InstructionPattern,
         second: InstructionPattern,
         live_through: UnitSetPattern,
@@ -36,6 +45,7 @@ impl TerminalPairPattern {
     ) -> Self {
         Self {
             id,
+            topology,
             first,
             second,
             live_through,
@@ -43,6 +53,10 @@ impl TerminalPairPattern {
             relations,
             live_through_operands,
         }
+    }
+
+    pub(crate) const fn topology(&self) -> InstructionPairTopology {
+        self.topology
     }
 
     pub(crate) const fn first(&self) -> &InstructionPattern {
@@ -185,14 +199,14 @@ pub(crate) struct MatchedPhysicalRead {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct TerminalPairMatch {
+pub(crate) struct InstructionPairMatch {
     first_reads: Vec<MatchedPhysicalRead>,
     second_reads: Vec<MatchedPhysicalRead>,
     failed_relations: Vec<OperandRelation>,
     dead_sets_live_out: bool,
 }
 
-impl TerminalPairMatch {
+impl InstructionPairMatch {
     pub(crate) const fn new(
         first_reads: Vec<MatchedPhysicalRead>,
         second_reads: Vec<MatchedPhysicalRead>,
@@ -227,7 +241,7 @@ impl TerminalPairMatch {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TerminalPairMatchError {
+pub(crate) enum InstructionPairMatchError {
     MissingArchitecturalView(&'static str),
     FirstRoster(SelectedInstructionId),
     SecondRoster(SelectedInstructionId),
@@ -236,4 +250,5 @@ pub(crate) enum TerminalPairMatchError {
     FirstPhysicalSource(SelectedInstructionId),
     SecondPhysicalSource(SelectedInstructionId),
     Liveness(SelectedInstructionId),
+    Topology,
 }

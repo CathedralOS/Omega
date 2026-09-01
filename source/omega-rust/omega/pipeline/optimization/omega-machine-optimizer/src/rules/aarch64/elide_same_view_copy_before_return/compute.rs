@@ -5,7 +5,8 @@ use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use omega_target::Architecture;
 
 use crate::rules::peephole_matching::{
-    OperandRelation, TerminalPairMatchError, match_terminal_pair,
+    InstructionPairMatch, InstructionPairMatchError, InstructionPairTopology, OperandRelation,
+    match_instruction_pair,
 };
 use crate::*;
 
@@ -112,8 +113,9 @@ pub(crate) fn compute_from_inputs(
                     .ok_or(Aarch64SameViewCopyElisionError::LivenessRosterMismatch(
                         return_instruction.id,
                     ))?;
-                let matched = match_terminal_pair(
+                let matched = match_instruction_pair(
                     &super::pattern::AARCH64_SAME_VIEW_COPY_BEFORE_RETURN_V1,
+                    InstructionPairTopology::BodyTailAndTerminatorV1,
                     copy,
                     return_instruction,
                     machine_copy,
@@ -131,7 +133,7 @@ pub(crate) fn compute_from_inputs(
                             action.machine == selected_function.machine
                                 && action.block == block.id
                                 && action.copy == copy.id
-                                && action.return_instruction == return_instruction.id
+                                && action.consumer == return_instruction.id
                         });
                 let outcome = outcome(already_elided, &matched, copy, return_instruction);
                 attempts.push(Aarch64SameViewCopyElisionAttempt {
@@ -140,7 +142,7 @@ pub(crate) fn compute_from_inputs(
                     machine: selected_function.machine,
                     block: block.id,
                     copy: copy.id,
-                    return_instruction: return_instruction.id,
+                    consumer: return_instruction.id,
                     outcome,
                 });
                 if outcome == Aarch64SameViewCopyElisionAttemptOutcome::SelectedForElision {
@@ -191,10 +193,10 @@ pub(crate) fn compute_from_inputs(
             machine,
             block,
             copy: copy.id,
-            return_instruction: returned.id,
+            consumer: returned.id,
             source: qualified(matched.first_read(0).unwrap()),
             destination: qualified(matched.first_read(1).unwrap()),
-            returned: qualified(matched.second_read(0).unwrap()),
+            consumed: qualified(matched.second_read(0).unwrap()),
             source_value: copy.provenance.values[0],
         });
     }
@@ -221,7 +223,7 @@ pub(crate) fn compute_from_inputs(
 
 fn outcome(
     already_elided: bool,
-    matched: &crate::rules::peephole_matching::TerminalPairMatch,
+    matched: &InstructionPairMatch,
     copy: &omega_selected_instructions::SelectedInstruction,
     returned: &omega_selected_instructions::SelectedInstruction,
 ) -> Aarch64SameViewCopyElisionAttemptOutcome {
@@ -234,7 +236,7 @@ fn outcome(
                 return Aarch64SameViewCopyElisionAttemptOutcome::DifferentPhysicalStorage;
             }
             OperandRelation::SameVirtualRegister(_, _) => {
-                return Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotReturned;
+                return Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotConsumed;
             }
         }
     }
@@ -344,28 +346,29 @@ fn revision(
     )
 }
 
-fn map_match_error(error: TerminalPairMatchError) -> Aarch64SameViewCopyElisionError {
+fn map_match_error(error: InstructionPairMatchError) -> Aarch64SameViewCopyElisionError {
     match error {
-        TerminalPairMatchError::MissingArchitecturalView(name) => {
+        InstructionPairMatchError::MissingArchitecturalView(name) => {
             Aarch64SameViewCopyElisionError::MissingArchitecturalView(name)
         }
-        TerminalPairMatchError::FirstRoster(instruction)
-        | TerminalPairMatchError::SecondRoster(instruction) => {
+        InstructionPairMatchError::FirstRoster(instruction)
+        | InstructionPairMatchError::SecondRoster(instruction) => {
             Aarch64SameViewCopyElisionError::InstructionRosterMismatch(instruction)
         }
-        TerminalPairMatchError::FirstFootprint(instruction) => {
+        InstructionPairMatchError::FirstFootprint(instruction) => {
             Aarch64SameViewCopyElisionError::InvalidCopyFootprint(instruction)
         }
-        TerminalPairMatchError::SecondFootprint(instruction) => {
+        InstructionPairMatchError::SecondFootprint(instruction) => {
             Aarch64SameViewCopyElisionError::InvalidReturnFootprint(instruction)
         }
-        TerminalPairMatchError::FirstPhysicalSource(instruction)
-        | TerminalPairMatchError::SecondPhysicalSource(instruction) => {
+        InstructionPairMatchError::FirstPhysicalSource(instruction)
+        | InstructionPairMatchError::SecondPhysicalSource(instruction) => {
             Aarch64SameViewCopyElisionError::InvalidPhysicalOperand(instruction)
         }
-        TerminalPairMatchError::Liveness(instruction) => {
+        InstructionPairMatchError::Liveness(instruction) => {
             Aarch64SameViewCopyElisionError::LivenessRosterMismatch(instruction)
         }
+        InstructionPairMatchError::Topology => Aarch64SameViewCopyElisionError::ArtifactMismatch,
     }
 }
 

@@ -103,7 +103,7 @@ pub(super) fn resolve(
             if architecture != Architecture::Aarch64
                 || !matches!(instruction.kind, SelectedInstructionKind::CopyI64)
                 || action.copy != instruction.id
-                || action.return_instruction != *consumer
+                || action.consumer != *consumer
             {
                 return unexpected(instruction.id);
             }
@@ -126,7 +126,7 @@ fn copy_action<'a>(
                 action.machine == machine
                     && action.block == block
                     && action.copy == copy
-                    && action.return_instruction == returned
+                    && action.consumer == returned
             })
         })
         .ok_or(OptimizedResolvedSelectedFormLayoutError::UnexpectedEncodingState(copy))

@@ -1,7 +1,7 @@
 use super::super::Aarch64SameViewCopyElisionPlan;
 
 pub(super) const MAGIC: &[u8; 8] = b"OMGICE\0\0";
-pub(super) const VERSION: u32 = 1;
+pub(super) const VERSION: u32 = 2;
 
 pub(super) fn encode(plan: &Aarch64SameViewCopyElisionPlan) -> Vec<u8> {
     let content = super::super::identity::encode_content(plan);

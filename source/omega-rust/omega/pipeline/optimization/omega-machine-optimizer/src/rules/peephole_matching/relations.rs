@@ -1,9 +1,10 @@
 use super::{
-    MatchedPhysicalRead, OperandCoordinate, OperandRelation, PairInstruction, TerminalPairPattern,
+    InstructionPairPattern, MatchedPhysicalRead, OperandCoordinate, OperandRelation,
+    PairInstruction,
 };
 
 pub(super) fn failed_relations(
-    pattern: &TerminalPairPattern,
+    pattern: &InstructionPairPattern,
     first: &[MatchedPhysicalRead],
     second: &[MatchedPhysicalRead],
 ) -> Vec<OperandRelation> {

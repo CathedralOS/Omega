@@ -102,7 +102,7 @@ pub(super) fn replay(
                             action.machine == selected_function.machine
                                 && action.block == block.id
                                 && action.copy == copy.id
-                                && action.return_instruction == returned.id
+                                && action.consumer == returned.id
                         });
                 let outcome = outcome(already_elided, &evidence, copy, returned);
                 attempts.push(Aarch64SameViewCopyElisionAttempt {
@@ -111,7 +111,7 @@ pub(super) fn replay(
                     machine: selected_function.machine,
                     block: block.id,
                     copy: copy.id,
-                    return_instruction: returned.id,
+                    consumer: returned.id,
                     outcome,
                 });
                 if outcome == Aarch64SameViewCopyElisionAttemptOutcome::SelectedForElision {
@@ -162,10 +162,10 @@ pub(super) fn replay(
             machine,
             block,
             copy: copy.id,
-            return_instruction: returned.id,
+            consumer: returned.id,
             source: evidence.source,
             destination: evidence.destination,
-            returned: evidence.returned,
+            consumed: evidence.returned,
             source_value: copy.provenance.values[0],
         });
     }
@@ -201,7 +201,7 @@ fn outcome(
     } else if !evidence.same_storage {
         Aarch64SameViewCopyElisionAttemptOutcome::DifferentPhysicalStorage
     } else if !evidence.destination_returned {
-        Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotReturned
+        Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotConsumed
     } else if semantic_provenance(copy, returned) {
         Aarch64SameViewCopyElisionAttemptOutcome::SemanticProvenance
     } else {

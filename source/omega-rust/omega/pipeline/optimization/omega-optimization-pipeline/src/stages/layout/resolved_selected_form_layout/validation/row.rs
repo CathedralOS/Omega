@@ -122,7 +122,7 @@ pub(super) fn validate(
                     omega_selected_instructions::SelectedInstructionKind::CopyI64
                 )
                 || action.copy != instruction.id
-                || action.return_instruction != *consumer
+                || action.consumer != *consumer
                 || !candidate.bytes.is_empty()
                 || candidate.branch.is_some()
             {
@@ -147,7 +147,7 @@ fn copy_action<'a>(
                 action.machine == machine
                     && action.block == block
                     && action.copy == copy
-                    && action.return_instruction == returned
+                    && action.consumer == returned
             })
         })
         .ok_or(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)

@@ -5,9 +5,10 @@ use omega_selected_instructions::{
 };
 
 use crate::rules::peephole_matching::{
-    ControlPattern, FixedViewPattern, InstructionPattern, OperandCoordinate, OperandPattern,
-    OperandReadPattern, OperandRelation, OperandWritePattern, PairInstruction, TerminalPairPattern,
-    TerminalPairPatternId, UnitSetPattern, ViewPattern,
+    ControlPattern, FixedViewPattern, InstructionPairPattern, InstructionPairPatternId,
+    InstructionPairTopology, InstructionPattern, OperandCoordinate, OperandPattern,
+    OperandReadPattern, OperandRelation, OperandWritePattern, PairInstruction, UnitSetPattern,
+    ViewPattern,
 };
 
 const EMPTY: UnitSetPattern = UnitSetPattern::EMPTY;
@@ -75,9 +76,10 @@ const RELATIONS: [OperandRelation; 2] = [
     OperandRelation::SameVirtualRegister(DESTINATION, RETURNED),
 ];
 
-pub(crate) const AARCH64_SAME_VIEW_COPY_BEFORE_RETURN_V1: TerminalPairPattern =
-    TerminalPairPattern::new(
-        TerminalPairPatternId::Aarch64SameViewCopyI64BeforeReturnV1,
+pub(crate) const AARCH64_SAME_VIEW_COPY_BEFORE_RETURN_V1: InstructionPairPattern =
+    InstructionPairPattern::new(
+        InstructionPairPatternId::Aarch64SameViewCopyI64BeforeReturnV1,
+        InstructionPairTopology::BodyTailAndTerminatorV1,
         InstructionPattern {
             semantic: MachineSemanticKind::CopyI64,
             selected_operand_count: 2,

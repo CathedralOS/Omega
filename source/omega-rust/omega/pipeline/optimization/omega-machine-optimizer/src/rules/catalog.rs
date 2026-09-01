@@ -9,6 +9,7 @@ pub enum PostAllocationMachineRuleKind {
     X86MovR32Imm32,
     X86MovR64Imm32SignExtended,
     Aarch64SameViewCopyElision,
+    Aarch64SameViewCopyBeforeCompareZeroElision,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,7 +36,7 @@ pub type PostAllocationMachineRuleCatalogEntry =
     OptimizationCatalogDescriptor<PostAllocationMachineRuleCatalogPayload>;
 
 /// Canonical post-allocation machine-rule order.
-pub const POST_ALLOCATION_MACHINE_RULE_CATALOG: [PostAllocationMachineRuleCatalogEntry; 6] = [
+pub const POST_ALLOCATION_MACHINE_RULE_CATALOG: [PostAllocationMachineRuleCatalogEntry; 7] = [
     PostAllocationMachineRuleCatalogEntry::new(
         Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         PostAllocationMachineRuleCatalogPayload::new(
@@ -78,16 +79,24 @@ pub const POST_ALLOCATION_MACHINE_RULE_CATALOG: [PostAllocationMachineRuleCatalo
             PostAllocationMachineRuleKind::Aarch64SameViewCopyElision,
         ),
     ),
+    PostAllocationMachineRuleCatalogEntry::new(
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
+        PostAllocationMachineRuleCatalogPayload::new(
+            Architecture::Aarch64,
+            PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareZeroElision,
+        ),
+    ),
 ];
 
 /// Compatibility order view derived from the owning descriptor table.
-pub const ORDERED_POST_ALLOCATION_MACHINE_RULES: [Optimization; 6] = [
+pub const ORDERED_POST_ALLOCATION_MACHINE_RULES: [Optimization; 7] = [
     POST_ALLOCATION_MACHINE_RULE_CATALOG[0].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[1].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[2].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[3].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[4].optimization(),
     POST_ALLOCATION_MACHINE_RULE_CATALOG[5].optimization(),
+    POST_ALLOCATION_MACHINE_RULE_CATALOG[6].optimization(),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

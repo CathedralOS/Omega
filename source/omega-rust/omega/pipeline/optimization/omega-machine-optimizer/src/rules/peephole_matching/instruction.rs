@@ -9,9 +9,9 @@ use omega_selected_instructions::{
 use crate::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 
 use super::{
-    ControlPattern, FixedViewPattern, InstructionPattern, MatchedPhysicalRead, OperandReadPattern,
-    OperandWritePattern, TerminalPairMatchError, ViewPattern, model::ResolvedNamedUnitSet,
-    registers,
+    ControlPattern, FixedViewPattern, InstructionPairMatchError, InstructionPattern,
+    MatchedPhysicalRead, OperandReadPattern, OperandWritePattern, ViewPattern,
+    model::ResolvedNamedUnitSet, registers,
 };
 
 pub(super) fn match_instruction(
@@ -22,7 +22,7 @@ pub(super) fn match_instruction(
     physical: &ValidatedPhysicalRegisterModel,
     named: &[ResolvedNamedUnitSet],
     first: bool,
-) -> Result<Vec<MatchedPhysicalRead>, TerminalPairMatchError> {
+) -> Result<Vec<MatchedPhysicalRead>, InstructionPairMatchError> {
     if machine.instruction != selected.id
         || live.instruction != selected.id
         || semantic(&selected.kind) != pattern.semantic
@@ -88,7 +88,7 @@ fn match_operand(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     first: bool,
-) -> Result<MatchedPhysicalRead, TerminalPairMatchError> {
+) -> Result<MatchedPhysicalRead, InstructionPairMatchError> {
     let selected_operand = selected
         .operands
         .iter()
@@ -238,32 +238,32 @@ fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
 fn roster_error(
     first: bool,
     id: omega_selected_instructions::SelectedInstructionId,
-) -> TerminalPairMatchError {
+) -> InstructionPairMatchError {
     if first {
-        TerminalPairMatchError::FirstRoster(id)
+        InstructionPairMatchError::FirstRoster(id)
     } else {
-        TerminalPairMatchError::SecondRoster(id)
+        InstructionPairMatchError::SecondRoster(id)
     }
 }
 
 fn footprint_error(
     first: bool,
     id: omega_selected_instructions::SelectedInstructionId,
-) -> TerminalPairMatchError {
+) -> InstructionPairMatchError {
     if first {
-        TerminalPairMatchError::FirstFootprint(id)
+        InstructionPairMatchError::FirstFootprint(id)
     } else {
-        TerminalPairMatchError::SecondFootprint(id)
+        InstructionPairMatchError::SecondFootprint(id)
     }
 }
 
 fn physical_error(
     first: bool,
     id: omega_selected_instructions::SelectedInstructionId,
-) -> TerminalPairMatchError {
+) -> InstructionPairMatchError {
     if first {
-        TerminalPairMatchError::FirstPhysicalSource(id)
+        InstructionPairMatchError::FirstPhysicalSource(id)
     } else {
-        TerminalPairMatchError::SecondPhysicalSource(id)
+        InstructionPairMatchError::SecondPhysicalSource(id)
     }
 }

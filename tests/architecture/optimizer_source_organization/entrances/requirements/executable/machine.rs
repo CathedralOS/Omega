@@ -15,7 +15,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/mod.rs",
-        coordination_marker: "pub(crate) fn match_terminal_pair",
+        coordination_marker: "pub(crate) fn match_instruction_pair",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/mod.rs",
@@ -28,6 +28,14 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_return/validate/mod.rs",
         coordination_marker: "pub fn validate_aarch64_same_view_copy_elision",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/mod.rs",
+        coordination_marker: "pub fn optimize_aarch64_same_view_copy_i64_before_compare_zero",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/validate.rs",
+        coordination_marker: "pub fn validate_aarch64_same_view_copy_i64_before_compare_zero",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/mod.rs",

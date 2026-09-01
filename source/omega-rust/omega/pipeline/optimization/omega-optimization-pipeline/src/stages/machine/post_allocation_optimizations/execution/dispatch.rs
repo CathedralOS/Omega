@@ -9,6 +9,8 @@ use super::super::{
     stage_optimized_aarch64_movn_materialization,
     stage_optimized_aarch64_movn_materialization_after_active_resident_rematerialization,
     stage_optimized_aarch64_movn_materialization_after_selected_lowering,
+    stage_optimized_aarch64_same_view_copy_before_compare_zero_elision,
+    stage_optimized_aarch64_same_view_copy_before_compare_zero_elision_after_selected_lowering,
     stage_optimized_aarch64_same_view_copy_elision,
     stage_optimized_aarch64_same_view_copy_elision_after_selected_lowering,
     stage_optimized_x86_mov_r32_imm32_materialization,
@@ -47,6 +49,10 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_for_catalog_e
             stage_optimized_aarch64_same_view_copy_elision(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision)
         }
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareZeroElision => {
+            stage_optimized_aarch64_same_view_copy_before_compare_zero_elision(source, machine)
+                .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision)
+        }
         PostAllocationMachineRuleKind::X86XorZero => {
             stage_optimized_x86_xor_zero_materialization(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::X86XorZero)
@@ -81,6 +87,10 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_selecte
         }
         PostAllocationMachineRuleKind::Aarch64SameViewCopyElision => {
             stage_optimized_aarch64_same_view_copy_elision_after_selected_lowering(source, machine)
+                .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision)
+        }
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareZeroElision => {
+            stage_optimized_aarch64_same_view_copy_before_compare_zero_elision_after_selected_lowering(source, machine)
                 .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision)
         }
         PostAllocationMachineRuleKind::X86XorZero => {

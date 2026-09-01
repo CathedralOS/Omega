@@ -5,14 +5,16 @@ use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use omega_target::Architecture;
 
 use crate::{
-    Aarch64CbnzFusionAction, Aarch64CbnzFusionAttempt, Aarch64CbnzFusionAttemptOutcome,
-    Aarch64CbnzFusionBlock, Aarch64CbnzFusionError, Aarch64CbnzFusionFunction,
-    Aarch64CbnzFusionIdentity, Aarch64CbnzFusionInstruction, Aarch64CbnzFusionPlan,
-    Aarch64CbnzFusionPolicy, Aarch64CbnzFusionWorkAxis, Aarch64CbnzInstructionDisposition,
-    QualifiedPhysicalRead, ValidatedPostAllocationMachinePlan, aarch64_cbnz_fusion_identity,
+    aarch64_cbnz_fusion_identity, Aarch64CbnzFusionAction, Aarch64CbnzFusionAttempt,
+    Aarch64CbnzFusionAttemptOutcome, Aarch64CbnzFusionBlock, Aarch64CbnzFusionError,
+    Aarch64CbnzFusionFunction, Aarch64CbnzFusionIdentity, Aarch64CbnzFusionInstruction,
+    Aarch64CbnzFusionPlan, Aarch64CbnzFusionPolicy, Aarch64CbnzFusionWorkAxis,
+    Aarch64CbnzInstructionDisposition, QualifiedPhysicalRead, ValidatedPostAllocationMachinePlan,
 };
 
-use crate::rules::peephole_matching::{TerminalPairMatchError, match_terminal_pair};
+use crate::rules::peephole_matching::{
+    match_instruction_pair, InstructionPairMatchError, InstructionPairTopology,
+};
 
 pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
     selected: &S,
@@ -104,8 +106,9 @@ pub(crate) fn compute<S: ValidatedSelectedAnalysis>(
                     .instructions
                     .get(block.instructions.len())
                     .ok_or(Aarch64CbnzFusionError::LivenessRosterMismatch(branch.id))?;
-                let matched = match_terminal_pair(
-                    &super::pattern::AARCH64_CBNZ_TERMINAL_PAIR_V1,
+                let matched = match_instruction_pair(
+                    &super::pattern::AARCH64_CBNZ_INSTRUCTION_PAIR_V1,
+                    InstructionPairTopology::BodyTailAndTerminatorV1,
                     compare,
                     branch,
                     machine_compare,
@@ -311,28 +314,29 @@ fn baseline_roster(source: &ValidatedPostAllocationMachinePlan) -> Vec<Aarch64Cb
         .collect()
 }
 
-fn map_match_error(error: TerminalPairMatchError) -> Aarch64CbnzFusionError {
+fn map_match_error(error: InstructionPairMatchError) -> Aarch64CbnzFusionError {
     match error {
-        TerminalPairMatchError::MissingArchitecturalView(name) => {
+        InstructionPairMatchError::MissingArchitecturalView(name) => {
             Aarch64CbnzFusionError::MissingArchitecturalView(name)
         }
-        TerminalPairMatchError::FirstRoster(instruction)
-        | TerminalPairMatchError::SecondRoster(instruction) => {
+        InstructionPairMatchError::FirstRoster(instruction)
+        | InstructionPairMatchError::SecondRoster(instruction) => {
             Aarch64CbnzFusionError::InstructionRosterMismatch(instruction)
         }
-        TerminalPairMatchError::FirstFootprint(instruction) => {
+        InstructionPairMatchError::FirstFootprint(instruction) => {
             Aarch64CbnzFusionError::InvalidCompareFootprint(instruction)
         }
-        TerminalPairMatchError::SecondFootprint(instruction) => {
+        InstructionPairMatchError::SecondFootprint(instruction) => {
             Aarch64CbnzFusionError::InvalidBranchFootprint(instruction)
         }
-        TerminalPairMatchError::FirstPhysicalSource(instruction)
-        | TerminalPairMatchError::SecondPhysicalSource(instruction) => {
+        InstructionPairMatchError::FirstPhysicalSource(instruction)
+        | InstructionPairMatchError::SecondPhysicalSource(instruction) => {
             Aarch64CbnzFusionError::InvalidPhysicalSource(instruction)
         }
-        TerminalPairMatchError::Liveness(instruction) => {
+        InstructionPairMatchError::Liveness(instruction) => {
             Aarch64CbnzFusionError::LivenessRosterMismatch(instruction)
         }
+        InstructionPairMatchError::Topology => Aarch64CbnzFusionError::ArtifactMismatch,
     }
 }
 

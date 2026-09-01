@@ -10,8 +10,8 @@ fn independent_replay_rejects_reauthenticated_action_corruption() {
         |plan| plan.actions[0].iteration += 1,
         |plan| plan.actions[0].source.operand += 1,
         |plan| plan.actions[0].destination.storage_units.clear(),
-        |plan| plan.actions[0].returned.virtual_register.0 += 1,
-        |plan| plan.actions[0].return_instruction.0 += 1,
+        |plan| plan.actions[0].consumed.virtual_register.0 += 1,
+        |plan| plan.actions[0].consumer.0 += 1,
     ];
     for corrupt in corruptions {
         let mut corrupted = plan.clone();

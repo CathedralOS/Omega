@@ -33,7 +33,7 @@ use crate::{
 
 use super::super::SameViewCopyInputs;
 
-pub(super) struct Fixture {
+pub(crate) struct Fixture {
     pub selected: SelectedInstructionPlan,
     pub selected_identity: SelectedInstructionPlanIdentity,
     pub liveness: LivenessPlan,
@@ -44,7 +44,7 @@ pub(super) struct Fixture {
 }
 
 impl Fixture {
-    pub(super) fn inputs(&self) -> SameViewCopyInputs<'_> {
+    pub(crate) fn inputs(&self) -> SameViewCopyInputs<'_> {
         SameViewCopyInputs {
             selected: &self.selected,
             selected_identity: self.selected_identity,
@@ -57,7 +57,7 @@ impl Fixture {
     }
 }
 
-pub(super) fn budget() -> OptimizationWorkBudget {
+pub(crate) fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(2, 1, 1, 1, 2).unwrap()
 }
 
@@ -340,6 +340,125 @@ pub(super) fn two_pair_fixture() -> Fixture {
     source.machine = second_machine;
     fixture.source.functions.push(source);
 
+    fixture
+}
+
+pub(crate) fn compare_fixture() -> Fixture {
+    let mut fixture = fixture();
+    let x0 = fixture.physical.model().view_named("x0").unwrap().clone();
+    let x30 = fixture.physical.model().view_named("x30").unwrap().clone();
+    let pc = fixture.physical.model().view_named("pc").unwrap().clone();
+    let nzcv = fixture.physical.model().view_named("nzcv").unwrap().clone();
+    let value = ValueId::new(1).unwrap();
+    let return_id = SelectedInstructionId(3);
+
+    let block = &mut fixture.selected.functions[0].blocks[0];
+    let SelectedTerminator::Return {
+        instruction: mut compare,
+        psi_return_edge,
+    } = block.terminator.clone()
+    else {
+        unreachable!()
+    };
+    compare.kind = SelectedInstructionKind::CompareI64Zero;
+    compare.operands[0].fixed_view = None;
+    compare.implicit_uses.clear();
+    compare.implicit_defs = nzcv.units.clone();
+    compare.provenance.edges.clear();
+    block.instructions.push(compare);
+    block.terminator = SelectedTerminator::Return {
+        instruction: SelectedInstruction {
+            id: return_id,
+            kind: SelectedInstructionKind::ReturnUnit,
+            constraint: constraint(),
+            operands: vec![],
+            implicit_uses: x30.units.clone(),
+            implicit_defs: pc.units.clone(),
+            clobbers: vec![],
+            provenance: SelectedInstructionProvenance {
+                edges: vec![psi_return_edge],
+                ..Default::default()
+            },
+        },
+        psi_return_edge,
+    };
+
+    let through = sorted_units(x0.units.iter().chain(&x30.units).copied());
+    let live_block = &mut fixture.liveness.functions[0].blocks[0];
+    let compare_live = &mut live_block.instructions[1];
+    compare_live.virtual_uses = vec![VirtualRegisterId(2)];
+    compare_live.virtual_live_in = vec![VirtualRegisterId(2)];
+    compare_live.virtual_live_out.clear();
+    compare_live.unit_uses = x0.units.clone();
+    compare_live.unit_defs = nzcv.write_units.clone();
+    compare_live.unit_live_in = through;
+    compare_live.unit_live_out = x30.units.clone();
+    live_block.instructions.push(InstructionLiveness {
+        position: LivenessPosition(2),
+        instruction: return_id,
+        virtual_uses: vec![],
+        virtual_defs: vec![],
+        virtual_live_in: vec![],
+        virtual_live_out: vec![],
+        unit_uses: x30.units.clone(),
+        unit_defs: pc.write_units.clone(),
+        unit_clobbers: vec![],
+        unit_live_in: x30.units.clone(),
+        unit_live_out: vec![],
+    });
+
+    let machine_block = &mut fixture.source.functions[0].blocks[0];
+    let compare_machine = &mut machine_block.instructions[1];
+    compare_machine.alternative = alternative(
+        MachineAlternativeFamily::CompareI64Zero,
+        MachineEncodedEffects {
+            external_operand_reads: vec![0],
+            external_operand_writes: vec![],
+            implicit_unit_uses: vec![],
+            implicit_unit_defs: nzcv.units.clone(),
+            implicit_unit_clobbers: vec![],
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::NeverV1,
+            control: MachineEncodedControlEffect::FallThroughV1,
+        },
+    );
+    compare_machine.operands = vec![physical_operand(0, 2, RegisterOperandAccess::Use, &x0)];
+    compare_machine.implicit_unit_uses.clear();
+    compare_machine.implicit_unit_defs = nzcv.units.clone();
+    compare_machine.unit_uses = x0.units.clone();
+    compare_machine.unit_defs = nzcv.write_units.clone();
+    machine_block
+        .instructions
+        .push(PostAllocationMachineInstruction {
+            instruction: return_id,
+            alternative: alternative(
+                MachineAlternativeFamily::ReturnUnit,
+                MachineEncodedEffects {
+                    external_operand_reads: vec![],
+                    external_operand_writes: vec![],
+                    implicit_unit_uses: x30.units.clone(),
+                    implicit_unit_defs: pc.units.clone(),
+                    implicit_unit_clobbers: vec![],
+                    memory: MachineEncodedMemoryEffect::NoneV1,
+                    stack: MachineEncodedStackEffect::UnchangedV1,
+                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    control: MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                        target: x30.id,
+                    },
+                },
+            ),
+            operands: vec![],
+            implicit_unit_uses: x30.units.clone(),
+            implicit_unit_defs: pc.units.clone(),
+            implicit_unit_clobbers: vec![],
+            unit_uses: x30.units.clone(),
+            unit_defs: pc.write_units.clone(),
+            unit_clobbers: vec![],
+        });
+    fixture.selected.functions[0].blocks[0].instructions[1]
+        .provenance
+        .values = vec![value];
     fixture
 }
 

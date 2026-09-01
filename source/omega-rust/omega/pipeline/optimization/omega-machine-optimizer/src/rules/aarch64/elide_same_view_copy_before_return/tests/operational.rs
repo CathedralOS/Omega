@@ -43,7 +43,7 @@ fn exact_pair_elides_once_and_independent_replay_agrees() {
     );
     assert_eq!(
         plan.actions[0].destination.virtual_register,
-        plan.actions[0].returned.virtual_register
+        plan.actions[0].consumed.virtual_register
     );
 
     let repeated = compute(&fixture, super::fixture::budget()).unwrap();
@@ -148,7 +148,7 @@ fn valid_non_candidates_are_retained_with_typed_outcomes() {
     .unwrap();
     assert_eq!(
         plan.attempts[0].outcome,
-        Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotReturned
+        Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotConsumed
     );
 
     let mut semantic = super::fixture::fixture();
