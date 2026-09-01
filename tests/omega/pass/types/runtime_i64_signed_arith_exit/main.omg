@@ -3,7 +3,7 @@
 // we have primitives" -- the pointer-width-signed spelling dies with its
 // unsigned twin; this canary's original purpose was pinning that isize
 // reached layout at all).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -2,7 +2,7 @@
 // registered as builtin type symbols but missing from PrimitiveType, so they had
 // no layout ("unknown layout-bearing type `u8`"). With u8 wired (size 1), a u8
 // field stores, adds, and compares as a 1-byte value: 100 + 50 == 150 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

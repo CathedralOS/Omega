@@ -7,7 +7,7 @@
 // Bitwise carry no signedness, so they lower safely in the guard-subject path
 // (unlike `>>`, which needs operand-signedness threading -- a follow-up).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

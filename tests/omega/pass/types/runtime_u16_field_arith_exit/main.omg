@@ -4,7 +4,7 @@
 // u16 fields: 40000 (0x9C40, high bit set) > 30000 must use an UNSIGNED 16-bit
 // compare -- a signed 16-bit compare would read 40000 as -25536 and take the
 // bad arm. Exit 70 on success.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

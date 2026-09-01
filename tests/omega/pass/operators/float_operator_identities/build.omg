@@ -14,4 +14,7 @@ target macos_arm64 {
 
 machine build(builder: &mut Build) {
     builder.application("float-operator-identities");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/std"
+    });
 }

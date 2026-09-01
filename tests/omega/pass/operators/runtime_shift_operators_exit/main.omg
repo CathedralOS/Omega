@@ -2,7 +2,7 @@
 // right shift. The right shift is `sar`, sized to the operand, so shifting a
 // negative i32 preserves the sign (`-80 >> 2 == -20`).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

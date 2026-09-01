@@ -3,7 +3,7 @@
 // and sign (-600 as unsigned 16-bit is 64936). The second transition checks
 // a signed ordered guard (`< 0`) at 2-byte width: a wrong unsigned treatment
 // would see 64936 > 0 and take the bad arm. Exit 70 on success.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
