@@ -2,6 +2,15 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "non-authoritative target cost model",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/costs/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/costs/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/costs/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/costs/tests.rs",
+        ],
+    },
+    SemanticLadder {
         family: "pre-allocation machine-effect codec",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/analyses/pre_allocation_effects/codec/mod.rs",

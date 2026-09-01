@@ -277,6 +277,9 @@ src/
   analyses/
     mod.rs               # analysis catalog entrance
     <analysis>/          # model, compute, identity, validation, tests
+  costs/
+    mod.rs               # non-authoritative target-cost entrance
+    {model,identity}.rs  # descriptive vocabulary and stable target binding
   rules/
     mod.rs               # target/family catalog entrance
     catalog.rs           # the only built-in order
