@@ -9,6 +9,7 @@ name = "omega_native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+omega-boundary-applications = { path = "../../../representations/omega-boundary-applications" }
 omega-effects = { path = "../../../representations/omega-effects" }
 omega-target = { path = "../../../representations/omega-target" }
 omega-image-emission = { path = "../../images/omega-image-emission" }

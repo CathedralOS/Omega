@@ -87,10 +87,14 @@ stop the item on one precise owner question before adding machinery.
   companion now covers that exact demand set with the strong selected-plan
   digest and one closed role payload for nongeneric checked bodies,
   authoritative generic specializations, or independently rederived compiler
-  intrinsics. Externally admitted concrete authority remains absent rather
-  than being represented by a self-issued placeholder commitment. Cross-
-  artifact demand closure, external realization custody, D29 physical parents,
-  and non-identity optimization projections remain open.
+  intrinsics. The complete demand/companion pair now publishes reconstructible
+  coverage references and crosses native realization as one validated value;
+  native replay retains the full rows, rejoins every named Terminal operation,
+  binds the coverage set into artifact identity, and distinguishes exact-empty
+  custody from unavailable custody. Externally admitted concrete authority
+  remains absent rather than being represented by a self-issued placeholder
+  commitment. Cross-artifact demand closure, external realization custody,
+  D29 physical parents, and non-identity optimization projections remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,

@@ -108,6 +108,11 @@ pub struct NativeRealizationRequest<'request> {
     pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    /// Exact source-free D29 demand and realization custody projected by the
+    /// compiler product owner. A nonempty checked scope requires this value;
+    /// `None` never means an exact empty demand set.
+    pub boundary_application_coverage:
+        Option<&'request omega_boundary_applications::TerminalBoundaryApplicationCoverage>,
     /// Exact retained nearest-FMA occurrences admitted by the source/Terminal
     /// proposal. The ordinary Abstract-to-Target stage consumes these rows;
     /// they are never inferred from a selected-plan report coordinate.

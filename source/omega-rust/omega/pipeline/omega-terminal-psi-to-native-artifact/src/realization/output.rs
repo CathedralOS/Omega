@@ -13,6 +13,9 @@ pub(crate) fn assemble_native_artifact(
     machine_code: &MachineCodePlan,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: omega_effects::TerminalAuthorityPolicyIdentity,
+    boundary_application_coverage: Option<
+        omega_boundary_applications::TerminalBoundaryApplicationCoverage,
+    >,
     physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
@@ -58,6 +61,7 @@ pub(crate) fn assemble_native_artifact(
         selected_provider_plans,
         provider_executions,
         terminal_authority_policy_identity,
+        boundary_application_coverage,
         physical_evidence_scope,
     })
     .map_err(|error| realization_error("native artifact replay", error))

@@ -160,6 +160,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
             external_binding_rows: proposal.external_binding_rows(),
             settlements: &native_settlements,
             compiler_builtins: &compiler_builtins,
+            boundary_application_coverage: Some(proposal.boundary_application_coverage()),
             ieee_float_fma: &ieee_float_fma,
             native_callbacks: &native_callbacks,
         },

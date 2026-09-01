@@ -2,6 +2,7 @@
 //! ordinary or selected path, admit providers, emit machine code, and replay
 //! the authority-free artifact.
 
+mod boundary_applications;
 mod callback_custody;
 mod diagnostics;
 mod input;
@@ -27,6 +28,7 @@ pub use terminal_authority_policy::{
     current_compiler_intrinsic_terminal_authority_policy,
 };
 
+use boundary_applications::retain_boundary_application_coverage;
 use diagnostics::realization_error;
 use input::lower_realization_input;
 use machine_code::emit_realization_machine_code;
@@ -72,6 +74,11 @@ fn realize_native_artifact_with_optional_checked_scope(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
+    let boundary_application_coverage = retain_boundary_application_coverage(
+        &artifact,
+        checked_scope,
+        request.boundary_application_coverage,
+    )?;
     let semantic_bytes = artifact.semantic_bytes();
     let proof_bytes = artifact.proof_bytes();
     let input = lower_realization_input(semantic_bytes, proof_bytes, &request)?;
@@ -88,6 +95,7 @@ fn realize_native_artifact_with_optional_checked_scope(
         &machine_code,
         executions,
         terminal_authority_policy_identity,
+        boundary_application_coverage,
         physical_evidence_scope,
         &request,
     )

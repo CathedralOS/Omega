@@ -879,6 +879,7 @@ dependencies = [
 name = "omega-native-artifact"
 version = "0.1.0"
 dependencies = [
+ "omega-boundary-applications",
  "omega-effects",
  "omega-image-emission",
  "omega-installation-evidence",
@@ -1474,6 +1475,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-abstract-operations-to-target-operations",
  "omega-assigned-target-operations",
+ "omega-boundary-applications",
  "omega-calling-conventions",
  "omega-effects",
  "omega-image-emission",
