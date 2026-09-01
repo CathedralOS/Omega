@@ -7,7 +7,7 @@ use super::{
 };
 use crate::record::{
     CheckedPackageCallableReview, CheckedPackageReviewProjection, PackageReviewCallableSupply,
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewDangerousAuthority,
     PackageReviewExternalExecutableSupply,
 };
 use omega_package_compilation::PackageDependencyClosure;
@@ -75,6 +75,32 @@ impl OrdinaryPackageExternalExecutableSupplyObligation {
     }
 }
 
+/// One exact dangerous authority disclosure reconstructed from checked
+/// compiler state.
+///
+/// This retains the compiler-classified service authority and its canonical
+/// row. It does not grant that authority, establish final-artifact use, or
+/// record an audit decision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrdinaryPackageDangerousAuthorityObligation {
+    authority: PackageReviewDangerousAuthority,
+    row: OrdinaryPackageObligationRow,
+}
+
+impl OrdinaryPackageDangerousAuthorityObligation {
+    pub const fn authority(&self) -> &PackageReviewDangerousAuthority {
+        &self.authority
+    }
+
+    pub const fn row(&self) -> &OrdinaryPackageObligationRow {
+        &self.row
+    }
+
+    pub const fn status(&self) -> OrdinaryPackageObligationStatus {
+        OrdinaryPackageObligationStatus::OpenRootAdmission
+    }
+}
+
 /// Locally reconstructed ordinary results for one exact package subject.
 ///
 /// This is intentionally in-memory and contains only supported explicit open
@@ -88,6 +114,7 @@ pub struct OrdinaryPackageObligationResultSet {
     dependency_closure: PackageDependencyClosure,
     open_accepted_claims: Vec<OrdinaryPackageAcceptedClaimObligation>,
     open_external_executable_supplies: Vec<OrdinaryPackageExternalExecutableSupplyObligation>,
+    open_dangerous_authorities: Vec<OrdinaryPackageDangerousAuthorityObligation>,
 }
 
 impl OrdinaryPackageObligationResultSet {
@@ -115,6 +142,10 @@ impl OrdinaryPackageObligationResultSet {
         &self,
     ) -> &[OrdinaryPackageExternalExecutableSupplyObligation] {
         &self.open_external_executable_supplies
+    }
+
+    pub fn open_dangerous_authorities(&self) -> &[OrdinaryPackageDangerousAuthorityObligation] {
+        &self.open_dangerous_authorities
     }
 }
 
@@ -224,6 +255,38 @@ pub fn ordinary_package_obligation_results_from_projection(
         });
     }
 
+    let dangerous_authorities = projection.dangerous_authorities();
+    let dangerous_authority_rows = ledger
+        .rows()
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority)
+        .collect::<Vec<_>>();
+    if dangerous_authorities.len() != dangerous_authority_rows.len() {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "ordinary package dangerous authorities are not bijective with their canonical rows",
+        ));
+    }
+
+    let mut open_dangerous_authorities = Vec::new();
+    open_dangerous_authorities
+        .try_reserve_exact(dangerous_authority_rows.len())
+        .map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package dangerous-authority result allocation failed",
+            )
+        })?;
+    for (authority, row) in dangerous_authorities.iter().zip(dangerous_authority_rows) {
+        if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package dangerous authority is not blocking",
+            ));
+        }
+        open_dangerous_authorities.push(OrdinaryPackageDangerousAuthorityObligation {
+            authority: authority.clone(),
+            row: row.clone(),
+        });
+    }
+
     Ok(OrdinaryPackageObligationResultSet {
         schema: ledger.schema(),
         package: ledger.package(),
@@ -231,6 +294,7 @@ pub fn ordinary_package_obligation_results_from_projection(
         dependency_closure: ledger.dependency_closure().clone(),
         open_accepted_claims,
         open_external_executable_supplies,
+        open_dangerous_authorities,
     })
 }
 

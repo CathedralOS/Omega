@@ -1,7 +1,7 @@
 use omega_package_evidence::ledger::OrdinaryPackageObligationStatus;
 use omega_package_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewExternalBinding,
+    PackageReviewDangerousAuthorityClass, PackageReviewExternalBinding,
 };
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
@@ -142,6 +142,33 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
             "each ledger must retain its own exact transitive closure"
         );
     }
+    let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+        &closure, &reviews, limits,
+    )
+    .expect("compose graph-workbench open obligations");
+    let dangerous_authorities = composed
+        .root_open_dangerous_authorities()
+        .collect::<Vec<_>>();
+    let [(owner, authority)] = dangerous_authorities.as_slice() else {
+        panic!("graph-workbench must propagate one dependency-owned dangerous authority")
+    };
+    assert_eq!(owner.name().as_str(), "file-journal");
+    assert_eq!(
+        authority.status(),
+        OrdinaryPackageObligationStatus::OpenRootAdmission
+    );
+    assert_eq!(
+        authority.authority().class(),
+        PackageReviewDangerousAuthorityClass::Filesystem
+    );
+    assert_eq!(
+        authority.row().kind(),
+        PackageReviewCanonicalRowKind::DangerousAuthority
+    );
+    assert_eq!(
+        authority.row().risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
 
     let recovered =
         CanonicalPackageReconstructionQuestion::recover(question.canonical_bytes(), limits)
@@ -232,6 +259,13 @@ machine build(builder: &mut Build) {
         accepted
             .obligations()
             .root_open_accepted_claims()
+            .next()
+            .is_none()
+    );
+    assert!(
+        accepted
+            .obligations()
+            .root_open_dangerous_authorities()
             .next()
             .is_none()
     );

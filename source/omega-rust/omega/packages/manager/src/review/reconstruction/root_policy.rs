@@ -186,6 +186,12 @@ fn validate_open_obligation_conflicts(
         conflicts,
         PackageReviewCanonicalRowKind::ExternalExecutableSupply,
         PackageReviewCanonicalRowRisk::OpaqueBlocking,
+    )?;
+    validate_open_obligation_kind(
+        obligations,
+        conflicts,
+        PackageReviewCanonicalRowKind::DangerousAuthority,
+        PackageReviewCanonicalRowRisk::Blocking,
     )
 }
 
@@ -201,6 +207,9 @@ fn validate_open_obligation_kind<'a>(
         }
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => {
             obligations.root_open_external_executable_supplies().len()
+        }
+        PackageReviewCanonicalRowKind::DangerousAuthority => {
+            obligations.root_open_dangerous_authorities().len()
         }
         _ => 0,
     };
@@ -231,6 +240,15 @@ fn validate_open_obligation_kind<'a>(
                     package,
                     supply.row().key_bytes(),
                     supply.row().canonical_bytes(),
+                ));
+            }
+        }
+        PackageReviewCanonicalRowKind::DangerousAuthority => {
+            for (package, authority) in obligations.root_open_dangerous_authorities() {
+                open_obligations.push((
+                    package,
+                    authority.row().key_bytes(),
+                    authority.row().canonical_bytes(),
                 ));
             }
         }

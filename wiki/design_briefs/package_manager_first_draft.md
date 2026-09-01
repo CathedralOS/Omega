@@ -2322,9 +2322,10 @@ observation, artifact, certificate, result, open obligation, admission,
 accepted-lock state, or `PackageInstance` promotion route.
 
 The current ordinary result lanes are deliberately smaller than accepted
-evidence. For every bodyless accepted claim and opaque external executable
-supply, local reconstruction rejoins the typed compiler fact to its matching
-canonical obligation row and assigns only `OpenRootAdmission`. The manager
+evidence. For every bodyless accepted claim, dangerous authority, and opaque
+external executable supply, local reconstruction rejoins the typed compiler
+fact to its matching canonical obligation row and assigns only
+`OpenRootAdmission`. The manager
 composes those open obligations over the exact reconstruction question; a
 dependency obligation reaches the selected root with its original package
 owner. Fresh policy binding requires an exact conflict bijection for each

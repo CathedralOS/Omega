@@ -23,10 +23,10 @@ declarations to immutable sources and reconciles one exact closure. `review`
 turns that closure into compiler-issued facts and root-owned decisions. Its
 `reconstruction/root_policy.rs` gate rederives fresh obligations and conflicts
 from the same closure, requires exact conflict bijections for open accepted
-claims and external executable supplies, then accepts blocking rows only
-through their exact candidate-bound root policy. The result is intentionally
-in-memory and cannot stand in for package evidence, `omega.lock`,
-`PackageInstance`, or transaction authority.
+claims, dangerous authorities, and external executable supplies, then accepts
+blocking rows only through their exact candidate-bound root policy. The result
+is intentionally in-memory and cannot stand in for package evidence,
+`omega.lock`, `PackageInstance`, or transaction authority.
 
 Install and update belong in `operations/` when their remaining acceptance and
 transaction gates are closed. The source and review crates remain subordinate
