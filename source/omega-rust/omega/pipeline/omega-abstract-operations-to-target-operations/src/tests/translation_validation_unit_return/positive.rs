@@ -47,7 +47,7 @@ fn validates_parameterless_unit_return_on_every_native_target() {
 }
 
 #[test]
-fn nearby_nonempty_unit_body_remains_explicitly_uncovered() {
+fn adjacent_integer_literal_unit_body_uses_its_exact_family() {
     let mut source = base_plan();
     source.functions[0].operations.insert(
         0,
@@ -62,8 +62,10 @@ fn nearby_nonempty_unit_body_remains_explicitly_uncovered() {
     let target = lower_to_target_operations(&source, target_profile).unwrap();
     let receipt =
         validate_abstract_to_target_translation(&source, target_profile, &target).unwrap();
-    assert_eq!(
+    assert!(matches!(
         receipt.function_roster()[0].translation(),
-        &AbstractToTargetFunctionTranslationDisposition::Uncovered
-    );
+        AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLiteralUnitReturn(_)
+        )
+    ));
 }

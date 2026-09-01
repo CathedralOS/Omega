@@ -418,8 +418,18 @@ current and reclaimed views, anchors, rewrites, and five-axis work usage are
 identity-bound. These are target-neutral obligations only: the artifact creates
 no virtual register, instruction, slot or offset, memory effect, frame, trap,
 unwind, encoding, emission, or publication authority. Generalized insertion
-and slot scheduling across both spills, followed by both-reload reanalysis, is
-the next boundary.
+and slot scheduling now enter the adjacent
+`allocation/generalized_spill_insertion/mod.rs` join. Its V1 producer recolors
+the epoch-zero and epoch-one closed lifetimes by deterministic 8-byte first fit;
+independent replay reconstructs keyed sources and occupied-offset sets. One
+canonical event stream orders stores before reloads before rewrites at equal
+points, and the epoch-one store explicitly names the triggering epoch-zero
+reload it precedes. The current fixture's `[9,12]` and `[12,14]` closed
+lifetimes conflict at point 12, so they occupy offsets 0 and 8 in a 16-byte
+abstract spill area. This remains target-neutral scheduling: it grants no real
+register, instruction, memory, frame, trap, unwind, encoding, emission, or
+publication authority. Reanalysis of both synthetic reloads is the next
+boundary.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

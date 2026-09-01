@@ -143,6 +143,33 @@ impl StagedOptimizedFunctionFragmentEmission {
     pub(crate) fn fragments_mut(&mut self) -> &mut FunctionFragmentEmissionPlan {
         &mut self.fragments
     }
+
+    #[cfg(test)]
+    pub(crate) fn manifest_record_mut(&mut self) -> &mut FunctionFragmentEmissionManifest {
+        &mut self.manifest.record
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_source_realization_for_test(&mut self) {
+        self.custody.source_realization =
+            FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
+                b"corrupt function-fragment source realization",
+            );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_fragments_for_test(&mut self) {
+        self.custody.fragments = FunctionFragmentEmissionIdentity::from_canonical_bytes(
+            b"corrupt function-fragment emission",
+        );
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_manifest_for_test(&mut self) {
+        self.custody.manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(
+            b"corrupt function-fragment manifest",
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

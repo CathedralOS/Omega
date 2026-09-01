@@ -10,7 +10,7 @@ use super::{
     spill_recovery_worklist::{pressure_sources, seed},
 };
 
-fn plan(
+pub(super) fn plan(
     sources: &ReloadSources,
     budget: OptimizationWorkBudget,
 ) -> Result<omega_regalloc::ValidatedSpillRecoveryActions, omega_regalloc::SpillRecoveryActionError>

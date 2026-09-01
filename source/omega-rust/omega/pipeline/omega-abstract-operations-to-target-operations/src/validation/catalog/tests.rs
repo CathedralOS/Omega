@@ -9,8 +9,8 @@ use omega_target_operations::{
     TargetFunction, TargetOperation, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
 };
 use psi_core::{
-    BlockId, EdgeId, MachineId, OperationId, PlaceId, ScalarType, StructuralPlaceKind,
-    StructuralTypeId, ValueId,
+    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
+    ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ByteSequenceCarrier, StructuralPlaceDeclaration, StructuralTypeDeclaration,
@@ -230,6 +230,75 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
     )
 }
 
+fn integer_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
+    let machine = MachineId::new(58_001).unwrap();
+    let entry = BlockId::new(58_002).unwrap();
+    let operation = OperationId::new(58_003).unwrap();
+    let value_id = ValueId::new(58_004).unwrap();
+    let edge = EdgeId::new(58_005).unwrap();
+    let scalar_type = IntegerType::new(IntegerSign::Signed, 37).unwrap();
+    let value = IntegerValue::Signed(-4_000_003);
+    (
+        AbstractFunction {
+            machine,
+            attachment: None,
+            entry,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: entry,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: operation,
+                    result: value_id,
+                    scalar_type: ScalarType::Integer(scalar_type),
+                    value,
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        },
+        TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![operation],
+                edges: vec![edge],
+            },
+            operation: TargetOperation::UnitBody(TargetUnitBody {
+                structural_types: Vec::new(),
+                call_plan: evaluate_call_plan(
+                    CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+                    &CallSignature::default(),
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                operations: vec![
+                    TargetUnitOperation::IntegerConstant {
+                        psi_operation: operation,
+                        result: value_id,
+                        scalar_type,
+                        value,
+                    },
+                    TargetUnitOperation::Return {
+                        psi_edge: edge,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }),
+        },
+    )
+}
+
 fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(53_001).unwrap();
     let entry = BlockId::new(53_002).unwrap();
@@ -323,6 +392,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
             AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
+            AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
             AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
@@ -481,6 +551,39 @@ fn byte_sequence_literal_catalog_omission_and_duplicate_fail_closed() {
                 first: AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
                 second:
                     AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
+                ..
+            }
+        )
+    ));
+}
+
+#[test]
+fn integer_literal_unit_return_catalog_omission_and_duplicate_fail_closed() {
+    let (source, target) = integer_literal_unit_return_pair();
+    assert_eq!(
+        selection::validate(&source, NativeTarget::linux_x64(), &target, &[]).unwrap(),
+        AbstractToTargetFunctionTranslationDisposition::Uncovered
+    );
+
+    let family = ENABLED_TRANSLATION_FAMILIES
+        .iter()
+        .find(|descriptor| {
+            descriptor.family
+                == AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn
+        })
+        .copied()
+        .unwrap();
+    assert!(matches!(
+        selection::validate(
+            &source,
+            NativeTarget::linux_x64(),
+            &target,
+            &[family, family]
+        ),
+        Err(
+            AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
+                first: AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
+                second: AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
                 ..
             }
         )

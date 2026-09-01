@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty abstract-to-target families are covered,
+  machine-rule family. Forty-one abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -484,6 +484,12 @@ decision. Only true language-semantic questions belong in
   `EstablishByteSequenceLiteral; ReturnUnit` family retains the exact borrowed-
   view byte-sequence type, canonical literal place, arbitrary byte payload,
   empty cleanup, provenance, and native Unit call plan across all five targets.
+  The adjacent parameterless `IntegerConstant; ReturnUnit` family independently
+  retains the unused literal's exact operation/result identities, integer
+  type/value domain, return edge, empty cleanup/native call plan, provenance,
+  and canonical structural roster across all five targets. If Psi dead-scalar
+  elimination removes the literal, the transformed plan instead enters the
+  distinct return-only family.
   Coverage also includes proof-bearing exact
   parameterized fixed-integer addition,
   subtraction, multiplication, division, and remainder, proof-bearing wrapping and
@@ -582,7 +588,10 @@ decision. Only true language-semantic questions belong in
   ordinary-callable entry slice now reauthenticates and rejects every mutable
   manifest field, rejects every closed singleton wire tag and unavailable-data
   position, and mutates each receipt custody root independently. Other artifact
-  and manifest families remain open.
+  and manifest families remain open. The function-fragment-emission V9 slice
+  now separately mutates all 30 representable record/subrecord fields, every
+  codec envelope and closed tag, all six unavailable-data positions, and all
+  three custody roots; independent reconstruction rejects every mutation.
 
 ## P3 — Psi optimizer
 
@@ -773,9 +782,18 @@ decision. Only true language-semantic questions belong in
   `{epoch: 1, ordinal: 0}` namespaces, current/reclaimed views, and exact usage
   `{1, 1, 5, 1, 1}`. It creates no real virtual register, instruction,
   slot/offset, memory effect, frame, trap, unwind, encoding, emission, or
-  publication authority. Remaining work generalizes insertion and slot
-  scheduling across both logical actions, then reanalyzes both synthetic
-  reloads.
+  publication authority. A ninth independently replayed V1 artifact now performs
+  generalized abstract insertion and recoloring. It binds the validated first
+  insertion and epoch-one action identities plus environment, availability,
+  optimization-unit, fuel, budget, and usage roots; colors closed lifetimes by
+  deterministic 8-byte lowest-offset first fit; and emits one canonical
+  `Store < Reload < Rewrite` event stream. The public dual-target fixture gives
+  epoch zero `[9,12]` at offset 0 and epoch one `[12,14]` at offset 8 because
+  their shared closed endpoint conflicts, for 16 abstract bytes, seven events,
+  and usage `{1, 2, 10, 2, 3}`. The epoch-one store names the triggering epoch-
+  zero reload it precedes. It still creates no real register, instruction,
+  memory effect, frame, trap, unwind, encoding, emission, or publication
+  authority. Remaining work reanalyzes both synthetic reload lifetimes/homes.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
@@ -977,7 +995,12 @@ unchecked rewrite or opt into lossy floating-point semantics.
   first-over-boundary matrix for all five work axes; reauthenticated action
   corruption is independently refused in its named operational leaf, and its
   direct publication crosses all eight shared custody mutations. True
-  second-application idempotence remains open for all five rules: each
+  same-view copy elision now adds a two-pair independently replayed fixture with
+  exact usage `{5, 2, 2, 2, 3}` and representable first-over failures on all
+  five work axes; its existing applied/negative/equality, disabled,
+  deterministic, action/codec corruption, eight-field publication custody,
+  target, and composition evidence remains intact. True second-application
+  idempotence remains open for all six rules: each
   publishes an immutable encoding-choice artifact, not a rewritten
   `PostAllocationMachinePlan` that it can honestly consume again.
   Repeated reconstruction remains determinism evidence and is not relabelled as

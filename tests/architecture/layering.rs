@@ -3066,6 +3066,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_boolean_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
+        "straight_line_integer_literal_unit_return::is_candidate",
+        "straight_line_integer_literal_unit_return::validate",
         "straight_line_parameter::integer::direct::is_candidate",
         "straight_line_parameter::integer::direct::validate",
         "straight_line_parameter::boolean::direct::is_candidate",
@@ -3663,6 +3665,10 @@ fn selected_form_encoding_validation_cannot_reenter_its_producer() {
         "aggregate.rs",
         "ordinary.rs",
         "row.rs",
+        "row/aarch64_movn.rs",
+        "row/x86_mov_r32_imm32.rs",
+        "row/x86_mov_r64_imm32_sign_extended.rs",
+        "row/x86_xor_zero.rs",
         "structural.rs",
     ]
     .into_iter()
@@ -4358,13 +4364,16 @@ fn build_evaluation_physical_package_source_uses_strong_commitment() {
     let evaluation = std::fs::read_to_string(&evaluation_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", evaluation_path.display()));
     assert!(
-        evaluation.contains("source_file.origin != psi_source::SourceOrigin::Toolchain")
+        evaluation.contains("source_file.package_identity == Some(binding.package())")
+            && evaluation
+                .contains("schema_source_file.package_identity == Some(binding.package())")
+            && evaluation.contains("let exact_bundled_source")
             && evaluation.contains("expected_package.package_relative_source()")
             && evaluation
                 .contains("ProgramEntryPhysicalContractPackageSourceDigest::from_package_source")
             && evaluation.contains("non_authoritative_package_source_report_fingerprint: u64")
             && !evaluation.contains("\n    package_fingerprint: u64"),
-        "build evaluation must derive the strong commitment only after exact toolchain package/source validation",
+        "build evaluation must derive the strong commitment only after exact accepted-package or bundled-source validation",
     );
 }
 
