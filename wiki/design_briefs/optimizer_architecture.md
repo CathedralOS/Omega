@@ -354,6 +354,7 @@ route:
 | Which selected-lowering or allocation-recovery rule is enabled? | `omega-regalloc/src/rules/<phase>/mod.rs` -> adjacent `catalog.rs` |
 | Which post-allocation machine rule is enabled for the ISA? | `omega-machine-optimizer/src/rules/mod.rs` -> `rules/catalog.rs` -> `<isa>/<exact-rule>/mod.rs` |
 | How are recorded policy decisions admitted for offline work? | `omega-optimization-policy-offline/src/corpus/mod.rs` -> `capture.rs`, `validate.rs`, `identity.rs`, `split.rs` |
+| Where does the non-authoritative reference policy train and evaluate? | `omega-optimization-policy-offline/src/reference_policy/mod.rs` -> `training/`, `evaluation/`, `codec/` |
 
 ```text
 source/omega-rust/omega/
@@ -389,7 +390,7 @@ source/omega-rust/omega/
       omega-machine-optimizer/        # symbolic-machine analyses, plans, rules
       omega-optimization-pipeline/    # cross-stage custody and compiler routes
   tooling/
-    omega-optimization-policy-offline/ # non-authoritative corpus admission and source-group splits
+    omega-optimization-policy-offline/ # corpus admission, source splits, reference training/evaluation
 ```
 
 Within `omega-optimization-unit`, `rewrite/model/mod.rs` is the non-executable

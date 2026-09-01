@@ -360,6 +360,14 @@ inventory registers the complete ladder and forbids compiler, build, pipeline,
 Psi-optimizer, and process-tooling dependencies. This is corpus custody, not a
 second policy catalog or compiler activation path.
 
+The adjacent `reference_policy/mod.rs` entrance exposes only deterministic
+training, evaluation, and strict decode calls. Its `training/mod.rs` and
+`evaluation/mod.rs` entrances each join separate compute and independent replay
+leaves; `identity`, `inference`, `model`, and `codec/` remain named sibling
+rungs. Tests mirror codec, training, evaluation, and refusal behavior, and the
+tooling architecture ladder registers all three entrances. No CLI, process, or
+compiler route is hidden below them.
+
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create
