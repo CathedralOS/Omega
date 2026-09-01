@@ -4792,6 +4792,122 @@ fn seeded_integer_const_instance_gate_rejects_carrier_origin_and_shape_mutations
 }
 
 #[test]
+fn seeded_boolean_const_instance_gate_rejects_carrier_origin_and_forwarding_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Flag<T, const ENABLED: bool> { marker: u8; } data Nested<T, const ENABLED: bool> { value: Flag<T, ENABLED>; } data Generated { value: Nested<u16, true>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let flag_template_index = index("Flag");
+    let nested_template_index = index("Nested");
+    let flag_parameters = resolved.data_definitions[flag_template_index].type_parameters;
+    let nested_template_members = resolved.data_definitions[nested_template_index].members;
+    let flag_instance_index = (frontier..resolved.data_definitions.len())
+        .find(|index| {
+            resolved.data_definitions[*index]
+                .generic_instance
+                .as_ref()
+                .is_some_and(|origin| {
+                    matches!(
+                        origin,
+                        psi_symbol_resolved_trees::types::TypeReference::Generic(origin)
+                            if origin.base_name.as_str() == "Flag"
+                    )
+                })
+        })
+        .expect("closed Flag instance");
+    let flag_origin_arguments = match resolved.data_definitions[flag_instance_index]
+        .generic_instance
+        .as_ref()
+    {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        _ => unreachable!(),
+    };
+
+    let mut unsupported_carrier = resolved.clone();
+    unsupported_carrier
+        .tables
+        .declarations
+        .data_type_parameters
+        .span_mut_or_empty(flag_parameters)[1]
+        .kind = psi_symbol_resolved_trees::data::TypeParameterKind::Const {
+        type_reference: psi_symbol_resolved_trees::types::TypeReference::Unit,
+    };
+    assert!(
+        !plain_data_extension_shape_is_supported(&unsupported_carrier, frontier),
+        "the Boolean const rung cannot silently widen to an unsupported carrier"
+    );
+
+    let mut noncanonical_origin = resolved.clone();
+    noncanonical_origin
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(flag_origin_arguments)[1] =
+        psi_symbol_resolved_trees::types::TypeReference::Named {
+            symbol: psi_symbols::SymbolHandle::invalid(),
+            name: psi_symbol_resolved_trees::name::DiagnosticName::generated(
+                psi_language_semantics::const_value::CanonicalConstValue::new(
+                    "bool",
+                    "boolean4:true",
+                    "TRUE",
+                )
+                .atom(),
+            ),
+        };
+    assert!(
+        !plain_data_extension_shape_is_supported(&noncanonical_origin, frontier),
+        "a Boolean const origin must retain the exact canonical atom"
+    );
+
+    let mut wrong_forwarded_binder = resolved;
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut wrong_forwarded_binder
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(nested_template_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &field.type_reference
+    else {
+        unreachable!()
+    };
+    let arguments = application.arguments;
+    let arguments = wrong_forwarded_binder
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(arguments);
+    arguments[1] = arguments[0].clone();
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_forwarded_binder, frontier),
+        "a Boolean const slot cannot be redirected to an ordinary Type binder"
+    );
+
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Wrong<const N: bool> { values: [u8; N]; } data Generated { value: Wrong<true>; }",
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(
+            extension.trees(),
+            base.typed().data_definitions().len(),
+        ),
+        "a Boolean const binder cannot become an array length"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -4901,6 +5017,14 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
         (
             "const_instance_as_type_argument",
             "data Block<const N: u64> { values: [u8; N]; } data Box<T> { value: T; } data Generated { value: Box<Block<2> >; }",
+        ),
+        (
+            "boolean_const_instance_graph",
+            "data Flag<T, const ENABLED: bool> { marker: u8; } data Nested<T, const ENABLED: bool> { value: Flag<T, ENABLED>; } data Generated { value: Nested<u16, true>; }",
+        ),
+        (
+            "boolean_const_instance_as_type_argument",
+            "data Flag<const ENABLED: bool> { marker: u8; } data Box<T> { value: T; } data Generated { value: Box<Flag<false> >; }",
         ),
     ] {
         let (base, extension) =

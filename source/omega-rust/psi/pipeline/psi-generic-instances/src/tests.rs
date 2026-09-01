@@ -607,6 +607,52 @@ fn named_and_expression_const_arguments_share_the_canonical_instance() {
 }
 
 #[test]
+fn direct_boolean_const_argument_uses_one_canonical_instance_value() {
+    let checked = checked(
+        r#"
+            data Flag<const ENABLED: bool> { marker: u8; }
+            data Holder { enabled: Flag<true>; disabled: Flag<false>; }
+        "#,
+    )
+    .expect("direct Boolean const arguments should normalize canonically");
+
+    let values = checked
+        .data_definitions()
+        .iter()
+        .filter_map(|definition| {
+            let origin = definition.generic_instance?;
+            let psi_checked_trees::types::TypeReferenceNode::Generic { arguments, .. } =
+                checked.type_reference_table.type_reference(origin)
+            else {
+                return None;
+            };
+            let [argument] = checked
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            else {
+                return None;
+            };
+            let psi_checked_trees::types::TypeReferenceNode::Named { symbol, name } =
+                checked.type_reference_table.type_reference(*argument)
+            else {
+                return None;
+            };
+            (!symbol.is_valid()).then(|| {
+                psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+                    .expect("Boolean instance origin uses a canonical const atom")
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        values,
+        [
+            psi_language_semantics::const_value::CanonicalConstValue::boolean(true),
+            psi_language_semantics::const_value::CanonicalConstValue::boolean(false),
+        ]
+    );
+}
+
+#[test]
 fn structured_const_instance_recasts_retain_exact_ranges_for_both_polarities() {
     let source = r#"
         data UnitIndex { scale: u64; }

@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -265,7 +265,7 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 9, "nine deduplicated closed instances");
+    assert_eq!(instances.len(), 11, "eleven deduplicated closed instances");
     let instance = instances
         .iter()
         .copied()
@@ -479,6 +479,68 @@ machine build(builder: &mut Build) {{
     };
     assert_named_field(nested_const_instance, const_block_instance.symbol);
     assert_named_field(find_data("WithConst"), nested_const_instance.symbol);
+    let bool_flag_template = find_data("BoolFlag");
+    let [bool_parameter] = checked.typed.data_type_parameters(bool_flag_template) else {
+        panic!("BoolFlag retains its Boolean const binder")
+    };
+    let psi_typed_trees::data::TypeParameterKind::Const { type_reference } = bool_parameter.kind
+    else {
+        panic!("BoolFlag.ENABLED remains a const binder")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "bool"
+    ));
+    let instance_for_template = |template_symbol| {
+        instances
+            .iter()
+            .copied()
+            .find(|definition| {
+                definition.generic_instance.is_some_and(|origin| {
+                    matches!(
+                        checked.typed.type_reference_table.type_reference(origin),
+                        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+                            if *base_symbol == template_symbol
+                    )
+                })
+            })
+            .unwrap_or_else(|| panic!("missing instance for {template_symbol:?}"))
+    };
+    let bool_flag_instance = instance_for_template(bool_flag_template.symbol);
+    let bool_origin = bool_flag_instance
+        .generic_instance
+        .expect("Boolean instance retains its origin");
+    let psi_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(bool_origin)
+    else {
+        panic!("Boolean instance origin remains structural")
+    };
+    let [bool_argument] = checked
+        .typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("Boolean instance origin retains one argument")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(*bool_argument),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if !symbol.is_valid()
+                && psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+                    == Some(psi_language_semantics::const_value::CanonicalConstValue::boolean(true))
+    ));
+    let nested_bool_instance = instance_for_template(find_data("NestedBool").symbol);
+    assert_named_field(nested_bool_instance, bool_flag_instance.symbol);
+    assert_named_field(find_data("WithBool"), nested_bool_instance.symbol);
     let wrapper = checked
         .typed
         .data_definitions()
