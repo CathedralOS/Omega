@@ -1,7 +1,7 @@
 use psi_diagnostics::Diagnostic;
 use psi_source::SourceSpan;
 use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use psi_typed_trees::machine::Machine;
 use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::StateSignature;
@@ -56,12 +56,8 @@ pub fn collect_dynamic_conformance_selections(
                 let StatementNode::LocalData(local) = statement else {
                     continue;
                 };
-                let occurrence = strip_mutable(program, local.initial_value);
-                let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence)
-                else {
-                    continue;
-                };
-                let Some(dynamic_target) = dynamic_trait_reference(program, cast.target_type)
+                let Some((occurrence, cast, dynamic_target)) =
+                    normalized_dynamic_coercion(program, local.initial_value)
                 else {
                     continue;
                 };
@@ -341,8 +337,8 @@ fn collect_same_conformance_dynamic_rebindings(
                     )));
                     continue;
                 }
-                let occurrence = strip_mutable(program, assignment.value);
-                let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence)
+                let Some((occurrence, cast, dynamic_target)) =
+                    normalized_dynamic_coercion(program, assignment.value)
                 else {
                     diagnostics.push(Diagnostic::error(format!(
                         "dynamic local rebind `{}` requires an exact direct-place named-conformance cast",
@@ -350,17 +346,13 @@ fn collect_same_conformance_dynamic_rebindings(
                     )));
                     continue;
                 };
-                let Some(TypeReferenceNode::DynamicTrait {
+                let TypeReferenceNode::DynamicTrait {
                     symbol: target_trait,
                     conformance,
                     ..
-                }) = dynamic_trait_reference(program, cast.target_type)
+                } = dynamic_target
                 else {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` lost its dynamic target type",
-                        initial.binding_name
-                    )));
-                    continue;
+                    unreachable!("normalized_dynamic_coercion returns a dynamic-trait target")
                 };
                 if *target_trait != initial.target_trait || *conformance != initial.conformance {
                     diagnostics.push(Diagnostic::error(format!(
@@ -1154,6 +1146,22 @@ fn nominal_data_type(
             .map(|definition| (definition.symbol, name.as_str())),
         _ => None,
     }
+}
+
+/// Recognize the exact local dynamic-coercion shape after removing the one
+/// borrow wrapper introduced by `&place as &dyn Carrier::Conformance`.
+/// Consumers must share this normalization so validation cannot admit a
+/// selection while independently fencing the same receiver shape.
+pub(crate) fn normalized_dynamic_coercion(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, &TableCastExpression, &TypeReferenceNode)> {
+    let occurrence = strip_mutable(program, expression);
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence) else {
+        return None;
+    };
+    let target = dynamic_trait_reference(program, cast.target_type)?;
+    Some((occurrence, cast, target))
 }
 
 fn strip_mutable(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {

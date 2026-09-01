@@ -12,6 +12,7 @@ pub(crate) use conformance::{
     validate_trait_conformance_bounds,
 };
 pub(crate) use data_conformance::{arguments_for_declaring_trait, validate_conformances};
+pub(crate) use dynamic::normalized_dynamic_coercion;
 pub use dynamic::{
     DynamicConformanceSelection, collect_dynamic_conformance_selections,
     resolve_dynamic_call_targets,
