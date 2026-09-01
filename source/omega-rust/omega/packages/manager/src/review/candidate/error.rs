@@ -1,7 +1,7 @@
 use super::PackageSourceVerificationPhase;
 use crate::declarations::PackageKey;
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
-use omega_package_compilation::PackageCompilationInputError;
+use omega_package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputError};
 use omega_package_evidence::encoding::PackageReviewEncodingError;
 use omega_package_source::SourceResolveError;
 use psi_checked_interpreter::FilesystemSponsorError;
@@ -71,6 +71,14 @@ pub enum CompileResolvedPackageReviewsError {
         source_package: PackageKey,
         phase: PackageSourceVerificationPhase,
         error: PackageSourceSelectionEvidenceError,
+    },
+    SemanticBindingConsumerAbsent {
+        consumer: PackageKey,
+        role: AcceptedSemanticBindingRole,
+    },
+    DuplicateConsumerSemanticBindingRole {
+        consumer: PackageKey,
+        role: AcceptedSemanticBindingRole,
     },
     CompilationInputs {
         package: PackageKey,
@@ -205,6 +213,16 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "source selection verification failed {phase:?} for package `{}` while compiling `{}`: {error}",
                 source_package.name().as_str(),
                 compiling_package.name().as_str()
+            ),
+            Self::SemanticBindingConsumerAbsent { consumer, role } => write!(
+                formatter,
+                "semantic-binding review input for role {role:?} names consumer `{}` outside the resolved package closure",
+                consumer.name().as_str()
+            ),
+            Self::DuplicateConsumerSemanticBindingRole { consumer, role } => write!(
+                formatter,
+                "semantic-binding review inputs contain duplicate role {role:?} for consumer `{}`",
+                consumer.name().as_str()
             ),
             Self::CompilationInputs { package, errors } => write!(
                 formatter,

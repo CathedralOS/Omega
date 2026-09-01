@@ -3,14 +3,16 @@ use crate::review::{
     FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError, ReviewOnlyRootPolicyResolution,
 };
 use omega_build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
-use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
+use omega_package_compilation::{
+    AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+};
 use omega_package_evidence::ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
     OrdinaryPackageObligationSchemaIdentity,
 };
 use omega_package_source::{ImmutableSourceResolution, SourceResolveError};
 
-pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 1;
+pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 2;
 
 /// Closed identity for the exact accepted-evidence vocabulary represented by
 /// this module. This is distinct from the obligation schema and any future
@@ -44,6 +46,7 @@ pub struct AcceptedOrdinaryPackageEvidence {
     pub(super) source_consumption: PackageSourceConsumptionCommitment,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation: Option<BuildObservationSummary>,
+    pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
     pub(super) generated_sources: PackageGeneratedSourceBundle,
     pub(super) artifact: OrdinaryPackageObligationLedger,
     pub(super) results: OrdinaryPackageObligationResultSet,
@@ -68,6 +71,13 @@ impl AcceptedOrdinaryPackageEvidence {
 
     pub const fn build_observation(&self) -> Option<&BuildObservationSummary> {
         self.build_observation.as_ref()
+    }
+
+    /// Exact consumer semantic roles used to derive this package evidence.
+    /// The root policy still owns acceptance of every blocking result exposed
+    /// by those roles.
+    pub fn semantic_bindings(&self) -> &[AcceptedSemanticBinding] {
+        &self.semantic_bindings
     }
 
     pub const fn generated_sources(&self) -> &PackageGeneratedSourceBundle {

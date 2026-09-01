@@ -88,6 +88,7 @@ pub fn accept_ordinary_closure_evidence(
             source_consumption: review.source_consumption_commitment(),
             build_evaluation_usage: review.build_evaluation_usage(),
             build_observation: review.build_observation_summary().cloned(),
+            semantic_bindings: review.semantic_bindings().to_vec(),
             generated_sources: generated_sources.clone(),
             artifact: question_entry.obligations().clone(),
             results: obligation_entry.results().clone(),

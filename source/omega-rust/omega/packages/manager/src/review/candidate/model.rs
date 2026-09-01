@@ -1,7 +1,9 @@
 use super::rows::ReviewOnlyCanonicalRow;
 use crate::declarations::PackageKey;
 use omega_build_evaluation::{BuildEvaluationUsage, BuildObservationSummary};
-use omega_package_compilation::{PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment};
+use omega_package_compilation::{
+    AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+};
 use omega_package_evidence::ledger::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
 };
@@ -20,6 +22,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
+    pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
     pub(super) projection: CheckedPackageReviewProjection,
     pub(super) canonical_review_bytes: Vec<u8>,
@@ -52,6 +55,13 @@ impl CompilerIssuedPackageReview {
     /// separate from canonical capability/API comparison bytes.
     pub const fn build_observation_summary(&self) -> Option<&BuildObservationSummary> {
         self.build_observation_summary.as_ref()
+    }
+
+    /// Exact consumer-policy bindings resolved by this package's checked
+    /// compilation. These remain review provenance until root policy accepts
+    /// every resulting blocking row.
+    pub fn semantic_bindings(&self) -> &[AcceptedSemanticBinding] {
+        &self.semantic_bindings
     }
 
     /// Exact explicit generated-source handoffs from the same checked run as

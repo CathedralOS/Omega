@@ -192,6 +192,23 @@ impl CheckedPackageProviderReview {
         &self.rows
     }
 
+    /// Collision-resistant identity of the complete selected plan retained by
+    /// this review row. The readable origin label is deliberately absent from
+    /// provider-plan identity, so reconstruction uses no display substitute.
+    pub fn selected_plan_digest(&self) -> omega_effects::provider_plan::ProviderPlanDigest {
+        omega_effects::provider_plan::ProviderPlan {
+            name: self.plan_name.clone(),
+            provider_type: self.provider_type.clone(),
+            provider_type_package_identity: self.provider_type_package,
+            target: self.target.clone(),
+            schema: self.schema.clone(),
+            rows: self.rows.clone(),
+            origin_package_identity: self.realizing_package,
+            origin_package: String::new(),
+        }
+        .identity_digest()
+    }
+
     pub fn row_declarations(&self) -> &[CheckedPackageProviderRowIdentity] {
         &self.row_declarations
     }
