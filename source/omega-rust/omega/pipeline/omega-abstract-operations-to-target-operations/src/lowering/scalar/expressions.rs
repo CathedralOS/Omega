@@ -430,6 +430,7 @@ pub(super) fn conditional_provenance(
     for operation in &function.operations {
         let psi_operation = match operation {
             AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
+            | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
             | AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
             | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
             | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
@@ -444,6 +445,7 @@ pub(super) fn conditional_provenance(
             | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
             | AbstractOperation::BooleanConstant { psi_operation, .. }
             | AbstractOperation::BooleanStructuralField { psi_operation, .. }
+            | AbstractOperation::IntegerStructuralField { psi_operation, .. }
             | AbstractOperation::BooleanNot { psi_operation, .. }
             | AbstractOperation::BooleanEqual { psi_operation, .. }
             | AbstractOperation::IntegerEqual { psi_operation, .. }

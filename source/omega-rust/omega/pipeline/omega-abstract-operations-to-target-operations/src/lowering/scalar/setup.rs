@@ -64,16 +64,22 @@ pub(super) fn prepare_scalar_lowering(
             // enter this scalar lane only when that same boundary call carries
             // their claim toward provider custody.
             let carries_boundary_custody = boundary_custody_places.contains(&parameter.place);
-            if usize::try_from(parameter.position) != Ok(position)
-                || parameter.is_self
-                || !matches!(
+            let direct_shared_self = parameter.is_self
+                && parameter.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+                && parameter.access == psi_terminal::StructuralAccess::SharedBorrow
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty();
+            let custody_bearing_parameter = !parameter.is_self
+                && matches!(
                     parameter.multiplicity,
                     psi_terminal::StructuralMultiplicity::Affine
                         | psi_terminal::StructuralMultiplicity::Linear
                 )
-                || ((!parameter.qualifications.is_empty()
-                    || parameter.multiplicity == psi_terminal::StructuralMultiplicity::Linear)
-                    && !carries_boundary_custody)
+                && ((parameter.qualifications.is_empty()
+                    && parameter.multiplicity != psi_terminal::StructuralMultiplicity::Linear)
+                    || carries_boundary_custody);
+            if usize::try_from(parameter.position) != Ok(position)
+                || (!direct_shared_self && !custody_bearing_parameter)
             {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,

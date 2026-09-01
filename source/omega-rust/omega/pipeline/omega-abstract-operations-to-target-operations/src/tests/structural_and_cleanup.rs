@@ -119,6 +119,107 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
     }
 }
 
+fn unrestricted_shared_boolean_field_return_plan() -> AbstractOperationPlan {
+    let realization = MachineId::new(72).unwrap();
+    let structural_type = StructuralTypeId::new(72).unwrap();
+    let source = PlaceId::new(72).unwrap();
+    let field = StructuralFieldId::new(72).unwrap();
+    let result = ValueId::new(72).unwrap();
+    AbstractOperationPlan {
+        psi: identity(),
+        entry: realization,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "SharedCarrier".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "ready".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                }],
+            },
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine: realization,
+            attachment: Some(structural_type),
+            entry: BlockId::new(realization.get()).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: source,
+                position: 0,
+                is_self: true,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }],
+            result: AbstractFunctionResult::Scalar(AbstractResult {
+                value: result,
+                scalar_type: ScalarType::Boolean,
+            }),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![omega_abstract_operations::AbstractBlockEntry {
+                block: BlockId::new(realization.get()).unwrap(),
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::BooleanStructuralField {
+                    psi_operation: OperationId::new(72).unwrap(),
+                    result,
+                    source,
+                    field,
+                },
+                AbstractOperation::Return {
+                    psi_edge: EdgeId::new(72).unwrap(),
+                    result,
+                    value: result,
+                    scalar_type: ScalarType::Boolean,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    }
+}
+
+#[test]
+fn unrestricted_shared_boolean_field_lowers_as_a_straight_line_return() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered =
+            lower_to_target_operations(&unrestricted_shared_boolean_field_return_plan(), target)
+                .expect("unrestricted shared Boolean field return lowers");
+        assert!(matches!(
+            &lowered.functions[0].operation,
+            TargetOperation::ReturnBooleanExpression {
+                source_value,
+                expression:
+                    TargetBooleanExpression::StructuralField {
+                        psi_operation,
+                        source,
+                        field,
+                        field_byte_offset: 0,
+                        ..
+                    },
+                ..
+            } if *source_value == ValueId::new(72).unwrap()
+                && *psi_operation == OperationId::new(72).unwrap()
+                && *source == PlaceId::new(72).unwrap()
+                && *field == StructuralFieldId::new(72).unwrap()
+        ));
+    }
+}
+
 #[test]
 fn whole_root_structural_call_retains_direct_scalar_return_abi() {
     for target in [

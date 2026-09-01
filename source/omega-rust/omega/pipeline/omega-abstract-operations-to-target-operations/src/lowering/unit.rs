@@ -534,11 +534,13 @@ pub(super) fn lower_unit_function(
                 &mut provenance,
             )?,
             AbstractOperation::Crash { .. }
+            | AbstractOperation::StructuralScalarFieldStore { .. }
             | AbstractOperation::CallStructuralScalar { .. }
             | AbstractOperation::CallStructural { .. }
             | AbstractOperation::IntegerConstant { .. }
             | AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. }
+            | AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
             | AbstractOperation::IntegerEqual { .. }
