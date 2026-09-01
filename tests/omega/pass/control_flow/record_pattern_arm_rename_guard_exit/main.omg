@@ -2,7 +2,7 @@
 // vertical } if x + vertical == 70` -- no tag compare (the subject IS the
 // type); the renamed binding participates in the if-guard rewrite.
 // Run-verified: 30 + 40 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Point { x: i32; y: i32; }
 data Main { console: Console; }
 machine Main::main(&mut self) {

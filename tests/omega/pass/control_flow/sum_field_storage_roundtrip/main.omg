@@ -6,7 +6,7 @@
 // the sum representation surviving a field store + field read. exit 71 = wrong
 // variant dispatched (tag corrupted); 72 = a payload field read the wrong value.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Main { console: Console; stored: Msg; }
 

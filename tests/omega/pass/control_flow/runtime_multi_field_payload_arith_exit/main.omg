@@ -5,7 +5,7 @@
 // the exit. Rect{3,4} -> 3 * 4 + 58 = 70. (Computing in the transition arg, not the host-call
 // arg, is deliberate: a host-call argument must be a simple value, see
 // fail/calls/value_call_as_host_arg_rejected.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Shape {
     case Circle(r: i32 in Wrapping);

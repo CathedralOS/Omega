@@ -9,7 +9,7 @@
 // LOCALS fail under multi-dispatch selection (the parked
 // pending/host/host_local_operand_dual_dispatch face -- catalog ops too).
 // NATIVE-ONLY: the interpreter has no provider for authored bindings.
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Beeper { machine beep(value: i32) -> i32; }
 data Main { console: Console; beeper: Beeper; m: i32; v: i32; }
 machine beeper_abs(value: i32) -> i32 satisfies Beeper::beep via Binding::DllImport("msvcrt.dll", "abs");

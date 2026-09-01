@@ -2,7 +2,7 @@
 // transition exactly like the retired keyword did: the subject's tag selects
 // the matching arm, and the first case is the zero case.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Direction {
     case None;

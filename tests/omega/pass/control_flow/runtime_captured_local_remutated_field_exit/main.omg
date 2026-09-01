@@ -14,7 +14,7 @@
 // captured slot (which holds the correct pre-mutation 1) instead of re-folding.
 // Pushes 3 then 4; if both land (stack[0]=3, stack[1]=4) exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Vm [copy] {
     stack: [i32 in Wrapping; 8];

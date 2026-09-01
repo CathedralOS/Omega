@@ -7,7 +7,7 @@
 // isolate LAYOUT from the const-fold sign bug. exit 72 = a field read the wrong
 // offset/width; 71 = wrong variant dispatched.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Rec {
     case A(x: i32);

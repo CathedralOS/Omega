@@ -17,7 +17,7 @@
 // returns 3, so the THIRD arm is taken; the probe ladder maps each plausible
 // count to a distinct exit code (pre-fix native landed on 43+: one run per
 // attempted arm, doubled per nesting level).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tally {
     calls: u64;

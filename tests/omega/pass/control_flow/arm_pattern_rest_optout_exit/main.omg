@@ -6,7 +6,7 @@
 // rewrite to the subject's payload read), `dy as _` waives the field
 // (spelled, no binding). Case arm keeps its tag guard; the `if` guard and
 // target arguments see the renamed binding. The runtime self-check accepts only 30 + 40 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg {
     case Move(dx: i32 [0..=50], dy: i32 [0..=50]);
     case Stop(code: i32);

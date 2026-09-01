@@ -3,7 +3,7 @@
 // (Direction, Outcome, bool) triple without a `_` arm. A pure case-union
 // domain is a finite subset on one axis; the held triple selects its SECOND
 // member, pinning mixed-domain lowering as well as the proof.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Direction {
     case Left;

@@ -1,7 +1,7 @@
 // The complement-pair closure: `x == k ->` plus `x != k ->` over one subject
 // and value is TOTAL, so the dispatch provably closes without `_` (the
 // dungeon's resolve_navigation shape). Exits 70 through the `!=` arm.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     x: i32;
