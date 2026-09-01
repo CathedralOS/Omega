@@ -16,7 +16,11 @@ audited Alpha VM + audited Beta evaluator tape
     -> returned Beta value
 ```
 
-The evaluator artifact and Beta-written Gamma compiler are currently open.
+The canonical evaluator artifact and Beta-written Gamma compiler are currently
+open. A non-canonical executable development slice lives at
+[`../../tools/alpha/beta-evaluator/`](../../tools/alpha/beta-evaluator/) with
+its focused gate at
+[`../../tests/beta/evaluator-slice.sh`](../../tests/beta/evaluator-slice.sh).
 No former Gamma artifact or host interpreter stands in for either edge.
 
 ## Retention inventory

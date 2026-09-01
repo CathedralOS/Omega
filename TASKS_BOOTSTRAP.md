@@ -38,8 +38,10 @@ the former typed functional Delta; Delta is the former fixed-storage Epsilon.
   its 6,816-byte tape byte-for-byte, the independent six-case assembler
   differential passes, and strict grammar regression passes.
 - [x] Beta's minimal functional contract is fixed at `source/beta/LANGUAGE.md`.
-- [ ] Beta evaluator source, direct Alpha tape, audit listing, and conformance
-  suite are absent.
+- [ ] A non-canonical Beta evaluator development source and 42-case focused
+  gate now cover the request boundary and expression core. Declaration tables,
+  general calls, constructors, `match`, proper tail calls, the admitted direct
+  Alpha tape, audit listing, and complete conformance suite remain absent.
 - [ ] Beta derivation checker is absent.
 - [ ] Beta-written Gamma compiler source and tape are absent.
 - [ ] `source/delta/compiler/delta_compiler.gamma` is incomplete; its tape is
@@ -84,6 +86,13 @@ the former typed functional Delta; Delta is the former fixed-storage Epsilon.
   A readable `.alphaasm` reconstruction may live under the Alpha tool owner,
   but the exact evaluator tape is admitted and instruction-audited directly.
   The assembler's correctness is not a premise of Beta meaning.
+
+  Implementation checkpoint: `tools/alpha/beta-evaluator/evaluator.alphaasm`
+  is a 42-case-passing development slice, not the admitted tape. It implements
+  framing, one unary entry function, structural checks for its accepted forms,
+  `if`, `let`, checked integer operations, every byte primitive, total equality
+  over values it can construct, outcomes, and bounded arena/stack operation.
+  The declaration/call/constructor/match/tail-call work remains on this task.
 
   Acceptance: a closed positive/negative suite pins lexical rejection,
   complete structural syntax rejection, declaration census, runtime name and
