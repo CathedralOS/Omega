@@ -215,7 +215,7 @@ fn analysis_does_not_authorize_ranked_component_mutation() {
     ));
 }
 
-fn acyclic_unit() -> omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
+pub(super) fn acyclic_unit() -> omega_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     const SOURCE: &str = r#"
         data Root {}
         machine Root::once() {}

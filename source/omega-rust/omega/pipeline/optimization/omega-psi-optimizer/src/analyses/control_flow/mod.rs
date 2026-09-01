@@ -1,15 +1,13 @@
 //! Optimizer module role: stage group. Control-flow analyses, cataloged by the exact graph question they answer.
-
 use psi_core::{BlockId, MachineId};
-
 mod call_graph;
 mod components;
 mod countdown_induction;
+mod countdown_invariant_constant_placement;
 mod countdown_invariant_constants;
 mod dominance;
 mod graph;
 mod loops;
-
 pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
 pub use countdown_induction::{
@@ -17,6 +15,17 @@ pub use countdown_induction::{
     UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
 pub(crate) use countdown_induction::{analyze_counted_loops, validate_counted_loop_analysis};
+pub use countdown_invariant_constant_placement::{
+    CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
+    CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisSnapshot,
+    UnsignedCountdownInvariantConstantPlacements,
+    ValidatedCountdownInvariantConstantPlacementAnalysis,
+};
+pub(crate) use countdown_invariant_constant_placement::{
+    analyze_countdown_invariant_constant_placement,
+    validate_countdown_invariant_constant_placement_analysis,
+};
 pub use countdown_invariant_constants::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
@@ -28,7 +37,6 @@ pub(crate) use countdown_invariant_constants::{
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExitKind {
     Normal,

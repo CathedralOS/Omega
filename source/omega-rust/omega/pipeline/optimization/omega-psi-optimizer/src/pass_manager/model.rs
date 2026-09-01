@@ -20,11 +20,14 @@ use omega_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, VerifiedPsi
 
 use crate::{
     AnalysisManagerError, CountdownInvariantConstantAnalysisError,
-    CountdownInvariantConstantAnalysisSnapshot, CountedLoopAnalysisError,
+    CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisError,
     CountedLoopAnalysisSnapshot, RuleProposalError, RuleRegistryError,
-    ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
-    analyze_countdown_invariant_constants, analyze_counted_loops,
-    validate_countdown_invariant_constant_analysis, validate_counted_loop_analysis,
+    ValidatedCountdownInvariantConstantAnalysis,
+    ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
+    analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
+    analyze_counted_loops, validate_countdown_invariant_constant_analysis,
+    validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
 
 #[derive(Debug)]
@@ -105,6 +108,50 @@ impl VerifiedPsiOptimizationSession {
             &self.unit,
             &self.cycle_components,
             &counted,
+            candidate,
+        )
+    }
+
+    /// Exact preheader insertion and consumer coordinates for the authenticated
+    /// countdown constants. This remains analysis-only and cannot move a node.
+    pub fn countdown_invariant_constant_placement_analysis(
+        &self,
+    ) -> Result<
+        ValidatedCountdownInvariantConstantPlacementAnalysis,
+        CountdownInvariantConstantPlacementAnalysisError,
+    > {
+        let counted = self
+            .counted_loop_analysis()
+            .map_err(CountdownInvariantConstantPlacementAnalysisError::CountedLoop)?;
+        let invariants =
+            analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
+                .map_err(CountdownInvariantConstantPlacementAnalysisError::InvariantConstant)?;
+        analyze_countdown_invariant_constant_placement(
+            &self.unit,
+            &self.cycle_components,
+            &counted,
+            &invariants,
+        )
+    }
+
+    pub fn validate_countdown_invariant_constant_placement_analysis(
+        &self,
+        candidate: &CountdownInvariantConstantPlacementAnalysisSnapshot,
+    ) -> Result<
+        ValidatedCountdownInvariantConstantPlacementAnalysis,
+        CountdownInvariantConstantPlacementAnalysisError,
+    > {
+        let counted = self
+            .counted_loop_analysis()
+            .map_err(CountdownInvariantConstantPlacementAnalysisError::CountedLoop)?;
+        let invariants =
+            analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
+                .map_err(CountdownInvariantConstantPlacementAnalysisError::InvariantConstant)?;
+        validate_countdown_invariant_constant_placement_analysis(
+            &self.unit,
+            &self.cycle_components,
+            &counted,
+            &invariants,
             candidate,
         )
     }
