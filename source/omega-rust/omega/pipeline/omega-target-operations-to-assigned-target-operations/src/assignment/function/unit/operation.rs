@@ -123,6 +123,7 @@ pub(super) fn assign(
                 target,
                 scalar_arguments,
                 preceding_operations,
+                assigned_scalar_homes,
             )?,
         },
         TargetUnitOperation::PortWrite {

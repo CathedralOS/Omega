@@ -49,7 +49,14 @@ fn fixed_integer_literal_preserves_source_type_value_order_and_register_placemen
     let constant = OperationId::new(43).expect("constant");
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let declaration = declaration(boundary, vec![ScalarType::Integer(integer_type)]);
-    let constants = BTreeMap::from([(source, (constant, integer_type, IntegerValue::Signed(-17)))]);
+    let constants = BTreeMap::from([(
+        source,
+        KnownUnitInteger::Immediate {
+            defining_operation: constant,
+            scalar_type: integer_type,
+            value: IntegerValue::Signed(-17),
+        },
+    )]);
 
     for (target, expected_register) in [
         (NativeTarget::linux_x64(), MachineRegister::X86Rdi),
@@ -67,9 +74,17 @@ fn fixed_integer_literal_preserves_source_type_value_order_and_register_placemen
         let [argument] = arguments.as_slice() else {
             panic!("one argument")
         };
-        assert_eq!(argument.source_value, source);
-        assert_eq!(argument.scalar_type, integer_type);
-        assert_eq!(argument.immediate, IntegerValue::Signed(-17));
+        assert_eq!(argument.source_value(), source);
+        assert_eq!(argument.scalar_type(), integer_type);
+        assert_eq!(
+            argument.source,
+            TargetUnitScalarArgumentSource::IntegerImmediate {
+                defining_operation: constant,
+                source_value: source,
+                scalar_type: integer_type,
+                value: IntegerValue::Signed(-17),
+            }
+        );
         assert_eq!(argument.parameter_index, 0);
         assert_eq!(argument.placement, plan.call.parameters[0]);
         assert!(matches!(
@@ -93,19 +108,19 @@ fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
     let constants = BTreeMap::from([
         (
             first,
-            (
-                OperationId::new(48).expect("first constant"),
-                i16_type,
-                IntegerValue::Unsigned(513),
-            ),
+            KnownUnitInteger::Immediate {
+                defining_operation: OperationId::new(48).expect("first constant"),
+                scalar_type: i16_type,
+                value: IntegerValue::Unsigned(513),
+            },
         ),
         (
             second,
-            (
-                OperationId::new(49).expect("second constant"),
-                i64_type,
-                IntegerValue::Signed(-29),
-            ),
+            KnownUnitInteger::Immediate {
+                defining_operation: OperationId::new(49).expect("second constant"),
+                scalar_type: i64_type,
+                value: IntegerValue::Signed(-29),
+            },
         ),
     ]);
 
@@ -132,8 +147,8 @@ fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
         for (index, (argument, expected_register)) in
             arguments.iter().zip(expected_registers).enumerate()
         {
-            assert_eq!(argument.source_value, [first, second][index]);
-            assert_eq!(argument.scalar_type, [i16_type, i64_type][index]);
+            assert_eq!(argument.source_value(), [first, second][index]);
+            assert_eq!(argument.scalar_type(), [i16_type, i64_type][index]);
             assert_eq!(argument.parameter_index, index as u32);
             assert_eq!(argument.placement, plan.call.parameters[index]);
             assert!(matches!(
@@ -141,8 +156,20 @@ fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
                 [ValueLocation::Register { register, .. }] if *register == expected_register
             ));
         }
-        assert_eq!(arguments[0].immediate, IntegerValue::Unsigned(513));
-        assert_eq!(arguments[1].immediate, IntegerValue::Signed(-29));
+        assert!(matches!(
+            arguments[0].source,
+            TargetUnitScalarArgumentSource::IntegerImmediate {
+                value: IntegerValue::Unsigned(513),
+                ..
+            }
+        ));
+        assert!(matches!(
+            arguments[1].source,
+            TargetUnitScalarArgumentSource::IntegerImmediate {
+                value: IntegerValue::Signed(-29),
+                ..
+            }
+        ));
 
         let mut stack_plan = plan;
         stack_plan.call.parameters[1].locations = vec![ValueLocation::Stack {
@@ -190,13 +217,27 @@ fn zero_argument_leaf_stays_valid_and_scalar_mutations_fail_closed() {
 
     let one_parameter_declaration = declaration(boundary, vec![ScalarType::Integer(i32_type)]);
     let plan = entry_plan(NativeTarget::linux_x64(), &[i32_type]);
-    let constants = BTreeMap::from([(source, (constant, i32_type, IntegerValue::Signed(9)))]);
+    let constants = BTreeMap::from([(
+        source,
+        KnownUnitInteger::Immediate {
+            defining_operation: constant,
+            scalar_type: i32_type,
+            value: IntegerValue::Signed(9),
+        },
+    )]);
     for (arguments, constants) in [
         (Vec::new(), constants.clone()),
         (vec![source], BTreeMap::new()),
         (
             vec![source],
-            BTreeMap::from([(source, (constant, i32_type, IntegerValue::Unsigned(9)))]),
+            BTreeMap::from([(
+                source,
+                KnownUnitInteger::Immediate {
+                    defining_operation: constant,
+                    scalar_type: i32_type,
+                    value: IntegerValue::Unsigned(9),
+                },
+            )]),
         ),
     ] {
         assert!(matches!(

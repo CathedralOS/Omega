@@ -9,7 +9,8 @@ pub(super) fn assign(
     target: NativeTarget,
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
     preceding_operations: &[TargetUnitOperation],
-) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, AssignmentError> {
+    assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
     if binding.locator.target().native_target() != target
         || !matches!(
             (target.object_format, binding.locator.locator()),
@@ -29,6 +30,7 @@ pub(super) fn assign(
         target,
         scalar_arguments,
         preceding_operations,
+        assigned_homes,
     )
 }
 

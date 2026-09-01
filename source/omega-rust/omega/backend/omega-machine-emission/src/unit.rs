@@ -1,5 +1,6 @@
 use omega_assigned_target_operations::{
-    AssignedAggregateCopy, AssignedFunction, AssignedUnitBody, AssignedUnitOperation,
+    AssignedAggregateCopy, AssignedFunction, AssignedNormalizedForeignScalarArgument,
+    AssignedUnitBody, AssignedUnitOperation, AssignedUnitScalarArgumentSource,
     AssignedUnitScalarHome,
 };
 use omega_calling_conventions::{
@@ -8,13 +9,13 @@ use omega_calling_conventions::{
 use omega_machine_code::{
     Aarch64ReturnLinkEvidence, BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord,
     ForeignCallRelocation, ForeignCallScalarArgumentRecord, InternalCallRelocation,
-    InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitScalarCallRecord,
-    PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
-    UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
+    InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord,
+    InternalUnitScalarCallRecord, PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite,
+    StackAdjustmentPair, UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
     derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use omega_target_operations::{CallSiteOwner, NormalizedForeignScalarArgument};
+use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 
 mod scalar_call;
@@ -367,12 +368,14 @@ fn foreign_integer_shape(
     Ok(ValueShape::integer(byte_size, byte_size))
 }
 
-fn emit_foreign_integer_literal(
+fn emit_foreign_integer_argument(
     bytes: &mut Vec<u8>,
     target: NativeTarget,
-    argument: &NormalizedForeignScalarArgument,
+    argument: &AssignedNormalizedForeignScalarArgument,
 ) -> Result<(), EmissionError> {
-    let shape = foreign_integer_shape(argument.source_value, argument.scalar_type)?;
+    let source_value = argument.source.source_value();
+    let scalar_type = argument.source.scalar_type();
+    let shape = foreign_integer_shape(source_value, scalar_type)?;
     let [
         ValueLocation::Register {
             register,
@@ -386,40 +389,80 @@ fn emit_foreign_integer_literal(
     if argument.placement.shape != shape || *byte_size != shape.byte_size {
         return Err(EmissionError::InvalidNormalizedForeignCallCustody);
     }
-    let bits = super::integer_bits(
-        argument.source_value,
-        argument.scalar_type,
-        argument.immediate,
-    )?;
     match target.architecture {
         Architecture::X86_64 => {
             let register = x86_unit_register(*register)?;
-            if argument.scalar_type.bits() <= 32 {
-                if register >= 8 {
-                    bytes.push(0x41);
+            match argument.source {
+                AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. } => {
+                    let bits = super::integer_bits(source_value, scalar_type, value)?;
+                    if scalar_type.bits() <= 32 {
+                        if register >= 8 {
+                            bytes.push(0x41);
+                        }
+                        bytes.push(0xb8 | (register & 7));
+                        bytes.extend_from_slice(&(bits as u32).to_le_bytes());
+                    } else {
+                        bytes.push(0x48 | ((register >> 3) & 1));
+                        bytes.push(0xb8 | (register & 7));
+                        bytes.extend_from_slice(&bits.to_le_bytes());
+                    }
                 }
-                bytes.push(0xb8 | (register & 7));
-                bytes.extend_from_slice(&(bits as u32).to_le_bytes());
-            } else {
-                bytes.push(0x48 | ((register >> 3) & 1));
-                bytes.push(0xb8 | (register & 7));
-                bytes.extend_from_slice(&bits.to_le_bytes());
+                AssignedUnitScalarArgumentSource::Home(home) => {
+                    emit_x86_64_stack_load_width(bytes, register, home.byte_offset, 8)?;
+                }
             }
         }
         Architecture::Aarch64 => {
             let register = aarch64_unit_register(*register)?;
-            for chunk in 0..4 {
-                let immediate = ((bits >> (chunk * 16)) & 0xffff) as u32;
-                if chunk == 0 || immediate != 0 {
-                    let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
-                    let instruction =
-                        base | ((chunk as u32) << 21) | (immediate << 5) | u32::from(register);
+            match argument.source {
+                AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. } => {
+                    let bits = super::integer_bits(source_value, scalar_type, value)?;
+                    for chunk in 0..4 {
+                        let immediate = ((bits >> (chunk * 16)) & 0xffff) as u32;
+                        if chunk == 0 || immediate != 0 {
+                            let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
+                            let instruction = base
+                                | ((chunk as u32) << 21)
+                                | (immediate << 5)
+                                | u32::from(register);
+                            bytes.extend_from_slice(&instruction.to_le_bytes());
+                        }
+                    }
+                }
+                AssignedUnitScalarArgumentSource::Home(home) => {
+                    let instruction = aarch64_unit_stack_access(
+                        aarch64_load_base(8)?,
+                        register,
+                        home.byte_offset,
+                        8,
+                    )?;
                     bytes.extend_from_slice(&instruction.to_le_bytes());
                 }
             }
         }
     }
     Ok(())
+}
+
+fn foreign_scalar_source_record(
+    source: AssignedUnitScalarArgumentSource,
+) -> InternalUnitScalarArgumentSourceRecord {
+    match source {
+        AssignedUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        },
+        AssignedUnitScalarArgumentSource::Home(home) => {
+            InternalUnitScalarArgumentSourceRecord::Home(unit_scalar_home_record(home))
+        }
+    }
 }
 
 pub(super) fn emit_unit_body(
@@ -705,7 +748,10 @@ pub(super) fn emit_unit_body(
                     parameters: scalar_arguments
                         .iter()
                         .map(|argument| {
-                            foreign_integer_shape(argument.source_value, argument.scalar_type)
+                            foreign_integer_shape(
+                                argument.source.source_value(),
+                                argument.source.scalar_type(),
+                            )
                         })
                         .collect::<Result<Vec<_>, _>>()?,
                     result: None,
@@ -746,28 +792,51 @@ pub(super) fn emit_unit_body(
                 for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
                     let parameter_index = u32::try_from(parameter_index)
                         .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
-                    let Some((scalar_type, value)) =
-                        established_integer_constants.get(&argument.source_value)
-                    else {
-                        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
-                    };
                     let Some(placement) = call_plan.parameters.get(parameter_index as usize) else {
                         return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                     };
                     if argument.parameter_index != parameter_index
-                        || argument.scalar_type != *scalar_type
-                        || argument.immediate != *value
                         || argument.placement != *placement
                     {
                         return Err(EmissionError::InvalidNormalizedForeignCallCustody);
                     }
+                    let exact_source_count = body.operations[..operation_ordinal]
+                        .iter()
+                        .filter(|preceding| match (preceding, argument.source) {
+                            (
+                                AssignedUnitOperation::IntegerConstant {
+                                    psi_operation,
+                                    result,
+                                    scalar_type,
+                                    value,
+                                },
+                                AssignedUnitScalarArgumentSource::IntegerImmediate {
+                                    defining_operation,
+                                    source_value,
+                                    scalar_type: source_type,
+                                    value: source_value_literal,
+                                },
+                            ) => {
+                                *psi_operation == defining_operation
+                                    && *result == source_value
+                                    && *scalar_type == source_type
+                                    && *value == source_value_literal
+                            }
+                            (
+                                AssignedUnitOperation::ScalarCall { result_home, .. },
+                                AssignedUnitScalarArgumentSource::Home(source),
+                            ) => *result_home == source,
+                            _ => false,
+                        })
+                        .count();
+                    if exact_source_count != 1 {
+                        return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                    }
                     let code_offset = bytes.len();
-                    emit_foreign_integer_literal(&mut bytes, target, argument)?;
+                    emit_foreign_integer_argument(&mut bytes, target, argument)?;
                     emitted_scalar_arguments.push(ForeignCallScalarArgumentRecord {
                         parameter_index,
-                        source_value: argument.source_value,
-                        scalar_type: argument.scalar_type,
-                        immediate: argument.immediate,
+                        source: foreign_scalar_source_record(argument.source),
                         placement: argument.placement.clone(),
                         code_offset,
                         byte_count: bytes.len() - code_offset,

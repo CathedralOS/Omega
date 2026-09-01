@@ -87,57 +87,14 @@ pub(super) fn assign(
                     argument.source.source_value(),
                 ));
             }
-            let source = match argument.source {
-                TargetUnitScalarArgumentSource::IntegerImmediate {
-                    defining_operation,
-                    source_value,
-                    scalar_type,
-                    value,
-                } => {
-                    let matches = preceding_operations
-                        .iter()
-                        .filter(|operation| {
-                            matches!(
-                                operation,
-                                TargetUnitOperation::IntegerConstant {
-                                    psi_operation,
-                                    result,
-                                    scalar_type: retained_type,
-                                    value: retained_value,
-                                } if *psi_operation == defining_operation
-                                    && *result == source_value
-                                    && *retained_type == scalar_type
-                                    && *retained_value == value
-                            )
-                        })
-                        .count();
-                    if matches != 1 || psi_core::ScalarTerm::integer(scalar_type, value).is_err() {
-                        return Err(AssignmentError::UnitScalarCallSourceMismatch(source_value));
-                    }
-                    AssignedUnitScalarArgumentSource::IntegerImmediate {
-                        defining_operation,
-                        source_value,
-                        scalar_type,
-                        value,
-                    }
-                }
-                TargetUnitScalarArgumentSource::Home(home) => {
-                    let Some(assigned) = assigned_homes.get(&home.source_value).copied() else {
-                        return Err(AssignmentError::UnitScalarCallSourceMismatch(
-                            home.source_value,
-                        ));
-                    };
-                    if assigned.defining_operation != home.defining_operation
-                        || assigned.scalar_type != home.scalar_type
-                        || assigned.shape != home.shape
-                    {
-                        return Err(AssignmentError::UnitScalarCallSourceMismatch(
-                            home.source_value,
-                        ));
-                    }
-                    AssignedUnitScalarArgumentSource::Home(assigned)
-                }
-            };
+            let source = assign_known_unit_scalar_source(
+                argument.source,
+                preceding_operations,
+                assigned_homes,
+            )
+            .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
+                argument.source.source_value(),
+            ))?;
             Ok(AssignedUnitScalarCallArgument {
                 parameter_index: argument.parameter_index,
                 source,
@@ -181,6 +138,68 @@ pub(super) fn assign(
         requirement_obligations: requirement_obligations.to_vec(),
         crash_continuations: crash_continuations.to_vec(),
     })
+}
+
+/// Resolve one exact Unit scalar source against the ordered target stream and
+/// the durable homes assigned so far. Internal and normalized foreign calls
+/// share this join so neither can acquire a weaker source-custody path.
+pub(super) fn assign_known_unit_scalar_source(
+    source: TargetUnitScalarArgumentSource,
+    preceding_operations: &[TargetUnitOperation],
+    assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+) -> Option<AssignedUnitScalarArgumentSource> {
+    match source {
+        TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            let matches = preceding_operations
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::IntegerConstant {
+                            psi_operation,
+                            result,
+                            scalar_type: retained_type,
+                            value: retained_value,
+                        } if *psi_operation == defining_operation
+                            && *result == source_value
+                            && *retained_type == scalar_type
+                            && *retained_value == value
+                    )
+                })
+                .count();
+            (matches == 1 && psi_core::ScalarTerm::integer(scalar_type, value).is_ok()).then_some(
+                AssignedUnitScalarArgumentSource::IntegerImmediate {
+                    defining_operation,
+                    source_value,
+                    scalar_type,
+                    value,
+                },
+            )
+        }
+        TargetUnitScalarArgumentSource::Home(home) => {
+            let matches = preceding_operations
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::ScalarCall { result_home, .. }
+                            if *result_home == home
+                    )
+                })
+                .count();
+            let assigned = assigned_homes.get(&home.source_value).copied()?;
+            (matches == 1
+                && assigned.defining_operation == home.defining_operation
+                && assigned.scalar_type == home.scalar_type
+                && assigned.shape == home.shape)
+                .then_some(AssignedUnitScalarArgumentSource::Home(assigned))
+        }
+    }
 }
 
 pub(super) fn unit_scalar_home_start(

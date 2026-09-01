@@ -272,10 +272,13 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
                                 same_stack_contribution: admitted_foreign_stack(),
                             },
                             scalar_arguments: vec![NormalizedForeignScalarArgument {
-                                source_value,
-                                scalar_type,
-                                immediate,
                                 parameter_index: 0,
+                                source: omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                                    defining_operation: constant_operation,
+                                    source_value,
+                                    scalar_type,
+                                    value: immediate,
+                                },
                                 placement: placement.clone(),
                             }],
                         },
@@ -304,9 +307,15 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
             panic!("one retained foreign scalar argument")
         };
         assert_eq!(argument.parameter_index, 0);
-        assert_eq!(argument.source_value, source_value);
-        assert_eq!(argument.scalar_type, scalar_type);
-        assert_eq!(argument.immediate, immediate);
+        assert_eq!(
+            argument.source,
+            omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                defining_operation: constant_operation,
+                source_value,
+                scalar_type,
+                value: immediate,
+            }
+        );
         assert_eq!(argument.placement, placement);
         assert!(argument.byte_count > 0);
         assert!(argument.code_offset + argument.byte_count <= call.offset);
@@ -341,7 +350,9 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
         let assigned = assign_registers(&plan).unwrap();
         let mutate_argument =
             |mut assigned: omega_assigned_target_operations::AssignedOperationPlan,
-             mutate: &dyn Fn(&mut NormalizedForeignScalarArgument)| {
+             mutate: &dyn Fn(
+                &mut omega_assigned_target_operations::AssignedNormalizedForeignScalarArgument,
+            )| {
                 let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
                     &mut assigned.functions[0].operation
                 else {
@@ -361,14 +372,34 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
                 );
             };
         mutate_argument(assigned.clone(), &|argument| {
-            argument.source_value = psi_core::ValueId::new(711).unwrap();
+            let omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+                source_value,
+                ..
+            } = &mut argument.source
+            else {
+                unreachable!()
+            };
+            *source_value = psi_core::ValueId::new(711).unwrap();
         });
         mutate_argument(assigned.clone(), &|argument| {
-            argument.scalar_type =
-                psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+            let omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+                scalar_type,
+                ..
+            } = &mut argument.source
+            else {
+                unreachable!()
+            };
+            *scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
         });
         mutate_argument(assigned.clone(), &|argument| {
-            argument.immediate = psi_core::IntegerValue::Signed(-38);
+            let omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+                value,
+                ..
+            } = &mut argument.source
+            else {
+                unreachable!()
+            };
+            *value = psi_core::IntegerValue::Signed(-38);
         });
         mutate_argument(assigned.clone(), &|argument| {
             argument.parameter_index = 1;
@@ -415,8 +446,13 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
         else {
             unreachable!()
         };
-        scalar_arguments[0].scalar_type = psi_core::IntegerType::address(64).unwrap();
-        scalar_arguments[0].immediate = psi_core::IntegerValue::Unsigned((-37_i64) as u64 as u128);
+        scalar_arguments[0].source =
+            omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+                defining_operation: constant_operation,
+                source_value,
+                scalar_type: psi_core::IntegerType::address(64).unwrap(),
+                value: psi_core::IntegerValue::Unsigned((-37_i64) as u64 as u128),
+            };
         assert_eq!(
             super::emit_machine_code(&address_carrier),
             Err(EmissionError::InvalidNormalizedForeignCallCustody)

@@ -1,8 +1,8 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
-    CompletionClaimSource, MachineRegister, NormalizedForeignScalarArgument,
-    ProviderExecutionBinding, RankedU32CountdownCustody, TargetStructuralParameter,
+    CompletionClaimSource, MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
+    TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -103,6 +103,16 @@ pub struct AssignedUnitScalarCallArgument {
     pub destination: AssignedCallDestination,
 }
 
+/// One normalized foreign-call scalar argument after exact durable-home
+/// assignment. Unlike an in-module scalar call, the complete evaluated ABI
+/// placement remains explicit for later source-free object replay.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedNormalizedForeignScalarArgument {
+    pub parameter_index: u32,
+    pub source: AssignedUnitScalarArgumentSource,
+    pub placement: ValuePlacement,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedUnitOperation {
     EstablishByteSequenceLiteral {
@@ -148,7 +158,7 @@ pub enum AssignedUnitOperation {
         boundary: BoundaryMachineId,
         provider_execution: ProviderExecutionBinding,
         binding: omega_target_operations::NormalizedForeignCallBinding,
-        scalar_arguments: Vec<NormalizedForeignScalarArgument>,
+        scalar_arguments: Vec<AssignedNormalizedForeignScalarArgument>,
     },
     PortWrite {
         psi_operation: OperationId,

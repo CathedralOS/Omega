@@ -5,7 +5,8 @@ pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
     target: NativeTarget,
     scalar_arguments: &[omega_target_operations::NormalizedForeignScalarArgument],
     preceding_operations: &[TargetUnitOperation],
-) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, AssignmentError> {
+    assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
     let signature = CallSignature {
         parameters: scalar_arguments
             .iter()
@@ -30,7 +31,10 @@ pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
     {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
+    let mut assigned = Vec::with_capacity(scalar_arguments.len());
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
+        let source_value = argument.source_value();
+        let scalar_type = argument.scalar_type();
         let [
             ValueLocation::Register {
                 register,
@@ -40,48 +44,43 @@ pub(super) fn assign_normalized_foreign_scalar_arguments_for_plan(
         ] = argument.placement.locations.as_slice()
         else {
             return Err(AssignmentError::ExpressionParameterLocationConflict {
-                value: argument.source_value,
+                value: source_value,
                 parameter_index,
             });
         };
-        let expected_bytes = argument.scalar_type.bits().div_ceil(8);
-        if argument.scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
-            || !matches!(argument.scalar_type.bits(), 8 | 16 | 32 | 64)
+        let expected_bytes = scalar_type.bits().div_ceil(8);
+        if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
+            || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
             || argument.parameter_index != parameter_index as u32
             || argument.placement != boundary_entry_plan.call.parameters[parameter_index]
             || argument.placement.shape
                 != ValueShape::integer(expected_bytes, expected_bytes.next_power_of_two().min(8))
             || u16::try_from(expected_bytes) != Ok(*byte_size)
-            || psi_core::ScalarTerm::integer(argument.scalar_type, argument.immediate).is_err()
         {
             return Err(AssignmentError::ExpressionParameterLocationConflict {
-                value: argument.source_value,
+                value: source_value,
                 parameter_index,
             });
         }
-        let matching_constants = preceding_operations
-            .iter()
-            .filter_map(|operation| match operation {
-                TargetUnitOperation::IntegerConstant {
-                    result,
-                    scalar_type,
-                    value,
-                    ..
-                } if *result == argument.source_value => Some((*scalar_type, *value)),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if matching_constants.as_slice() != [(argument.scalar_type, argument.immediate)] {
-            return Err(AssignmentError::ExpressionParameterLocationConflict {
-                value: argument.source_value,
-                parameter_index,
-            });
-        }
+        let source = super::super::scalar_call::assign_known_unit_scalar_source(
+            argument.source,
+            preceding_operations,
+            assigned_homes,
+        )
+        .ok_or(AssignmentError::ExpressionParameterLocationConflict {
+            value: source_value,
+            parameter_index,
+        })?;
         crate::assignment::placement::require_register_architecture(
-            argument.source_value,
+            source_value,
             *register,
             target.architecture,
         )?;
+        assigned.push(AssignedNormalizedForeignScalarArgument {
+            parameter_index: argument.parameter_index,
+            source,
+            placement: argument.placement.clone(),
+        });
     }
-    Ok(scalar_arguments.to_vec())
+    Ok(assigned)
 }
