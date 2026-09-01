@@ -11366,13 +11366,15 @@ Remaining F7 work:
 - extend the checked source lane beyond its current nonempty source-ordered
   sequence of immutable attached-Unit locals, each initialized by an
   independent F32/F64 FMA over three landed literals and optionally followed
-  by ordinary receiver-attached zero-result internal Unit calls; earlier-local operands, result
-  chaining/use, scalar parameters, and other operations require corresponding
-  value-home and liveness custody rather than alias folding;
-- extend the checked source producer beyond the now-live internal-Unit-call
-  coexistence rung to returning foreign calls and other ordinary operations;
-  the x86 backend already has explicit returning-foreign control-state rules,
-  while callback-entry custody remains open;
+  by ordinary receiver-attached zero-result internal Unit calls or the bounded
+  zero-argument, zero-result source-evaluated foreign-call leaf; earlier-local
+  operands, result chaining/use, scalar parameters, and other operations
+  require corresponding value-home and liveness custody rather than alias
+  folding;
+- extend the checked source producer beyond the now-live internal-Unit-call and
+  bounded source-evaluated foreign-call coexistence rungs to scalar foreign
+  arguments/results, wider mixtures, and other ordinary operations;
+  callback-entry custody remains open;
 - add a checked binary32/binary64 software realization or corresponding
   non-x86 target realizations, and collect native differential-execution
   receipts rather than treating the fixed admission vectors as execution
@@ -11431,13 +11433,18 @@ restores its caller's state. The corresponding AArch64 lane saves complete
 FPCR through a target-owned `MRS`/`STR` sequence and restores it with
 `LDR`/`MSR`; it retains the exact reusable eight-byte slot and per-call
 intervals through the same machine/object/native replay. The checked source
-producer now admits ordinary receiver-attached zero-result internal Unit calls after the
-independent literal FMA locals. Object replay requires each such call's
-complete interval to remain inside the function-level MXCSR envelope. Other
-operations, returning foreign source calls, callback entry, wider source
-shapes, non-x86/software realization, and native differential-execution
-receipts remain engineering work. Generic Linux/Windows x86-64 semantics
-remain SSE2 baseline unless that explicit deployment input is selected.
+producer now admits ordinary receiver-attached zero-result internal Unit calls
+after the independent literal FMA locals. Object replay requires each such
+call's complete interval to remain inside the function-level MXCSR envelope.
+The bounded Windows x86 source lane also admits one zero-argument, zero-result
+source-evaluated PE import after those locals. Its normalized locator remains
+owned by target-profile normalization rather than duplicated per-stage format
+allowlists, and object replay requires the call's nested complete-MXCSR
+save/restore interval to stay inside the outer FMA envelope. Scalar foreign
+arguments/results, wider mixtures, callback entry, other operations, wider
+source shapes, non-x86/software realization, and native differential-execution
+receipts remain engineering work. Generic Linux/Windows x86-64 semantics remain
+SSE2 baseline unless that explicit deployment input is selected.
 
 The next target-neutral compiler rung is now live. `ScalarType` carries exact
 binary32/binary64 formats, Terminal Psi has raw-interchange-bit constants and a
@@ -11446,7 +11453,9 @@ verifier, fuel, and reference-interpreter paths preserve and execute that
 meaning without integer laundering. The bounded source producer recognizes a
 nonempty source-ordered sequence of immutable attached-Unit locals, each
 initialized directly by an independent selected F32/F64 FMA over three landed
-literals, followed by zero or more ordinary receiver-attached zero-result internal Unit calls.
+literals, followed by zero or more ordinary receiver-attached zero-result
+internal Unit calls or the bounded zero-argument, zero-result source-evaluated
+foreign leaf.
 It retains each exact checked requirement, complete ProviderPlan
 commitment, source coordinate, Terminal operation identity, and format as an
 ephemeral occurrence row. Terminal-product construction consumes those rows

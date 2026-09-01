@@ -7,8 +7,9 @@ use omega_effects::provider_plan::ProviderBinding;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_target::ForeignLocatorCandidate;
 use omega_task_plans::{
-    SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
-    SameStackProviderPlanCommitment, admit_same_stack_contribution,
+    AdmittedSameStackContribution, SameStackContributionAdmissionCandidate,
+    SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
+    admit_same_stack_contribution,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -19,19 +20,14 @@ const SYMBOL: &[u8] = b"_getpid";
 struct Fixture {
     root: PathBuf,
     main: PathBuf,
+    target: String,
 }
 
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "omega-source-evaluated-macho-native-{}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create source-evaluated Mach-O fixture");
-        let main = root.join("main.omg");
-        fs::write(
-            &main,
+        Self::with_source(
+            "macho",
+            "macos_arm64",
             r#"use omega::language::core::external_binding;
 
 target macos_arm64 {
@@ -57,32 +53,88 @@ machine Main::main(&mut self) {
     self.process.ping();
 }
 "#,
-        )
-        .expect("write source-evaluated Mach-O source");
-        fs::write(
-            root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
     builder.application("source-evaluated-macho-native");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,
         )
-        .expect("write source-evaluated Mach-O build policy");
-        Self { root, main }
+    }
+
+    fn new_windows_x86_fma() -> Self {
+        Self::with_source(
+            "windows-x86-fma",
+            "windows_x86_64",
+            r#"use omega::language::core::external_binding;
+use omega::language::core::float_operations;
+
+target windows_x86_64 {
+}
+
+boundary trait Process {
+    machine ping();
+}
+
+windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "FlushProcessWriteBuffers",
+        },
+    }
+}
+
+machine ping_leaf() satisfies Process::ping via ping_binding();
+
+data Main { process: Process; }
+machine Main::main(&mut self) {
+    let fused: f32 = F32::fused_multiply_add(
+        1.00000011920928955078125f32,
+        0.99999988079071044921875f32,
+        -1.0f32,
+    );
+    self.process.ping();
+}
+"#,
+            r#"machine build(builder: &mut Build) {
+    builder.application("source-evaluated-windows-x86-fma");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}
+"#,
+        )
+    }
+
+    fn with_source(name: &str, target: &str, source: &str, build: &str) -> Self {
+        let root = std::env::temp_dir().join(format!(
+            "omega-source-evaluated-{name}-native-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create source-evaluated native fixture");
+        let main = root.join("main.omg");
+        fs::write(&main, source).expect("write source-evaluated native source");
+        fs::write(root.join("build.omg"), build)
+            .expect("write source-evaluated native build policy");
+        Self {
+            root,
+            main,
+            target: target.to_owned(),
+        }
     }
 
     fn compile_terminal(&self) -> omega_compilation_report::RetainedTerminalArtifact {
         let request = CompileRequest::new(CompileOptions {
             root_path: self.main.clone(),
             build_dir: Some(self.root.join("build")),
-            target_name: Some("macos_arm64".to_owned()),
+            target_name: Some(self.target.clone()),
         })
         .with_requested_product(RequestedCompileProduct::TerminalArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
         compile(request)
             .unwrap_or_else(|diagnostics| {
                 panic!(
-                    "structured Mach-O import should reach retained Terminal custody:\n{}",
+                    "structured source-evaluated import should reach retained Terminal custody:\n{}",
                     diagnostics
                         .iter()
                         .map(ToString::to_string)
@@ -93,6 +145,49 @@ machine Main::main(&mut self) {
             .into_retained_terminal_artifact()
             .expect("Terminal compilation retains its native proposal")
     }
+}
+
+#[test]
+fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
+    let fixture = Fixture::new_windows_x86_fma();
+    let retained = fixture.compile_terminal();
+    let admission = admit_import(
+        &retained,
+        SameStackContributionAdmissionReceiptId::from_normalized_identity(0x5846_4d41_0005)
+            .unwrap(),
+    );
+    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        &[SourceEvaluatedImportSettlement::new(
+            &admission.execution,
+            &admission.same_stack,
+        )],
+    )
+    .unwrap_or_else(|diagnostics| panic!("FMA plus import should realize: {diagnostics:#?}"));
+
+    artifact
+        .validate()
+        .expect("combined native artifact replays");
+    let function = artifact
+        .object()
+        .functions()
+        .iter()
+        .find(|function| !function.x86_scalar_fma_occurrences.is_empty())
+        .expect("one FMA-bearing source function");
+    let outer = function
+        .x86_floating_control
+        .expect("FMA function has canonical MXCSR custody");
+    let [foreign] = artifact.object().foreign_calls() else {
+        panic!("one source-evaluated foreign call")
+    };
+    let nested = foreign
+        .x86_floating_control
+        .expect("returning foreign call has nested complete-MXCSR custody");
+    assert!(outer.install_offset + outer.install_byte_count <= nested.save_offset);
+    assert!(nested.restore_offset + nested.restore_byte_count <= outer.restore_offset);
+    assert_eq!(artifact.image().output().format, "pe64-x86_64-executable");
 }
 
 impl Drop for Fixture {
@@ -159,6 +254,42 @@ fn import_coordinates(
     )
 }
 
+struct AdmittedImport {
+    execution: TestProviderExecution,
+    same_stack: AdmittedSameStackContribution,
+    plan_report_identity: u64,
+}
+
+fn admit_import(
+    retained: &omega_compilation_report::RetainedTerminalArtifact,
+    receipt: SameStackContributionAdmissionReceiptId,
+) -> AdmittedImport {
+    let (requirement, plan_report_identity, plan_commitment) = import_coordinates(&retained);
+    let execution = TestProviderExecution {
+        requirement: requirement.clone(),
+        plan_report_identity,
+    };
+    let same_stack = admit_same_stack_contribution(
+        SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: plan_report_identity,
+            provider_plan_commitment: plan_commitment,
+            requirement_identity: requirement.clone(),
+            receipt,
+            bytes: 64,
+            alignment: 16,
+        },
+        plan_report_identity,
+        plan_commitment,
+        &requirement,
+    )
+    .expect("exact provider-plan custody admits the foreign leaf");
+    AdmittedImport {
+        execution,
+        same_stack,
+        plan_report_identity,
+    }
+}
+
 #[test]
 fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let fixture = Fixture::new();
@@ -177,35 +308,18 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     );
 
     let retained = fixture.compile_terminal();
-    let (requirement, plan_report_identity, plan_commitment) = import_coordinates(&retained);
-    let execution = TestProviderExecution {
-        requirement: requirement.clone(),
-        plan_report_identity,
-    };
-    let same_stack = admit_same_stack_contribution(
-        SameStackContributionAdmissionCandidate {
-            provider_plan_report_identity: plan_report_identity,
-            provider_plan_commitment: plan_commitment,
-            requirement_identity: requirement.clone(),
-            receipt: SameStackContributionAdmissionReceiptId::from_normalized_identity(
-                0x4d41_4348_4f05,
-            )
+    let admission = admit_import(
+        &retained,
+        SameStackContributionAdmissionReceiptId::from_normalized_identity(0x4d41_4348_4f05)
             .unwrap(),
-            bytes: 64,
-            alignment: 16,
-        },
-        plan_report_identity,
-        plan_commitment,
-        &requirement,
-    )
-    .expect("exact provider-plan custody admits the opaque same-stack demand");
+    );
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         &[SourceEvaluatedImportSettlement::new(
-            &execution,
-            &same_stack,
+            &admission.execution,
+            &admission.same_stack,
         )],
     )
     .unwrap_or_else(|diagnostics| {
@@ -261,12 +375,12 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     assert!(
         object_demand
             .admitted_contribution_report_identities()
-            .contains(&same_stack.report_identity())
+            .contains(&admission.same_stack.report_identity())
     );
     assert!(
         object_demand
             .admitted_contribution_commitments()
-            .contains(&same_stack.commitment())
+            .contains(&admission.same_stack.commitment())
     );
 
     let installation =
@@ -291,18 +405,24 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     };
     assert_eq!(
         foreign_stack.provider_plan_report_identity,
-        plan_report_identity
+        admission.plan_report_identity
     );
     assert_eq!(
         foreign_stack.contribution_report_identity,
-        same_stack.report_identity()
+        admission.same_stack.report_identity()
     );
     assert_eq!(
         foreign_stack.contribution_commitment,
-        same_stack.commitment()
+        admission.same_stack.commitment()
     );
-    assert_eq!(foreign_stack.contribution_bytes, same_stack.bytes());
-    assert_eq!(foreign_stack.contribution_alignment, same_stack.alignment());
+    assert_eq!(
+        foreign_stack.contribution_bytes,
+        admission.same_stack.bytes()
+    );
+    assert_eq!(
+        foreign_stack.contribution_alignment,
+        admission.same_stack.alignment()
+    );
 
     let encoded = omega_image_emission::encode_installation_record(&installation)
         .expect("foreign stack installation encodes");

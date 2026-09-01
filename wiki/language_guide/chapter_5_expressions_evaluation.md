@@ -822,8 +822,10 @@ lowering now consume the carrier through exact Terminal FMA occurrences,
 assignment-owned XMM homes, canonical MXCSR custody, and final artifact replay.
 Independent literal FMA locals may be followed by ordinary receiver-attached zero-result internal
 Unit calls; each retained call interval remains inside the function-level
-MXCSR envelope. Wider expressions, other operations, and returning foreign
-source calls remain pending. AArch64 also
+MXCSR envelope. The bounded Windows x86 lane also admits a zero-argument,
+zero-result source-evaluated PE leaf after those locals; its complete nested
+MXCSR custody must remain inside the same outer envelope. Scalar foreign
+arguments/results, wider mixtures, and other operations remain pending. AArch64 also
 selects exact F32/F64 FMA-toward-zero/positive/negative satisfiers. Each
 directed ternary operation changes FPCR only around one scalar `FMADD`, while
 the interpreter consumes the corresponding directed `FloatSemantics` identity;

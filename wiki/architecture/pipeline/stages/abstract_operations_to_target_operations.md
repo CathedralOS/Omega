@@ -77,8 +77,10 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   for every Abstract FMA occurrence. `lowering/unit.rs` retains raw
   binary32/binary64 operands, the selected-plan commitment, slot, and provider
   in target operations without choosing physical registers. The bounded
-  attached-Unit lane may preserve ordinary receiver-attached zero-result internal Unit calls
-  after those FMA definitions; their existing call custody remains distinct.
+  attached-Unit lane may preserve ordinary receiver-attached zero-result
+  internal Unit calls or the bounded zero-argument, zero-result
+  source-evaluated foreign leaf after those FMA definitions; their existing
+  call custody remains distinct.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
 - `tests.rs` owns exact stage-boundary and rejection canaries.
 
@@ -109,6 +111,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - Internal Unit calls in an FMA-bearing body remain in source order inside the
   function-level canonical floating-control envelope; later object replay
   checks their complete emitted intervals against that envelope.
+- A normalized foreign locator's exact target profile owns locator
+  applicability. Target lowering preserves that sealed locator and checks its
+  native target; it does not maintain a second format/case allowlist.
 
 ## Known Gaps
 

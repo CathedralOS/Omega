@@ -1032,16 +1032,6 @@ pub(super) fn emit_unit_body(
                 .map_err(|_| EmissionError::InvalidNormalizedForeignCallCustody)?;
                 if validated.plan() != &foreign.boundary_entry_plan
                     || canonical.plan() != &foreign.boundary_entry_plan
-                    || !matches!(
-                        (target.object_format, foreign.locator.locator()),
-                        (
-                            ObjectFormat::Elf,
-                            omega_target::ForeignLocatorCandidate::ElfVersioned { .. }
-                        ) | (
-                            ObjectFormat::MachO,
-                            omega_target::ForeignLocatorCandidate::MachODylibSymbol { .. }
-                        )
-                    )
                     || foreign.locator.target().native_target() != target
                     || call_plan.policy
                         != omega_calling_conventions::CallingPolicy::native_for_target(target)

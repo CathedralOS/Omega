@@ -257,16 +257,6 @@ pub(super) fn lower_boundary_call(
                     || !completion_receipts.is_empty()
                     || !declaration.structural_parameters.is_empty()
                     || (result_home.is_some() && function.attachment.is_none())
-                    || !matches!(
-                        (target.object_format, foreign.locator.locator()),
-                        (
-                            ObjectFormat::Elf,
-                            omega_target::ForeignLocatorCandidate::ElfVersioned { .. }
-                        ) | (
-                            ObjectFormat::MachO,
-                            omega_target::ForeignLocatorCandidate::MachODylibSymbol { .. }
-                        )
-                    )
                     || foreign.boundary_entry_plan.call.policy
                         != omega_calling_conventions::CallingPolicy::native_for_target(target)
                     || foreign.boundary_entry_plan.call.entry_control
