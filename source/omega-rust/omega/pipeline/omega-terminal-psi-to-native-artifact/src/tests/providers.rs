@@ -1,6 +1,6 @@
 //! Checked-provider adapter projection, omission, ambiguity, and package-custody rejection.
 
-use crate::realization::project_selected_provider_adapters_for_requirements;
+use crate::realization::providers::project_selected_provider_adapters_for_requirements;
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
