@@ -30,12 +30,12 @@ use omega_external_roots::{
     ComponentVersionPin, ComponentVersionPinId, ExternalRootDiagnostic, ExternalRootId,
     FixedFuelCall, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
     FuelValidationReceiptId, InstalledRootRecord, LogicalFuelResourceColumn,
-    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance,
+    MachineStateResourceColumn, NestingRelationId, ObjectEvidence, OpaqueProviderExitAssurance,
     ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
     ProviderStackSummary, RootAdmissionId, RootEffectId, RootProviderId, RootSlotId,
-    RootSlotOwnerId, StackNestingRelation, StackResourceColumn, StackValidationReceiptId,
-    StateValidationReceiptId, TrustReceiptId, bind_opaque_adapter_stack_realization,
-    compose_bound_entry_stack_epochs, compose_fixed_fuel,
+    RootSlotOwnerId, StackDemandEvidence, StackNestingRelation, StackResourceColumn,
+    StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId, bind_installed_entry_stack,
+    bind_opaque_adapter_stack_realization, compose_bound_entry_stack_epochs, compose_fixed_fuel,
 };
 use omega_target::{Architecture, TargetProfile};
 use psi_extents::{
@@ -705,6 +705,74 @@ fn extent_provider_issuance(seed: u64) -> psi_extents::ExtentProviderIssuance {
     .expect("normalized provider issuance")
 }
 
+#[derive(Debug)]
+struct ExternalRootReportObject {
+    psi: psi_terminal::TerminalPsiIdentity,
+    machine: psi_core::MachineId,
+    text: Vec<u8>,
+}
+
+impl ObjectEvidence for ExternalRootReportObject {
+    fn psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.psi
+    }
+
+    fn target(&self) -> omega_target::NativeTarget {
+        omega_target::NativeTarget::linux_x64()
+    }
+
+    fn text_bytes(&self) -> &[u8] {
+        &self.text
+    }
+
+    fn function_text_offset(&self, machine: psi_core::MachineId) -> Option<usize> {
+        (machine == self.machine).then_some(16)
+    }
+}
+
+#[derive(Debug)]
+struct ExternalRootReportStackDemand {
+    psi: psi_terminal::TerminalPsiIdentity,
+    machine: psi_core::MachineId,
+    contributing_machines: BTreeSet<psi_core::MachineId>,
+    admitted_reports: BTreeSet<u64>,
+    admitted_commitments: BTreeSet<[u8; 32]>,
+}
+
+impl StackDemandEvidence for ExternalRootReportStackDemand {
+    fn psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.psi
+    }
+
+    fn architecture(&self) -> Architecture {
+        Architecture::X86_64
+    }
+
+    fn entry(&self) -> psi_core::MachineId {
+        self.machine
+    }
+
+    fn ceiling_bytes(&self) -> u64 {
+        2048
+    }
+
+    fn stack_alignment(&self) -> u32 {
+        16
+    }
+
+    fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId> {
+        &self.contributing_machines
+    }
+
+    fn admitted_stack_contribution_report_identities(&self) -> BTreeSet<u64> {
+        self.admitted_reports.clone()
+    }
+
+    fn admitted_stack_contribution_commitments(&self) -> BTreeSet<[u8; 32]> {
+        self.admitted_commitments.clone()
+    }
+}
+
 fn installed_code_fixture(entry: EntryStubId) -> InstalledCode {
     let scope =
         ArtifactInstallationScopeId::from_normalized_identity(61).expect("installation scope");
@@ -953,13 +1021,33 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     let nesting_identity = root_id(11, NestingRelationId::from_normalized_identity);
     let entry = entry_id(2);
     let installed_code = installed_code_fixture(entry);
-    let stack_summary = ProviderStackSummary::from_admitted_provider(
+    let terminal_machine = psi_core::MachineId::new(1).expect("terminal machine");
+    let terminal_psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x71; 32]),
+    };
+    let stack_binding = bind_installed_entry_stack(
+        &ExternalRootReportStackDemand {
+            psi: terminal_psi,
+            machine: terminal_machine,
+            contributing_machines: BTreeSet::from([terminal_machine]),
+            admitted_reports: BTreeSet::from([0x81, 0x82]),
+            admitted_commitments: BTreeSet::from([[0xa1; 32], [0xa2; 32]]),
+        },
+        &ExternalRootReportObject {
+            psi: terminal_psi,
+            machine: terminal_machine,
+            text: vec![0; 64],
+        },
+        &installed_code,
+        entry,
+    )
+    .expect("installed terminal stack evidence");
+    let stack_summary = ProviderStackSummary::from_entry(
         root_identity,
         root_id(8, RootProviderId::from_normalized_identity),
         EntryStack::ProviderSelected,
-        2048,
-        16,
-        root_id(29, StackValidationReceiptId::from_normalized_identity),
+        stack_binding,
     );
     let stack_realization = validate_entry_stack_realization(EntryStackRealization {
         contexts: vec![ArrivalContextRealization {
@@ -1106,7 +1194,18 @@ fn external_root_manifest_is_complete_normalized_and_address_free() {
     );
     assert_eq!(
         parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["origin"],
-        "admitted_provider"
+        "entry"
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["admitted_stack_contribution_report_identities"],
+        serde_json::json!(["0x0000000000000081", "0x0000000000000082"])
+    );
+    assert_eq!(
+        parsed["roots"][0]["resources"]["stack"]["summary_evidence"][0]["admitted_stack_contribution_commitments"],
+        serde_json::json!([
+            format!("0x{}", "a1".repeat(32)),
+            format!("0x{}", "a2".repeat(32)),
+        ])
     );
     assert_eq!(
         parsed["roots"][0]["resources"]["stack"]["composed_domains"][0]["domain"]["kind"],

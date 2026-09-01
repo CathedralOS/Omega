@@ -10011,11 +10011,15 @@ reach or trust, and private proof improvements do not change public identity.
   replay rejoins the semantic requirement, provider execution, selected-plan
   report, and exact selected-plan digest. Installation format 48 retains a
   non-authoritative projection and may consume it only after exact-image
-  rejoin. The current physical lane proves 16-byte call-entry alignment, so it
+  rejoin. Installation binding now carries those report coordinates and strong
+  commitments into exact terminal-entry evidence. Bound epoch composition
+  fingerprints that body evidence, provider execution retains it, and the
+  canonical external-root report publishes it; incomplete or zero projections
+  reject. The current physical lane proves 16-byte call-entry alignment, so it
   rejects stronger admitted alignment instead of numerically inventing
   padding. Remaining WCSU work includes physical support for stronger
-  alignment and the separate external-root join into `StackPlan`, lease, and
-  entry-epoch custody.
+  alignment and the external-root join into a final `StackPlan`, provisioned
+  lease, and admission contract.
 
   The task-plan foundation now projects a sealed fixed-stack shape only from
   `ComposedTaskStackDemand`, retaining the exact composition/root, byte count,
@@ -10027,9 +10031,11 @@ reach or trust, and private proof improvements do not change public identity.
   than being mislabeled as WCSU evidence. Compiler whole-call-graph collection,
   lease provisioning, and the remaining lifecycle joins stay open.
 
-  Complete external-root `StackPlan` production depends on implementing
-  `EXTERNAL-ENTRY-STACK-EPOCHS`, not on an owner decision. Zero-byte internal
-  closures remain inadmissible until the entry realization is joined.
+  Complete external-root `StackPlan` production depends on the remaining
+  `EXTERNAL-ENTRY-STACK-EPOCHS` installation-fact/completeness work and on
+  joining its already-bound epoch composition to provisioning and admission,
+  not on an owner decision. Zero-byte internal closures remain inadmissible
+  until they participate in an exact entry realization.
 - **BLOCKEXEC:** implement an ordinary package-level blocking executor with
   bounded queues, moved custody, linear completion claims, suspension, and
   provider selection. A hung in-process worker cannot be killed safely;

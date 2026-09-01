@@ -4384,7 +4384,7 @@ fn allocation_recovery_has_one_route_and_one_realization_carrier() {
         "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
         "stage_fixed_view(ranges)",
         "ActiveResidentImmediateU64MultiUseRematerializationV1",
-        "stage_active_resident(ranges)",
+        "stage_active_resident(ranges, post_allocation)",
     ] {
         assert!(
             route.contains(required),

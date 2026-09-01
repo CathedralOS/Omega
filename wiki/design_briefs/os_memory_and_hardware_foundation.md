@@ -1506,11 +1506,15 @@ a decoded canonical installation record is revalidated against its exact image,
 then the demand binds exact installed bytes and entry before artifact-wide
 nesting composition. Provider execution rechecks that binding, and the root
 report distinguishes recomputable terminal evidence from an opaque provider's
-admitted numeric summary. The live scalar `ProviderStackSummary` and composer
-remain an implementation precursor; they do not yet represent context-indexed
-epochs or the per-domain arrival/adapter join. Zero-byte internal closures
-remain insufficient for root admission until that settled realization is
-implemented and composed.
+admitted numeric summary. Terminal evidence also retains every compact admitted
+same-stack report coordinate and strong contribution commitment recovered by
+canonical installation replay. Bound epoch composition hashes those exact
+premises, and the canonical report publishes them; missing-half and zero
+projections reject. `ProviderStackSummary` remains the body-demand precursor,
+while the bound composer represents the context-indexed epochs and per-domain
+arrival/adapter join. That join still does not create a final `StackPlan`,
+provision a lease, or admit the resource contract. Zero-byte internal closures
+remain insufficient until they participate in an exact entry realization.
 
 Machine-state admission checks the final footprint against the `StatePlan`.
 Schedule-keyed fixed-fuel provider summaries compose transitively while

@@ -29,6 +29,8 @@ pub struct InstalledEntryStackDemand {
     ceiling_bytes: u64,
     stack_alignment: u64,
     contributing_machines: BTreeSet<psi_core::MachineId>,
+    admitted_stack_contribution_report_identities: BTreeSet<u64>,
+    admitted_stack_contribution_commitments: BTreeSet<[u8; 32]>,
     installed_code: InstalledCodeId,
     installed_code_context: InstalledCodeContext,
     artifact: ArtifactId,
@@ -54,6 +56,14 @@ impl InstalledEntryStackDemand {
 
     pub const fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId> {
         &self.contributing_machines
+    }
+
+    pub const fn admitted_stack_contribution_report_identities(&self) -> &BTreeSet<u64> {
+        &self.admitted_stack_contribution_report_identities
+    }
+
+    pub const fn admitted_stack_contribution_commitments(&self) -> &BTreeSet<[u8; 32]> {
+        &self.admitted_stack_contribution_commitments
     }
 
     pub const fn installed_code(&self) -> InstalledCodeId {
@@ -109,6 +119,18 @@ pub fn bind_installed_entry_stack<
             "terminal stack demand requires nonzero bytes and power-of-two alignment".into(),
         ));
     }
+    let admitted_stack_contribution_report_identities =
+        demand.admitted_stack_contribution_report_identities();
+    let admitted_stack_contribution_commitments = demand.admitted_stack_contribution_commitments();
+    if admitted_stack_contribution_report_identities.contains(&0)
+        || admitted_stack_contribution_commitments.contains(&[0; 32])
+        || admitted_stack_contribution_report_identities.is_empty()
+            != admitted_stack_contribution_commitments.is_empty()
+    {
+        return Err(ExternalRootDiagnostic(
+            "terminal stack demand has incomplete or zero admitted same-stack provenance".into(),
+        ));
+    }
     let function_offset = artifact
         .function_text_offset(demand.entry())
         .ok_or_else(|| {
@@ -124,6 +146,8 @@ pub fn bind_installed_entry_stack<
         ceiling_bytes: demand.ceiling_bytes(),
         stack_alignment: u64::from(demand.stack_alignment()),
         contributing_machines: demand.contributing_machines().clone(),
+        admitted_stack_contribution_report_identities,
+        admitted_stack_contribution_commitments,
         installed_code: installed_code.identity(),
         installed_code_context: installed_code.receipt_context(),
         artifact: installed_code.artifact(),
@@ -675,7 +699,7 @@ fn non_authoritative_stack_inputs_report_fingerprint(
     hash.finish()
 }
 
-fn fingerprint_stack_local_evidence(hash: &mut Fnv1a, evidence: &StackLocalEvidence) {
+pub(super) fn fingerprint_stack_local_evidence(hash: &mut Fnv1a, evidence: &StackLocalEvidence) {
     match evidence {
         StackLocalEvidence::TerminalEntry(binding) => {
             hash.u64(0);
@@ -691,6 +715,14 @@ fn fingerprint_stack_local_evidence(hash: &mut Fnv1a, evidence: &StackLocalEvide
             hash.u64(binding.contributing_machines.len() as u64);
             for machine in &binding.contributing_machines {
                 hash.u64(machine.get());
+            }
+            hash.u64(binding.admitted_stack_contribution_report_identities.len() as u64);
+            for report_identity in &binding.admitted_stack_contribution_report_identities {
+                hash.u64(*report_identity);
+            }
+            hash.u64(binding.admitted_stack_contribution_commitments.len() as u64);
+            for commitment in &binding.admitted_stack_contribution_commitments {
+                hash.bytes(commitment);
             }
             hash.u64(binding.installed_code.normalized_identity());
             hash.u64(binding.artifact.normalized_identity());

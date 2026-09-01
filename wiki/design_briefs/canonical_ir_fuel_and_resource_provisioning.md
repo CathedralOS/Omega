@@ -464,13 +464,16 @@ object construction validates every exact native `UD2`/`BRK` terminal before
 installation; any returning arm stays directly accountable. Ordered x86
 division diamonds from the condition or returning arm use the same independent
 path replay.
-The result intentionally excludes external entry adapter and architectural
-arrival state. Root installation joins it into the selected context-indexed
-`EntryStackRealization`: body WCSU contributes only to the `Body` epoch's
-execution domain, while target-derived arrival and generated-or-admitted
-adapter epochs retain their own domains and nesting allowances. Until that
-separate join is implemented, this evidence alone is not an external-root
-`StackPlan` or provider receipt.
+The object result intentionally excludes external entry adapter and
+architectural arrival state. Root installation joins it into the selected
+context-indexed `EntryStackRealization`: body WCSU contributes only to the
+`Body` epoch's execution domain, while target-derived arrival and
+generated-or-admitted adapter epochs retain their own domains and nesting
+allowances. Exact terminal-entry evidence carries the admitted same-stack
+report coordinates and strong commitments through that join, and the bound
+epoch fingerprint changes if those premises change even when the numeric
+composition does not. This installed-root join is still not a final
+`StackPlan`, provisioned lease, or admission receipt.
 
 ## Response and physical time
 

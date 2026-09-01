@@ -386,6 +386,8 @@ struct TestStackDemand {
     identity: psi_terminal::TerminalPsiIdentity,
     entry: psi_core::MachineId,
     contributing: BTreeSet<psi_core::MachineId>,
+    admitted_reports: BTreeSet<u64>,
+    admitted_commitments: BTreeSet<[u8; 32]>,
 }
 
 impl StackDemandEvidence for TestStackDemand {
@@ -411,6 +413,14 @@ impl StackDemandEvidence for TestStackDemand {
 
     fn contributing_machines(&self) -> &BTreeSet<psi_core::MachineId> {
         &self.contributing
+    }
+
+    fn admitted_stack_contribution_report_identities(&self) -> BTreeSet<u64> {
+        self.admitted_reports.clone()
+    }
+
+    fn admitted_stack_contribution_commitments(&self) -> BTreeSet<[u8; 32]> {
+        self.admitted_commitments.clone()
     }
 }
 
@@ -714,6 +724,8 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
         identity: psi,
         entry: machine,
         contributing: BTreeSet::from([machine]),
+        admitted_reports: BTreeSet::from([0x812]),
+        admitted_commitments: BTreeSet::from([[0x81; 32], [0x82; 32]]),
     };
     let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
         .expect("terminal stack closure binds exact installed bytes");
@@ -739,6 +751,17 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
         AdapterStackRealizationOrigin::None
     );
     assert_eq!(bound.realization_evidence().validation_receipt(), None);
+    let StackLocalEvidence::TerminalEntry(bound_body) = bound.body_evidence() else {
+        panic!("direct generated entry retains terminal body evidence")
+    };
+    assert_eq!(
+        bound_body.admitted_stack_contribution_report_identities(),
+        &BTreeSet::from([0x812]),
+    );
+    assert_eq!(
+        bound_body.admitted_stack_contribution_commitments(),
+        &BTreeSet::from([[0x81; 32], [0x82; 32]]),
+    );
     let contexts = &bound
         .realization_evidence()
         .realization()
@@ -766,6 +789,120 @@ fn direct_generated_entry_derives_one_exact_body_epoch_without_provider_attestat
             .0
             .contains("drifted from the boundary stack disposition")
     );
+
+    let exact_composition = compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: root_id(0x805, NestingRelationId::from_normalized_identity),
+            edges: BTreeSet::new(),
+        },
+        [&bound],
+    )
+    .expect("exact installed body provenance composes");
+    let compose_alternate = |admitted_reports: BTreeSet<u64>,
+                             admitted_commitments: BTreeSet<[u8; 32]>| {
+        let demand = TestStackDemand {
+            identity: psi,
+            entry: machine,
+            contributing: BTreeSet::from([machine]),
+            admitted_reports,
+            admitted_commitments,
+        };
+        let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
+            .expect("alternate demand binds its own exact projection");
+        let summary = ProviderStackSummary::from_entry(
+            root,
+            provider,
+            boundary.plan().state.stack,
+            installed,
+        );
+        let bound = bind_direct_generated_entry_stack_realization(
+            &summary,
+            &boundary,
+            &code,
+            entry,
+            body_domains(&boundary, &[(1, StackDomainRef::Interrupted)]),
+        )
+        .expect("alternate body evidence remains structurally valid");
+        compose_bound_entry_stack_epochs(
+            &StackNestingRelation {
+                identity: root_id(0x805, NestingRelationId::from_normalized_identity),
+                edges: BTreeSet::new(),
+            },
+            [&bound],
+        )
+        .expect("alternate installed body provenance composes separately")
+    };
+    let substitute_composition = compose_alternate(
+        BTreeSet::from([0x812]),
+        BTreeSet::from([[0x81; 32], [0x91; 32]]),
+    );
+    assert_eq!(
+        exact_composition.composition(),
+        substitute_composition.composition(),
+        "pure epoch composition remains numeric and structural",
+    );
+    assert_ne!(
+        exact_composition, substitute_composition,
+        "exact bound composition retains the strong provenance distinction",
+    );
+    assert_ne!(
+        exact_composition.report_fingerprint(),
+        substitute_composition.report_fingerprint(),
+        "compact-equal admitted reports cannot hide a strong commitment substitution",
+    );
+    let omitted_composition = compose_alternate(BTreeSet::new(), BTreeSet::new());
+    assert_eq!(
+        exact_composition.composition(),
+        omitted_composition.composition(),
+        "foreign-free and admitted-foreign bodies may have equal numeric demand",
+    );
+    assert_ne!(
+        exact_composition, omitted_composition,
+        "omitting both provenance sets remains distinguishable from a foreign-bearing body",
+    );
+    assert_ne!(
+        exact_composition.report_fingerprint(),
+        omitted_composition.report_fingerprint(),
+        "the bound report retains presence versus omission of admitted foreign premises",
+    );
+}
+
+#[test]
+fn installed_entry_stack_rejects_incomplete_or_zero_foreign_provenance() {
+    let entry = entry_id(0x806);
+    let code = installed_code(0x807, entry);
+    let machine = psi_core::MachineId::new(1).expect("machine identity");
+    let psi = psi_terminal::TerminalPsiIdentity {
+        vocabulary_marker: psi_terminal::VocabularyMarker,
+        program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x82; 32]),
+    };
+    let artifact = TestObject {
+        identity: psi,
+        entry: machine,
+        bytes: vec![0; 64],
+    };
+
+    for (admitted_reports, admitted_commitments) in [
+        (BTreeSet::from([7]), BTreeSet::new()),
+        (BTreeSet::new(), BTreeSet::from([[7; 32]])),
+        (BTreeSet::from([0]), BTreeSet::from([[7; 32]])),
+        (BTreeSet::from([7]), BTreeSet::from([[0; 32]])),
+    ] {
+        let demand = TestStackDemand {
+            identity: psi,
+            entry: machine,
+            contributing: BTreeSet::from([machine]),
+            admitted_reports,
+            admitted_commitments,
+        };
+        let error = bind_installed_entry_stack(&demand, &artifact, &code, entry)
+            .expect_err("invalid admitted foreign provenance must fail closed");
+        assert!(
+            error
+                .0
+                .contains("incomplete or zero admitted same-stack provenance")
+        );
+    }
 }
 
 #[test]
@@ -799,6 +936,8 @@ fn generated_program_storage_adapter_replays_emitted_operations_and_composes_thr
         identity: psi,
         entry: machine,
         contributing: BTreeSet::from([machine]),
+        admitted_reports: BTreeSet::new(),
+        admitted_commitments: BTreeSet::new(),
     };
     let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
         .expect("terminal stack closure binds exact installed bytes");
@@ -915,6 +1054,8 @@ fn generated_program_storage_adapter_rejects_mutation_and_installed_subject_subs
         identity: psi,
         entry: machine,
         contributing: BTreeSet::from([machine]),
+        admitted_reports: BTreeSet::new(),
+        admitted_commitments: BTreeSet::new(),
     };
     let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
         .expect("terminal stack closure");
@@ -1072,6 +1213,8 @@ fn x86_target_arrival_binds_exact_installation_and_composes_mixed_contexts() {
         identity: psi,
         entry: machine,
         contributing: BTreeSet::from([machine]),
+        admitted_reports: BTreeSet::new(),
+        admitted_commitments: BTreeSet::new(),
     };
     let installed = bind_installed_entry_stack(&demand, &artifact, &code, entry)
         .expect("terminal stack closure binds exact installed bytes");

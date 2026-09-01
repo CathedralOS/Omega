@@ -227,6 +227,25 @@ fn push_external_root_json(output: &mut String, record: &InstalledRootRecord) {
                         .iter()
                         .map(|machine| machine.get()),
                 );
+                output.push_str("], \"admitted_stack_contribution_report_identities\": [");
+                push_identity_set(
+                    output,
+                    binding
+                        .admitted_stack_contribution_report_identities()
+                        .iter()
+                        .copied(),
+                );
+                output.push_str("], \"admitted_stack_contribution_commitments\": [");
+                for (index, commitment) in binding
+                    .admitted_stack_contribution_commitments()
+                    .iter()
+                    .enumerate()
+                {
+                    if index != 0 {
+                        output.push_str(", ");
+                    }
+                    push_hex_digest(output, commitment);
+                }
                 output.push(']');
             }
             omega_external_roots::StackLocalEvidence::AdmittedProvider {
