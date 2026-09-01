@@ -11,7 +11,7 @@
 //   - counter == 23 (value after second fetch_add(8))            exit 74 on miss
 //   - exit 70 = all four assertions pass
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

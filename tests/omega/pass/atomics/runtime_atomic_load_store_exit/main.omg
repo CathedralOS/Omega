@@ -8,7 +8,7 @@
 // Guard ladder: each load result matches its stored value (exit 70), or exits
 // 71/72/73 on mismatch.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

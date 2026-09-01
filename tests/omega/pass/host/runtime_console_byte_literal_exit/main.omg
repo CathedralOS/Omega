@@ -5,7 +5,7 @@
 // matched only Expression-wrapped Integer nodes -- so every literal write
 // refused natively while place-backed writes (the echo canary) served.
 // The program writes "7\n" byte-by-byte from literals and exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

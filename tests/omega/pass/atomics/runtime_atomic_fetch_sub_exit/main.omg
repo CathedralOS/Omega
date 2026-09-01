@@ -3,7 +3,7 @@
 // at that width and uses one LOCK XADD / LDADDAL; it never races a separate
 // ordinary read against the RMW.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

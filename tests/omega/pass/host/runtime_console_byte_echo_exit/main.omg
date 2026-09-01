@@ -8,7 +8,7 @@
 // The program echoes stdin while summing byte values, then exits 70 + sum:
 //   empty stdin -> 70 (the Eof-first path; what the suite + differential run)
 //   "AB"        -> 70 + 65 + 66 = 201, stdout "AB" (the suite pipes this)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

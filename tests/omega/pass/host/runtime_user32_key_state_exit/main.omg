@@ -5,7 +5,7 @@
 // place. The value is inherently unpredictable (whether a key is down), so the canary asserts only
 // that the import resolves and the call completes; the interpreter's virtual host reports no key
 // down. Exit 70. Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 data Main { console: Console; input: Input; k: u64; }
 machine Main::main(&mut self) {

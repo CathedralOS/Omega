@@ -2,7 +2,7 @@
 // atomically XORs the cell. X86_64 uses a locked CMPXCHG retry loop because it
 // has no direct fetch-XOR instruction; AArch64 uses ordering-selected LDEOR.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

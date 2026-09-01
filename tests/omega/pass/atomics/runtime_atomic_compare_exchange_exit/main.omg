@@ -31,7 +31,7 @@
 //   - counter == 99  (cell unchanged after failed swap)         exit 74 on miss
 //   -- exit 70 = all four assertions pass --
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

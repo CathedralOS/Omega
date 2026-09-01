@@ -3,7 +3,7 @@
 // intentional: swap has no synthetic arithmetic and therefore needs no
 // arithmetic-domain workaround.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
