@@ -464,6 +464,20 @@ fn terminal_native_realization_excludes_speculative_runtime_owners() {
 }
 
 #[test]
+fn offline_policy_corpus_excludes_compiler_activation_and_process_owners() {
+    assert_normal_closure_excludes(
+        "omega-optimization-policy-offline",
+        &[
+            "omega-bounded-process",
+            "omega-build-evaluation",
+            "omega-compiler",
+            "omega-optimization-pipeline",
+            "omega-psi-optimizer",
+        ],
+    );
+}
+
+#[test]
 fn format_specific_fnv_fingerprints_are_explicitly_non_authoritative() {
     let source_directory =
         workspace_root().join("source/omega-rust/omega/backend/images/omega-image-elf/src");

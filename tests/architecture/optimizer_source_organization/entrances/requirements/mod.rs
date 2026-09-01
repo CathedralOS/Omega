@@ -38,6 +38,10 @@ pub(super) const EXECUTABLE_ENTRANCE_DOMAINS: &[ExecutableEntranceDomain] = &[
         name: "physical pipeline, artifacts, and native realization",
         entrances: executable::pipeline_native::ENTRANCES,
     },
+    ExecutableEntranceDomain {
+        name: "offline optimizer tooling",
+        entrances: executable::tooling::ENTRANCES,
+    },
 ];
 
 pub(super) const SEMANTIC_LADDER_DOMAINS: &[SemanticLadderDomain] = &[
@@ -64,6 +68,10 @@ pub(super) const SEMANTIC_LADDER_DOMAINS: &[SemanticLadderDomain] = &[
     SemanticLadderDomain {
         name: "physical pipeline, artifacts, and native realization",
         ladders: ladders::pipeline_native::LADDERS,
+    },
+    SemanticLadderDomain {
+        name: "offline optimizer tooling",
+        ladders: ladders::tooling::LADDERS,
     },
 ];
 
