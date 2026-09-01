@@ -168,6 +168,14 @@ host-width conversion, and requires `ReturnBooleanImmediate`. Equal endpoints
 and both minimum/maximum directions for fixed 8/16/32/64 and address64 cross
 direct and public optimized custody on all five native targets. Its catalog row
 is disjoint from constant equality and parameter ordering.
+Constant integer less-or-equal is the inclusive ordered-comparison sibling. It
+validates two same-type native integer constants, `IntegerLessOrEqual`, and
+`Return`, compares their exact signed or unsigned mathematical values without
+host-width conversion, and requires `ReturnBooleanImmediate`. Equal minimum
+and maximum endpoints plus both ordered endpoint directions cross direct and
+public optimized custody for fixed 8/16/32/64 and address64 on all five native
+targets. Its catalog row and replay remain disjoint from strict ordering,
+constant equality, and parameter inclusive ordering.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -597,7 +605,7 @@ role and flexible post-pressure use suffix are independently proven, then rank
 eligible originals before reloads. Exact guarded usage is
 `{4, 2, 43, 1, 1}`. The fixture's `v5` is used at the pressure point, so it
 remains visible as a typed contender but is excluded from guarded ranking;
-forging it as selected fails closed. The adjacent 26-line
+forging it as selected fails closed. The adjacent 43-line
 `generalized_spill_recovery_actions` entrance now converts the selected reload
 victim into target-neutral epoch-two obligations. Direct traversal and an
 independently keyed replay agree on the victim action, current/reclaimed view,
@@ -607,7 +615,16 @@ dual-target fixture stores action `{0,0}` before `{1,0}` at point 14 and
 reloads it as `{2,0}` before the point-16 rewrite under exact usage
 `{1, 1, 7, 1, 1}`. It creates no selected register or instruction and grants no
 physical slot, address, memory, frame, trap, encoding, emission, or publication
-authority. Original-value victims remain a later engineering boundary. The
+authority. The same entrance now exposes a separate V2 original-victim entry.
+V1 keeps its original signature and exact identity bytes; V2 alone binds the
+selected-plan and live-range roots and retains a closed original-versus-reload
+victim type. Direct traversal and independently indexed replay reconstruct the
+original U64 definition, one-block lifetime, pressure-point absence, and every
+later flexible use before emitting the store/reload/rewrite obligations. The
+public dual-target graph stores `v5` before point 14 and reloads it before the
+point-16 use under usage `{1, 1, 38, 1, 1}`. Recursive insertion rejects that
+victim kind explicitly, so no recursive schedule or physical authority is
+implied. The
 adjacent 26-line `recursive_spill_insertion` entrance now consumes those
 validated obligations and the prior generalized schedule. Direct projection
 and independently keyed replay recolor the complete closed-lifetime set and
@@ -643,8 +660,10 @@ exactly 10 virtual registers and 13 instructions. In the public x86-64/AArch64
 fixture, guarded choice compares `Original(v5)` at `[13,17)` with the epoch-zero
 reload at `[12,19)`, prefers the eligible original under exact usage
 `{4, 2, 46, 1, 1}`, and rejects forged choices and cross-target custody. The
-following logical-action stage still returns its typed unsupported-original
-error; original-victim spill-action authority remains unimplemented.
+following V2 logical-action entry now retains the exact original store, reload,
+and rewrite obligations. The adjacent recursive insertion stage still returns
+its typed unsupported-original-victim error, keeping broader scheduling and
+every physical claim closed.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

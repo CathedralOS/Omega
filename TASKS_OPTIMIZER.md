@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Fifty-five abstract-to-target families are covered,
+  machine-rule family. Fifty-six abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -565,6 +565,16 @@ decision. Only true language-semantic questions belong in
   both ordered endpoint directions on all five native targets at both direct
   and optimized custody (180 cases at each boundary). Equality-family,
   parameter-family, source, and target substitution fail closed.
+  The adjacent constant integer-less-or-equal-to-Boolean-immediate family
+  admits only
+  `[IntegerConstant, IntegerConstant, IntegerLessOrEqual, Return]`. It compares
+  the same exact mathematical domains without a host-width conversion and
+  independently retains both constants, all three definitions, the inclusive
+  comparison, provenance, and materialized Boolean result. Equal minimum and
+  maximum endpoints plus both ordered endpoint directions cover signed and
+  unsigned fixed 8/16/32/64 and unsigned address64 on all five native targets
+  at direct and optimized custody (180 cases at each boundary). Strict-order,
+  equality, parameter-family, source, and target substitution fail closed.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -823,15 +833,25 @@ decision. Only true language-semantic questions belong in
   dominance without calling CFG, dominator, SCC, or loop producers. Seventeen
   corruption axes and stale-unit custody fail closed. The consumer remains
   outside the generic bare-unit analysis manager and grants no rewrite or
-  execution authority.
+  execution authority. A second authority-sensitive consumer now derives the
+  two exact input-free integer constants owned by that authenticated countdown
+  relation. Direct construction keys on the certificate operation identities;
+  independent replay instead keys component and counted-loop maps, locates
+  nodes by canonical provenance, and reconstructs each constant, definition,
+  provenance, fuel, and effect row. The snapshot binds revision, Terminal,
+  component/region/preheader custody, and the exact guard-zero and decrement-one
+  rows. Twenty-four corruption axes, an empty acyclic session, and the existing
+  ranked-cycle frozen-block rejection prove that this is loop-invariant
+  analysis authority only, not a hoist or cyclic rewrite.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
   failures.
 - [>] Retarget LICM and other loop consumers to validated Terminal SCCs. The
-  exact countdown-induction analysis is the first non-transforming consumer of
-  an authenticated ordinary `LoopForest` region; general consumers and
-  rewrite-bearing passes remain open.
+  exact countdown-induction and countdown-invariant-constant analyses are the
+  first non-transforming consumers of authenticated component, ranking, and
+  ordinary `LoopForest` custody; general consumers and rewrite-bearing passes
+  remain open.
 - [ ] Implement LICM only after transforms can invalidate and reconstruct
   component, loop-carried custody, and ranking evidence.
 
@@ -949,6 +969,12 @@ decision. Only true language-semantic questions belong in
     covers four ordered boundary cases on all five targets, retains both
     constants and the ordering operation in provenance, and independently
     proves the materialized Boolean result.
+  - [x] Add constant integer-less-or-equal-to-Boolean-immediate as its own
+    exact abstract-to-target family. Its inclusive four-operation grammar
+    covers the same exact signed/unsigned fixed and address64 domains, ordered
+    endpoint matrix, five targets, provenance, and independent Boolean
+    materialization replay while remaining disjoint from strict ordering,
+    equality, and parameter comparison.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
@@ -1105,10 +1131,21 @@ decision. Only true language-semantic questions belong in
   reloads as `{2,0}` before point 16, and rewrites that use under exact usage
   `{1, 1, 7, 1, 1}`. Direct traversal and separately keyed replay bind every
   root and logical field; mutation, representable-budget, and cross-target
-  custody fail closed. The 26-line entrance grants no selected VReg,
+  custody fail closed. The 43-line dual-entry entrance grants no selected VReg,
   instruction, physical slot, address, memory effect, frame, trap, or
-  publication authority. V1 deliberately refuses an original-value victim;
-  the corresponding typed action generalization remains engineering work. The
+  publication authority. A distinct V2 policy now consumes the guarded-original
+  choice through a separate entry while leaving the V1 signature and identity
+  bytes unchanged. It binds the selected-plan and live-range identities,
+  independently reconstructs the original's U64 selected role, definition,
+  single-block lifetime, absence at the pressure point, and complete flexible
+  post-pressure use suffix, then emits the same typed target-neutral
+  store/reload/rewrite obligations with `Original(VReg)` kept distinct from a
+  compiler-private reload action. The public dual-target fixture stores `v5`
+  before point 14, reloads it before the point-16 use, and rewrites that exact
+  operand under usage `{1, 1, 38, 1, 1}`. Root, policy, action, usage, budget,
+  and cross-target corruption fail closed. Recursive insertion rejects this
+  new victim kind explicitly, so the slice grants no recursive schedule or
+  later physical authority. The
   exact public prerequisite graph `r + ((r + (a + b)) + (b + r))` now reaches
   allocation honestly. Canonical Psi proof production has one
   bounded prerequisite slice: a 94-line direct-add entrance preserves the
@@ -1133,10 +1170,12 @@ decision. Only true language-semantic questions belong in
   guarded-original policy sees exactly `Original(v5)` at `[13,17)` and the
   epoch-zero reload at `[12,19)`, then chooses `v5` under exact usage
   `{4, 2, 46, 1, 1}`. Determinism, representable budget axes, forged choices,
-  root mutation, and cross-target custody fail closed. The downstream logical
-  action planner still returns its typed unsupported-original-victim error, so
-  this is original-victim choice evidence rather than a spill-action,
-  memory/frame, fault, unwind, or publication claim. A
+  root mutation, and cross-target custody fail closed. The downstream V2
+  logical-action policy now turns that exact choice into the independently
+  replayed original-victim obligations described above, while recursive
+  insertion retains a typed unsupported-original-victim fence. This remains
+  target-neutral logical spill authority rather than memory/frame, fault,
+  unwind, or publication authority. A
   fourteenth independently replayed V1 artifact now integrates the validated epoch-two
   reload-victim obligations into one complete recursive logical insertion
   schedule. Its distinct stored-value type prevents a compiler-private reload
