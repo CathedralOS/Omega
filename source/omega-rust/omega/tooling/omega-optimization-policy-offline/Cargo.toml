@@ -8,6 +8,10 @@ version.workspace = true
 name = "omega_optimization_policy_offline"
 path = "src/lib.rs"
 
+[[bin]]
+name = "omega-optimization-policy-offline"
+path = "src/bin/omega-optimization-policy-offline/main.rs"
+
 [dependencies]
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-optimization-policy = { path = "../../pipeline/optimization/omega-optimization-policy" }
