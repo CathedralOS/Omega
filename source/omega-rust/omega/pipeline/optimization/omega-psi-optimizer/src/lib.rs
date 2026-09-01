@@ -14,18 +14,25 @@ mod rules;
 
 pub use analyses::{
     AnalysisManager, AnalysisManagerError, AnalysisProduct, AnalysisRevisionCommit,
-    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis, CountedLoopAnalysisError,
+    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis,
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant, CountedLoopAnalysisError,
     CountedLoopAnalysisSnapshot, DominatorAnalysis, EffectClass, EffectKnowledge,
     EffectSummaryAnalysis, ExactUnsignedTripCount, ExecutableEdgeAnalysis, ExecutableEdgeFact,
     ExecutableEdgeKnowledge, ExitKind, FunctionControlFlow, FunctionEffectSummary, LoopAnalysis,
     LoopRegion, NodeEffectSummary, NodeLiveness, OwnershipFrontierAnalysis,
     OwnershipFrontierAnalysisFact, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
-    ScalarConstantSupport, StronglyConnectedComponentAnalysis, UnsignedCountdownLoopSummary,
-    UseDefinitionAnalysis, ValidatedCountedLoopAnalysis, ValueFactRegion, ValueLivenessAnalysis,
-    ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact, ValueRangeRegion, ValueRangeScope,
-    ValueRangeSupport, analysis_dependencies, compute_analysis, value_range_fact_identity,
+    ScalarConstantSupport, StronglyConnectedComponentAnalysis, UnsignedCountdownInvariantConstants,
+    UnsignedCountdownLoopSummary, UseDefinitionAnalysis,
+    ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis, ValueFactRegion,
+    ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    ValueRangeRegion, ValueRangeScope, ValueRangeSupport, analysis_dependencies, compute_analysis,
+    value_range_fact_identity,
 };
-pub(crate) use analyses::{analyze_counted_loops, validate_counted_loop_analysis};
+pub(crate) use analyses::{
+    analyze_countdown_invariant_constants, analyze_counted_loops,
+    validate_countdown_invariant_constant_analysis, validate_counted_loop_analysis,
+};
 pub use pass_manager::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,

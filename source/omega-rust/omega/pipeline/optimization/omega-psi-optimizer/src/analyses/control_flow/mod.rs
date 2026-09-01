@@ -5,6 +5,7 @@ use psi_core::{BlockId, MachineId};
 mod call_graph;
 mod components;
 mod countdown_induction;
+mod countdown_invariant_constants;
 mod dominance;
 mod graph;
 mod loops;
@@ -16,6 +17,14 @@ pub use countdown_induction::{
     UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
 };
 pub(crate) use countdown_induction::{analyze_counted_loops, validate_counted_loop_analysis};
+pub use countdown_invariant_constants::{
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
+    UnsignedCountdownInvariantConstants, ValidatedCountdownInvariantConstantAnalysis,
+};
+pub(crate) use countdown_invariant_constants::{
+    analyze_countdown_invariant_constants, validate_countdown_invariant_constant_analysis,
+};
 pub(super) use dominance::dominators;
 pub(super) use graph::control_flow;
 pub(super) use loops::loops;

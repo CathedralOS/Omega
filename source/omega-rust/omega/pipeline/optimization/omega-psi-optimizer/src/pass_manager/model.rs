@@ -19,9 +19,12 @@ use omega_optimization_validation::{
 use omega_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit};
 
 use crate::{
-    AnalysisManagerError, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, RuleProposalError,
-    RuleRegistryError, ValidatedCountedLoopAnalysis, analyze_counted_loops,
-    validate_counted_loop_analysis,
+    AnalysisManagerError, CountdownInvariantConstantAnalysisError,
+    CountdownInvariantConstantAnalysisSnapshot, CountedLoopAnalysisError,
+    CountedLoopAnalysisSnapshot, RuleProposalError, RuleRegistryError,
+    ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
+    analyze_countdown_invariant_constants, analyze_counted_loops,
+    validate_countdown_invariant_constant_analysis, validate_counted_loop_analysis,
 };
 
 #[derive(Debug)]
@@ -76,6 +79,34 @@ impl VerifiedPsiOptimizationSession {
         candidate: &CountedLoopAnalysisSnapshot,
     ) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
         validate_counted_loop_analysis(&self.unit, &self.cycle_components, candidate)
+    }
+
+    /// Exact input-free integer constants owned by the authenticated countdown
+    /// relation. This grants analysis custody only and cannot move a node.
+    pub fn countdown_invariant_constant_analysis(
+        &self,
+    ) -> Result<ValidatedCountdownInvariantConstantAnalysis, CountdownInvariantConstantAnalysisError>
+    {
+        let counted = self
+            .counted_loop_analysis()
+            .map_err(CountdownInvariantConstantAnalysisError::CountedLoop)?;
+        analyze_countdown_invariant_constants(&self.unit, &self.cycle_components, &counted)
+    }
+
+    pub fn validate_countdown_invariant_constant_analysis(
+        &self,
+        candidate: &CountdownInvariantConstantAnalysisSnapshot,
+    ) -> Result<ValidatedCountdownInvariantConstantAnalysis, CountdownInvariantConstantAnalysisError>
+    {
+        let counted = self
+            .counted_loop_analysis()
+            .map_err(CountdownInvariantConstantAnalysisError::CountedLoop)?;
+        validate_countdown_invariant_constant_analysis(
+            &self.unit,
+            &self.cycle_components,
+            &counted,
+            candidate,
+        )
     }
 
     pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {

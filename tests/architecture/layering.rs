@@ -4892,3 +4892,49 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
         );
     }
 }
+
+#[test]
+fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
+    let root = workspace_root();
+    let analysis_root = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_invariant_constants",
+    );
+    let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
+        .expect("read countdown invariant-constant replay leaf");
+    for forbidden in [
+        "compute::",
+        "compute_loop_forest",
+        "strongly_connected_components",
+        "fixed_point_dominators",
+        "control_flow(",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "countdown invariant replay must not call producer `{forbidden}`",
+        );
+    }
+    for required in [
+        "summary.certificate == *certificate",
+        "node.provenance",
+        "PsiProvenance::Operation(operation)",
+        "O::IntegerConstant",
+        "definition.site",
+        "node.uses.is_empty()",
+        "node.successors.is_empty()",
+        "node.ownership.is_empty()",
+    ] {
+        assert!(
+            replay.contains(required),
+            "countdown invariant replay must independently retain `{required}`",
+        );
+    }
+
+    let entrance = std::fs::read_to_string(analysis_root.join("mod.rs"))
+        .expect("read countdown invariant-constant entrance");
+    for forbidden in ["PsiRewrite", "ValidatedPsiRewrite", "into_unit"] {
+        assert!(
+            !entrance.contains(forbidden),
+            "countdown invariant entrance must remain analysis-only; found `{forbidden}`",
+        );
+    }
+}
