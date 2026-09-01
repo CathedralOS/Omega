@@ -951,7 +951,7 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
 
 fn foreign_call_custody_digest(calls: &[omega_image_emission::ObjectForeignCall]) -> [u8; 32] {
     let mut digest = Sha256::new();
-    digest.update(b"omega.native-artifact.foreign-call-custody.v2\0");
+    digest.update(b"omega.native-artifact.foreign-call-custody.v3\0");
     digest.update(canonical_usize(calls.len()));
     for call in calls {
         digest.update(call.machine.get().to_le_bytes());
@@ -973,6 +973,32 @@ fn foreign_call_custody_digest(calls: &[omega_image_emission::ObjectForeignCall]
         digest.update(canonical_usize(call.text_offset));
         digest.update(call.caller_live_bytes.to_le_bytes());
         match call.x86_floating_control {
+            None => digest.update([0]),
+            Some(control) => {
+                digest.update([1]);
+                digest.update([match control.target.architecture {
+                    omega_target::Architecture::Aarch64 => 1,
+                    omega_target::Architecture::X86_64 => 2,
+                }]);
+                digest.update([match control.target.object_format {
+                    omega_target::ObjectFormat::Elf => 1,
+                    omega_target::ObjectFormat::MachO => 2,
+                    omega_target::ObjectFormat::Coff => 3,
+                }]);
+                digest.update(canonical_usize(control.target.pointer_size));
+                digest.update(canonical_usize(control.target.pointer_alignment));
+                digest.update(control.saved_slot_byte_offset.to_le_bytes());
+                for value in [
+                    control.save_offset,
+                    control.save_byte_count,
+                    control.restore_offset,
+                    control.restore_byte_count,
+                ] {
+                    digest.update(canonical_usize(value));
+                }
+            }
+        }
+        match call.aarch64_floating_control {
             None => digest.update([0]),
             Some(control) => {
                 digest.update([1]);

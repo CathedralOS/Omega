@@ -3,11 +3,15 @@
 //! Only normalized target and terminal-installation facts enter this crate;
 //! source-shaped representations and legacy operation graphs are absent.
 
+mod floating_control;
 mod machine_effects;
 mod post_handoff_writer;
 mod ranked_u32_countdown;
 mod register_model;
 mod selected_form_encoding;
+pub use floating_control::{
+    encode_restore_fpcr_from_sp_displacement, encode_save_fpcr_to_sp_displacement,
+};
 pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
     validate_aarch64_machine_effect_catalog,

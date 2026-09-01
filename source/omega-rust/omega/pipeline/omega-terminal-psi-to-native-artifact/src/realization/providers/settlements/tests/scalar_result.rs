@@ -243,6 +243,8 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     );
     match target.architecture {
         omega_target::Architecture::X86_64 => {
+            assert_eq!(producer.aarch64_floating_control, None);
+            assert_eq!(consumer.aarch64_floating_control, None);
             let producer_control = producer
                 .x86_floating_control
                 .expect("x86 producer preserves MXCSR");
@@ -265,6 +267,24 @@ fn assert_exact_fixed_integer_foreign_result_flow(
         omega_target::Architecture::Aarch64 => {
             assert_eq!(producer.x86_floating_control, None);
             assert_eq!(consumer.x86_floating_control, None);
+            let producer_control = producer
+                .aarch64_floating_control
+                .expect("AArch64 producer preserves FPCR");
+            let consumer_control = consumer
+                .aarch64_floating_control
+                .expect("AArch64 consumer preserves FPCR");
+            assert_eq!(
+                producer_control.saved_slot_byte_offset,
+                consumer_control.saved_slot_byte_offset
+            );
+            assert_eq!(
+                result.code_offset,
+                producer_control.restore_offset + producer_control.restore_byte_count
+            );
+            assert!(
+                producer_control.restore_offset + producer_control.restore_byte_count
+                    <= consumer_control.save_offset
+            );
         }
     }
 
@@ -347,6 +367,10 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     assert_eq!(
         object.foreign_calls()[0].x86_floating_control.is_some(),
         target.architecture == omega_target::Architecture::X86_64
+    );
+    assert_eq!(
+        object.foreign_calls()[0].aarch64_floating_control.is_some(),
+        target.architecture == omega_target::Architecture::Aarch64
     );
     let interpreter = omega_target::normalize_elf_interpreter_plan(
         match profile {

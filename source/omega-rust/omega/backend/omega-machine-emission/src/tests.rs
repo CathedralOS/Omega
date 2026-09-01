@@ -303,6 +303,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
         assert_eq!(call.same_stack_contribution, admitted_foreign_stack());
         match target.architecture {
             omega_target::Architecture::X86_64 => {
+                assert_eq!(call.aarch64_floating_control, None);
                 assert_eq!(function.bytes[call.offset - 1], 0xe8);
                 assert_eq!(&function.bytes[call.offset..call.offset + 4], &[0; 4]);
                 let outbound = call.unit_stack.outbound.unwrap();
@@ -342,6 +343,23 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
                 );
                 assert_eq!(call.unit_stack.outbound, None);
                 assert_eq!(call.x86_floating_control, None);
+                let control = call
+                    .aarch64_floating_control
+                    .expect("returning AArch64 foreign call preserves FPCR");
+                assert_eq!(control.target, target);
+                assert_eq!(control.saved_slot_byte_offset, 0);
+                assert_eq!(control.save_offset + control.save_byte_count, call.offset);
+                assert_eq!(call.offset + 4, control.restore_offset);
+                assert_eq!(
+                    &function.bytes
+                        [control.save_offset..control.save_offset + control.save_byte_count],
+                    &omega_isa_aarch64::encode_save_fpcr_to_sp_displacement(0).unwrap()
+                );
+                assert_eq!(
+                    &function.bytes[control.restore_offset
+                        ..control.restore_offset + control.restore_byte_count],
+                    &omega_isa_aarch64::encode_restore_fpcr_from_sp_displacement(0).unwrap()
+                );
             }
         }
 

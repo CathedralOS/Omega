@@ -11334,8 +11334,10 @@ Remaining F7 work:
   independent F32/F64 FMA over three landed literals; earlier-local operands,
   result chaining/use, scalar parameters, and unrelated operations require
   corresponding value-home and liveness custody rather than alias folding;
-- extend ordinary FMA realization beyond the bounded no-call attached-Unit
-  lane, including explicit preservation rules around calls and foreign code;
+- extend the checked source producer beyond the bounded attached-Unit shape so
+  source FMA can coexist with ordinary operations and calls; the x86 backend
+  now has explicit internal-call and returning-foreign control-state rules,
+  while callback-entry custody remains open;
 - add a checked binary32/binary64 software realization or corresponding
   non-x86 target realizations, and collect native differential-execution
   receipts rather than treating the fixed admission vectors as execution
@@ -11381,12 +11383,23 @@ the exact raw operand bits, installs canonical MXCSR `0x1f80`, emits the
 admitted scalar FMA instruction, and restores the caller's complete MXCSR
 value. Object and final-artifact validation independently rejoin the Terminal
 value graph, literal bits, selected-plan digest, admission, instruction bytes,
-and floating-control bytes. The bounded lane rejects unrelated Unit work
-instead of silently claiming call/foreign floating-control preservation.
-Wider source shapes, non-x86/software realization, and native differential-
-execution receipts remain engineering work. Generic Linux/Windows x86-64
-semantics remain SSE2 baseline unless that explicit deployment input is
-selected.
+and floating-control bytes. The x86 function-level envelope remains canonical
+across internal calls. Every ordinary returning x86 foreign call now has a
+nested complete-MXCSR save/restore envelope around its unchanged ABI sequence;
+machine, object, and native-artifact custody retain and replay the exact slot,
+instruction intervals, and bytes. Sequential calls reuse one frame slot with
+distinct ordered intervals, scalar result normalization begins only after the
+restore, direct syscalls receive no envelope, and canonical encoders select
+signed disp8 or disp32 without the former 128..255 alias. The old blanket
+mixed-FMA backend rejection is gone because every returning foreign leaf now
+restores its caller's state. The corresponding AArch64 lane saves complete
+FPCR through a target-owned `MRS`/`STR` sequence and restores it with
+`LDR`/`MSR`; it retains the exact reusable eight-byte slot and per-call
+intervals through the same machine/object/native replay. The checked source
+producer remains deliberately bounded, and callback entry, wider source
+shapes, non-x86/software realization, and native differential-execution
+receipts remain engineering work. Generic Linux/Windows x86-64 semantics
+remain SSE2 baseline unless that explicit deployment input is selected.
 
 The next target-neutral compiler rung is now live. `ScalarType` carries exact
 binary32/binary64 formats, Terminal Psi has raw-interchange-bit constants and a
